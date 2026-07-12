@@ -85,6 +85,82 @@
           />
           <span class="form-hint">{{ 'supervisor.customerCreate.emailsHint' | transloco }}</span>
         </div>
+
+        <!-- Pola dodatkowe -->
+        <section class="form-section" aria-labelledby="section-custom-fields">
+          <h3 id="section-custom-fields" class="form-section__title">
+            {{ 'supervisor.customerCreate.customFieldsLabel' | transloco }}
+          </h3>
+
+          <div formArrayName="customFields" class="array-fields">
+            @for (group of customFieldsArray.controls; track $index) {
+              <div class="custom-field" [formGroupName]="$index">
+                <input
+                  class="form-input custom-field__key"
+                  type="text"
+                  formControlName="key"
+                  [placeholder]="'supervisor.customerCreate.customFieldsKeyPlaceholder' | transloco"
+                  maxlength="100"
+                />
+                <input
+                  class="form-input custom-field__value"
+                  type="text"
+                  formControlName="value"
+                  [placeholder]="'supervisor.customerCreate.customFieldsValuePlaceholder' | transloco"
+                  maxlength="500"
+                />
+                <button
+                  class="btn-remove"
+                  type="button"
+                  (click)="removeCustomField($index)"
+                  [attr.aria-label]="'Usuń pole dodatkowe ' + ($index + 1)"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                    <path
+                      d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            }
+            @if (customFieldsArray.length === 0) {
+              <p class="array-empty">{{ 'supervisor.customerCreate.noCustomFields' | transloco }}</p>
+            }
+          </div>
+
+          <button class="btn-add" type="button" (click)="addCustomField()">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+            {{ 'supervisor.customerCreate.addCustomField' | transloco }}
+          </button>
+        </section>
+
+        <!-- Zgody RODO -->
+        <section class="form-section" aria-labelledby="section-gdpr" formGroupName="gdprConsent">
+          <h3 id="section-gdpr" class="form-section__title">
+            {{ 'supervisor.customerCreate.gdprTitle' | transloco }}
+          </h3>
+
+          <div class="form-field form-field--checkbox">
+            <label class="form-checkbox">
+              <input class="form-checkbox__input" type="checkbox" formControlName="consent_given" id="consent_given" />
+              <span class="form-checkbox__label">{{ 'supervisor.customerCreate.consentProcessing' | transloco }}</span>
+            </label>
+          </div>
+
+          <div class="form-field form-field--checkbox">
+            <label class="form-checkbox">
+              <input
+                class="form-checkbox__input"
+                type="checkbox"
+                formControlName="marketing_consent"
+                id="marketing_consent"
+              />
+              <span class="form-checkbox__label">{{ 'supervisor.customerCreate.consentMarketing' | transloco }}</span>
+            </label>
+          </div>
+        </section>
       </div>
 
       <div class="create-dialog__footer">

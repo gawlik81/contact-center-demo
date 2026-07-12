@@ -60,6 +60,8 @@ export class CustomerService {
     externalId?: string;
     phone: string[];
     email: string[];
+    customFields?: Record<string, unknown>;
+    gdprConsent?: Record<string, unknown>;
   }): Observable<CustomerResponse> {
     return this.http.post<CustomerResponse>(this.baseUrl, payload);
   }

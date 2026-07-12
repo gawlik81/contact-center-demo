@@ -10,6 +10,7 @@ public enum PredefinedTemplateVariable {
     CUSTOMER_FULL_NAME ("customerFullName",  "customer", "Imię i nazwisko klienta",    "Jan Kowalski"),
     CUSTOMER_EMAIL     ("customerEmail",     "customer", "Adres email klienta",        "jan.kowalski@example.com"),
     CUSTOMER_PHONE     ("customerPhone",     "customer", "Numer telefonu klienta",     "+48 123 456 789"),
+    CUSTOMER_EXTERNAL_ID("customerExternalId", "customer", "Identyfikator zewnętrzny klienta (CRM)", "CRM-12345"),
     AGENT_FIRST_NAME   ("agentFirstName",    "agent",    "Imię agenta",                "Anna"),
     AGENT_LAST_NAME    ("agentLastName",     "agent",    "Nazwisko agenta",            "Nowak"),
     AGENT_FULL_NAME    ("agentFullName",     "agent",    "Imię i nazwisko agenta",     "Anna Nowak"),

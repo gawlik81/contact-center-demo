@@ -18,11 +18,22 @@ import { DeduplicationMode, ImportJobStatus } from '../customer-import.model';
 
 export type ImportStep = 'upload' | 'mapping' | 'progress' | 'report';
 
-export type SystemField = 'phone' | 'first_name' | 'last_name' | 'email' | 'custom_fields' | 'skip';
+export type SystemField =
+  | 'phone'
+  | 'first_name'
+  | 'last_name'
+  | 'external_id'
+  | 'email'
+  | 'custom_fields'
+  | 'consent_given'
+  | 'marketing_consent'
+  | 'skip';
 
 export interface ColumnMapping {
   csvHeader: string;
   systemField: SystemField;
+  /** Target key name in custom_fields; only relevant when systemField === 'custom_fields'. */
+  customFieldKey?: string;
 }
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -45,17 +56,22 @@ export class CustomerImportComponent {
 
   // ── Step state ────────────────────────────────────────────────────────────
   readonly currentStep = signal<ImportStep>('upload');
-  readonly allSteps: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
+  readonly allSteps = computed<ImportStep[]>(() =>
+    this.importFormat() === 'json'
+      ? ['upload', 'progress', 'report']
+      : ['upload', 'mapping', 'progress', 'report'],
+  );
 
   // ── Step 1: Upload ────────────────────────────────────────────────────────
   readonly selectedFile = signal<File | null>(null);
+  readonly importFormat = signal<'csv' | 'json'>('csv');
   readonly deduplicationMode = signal<DeduplicationMode>('SKIP');
   readonly columnSeparator = signal<string>(',');
   readonly quoteChar = signal<string>('"');
   readonly fileError = signal<string | null>(null);
   readonly isDragging = signal(false);
-  readonly csvPreviewRows = signal<string[][]>([]);
-  readonly csvHeaders = signal<string[]>([]);
+  readonly previewRows = signal<string[][]>([]);
+  readonly previewHeaders = signal<string[]>([]);
 
   readonly columnSeparatorOptions: { value: string; label: string }[] = [
     { value: ',', label: ', (przecinek)' },
@@ -78,8 +94,11 @@ export class CustomerImportComponent {
     { value: 'phone', label: 'Telefon (wymagany)' },
     { value: 'first_name', label: 'Imie' },
     { value: 'last_name', label: 'Nazwisko' },
+    { value: 'external_id', label: 'ID zewnetrzne' },
     { value: 'email', label: 'Email' },
     { value: 'custom_fields', label: 'Pole dodatkowe' },
+    { value: 'consent_given', label: 'Zgoda na przetwarzanie danych' },
+    { value: 'marketing_consent', label: 'Zgoda marketingowa' },
     { value: 'skip', label: '(Pomin)' },
   ];
 
@@ -111,10 +130,15 @@ export class CustomerImportComponent {
   // ── Constructor ──────────────────────────────────────────────────────────
   constructor() {
     effect(() => {
-      this.columnSeparator();
-      this.quoteChar();
+      const format = this.importFormat();
       const file = this.selectedFile();
-      if (file) {
+      if (!file) return;
+
+      if (format === 'json') {
+        this.parseJsonPreview(file);
+      } else {
+        this.columnSeparator();
+        this.quoteChar();
         this.parseCsvPreview(file);
       }
     });
@@ -148,8 +172,12 @@ export class CustomerImportComponent {
     this.fileError.set(null);
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      this.fileError.set('Dozwolone sa tylko pliki CSV (.csv).');
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith('.csv');
+    const isJson = lowerName.endsWith('.json');
+
+    if (!isCsv && !isJson) {
+      this.fileError.set('Dozwolone sa tylko pliki CSV (.csv) lub JSON (.json).');
       this.selectedFile.set(null);
       return;
     }
@@ -162,8 +190,13 @@ export class CustomerImportComponent {
       return;
     }
 
+    this.importFormat.set(isJson ? 'json' : 'csv');
     this.selectedFile.set(file);
-    this.parseCsvPreview(file);
+    if (isJson) {
+      this.parseJsonPreview(file);
+    } else {
+      this.parseCsvPreview(file);
+    }
   }
 
   private parseCsvPreview(file: File): void {
@@ -178,8 +211,8 @@ export class CustomerImportComponent {
         .filter((l) => l.length > 0);
 
       if (lines.length === 0) {
-        this.csvHeaders.set([]);
-        this.csvPreviewRows.set([]);
+        this.previewHeaders.set([]);
+        this.previewRows.set([]);
         return;
       }
 
@@ -198,11 +231,69 @@ export class CustomerImportComponent {
         dataRows = allRows.slice(0, PREVIEW_ROWS);
       }
 
-      this.csvHeaders.set(headers);
-      this.csvPreviewRows.set(dataRows);
+      this.previewHeaders.set(headers);
+      this.previewRows.set(dataRows);
       this.buildInitialMappings(headers);
     };
     reader.readAsText(file);
+  }
+
+  private parseJsonPreview(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? '';
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const isArrayOfObjects =
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item));
+
+      if (!isArrayOfObjects) {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const records = parsed as Record<string, unknown>[];
+      if (records.length === 0) {
+        this.setInvalidJsonState('supervisor.customerImport.emptyJsonArrayError');
+        return;
+      }
+
+      const sample = records.slice(0, PREVIEW_ROWS);
+      const headerSet = new Set<string>();
+      sample.forEach((record) => Object.keys(record).forEach((key) => headerSet.add(key)));
+      const headers = Array.from(headerSet);
+
+      const rows = sample.map((record) =>
+        headers.map((header) => this.stringifyPreviewCell(record[header])),
+      );
+
+      this.previewHeaders.set(headers);
+      this.previewRows.set(rows);
+    };
+    reader.readAsText(file);
+  }
+
+  private setInvalidJsonState(
+    translationKey = 'supervisor.customerImport.invalidJsonArrayError',
+  ): void {
+    this.fileError.set(this.transloco.translate(translationKey));
+    this.selectedFile.set(null);
+    this.previewHeaders.set([]);
+    this.previewRows.set([]);
+  }
+
+  private stringifyPreviewCell(value: unknown): string {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   private parseCSVLine(line: string, separator: string, quoteCharacter: string): string[] {
@@ -237,6 +328,10 @@ export class CustomerImportComponent {
       last_name: 'last_name',
       nazwisko: 'last_name',
       lastname: 'last_name',
+      external_id: 'external_id',
+      externalid: 'external_id',
+      crm_id: 'external_id',
+      id_zewnetrzne: 'external_id',
       email: 'email',
       'e-mail': 'email',
       mail: 'email',
@@ -264,6 +359,16 @@ export class CustomerImportComponent {
     this.currentStep.set('mapping');
   }
 
+  /** Primary action on the 'upload' step: CSV goes through mapping, JSON imports directly. */
+  goToImportOrMapping(): void {
+    if (!this.selectedFile()) return;
+    if (this.importFormat() === 'json') {
+      this.onImport();
+    } else {
+      this.goToMapping();
+    }
+  }
+
   // ── Step 2 handlers ──────────────────────────────────────────────────────
 
   updateMapping(index: number, value: SystemField): void {
@@ -275,13 +380,48 @@ export class CustomerImportComponent {
     this.mappingError.set(null);
   }
 
+  updateCustomFieldKey(index: number, key: string): void {
+    this.columnMappings.update((mappings) => {
+      const next = [...mappings];
+      next[index] = { ...next[index], customFieldKey: key };
+      return next;
+    });
+    this.mappingError.set(null);
+  }
+
   goBackToUpload(): void {
     this.currentStep.set('upload');
   }
 
   onImport(): void {
+    if (this.importFormat() === 'json') {
+      this.submitJsonImport();
+      return;
+    }
+
     if (!this.isPhoneMapped()) {
       this.mappingError.set('Pole "Telefon" musi byc zmapowane na jedna z kolumn CSV.');
+      return;
+    }
+
+    const hasUnnamedCustomField = this.columnMappings().some(
+      (m) => m.systemField === 'custom_fields' && !m.customFieldKey?.trim(),
+    );
+    if (hasUnnamedCustomField) {
+      this.mappingError.set('Kazde pole dodatkowe musi miec nazwe.');
+      return;
+    }
+
+    const customFieldKeys = this.columnMappings()
+      .filter((m) => m.systemField === 'custom_fields')
+      .map((m) => m.customFieldKey!.trim());
+    const duplicateCustomFieldKey = customFieldKeys.find(
+      (key, index) => customFieldKeys.indexOf(key) !== index,
+    );
+    if (duplicateCustomFieldKey) {
+      this.mappingError.set(
+        `Nazwa pola dodatkowego "${duplicateCustomFieldKey}" jest uzyta wiecej niz raz.`,
+      );
       return;
     }
 
@@ -292,13 +432,37 @@ export class CustomerImportComponent {
     this.submitting.set(true);
     this.currentStep.set('progress');
 
-    // Build mapping: systemField → column index
-    const mappingObj: Record<string, number> = {};
+    // Build mapping: systemField → column index (or indices for phone/email,
+    // which support mapping multiple CSV columns onto the same system field;
+    // named keys for custom_fields).
+    const mappingObj: Record<string, unknown> = {};
+    const phoneIndices: number[] = [];
+    const emailIndices: number[] = [];
+    const customFieldsObj: Record<string, number> = {};
+
     this.columnMappings().forEach((m, index) => {
-      if (m.systemField && m.systemField !== 'skip') {
-        mappingObj[m.systemField] = index;
+      switch (m.systemField) {
+        case 'phone':
+          phoneIndices.push(index);
+          break;
+        case 'email':
+          emailIndices.push(index);
+          break;
+        case 'custom_fields': {
+          const key = m.customFieldKey?.trim();
+          if (key) customFieldsObj[key] = index;
+          break;
+        }
+        case 'skip':
+          break;
+        default:
+          mappingObj[m.systemField] = index;
       }
     });
+
+    if (phoneIndices.length > 0) mappingObj['phone'] = phoneIndices;
+    if (emailIndices.length > 0) mappingObj['email'] = emailIndices;
+    if (Object.keys(customFieldsObj).length > 0) mappingObj['custom_fields'] = customFieldsObj;
 
     this.customerService
       .importCsv(
@@ -313,6 +477,32 @@ export class CustomerImportComponent {
           this.notifications.error(this.transloco.translate('supervisor.customerImport.errorMsg'));
           this.submitting.set(false);
           this.currentStep.set('mapping');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((response) => {
+        this.submitting.set(false);
+        if (response) {
+          this.startPolling(response.jobId);
+        }
+      });
+  }
+
+  private submitJsonImport(): void {
+    const file = this.selectedFile();
+    if (!file) return;
+
+    this.submitting.set(true);
+    this.currentStep.set('progress');
+
+    this.customerService
+      .importJson(file, this.deduplicationMode())
+      .pipe(
+        catchError(() => {
+          this.notifications.error(this.transloco.translate('supervisor.customerImport.errorMsg'));
+          this.submitting.set(false);
+          this.currentStep.set('upload');
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -381,11 +571,11 @@ export class CustomerImportComponent {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   getStepNumber(step: ImportStep): number {
-    return this.allSteps.indexOf(step) + 1;
+    return this.allSteps().indexOf(step) + 1;
   }
 
   isStepCompleted(step: ImportStep): boolean {
-    return this.allSteps.indexOf(step) < this.allSteps.indexOf(this.currentStep());
+    return this.allSteps().indexOf(step) < this.allSteps().indexOf(this.currentStep());
   }
 
   isStepActive(step: ImportStep): boolean {

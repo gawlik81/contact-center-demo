@@ -466,7 +466,9 @@
       "Bash(awk -F'Tests run: ' '{print $2}')",
       "Bash(awk -F', ' '{tr+=$1; gsub\\(\"Failures: \",\"\",$2\\); f+=$2; gsub\\(\"Errors: \",\"\",$3\\); e+=$3} END {print \"TOTAL run=\"tr\" failures=\"f\" errors=\"e}')",
       "Bash(unzip *)",
-      "Bash(pandoc --version)"
+      "Bash(pandoc --version)",
+      "Bash(rm -rf jar100 jar110)",
+      "Bash(mkdir -p jar100 jar110)"
     ]
   }
 }

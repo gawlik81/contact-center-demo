@@ -5,6 +5,7 @@ import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerLookupResponse;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import jakarta.persistence.EntityNotFoundException;
@@ -67,10 +68,25 @@ class CustomerServiceImpl implements CustomerService {
     @Audited(action = "CUSTOMER_CREATED", entityType = "CUSTOMER")
     @Override
     public CustomerResponse createCustomer(CreateCustomerRequest request, UUID tenantId) {
+        // Normalizacja: pusty/blank string traktujemy jako "brak externalId" (NULL), nie dosłowny "".
+        // Partial unique index (V079) wyklucza tylko wartości IS NOT NULL – zapisanie "" ominęłoby
+        // ochronę unikalności dla wielu klientów z pustym externalId.
+        String normalizedExternalId = (request.externalId() == null || request.externalId().isBlank())
+                ? null : request.externalId().trim();
+
+        if (normalizedExternalId != null) {
+            customerRepository.findByExternalId(normalizedExternalId, tenantId)
+                    .ifPresent(existing -> {
+                        throw new ConflictException(
+                                "Klient z identyfikatorem zewnętrznym '" + normalizedExternalId + "' już istnieje");
+                    });
+        }
+
         Customer customer = Customer.builder()
                 .tenantId(tenantId)
                 .firstName(request.firstName())
                 .lastName(request.lastName())
+                .externalId(normalizedExternalId)
                 .phone(request.phone() != null ? new ArrayList<>(request.phone()) : new ArrayList<>())
                 .email(request.email() != null ? new ArrayList<>(request.email()) : new ArrayList<>())
                 .customFields(request.customFields() != null
@@ -198,11 +214,18 @@ class CustomerServiceImpl implements CustomerService {
      * <p>Pola null w żądaniu są ignorowane – wartości pozostają bez zmian.
      * Przekazanie pustej listy phone=[] lub email=[] wyczyści tablicę.
      *
+     * <p>Semantyka {@code externalId}: {@code null} (pole pominięte w JSON) = bez zmiany;
+     * pusty string {@code ""} = jawne wyczyszczenie do {@code NULL} (analogicznie do
+     * phone=[]/email=[]); niepusty string = ustawienie nowej wartości z weryfikacją
+     * unikalności w tenancie (wykluczając bieżącego klienta) – kolizja rzuca
+     * {@link ConflictException}.
+     *
      * @param customerId UUID klienta
      * @param request    dane do aktualizacji (null = bez zmiany)
      * @param tenantId   UUID tenanta
      * @return DTO zaktualizowanego klienta
      * @throws EntityNotFoundException HTTP 404 gdy klient nie istnieje
+     * @throws ConflictException HTTP 409 gdy nowy externalId jest już zajęty przez innego klienta
      */
     @Transactional
     @Audited(action = "CUSTOMER_UPDATED", entityType = "CUSTOMER", captureOldValue = true,
@@ -216,6 +239,19 @@ class CustomerServiceImpl implements CustomerService {
         }
         if (request.lastName() != null) {
             customer.setLastName(request.lastName());
+        }
+        if (request.externalId() != null) {
+            // "" = jawne wyczyszczenie do NULL; niepusty string = ustawienie nowej wartości.
+            String normalized = request.externalId().isBlank() ? null : request.externalId().trim();
+            if (normalized != null) {
+                customerRepository.findByExternalId(normalized, tenantId)
+                        .filter(existing -> !existing.getCustomerId().equals(customerId))
+                        .ifPresent(existing -> {
+                            throw new ConflictException(
+                                    "Klient z identyfikatorem zewnętrznym '" + normalized + "' już istnieje");
+                        });
+            }
+            customer.setExternalId(normalized);
         }
         if (request.phone() != null) {
             customer.setPhone(new ArrayList<>(request.phone()));
@@ -301,6 +337,7 @@ class CustomerServiceImpl implements CustomerService {
                             customer.getCustomerId(),
                             customer.getFirstName(),
                             customer.getLastName(),
+                            customer.getExternalId(),
                             customer.getPhone() != null ? customer.getPhone() : List.of(),
                             customer.getEmail() != null ? customer.getEmail() : List.of(),
                             contacts
@@ -365,6 +402,7 @@ class CustomerServiceImpl implements CustomerService {
                             customer.getCustomerId(),
                             customer.getFirstName(),
                             customer.getLastName(),
+                            customer.getExternalId(),
                             customer.getPhone() != null ? customer.getPhone() : List.of(),
                             customer.getEmail() != null ? customer.getEmail() : List.of(),
                             contacts

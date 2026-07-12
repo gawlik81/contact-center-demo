@@ -92,6 +92,11 @@ class TemplateVariableResolverImpl implements TemplateVariableResolver {
         vars.put(PredefinedTemplateVariable.CUSTOMER_FULL_NAME.getKey(), buildFullName(firstName, lastName));
         vars.put(PredefinedTemplateVariable.CUSTOMER_EMAIL.getKey(), firstOrEmpty(customer.getEmail()));
         vars.put(PredefinedTemplateVariable.CUSTOMER_PHONE.getKey(), firstOrEmpty(customer.getPhone()));
+        vars.put(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey(), nullToEmpty(customer.getExternalId()));
+        // "customerCustomFields" NIE jest stałą PredefinedTemplateVariable – to zagnieżdżony obiekt Map
+        // (nie prosty string ze scalarną przykładową wartością), dostępny w Mustache przez notację
+        // kropkową, np. {{customerCustomFields.vip}}
+        vars.put("customerCustomFields", customer.getCustomFields() != null ? customer.getCustomFields() : Map.of());
     }
 
     private void resolveAgentVars(UUID agentId, UUID tenantId, Map<String, Object> vars) {
@@ -122,6 +127,8 @@ class TemplateVariableResolverImpl implements TemplateVariableResolver {
         vars.put(PredefinedTemplateVariable.CUSTOMER_FULL_NAME.getKey(), "");
         vars.put(PredefinedTemplateVariable.CUSTOMER_EMAIL.getKey(), "");
         vars.put(PredefinedTemplateVariable.CUSTOMER_PHONE.getKey(), "");
+        vars.put(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey(), "");
+        vars.put("customerCustomFields", Map.of());
     }
 
     private void putEmptyAgentVars(Map<String, Object> vars) {

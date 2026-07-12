@@ -55,6 +55,9 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V079 (2026-07-05):
+- V079__add_external_id_to_customer.sql: kolumna techniczna external_id VARCHAR(255) NULL na customer (identyfikator z zewnętrznego CRM). Partial unique index uq_customer_tenant_external_id ON (tenant_id, external_id) WHERE external_id IS NOT NULL AND is_deleted = FALSE — wzorzec 1:1 z uq_user_tenant_email (V003). Bez błędów FK (brak FK w tej migracji); customer.tenant_id i is_deleted istnieją od V006 (tabela starsza, PK customer_id — zgodnie z [[feedback_pk_naming]]).
+
 Stan migracji po V077 (2026-06-20):
 - V077__create_plugin_invocation_log.sql (DB-045, EPIC-28, OSTATNI ticket DB tego epicu — zamyka warstwę DB 43/43): audit log wywołań pluginów (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED), RANGE-partycjonowana miesięcznie po invoked_at.
   - Sam błąd FK co DB-043/044: `REFERENCES tenant(id)` → poprawione na `tenant(tenant_id)`. FK do `tenant_plugin_installation(id)` poprawne.

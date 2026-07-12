@@ -83,6 +83,11 @@
       </div>
       <div class="cp__customer-info">
         <h3 class="cp__customer-name">{{ profile()!.firstName }} {{ profile()!.lastName }}</h3>
+        @if (profile()!.externalId) {
+          <p class="cp__customer-meta">
+            {{ 'agent.customerPanel.externalId' | transloco }}: {{ profile()!.externalId }}
+          </p>
+        }
         @if (profile()!.phones.length > 0) {
           <p class="cp__customer-meta">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">

@@ -393,6 +393,20 @@
   margin-bottom: 1rem;
 }
 
+// ── Mapping hint ───────────────────────────────────────────────────────────
+.mapping-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent-text);
+  font-size: 0.8125rem;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.875rem;
+  margin: 0 0 1rem;
+}
+
 // ── Mapping table ──────────────────────────────────────────────────────────
 .mapping-table-wrapper {
   overflow-x: auto;
@@ -442,6 +456,12 @@
   &__csv-header {
     width: 40%;
   }
+
+  &__field-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
 }
 
 .csv-header-chip {
@@ -475,6 +495,27 @@
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+}
+
+.field-input {
+  width: 100%;
+  padding: 0.4375rem 0.75rem;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--text-1);
+  background: var(--bg-surface);
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  &::placeholder {
+    color: var(--text-2);
   }
 }
 

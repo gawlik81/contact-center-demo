@@ -377,6 +377,20 @@
   margin-bottom: 1rem;
 }
 
+// ── Mapping hint ───────────────────────────────────────────────────────────
+.mapping-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent-text);
+  font-size: 0.8125rem;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.875rem;
+  margin: 0 0 1rem;
+}
+
 // ── Mapping table ──────────────────────────────────────────────────────────
 .mapping-table-wrapper {
   overflow-x: auto;

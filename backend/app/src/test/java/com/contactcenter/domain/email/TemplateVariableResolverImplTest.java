@@ -86,6 +86,19 @@ class TemplateVariableResolverImplTest {
                 .build();
     }
 
+    private Customer customerWithExternalIdAndCustomFields(String externalId, Map<String, Object> customFields) {
+        return Customer.builder()
+                .customerId(CUSTOMER_ID)
+                .tenantId(TENANT_ID)
+                .firstName("Jan")
+                .lastName("Kowalski")
+                .email(List.of("jan.kowalski@example.com"))
+                .phone(List.of("+48501234567"))
+                .externalId(externalId)
+                .customFields(customFields)
+                .build();
+    }
+
     @Nested
     @DisplayName("resolveForContext(contactId, customerId, agentId)")
     class ResolveWithCustomerIdTests {
@@ -109,6 +122,31 @@ class TemplateVariableResolverImplTest {
         }
 
         @Test
+        @DisplayName("gdy podano customerId – rozwiązuje customerExternalId i customerCustomFields z encji")
+        void shouldResolveExternalIdAndCustomFieldsFromCustomer() {
+            Map<String, Object> customFields = Map.of("vip", "true", "segment", "gold");
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(customerWithExternalIdAndCustomFields("CRM-999", customFields)));
+
+            Map<String, Object> result = resolver.resolveForContext(null, CUSTOMER_ID, null);
+
+            assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey())).isEqualTo("CRM-999");
+            assertThat(result.get("customerCustomFields")).isEqualTo(customFields);
+        }
+
+        @Test
+        @DisplayName("gdy customer.customFields == null – customerCustomFields to pusta mapa")
+        void shouldReturnEmptyMap_whenCustomerCustomFieldsIsNull() {
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(customerWithExternalIdAndCustomFields(null, null)));
+
+            Map<String, Object> result = resolver.resolveForContext(null, CUSTOMER_ID, null);
+
+            assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey())).isEqualTo("");
+            assertThat(result.get("customerCustomFields")).isEqualTo(Map.of());
+        }
+
+        @Test
         @DisplayName("customerId ma priorytet nad contactId, gdy podano oba")
         void shouldPreferCustomerIdOverContactIdWhenBothProvided() {
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
@@ -129,6 +167,8 @@ class TemplateVariableResolverImplTest {
 
             assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_FIRST_NAME.getKey())).isEqualTo("");
             assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_EMAIL.getKey())).isEqualTo("");
+            assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey())).isEqualTo("");
+            assertThat(result.get("customerCustomFields")).isEqualTo(Map.of());
         }
 
         @Test
@@ -154,6 +194,8 @@ class TemplateVariableResolverImplTest {
             Map<String, Object> result = resolver.resolveForContext(null, null, null);
 
             assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_FIRST_NAME.getKey())).isEqualTo("");
+            assertThat(result.get(PredefinedTemplateVariable.CUSTOMER_EXTERNAL_ID.getKey())).isEqualTo("");
+            assertThat(result.get("customerCustomFields")).isEqualTo(Map.of());
             verifyNoInteractions(contactService);
             verifyNoInteractions(customerService);
         }

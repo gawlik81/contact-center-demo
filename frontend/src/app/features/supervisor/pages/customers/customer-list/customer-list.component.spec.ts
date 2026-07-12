@@ -146,6 +146,11 @@ describe('CustomerListComponent', () => {
     expect(component.getFirstEmail({ ...mockCustomer, email: [] })).toBe('—');
   });
 
+  it('getExternalId – returns externalId or dash', () => {
+    expect(component.getExternalId({ ...mockCustomer, externalId: 'CRM-123' })).toBe('CRM-123');
+    expect(component.getExternalId(mockCustomer)).toBe('—');
+  });
+
   it('openDeleteModal – sets selectedCustomer and showDeleteModal', () => {
     component.openDeleteModal(mockCustomer);
     expect(component.selectedCustomer()).toBe(mockCustomer);

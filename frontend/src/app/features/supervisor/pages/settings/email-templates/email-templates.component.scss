@@ -761,6 +761,13 @@
   margin: 0 0 10px;
   font-size: 0.7rem;
   color: var(--text-muted);
+
+  code {
+    font-family: monospace;
+    background: var(--neutral-soft);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
 }
 
 .et-sidebar-divider {

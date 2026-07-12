@@ -6,6 +6,7 @@ export interface CustomerSummary {
   customerId: string;
   firstName?: string;
   lastName?: string;
+  externalId?: string;
   phone: string[];
   email: string[];
   /** ISO 8601 timestamp of the most recent contact; absent if the customer has no contacts yet. */

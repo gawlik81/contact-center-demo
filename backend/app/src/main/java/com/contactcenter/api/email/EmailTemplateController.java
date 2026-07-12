@@ -207,6 +207,9 @@ public class EmailTemplateController {
             for (PredefinedTemplateVariable predefined : PredefinedTemplateVariable.values()) {
                 variables.putIfAbsent(predefined.getKey(), predefined.getExampleValue());
             }
+            // "customerCustomFields" nie jest stałą PredefinedTemplateVariable (obiekt zagnieżdżony,
+            // nie skalar) — przykładowe dane do podglądu bez rzeczywistego klienta w kontekście
+            variables.putIfAbsent("customerCustomFields", Map.of("vip", "true", "segment", "gold"));
         }
 
         RenderedEmailTemplate rendered = emailTemplateService.render(id, variables);

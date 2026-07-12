@@ -68,6 +68,7 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
 
   // ── Step 1: Upload ────────────────────────────────────────────────────────
   readonly selectedFile = signal<File | null>(null);
+  readonly importFormat = signal<'csv' | 'json'>('csv');
   readonly skipDuplicates = signal(true);
   readonly columnSeparator = signal<string>(',');
   readonly quoteChar = signal<string>('"');
@@ -93,7 +94,11 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
   readonly columnMappings = signal<ColumnMapping[]>([]);
   readonly mappingError = signal<string | null>(null);
 
-  readonly allSteps: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
+  readonly allSteps = computed<ImportStep[]>(() =>
+    this.importFormat() === 'json'
+      ? ['upload', 'progress', 'report']
+      : ['upload', 'mapping', 'progress', 'report'],
+  );
 
   readonly systemFieldOptions = signal<{ value: SystemField; label: string }[]>([]);
 
@@ -132,13 +137,17 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
 
   // ── Constructor ──────────────────────────────────────────────────────────
   constructor() {
-    // Re-parse CSV preview whenever separator or quote char changes
+    // Re-parse the preview whenever the format, file, separator, or quote char changes
     effect(() => {
-      // Read all three signals to register as dependencies
-      this.columnSeparator();
-      this.quoteChar();
+      const format = this.importFormat();
       const file = this.selectedFile();
-      if (file) {
+      if (!file) return;
+
+      if (format === 'json') {
+        this.parseJsonPreview(file);
+      } else {
+        this.columnSeparator();
+        this.quoteChar();
         this.parseCsvPreview(file);
       }
     });
@@ -184,7 +193,11 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
     this.fileError.set(null);
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith('.csv');
+    const isJson = lowerName.endsWith('.json');
+
+    if (!isCsv && !isJson) {
       this.fileError.set(this.transloco.translate('supervisor.campaignImport.errors.csvOnly'));
       this.selectedFile.set(null);
       return;
@@ -198,8 +211,13 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
       return;
     }
 
+    this.importFormat.set(isJson ? 'json' : 'csv');
     this.selectedFile.set(file);
-    this.parseCsvPreview(file);
+    if (isJson) {
+      this.parseJsonPreview(file);
+    } else {
+      this.parseCsvPreview(file);
+    }
   }
 
   private parseCsvPreview(file: File): void {
@@ -240,6 +258,64 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
       this.buildInitialMappings(headers);
     };
     reader.readAsText(file);
+  }
+
+  private parseJsonPreview(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? '';
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const isArrayOfObjects =
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item));
+
+      if (!isArrayOfObjects) {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const records = parsed as Record<string, unknown>[];
+      if (records.length === 0) {
+        this.setInvalidJsonState('supervisor.campaignImport.emptyJsonArrayError');
+        return;
+      }
+
+      const sample = records.slice(0, PREVIEW_ROWS);
+      const headerSet = new Set<string>();
+      sample.forEach((record) => Object.keys(record).forEach((key) => headerSet.add(key)));
+      const headers = Array.from(headerSet);
+
+      const rows = sample.map((record) =>
+        headers.map((header) => this.stringifyPreviewCell(record[header])),
+      );
+
+      this.csvHeaders.set(headers);
+      this.csvPreviewRows.set(rows);
+    };
+    reader.readAsText(file);
+  }
+
+  private setInvalidJsonState(
+    translationKey = 'supervisor.campaignImport.invalidJsonArrayError',
+  ): void {
+    this.fileError.set(this.transloco.translate(translationKey));
+    this.selectedFile.set(null);
+    this.csvHeaders.set([]);
+    this.csvPreviewRows.set([]);
+  }
+
+  private stringifyPreviewCell(value: unknown): string {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   private parseCSVLine(line: string, separator: string, quoteCharacter: string): string[] {
@@ -297,6 +373,16 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
     this.currentStep.set('mapping');
   }
 
+  /** Primary action on the 'upload' step: CSV goes through mapping, JSON imports directly. */
+  goToImportOrMapping(): void {
+    if (!this.selectedFile()) return;
+    if (this.importFormat() === 'json') {
+      this.onImport();
+    } else {
+      this.goToMapping();
+    }
+  }
+
   // ── Step 2 handlers ──────────────────────────────────────────────────────
 
   updateMapping(index: number, value: SystemField): void {
@@ -313,6 +399,11 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
   }
 
   onImport(): void {
+    if (this.importFormat() === 'json') {
+      this.submitJsonImport();
+      return;
+    }
+
     if (!this.isPhoneMapped()) {
       this.mappingError.set(
         this.transloco.translate('supervisor.campaignImport.errors.phoneMissing'),
@@ -363,6 +454,34 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
       });
   }
 
+  private submitJsonImport(): void {
+    const file = this.selectedFile();
+    if (!file) return;
+
+    this.submitting.set(true);
+    this.currentStep.set('progress');
+
+    this.campaignService
+      .importContactsJson(this.campaign().campaignId, file, this.skipDuplicates())
+      .pipe(
+        catchError(() => {
+          this.notifications.error(
+            this.transloco.translate('supervisor.campaignImport.errors.startFailed'),
+          );
+          this.submitting.set(false);
+          this.currentStep.set('upload');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((response) => {
+        this.submitting.set(false);
+        if (response) {
+          this.startPolling(response.jobId);
+        }
+      });
+  }
+
   // ── Step 3 handlers ──────────────────────────────────────────────────────
 
   private startPolling(jobId: string): void {
@@ -397,13 +516,11 @@ export class CampaignImportComponent implements OnInit, AfterViewInit {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   getStepNumber(step: ImportStep): number {
-    const steps: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
-    return steps.indexOf(step) + 1;
+    return this.allSteps().indexOf(step) + 1;
   }
 
   isStepCompleted(step: ImportStep): boolean {
-    const order: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
-    return order.indexOf(step) < order.indexOf(this.currentStep());
+    return this.allSteps().indexOf(step) < this.allSteps().indexOf(this.currentStep());
   }
 
   isStepActive(step: ImportStep): boolean {

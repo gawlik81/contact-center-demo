@@ -61,6 +61,7 @@
           <div class="skeleton-cell skeleton-cell--wide hide-xs"></div>
           <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
           <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
           <div class="skeleton-cell skeleton-cell--medium"></div>
           <div class="skeleton-cell skeleton-cell--action"></div>
         </div>
@@ -119,6 +120,7 @@
               </th>
               <th scope="col" class="hide-xs">{{ 'common.phone' | transloco }}</th>
               <th scope="col" class="hide-sm">{{ 'common.email' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'supervisor.customers.externalIdColumn' | transloco }}</th>
               <th scope="col">
                 <button
                   class="sort-btn"
@@ -154,6 +156,7 @@
                 <td class="customer-name">{{ customer.lastName ?? '—' }}</td>
                 <td class="customer-secondary hide-xs">{{ getFirstPhone(customer) }}</td>
                 <td class="customer-secondary hide-sm">{{ getFirstEmail(customer) }}</td>
+                <td class="customer-secondary hide-sm">{{ getExternalId(customer) }}</td>
                 <td class="customer-secondary">{{ customer.createdAt | date: 'dd.MM.yyyy' }}</td>
                 <td class="customer-actions">
                   <button

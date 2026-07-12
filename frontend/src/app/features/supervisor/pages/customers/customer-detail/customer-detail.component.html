@@ -129,6 +129,13 @@
             </dd>
           </div>
 
+          @if (c.externalId) {
+            <div class="detail-dl__row">
+              <dt class="detail-dl__term">{{ 'supervisor.customerDetail.externalId' | transloco }}</dt>
+              <dd class="detail-dl__desc">{{ c.externalId }}</dd>
+            </div>
+          }
+
           <div class="detail-dl__row">
             <dt class="detail-dl__term">{{ 'supervisor.customerDetail.source' | transloco }}</dt>
             <dd class="detail-dl__desc">{{ c.source }}</dd>
@@ -208,11 +215,11 @@
 
       <!-- Card: Custom fields -->
       @if (hasCustomFields()) {
-        <section class="detail-card detail-card--wide" aria-labelledby="section-custom">
+        <section class="detail-card" aria-labelledby="section-custom">
           <h2 id="section-custom" class="detail-card__title">
             {{ 'supervisor.customerDetail.sectionCustomFields' | transloco }}
           </h2>
-          <dl class="detail-dl">
+          <dl class="detail-dl detail-dl--compact-grid">
             @for (entry of c.customFields | keyvalue; track entry.key) {
               <div class="detail-dl__row">
                 <dt class="detail-dl__term">{{ entry.key }}</dt>

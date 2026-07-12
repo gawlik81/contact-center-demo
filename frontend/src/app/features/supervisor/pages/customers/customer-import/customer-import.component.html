@@ -16,7 +16,7 @@
 
   <!-- ── Stepper ────────────────────────────────────────────────────────── -->
   <nav class="stepper" [attr.aria-label]="'supervisor.customerImport.stepperLabel' | transloco">
-    @for (step of allSteps; track step) {
+    @for (step of allSteps(); track step) {
       <div
         class="stepper__step"
         [class.stepper__step--active]="isStepActive(step)"
@@ -111,9 +111,9 @@
         <input
           #fileInput
           type="file"
-          accept=".csv"
+          accept=".csv,.json"
           class="sr-only"
-          aria-label="Wybierz plik CSV"
+          aria-label="Wybierz plik CSV lub JSON"
           (change)="onFileInputChange($event)"
         />
 
@@ -127,6 +127,18 @@
             </svg>
             {{ fileError() }}
           </div>
+        }
+
+        <!-- JSON format hint -->
+        @if (importFormat() === 'json') {
+          <p class="mapping-hint">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+              />
+            </svg>
+            {{ 'supervisor.customerImport.jsonFormatHint' | transloco }}
+          </p>
         }
 
         <!-- Deduplication mode -->
@@ -157,63 +169,65 @@
         </div>
 
         <!-- Separator configuration -->
-        <div class="separator-config" role="group" aria-labelledby="separator-config-label">
-          <p class="separator-config__label" id="separator-config-label">
-            {{ 'supervisor.customerImport.separatorLabel' | transloco }}
-          </p>
-          <div class="separator-config__row">
-            <div class="separator-config__field">
-              <label class="separator-config__field-label" for="column-separator-select">{{
-                'supervisor.customerImport.columnSeparator' | transloco
-              }}</label>
-              <select
-                id="column-separator-select"
-                class="field-select"
-                [ngModel]="columnSeparator()"
-                (ngModelChange)="columnSeparator.set($event)"
-                aria-label="Separator kolumn"
-              >
-                @for (opt of columnSeparatorOptions; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </select>
-            </div>
-            <div class="separator-config__field">
-              <label class="separator-config__field-label" for="quote-char-select">{{
-                'supervisor.customerImport.quoteChar' | transloco
-              }}</label>
-              <select
-                id="quote-char-select"
-                class="field-select"
-                [ngModel]="quoteChar()"
-                (ngModelChange)="quoteChar.set($event)"
-                aria-label="Separator stringow (quote char)"
-              >
-                @for (opt of quoteCharOptions; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </select>
+        @if (importFormat() === 'csv') {
+          <div class="separator-config" role="group" aria-labelledby="separator-config-label">
+            <p class="separator-config__label" id="separator-config-label">
+              {{ 'supervisor.customerImport.separatorLabel' | transloco }}
+            </p>
+            <div class="separator-config__row">
+              <div class="separator-config__field">
+                <label class="separator-config__field-label" for="column-separator-select">{{
+                  'supervisor.customerImport.columnSeparator' | transloco
+                }}</label>
+                <select
+                  id="column-separator-select"
+                  class="field-select"
+                  [ngModel]="columnSeparator()"
+                  (ngModelChange)="columnSeparator.set($event)"
+                  aria-label="Separator kolumn"
+                >
+                  @for (opt of columnSeparatorOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="separator-config__field">
+                <label class="separator-config__field-label" for="quote-char-select">{{
+                  'supervisor.customerImport.quoteChar' | transloco
+                }}</label>
+                <select
+                  id="quote-char-select"
+                  class="field-select"
+                  [ngModel]="quoteChar()"
+                  (ngModelChange)="quoteChar.set($event)"
+                  aria-label="Separator stringow (quote char)"
+                >
+                  @for (opt of quoteCharOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
             </div>
           </div>
-        </div>
+        }
 
-        <!-- CSV Preview -->
-        @if (csvHeaders().length > 0) {
+        <!-- File preview (CSV or JSON) -->
+        @if (previewHeaders().length > 0) {
           <div class="preview-section">
             <h3 class="preview-section__title">
-              {{ 'supervisor.customerImport.previewTitle' | transloco: { count: csvPreviewRows().length } }}
+              {{ 'supervisor.customerImport.previewTitle' | transloco: { count: previewRows().length } }}
             </h3>
-            <div class="preview-table-wrapper" role="region" aria-label="Podglad zawartosci CSV">
+            <div class="preview-table-wrapper" role="region" aria-label="Podgląd zawartości pliku">
               <table class="preview-table">
                 <thead>
                   <tr>
-                    @for (header of csvHeaders(); track $index) {
+                    @for (header of previewHeaders(); track $index) {
                       <th scope="col">{{ header }}</th>
                     }
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of csvPreviewRows(); track $index) {
+                  @for (row of previewRows(); track $index) {
                     <tr>
                       @for (cell of row; track $index) {
                         <td>{{ cell }}</td>
@@ -231,11 +245,25 @@
           <button class="btn btn-secondary" type="button" (click)="navigateToList()">
             {{ 'common.cancel' | transloco }}
           </button>
-          <button class="btn btn-primary" type="button" [disabled]="!selectedFile()" (click)="goToMapping()">
-            {{ 'supervisor.customerImport.nextMapping' | transloco }}
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-            </svg>
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="!selectedFile() || submitting()"
+            (click)="goToImportOrMapping()"
+          >
+            @if (importFormat() === 'json') {
+              @if (submitting()) {
+                <span class="spinner" aria-hidden="true"></span>
+                {{ 'supervisor.customerImport.sending' | transloco }}
+              } @else {
+                {{ 'supervisor.customerImport.importButton' | transloco }}
+              }
+            } @else {
+              {{ 'supervisor.customerImport.nextMapping' | transloco }}
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+              </svg>
+            }
           </button>
         </div>
       </div>
@@ -249,6 +277,15 @@
         </h2>
         <p class="import-step__desc">
           {{ 'supervisor.customerImport.mappingDesc' | transloco }}
+        </p>
+
+        <p class="mapping-hint">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+            />
+          </svg>
+          {{ 'supervisor.customerImport.multiColumnHint' | transloco }}
         </p>
 
         <div class="mapping-table-wrapper" role="region" aria-label="Tabela mapowania kolumn">
@@ -266,16 +303,28 @@
                     <span class="csv-header-chip">{{ mapping.csvHeader }}</span>
                   </td>
                   <td>
-                    <select
-                      class="field-select"
-                      [ngModel]="mapping.systemField"
-                      (ngModelChange)="updateMapping($index, $event)"
-                      [attr.aria-label]="'Mapowanie kolumny ' + mapping.csvHeader"
-                    >
-                      @for (opt of systemFieldOptions; track opt.value) {
-                        <option [value]="opt.value">{{ opt.label }}</option>
+                    <div class="mapping-table__field-cell">
+                      <select
+                        class="field-select"
+                        [ngModel]="mapping.systemField"
+                        (ngModelChange)="updateMapping($index, $event)"
+                        [attr.aria-label]="'Mapowanie kolumny ' + mapping.csvHeader"
+                      >
+                        @for (opt of systemFieldOptions; track opt.value) {
+                          <option [value]="opt.value">{{ opt.label }}</option>
+                        }
+                      </select>
+                      @if (mapping.systemField === 'custom_fields') {
+                        <input
+                          type="text"
+                          class="field-input"
+                          [ngModel]="mapping.customFieldKey"
+                          (ngModelChange)="updateCustomFieldKey($index, $event)"
+                          [placeholder]="'supervisor.customerImport.customFieldKeyPlaceholder' | transloco"
+                          [attr.aria-label]="'Nazwa pola dodatkowego dla ' + mapping.csvHeader"
+                        />
                       }
-                    </select>
+                    </div>
                   </td>
                 </tr>
               }

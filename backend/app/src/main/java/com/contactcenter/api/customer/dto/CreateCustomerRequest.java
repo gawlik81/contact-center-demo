@@ -19,6 +19,10 @@ public record CreateCustomerRequest(
         @Size(max = 100, message = "Nazwisko nie może przekraczać 100 znaków")
         String lastName,
 
+        /** Zewnętrzny identyfikator klienta z systemu zewnętrznego (np. CRM). Opcjonalny, unikalny w obrębie tenanta. */
+        @Size(max = 255, message = "External ID nie może przekraczać 255 znaków")
+        String externalId,
+
         /** Tablica numerów telefonu (format E.164 zalecany: "+48501234567"). */
         List<String> phone,
 

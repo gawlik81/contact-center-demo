@@ -182,6 +182,7 @@ final class PluginContextImpl implements PluginContext {
                 customer.getEmail() != null ? List.copyOf(customer.getEmail()) : List.of(),
                 customer.getPhone() != null ? List.copyOf(customer.getPhone()) : List.of(),
                 customer.getCustomFields() != null ? Map.copyOf(customer.getCustomFields()) : Map.of(),
+                customer.getExternalId(),
                 customer.getCreatedAt());
     }
 

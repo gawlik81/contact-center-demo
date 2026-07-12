@@ -7,7 +7,8 @@
 
 ## Project memories
 
-- [Angular testing patterns](./project_testing_patterns.md) – ng test via Angular builder, vi.fn() mocks, no fakeAsync (zoneless), environment path depth
+- [Angular testing patterns](./project_testing_patterns.md) – ng test via Angular builder, vi.fn() mocks, no fakeAsync (zoneless), environment path depth,
+  vi.useFakeTimers()+advanceTimersByTimeAsync() for interval() polling, jsdom `<dialog>` showModal/close polyfill
 - [Angular workspace setup (FE-001)](./project_fe001_workspace.md) – Angular 21 in `frontend/`, Vitest, standalone components, proxy config,
   ESLint+Prettier+Husky setup
 - [Routing, guards and auth infrastructure (FE-002)](./project_fe002_routing.md) – lazy loading routes, AuthGuard, RoleGuard, AuthService, TokenService, HTTP
@@ -45,6 +46,8 @@
   validators, day selector signals), CampaignService, campaign.model.ts
 - [Customer import from CSV (FE-020)](./project_fe020_customer_import.md) – CustomerImportComponent (full-page wizard), CustomerImportStatus model,
   CustomerService import methods, route customers/import
+- [Customer import columnMapping fix](./project_fe020_customer_import_columnmapping_fix.md) – multi-column phone/email (bug nadpisywania), named custom_fields,
+  opcje zgód RODO w mapowaniu, nowy format columnMapping (customer-refactor, 2026-07-05)
 - [IVR editor drag & drop (FE-014)](./project_fe014_ivr_editor.md) – IvrListComponent, IvrEditorComponent (HTML5 DnD + SVG Bezier), IvrService (localStorage
   positions), walidacja, mock audio upload
 - [FE-022 Reports module](./project_fe022_reports.md) – historical reports for SUPERVISOR/ADMIN; files created, conventions, decisions (2026-03-22)
@@ -69,3 +72,8 @@
 - [Plugins settings page (FE-098)](./project_fe098_plugins_page.md) – PluginsPageComponent, dryf BE/FE w PluginVersionDto.permissions (zweryfikuj zawsze w *.java), ConfirmDialogComponent wzorzec @if+signal, brak narzędzia do weryfikacji w przeglądarce w tym sandboxie
 - [Plugin panel host iframe (FE-099)](./project_fe099_plugin_panel_host.md) – cc-plugin-panel-host, plugin-ui-sdk-message.model.ts, RT-11 origin+source validation, contactId/customerId/tenantId jako @Input od rodzica (nie self-fetch), blokuje FE-100
 - [Agent desktop plugin mount (FE-100, EPIC-28 zamknięty)](./project_fe100_agent_desktop_mount.md) – skąd brane tenantId/contactId/customerId w AgentDesktopComponent, własny mechanizm tabs (brak shared), zero-regresji w HTML potwierdzone, lint/build czyste
+- [Customer externalId field (customer-refactor branch)](./project_customer_external_id.md) – externalId w CustomerResponse/CustomerProfile/CustomerSummary + UI; CR fix 2026-07-05: `??` zamiast `||` przy czyszczeniu, 409 detail message, CustomerSummary jednak rozszerzony
+- [CustomerEditComponent customFields edit (2026-07-05)](./project_customer_edit_customfields.md) – pierwszy w repo wzorzec FormArray<FormGroup> typowany (`fb.array<CustomFieldFormGroup>`), naprawa przedistniejącego braku edycji pól dodatkowych
+- [Ograniczenia local-demo (2026-07-05)](./project_local_demo_env_constraints.md) – backend nie wystawiony na host (npm start proxy nie zadziała), brak danych logowania supervisora, technika weryfikacji przez rekonstrukcję ze skompilowanego CSS + iframe do testu media query; UWAGA: w tej sesji claude-in-chrome BYŁO dostępne (koryguje notatkę z FE-098)
+- [Campaign JSON import (customer-refactor, 2026-07-12)](./project_campaign_json_import.md) – importContactsJson w CampaignService, CampaignImportComponent (modal dialog, nie strona) rozszerzony o importFormat/JSON preview wzorem CustomerImportComponent, pierwszy spec dla tego komponentu
+- [Customer create modal customFields+gdprConsent parity (customer-refactor, 2026-07-12)](./project_customer_create_customfields_gdpr.md) – CustomerCreateModalComponent dorównany do CustomerEditComponent (drugi FormArray<FormGroup> w repo), open() musi jawnie clear() FormArray (reset() tego nie robi), nowe i18n klucze supervisor.customerCreate.*, pierwszy spec dla tego komponentu (8 testów)

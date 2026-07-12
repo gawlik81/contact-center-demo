@@ -2,6 +2,7 @@ export interface CustomerProfile {
   id: string;
   firstName: string;
   lastName: string;
+  externalId?: string;
   phones: string[];
   emails: string[];
   recentContacts: ContactHistoryItem[];

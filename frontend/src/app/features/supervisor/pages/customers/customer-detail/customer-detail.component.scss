@@ -46,7 +46,11 @@
 // ── Cards grid ─────────────────────────────────────────────────────────────
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  // `auto-fit` (not `auto-fill`) so that when all three cards fit on one row,
+  // there are no leftover empty grid tracks stealing `1fr` width from them —
+  // auto-fill would reserve space for empty columns even with no content to
+  // put there, leaving a visible gap on wide screens.
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.25rem;
   margin-bottom: 2rem;
 }
@@ -57,10 +61,6 @@
   border-radius: var(--radius-md);
   padding: 1.25rem 1.5rem;
   box-shadow: var(--shadow-sm);
-
-  &--wide {
-    grid-column: 1 / -1;
-  }
 
   &__title {
     font-size: 0.875rem;
@@ -81,7 +81,12 @@
 
   &__row {
     display: grid;
-    grid-template-columns: minmax(130px, 40%) 1fr;
+    // The label column tracks the width of its longest label via
+    // `max-content` instead of a fixed px or a % of the container — both of
+    // those broke down depending on how narrow the surrounding card was
+    // (e.g. with the nav sidebar open in the real app). `max-content` sizes
+    // correctly regardless of card/container width.
+    grid-template-columns: minmax(90px, max-content) 1fr;
     gap: 0.5rem;
     align-items: baseline;
 
@@ -94,6 +99,7 @@
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-2);
+    word-break: break-word;
   }
 
   &__desc {
@@ -101,6 +107,37 @@
     font-size: 0.9375rem;
     color: var(--text-1);
     word-break: break-word;
+  }
+
+  // Multi-column layout used only for the custom fields card. That card sits
+  // as a regular (equal-width) column in `.detail-grid` alongside "Dane
+  // kontaktowe" / "Zgoda RODO", so its own content still needs to wrap key:value
+  // pairs onto multiple lines within that narrower width when there are
+  // several custom fields coming from CSV imports or manual entry — a single
+  // column of full-width rows would waste horizontal space within the card.
+  // Flexbox with wrapping is used instead of CSS Grid `auto-fill`: with a
+  // grid, `1fr` track sizing stretches to fill unused tracks even when there
+  // are only one or two pairs, leaving a large empty gap before the next
+  // label. Flex items only take the width their content needs.
+  &--compact-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+
+    .detail-dl__row {
+      display: grid;
+      grid-template-columns: minmax(60px, max-content) 1fr;
+      gap: 0.5rem;
+      align-items: baseline;
+      flex: 0 1 auto;
+      min-width: 160px;
+    }
+
+    @media (max-width: 480px) {
+      .detail-dl__row {
+        grid-template-columns: 1fr;
+      }
+    }
   }
 }
 

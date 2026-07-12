@@ -1186,3 +1186,175 @@ _None identified._
 Frontend jest dobrze zorganizowany: standalone components, OnPush, signal-based state, prawidłowe zarządzanie lifecycle subskrypcji, kompletna a11y. Krytyczna usterka to niezgodność `maxLength(200)` w formularzu vs limit `100` backendu/bazy — użytkownik może wpisać za dużą nazwę, która zostanie odrzucona przez server. Drobne problemy to pluralizacja w języku polskim i lokalny stan listy niespójny po createSet. Dodanie zestawu dyspozycji do sidenav i routing są poprawne.
 
 **Ocena: 4/5** — wymaga tylko naprawy maxLength(200)→(100) przed mergem; pozostałe to quality of life improvements.
+
+## Review: `externalId` na Customer (CRM external ID) — 2026-07-05
+
+**Branch:** `customer-refactor`
+
+**Zakres:** `customer.model.ts`, `customer-profile.model.ts`, `customer.service.ts`, `customer-create-modal`
+(ts+html), `customer-edit` (ts+html), `customer-detail.component.html`, `customer-list` (ts+html+spec),
+`customer-import.component.ts`, `customer-panel.component.html` (agent), i18n (pl/en/de/uk).
+
+### 🐛 Bugs / Critical Issues
+
+- **`customer-edit.component.ts:161` — nie da się wyczyścić już ustawionego `externalId`.** `externalId: raw.externalId?.trim() || undefined` — gdy użytkownik czyści pole (wpisuje pusty string), `''` jest falsy, więc payload dostaje `undefined`. `HttpClient` (przez `JSON.stringify`) całkowicie pomija pole o wartości `undefined` w body requestu, a backendowa semantyka PATCH (`null = brak zmiany`) traktuje brak pola identycznie jak `null`. Efekt: raz ustawiony `externalId` (np. przez import CSV albo pomyłkowo wpisany) **nie da się usunąć przez formularz edycji** — w przeciwieństwie do `phone`/`email`, które mają jawny sposób wyczyszczenia (`[]`). Powiązane ze znaleziskiem w `CR-BACKEND.md` (`CustomerServiceImpl` też nie normalizuje pustego stringa do `NULL`).
+  - Fix: wymaga wspólnej decyzji FE+BE — np. backend powinien traktować jawny pusty string `""` jako "wyczyść do NULL" (odróżnione od pominiętego pola/`null` = "bez zmiany"), a frontend powinien wtedy wysyłać `raw.externalId?.trim() ?? undefined` (bez `|| undefined`, żeby pusty string przechodził jako `""`, nie ginął).
+
+### ⚠️ Security Concerns
+
+_Nie zidentyfikowano._
+
+### 🏗️ Architecture / Pattern Violations
+
+- **`CustomerSummary` (`customer-search.model.ts`) i `agent-customer-card.component.ts` NIE zostały rozszerzone o `externalId`, mimo że backend już zwraca to pole na tym endponcie.** Notatka w pamięci frontendowego agenta zakłada: "backend only added the field to CustomerResponse, not to the lightweight `/api/customers?search=` DTO" — **to założenie jest błędne**. Zweryfikowałem: `CustomerSearchService.search()` (`customer-search.service.ts:19-23`) woła `GET /api/customers?q=...&size=...`, czyli **dokładnie ten sam** endpoint/kontroler (`CustomerController.listOrSearchCustomers`), który zwraca `PagedResponse<CustomerResponse>` — a `CustomerResponse` w tym PR zostało rozszerzone o `externalId` dla KAŻDEGO wyniku (zarówno fuzzy search po `q`, jak i zwykłej paginacji). Innymi słowy: agentowski search (`agent-customer-card.component.ts`) już dziś dostaje `externalId` w surowym JSON-ie po sieci — tylko interfejs TypeScript `CustomerSummary` go nie deklaruje, więc komponent nie może go wyświetlić.
+  - Fix: dodać `externalId?: string` do `CustomerSummary` i wyświetlić je w `agent-customer-card.component.ts` analogicznie do już istniejących bloków `@if (customer.phone.length > 0)`/`@if (customer.email.length > 0)` — to "darmowe" usprawnienie, bez żadnej zmiany backendu ani dodatkowego payloadu (dane już tam są).
+- **`customer-create-modal.component.ts` i `customer-edit.component.ts` — generyczna obsługa błędów HTTP nie rozróżnia nowego 409 (duplikat `externalId`).** Oba komponenty łapią wszystkie błędy przez `catchError(() => { notifications.error(genericMessage); return of(null); })`. Backend zwraca teraz konkretny, sensowny komunikat `ConflictException` ("Klient z identyfikatorem zewnętrznym 'X' już istnieje"), ale UI nigdy go nie pokazuje — użytkownik widzi tylko ogólne "nie udało się zapisać/utworzyć klienta" i musi się domyślić, że problemem jest `externalId`. To świadoma decyzja zakresu odnotowana w pamięci projektu (reużycie istniejącego generycznego wzorca), ale skoro backend już dostarcza precyzyjny komunikat 409, warto domknąć pętlę: rozróżnić `error.status === 409` i pokazać `error.error?.detail` (ProblemDetail) lub podświetlić pole `externalId` jako nieprawidłowe.
+
+### 🔧 Improvements & Suggestions
+
+- `customer-list.component.ts` `getExternalId()` poprawnie podąża za ustalonym wzorcem dash-fallback (`getFirstPhone`/`getFirstEmail`) i ma dopasowany test jednostkowy — dobra spójność, bez uwag.
+- `customer-import.component.ts` — nowe wpisy `AUTO_MAP` (`external_id`, `externalid`, `crm_id`, `id_zewnetrzne`) to sensowna heurystyka; jeśli import ma docelowo współpracować z konkretnymi systemami CRM, warto rozważyć też popularne warianty (`sfid`, `salesforce_id`, `hubspot_id`) — opcjonalne, bez akcji jeśli zakres ma pozostać ogólny.
+
+### ✅ Positive Observations
+
+- **i18n kompletne i spójne we wszystkich 4 językach** (pl/en/de/uk) dla każdej nowej etykiety (create/edit/detail/list/panel agenta) — brak brakujących kluczy. Polskie znaki diakrytyczne poprawne ("ID zewnętrzne") — nawracający w poprzednich review anti-pattern braku diakrytyków (FE-011/017/027, EPIC-24) **nie powtórzył się** tym razem.
+- `customer-edit.component.ts` `populateForm()` poprawnie patchuje `externalId` z `customer.externalId ?? ''`, zgodnie ze wzorcem `firstName`/`lastName`.
+- Propagacja `CustomerLookupResponse`/`CustomerProfile.externalId` do panelu agenta (`customer-panel.component.html`) jest poprawnie okablowana end-to-end (zweryfikowane po stronie backendu — oba miejsca budujące `CustomerLookupResponse` uwzględniają pole).
+- Świadoma, udokumentowana decyzja, żeby nie wprowadzać Transloco w `customer-import.component.ts` (plik sprzed rolloutu i18n) i zachować istniejącą konwencję (stringi ASCII po polsku) — spójny wybór, nawet jeśli brak rozróżnienia 409 (patrz wyżej) wciąż warto uzupełnić później.
+
+### Summary
+
+**Ocena: 3.5/5 ⭐** — okablowanie nowego pola w UI jest dokładne i spójne (i18n, tabela, widok szczegółów, panel agenta), ale przepływ "duplikat externalId" nie jest domknięty od strony UX (generyczny błąd, brak sposobu wyczyszczenia pola), a "darmowe" usprawnienie (karta wyszukiwania agenta) zostało pominięte na podstawie niezweryfikowanego założenia o kontrakcie backendu.
+
+## Review: CustomerImportComponent — wielokolumnowy phone/email, nazwane custom_fields, opcje zgody RODO — 2026-07-05
+
+**Branch:** `customer-refactor`
+
+**Zakres:** `customer-import.component.ts/.html/.scss`, `customer.service.ts` (`importCsv` sygnatura),
+i18n (pl/en/de/uk). Brak pliku testów (`customer-import.component.spec.ts` nie istnieje — potwierdzone,
+stan sprzed tej zmiany, nie regresja).
+
+### 🐛 Bugs / Critical Issues
+
+- **`customer-import.component.ts:346-349` (`onImport`) — dwie kolumny CSV zmapowane na TĘ SAMĄ nazwę `custom_fields` cicho się nadpisują, bez ostrzeżenia i bez utraty danych sygnalizowanej użytkownikowi.** Budowa `customFieldsObj`:
+  ```ts
+  case 'custom_fields': {
+    const key = m.customFieldKey?.trim();
+    if (key) customFieldsObj[key] = index;
+    break;
+  }
+  ```
+  Jeśli użytkownik zmapuje np. kolumnę CSV #3 na `custom_fields` z nazwą `"vip"` ORAZ kolumnę CSV #7 również na `custom_fields` z nazwą `"vip"` (np. przez pomyłkę, kopiuj-wklej nazwy, albo dwa nagłówki CSV które użytkownik chce ujednolicić), drugi wpis w pętli `forEach` bezwarunkowo nadpisuje pierwszy pod tym samym kluczem JS-obiektu — wartość z kolumny #3 znika całkowicie z requestu, zero komunikatu o błędzie. To DOKŁADNIE ten sam rodzaj cichej utraty danych, przed którym chroni już istniejąca walidacja `hasUnnamedCustomField` (linie 315-321) dla pustych nazw — brakuje analogicznej walidacji dla duplikatów. Nie jest to teoretyczny przypadek: to jest właśnie ten bug, który PIERWOTNIE naprawiono w tym samym komponencie dla `phone`/`email` (dwie kolumny na `phone` nadpisywały się w starym kodzie) — tu identyczny wzorzec błędu odtworzył się dla nowego pola, tylko nie został naprawiony.
+  - Fix: dodać walidację analogiczną do `hasUnnamedCustomField`, przed importem:
+    ```ts
+    const customFieldKeys = this.columnMappings()
+      .filter((m) => m.systemField === 'custom_fields')
+      .map((m) => m.customFieldKey?.trim())
+      .filter((k): k is string => !!k);
+    const hasDuplicateCustomFieldKey = new Set(customFieldKeys).size !== customFieldKeys.length;
+    if (hasDuplicateCustomFieldKey) {
+      this.mappingError.set('Nazwy pol dodatkowych musza byc unikalne.');
+      return;
+    }
+    ```
+  - Uwaga: potwierdzone w pamięci `angular-frontend-expert` (`project_fe020_customer_import_columnmapping_fix.md`), że to świadoma decyzja o pominięciu tej walidacji — ale biorąc pod uwagę, że backend nie ma żadnego sposobu wykrycia tej kolizji (dwa różne indeksy kolumn pod tym samym kluczem JSON to po prostu dwa oddzielne wpisy w obiekcie `custom_fields`, JSON nie pozwala na duplikat klucza, więc jeden ginie już na etapie budowania `mappingObj` we frontendzie, zanim request w ogóle wyjdzie do sieci) — to wyłącznie frontendowa odpowiedzialność i powinna być naprawiona tutaj.
+
+### ⚠️ Security Concerns
+
+_Nie zidentyfikowano._
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak nowych naruszeń architektury._ `columnMapping: Record<string, unknown>` w `customer.service.ts:91` to minimalna, poprawna zmiana typu (z `Record<string, number>`) — implementacja `importCsv` niezmieniona (dalej tylko `JSON.stringify`), zgodna z zasadą "DTO/kontrakt się zmienia, serwis HTTP pozostaje cienką warstwą".
+
+### 🔧 Improvements & Suggestions
+
+- **Recurring anti-pattern (5+ wystąpienie) — brak polskich znaków diakrytycznych w NOWYM stringu walidacyjnym.** `customer-import.component.ts:319`: `this.mappingError.set('Kazde pole dodatkowe musi miec nazwe.');` — powinno być `"Każde pole dodatkowe musi mieć nazwę."`. Cały plik konsekwentnie używa Polish-ASCII zamiast prawdziwych diakrytyków (`"ID zewnetrzne"`, `"musi byc zmapowane"`, `"sredník"` z błędnie postawionym akcentem) — to udokumentowana, świadoma konwencja tego konkretnego pliku (plik sprzed rolloutu i18n/Transloco, patrz poprzedni review `externalId` 2026-07-05), więc nowy string jest przynajmniej *spójny* z resztą pliku. Niemniej jest to piąte odnotowane wystąpienie tego wzorca w tym repo (po FE-011/017/027, EPIC-24) — jeśli plik kiedykolwiek zostanie zmigrowany na Transloco (i18n klucze `customFieldKeyRequiredError` już przygotowane w plikach tłumaczeń!), warto przy okazji naprawić diakrytyki we wszystkich hardkodowanych stringach na raz, nie tylko w nowych.
+- **Zero pokrycia testami dla znacząco zwiększonej złożoności logiki.** `customer-import.component.spec.ts` nie istnieje (potwierdzone, stan sprzed zmiany). Ten PR dodaje nietrywialną logikę: łączenie wielu indeksów kolumn w tablice (`phoneIndices`/`emailIndices`), budowanie nazwanego obiektu (`customFieldsObj`), i dwie nowe ścieżki walidacji blokującej import. To dokładnie ten rodzaj logiki (transformacja danych, budowanie payloadu, walidacja warunkowa), który najbardziej zyskuje na testach jednostkowych i najbardziej boli przy regresji bez nich — np. bug z Bugs #1 powyżej zostałby wykryty przez prosty test `it('rejects duplicate custom field names')`. Nie blokujące (zgodne z istniejącą konwencją "brak testów dla tego kreatora"), ale warto rozważyć chociaż podstawowy plik spec przy następnej zmianie w tym komponencie, zamiast dalej powiększać nietestowany obszar.
+- `customer-import.component.html:44-53` — `aria-label` nowego pola `<input>` nazwy custom field jest hardkodowany string budowany przez konkatenację (`'Nazwa pola dodatkowego dla ' + mapping.csvHeader`) — spójne z istniejącym wzorcem `[attr.aria-label]` na sąsiednim `<select>` w tym samym pliku, nie regresja, tylko do wiadomości przy ewentualnej migracji na Transloco.
+
+### ✅ Positive Observations
+
+- **Rzeczywisty bug naprawiony poprawnie**: stary kod (`mappingObj[m.systemField] = index`) faktycznie nadpisywał drugą kolumnę zmapowaną na `phone`/`email` — nowa implementacja z osobnymi tablicami `phoneIndices`/`emailIndices`, budowanymi przez `push` w `forEach`, poprawnie zbiera WSZYSTKIE zmapowane kolumny bez utraty żadnej z nich. Zweryfikowane też od strony backendu (`getMultiColumn` łączy poprawnie).
+- `hasUnnamedCustomField` (linie 315-321) poprawnie blokuje import PRZED wysłaniem requestu, z komunikatem błędu w tym samym miejscu i tym samym mechanizmem (`mappingError` signal) co istniejąca walidacja `isPhoneMapped` — spójny wzorzec UX, dobry precedens dla sugerowanej poprawki Bugs #1.
+- `updateCustomFieldKey` poprawnie podąża za istniejącym niemutującym wzorcem `updateMapping` (`{...mappings[i], customFieldKey: key}` zamiast mutacji w miejscu) — zgodne z konwencją `signal()`-owego stanu w projekcie.
+- **i18n kompletne i spójne we wszystkich 4 językach** dla wszystkich nowych etykiet (`consentGivenOption`, `marketingConsentOption`, `customFieldKeyPlaceholder`, `multiColumnHint`, `customFieldKeyRequiredError`) — w tym poprawne diakrytyki w kluczach faktycznie użytych przez Transloco (`multiColumnHint` w hincie nad tabelą mapowania). Klucze przygotowane "na zapas" dla przyszłej migracji reszty pliku na Transloco (`customFieldKeyRequiredError` nieużywany dziś, bo `mappingError` jest hardkodowany) — dobra praktyka wyprzedzająca.
+- `.mapping-hint` (SCSS) poprawnie używa istniejących design-tokenów projektu (`var(--accent-text)`, `var(--accent-soft)`, `color-mix(...)`) zamiast hardkodowanych kolorów — spójne z resztą arkusza stylów.
+
+### Summary
+
+**Ocena: 3.5/5 ⭐** — poprawnie naprawia realny, zgłoszony bug nadpisywania kolumn phone/email i dodaje solidną, kompletnie zi18n-izowaną obsługę nowych opcji mapowania, ale odtwarza dokładnie ten sam rodzaj bugu (cicha kolizja/nadpisanie bez ostrzeżenia) dla nowego pola `custom_fields` — świadomie pominięta walidacja duplikatu nazwy pola dodatkowego powinna zostać dodana przed uznaniem funkcji za w pełni zamkniętą, zwłaszcza że wzorzec naprawy (analogiczna walidacja dla pustej nazwy) już istnieje w tym samym pliku.
+
+---
+
+## Review: CustomerImportComponent / CustomerService — import JSON (nowa ścieżka równoległa do CSV) — 2026-07-06
+
+### 🐛 Bugs / Critical Issues
+
+- **Pusta tablica JSON (`[]`) jest akceptowana bez ostrzeżenia i pozwala na wysłanie pustego importu.** `customer-import.component.ts:262-267` (`parseJsonPreview`): gdy `records.length === 0`, kod ustawia `previewHeaders`/`previewRows` na puste tablice i **wraca bez wywołania `setInvalidJsonState()`** — w przeciwieństwie do przypadku "root nie jest tablicą obiektów", `selectedFile` NIE jest czyszczony. Efekt: sekcja podglądu się nie renderuje (`@if (previewHeaders().length > 0)`, html:215), ale przycisk główny pozostaje aktywny (`[disabled]="!selectedFile() || submitting()"`, html:248-253) i `goToImportOrMapping()` → dla formatu `json` od razu woła `onImport()` → `submitJsonImport()`, wysyłając plik z 0 rekordów do backendu. Użytkownik nie dostaje żadnego sygnału, że plik jest pusty, zanim potwierdzi import — łatwo przeoczyć, że np. eksport z CRM zwrócił pustą tablicę zamiast oczekiwanych rekordów. (Zweryfikowałem backend: pusta tablica kończy się cicho jako `COMPLETED` z `processed=0/total=0/imported=0`, bez odrębnego statusu — patrz `CR-BACKEND.md`, ten sam przypadek brzegowy.)
+  - Fix: w bloku `records.length === 0` wywołać coś analogicznego do `setInvalidJsonState()` (nowy komunikat, np. `emptyJsonArrayError`) zamiast cichego `return`, tak żeby przycisk kontynuacji został zablokowany tak samo jak dla nieprawidłowego JSON-a.
+
+### ⚠️ Security Concerns
+
+_Brak nowych zagrożeń._ `accept=".csv,.json"` na `<input type="file">` (html:114) to tylko podpowiedź UI (nie zabezpieczenie) — rzeczywista walidacja rozszerzenia i tak następuje w `handleFile()` (linia 175-183) i ponownie po stronie backendu (`validateJsonFile`/`validateFile`), więc brak realnego ryzyka ominięcia walidacji przez spreparowaną nazwę pliku z innym rozszerzeniem niż faktyczna zawartość — plik trafia do `JSON.parse`/`objectMapper.readTree`, które i tak odrzucą niepoprawną zawartość niezależnie od rozszerzenia.
+
+### 🏗️ Architecture / Pattern Violations
+
+- **Brak regresji przy migracji `allSteps` z tablicy na `computed()`** — zweryfikowałem grep-em wszystkie miejsca użycia w całym komponencie i szablonie: `getStepNumber`/`isStepCompleted` (ts:573,577) i `@for (step of allSteps(); ...)` (html:19) poprawnie wołają `allSteps()` jako funkcję. Nie znalazłem ani jednego pozostałego odwołania do starej sygnatury tablicowej (`allSteps` bez `()`). `goBackToUpload()` (linia 391-392) zawsze resetuje `currentStep` na `'upload'` przed jakąkolwiek ponowną selekcją pliku, więc nie ma scenariusza, w którym zmiana `importFormat` (a więc i przeliczenie `allSteps()`) mogłaby zostawić `currentStep` wskazujący na krok nieobecny w nowo obliczonej tablicy (np. `'mapping'` po przełączeniu z CSV na JSON).
+- Podobnie zweryfikowałem `csvHeaders`/`csvPreviewRows` → `previewHeaders`/`previewRows` — zmiana nazw jest kompletna, brak osieroconych odwołań do starych nazw w `.ts` ani w `.html`.
+
+### 🔧 Improvements & Suggestions
+
+- **Nowa wiadomość walidacyjna kontynuuje znany, już wcześniej udokumentowany w tym pliku wzorzec braku polskich znaków diakrytycznych** (`customer-import.component.ts:180`): `'Dozwolone sa tylko pliki CSV (.csv) lub JSON (.json).'` — rozszerza istniejący hardkodowany string (`"Dozwolone sa tylko pliki CSV (.csv)."`) o nowy fragment, zachowując ten sam brak ogonków/kresek (`sa` zamiast `są`). O ile jest to spójne z resztą pliku sprzed rolloutu Transloco (udokumentowane w poprzednim review tego komponentu, 2026-07-05), warto zwrócić uwagę na niespójność: **nowe komunikaty specyficzne dla JSON (`invalidJsonArrayError`, `jsonFormatHint`) poprawnie przechodzą przez `TranslocoService`/i18n z prawidłowymi diakrytykami** (linia 286: `this.transloco.translate('supervisor.customerImport.invalidJsonArrayError')`), podczas gdy sąsiedni, tylko lekko zmodyfikowany string na tej samej ścieżce kodu (linia 180) pozostał hardkodowany i bez diakrytyków. Skoro `transloco` jest już wstrzyknięty i używany w tej samej metodzie/pliku, warto przy okazji zmigrować też ten string na klucz i18n zamiast pogłębiać niespójność.
+- **Zero pokrycia testami dla nowej, istotnie bardziej złożonej logiki komponentu** — `customer-import.component.spec.ts` nadal nie istnieje (potwierdzone, ten sam brak co w poprzednim review z 2026-07-05). Ten PR dodaje: pełną gałąź formatu JSON (`parseJsonPreview`, walidację "tablica obiektów", `stringifyPreviewCell`), nowy `computed()` (`allSteps`) zależny od stanu, i nową ścieżkę wysyłki (`submitJsonImport`). To dokładnie ten rodzaj logiki rozgałęzień i parsowania wejścia użytkownika, który najbardziej ryzykuje regresję przy kolejnych zmianach bez testów jednostkowych — np. luka z sekcji Bugs (pusta tablica) zostałaby wykryta przez prosty test `it('rejects empty JSON array')`.
+- `stringifyPreviewCell` (linia ~295-298) używa `JSON.stringify(value)` dla obiektów zagnieżdżonych w podglądzie (np. wartości `customFields` będące obiektem) — rozsądne dla podglądu, ale warto rozważyć obcięcie długości (np. `substring(0, 100) + '…'`) żeby bardzo duże zagnieżdżone obiekty (np. cały `gdprConsent` z dodatkowymi polami) nie rozwalały układu tabeli podglądu przy nietypowo dużych plikach.
+
+### ✅ Positive Observations
+
+- **Migracja `allSteps` z pola na `computed()` jest poprawnie zaimplementowana i kompletnie zaktualizowana we wszystkich miejscach użycia** — dobry przykład czystej reaktywnej zmiany stanu zależnego od `importFormat()`, zgodnie z konwencją projektu (`signal()`/`computed()` zamiast `BehaviorSubject` dla stanu lokalnego UI).
+- **`goToImportOrMapping()` (linia ~361-368) to czysty, dobrze nazwany punkt rozgałęzienia** dla jedynego przycisku, który musi robić dwie różne rzeczy w zależności od formatu (przejście do mapowania dla CSV vs. bezpośredni import dla JSON) — czytelniejsze niż rozgałęzianie logiki bezpośrednio w szablonie.
+- **`customer.service.ts`/`customer.service.spec.ts`: `importJson()` jest kompletnym lustrzanym odbiciem istniejącego `import()` (CSV)** — ten sam wzorzec `FormData` + `HttpParams`, ten sam kształt odpowiedzi (`Observable<{jobId: string}>`), z dedykowanym testem sprawdzającym zarówno metodę/URL, jak i realną obecność `deduplication` w `HttpParams` oraz `FormData` jako body — dobrze ukierunkowany test, nie tylko "czy się nie wywala".
+- **i18n kompletne w 4 językach dla obu nowych kluczy** (`jsonFormatHint`, `invalidJsonArrayError`) — sprawdzone w `pl.json`/`en.json`/`de.json`/`uk.json`, żaden język nie został pominięty, a istniejące klucze (`sending`, `importButton`) zostały poprawnie ponownie użyte zamiast duplikowania.
+- Przycisk główny na kroku upload poprawnie łączy stan `submitting()` z blokadą podwójnego kliknięcia (`[disabled]="!selectedFile() || submitting()"`) i pokazuje spinner tylko dla ścieżki JSON, gdzie kliknięcie od razu wywołuje sieciowe zapytanie (dla CSV przejście do "mapping" nie wymaga takiego stanu, bo nie ma jeszcze requestu) — rozróżnienie jest trafne.
+
+### Summary
+
+**Ocena: 4/5 ⭐** — czysta, kompletnie zaktualizowana migracja `allSteps`/`previewHeaders`/`previewRows` (potwierdzone brakiem osieroconych odwołań), dobrze zi18n-izowana nowa ścieżka JSON i solidny test serwisu. Jedyna realna luka to brak blokady dla pustej tablicy `[]` w podglądzie JSON, przez co użytkownik może niechcący wysłać pusty import bez ostrzeżenia — drobna, łatwa do naprawienia poprawka przed uznaniem funkcji za w pełni zamkniętą.
+
+## Review: campaign-import.component.{ts,html,scss}, campaign-import.component.spec.ts (nowy), campaign.service.ts, i18n {pl,en,de,uk}.json — 2026-07-12
+
+Kontekst: rozszerzenie modalu importu kontaktów kampanii wychodzącej o alternatywny format JSON (obok CSV), analogiczne do już zaimplementowanego `customer-import.component.ts` (patrz odpowiadający wpis w CR-FRONTEND.md z 2026-07-06). Pełny plan: `staged-yawning-raven.md`.
+
+### 🐛 Bugs / Critical Issues
+
+_Brak nowych, krytycznych błędów._
+
+### ⚠️ Security Concerns
+
+_Brak nowych zagrożeń._ `accept=".csv,.json"` na `<input type="file">` (`campaign-import.component.html:111`) to tylko podpowiedź UI — realna walidacja rozszerzenia i zawartości i tak następuje w `handleFile()` (ts:192-221) i niezależnie po stronie backendu (`validateJsonFile`/`validateFile`), więc nie ma ryzyka ominięcia walidacji przez spreparowaną nazwę pliku.
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak naruszeń._ Zweryfikowałem grep-em całego pliku i szablonu: migracja `allSteps` z zahardkodowanej tablicy (`readonly allSteps: ImportStep[] = [...]`) na `computed<ImportStep[]>()` (ts:97-101) jest **kompletna** — `getStepNumber` (ts:518-520) i `isStepCompleted` (ts:522-524) poprawnie wołają `this.allSteps()` zamiast trzymać własne, osobne, zahardkodowane tablice kroków (co było wprost wskazane w briefie jako ryzyko częściowego refaktoru). Nie znalazłem ani jednego pozostałego odwołania do starej sygnatury tablicowej ani osobnej listy kroków gdziekolwiek indziej w komponencie czy szablonie.
+
+Deliberate, udokumentowana decyzja implementatora żeby NIE przenosić nazw `csvHeaders`/`csvPreviewRows` na `previewHeaders`/`previewRows` (jak w `customer-import.component.ts`) — plan nie wymagał tego renamingu, więc pozostawienie nazw generycznych-ale-nieprzemianowanych jest rozsądnym ograniczeniem zakresu diffu, nie naruszeniem wzorca.
+
+### 🔧 Improvements & Suggestions
+
+- **Podwójne parsowanie podglądu przy każdej selekcji pliku** — `handleFile()` (ts:214-220) jawnie woła `parseJsonPreview(file)`/`parseCsvPreview(file)` po ustawieniu `importFormat`/`selectedFile`, ale `effect()` w konstruktorze (ts:141-154) reaguje na te same sygnały i woła te same metody ponownie. Efekt: dla każdej selekcji pliku `FileReader.readAsText` i parsowanie (CSV lub JSON) wykonuje się dwukrotnie. Nieszkodliwe funkcjonalnie (idempotentne, ten sam plik → ten sam wynik), ale zbędne. To pre-existing wzorzec z części CSV sprzed tego PR (ten sam efekt występował już wcześniej dla `parseCsvPreview`) — rozszerzenie na JSON tylko go powielił, nie wprowadziło nowego problemu. Warto rozważyć usunięcie jednego z dwóch wywołań (np. polegać wyłącznie na `effect()` i usunąć jawne wywołanie w `handleFile`) przy najbliższej okazji porządkowania tego pliku.
+- `stringifyPreviewCell` (ts:315-319) używa `JSON.stringify(value)` dla zagnieżdżonych obiektów w podglądzie (np. `customFields`) bez ograniczenia długości — dla nietypowo dużych zagnieżdżonych struktur mogłoby to rozwalić układ tabeli podglądu. Niski priorytet, ta sama uwaga co dla `customer-import.component.ts` w poprzednim review.
+- Nowy `campaign-import.component.spec.ts` (pierwszy plik testowy dla tego komponentu) ma dobre pokrycie ścieżek z planu, ale nie zawiera jawnego testu dla `parseJsonPreview` odrzucającego pustą tablicę `[]` ani tablicę z elementem `null`/nie-obiektem — komponent POPRAWNIE obsługuje oba przypadki (patrz Positive Observations), ale brak testu regresyjnego oznacza że przyszła zmiana mogłaby po cichu cofnąć tę poprawność bez wykrycia. Warto dodać `it('rejects an empty JSON array')` i `it('rejects a JSON array containing a null element')`.
+
+### ✅ Positive Observations
+
+- **Pusta tablica JSON (`[]`) jest poprawnie odrzucana z ostrzeżeniem** — `parseJsonPreview` (ts:286-289): `if (records.length === 0) { this.setInvalidJsonState('supervisor.campaignImport.emptyJsonArrayError'); return; }`, co czyści `selectedFile` i blokuje przycisk kontynuacji. To realna **poprawa względem wzorca referencyjnego** `customer-import.component.ts`, gdzie dokładnie ten sam przypadek brzegowy (pusta tablica) był wcześniej zgłoszony jako bug w CR-FRONTEND.md (2026-07-06) — tam plik z pustą tablicą jest cicho akceptowany i można go wysłać bez ostrzeżenia. Tutaj implementator nie skopiował ślepo referencji, tylko naprawił ten konkretny przypadek.
+- **`isArrayOfObjects` (ts:276-278) jawnie wyklucza `null` i tablice zagnieżdżone** (`item !== null && !Array.isArray(item)`) — poprawnie blokuje po stronie UI wysłanie pliku z elementem `null` w tablicy, co przy okazji chroni przed błędem backendu opisanym w CR-BACKEND.md (NPE przy elemencie `null`) dla ścieżki przez UI (choć backend powinien być odporny niezależnie, dla wywołań spoza UI).
+- **Kontrakt i18n zweryfikowany jako w pełni spójny między namespace'ami** — nowe klucze `invalidJsonArrayError`/`emptyJsonArrayError`/`jsonFormatHint` poprawnie żyją pod `supervisor.campaignImport.*` z treścią mówiącą o "kontaktach" ("Plik JSON musi zawierać tablicę obiektów **kontaktów**"), a NIE pod `supervisor.customerImport.*` z treścią o "klientach" — sprawdzone we wszystkich 4 plikach (`pl`/`en`/`de`/`uk`), żaden nie ma niespójności. (Brief wskazywał, że tego typu niespójność — klucze wskazujące na "klientów" zamiast "kontaktów" — została już wcześniej znaleziona i naprawiona przez użytkownika; potwierdzam, że w obecnym stanie diffu żadna podobna niespójność już nie występuje, także w hintach/aria-labelach: `dropZoneAriaLabel`/`fileInputAriaLabel` poprawnie wspominają "CSV lub JSON" bez odniesień do klientów.)
+- **Reużycie generycznych kluczy z `customerImport.*`** (`sending`, `nextMapping`, `separatorLabel`, `columnSeparator`, `quoteChar`) jest zasadne — to teksty niezależne od domeny (np. "Wysyłanie...") i był to już ustalony wzorzec w tym komponencie sprzed tego PR (nie wprowadzony przez ten diff).
+- Kontrakt z backendem zweryfikowany 1:1: `campaignService.importContactsJson()` (campaign.service.ts:75-87) wysyła `FormData` z `file`/`skipDuplicates` na `POST .../contacts/import/json`, dokładnie zgodnie z `@RequestPart("file")`/`@RequestParam(defaultValue="true") boolean skipDuplicates` w `CampaignImportController` — bez żadnej rozbieżności mimo niezależnej implementacji przez backend i frontend.
+- Nowy `campaign-import.component.spec.ts` (9 testów, wszystkie przechodzą) — dobre pokrycie: wybór formatu CSV vs JSON, `allSteps()` zawiera/nie zawiera `'mapping'`, zła ekstensja, `goToImportOrMapping()` dla obu formatów, błąd startu importu JSON (notyfikacja + powrót do `upload`), pełny cykl polling → `report` z `vi.useFakeTimers()`.
+- `[disabled]="!selectedFile() || submitting()"` na przycisku głównym poprawnie łączy blokadę braku pliku z blokadą podwójnego kliknięcia podczas trwającego żądania — trafne rozróżnienie, spójne z tym jak wcześniej oceniono analogiczny przycisk w `customer-import.component.ts`.
+
+### Summary
+
+**Ocena: 4.5/5 ⭐** — implementacja nie tylko poprawnie odtwarza wzorzec referencyjny (kompletna migracja `allSteps()`, poprawny kontrakt z backendem, spójne i18n bez wycieku między namespace'ami klient/kontakt), ale w jednym miejscu (pusta tablica JSON) realnie go **poprawia** względem znanego wcześniej buga w `customer-import.component.ts`. Jedyne uwagi to drobna nadmiarowość (podwójne parsowanie podglądu, odziedziczone z części CSV) i brak paru testów regresyjnych dla przypadków brzegowych, które komponent już poprawnie obsługuje.

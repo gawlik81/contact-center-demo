@@ -1271,14 +1271,17 @@
       "mappingColumnLabel": "Spalte zuordnen {{ column }}",
       "progressLabel": "Importfortschritt: {{ percent }}%",
       "stepperAriaLabel": "Importschritte",
-      "dropZoneAriaLabel": "CSV-Datei-Ablagezone",
-      "fileInputAriaLabel": "CSV-Datei auswählen",
+      "dropZoneAriaLabel": "CSV- oder JSON-Datei-Ablagezone",
+      "fileInputAriaLabel": "CSV- oder JSON-Datei auswählen",
       "previewTableAriaLabel": "CSV-Inhalt-Vorschau",
       "mappingTableAriaLabel": "Spaltenzuordnungstabelle",
       "reportSummaryAriaLabel": "Importzusammenfassung",
       "rejectedListAriaLabel": "Importfehlerliste",
+      "jsonFormatHint": "Die JSON-Datei ist ein Array von Kontaktobjekten mit den Feldern phone, firstName, lastName und einem optionalen customFields-Objekt, z. B. { \"phone\": \"+48501234567\", \"firstName\": \"Jan\", \"lastName\": \"Kowalski\", \"customFields\": { \"segment\": \"gold\" } }.",
+      "invalidJsonArrayError": "Die JSON-Datei muss ein Array von Kontaktobjekten enthalten.",
+      "emptyJsonArrayError": "Die JSON-Datei ist leer – das Array enthält keinen Kontakt.",
       "errors": {
-        "csvOnly": "Nur CSV-Dateien (.csv) sind erlaubt.",
+        "csvOnly": "Nur CSV-Dateien (.csv) oder JSON-Dateien (.json) sind erlaubt.",
         "phoneMissing": "Das Feld \"Telefon\" muss einer der CSV-Spalten zugeordnet werden.",
         "startFailed": "Import konnte nicht gestartet werden. Bitte erneut versuchen."
       }

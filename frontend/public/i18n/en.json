@@ -1271,14 +1271,17 @@
       "mappingColumnLabel": "Mapping column {{ column }}",
       "progressLabel": "Import progress: {{ percent }}%",
       "stepperAriaLabel": "Import steps",
-      "dropZoneAriaLabel": "CSV file drop zone",
-      "fileInputAriaLabel": "Select CSV file",
+      "dropZoneAriaLabel": "CSV or JSON file drop zone",
+      "fileInputAriaLabel": "Select CSV or JSON file",
       "previewTableAriaLabel": "CSV content preview",
       "mappingTableAriaLabel": "Column mapping table",
       "reportSummaryAriaLabel": "Import summary",
       "rejectedListAriaLabel": "Import error list",
+      "jsonFormatHint": "The JSON file is an array of contact objects with fields phone, firstName, lastName and an optional customFields object, e.g. { \"phone\": \"+48501234567\", \"firstName\": \"John\", \"lastName\": \"Smith\", \"customFields\": { \"segment\": \"gold\" } }.",
+      "invalidJsonArrayError": "The JSON file must contain an array of contact objects.",
+      "emptyJsonArrayError": "The JSON file is empty – the array does not contain any contact.",
       "errors": {
-        "csvOnly": "Only CSV files (.csv) are allowed.",
+        "csvOnly": "Only CSV (.csv) or JSON (.json) files are allowed.",
         "phoneMissing": "The \"Phone\" field must be mapped to one of the CSV columns.",
         "startFailed": "Failed to start import. Please try again."
       }

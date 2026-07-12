@@ -1,0 +1,11 @@
+[
+  {
+    "phone": "+48603340006",
+    "firstName": "Paweł",
+    "lastName": "Miernik",
+    "customFields": {
+      "segment": "gold",
+      "priority": "high"
+    }
+  }
+]

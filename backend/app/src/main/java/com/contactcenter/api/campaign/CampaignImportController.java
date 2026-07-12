@@ -25,12 +25,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Kontroler REST dla importu CSV kontaktów kampanii (BE-023).
+ * Kontroler REST dla importu CSV/JSON kontaktów kampanii (BE-023).
  *
  * <p>Endpointy:
  * <ul>
  *   <li>POST  /api/campaigns/{id}/contacts/import       – inicjuje asynchroniczny import CSV</li>
- *   <li>GET   /api/campaigns/{id}/import-status/{jobId} – polling statusu joba importu</li>
+ *   <li>POST  /api/campaigns/{id}/contacts/import/json  – inicjuje asynchroniczny import JSON</li>
+ *   <li>GET   /api/campaigns/{id}/import-status/{jobId} – polling statusu joba importu (wspólny)</li>
  * </ul>
  *
  * <p>Import działa asynchronicznie: POST zwraca jobId natychmiast,
@@ -133,6 +134,87 @@ public class CampaignImportController {
         UUID jobId = campaignImportService.initiateImport(id, file, skipDuplicates, columnSeparator, quoteChar, columnMapping);
 
         log.debug("[CampaignImport] Import zainicjowany: campaignId={}, jobId={}", id, jobId);
+
+        return ResponseEntity
+                .accepted()
+                .body(Map.of("jobId", jobId.toString()));
+    }
+
+    // =========================================================================
+    // POST – inicjacja importu JSON
+    // =========================================================================
+
+    /**
+     * Inicjuje asynchroniczny import kontaktów kampanii z pliku JSON (alternatywa dla CSV).
+     *
+     * <p>Plik jest walidowany synchronicznie (rozmiar, rozszerzenie, przynależność kampanii),
+     * następnie przetwarzany w tle. Odpowiedź zawiera {@code jobId} do pollingu statusu –
+     * dokładnie ten sam endpoint pollingu co dla importu CSV.
+     *
+     * <p>Format JSON: tablica obiektów {@code {"phone": "+48...", "firstName": "...",
+     * "lastName": "...", "customFields": {...}}} – brak kroku mapowania kolumn (camelCase
+     * zgodny z REST API).
+     *
+     * <p>Walidacja telefonu: format E.164 ({@code +[1-15 cyfr]}).
+     * Rekordy z błędnym telefonem są odrzucane i raportowane w statusie joba.
+     */
+    @PostMapping(
+        value = "/{id}/contacts/import/json",
+        consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @Operation(
+        summary = "Importuj kontakty z JSON",
+        description = """
+                Przyjmuje plik JSON (tablica obiektów) z listą kontaktów i inicjuje asynchroniczny import.
+
+                Zwraca jobId do pollingu statusu przez GET /api/campaigns/{id}/import-status/{jobId}.
+
+                Format pliku JSON (przykład):
+                [
+                  { "phone": "+48501234567", "firstName": "Jan", "lastName": "Kowalski",
+                    "customFields": { "segment": "gold" } },
+                  { "phone": "+48501234568", "firstName": "Anna", "lastName": "Nowak" }
+                ]
+
+                Walidacja telefonu: format E.164 (+[1-15 cyfr]).
+                Rekordy z błędnym telefonem są odrzucane i raportowane.
+
+                Limity: max 50 MB, tylko .json.
+                """,
+        responses = {
+            @ApiResponse(
+                responseCode = "202",
+                description = "Import zainicjowany – zwraca jobId do pollingu statusu",
+                content = @Content(schema = @Schema(example = "{\"jobId\": \"uuid\"}"))
+            ),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji pliku (za duży, złe rozszerzenie)"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "422", description = "Kampania nie istnieje lub należy do innego tenanta")
+        }
+    )
+    public ResponseEntity<Map<String, String>> importContactsJson(
+            @Parameter(description = "UUID kampanii") @PathVariable UUID id,
+
+            @Parameter(description = "Plik JSON z kontaktami (max 50 MB)", required = true)
+            @RequestPart("file") MultipartFile file,
+
+            @Parameter(description = "Pomiń duplikaty po numerze telefonu (domyślnie true)")
+            @RequestParam(defaultValue = "true") boolean skipDuplicates
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        log.info("[CampaignImport] POST /api/campaigns/{}/contacts/import/json: " +
+                "tenant={}, fileName={}, fileSize={}B, skipDuplicates={}",
+                id, tenantId,
+                file.getOriginalFilename(),
+                file.getSize(),
+                skipDuplicates);
+
+        UUID jobId = campaignImportService.initiateJsonImport(id, file, skipDuplicates);
+
+        log.debug("[CampaignImport] Import JSON zainicjowany: campaignId={}, jobId={}", id, jobId);
 
         return ResponseEntity
                 .accepted()

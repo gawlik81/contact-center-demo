@@ -1320,3 +1320,41 @@ _Brak nowych zagrożeń._ `accept=".csv,.json"` na `<input type="file">` (html:1
 ### Summary
 
 **Ocena: 4/5 ⭐** — czysta, kompletnie zaktualizowana migracja `allSteps`/`previewHeaders`/`previewRows` (potwierdzone brakiem osieroconych odwołań), dobrze zi18n-izowana nowa ścieżka JSON i solidny test serwisu. Jedyna realna luka to brak blokady dla pustej tablicy `[]` w podglądzie JSON, przez co użytkownik może niechcący wysłać pusty import bez ostrzeżenia — drobna, łatwa do naprawienia poprawka przed uznaniem funkcji za w pełni zamkniętą.
+
+## Review: campaign-import.component.{ts,html,scss}, campaign-import.component.spec.ts (nowy), campaign.service.ts, i18n {pl,en,de,uk}.json — 2026-07-12
+
+Kontekst: rozszerzenie modalu importu kontaktów kampanii wychodzącej o alternatywny format JSON (obok CSV), analogiczne do już zaimplementowanego `customer-import.component.ts` (patrz odpowiadający wpis w CR-FRONTEND.md z 2026-07-06). Pełny plan: `staged-yawning-raven.md`.
+
+### 🐛 Bugs / Critical Issues
+
+_Brak nowych, krytycznych błędów._
+
+### ⚠️ Security Concerns
+
+_Brak nowych zagrożeń._ `accept=".csv,.json"` na `<input type="file">` (`campaign-import.component.html:111`) to tylko podpowiedź UI — realna walidacja rozszerzenia i zawartości i tak następuje w `handleFile()` (ts:192-221) i niezależnie po stronie backendu (`validateJsonFile`/`validateFile`), więc nie ma ryzyka ominięcia walidacji przez spreparowaną nazwę pliku.
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak naruszeń._ Zweryfikowałem grep-em całego pliku i szablonu: migracja `allSteps` z zahardkodowanej tablicy (`readonly allSteps: ImportStep[] = [...]`) na `computed<ImportStep[]>()` (ts:97-101) jest **kompletna** — `getStepNumber` (ts:518-520) i `isStepCompleted` (ts:522-524) poprawnie wołają `this.allSteps()` zamiast trzymać własne, osobne, zahardkodowane tablice kroków (co było wprost wskazane w briefie jako ryzyko częściowego refaktoru). Nie znalazłem ani jednego pozostałego odwołania do starej sygnatury tablicowej ani osobnej listy kroków gdziekolwiek indziej w komponencie czy szablonie.
+
+Deliberate, udokumentowana decyzja implementatora żeby NIE przenosić nazw `csvHeaders`/`csvPreviewRows` na `previewHeaders`/`previewRows` (jak w `customer-import.component.ts`) — plan nie wymagał tego renamingu, więc pozostawienie nazw generycznych-ale-nieprzemianowanych jest rozsądnym ograniczeniem zakresu diffu, nie naruszeniem wzorca.
+
+### 🔧 Improvements & Suggestions
+
+- **Podwójne parsowanie podglądu przy każdej selekcji pliku** — `handleFile()` (ts:214-220) jawnie woła `parseJsonPreview(file)`/`parseCsvPreview(file)` po ustawieniu `importFormat`/`selectedFile`, ale `effect()` w konstruktorze (ts:141-154) reaguje na te same sygnały i woła te same metody ponownie. Efekt: dla każdej selekcji pliku `FileReader.readAsText` i parsowanie (CSV lub JSON) wykonuje się dwukrotnie. Nieszkodliwe funkcjonalnie (idempotentne, ten sam plik → ten sam wynik), ale zbędne. To pre-existing wzorzec z części CSV sprzed tego PR (ten sam efekt występował już wcześniej dla `parseCsvPreview`) — rozszerzenie na JSON tylko go powielił, nie wprowadziło nowego problemu. Warto rozważyć usunięcie jednego z dwóch wywołań (np. polegać wyłącznie na `effect()` i usunąć jawne wywołanie w `handleFile`) przy najbliższej okazji porządkowania tego pliku.
+- `stringifyPreviewCell` (ts:315-319) używa `JSON.stringify(value)` dla zagnieżdżonych obiektów w podglądzie (np. `customFields`) bez ograniczenia długości — dla nietypowo dużych zagnieżdżonych struktur mogłoby to rozwalić układ tabeli podglądu. Niski priorytet, ta sama uwaga co dla `customer-import.component.ts` w poprzednim review.
+- Nowy `campaign-import.component.spec.ts` (pierwszy plik testowy dla tego komponentu) ma dobre pokrycie ścieżek z planu, ale nie zawiera jawnego testu dla `parseJsonPreview` odrzucającego pustą tablicę `[]` ani tablicę z elementem `null`/nie-obiektem — komponent POPRAWNIE obsługuje oba przypadki (patrz Positive Observations), ale brak testu regresyjnego oznacza że przyszła zmiana mogłaby po cichu cofnąć tę poprawność bez wykrycia. Warto dodać `it('rejects an empty JSON array')` i `it('rejects a JSON array containing a null element')`.
+
+### ✅ Positive Observations
+
+- **Pusta tablica JSON (`[]`) jest poprawnie odrzucana z ostrzeżeniem** — `parseJsonPreview` (ts:286-289): `if (records.length === 0) { this.setInvalidJsonState('supervisor.campaignImport.emptyJsonArrayError'); return; }`, co czyści `selectedFile` i blokuje przycisk kontynuacji. To realna **poprawa względem wzorca referencyjnego** `customer-import.component.ts`, gdzie dokładnie ten sam przypadek brzegowy (pusta tablica) był wcześniej zgłoszony jako bug w CR-FRONTEND.md (2026-07-06) — tam plik z pustą tablicą jest cicho akceptowany i można go wysłać bez ostrzeżenia. Tutaj implementator nie skopiował ślepo referencji, tylko naprawił ten konkretny przypadek.
+- **`isArrayOfObjects` (ts:276-278) jawnie wyklucza `null` i tablice zagnieżdżone** (`item !== null && !Array.isArray(item)`) — poprawnie blokuje po stronie UI wysłanie pliku z elementem `null` w tablicy, co przy okazji chroni przed błędem backendu opisanym w CR-BACKEND.md (NPE przy elemencie `null`) dla ścieżki przez UI (choć backend powinien być odporny niezależnie, dla wywołań spoza UI).
+- **Kontrakt i18n zweryfikowany jako w pełni spójny między namespace'ami** — nowe klucze `invalidJsonArrayError`/`emptyJsonArrayError`/`jsonFormatHint` poprawnie żyją pod `supervisor.campaignImport.*` z treścią mówiącą o "kontaktach" ("Plik JSON musi zawierać tablicę obiektów **kontaktów**"), a NIE pod `supervisor.customerImport.*` z treścią o "klientach" — sprawdzone we wszystkich 4 plikach (`pl`/`en`/`de`/`uk`), żaden nie ma niespójności. (Brief wskazywał, że tego typu niespójność — klucze wskazujące na "klientów" zamiast "kontaktów" — została już wcześniej znaleziona i naprawiona przez użytkownika; potwierdzam, że w obecnym stanie diffu żadna podobna niespójność już nie występuje, także w hintach/aria-labelach: `dropZoneAriaLabel`/`fileInputAriaLabel` poprawnie wspominają "CSV lub JSON" bez odniesień do klientów.)
+- **Reużycie generycznych kluczy z `customerImport.*`** (`sending`, `nextMapping`, `separatorLabel`, `columnSeparator`, `quoteChar`) jest zasadne — to teksty niezależne od domeny (np. "Wysyłanie...") i był to już ustalony wzorzec w tym komponencie sprzed tego PR (nie wprowadzony przez ten diff).
+- Kontrakt z backendem zweryfikowany 1:1: `campaignService.importContactsJson()` (campaign.service.ts:75-87) wysyła `FormData` z `file`/`skipDuplicates` na `POST .../contacts/import/json`, dokładnie zgodnie z `@RequestPart("file")`/`@RequestParam(defaultValue="true") boolean skipDuplicates` w `CampaignImportController` — bez żadnej rozbieżności mimo niezależnej implementacji przez backend i frontend.
+- Nowy `campaign-import.component.spec.ts` (9 testów, wszystkie przechodzą) — dobre pokrycie: wybór formatu CSV vs JSON, `allSteps()` zawiera/nie zawiera `'mapping'`, zła ekstensja, `goToImportOrMapping()` dla obu formatów, błąd startu importu JSON (notyfikacja + powrót do `upload`), pełny cykl polling → `report` z `vi.useFakeTimers()`.
+- `[disabled]="!selectedFile() || submitting()"` na przycisku głównym poprawnie łączy blokadę braku pliku z blokadą podwójnego kliknięcia podczas trwającego żądania — trafne rozróżnienie, spójne z tym jak wcześniej oceniono analogiczny przycisk w `customer-import.component.ts`.
+
+### Summary
+
+**Ocena: 4.5/5 ⭐** — implementacja nie tylko poprawnie odtwarza wzorzec referencyjny (kompletna migracja `allSteps()`, poprawny kontrakt z backendem, spójne i18n bez wycieku między namespace'ami klient/kontakt), ale w jednym miejscu (pusta tablica JSON) realnie go **poprawia** względem znanego wcześniej buga w `customer-import.component.ts`. Jedyne uwagi to drobna nadmiarowość (podwójne parsowanie podglądu, odziedziczone z części CSV) i brak paru testów regresyjnych dla przypadków brzegowych, które komponent już poprawnie obsługuje.

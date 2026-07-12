@@ -15,7 +15,7 @@
 
   <!-- ── Stepper ────────────────────────────────────────────────────────── -->
   <nav class="stepper" [attr.aria-label]="'supervisor.campaignImport.stepperAriaLabel' | transloco">
-    @for (step of allSteps; track step) {
+    @for (step of allSteps(); track step) {
       <div
         class="stepper__step"
         [class.stepper__step--active]="isStepActive(step)"
@@ -108,7 +108,7 @@
       <input
         #fileInput
         type="file"
-        accept=".csv"
+        accept=".csv,.json"
         class="sr-only"
         [attr.aria-label]="'supervisor.campaignImport.fileInputAriaLabel' | transloco"
         (change)="onFileInputChange($event)"
@@ -126,6 +126,18 @@
         </div>
       }
 
+      <!-- JSON format hint -->
+      @if (importFormat() === 'json') {
+        <p class="mapping-hint">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+            />
+          </svg>
+          {{ 'supervisor.campaignImport.jsonFormatHint' | transloco }}
+        </p>
+      }
+
       <!-- Skip duplicates checkbox -->
       <label class="checkbox-label">
         <input
@@ -138,47 +150,49 @@
       </label>
 
       <!-- Separator configuration -->
-      <div class="separator-config" role="group" aria-labelledby="separator-config-label">
-        <p class="separator-config__label" id="separator-config-label">
-          {{ 'supervisor.customerImport.separatorLabel' | transloco }}
-        </p>
-        <div class="separator-config__row">
-          <div class="separator-config__field">
-            <label class="separator-config__field-label" for="column-separator-select">
-              {{ 'supervisor.customerImport.columnSeparator' | transloco }}
-            </label>
-            <select
-              id="column-separator-select"
-              class="field-select"
-              [ngModel]="columnSeparator()"
-              (ngModelChange)="columnSeparator.set($event)"
-              [attr.aria-label]="'supervisor.customerImport.columnSeparator' | transloco"
-            >
-              @for (opt of columnSeparatorOptions; track opt.value) {
-                <option [value]="opt.value">{{ opt.label }}</option>
-              }
-            </select>
-          </div>
-          <div class="separator-config__field">
-            <label class="separator-config__field-label" for="quote-char-select">
-              {{ 'supervisor.customerImport.quoteChar' | transloco }}
-            </label>
-            <select
-              id="quote-char-select"
-              class="field-select"
-              [ngModel]="quoteChar()"
-              (ngModelChange)="quoteChar.set($event)"
-              [attr.aria-label]="'supervisor.customerImport.quoteChar' | transloco"
-            >
-              @for (opt of quoteCharOptions; track opt.value) {
-                <option [value]="opt.value">{{ opt.label }}</option>
-              }
-            </select>
+      @if (importFormat() === 'csv') {
+        <div class="separator-config" role="group" aria-labelledby="separator-config-label">
+          <p class="separator-config__label" id="separator-config-label">
+            {{ 'supervisor.customerImport.separatorLabel' | transloco }}
+          </p>
+          <div class="separator-config__row">
+            <div class="separator-config__field">
+              <label class="separator-config__field-label" for="column-separator-select">
+                {{ 'supervisor.customerImport.columnSeparator' | transloco }}
+              </label>
+              <select
+                id="column-separator-select"
+                class="field-select"
+                [ngModel]="columnSeparator()"
+                (ngModelChange)="columnSeparator.set($event)"
+                [attr.aria-label]="'supervisor.customerImport.columnSeparator' | transloco"
+              >
+                @for (opt of columnSeparatorOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="separator-config__field">
+              <label class="separator-config__field-label" for="quote-char-select">
+                {{ 'supervisor.customerImport.quoteChar' | transloco }}
+              </label>
+              <select
+                id="quote-char-select"
+                class="field-select"
+                [ngModel]="quoteChar()"
+                (ngModelChange)="quoteChar.set($event)"
+                [attr.aria-label]="'supervisor.customerImport.quoteChar' | transloco"
+              >
+                @for (opt of quoteCharOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+      }
 
-      <!-- CSV Preview -->
+      <!-- CSV/JSON Preview -->
       @if (csvHeaders().length > 0) {
         <div class="preview-section">
           <h4 class="preview-section__title">
@@ -216,11 +230,25 @@
         <button class="btn btn-secondary" type="button" (click)="onClose(false)">
           {{ 'common.cancel' | transloco }}
         </button>
-        <button class="btn btn-primary" type="button" [disabled]="!selectedFile()" (click)="goToMapping()">
-          {{ 'supervisor.customerImport.nextMapping' | transloco }}
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-          </svg>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="!selectedFile() || submitting()"
+          (click)="goToImportOrMapping()"
+        >
+          @if (importFormat() === 'json') {
+            @if (submitting()) {
+              <span class="spinner" aria-hidden="true"></span>
+              {{ 'supervisor.customerImport.sending' | transloco }}
+            } @else {
+              {{ 'supervisor.campaignImport.importButton' | transloco }}
+            }
+          } @else {
+            {{ 'supervisor.customerImport.nextMapping' | transloco }}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          }
         </button>
       </div>
     </div>

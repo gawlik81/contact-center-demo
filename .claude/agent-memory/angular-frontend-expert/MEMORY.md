@@ -7,7 +7,8 @@
 
 ## Project memories
 
-- [Angular testing patterns](./project_testing_patterns.md) – ng test via Angular builder, vi.fn() mocks, no fakeAsync (zoneless), environment path depth
+- [Angular testing patterns](./project_testing_patterns.md) – ng test via Angular builder, vi.fn() mocks, no fakeAsync (zoneless), environment path depth,
+  vi.useFakeTimers()+advanceTimersByTimeAsync() for interval() polling, jsdom `<dialog>` showModal/close polyfill
 - [Angular workspace setup (FE-001)](./project_fe001_workspace.md) – Angular 21 in `frontend/`, Vitest, standalone components, proxy config,
   ESLint+Prettier+Husky setup
 - [Routing, guards and auth infrastructure (FE-002)](./project_fe002_routing.md) – lazy loading routes, AuthGuard, RoleGuard, AuthService, TokenService, HTTP
@@ -74,3 +75,4 @@
 - [Customer externalId field (customer-refactor branch)](./project_customer_external_id.md) – externalId w CustomerResponse/CustomerProfile/CustomerSummary + UI; CR fix 2026-07-05: `??` zamiast `||` przy czyszczeniu, 409 detail message, CustomerSummary jednak rozszerzony
 - [CustomerEditComponent customFields edit (2026-07-05)](./project_customer_edit_customfields.md) – pierwszy w repo wzorzec FormArray<FormGroup> typowany (`fb.array<CustomFieldFormGroup>`), naprawa przedistniejącego braku edycji pól dodatkowych
 - [Ograniczenia local-demo (2026-07-05)](./project_local_demo_env_constraints.md) – backend nie wystawiony na host (npm start proxy nie zadziała), brak danych logowania supervisora, technika weryfikacji przez rekonstrukcję ze skompilowanego CSS + iframe do testu media query; UWAGA: w tej sesji claude-in-chrome BYŁO dostępne (koryguje notatkę z FE-098)
+- [Campaign JSON import (customer-refactor, 2026-07-12)](./project_campaign_json_import.md) – importContactsJson w CampaignService, CampaignImportComponent (modal dialog, nie strona) rozszerzony o importFormat/JSON preview wzorem CustomerImportComponent, pierwszy spec dla tego komponentu

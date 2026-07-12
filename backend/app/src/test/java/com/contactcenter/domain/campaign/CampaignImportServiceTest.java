@@ -19,6 +19,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,6 +68,23 @@ class CampaignImportServiceTest {
 
         // StringRedisTemplate.opsForValue() musi zwracać mock ValueOperations
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+
+        // Symulacja rzeczywistego magazynu Redis w pamięci: serwis jest tworzony przez `new`
+        // (bez proxy Spring AOP obsługującego @Async), więc initiateImport/initiateJsonImport
+        // wywołują processImportAsync/processJsonImportAsync SYNCHRONICZNIE w tym samym wątku –
+        // te metody muszą móc odczytać (loadJobStatus) status zapisany chwilę wcześniej
+        // (saveJobStatus). Testy, które chcą symulować inny scenariusz Redis (np. brak statusu,
+        // uszkodzony JSON), nadpisują poniższe stuby lokalnie – nadpisanie w metodzie testowej
+        // zawsze wygrywa z tym zdefiniowanym tutaj.
+        Map<String, String> fakeRedisStore = new HashMap<>();
+        doAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            String value = invocation.getArgument(1);
+            fakeRedisStore.put(key, value);
+            return null;
+        }).when(valueOps).set(anyString(), anyString(), any(Duration.class));
+        when(valueOps.get(anyString())).thenAnswer(invocation ->
+                fakeRedisStore.get((String) invocation.getArgument(0)));
 
         // Tworzymy serwis ręcznie – ObjectMapper z modułem JavaTimeModule
         ObjectMapper objectMapper = new ObjectMapper();
@@ -250,6 +271,313 @@ class CampaignImportServiceTest {
     }
 
     // =========================================================================
+    // validateJsonFile
+    // =========================================================================
+
+    @Nested
+    @DisplayName("validateJsonFile – walidacja pliku JSON")
+    class ValidateJsonFile {
+
+        @Test
+        @DisplayName("Plik null – wyjątek IllegalArgumentException")
+        void nullFile_throwsIllegalArgument() {
+            assertThatThrownBy(() -> service.validateJsonFile(null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Plik JSON jest wymagany");
+        }
+
+        @Test
+        @DisplayName("Pusty plik – wyjątek IllegalArgumentException")
+        void emptyFile_throwsIllegalArgument() {
+            MultipartFile emptyFile = new MockMultipartFile("file", "test.json",
+                    "application/json", new byte[0]);
+            assertThatThrownBy(() -> service.validateJsonFile(emptyFile))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Plik JSON jest wymagany");
+        }
+
+        @Test
+        @DisplayName("Plik bez rozszerzenia .json – wyjątek IllegalArgumentException")
+        void wrongExtension_throwsIllegalArgument() {
+            MultipartFile file = new MockMultipartFile("file", "contacts.csv",
+                    "text/csv", "phone\n+48123456789".getBytes());
+            assertThatThrownBy(() -> service.validateJsonFile(file))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Dozwolone są tylko pliki JSON");
+        }
+
+        @Test
+        @DisplayName("Plik za duży (> 50 MB) – wyjątek IllegalArgumentException")
+        void tooLargeFile_throwsIllegalArgument() {
+            MultipartFile bigFile = mock(MultipartFile.class);
+            when(bigFile.isEmpty()).thenReturn(false);
+            when(bigFile.getOriginalFilename()).thenReturn("contacts.json");
+            when(bigFile.getSize()).thenReturn(51L * 1024 * 1024);
+
+            assertThatThrownBy(() -> service.validateJsonFile(bigFile))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("za duży");
+        }
+
+        @Test
+        @DisplayName("Poprawny plik .json – brak wyjątku")
+        void validFile_noException() {
+            MultipartFile file = jsonFile("[{\"phone\":\"+48123456789\"}]");
+            assertThatCode(() -> service.validateJsonFile(file))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    // =========================================================================
+    // initiateJsonImport / doJsonImport
+    // =========================================================================
+
+    @Nested
+    @DisplayName("initiateJsonImport – import kontaktów kampanii z pliku JSON")
+    class JsonImport {
+
+        private Campaign campaign;
+
+        @BeforeEach
+        void setUpCampaign() {
+            campaign = Campaign.builder()
+                    .campaignId(CAMPAIGN_ID)
+                    .tenantId(TENANT_ID)
+                    .name("Test Campaign")
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Kampania nie istnieje – EntityNotFoundException")
+        void campaignNotFound_throwsEntityNotFound() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            MultipartFile file = jsonFile("[{\"phone\":\"+48123456789\"}]");
+
+            assertThatThrownBy(() -> service.initiateJsonImport(CAMPAIGN_ID, file, true))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining(CAMPAIGN_ID.toString());
+        }
+
+        @Test
+        @DisplayName("Plik z błędnym rozszerzeniem – IllegalArgumentException przed sprawdzeniem kampanii")
+        void wrongExtension_throwsBeforeCampaignCheck() {
+            MultipartFile badFile = new MockMultipartFile("file", "contacts.csv",
+                    "text/csv", "phone\n+48123456789".getBytes());
+
+            assertThatThrownBy(() -> service.initiateJsonImport(CAMPAIGN_ID, badFile, true))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Dozwolone są tylko pliki JSON");
+
+            verifyNoInteractions(campaignRepository);
+        }
+
+        @Test
+        @DisplayName("Poprawny import 2 wierszy – batchInsert wywołany z poprawnymi danymi, status COMPLETED")
+        void validJsonImport_insertsRows_completesJob() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            // UWAGA: campaignContactRepository.batchInsert() otrzymuje referencję do współdzielonej
+            // listy `batch`, którą flushBatch() czyści (batch.clear()) TUŻ PO wywołaniu insertu –
+            // zwykły ArgumentCaptor.getValue() odczytany PO teście widziałby więc pustą listę.
+            // Kopiujemy argument obronnie już w momencie wywołania (thenAnswer), zanim zostanie wyczyszczony.
+            List<List<Object[]>> capturedBatches = new ArrayList<>();
+            when(campaignContactRepository.batchInsert(eq(TENANT_ID), eq(CAMPAIGN_ID), anyList(), eq(true)))
+                    .thenAnswer(invocation -> {
+                        List<Object[]> batchArg = invocation.getArgument(2);
+                        capturedBatches.add(new ArrayList<>(batchArg));
+                        return 2;
+                    });
+
+            String json = """
+                    [
+                      { "phone": "+48501234567", "firstName": "Jan", "lastName": "Kowalski",
+                        "customFields": { "segment": "gold", "priority": "high" } },
+                      { "phone": "+48501234568", "firstName": "Anna", "lastName": "Nowak" }
+                    ]
+                    """;
+
+            UUID jobId = service.initiateJsonImport(CAMPAIGN_ID, jsonFile(json), true);
+
+            assertThat(jobId).isNotNull();
+
+            assertThat(capturedBatches).hasSize(1);
+            List<Object[]> rows = capturedBatches.get(0);
+            assertThat(rows).hasSize(2);
+
+            Object[] row1 = rows.get(0);
+            assertThat(row1[0]).isEqualTo(CAMPAIGN_ID.toString());
+            assertThat(row1[1]).isEqualTo(TENANT_ID.toString());
+            assertThat(row1[2]).isEqualTo("+48501234567");
+            assertThat(row1[3]).isEqualTo("Jan");
+            assertThat(row1[4]).isEqualTo("Kowalski");
+            assertThat((String) row1[5]).contains("\"segment\":\"gold\"").contains("\"priority\":\"high\"");
+
+            Object[] row2 = rows.get(1);
+            assertThat(row2[2]).isEqualTo("+48501234568");
+            assertThat(row2[3]).isEqualTo("Anna");
+            assertThat(row2[4]).isEqualTo("Nowak");
+            assertThat(row2[5]).isEqualTo("{}");
+
+            // Status końcowy w Redis – COMPLETED, poprawne liczniki
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"COMPLETED\"")
+                            && payload.contains("\"totalRows\":2")
+                            && payload.contains("\"importedRows\":2")
+                            && payload.contains("\"rejectedRows\":0")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+        }
+
+        @Test
+        @DisplayName("Odrzucone wiersze (brak/zły telefon) – FAILED_PARTIAL i poprawne liczniki")
+        void invalidPhones_rejectsRows_failedPartial() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+            when(campaignContactRepository.batchInsert(any(), any(), anyList(), anyBoolean()))
+                    .thenReturn(1);
+
+            String json = """
+                    [
+                      { "phone": "+48501234567", "firstName": "Jan" },
+                      { "phone": "not-a-phone", "firstName": "Zly" },
+                      { "firstName": "BrakTelefonu" }
+                    ]
+                    """;
+
+            service.initiateJsonImport(CAMPAIGN_ID, jsonFile(json), true);
+
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"FAILED_PARTIAL\"")
+                            && payload.contains("\"totalRows\":3")
+                            && payload.contains("\"importedRows\":1")
+                            && payload.contains("\"rejectedRows\":2")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+        }
+
+        @Test
+        @DisplayName("Root JSON nie jest tablicą – FAILED_PARTIAL z próbką FATAL")
+        void rootNotArray_failsWithFatalSample() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            MultipartFile file = jsonFile("{\"phone\": \"+48501234567\"}");
+
+            service.initiateJsonImport(CAMPAIGN_ID, file, true);
+
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"FAILED_PARTIAL\"") && payload.contains("FATAL")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+            verifyNoInteractions(campaignContactRepository);
+        }
+
+        @Test
+        @DisplayName("Niepoprawny JSON składniowo – FAILED_PARTIAL z próbką FATAL")
+        void malformedJson_failsWithFatalSample() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            MultipartFile file = jsonFile("[{\"phone\": ");
+
+            service.initiateJsonImport(CAMPAIGN_ID, file, true);
+
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"FAILED_PARTIAL\"") && payload.contains("FATAL")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+        }
+
+        @Test
+        @DisplayName("Pusta tablica – COMPLETED, totalRows=0")
+        void emptyArray_completesWithZeroRows() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            MultipartFile file = jsonFile("[]");
+
+            service.initiateJsonImport(CAMPAIGN_ID, file, true);
+
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"COMPLETED\"") && payload.contains("\"totalRows\":0")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+            verifyNoInteractions(campaignContactRepository);
+        }
+
+        @Test
+        @DisplayName("Element tablicy = JSON null – odrzucony jako wiersz bez telefonu, NIE NPE, poprawny wiersz zachowany")
+        void nullElementInArray_rejectedAsRow_doesNotThrow() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+            when(campaignContactRepository.batchInsert(any(), any(), anyList(), anyBoolean()))
+                    .thenReturn(1);
+
+            String json = """
+                    [
+                      { "phone": "+48501234567", "firstName": "Jan" },
+                      null
+                    ]
+                    """;
+
+            // Nie powinno rzucić – null element musi być potraktowany jak wiersz bez danych,
+            // odrzucony przez zwykłą walidację telefonu w processRow, a NIE propagować NPE do
+            // catch-all w processJsonImportAsync (co zabiłoby cały job, tracąc poprawny wiersz).
+            assertThatCode(() -> service.initiateJsonImport(CAMPAIGN_ID, jsonFile(json), true))
+                    .doesNotThrowAnyException();
+
+            verify(valueOps, atLeastOnce()).set(
+                    argThat(key -> key.startsWith("import:job:")),
+                    argThat(payload -> payload.contains("\"FAILED_PARTIAL\"")
+                            && payload.contains("\"totalRows\":2")
+                            && payload.contains("\"importedRows\":1")
+                            && payload.contains("\"rejectedRows\":1")),
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
+            );
+        }
+
+        @Test
+        @DisplayName("customFields z zagnieżdżoną listą – serializowane jako poprawny JSON, nie Java toString()")
+        void nestedCustomFieldValue_serializedAsValidJson() {
+            when(campaignRepository.findById(CAMPAIGN_ID, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            List<List<Object[]>> capturedBatches = new ArrayList<>();
+            when(campaignContactRepository.batchInsert(eq(TENANT_ID), eq(CAMPAIGN_ID), anyList(), eq(true)))
+                    .thenAnswer(invocation -> {
+                        List<Object[]> batchArg = invocation.getArgument(2);
+                        capturedBatches.add(new ArrayList<>(batchArg));
+                        return 1;
+                    });
+
+            String json = """
+                    [
+                      { "phone": "+48501234567", "firstName": "Jan",
+                        "customFields": { "tags": ["a", "b"] } }
+                    ]
+                    """;
+
+            service.initiateJsonImport(CAMPAIGN_ID, jsonFile(json), true);
+
+            assertThat(capturedBatches).hasSize(1);
+            Object[] row = capturedBatches.get(0).get(0);
+            String customFieldsJson = (String) row[5];
+
+            // Wartość pod kluczem "tags" musi, po odczytaniu, parsować się jako poprawny JSON
+            // (tablica ["a","b"]), a NIE jako Java toString() listy ("[a, b]" – niepoprawny JSON).
+            assertThatCode(() -> {
+                var node = new ObjectMapper().readTree(customFieldsJson);
+                var tagsRaw = node.get("tags").asText();
+                var tagsNode = new ObjectMapper().readTree(tagsRaw);
+                assertThat(tagsNode.isArray()).isTrue();
+                assertThat(tagsNode.get(0).asText()).isEqualTo("a");
+                assertThat(tagsNode.get(1).asText()).isEqualTo("b");
+            }).doesNotThrowAnyException();
+        }
+    }
+
+    // =========================================================================
     // getJobStatus
     // =========================================================================
 
@@ -358,6 +686,11 @@ class CampaignImportServiceTest {
 
     private MultipartFile csvFile(String content) {
         return new MockMultipartFile("file", "contacts.csv", "text/csv",
+                content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private MultipartFile jsonFile(String content) {
+        return new MockMultipartFile("file", "contacts.json", "application/json",
                 content.getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -65,6 +65,7 @@
 - [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
 - [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
 - [feedback_supervisor_metrics_flaky_ivr_test.md](feedback_supervisor_metrics_flaky_ivr_test.md) – SupervisorMetricsServiceTest$KpiCallsInIvrTests jest pre-existing flaky/order-dependent (failuje w batch run, przechodzi w izolacji) – nie traktować jako regresji
+- [feedback_argumentcaptor_cleared_batch_list.md](feedback_argumentcaptor_cleared_batch_list.md) – ArgumentCaptor na liście czyszczonej (`batch.clear()`) zaraz po wywołaniu mocka: `captor.getValue()` po teście widzi pustą listę; fix: kopia obronna w `thenAnswer` w momencie wywołania
 
 ## Projekty
 
@@ -112,3 +113,4 @@
 - [Jackson convertValue + nieznane pola](feedback_jackson_convertvalue_unknown_properties.md) — ObjectMapper.convertValue(Map, record) RZUCA wyjątek dla pól nieznanych docelowemu typowi (FAIL_ON_UNKNOWN_PROPERTIES=true domyślnie), nie ignoruje ich po cichu
 - [BE-108 szyfrowanie installation_config](project_be108_plugin_installation_config_encryption.md) — EncryptedStringConverter jako bean wołany ręcznie (nie @Convert) w repo natywnego SQL; wrapper {"encrypted":"..."} w jsonb; finding code review: insert() musi też szyfrować, nie tylko update()
 - [Plugin runtime startup reload](project_be_plugin_startup_reload.md) — PluginRuntimeStartupLoader (@EventListener ApplicationReadyEvent, konwencja jak StartupInfoLogger) odbudowuje PluginRegistry po restarcie; findAllEnabledAcrossAllTenants() analogiczne do BE-106 wzorca; fault containment per instalacja + TenantContext set/clear w finally
+- [BE-023 rozszerzenie – import JSON kontaktów kampanii](project_be023_json_import_extension.md) — refaktor CampaignImportServiceImpl (processRow/flushBatch/finalizeJobStatus współdzielone CSV+JSON) potwierdzony neutralny testami PRZED dodaniem JSON; nowy endpoint POST /{id}/contacts/import/json; CampaignImportControllerTest wzorowany na CustomerImportControllerTest (2026-07-12)

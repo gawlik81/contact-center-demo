@@ -1271,14 +1271,17 @@
       "mappingColumnLabel": "Mapowanie kolumny {{ column }}",
       "progressLabel": "Postęp importu: {{ percent }}%",
       "stepperAriaLabel": "Kroki importu",
-      "dropZoneAriaLabel": "Strefa przeciągania pliku CSV",
-      "fileInputAriaLabel": "Wybierz plik CSV",
+      "dropZoneAriaLabel": "Strefa przeciągania pliku CSV lub JSON",
+      "fileInputAriaLabel": "Wybierz plik CSV lub JSON",
       "previewTableAriaLabel": "Podgląd zawartości CSV",
       "mappingTableAriaLabel": "Tabela mapowania kolumn",
       "reportSummaryAriaLabel": "Podsumowanie importu",
       "rejectedListAriaLabel": "Lista błędów importu",
+      "jsonFormatHint": "Plik JSON to tablica obiektów kontaktów z polami phone, firstName, lastName oraz opcjonalnym obiektem customFields, np. { \"phone\": \"+48501234567\", \"firstName\": \"Jan\", \"lastName\": \"Kowalski\", \"customFields\": { \"segment\": \"gold\" } }.",
+      "invalidJsonArrayError": "Plik JSON musi zawierać tablicę obiektów kontaktów.",
+      "emptyJsonArrayError": "Plik JSON jest pusty – tablica nie zawiera żadnego kontaktu.",
       "errors": {
-        "csvOnly": "Dozwolone są tylko pliki CSV (.csv).",
+        "csvOnly": "Dozwolone są tylko pliki CSV (.csv) lub JSON (.json).",
         "phoneMissing": "Pole \"Telefon\" musi być zmapowane na jedną z kolumn CSV.",
         "startFailed": "Nie udało się rozpocząć importu. Spróbuj ponownie."
       }

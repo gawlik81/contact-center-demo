@@ -1271,14 +1271,17 @@
       "mappingColumnLabel": "Зіставлення стовпця {{ column }}",
       "progressLabel": "Прогрес імпорту: {{ percent }}%",
       "stepperAriaLabel": "Кроки імпорту",
-      "dropZoneAriaLabel": "Зона перетягування CSV-файлу",
-      "fileInputAriaLabel": "Вибрати CSV-файл",
+      "dropZoneAriaLabel": "Зона перетягування файлу CSV або JSON",
+      "fileInputAriaLabel": "Вибрати файл CSV або JSON",
       "previewTableAriaLabel": "Попередній перегляд вмісту CSV",
       "mappingTableAriaLabel": "Таблиця зіставлення стовпців",
       "reportSummaryAriaLabel": "Підсумок імпорту",
       "rejectedListAriaLabel": "Список помилок імпорту",
+      "jsonFormatHint": "JSON-файл — це масив об'єктів контактів із полями phone, firstName, lastName та необов'язковим об'єктом customFields, наприклад { \"phone\": \"+48501234567\", \"firstName\": \"Ян\", \"lastName\": \"Ковальський\", \"customFields\": { \"segment\": \"gold\" } }.",
+      "invalidJsonArrayError": "JSON-файл повинен містити масив об'єктів контактів.",
+      "emptyJsonArrayError": "JSON-файл порожній – масив не містить жодного контакту.",
       "errors": {
-        "csvOnly": "Дозволені лише файли CSV (.csv).",
+        "csvOnly": "Дозволені лише файли CSV (.csv) або JSON (.json).",
         "phoneMissing": "Поле \"Телефон\" має бути зіставлено з одним із стовпців CSV.",
         "startFailed": "Не вдалося розпочати імпорт. Спробуйте ще раз."
       }

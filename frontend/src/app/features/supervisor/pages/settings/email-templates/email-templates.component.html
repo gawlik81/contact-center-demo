@@ -195,6 +195,10 @@
                     </button>
                   }
                 </div>
+                <p class="et-sidebar-hint">
+                  {{ 'supervisor.settings.emailTemplates.customerCustomFieldsHint' | transloco }}
+                  <code>{{ '{{customerCustomFields.vip}}' }}</code>
+                </p>
               }
             </div>
           }
@@ -348,6 +352,7 @@
           }
           <p class="et-hint">
             {{ 'supervisor.settings.emailTemplates.variableHint' | transloco }}
+            <code>{{ '{{name}}' }}</code>
           </p>
         </div>
       </div>

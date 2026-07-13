@@ -16,10 +16,12 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -91,11 +93,14 @@ class UserServiceImpl implements UserService {
     @Audited(action = "USER_CREATED", entityType = "USER")
     @Override
     public UserResponse createUser(CreateUserRequest request, UUID tenantId) {
-        // Supervisor nie może tworzyć użytkowników z rolą ADMIN
-        String callerRole = TenantContext.getUserRole();
-        if ("SUPERVISOR".equalsIgnoreCase(callerRole) && UserRole.ADMIN.equals(request.role())) {
-            throw new org.springframework.security.access.AccessDeniedException(
-                    "Supervisorzy mogą tworzyć użytkowników tylko z rolą SUPERVISOR lub AGENT");
+        // SUPER_ADMIN nie może powstać przez ten endpoint (ani żaden inny poza bootstrapem
+        // przy starcie systemu – patrz SuperAdminBootstrapRunner). Defense-in-depth: rola
+        // tenant-scoped nie może mieć tenantId (naruszyłoby chk_super_admin_tenant_invariant),
+        // a UI świadomie nie udostępnia tej opcji.
+        if (UserRole.SUPER_ADMIN.equals(request.role())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Rola SUPER_ADMIN nie może zostać przypisana przez ten endpoint – " +
+                    "konto SUPER_ADMIN jest tworzone wyłącznie przez bootstrap systemu");
         }
 
         // Sprawdź limit agentów (tylko dla roli AGENT)
@@ -191,11 +196,17 @@ class UserServiceImpl implements UserService {
      * <p>Pola null w żądaniu są ignorowane – wartości pozostają bez zmian.
      * Nie pozwala na zmianę email, roli ani hasła (osobne endpointy).
      *
+     * <p>SUPERVISOR stracił zarządzanie użytkownikami (refaktor ról) – może wyłącznie
+     * modyfikować pole {@code skills} agentów (rola AGENT). Próba zmiany innego pola
+     * lub edycji użytkownika z inną rolą jest odrzucana. ADMIN nie ma tego ograniczenia.
+     *
      * @param userId   UUID użytkownika
      * @param request  dane do aktualizacji (null = bez zmiany)
      * @param tenantId UUID tenanta
      * @return DTO zaktualizowanego użytkownika
      * @throws EntityNotFoundException HTTP 422 gdy użytkownik nie istnieje
+     * @throws AccessDeniedException   HTTP 403 gdy SUPERVISOR próbuje zmienić coś poza
+     *                                 skills agenta
      */
     @Transactional
     @Audited(action = "USER_UPDATED", entityType = "USER", captureOldValue = true,
@@ -203,6 +214,17 @@ class UserServiceImpl implements UserService {
     @Override
     public UserResponse updateUser(UUID userId, UpdateUserRequest request, UUID tenantId) {
         AppUser user = findUserOrThrow(userId, tenantId);
+
+        if ("SUPERVISOR".equalsIgnoreCase(TenantContext.getUserRole())) {
+            if (!UserRole.AGENT.equals(user.getRole())) {
+                throw new AccessDeniedException(
+                        "Supervisor może modyfikować wyłącznie skille agentów");
+            }
+            if (request.firstName() != null || request.lastName() != null || request.mfaEnabled() != null) {
+                throw new AccessDeniedException(
+                        "Supervisor może modyfikować wyłącznie pole skills");
+            }
+        }
 
         if (request.firstName() != null) {
             user.setFirstName(request.firstName());
@@ -454,6 +476,12 @@ class UserServiceImpl implements UserService {
         return appUserRepository.findByTenantIdAndEmailAndActiveTrue(tenantId, email);
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<AppUser> findAuthenticatableGlobalUser(String email) {
+        return appUserRepository.findByEmailAndTenantIdIsNullAndActiveTrue(email);
+    }
+
     @Transactional
     @Override
     public int deactivateAllUsersByTenantId(UUID tenantId) {
@@ -501,6 +529,48 @@ class UserServiceImpl implements UserService {
     @Override
     public List<Object[]> findActiveTenantsByUserEmail(String email) {
         return appUserRepository.findActiveTenantsByUserEmail(email);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public boolean isSuperAdminEmail(String email) {
+        return appUserRepository.existsActiveSuperAdminByEmail(email);
+    }
+
+    // =========================================================================
+    // Bootstrap SUPER_ADMIN (SuperAdminBootstrapRunner)
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    @Override
+    public boolean existsSuperAdmin() {
+        return appUserRepository.existsByRole(UserRole.SUPER_ADMIN);
+    }
+
+    @Transactional
+    @Audited(action = "SUPER_ADMIN_BOOTSTRAPPED", entityType = "USER")
+    @Override
+    public AppUser createSuperAdminBootstrap(String email, String rawPassword) {
+        AppUser superAdmin = AppUser.builder()
+                .tenantId(null)
+                .email(email.toLowerCase().trim())
+                .passwordHash(passwordEncoder.encode(rawPassword))
+                .role(UserRole.SUPER_ADMIN)
+                .status(UserStatus.ACTIVE)
+                .active(true)
+                .mfaEnabled(false)
+                // Wymuszamy zmianę hasła przy pierwszym logowaniu – szczególnie ważne dla
+                // fallbacku dev, ale też sensowny default dla prod.
+                .passwordResetRequired(true)
+                .deleted(false)
+                .skills(new ArrayList<>())
+                .build();
+
+        AppUser saved = appUserRepository.save(superAdmin);
+        log.info("[UserService] Bootstrap: utworzono konto SUPER_ADMIN: userId={}, email={}",
+                saved.getId(), saved.getEmail());
+
+        return saved;
     }
 
     @Transactional(readOnly = true)

@@ -151,8 +151,10 @@ export class AuthService {
 
   getRoleDefaultRoute(role: UserRole): string {
     switch (role) {
-      case 'ADMIN':
+      case 'SUPER_ADMIN':
         return '/admin';
+      case 'ADMIN':
+        return '/supervisor';
       case 'SUPERVISOR':
         return '/supervisor';
       case 'AGENT':

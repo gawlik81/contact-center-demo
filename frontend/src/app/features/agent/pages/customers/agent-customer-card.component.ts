@@ -23,6 +23,12 @@ import { CustomerSummary } from '../../models/customer-search.model';
           {{ customer.firstName || '' }} {{ customer.lastName || '' }}
         </p>
 
+        @if (customer.externalId) {
+          <p class="customer-card__meta customer-card__meta--muted">
+            {{ 'agent.customers.externalId' | transloco }}: {{ customer.externalId }}
+          </p>
+        }
+
         @if (customer.phone.length > 0) {
           <p class="customer-card__meta">
             <svg

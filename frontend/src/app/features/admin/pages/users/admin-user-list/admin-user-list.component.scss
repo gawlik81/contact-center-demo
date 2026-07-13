@@ -184,6 +184,11 @@
     background: var(--accent-soft);
     color: var(--accent-text);
   }
+
+  &--super-admin {
+    background: var(--danger-soft, #fee2e2);
+    color: var(--danger-text, #991b1b);
+  }
 }
 
 // ── Status badges ─────────────────────────────────────────────────────────────

@@ -40,7 +40,7 @@ import java.util.UUID;
  *   <li>GET  /api/email/threads/{messageIdHeader} – wątek emaila</li>
  *   <li>POST /api/email/messages/{id}/reply – wysyłka odpowiedzi (z opcjonalnymi załącznikami)</li>
  *   <li>GET  /api/email/config            – odczyt konfiguracji IMAP/SMTP (bez hasła)</li>
- *   <li>PUT  /api/email/config            – zapis konfiguracji IMAP/SMTP (SUPERVISOR/ADMIN)</li>
+ *   <li>PUT  /api/email/config            – zapis konfiguracji IMAP/SMTP (tylko ADMIN)</li>
  *   <li>POST /api/email/config/test       – test połączenia IMAP</li>
  * </ul>
  *
@@ -197,10 +197,10 @@ public class EmailController {
     /**
      * Odczyt konfiguracji email tenanta – BEZ hasła.
      *
-     * <p>Dostępne dla SUPERVISOR i ADMIN.
+     * <p>Dostępne wyłącznie dla ADMIN (konfiguracja email/SMTP to jeden z 5 technicznych obszarów odebranych SUPERVISOR w refaktorze ról).
      */
     @GetMapping("/config")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Odczyt konfiguracji email", description = "Zwraca konfigurację IMAP/SMTP bez hasła")
     public ResponseEntity<EmailConfigResponse> getConfig() {
         UUID tenantId = TenantContext.getTenantId();
@@ -223,10 +223,10 @@ public class EmailController {
      * <p>Hasło jest szyfrowane AES-256-GCM przed zapisem do JSONB.
      * Gdy {@code password} jest null – zachowuje istniejące hasło.
      *
-     * <p>Dostępne tylko dla SUPERVISOR i ADMIN.
+     * <p>Dostępne wyłącznie dla ADMIN (konfiguracja email/SMTP to jeden z 5 technicznych obszarów odebranych SUPERVISOR w refaktorze ról).
      */
     @PutMapping("/config")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Zapis konfiguracji email", description = "Zapisuje konfigurację IMAP/SMTP; hasło jest szyfrowane AES-256")
     public ResponseEntity<EmailConfigResponse> updateConfig(
             @Valid @RequestBody EmailConfigRequest request) {
@@ -283,10 +283,10 @@ public class EmailController {
      * <p>Próbuje nawiązać połączenie IMAP z podanymi danymi i zwraca wynik.
      * Hasło podane w żądaniu używane tylko do testu – nie jest zapisywane.
      *
-     * <p>Dostępne dla SUPERVISOR i ADMIN.
+     * <p>Dostępne wyłącznie dla ADMIN (konfiguracja email/SMTP to jeden z 5 technicznych obszarów odebranych SUPERVISOR w refaktorze ról).
      */
     @PostMapping("/config/test")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Test połączenia IMAP", description = "Testuje połączenie IMAP bez zapisywania konfiguracji")
     public ResponseEntity<ImapTestResponse> testImapConnection(
             @Valid @RequestBody EmailConfigRequest request) {

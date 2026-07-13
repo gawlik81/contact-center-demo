@@ -10,7 +10,7 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V069 już istnieją. Numery migracji kontynuuj od V070+.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V080 już istnieją (ostatnia: V080__add_super_admin_role.sql, 2026-07-12). Numery migracji kontynuuj od V081+. Zawsze zweryfikuj `ls backend/src/main/resources/db/migration/` przed napisaniem nowej migracji — nie ufaj tej liczbie bezkrytycznie.
 
 KRYTYCZNA PUŁAPKA — nazwy PK w tym projekcie NIE są `id`. Konwencja: `{tabela}_id`:
 - tenant.tenant_id (nie id)
@@ -39,7 +39,7 @@ Znana niekonsekwencja RLS (do uwagi przy nowych tabelach i przy ewentualnym fix)
 - Ale V059 (contact_event), V064 (tenant_ai_config), V067 (contact_transcription), V068 (contact_ai_summary) używają app.tenant_id (bez current_)
 - Zawsze pisz nowe polityki RLS z app.current_tenant_id — to jest to, co faktycznie ustawia aplikacja.
 
-Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/06-database.md
+Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/tech/06-database.md
 - Pokrywa wszystkie 73 migracje (V001-V073), konwencje Flyway, RLS, mapę schematu per domena, ERD mermaid, wzorce (soft-delete/audit/wersjonowanie/JSONB/enum->varchar/partycjonowanie), anti-pattern overloaded columns, krok-po-kroku jak dodać tabelę.
 
 Lokalizacja migracji:
@@ -54,6 +54,20 @@ Stan migracji po V035 (2026-04-08):
   - idx_contact_duration: (tenant_id, duration_seconds) WHERE duration_seconds IS NOT NULL – filtrowanie po czasie trwania (BE-036)
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
+
+Stan migracji po V080 (2026-07-12):
+- V080__add_super_admin_role.sql: refaktor rol uzytkownikow — nowa rola SUPER_ADMIN (globalny administrator platformy, bez tenanta). Czesc DB planu z /home/pawelm/.claude/plans/linked-questing-sedgewick.md (backend/frontend delegowane osobno do backend-dev-expert/angular-frontend-expert).
+  - `ALTER TABLE app_user ALTER COLUMN tenant_id DROP NOT NULL` + podmiana `chk_app_user_role` (dodano SUPER_ADMIN do listy 4 wartosci) + nowy CHECK `chk_super_admin_tenant_invariant`: `(role='SUPER_ADMIN' AND tenant_id IS NULL) OR (role<>'SUPER_ADMIN' AND tenant_id IS NOT NULL)`.
+  - Nowy partial unique index `uq_super_admin_email ON app_user (LOWER(email)) WHERE role='SUPER_ADMIN' AND is_deleted=FALSE` — bez niego dwa konta SUPER_ADMIN z tenant_id=NULL moglyby miec ten sam email (Postgres traktuje NULL w kolumnach indeksu unikalnego jako zawsze rozny od innego NULL, wiec istniejacy `uq_user_tenant_email (tenant_id, email)` nie chroni SUPER_ADMIN).
+  - Zero migracji danych — nazwa roli 'ADMIN' sie nie zmienia (tylko znaczenie uprawnien w logice aplikacji), dev-seed ADMIN (`admin@kmnsoftware.com` @ tenant "KMN Software" — NIE "Acme" jak sugerowal brief, dev-seed w tym repo ma tenantow "KMN Software" i "Kampania Handlowa") mial juz tenant_id NOT NULL wiec spelnia nowy invariant bez zmian.
+  - Zweryfikowano (grep przez caly katalog migracji), ze `chk_app_user_role` jest JEDYNYM miejscem odwolujacym sie do zamknietej listy wartosci roli. Widoki `v_tenant_stats`/`v_queue_available_agents`/`v_queue_realtime_stats`/`v_active_contacts` i funkcje `check_tenant_limit`/`fn_contact_ref_integrity` NIE wymagaly zmian — wszystkie dolaczaja app_user przez rownosc `tenant_id`/`agent_id`, a SUPER_ADMIN (tenant_id NULL, nigdy nie jest agentem/queue_agent) naturalnie nie pojawia sie w zadnym z nich (NULL = X jest NULL w SQL).
+  - Test manualny (BEGIN/DO $$.../ROLLBACK, ccapp — bo to byly testy CHECK/unique, nie RLS): SUPER_ADMIN+tenant_id NOT NULL odrzucony, ADMIN+tenant_id NULL odrzucony, SUPER_ADMIN+tenant_id NULL przyjety, duplikat emaila SUPER_ADMIN (rozna wielkosc liter) odrzucony przez uq_super_admin_email, rola spoza listy odrzucona przez chk_app_user_role, dev-seed ADMIN nadal spelnia invariant. Widoki (`v_tenant_stats` itd.) smoke-testowane po migracji bez bledow.
+  - **Nowa, uproszczona metoda weryfikacji Flyway (zastepuje docker-cp-do-cc-backend z poprzednich sesji):** host MA bezposredni dostep TCP do `cc-postgres` po IP bridge-network Dockera (`docker inspect cc-postgres` -> `NetworkSettings.Networks.<siec>.IPAddress`, w tej sesji `172.18.0.2:5432`, potwierdzone `bash -c "echo > /dev/tcp/<ip>/5432"`) — mimo ze port nie jest opublikowany na `localhost`. Nie trzeba juz `docker cp` do `cc-backend`. Wystarczy: `javac`/`java` z hosta (JDK 21 zainstalowany), classpath z lokalnego `~/.m2` (`flyway-core` + `flyway-database-postgresql` w wersji z `backend/pom.xml`, `postgresql` driver, `jackson-databind`/`core`/`annotations`), maly `RunFlyway.java` z `Flyway.configure().dataSource(url,user,pass).locations("filesystem:<pelna-sciezka-do-...db/migration>").load()`, `DB_USERNAME`/`DB_PASSWORD` z `.env.local-demo` (NIE `ccapp:ccapp`). To faktycznie uruchamia Flyway (poprawny checksum liczony przez sam Flyway, zapisany do `flyway_schema_history` — bezpieczniejsze niz reczny INSERT z wyliczonym CRC32 uzywany w V070).
+  - Uwaga: `cc-backend` (kontener) ma juz uruchomiony `app.jar` (prod profile, PID 1) — restart kontenera NIE podciagnie nowej migracji automatycznie, bo jar jest zbudowany PRZED dodaniem V080 (migracje sa bundlowane w jarze). Migracja zaaplikowana bezposrednio na baze przez zewnetrzny Flyway runner (jak opisano wyzej) jest widoczna dla wszystkich polaczen (w tym dla juz dzialajacego backendu) natychmiast, bo to zmiana schematu na poziomie DB, niezalezna od stanu JVM.
+  - **Potwierdzony fakt architektoniczny (nie nowa wiedza, ale teraz zweryfikowany w kodzie zrodlowym, nie tylko wnioskowany):** `TenantAwareRepository.setTenantContextInDb()` (`backend/app/src/main/java/com/contactcenter/domain/repository/TenantAwareRepository.java`) woła WYLACZNIE `SELECT set_tenant_context(?)` (ustawia `app.current_tenant_id` w sesji) — NIGDY nie robi `SET ROLE app_user`. Polaczenie aplikacji zawsze idzie jako `ccapp` (`rolbypassrls=true`, potwierdzone w `pg_roles`), wiec RLS na `app_user` (i wszedzie indziej) w praktyce NIE ogranicza zapytan produkcyjnego backendu — dziala tylko jako deklaratywna, ale nieaktywna warstwa obronna, chyba ze ktos rowniez doda `SET ROLE app_user` (czego dzis kod nie robi). Test izolacji RLS w tym projekcie ZAWSZE wymaga recznego `SET ROLE app_user` (zob. [[feedback_rls_testing]]) wlasnie dlatego, ze sama aplikacja tego nie robi.
+
+Stan migracji po V079 (2026-07-05):
+- V079__add_external_id_to_customer.sql: kolumna techniczna external_id VARCHAR(255) NULL na customer (identyfikator z zewnętrznego CRM). Partial unique index uq_customer_tenant_external_id ON (tenant_id, external_id) WHERE external_id IS NOT NULL AND is_deleted = FALSE — wzorzec 1:1 z uq_user_tenant_email (V003). Bez błędów FK (brak FK w tej migracji); customer.tenant_id i is_deleted istnieją od V006 (tabela starsza, PK customer_id — zgodnie z [[feedback_pk_naming]]).
 
 Stan migracji po V077 (2026-06-20):
 - V077__create_plugin_invocation_log.sql (DB-045, EPIC-28, OSTATNI ticket DB tego epicu — zamyka warstwę DB 43/43): audit log wywołań pluginów (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED), RANGE-partycjonowana miesięcznie po invoked_at.

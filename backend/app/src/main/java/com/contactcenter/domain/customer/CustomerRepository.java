@@ -135,6 +135,44 @@ class CustomerRepository extends TenantAwareRepository {
         return Optional.of(results.get(0));
     }
 
+    /**
+     * Wyszukuje klienta po zewnętrznym identyfikatorze (np. z systemu CRM).
+     *
+     * <p>Kolumna {@code external_id} jest opcjonalna i unikalna w obrębie tenanta
+     * dla aktywnych, nie-zanonimizowanych rekordów (zobacz
+     * V079__add_external_id_to_customer.sql). Używane do walidacji unikalności
+     * przy tworzeniu/aktualizacji klienta.
+     *
+     * @param externalId zewnętrzny identyfikator klienta
+     * @param tenantId   UUID tenanta – filtr RLS
+     * @return Optional z pierwszym znalezionym klientem lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    public Optional<Customer> findByExternalId(String externalId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CustomerRepo] Szukam klienta po external_id: externalId={}, tenant={}", externalId, tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Customer> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM customer
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND external_id = :externalId
+                          AND is_deleted = false
+                        LIMIT 1
+                        """,
+                        Customer.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("externalId", externalId)
+                .getResultList();
+
+        if (results.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(results.get(0));
+    }
+
     // =========================================================================
     // Fuzzy search
     // =========================================================================

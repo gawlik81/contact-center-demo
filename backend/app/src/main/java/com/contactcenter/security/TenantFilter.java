@@ -111,15 +111,28 @@ public class TenantFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // Ustaw TenantContext
-            TenantContext.setTenantId(claims.tenantId());
+            // Defensywny check bezpieczeństwa: tenant_id może być null WYŁĄCZNIE dla roli
+            // SUPER_ADMIN (globalny administrator platformy, refaktor ról). To nie powinno
+            // się nigdy zdarzyć w praktyce (JwtService dodaje tenant_id dla każdej innej roli),
+            // ale chroni przed nieoczekiwanym stanem (np. spreparowany/uszkodzony token).
+            if (claims.tenantId() == null && !"SUPER_ADMIN".equals(claims.role())) {
+                log.warn("[TenantFilter] Token bez tenant_id dla roli innej niż SUPER_ADMIN: role={}", claims.role());
+                sendUnauthorized(response, "Nieprawidłowy token: brak wymaganego tenant_id");
+                return;
+            }
+
+            // Ustaw TenantContext – tenantId i MDC_TENANT_ID tylko gdy obecny (SUPER_ADMIN nie ma
+            // tenanta; TenantContext.setTenantId(null) rzuciłby IllegalArgumentException).
+            if (claims.tenantId() != null) {
+                TenantContext.setTenantId(claims.tenantId());
+                MDC.put(MDC_TENANT_ID, claims.tenantId().toString());
+            }
             TenantContext.setUserId(claims.userId());
             if (StringUtils.hasText(claims.role())) {
                 TenantContext.setUserRole(claims.role());
             }
 
             // Ustaw MDC dla logowania (wzorzec: [tenantId] [userId])
-            MDC.put(MDC_TENANT_ID, claims.tenantId().toString());
             MDC.put(MDC_USER_ID, claims.userId().toString());
 
             log.trace("[TenantFilter] Ustawiono kontekst: tenant={}, user={}, role={}",

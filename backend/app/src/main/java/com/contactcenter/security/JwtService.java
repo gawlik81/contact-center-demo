@@ -1,6 +1,7 @@
 package com.contactcenter.security;
 
 import com.contactcenter.domain.user.AppUser;
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +82,13 @@ public class JwtService {
     /**
      * Wystawia access token JWT dla zalogowanego użytkownika.
      *
+     * <p>Claimy {@code tenant_id}/{@code tenant_name} są dodawane wyłącznie gdy
+     * {@code user.getTenantId() != null} – SUPER_ADMIN (globalny administrator platformy,
+     * refaktor ról) nie ma tenanta, więc token nie zawiera tych claimów w ogóle
+     * (zamiast np. pustego stringa). {@link com.contactcenter.security.JwtParser} i
+     * {@link com.contactcenter.security.TenantFilter} traktują ich brak jako poprawny
+     * stan dla tej roli.
+     *
      * @param user        encja użytkownika (źródło claims)
      * @param mfaVerified czy użytkownik pomyślnie przeszedł weryfikację MFA w tej sesji
      * @return podpisany access token JWT (RS256)
@@ -89,17 +97,23 @@ public class JwtService {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(jwtProperties.accessTokenTtlSeconds());
 
-        String token = Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .subject(user.getEmail())
                 .issuer(jwtProperties.issuer())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
-                .claim(CLAIM_TENANT_ID,   user.getTenantId().toString())
-                .claim(CLAIM_TENANT_NAME, tenantName)
                 .claim(CLAIM_USER_ID,     user.getId().toString())
                 .claim(CLAIM_ROLE,        user.getRole().name())
                 .claim(CLAIM_EMAIL,       user.getEmail())
-                .claim(CLAIM_MFA_VERIFIED, mfaVerified)
+                .claim(CLAIM_MFA_VERIFIED, mfaVerified);
+
+        if (user.getTenantId() != null) {
+            builder = builder
+                    .claim(CLAIM_TENANT_ID,   user.getTenantId().toString())
+                    .claim(CLAIM_TENANT_NAME, tenantName);
+        }
+
+        String token = builder
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
 

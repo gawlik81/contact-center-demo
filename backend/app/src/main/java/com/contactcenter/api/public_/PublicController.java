@@ -51,30 +51,35 @@ public class PublicController {
     }
 
     /**
-     * Lista aktywnych tenantów powiązanych z podanym adresem e-mail.
+     * Lista aktywnych tenantów powiązanych z podanym adresem e-mail, wraz z flagą
+     * informującą czy e-mail należy do konta SUPER_ADMIN (logowanie globalne, refaktor ról).
      *
      * <p>Używane w flow "email-first" na stronie logowania: użytkownik wpisuje e-mail,
-     * a frontend wyświetla dropdown tylko z organizacjami, do których ten e-mail należy.
+     * a frontend wyświetla dropdown tylko z organizacjami, do których ten e-mail należy –
+     * lub, gdy {@code superAdminAccount=true}, pomija krok wyboru tenanta.
      *
      * <p><strong>Bezpieczeństwo:</strong>
      * <ul>
-     *   <li>Pusta lista zamiast 404 gdy e-mail nie istnieje – nie ujawniamy czy e-mail jest zarejestrowany.</li>
+     *   <li>Pusta lista i {@code superAdminAccount=false} zamiast 404 gdy e-mail nie istnieje –
+     *       nie ujawniamy czy e-mail jest zarejestrowany.</li>
      *   <li>E-mail NIE jest logowany (PII).</li>
      *   <li>Endpoint jest publiczny i nie wymaga JWT.</li>
      * </ul>
      *
      * @param request ciało żądania z polem {@code email}; walidacja: niepusty, poprawny format
-     * @return HTTP 200 z listą {@link TenantDto} (może być pusta) lub HTTP 400 przy błędnej walidacji
+     * @return HTTP 200 z {@link TenantsByEmailResponse} lub HTTP 400 przy błędnej walidacji
      */
     @PostMapping("/tenants-by-email")
     @Operation(
             summary = "Tenanty powiązane z adresem e-mail (email-first flow)",
             description = """
-                    Zwraca aktywne organizacje, w których istnieje aktywny użytkownik z podanym e-mailem.
-                    Zawsze zwraca HTTP 200 – pusta lista oznacza brak dopasowania (nie ujawniamy istnienia e-maila).
+                    Zwraca aktywne organizacje, w których istnieje aktywny użytkownik z podanym e-mailem,
+                    oraz flagę superAdminAccount (czy e-mail należy do globalnego konta SUPER_ADMIN).
+                    Zawsze zwraca HTTP 200 – pusta lista / superAdminAccount=false oznacza brak dopasowania
+                    (nie ujawniamy istnienia e-maila).
                     """
     )
-    public ResponseEntity<List<TenantDto>> findTenantsByEmail(
+    public ResponseEntity<TenantsByEmailResponse> findTenantsByEmail(
             @Valid @RequestBody TenantsByEmailRequest request
     ) {
         List<TenantDto> tenants = userService
@@ -85,7 +90,8 @@ public class PublicController {
                         row[1].toString()
                 ))
                 .toList();
-        return ResponseEntity.ok(tenants);
+        boolean superAdminAccount = userService.isSuperAdminEmail(request.email());
+        return ResponseEntity.ok(new TenantsByEmailResponse(tenants, superAdminAccount));
     }
 
     // =========================================================================
@@ -93,6 +99,15 @@ public class PublicController {
     // =========================================================================
 
     public record TenantDto(UUID id, String name) {}
+
+    /**
+     * Odpowiedź {@code POST /api/public/tenants-by-email}.
+     *
+     * @param tenants           aktywne organizacje powiązane z e-mailem (może być pusta)
+     * @param superAdminAccount czy e-mail należy do aktywnego globalnego konta SUPER_ADMIN –
+     *                          frontend pomija wtedy krok wyboru tenanta w formularzu logowania
+     */
+    public record TenantsByEmailResponse(List<TenantDto> tenants, boolean superAdminAccount) {}
 
     /**
      * Ciało żądania dla {@code POST /api/public/tenants-by-email}.

@@ -1,0 +1,23 @@
+[
+  {
+    "firstName": "Jan",
+    "lastName": "Kowalski",
+    "phone": [
+      "+48123456789",
+      "+48987654321"
+    ],
+    "email": [
+      "jakkowalski@gmail.com",
+      "jkowalski@gmail.com"
+    ],
+    "customFields": {
+      "vip": "true",
+      "age": 45,
+      "sex": "male",
+      "address": "26-231 Kielce, ul. Urzędnicza 132"
+    },
+    "gdprConsent": {
+      "consent_given": true
+    }
+  }
+]

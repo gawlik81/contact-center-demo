@@ -231,6 +231,8 @@ public class CrmUrlLauncherPlugin implements PluginEntryPoint {
                 customer.firstName() != null ? customer.firstName() : "");
         vars.put("customerLastName",
                 customer.lastName() != null ? customer.lastName() : "");
+        vars.put("customerExternalId",
+                customer.externalId() != null ? customer.externalId() : "");
         return vars;
     }
 

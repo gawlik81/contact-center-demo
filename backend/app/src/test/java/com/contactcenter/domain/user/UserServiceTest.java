@@ -20,8 +20,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -158,6 +160,23 @@ class UserServiceTest {
 
             verify(appUserRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("odrzuca próbę utworzenia SUPER_ADMIN przez zwykły endpoint (HTTP 400)")
+        void shouldRejectSuperAdminRoleCreationAttempt() {
+            CreateUserRequest request = new CreateUserRequest(
+                    "wannabe-super-admin@example.com", "SecretPass1!", null, null,
+                    UserRole.SUPER_ADMIN, null
+            );
+
+            assertThatThrownBy(() -> userService.createUser(request, TENANT_ID))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                            .isEqualTo(HttpStatus.BAD_REQUEST));
+
+            verify(appUserRepository, never()).save(any());
+            verify(tenantResourceLimitService, never()).checkAgentLimit(any());
+        }
     }
 
     // =========================================================================
@@ -230,8 +249,9 @@ class UserServiceTest {
     class UpdateUserTests {
 
         @Test
-        @DisplayName("powinien zaktualizować imię, nazwisko i skills")
+        @DisplayName("ADMIN powinien zaktualizować imię, nazwisko i skills")
         void shouldUpdateNameAndSkills() {
+            TenantContext.setUserRole("ADMIN");
             AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
                     UserRole.AGENT, UserStatus.ACTIVE, new ArrayList<>(List.of("OLD_SKILL")));
 
@@ -252,6 +272,7 @@ class UserServiceTest {
         @Test
         @DisplayName("powinien ignorować null w polach PATCH")
         void shouldIgnoreNullFields() {
+            TenantContext.setUserRole("ADMIN");
             AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
                     UserRole.AGENT, UserStatus.ACTIVE, new ArrayList<>(List.of("EXISTING")));
             user.setFirstName("OriginalFirst");
@@ -267,6 +288,58 @@ class UserServiceTest {
 
             assertThat(user.getFirstName()).isEqualTo("OriginalFirst");
             assertThat(user.getSkills()).containsExactly("EXISTING");
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR może zaktualizować wyłącznie skills agenta")
+        void supervisorShouldUpdateOnlySkillsOfAgent() {
+            // TenantContext.setUserRole("SUPERVISOR") ustawione domyślnie w setUp()
+            AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
+                    UserRole.AGENT, UserStatus.ACTIVE, new ArrayList<>(List.of("OLD_SKILL")));
+
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+            when(appUserRepository.save(any(AppUser.class))).thenReturn(user);
+
+            UpdateUserRequest request = new UpdateUserRequest(null, null, List.of("SALES"), null);
+
+            userService.updateUser(USER_ID, request, TENANT_ID);
+
+            assertThat(user.getSkills()).containsExactly("SALES");
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR nie może zmienić imienia/nazwiska agenta (refaktor ról)")
+        void supervisorCannotUpdateNameOfAgent() {
+            AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
+                    UserRole.AGENT, UserStatus.ACTIVE, new ArrayList<>());
+
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+
+            UpdateUserRequest request = new UpdateUserRequest("Jan", null, null, null);
+
+            assertThatThrownBy(() -> userService.updateUser(USER_ID, request, TENANT_ID))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verify(appUserRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR nie może edytować użytkownika z rolą SUPERVISOR/ADMIN (refaktor ról)")
+        void supervisorCannotUpdateNonAgentUser() {
+            AppUser user = buildUser(USER_ID, TENANT_ID, "other-supervisor@example.com",
+                    UserRole.SUPERVISOR, UserStatus.ACTIVE, new ArrayList<>());
+
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+
+            UpdateUserRequest request = new UpdateUserRequest(null, null, List.of("SALES"), null);
+
+            assertThatThrownBy(() -> userService.updateUser(USER_ID, request, TENANT_ID))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verify(appUserRepository, never()).save(any());
         }
     }
 

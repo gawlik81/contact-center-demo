@@ -1,1 +1,0 @@
-- [Adapter telefonii w Docker local-demo — Twilio zamiast Mock](project_adapter_selection_docker.md) — profil prod + domyslne telephony.provider=twilio aktywuje Twilio adapter zamiast Mock; naprawa przez TELEPHONY_PROVIDER=mock w .env.local-demo

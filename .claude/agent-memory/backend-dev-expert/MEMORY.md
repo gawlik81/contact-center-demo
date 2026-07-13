@@ -33,6 +33,7 @@
 
 - [feedback_stomp_mutable_headers.md](feedback_stomp_mutable_headers.md) – ChannelInterceptor.preSend(): `getAccessor()` zwraca immutable; fix:
   `StompHeaderAccessor.wrap(message)` + `setLeaveMutable(true)` + `MessageBuilder.createMessage()`
+- [feedback_jdbc_batchupdate_param_count_mismatch.md](feedback_jdbc_batchupdate_param_count_mismatch.md) – `jdbcTemplate.batchUpdate(sql, List<Object[]>)`: długość tablicy musi = liczbie `?`; znaleziony i naprawiony bug w `CustomerImportServiceImpl.batchInsertCustomers` (marker row[0] błędnie przekazywany jako parametr)
 - [feedback_hibernate6_null_param_bytea.md](feedback_hibernate6_null_param_bytea.md) – Hibernate 6: JPQL z `:param IS NULL` + LOWER() na tym samym parametrze
   String → PostgreSQL `lower(bytea) does not exist`; fix: natywny SQL z `CAST(:param AS TEXT)`
 - [feedback_partitioned_table_jpa.md](feedback_partitioned_table_jpa.md) – JPA na tabelach partycjonowanych: `@IdClass` + native INSERT przez
@@ -64,12 +65,13 @@
 - [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
 - [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
 - [feedback_supervisor_metrics_flaky_ivr_test.md](feedback_supervisor_metrics_flaky_ivr_test.md) – SupervisorMetricsServiceTest$KpiCallsInIvrTests jest pre-existing flaky/order-dependent (failuje w batch run, przechodzi w izolacji) – nie traktować jako regresji
+- [feedback_argumentcaptor_cleared_batch_list.md](feedback_argumentcaptor_cleared_batch_list.md) – ArgumentCaptor na liście czyszczonej (`batch.clear()`) zaraz po wywołaniu mocka: `captor.getValue()` po teście widzi pustą listę; fix: kopia obronna w `thenAnswer` w momencie wywołania
 
 ## Projekty
 
 - [BE-025 Customer CRUD API](project_be025_customer_api.md) – implementacja Customer CRUD, fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER
 - [BE-026 Customer CSV Import](project_be026_customer_import.md) – async import klientów z CSV, DeduplicationMode SKIP/OVERWRITE, Redis job status, batch
-  JdbcTemplate, wielokrotne phone/email (;)
+  JdbcTemplate, wielokrotne phone/email (;); rozszerzenie 2026-07-05: ParsedMapping (multi-column phone/email, named custom_fields, import zgody RODO)
 - [BE-027 Contact API](project_be027_contact_api.md) – CRUD historii kontaktów, tabela partycjonowana, ContactRepository rozszerza istniejący plik (BE-010
   recording)
 - [BE-019 Routing Engine](project_routing_engine.md) – silnik routingu (skill-based, round-robin, sticky agent), pakiet domain.routing, spy pattern w testach
@@ -111,3 +113,12 @@
 - [Jackson convertValue + nieznane pola](feedback_jackson_convertvalue_unknown_properties.md) — ObjectMapper.convertValue(Map, record) RZUCA wyjątek dla pól nieznanych docelowemu typowi (FAIL_ON_UNKNOWN_PROPERTIES=true domyślnie), nie ignoruje ich po cichu
 - [BE-108 szyfrowanie installation_config](project_be108_plugin_installation_config_encryption.md) — EncryptedStringConverter jako bean wołany ręcznie (nie @Convert) w repo natywnego SQL; wrapper {"encrypted":"..."} w jsonb; finding code review: insert() musi też szyfrować, nie tylko update()
 - [Plugin runtime startup reload](project_be_plugin_startup_reload.md) — PluginRuntimeStartupLoader (@EventListener ApplicationReadyEvent, konwencja jak StartupInfoLogger) odbudowuje PluginRegistry po restarcie; findAllEnabledAcrossAllTenants() analogiczne do BE-106 wzorca; fault containment per instalacja + TenantContext set/clear w finally
+- [BE-023 rozszerzenie – import JSON kontaktów kampanii](project_be023_json_import_extension.md) — refaktor CampaignImportServiceImpl (processRow/flushBatch/finalizeJobStatus współdzielone CSV+JSON) potwierdzony neutralny testami PRZED dodaniem JSON; nowy endpoint POST /{id}/contacts/import/json; CampaignImportControllerTest wzorowany na CustomerImportControllerTest (2026-07-12)
+- [EPIC-21 Dialer – retry i callback w kampaniach wychodzących](project_epic21_dialer.md) — Stan BE-062–BE-066, wzorce Redis dialera, markAsDialingForCallback vs markAsDialing
+- [TwilioTelephonyAdapter – transfer AGENT i QUEUE](project_twilio_transfer.md) — Implementacja initiateTransfer dla AGENT (client:agent-UUID) i QUEUE (Conference TwiML redirect)
+- [Attended transfer refactor – Wariant A](project_attended_transfer_refactor.md) — bridgeCalls redirect do nowej konferencji, customerCallSid w CallSession, usunięcie propagateRecordingToTransferChain
+- [EPIC-25 Campaign Assignment BE-079–085](project_epic25_campaign_assignment.md) — queueId→campaignId w initiateCall, CampaignAssignmentRepository, trójpoziomowa kwalifikacja, guard OUTBOUND→QUEUE
+- [EPIC-28 System pluginów](project_epic28_plugin_system.md) — installation_config AES-GCM bez AAD, dziedziczenie configu przy upgrade pluginu (BE-111), struktura plugin/plugin_version/tenant_plugin_installation
+- [DbEgressClient + customer-callresult-db-sync](project_be_db_egress_client.md) — nowa kategoria uprawnień db:egress:<host>:<port> (port obowiązkowy), DriverManager bez poolingu po stronie hosta, przykładowy plugin POST_CONTACT_END/DISPOSITION_SET append-only
+- [Import klientów z JSON (równolegle do CSV)](project_customer_json_import.md) — processRow/ImportCounters współdzielone CSV+JSON, parametryzacja source, POST /api/customers/import/json
+- [AgentBreak scheduler implementation](project_agentbreak_scheduler.md) — AgentBreakActivator: bulk status transitions PLANNED→ACTIVE→COMPLETED, 30s interval

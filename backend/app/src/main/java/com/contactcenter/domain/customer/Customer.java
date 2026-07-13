@@ -51,6 +51,14 @@ public class Customer {
     private String lastName;
 
     /**
+     * Zewnętrzny identyfikator klienta z systemu zewnętrznego (np. CRM).
+     * Opcjonalny; unikalny w obrębie tenanta dla aktywnych, nie-zanonimizowanych rekordów
+     * (patrz V079__add_external_id_to_customer.sql).
+     */
+    @Column(name = "external_id", length = 255)
+    private String externalId;
+
+    /**
      * Tablica numerów telefonu klienta (JSONB).
      * Format międzynarodowy: ["+48501234567", "+48601234567"].
      *

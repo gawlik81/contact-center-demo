@@ -8,9 +8,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.UUID;
 
 /**
- * Serwis obsługujący asynchroniczny import kontaktów kampanii z pliku CSV.
+ * Serwis obsługujący asynchroniczny import kontaktów kampanii z pliku CSV lub JSON.
  *
- * <p>Implementuje BE-023: Import CSV kontaktów kampanii (async job).
+ * <p>Implementuje BE-023: Import CSV kontaktów kampanii (async job), rozszerzony o alternatywną
+ * ścieżkę importu z pliku JSON ({@link #initiateJsonImport}) – ten sam mechanizm jobId/statusu.
  *
  * <p>Przepływ:
  * <ol>
@@ -46,6 +47,23 @@ public interface CampaignImportService {
      */
     UUID initiateImport(UUID campaignId, MultipartFile file, boolean skipDuplicates,
                          String columnSeparator, String quoteChar, String columnMappingJson);
+
+    /**
+     * Waliduje plik JSON i inicjuje asynchroniczny import (alternatywa dla CSV).
+     *
+     * <p>Wywołanie synchroniczne – szybkie (walidacja + zapis do Redis + start @Async).
+     * Zwraca jobId natychmiast, bez czekania na zakończenie importu. Format pliku: tablica
+     * obiektów JSON (camelCase, zgodna z {@code CampaignContactResponse}) – patrz
+     * {@code CampaignImportServiceImpl} po szczegóły.
+     *
+     * @param campaignId     UUID kampanii (musi należeć do tenanta z TenantContext)
+     * @param file           plik JSON (multipart) – tablica obiektów kontaktów
+     * @param skipDuplicates true = pomiń duplikaty po telefonie (domyślnie true)
+     * @return UUID jobu – do pollingu statusu (ten sam endpoint co dla CSV)
+     * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
+     * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
+     */
+    UUID initiateJsonImport(UUID campaignId, MultipartFile file, boolean skipDuplicates);
 
     /**
      * Pobiera status joba z Redis.

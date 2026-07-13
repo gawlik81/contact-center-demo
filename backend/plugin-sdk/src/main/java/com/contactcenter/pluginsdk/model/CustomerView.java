@@ -23,6 +23,8 @@ import java.util.UUID;
  *                     the same namespace a plugin writes into via
  *                     {@code PluginContext#updateCustomerFields}, so a plugin can read back
  *                     its own previously-stored data under {@code plugins.<pluginKey>}
+ * @param externalId  zewnętrzny identyfikator klienta z systemu CRM ({@code Customer.externalId}),
+ *                    lub {@code null} jeśli nie ustawiony
  * @param createdAt   timestamp the customer record was created
  */
 public record CustomerView(
@@ -32,5 +34,6 @@ public record CustomerView(
         java.util.List<String> emails,
         java.util.List<String> phoneNumbers,
         Map<String, Object> customFields,
+        String externalId,
         Instant createdAt) {
 }

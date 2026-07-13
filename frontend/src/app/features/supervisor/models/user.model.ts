@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'AGENT';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPERVISOR' | 'AGENT';
 
 export type UserStatus =
   | 'ACTIVE'
@@ -36,9 +36,9 @@ export interface CreateUserRequest {
 }
 
 export interface UpdateUserRequest {
-  firstName: string;
-  lastName: string;
-  role: UserRole;
+  /** Opcjonalne – pomijane przez SUPERVISOR, który może zmieniać wyłącznie skills. */
+  firstName?: string;
+  lastName?: string;
   skills: string[];
 }
 

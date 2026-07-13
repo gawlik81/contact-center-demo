@@ -57,8 +57,11 @@ export class CustomerService {
   createCustomer(payload: {
     firstName?: string;
     lastName?: string;
+    externalId?: string;
     phone: string[];
     email: string[];
+    customFields?: Record<string, unknown>;
+    gdprConsent?: Record<string, unknown>;
   }): Observable<CustomerResponse> {
     return this.http.post<CustomerResponse>(this.baseUrl, payload);
   }
@@ -68,8 +71,10 @@ export class CustomerService {
     payload: {
       firstName?: string;
       lastName?: string;
+      externalId?: string;
       phone?: string[];
       email?: string[];
+      customFields?: Record<string, unknown>;
       gdprConsent?: Record<string, unknown>;
     },
   ): Observable<CustomerResponse> {
@@ -85,7 +90,7 @@ export class CustomerService {
     separator: string,
     quoteChar: string,
     deduplication: DeduplicationMode,
-    columnMapping: Record<string, number>,
+    columnMapping: Record<string, unknown>,
   ): Observable<{ jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);
@@ -97,6 +102,14 @@ export class CustomerService {
       .set('deduplication', deduplication);
 
     return this.http.post<{ jobId: string }>(`${this.baseUrl}/import`, formData, { params });
+  }
+
+  importJson(file: File, deduplication: DeduplicationMode): Observable<{ jobId: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const params = new HttpParams().set('deduplication', deduplication);
+
+    return this.http.post<{ jobId: string }>(`${this.baseUrl}/import/json`, formData, { params });
   }
 
   getImportStatus(jobId: string): Observable<CustomerImportStatus> {

@@ -134,11 +134,18 @@
 .user-actions {
   text-align: right;
   white-space: nowrap;
-  display: flex;
-  gap: 0.375rem;
-  justify-content: flex-end;
-  align-items: center;
   padding-right: 0.75rem;
+
+  // display:flex directly on a <td> breaks the table's automatic column-width
+  // computation for rows where this cell is empty (no button rendered) – the
+  // border-bottom stops short of the shared column width. Flex lives on this
+  // inner wrapper instead so the <td> stays a normal table-cell box.
+  &__inner {
+    display: flex;
+    gap: 0.375rem;
+    justify-content: flex-end;
+    align-items: center;
+  }
 }
 
 // ── Role badges ───────────────────────────────────────────────────────────────

@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontend – Angular (Contact Center SaaS) – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>Frontend – Angular (Contact Center SaaS)</h1>
+<p>Dokumentacja warstwy frontendowej projektu Contact Center SaaS. Frontend znajduje się w katalogu
+<code>frontend/</code> i komunikuje się z backendem Spring Boot (<code>localhost:8080</code>) przez REST API (<code>/api/*</code>)
+oraz natywny WebSocket (STOMP, <code>/ws-native</code>).</p>
+<blockquote>
+<p>Wersja Angular: <strong>21.x</strong> (standalone components, Signals, nowy builder <code>@angular/build</code>).
+Testy: <strong>Vitest</strong> (<code>@angular/build:unit-test</code>).</p>
+</blockquote>
+<hr>
+<h2>1. Struktura projektu</h2>
+<pre><code>frontend/
+├── src/
+│   ├── app/
+│   │   ├── app.config.ts          # globalna konfiguracja aplikacji (providery)
+│   │   ├── app.routes.ts          # główna tablica trasowania (root)
+│   │   ├── app.ts / app.html      # root component (&lt;router-outlet&gt;)
+│   │   ├── core/                  # serwisy/guardy/interceptory/modele &quot;core&quot;
+│   │   │   ├── guards/
+│   │   │   ├── interceptors/
+│   │   │   ├── models/
+│   │   │   └── services/
+│   │   ├── shared/                # komponenty/serwisy/style współdzielone
+│   │   │   ├── components/
+│   │   │   ├── models/
+│   │   │   ├── services/
+│   │   │   ├── pipes/  directives/  (obecnie tylko .gitkeep)
+│   │   │   └── styles/
+│   │   └── features/              # moduły funkcjonalne per domena/rola
+│   │       ├── admin/
+│   │       ├── agent/
+│   │       ├── auth/
+│   │       ├── campaigns/         # (modele dot. kampanii leżą w supervisor)
+│   │       ├── customers/
+│   │       ├── dispositions/
+│   │       ├── integrations/
+│   │       ├── reports/
+│   │       ├── supervisor/
+│   │       └── tenants/
+│   ├── environments/
+│   │   ├── environment.ts          # dev (proxy)
+│   │   └── environment.prod.ts     # prod
+│   ├── styles.scss                 # globalny design system (tokeny CSS)
+│   └── app/app.scss
+├── public/
+│   └── i18n/                        # pl.json, en.json, de.json, uk.json (Transloco)
+├── proxy.conf.json                  # proxy dev-server → backend :8080
+├── angular.json
+├── package.json
+├── eslint.config.js
+└── .prettierrc(.json)
+</code></pre>
+<h3>Konwencje nazewnictwa</h3>
+<ul>
+<li><strong>Prefiks selektora komponentu</strong>:<ul>
+<li><code>app-</code> – komponenty specyficzne dla feature (np. <code>app-agent-desktop</code>, <code>app-customer-detail</code>)</li>
+<li><code>cc-</code> – komponenty współdzielone / powłoka aplikacji (np. <code>cc-app-shell</code>, <code>cc-sidenav</code>,
+<code>cc-top-navbar</code>, <code>cc-breadcrumbs</code>, <code>cc-toast-container</code>)</li>
+<li>Reguła wymuszona przez ESLint (<code>@angular-eslint/component-selector</code>, <code>prefix: [&#39;app&#39;, &#39;cc&#39;]</code>,
+<code>style: &#39;kebab-case&#39;</code>), oraz <code>@angular-eslint/directive-selector</code> (prefix <code>app</code>,
+<code>camelCase</code>).</li>
+</ul>
+</li>
+<li><strong>Tylko standalone components</strong> – brak <code>NgModule</code>. Każdy komponent ma <code>imports: [...]</code> w
+dekoratorze <code>@Component</code>.</li>
+<li><strong>Pliki</strong>: <code>*.component.ts</code> + <code>*.component.html</code> + <code>*.component.scss</code> (niektóre małe
+komponenty mają inline <code>template</code>/<code>styles</code>), <code>*.service.ts</code>, <code>*.model.ts</code>, <code>*.routes.ts</code>,
+<code>*.store.ts</code> (lekkie store na signalach), <code>*.spec.ts</code> (testy Vitest).</li>
+<li><strong>Struktura feature</strong>: <code>pages/</code> (komponenty-strony, routowalne), <code>components/</code> (komponenty
+pomocnicze osadzane w stronach), <code>services/</code>, <code>models/</code>.</li>
+</ul>
+<h3>Stan – zasady ogólne (z <code>CLAUDE.md</code>)</h3>
+<ul>
+<li>Preferowane: <code>signal()</code> / <code>computed()</code> / <code>effect()</code>.</li>
+<li><code>BehaviorSubject</code> / RxJS – tylko dla strumieni (WebSocket, polling).</li>
+<li>Bridge RxJS ↔ Signals: <code>toSignal()</code> (np. <code>TopNavbarComponent.kpi</code>, <code>SidenavComponent.currentUrl</code>)
+oraz <code>takeUntilDestroyed(destroyRef)</code> do automatycznego odpisywania.</li>
+</ul>
+<hr>
+<h2>2. Routing – <code>app.routes.ts</code></h2>
+<p>Plik <code>src/app/app.routes.ts</code> definiuje <strong>trasy najwyższego poziomu</strong>. Każda sekcja roli jest
+lazy-loaded (<code>loadChildren</code>) i chroniona guardami.</p>
+<pre class="mermaid">flowchart LR
+    Root["/"] -->|roleRedirectGuard| RoleRoute
+    RoleRoute -->|ADMIN| Admin["/admin/**"]
+    RoleRoute -->|SUPERVISOR| Supervisor["/supervisor/**"]
+    RoleRoute -->|AGENT| Agent["/agent/**"]
+    RoleRoute -->|brak auth| Login["/auth/login"]
+
+    Login["/auth/**"]
+    Forbidden["/forbidden"]
+    Wildcard["**"] --> Root
+</pre>
+<h3>Tabela tras najwyższego poziomu</h3>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Guard</th>
+<th>Rola</th>
+<th>Lazy-loaded plik</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/</code></td>
+<td><code>roleRedirectGuard</code></td>
+<td>—</td>
+<td><code>features/auth/login/login.component.ts</code> (nigdy nie renderowany – guard zawsze zwraca <code>UrlTree</code>)</td>
+</tr>
+<tr>
+<td><code>/auth/**</code></td>
+<td>—</td>
+<td>publiczny</td>
+<td><code>features/auth/auth.routes.ts</code></td>
+</tr>
+<tr>
+<td><code>/login</code></td>
+<td>—</td>
+<td>redirect → <code>/auth/login</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>/forbidden</code></td>
+<td>—</td>
+<td>publiczny</td>
+<td><code>features/auth/forbidden/forbidden.component.ts</code></td>
+</tr>
+<tr>
+<td><code>/admin/**</code></td>
+<td><code>authGuard</code>, <code>roleGuard</code> (<code>data.roles: [&#39;ADMIN&#39;]</code>)</td>
+<td>ADMIN</td>
+<td><code>features/admin/admin.routes.ts</code></td>
+</tr>
+<tr>
+<td><code>/supervisor/**</code></td>
+<td><code>authGuard</code>, <code>roleGuard</code> (<code>data.roles: [&#39;SUPERVISOR&#39;]</code>)</td>
+<td>SUPERVISOR</td>
+<td><code>features/supervisor/supervisor.routes.ts</code></td>
+</tr>
+<tr>
+<td><code>/agent/**</code></td>
+<td><code>authGuard</code>, <code>roleGuard</code> (<code>data.roles: [&#39;AGENT&#39;]</code>)</td>
+<td>AGENT</td>
+<td><code>features/agent/agent.routes.ts</code></td>
+</tr>
+<tr>
+<td><code>**</code></td>
+<td>—</td>
+<td>redirect → <code>/</code></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>Konfiguracja routera (<code>app.config.ts</code>):</p>
+<ul>
+<li><code>withComponentInputBinding()</code> – parametry trasy/queryParams automatycznie bindowane jako
+<code>input()</code> w komponentach.</li>
+<li><code>withRouterConfig({ paramsInheritanceStrategy: &#39;always&#39; })</code> – dzieci dziedziczą parametry
+rodzica.</li>
+</ul>
+<h3><code>/auth/**</code> – <code>features/auth/auth.routes.ts</code></h3>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Guard</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth/login</code></td>
+<td>—</td>
+<td><code>LoginComponent</code></td>
+</tr>
+<tr>
+<td><code>auth/change-password</code></td>
+<td><code>authGuard</code></td>
+<td><code>ChangePasswordComponent</code></td>
+</tr>
+<tr>
+<td><code>auth/</code></td>
+<td>—</td>
+<td>redirect → <code>login</code></td>
+</tr>
+</tbody></table>
+<h3><code>/admin/**</code> – <code>features/admin/admin.routes.ts</code></h3>
+<p>Wszystko pod <code>AdminShellComponent</code> (powłoka z <code>cc-app-shell</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Breadcrumb key</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>admin</code></td>
+<td><code>role.admin</code></td>
+<td><code>AdminShellComponent</code> (rodzic)</td>
+</tr>
+<tr>
+<td><code>admin</code> (redirect)</td>
+<td>—</td>
+<td>→ <code>dashboard</code></td>
+</tr>
+<tr>
+<td><code>admin/dashboard</code></td>
+<td><code>nav.dashboard</code></td>
+<td><code>AdminDashboardComponent</code></td>
+</tr>
+<tr>
+<td><code>admin/tenants/**</code></td>
+<td><code>nav.tenants</code></td>
+<td><code>features/tenants/tenants.routes.ts</code> (<code>TENANT_ROUTES</code>)</td>
+</tr>
+<tr>
+<td><code>admin/users</code></td>
+<td><code>nav.users</code></td>
+<td><code>AdminUsersComponent</code></td>
+</tr>
+<tr>
+<td><code>admin/metrics</code></td>
+<td><code>nav.metrics</code></td>
+<td><code>AdminMetricsPageComponent</code></td>
+</tr>
+</tbody></table>
+<p><code>TENANT_ROUTES</code> ma tylko jedną trasę: <code>admin/tenants</code> → <code>TenantListComponent</code>.</p>
+<h3><code>/supervisor/**</code> – <code>features/supervisor/supervisor.routes.ts</code></h3>
+<p>Wszystko pod <code>SupervisorShellComponent</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Breadcrumb key</th>
+<th>Dodatkowy guard / role</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>supervisor</code> (redirect)</td>
+<td>—</td>
+<td>—</td>
+<td>→ <code>dashboard</code></td>
+</tr>
+<tr>
+<td><code>supervisor/dashboard</code></td>
+<td><code>nav.dashboard</code></td>
+<td>—</td>
+<td><code>SupervisorDashboardComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/agents</code></td>
+<td><code>nav.users</code></td>
+<td>—</td>
+<td><code>UserListComponent</code> (pages/users)</td>
+</tr>
+<tr>
+<td><code>supervisor/queues</code></td>
+<td><code>nav.queues</code></td>
+<td><code>roleGuard</code> (<code>SUPERVISOR</code>, <code>ADMIN</code>)</td>
+<td><code>QueueListComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/campaigns</code></td>
+<td><code>nav.campaigns</code></td>
+<td><code>roleGuard</code> (<code>SUPERVISOR</code>, <code>ADMIN</code>)</td>
+<td><code>CampaignListComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/customers</code></td>
+<td><code>nav.customers</code></td>
+<td>—</td>
+<td><code>CustomerListComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/customers/import</code></td>
+<td><code>nav.importCsv</code></td>
+<td><code>roleGuard</code></td>
+<td><code>CustomerImportComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/customers/new</code></td>
+<td>—</td>
+<td>—</td>
+<td>redirect → <code>supervisor/customers</code></td>
+</tr>
+<tr>
+<td><code>supervisor/customers/:id</code></td>
+<td><code>nav.customerProfile</code></td>
+<td><code>roleGuard</code></td>
+<td><code>CustomerDetailComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/reports</code></td>
+<td><code>nav.reports</code></td>
+<td><code>roleGuard</code></td>
+<td><code>ReportsComponent</code> (placeholder)</td>
+</tr>
+<tr>
+<td><code>supervisor/reports/contacts</code></td>
+<td><code>nav.reportsContacts</code></td>
+<td><code>roleGuard</code></td>
+<td><code>ContactsReportComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/settings/**</code></td>
+<td><code>nav.configuration</code></td>
+<td><code>roleGuard</code></td>
+<td>patrz tabela niżej</td>
+</tr>
+<tr>
+<td><code>supervisor/agent-groups</code></td>
+<td><code>nav.agentGroups</code></td>
+<td><code>roleGuard</code></td>
+<td><code>AgentGroupsPageComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/callbacks</code></td>
+<td><code>nav.callbacks</code></td>
+<td><code>roleGuard</code></td>
+<td><code>SupervisorCallbacksPageComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/ivr</code></td>
+<td><code>nav.ivrEditor</code></td>
+<td><code>roleGuard</code></td>
+<td><code>IvrListComponent</code></td>
+</tr>
+<tr>
+<td><code>supervisor/ivr/:ivrId</code></td>
+<td><code>nav.ivrEditor</code></td>
+<td><code>roleGuard</code></td>
+<td><code>IvrEditorComponent</code></td>
+</tr>
+</tbody></table>
+<h4><code>supervisor/settings/**</code> (zagnieżdżone, redirect <code>&#39;&#39;</code> → <code>email</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Breadcrumb key</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>settings/email</code></td>
+<td><code>nav.settingsEmail</code></td>
+<td><code>EmailSettingsComponent</code></td>
+</tr>
+<tr>
+<td><code>settings/phone-numbers</code></td>
+<td><code>nav.settingsPhoneNumbers</code></td>
+<td><code>PhoneNumbersComponent</code></td>
+</tr>
+<tr>
+<td><code>settings/integrations/**</code></td>
+<td><code>nav.settingsSocialMedia</code></td>
+<td><code>INTEGRATIONS_ROUTES</code> (<code>features/integrations</code>)</td>
+</tr>
+<tr>
+<td><code>settings/email-templates</code></td>
+<td><code>nav.settingsEmailTemplates</code></td>
+<td><code>EmailTemplatesComponent</code></td>
+</tr>
+<tr>
+<td><code>settings/disposition-sets</code></td>
+<td><code>nav.settingsDispositionSets</code></td>
+<td><code>DispositionSetsPageComponent</code></td>
+</tr>
+<tr>
+<td><code>settings/twilio</code></td>
+<td><code>nav.settingsTwilioConfig</code></td>
+<td><code>TwilioConfigComponent</code></td>
+</tr>
+<tr>
+<td><code>settings/ai-config</code></td>
+<td><code>nav.settingsAiConfig</code></td>
+<td><code>AiConfigComponent</code></td>
+</tr>
+</tbody></table>
+<p><code>INTEGRATIONS_ROUTES</code> (<code>features/integrations/integrations.routes.ts</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>`` (root)</td>
+<td><code>SocialIntegrationsComponent</code></td>
+</tr>
+<tr>
+<td><code>oauth/callback/:platform</code></td>
+<td><code>OauthCallbackComponent</code></td>
+</tr>
+</tbody></table>
+<h3><code>/agent/**</code> – <code>features/agent/agent.routes.ts</code></h3>
+<p>Wszystko pod <code>AgentShellComponent</code> (<code>cc-app-shell</code> + <code>cc-incoming-call-banner</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Ścieżka</th>
+<th>Breadcrumb key</th>
+<th>Komponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>agent</code> (redirect)</td>
+<td>—</td>
+<td>→ <code>desktop</code></td>
+</tr>
+<tr>
+<td><code>agent/desktop</code></td>
+<td><code>nav.desktop</code></td>
+<td><code>AgentDesktopComponent</code></td>
+</tr>
+<tr>
+<td><code>agent/customers</code></td>
+<td><code>nav.customers</code></td>
+<td><code>AgentCustomersTabComponent</code></td>
+</tr>
+<tr>
+<td><code>agent/callbacks</code></td>
+<td><code>nav.callbacks</code></td>
+<td><code>AgentCallbacksPageComponent</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>3. Core (<code>src/app/core/</code>)</h2>
+<h3>3.1 Guardy (<code>core/guards/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Guard</th>
+<th>Plik</th>
+<th>Logika</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>authGuard</code></td>
+<td><code>auth.guard.ts</code></td>
+<td>Sprawdza token w pamięci (<code>TokenService.getAccessToken()</code>). Jeśli brak/wygasł, próbuje <strong>silent refresh</strong> (<code>AuthService.refresh()</code>) na bazie refresh tokenu z <code>sessionStorage</code>. Po nieudanym refreshu → <code>UrlTree</code> do <code>/auth/login</code>.</td>
+</tr>
+<tr>
+<td><code>roleGuard</code></td>
+<td><code>role.guard.ts</code></td>
+<td>Porównuje <code>route.data[&#39;roles&#39;]</code> (np. <code>[&#39;ADMIN&#39;]</code>) z <code>AuthService.getUserRole()</code>. Brak dopasowania → <code>UrlTree</code> do <code>/forbidden</code>.</td>
+</tr>
+<tr>
+<td><code>roleRedirectGuard</code></td>
+<td><code>role-redirect.guard.ts</code></td>
+<td>Guard trasy <code>/</code>. Niezalogowany → <code>/auth/login</code>. Zalogowany → <code>AuthService.getRoleDefaultRoute(role)</code> (<code>/admin</code>, <code>/supervisor</code>, <code>/agent</code>).</td>
+</tr>
+</tbody></table>
+<h3>3.2 Interceptory (<code>core/interceptors/</code>)</h3>
+<p>Zarejestrowane w <code>app.config.ts</code> w kolejności: <code>authInterceptor</code> → <code>errorHandlerInterceptor</code>.</p>
+<h4><code>authInterceptor</code> (<code>auth.interceptor.ts</code>)</h4>
+<ul>
+<li>Dodaje nagłówek <code>Authorization: Bearer &lt;token&gt;</code> do każdego requestu (poza endpointami auth:
+<code>/auth/login</code>, <code>/auth/refresh</code>, <code>/auth/logout</code>, <code>/auth/mfa/verify</code>).</li>
+<li>Na <strong>401</strong>: jeśli żaden refresh nie jest w toku, wywołuje <code>AuthService.refresh()</code>, podmienia
+token i powtarza request. Jeśli refresh już trwa – kolejne requesty czekają na
+<code>TokenRefreshService.refreshTokenSubject</code> (kolejkowanie przez <code>filter</code> + <code>take(1)</code>).</li>
+<li><code>TokenRefreshService</code> (<code>core/services/token-refresh.service.ts</code>) – <code>@Injectable({providedIn:&#39;root&#39;})</code>
+przechowujący <code>isRefreshing: boolean</code> i <code>BehaviorSubject&lt;string|null&gt;</code> – wydzielony ze stanu
+modułowego właśnie po to, by uniknąć race condition między wielowiarstwowymi injectorami.</li>
+</ul>
+<h4><code>errorHandlerInterceptor</code> (<code>error-handler.interceptor.ts</code>)</h4>
+<ul>
+<li>Globalna obsługa błędów HTTP → toast (<code>NotificationService</code> + Transloco):<ul>
+<li><code>status === 0</code> → <code>common.errorNetwork</code></li>
+<li><code>401</code> → brak toastu (obsłużone przez <code>authInterceptor</code>, użytkownik i tak trafia na login)</li>
+<li><code>403</code> → <code>common.errorForbidden</code></li>
+<li><code>404</code> (tylko dla <code>/api/*</code>) → <code>common.errorNotFound</code> (warning)</li>
+<li><code>&gt;= 500</code> → <code>common.errorServer</code></li>
+<li><code>4xx</code> inne → komunikat z body backendu (<code>error.message</code> / <code>error.error</code>) albo <code>common.errorBadRequest</code></li>
+</ul>
+</li>
+<li>Eksportuje <code>SKIP_ERROR_TOAST</code> (<code>HttpContextToken&lt;boolean&gt;</code>) – ustaw przez
+<code>{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }</code>, aby wyciszyć globalny toast dla
+konkretnego żądania (np. gdy komponent sam obsługuje błąd inline).</li>
+</ul>
+<h3>3.3 Serwisy (<code>core/services/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Serwis</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AuthService</code></td>
+<td>Logowanie, MFA, zmiana hasła, refresh, logout. Stan jako <code>signal&lt;JwtPayload|null&gt;</code> + <code>computed</code>: <code>isAuthenticated</code>, <code>currentRole</code>, <code>currentTenantId</code>, <code>currentTenantName</code>, <code>currentUserId</code>.</td>
+</tr>
+<tr>
+<td><code>TokenService</code></td>
+<td>Access token <strong>tylko w pamięci</strong> (mitygacja XSS, nigdy w <code>localStorage</code>). Refresh token w <code>sessionStorage</code> (czyszczony po zamknięciu karty/przeglądarki). Dekodowanie JWT (base64url) bez weryfikacji podpisu (weryfikacja jest po stronie backendu).</td>
+</tr>
+<tr>
+<td><code>TokenRefreshService</code></td>
+<td>Współdzielony stan silent-refresh dla interceptora (patrz wyżej).</td>
+</tr>
+<tr>
+<td><code>WebSocketService</code></td>
+<td>Klient STOMP po natywnym WS (<code>@stomp/stompjs</code>). Patrz sekcja 5.</td>
+</tr>
+<tr>
+<td><code>NotificationService</code></td>
+<td>System toastów: <code>signal&lt;Toast[]&gt;</code>, metody <code>success/error/warning/info</code>, auto-dismiss (<code>setTimeout</code>).</td>
+</tr>
+<tr>
+<td><code>BreadcrumbService</code></td>
+<td>Buduje breadcrumb z <code>router.routerState.snapshot</code> na podstawie <code>route.data[&#39;breadcrumb&#39;]</code> (klucze Transloco).</td>
+</tr>
+<tr>
+<td><code>LanguageService</code></td>
+<td>i18n – patrz sekcja 3.5.</td>
+</tr>
+<tr>
+<td><code>ThemeService</code></td>
+<td>Tryb light/dark/auto (<code>signal</code>, <code>effect</code>, <code>localStorage</code> klucz <code>kmn-theme</code>, <code>data-theme</code> na <code>&lt;html&gt;</code>, <code>prefers-color-scheme</code>).</td>
+</tr>
+<tr>
+<td><code>AgentGroupService</code></td>
+<td>CRUD grup agentów (współdzielony między admin/supervisor – w <code>core/services</code> bo używany w wielu miejscach).</td>
+</tr>
+<tr>
+<td><code>LoggingService</code></td>
+<td>Wysyłka logów frontendowych do backendu (<code>FrontendLogEntry</code>).</td>
+</tr>
+<tr>
+<td><code>AppErrorHandler</code> (<code>app-error-handler.ts</code>)</td>
+<td>Globalny <code>ErrorHandler</code> (Angular <code>provideBrowserGlobalErrorListeners</code> + custom klasa) – łapie nieobsłużone błędy JS i wysyła do <code>LoggingService</code>.</td>
+</tr>
+</tbody></table>
+<h3>3.4 Modele (<code>core/models/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>jwt-payload.model.ts</code></td>
+<td><code>JwtPayload</code> (<code>sub</code>, <code>iss</code>, <code>iat</code>, <code>exp</code>, <code>tenant_id</code>, <code>tenant_name?</code>, <code>user_id</code>, <code>role: UserRole</code>, <code>email</code>, <code>mfaVerified</code>) i <code>UserRole = &#39;ADMIN&#39; | &#39;SUPERVISOR&#39; | &#39;AGENT&#39;</code>.</td>
+</tr>
+<tr>
+<td><code>paged-response.model.ts</code></td>
+<td><code>PagedResponse&lt;T&gt;</code> – odpowiada Spring <code>Page&lt;T&gt;</code> (<code>content</code>, <code>page</code>, <code>size</code>, <code>totalElements</code>, <code>totalPages</code>, <code>first</code>, <code>last</code>).</td>
+</tr>
+<tr>
+<td><code>contact.model.ts</code></td>
+<td>Wspólny model kontaktu (kanał, status).</td>
+</tr>
+<tr>
+<td><code>customer-profile.model.ts</code></td>
+<td>Profil klienta używany w panelu klienta agenta.</td>
+</tr>
+<tr>
+<td><code>agent-group.model.ts</code></td>
+<td>Model grup agentów.</td>
+</tr>
+<tr>
+<td><code>language.model.ts</code></td>
+<td><code>SUPPORTED_LANGUAGES</code>, <code>SupportedLanguage</code>, <code>LANGUAGE_STORAGE_KEY</code>.</td>
+</tr>
+<tr>
+<td><code>frontend-log-entry.model.ts</code></td>
+<td>Struktura logu wysyłanego do <code>LoggingService</code>.</td>
+</tr>
+</tbody></table>
+<h3>3.5 Transloco (i18n)</h3>
+<ul>
+<li>Konfiguracja w <code>app.config.ts</code>:<pre><code class="language-ts">provideTransloco({
+  config: {
+    availableLangs: [&#39;pl&#39;, &#39;en&#39;, &#39;de&#39;, &#39;uk&#39;],
+    defaultLang: &#39;pl&#39;,
+    fallbackLang: &#39;en&#39;,
+    reRenderOnLangChange: true,
+    prodMode: environment.production,
+  },
+  loader: TranslocoHttpLoader,
+})
+</code></pre>
+</li>
+<li><code>TranslocoHttpLoader</code> (<code>core/transloco-http-loader.ts</code>) – własny loader (Transloco nie ma
+wbudowanego dla nowego buildera), pobiera <code>GET /i18n/{lang}.json</code> (pliki w <code>public/i18n/</code>).</li>
+<li><strong>Pliki tłumaczeń</strong>: <code>frontend/public/i18n/{pl,en,de,uk}.json</code> – płaski/zagnieżdżony JSON z
+kluczami typu <code>nav.dashboard</code>, <code>common.errorNetwork</code>, <code>role.admin</code> itd.</li>
+<li><strong>Inicjalizacja języka</strong> – <code>LanguageService.init()</code> wywoływany przez <code>APP_INITIALIZER</code>:<ol>
+<li>Jeśli użytkownik zalogowany → <code>GET /api/users/me/preferences</code> (<code>preferredLanguage</code>)</li>
+<li>Inaczej <code>localStorage</code> (<code>LANGUAGE_STORAGE_KEY</code>)</li>
+<li>Inaczej <code>navigator.language</code></li>
+<li>Domyślnie <code>&#39;pl&#39;</code></li>
+</ol>
+<ul>
+<li><code>setLanguage(lang)</code> zapisuje do <code>localStorage</code> <strong>i</strong> (jeśli zalogowany) <code>PUT /api/users/me/preferences</code>.</li>
+</ul>
+</li>
+<li><strong>Jak dodać nowe tłumaczenie</strong>: dodaj klucz do <strong>wszystkich czterech</strong> plików
+<code>public/i18n/{pl,en,de,uk}.json</code> (zachowując strukturę zagnieżdżoną), następnie w szablonie
+użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloco.translate(&#39;klucz&#39;)</code> w TS (przez
+<code>inject(TranslocoService)</code> / <code>TranslocoModule</code> w <code>imports</code>).</li>
+<li><code>LanguageSwitcherComponent</code> (<code>shared/components/language-switcher/</code>) – dropdown osadzony w
+<code>TopNavbarComponent</code>, własny stan <code>isOpen</code> (signal) + <code>HostListener</code> na klik poza komponentem.</li>
+</ul>
+<hr>
+<h2>4. Moduły features</h2>
+<h3>4.1 <code>features/auth/</code></h3>
+<p><strong>Cel</strong>: logowanie, MFA, zmiana hasła, ekran „brak dostępu”.</p>
+<table>
+<thead>
+<tr>
+<th>Komponent/Serwis</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LoginComponent</code> (<code>login/login.component.ts</code>)</td>
+<td>Formularz logowania (reactive forms): tenant + email + password. Wieloetapowy: po <code>AuthService.login()</code> może wymagać <code>requiresMfa</code> (krok TOTP, <code>AuthService.verifyMfa()</code>) lub <code>passwordResetRequired</code> (redirect do <code>/auth/change-password</code>).</td>
+</tr>
+<tr>
+<td><code>ChangePasswordComponent</code></td>
+<td>Formularz zmiany hasła (<code>AuthService.changePassword()</code>), chroniony <code>authGuard</code>.</td>
+</tr>
+<tr>
+<td><code>ForbiddenComponent</code></td>
+<td>Statyczna strona 403, wyświetlana przez <code>roleGuard</code>.</td>
+</tr>
+<tr>
+<td><code>PublicTenantService</code> (<code>services/public-tenant.service.ts</code>)</td>
+<td>Pobiera publiczną listę/identyfikację tenantów na ekranie logowania (bez auth).</td>
+</tr>
+</tbody></table>
+<h3>4.2 <code>features/admin/</code> (rola: ADMIN)</h3>
+<p><strong>Cel</strong>: globalne zarządzanie platformą – tenants, użytkownicy cross-tenant, metryki systemowe.</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Typ</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AdminShellComponent</code></td>
+<td>shell</td>
+<td><code>cc-app-shell</code> z breadcrumbiem <code>role.admin</code>.</td>
+</tr>
+<tr>
+<td><code>AdminDashboardComponent</code> (<code>pages/dashboard/</code>)</td>
+<td>strona</td>
+<td>Dashboard z KPI globalnymi, alertami systemowymi. Korzysta z <code>AdminMetricsService</code>.</td>
+</tr>
+<tr>
+<td><code>AdminMetricsPageComponent</code> (<code>pages/metrics/</code>)</td>
+<td>strona</td>
+<td>Szczegółowe metryki systemowe (per-tenant).</td>
+</tr>
+<tr>
+<td><code>AdminUsersComponent</code> (<code>pages/users/admin-users.component.ts</code>)</td>
+<td>strona</td>
+<td>Kontener listy użytkowników cross-tenant.</td>
+</tr>
+<tr>
+<td><code>AdminUserListComponent</code> (<code>pages/users/admin-user-list/</code>)</td>
+<td>komponent</td>
+<td>Tabela użytkowników wszystkich tenantów, filtrowanie, paginacja (<code>PagedResponse</code>).</td>
+</tr>
+<tr>
+<td><code>AdminUserFormComponent</code> (<code>pages/users/admin-user-form/</code>)</td>
+<td>komponent</td>
+<td>Formularz edycji/tworzenia użytkownika (reactive forms), wymuszony reset hasła.</td>
+</tr>
+<tr>
+<td><code>AdminMetricsService</code> (<code>services/admin-metrics.service.ts</code>)</td>
+<td>serwis</td>
+<td>Polling metryk (np. liczba aktywnych tenantów/agentów, alerty) – źródło <code>alertCount$</code> dla <code>SidenavComponent</code>.</td>
+</tr>
+<tr>
+<td><code>AdminUserService</code> (<code>services/admin-user.service.ts</code>)</td>
+<td>serwis</td>
+<td>CRUD użytkowników (<code>AdminUpdateUserRequest</code> itp.), <code>force-reset-password</code>.</td>
+</tr>
+<tr>
+<td>Modele</td>
+<td><code>admin-metrics.model.ts</code>, <code>admin-user.model.ts</code></td>
+<td>DTO odpowiadające backendowi.</td>
+</tr>
+</tbody></table>
+<p><strong>Tenants</strong> (osadzone pod <code>/admin/tenants</code>, ale fizycznie w <code>features/tenants/</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TenantListComponent</code> (<code>tenant-list/</code>)</td>
+<td>Tabela tenantów: paginacja, filtry, badge statusu, skeleton loading.</td>
+</tr>
+<tr>
+<td><code>TenantAddModalComponent</code> / <code>TenantEditModalComponent</code></td>
+<td>Natywne dialogi (<code>&lt;dialog&gt;</code>) – formularze z async-validatorem unikalności nazwy/slug.</td>
+</tr>
+<tr>
+<td><code>TenantDeactivateModalComponent</code></td>
+<td>Dialog dezaktywacji tenanta (z potwierdzeniem).</td>
+</tr>
+<tr>
+<td><code>TenantService</code> (<code>tenant.service.ts</code>)</td>
+<td><code>getTenants</code>, <code>createTenant</code>, <code>updateTenant</code>, <code>deactivateTenant</code>, <code>checkNameAvailability(ForUpdate)</code>.</td>
+</tr>
+<tr>
+<td><code>tenant.model.ts</code></td>
+<td>DTO <code>Tenant</code>, <code>CreateTenantRequest</code>, <code>UpdateTenantRequest</code>.</td>
+</tr>
+</tbody></table>
+<h3>4.3 <code>features/supervisor/</code> (rola: SUPERVISOR, część <code>ADMIN</code>)</h3>
+<p>Największy moduł – zarządzanie operacyjne tenantem.</p>
+<h4>Dashboard i agenci</h4>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SupervisorShellComponent</code></td>
+<td>shell <code>cc-app-shell</code> z breadcrumbiem <code>role.supervisor</code>.</td>
+</tr>
+<tr>
+<td><code>SupervisorDashboardComponent</code></td>
+<td>Dashboard RT: KPI cards, tabela agentów (status, czas przerwy), wykres kolejek (CSS bar chart). Dane z <code>SupervisorMetricsService</code> – polling/WS event <code>SUPERVISOR_METRICS</code>, fullscreen API.</td>
+</tr>
+<tr>
+<td><code>pages/users/user-list/UserListComponent</code></td>
+<td>Lista agentów tenantu (tabela, filtry status/skill, skeleton).</td>
+</tr>
+<tr>
+<td><code>pages/users/user-form/UserFormComponent</code></td>
+<td>Formularz agenta – natywny dialog, multi-select umiejętności (chipy), walidator hasła.</td>
+</tr>
+<tr>
+<td><code>pages/users/user-delete-modal/UserDeleteModalComponent</code></td>
+<td>Dialog usunięcia (obsługa 409 → warning toast).</td>
+</tr>
+<tr>
+<td><code>pages/users/user-reset-password-modal/UserResetPasswordModalComponent</code></td>
+<td>Reset hasła agenta.</td>
+</tr>
+<tr>
+<td><code>services/user.service.ts</code></td>
+<td>CRUD agentów tenantu.</td>
+</tr>
+<tr>
+<td><code>services/supervisor-metrics.service.ts</code></td>
+<td>Real-time metryki supervisora (WS <code>SUPERVISOR_METRICS</code>).</td>
+</tr>
+</tbody></table>
+<h4>Kolejki (<code>pages/queues/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>QueueListComponent</code></td>
+<td>Lista kolejek (paginacja, filtr nazwy).</td>
+</tr>
+<tr>
+<td><code>QueueFormComponent</code></td>
+<td>Formularz tworzenia/edycji kolejki (strategia routingu z <code>QueueService.getRoutingStrategies()</code>).</td>
+</tr>
+<tr>
+<td><code>QueueDeleteModalComponent</code></td>
+<td>Dialog usunięcia.</td>
+</tr>
+<tr>
+<td><code>QueueAgentsModalComponent</code></td>
+<td>Przypisywanie agentów do kolejki.</td>
+</tr>
+<tr>
+<td><code>QueueAssignmentPanelComponent</code></td>
+<td>Panel przypisań (kolejka ↔ agenci/grupy).</td>
+</tr>
+<tr>
+<td><code>QueueDispositionsComponent</code></td>
+<td>Konfiguracja dyspozycji dla kolejki.</td>
+</tr>
+<tr>
+<td><code>QueueService</code> (<code>services/queue.service.ts</code>)</td>
+<td><code>getQueues(page,size,name?)</code>, <code>getQueue</code>, <code>createQueue</code>, <code>updateQueue</code> (PATCH), <code>deleteQueue</code>, <code>getRoutingStrategies</code>. Wzorzec API typowy dla całego projektu – <code>HttpParams</code> do paginacji/filtrów, <code>PagedResponse&lt;T&gt;</code>.</td>
+</tr>
+</tbody></table>
+<h4>Kampanie (<code>pages/campaigns/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CampaignListComponent</code></td>
+<td>Lista kampanii z pollingiem (10s).</td>
+</tr>
+<tr>
+<td><code>CampaignFormComponent</code></td>
+<td>Formularz kampanii – natywny dialog, walidatory cross-field, signal-based selektor dni tygodnia.</td>
+</tr>
+<tr>
+<td><code>CampaignInfoComponent</code></td>
+<td>Szczegóły kampanii.</td>
+</tr>
+<tr>
+<td><code>CampaignContactsComponent</code></td>
+<td>Lista kontaktów kampanii + przycisk „Zadzwoń” (manualny dialer – <code>DialerService.manualCall()</code>, optymistyczna aktualizacja UI).</td>
+</tr>
+<tr>
+<td><code>CampaignImportComponent</code></td>
+<td>Import kontaktów do kampanii (CSV).</td>
+</tr>
+<tr>
+<td><code>CampaignDispositionsComponent</code></td>
+<td>Dyspozycje przypisane do kampanii.</td>
+</tr>
+<tr>
+<td><code>CampaignAssignmentModalComponent</code></td>
+<td>Przypisanie agentów/grup do kampanii.</td>
+</tr>
+<tr>
+<td><code>services/campaign.service.ts</code>, <code>services/dialer.service.ts</code></td>
+<td>API kampanii i wybierania numerów (<code>POST /api/dialer/manual/call</code>).</td>
+</tr>
+<tr>
+<td><code>models/campaign.model.ts</code></td>
+<td>DTO kampanii.</td>
+</tr>
+</tbody></table>
+<h4>Klienci (<code>pages/customers/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CustomerListComponent</code></td>
+<td>Lista klientów tenantu (paginacja, wyszukiwanie).</td>
+</tr>
+<tr>
+<td><code>CustomerDetailComponent</code></td>
+<td>Szczegóły klienta + historia kontaktów (paginowana), klikalne wiersze → <code>ContactDetailModalComponent</code> (lazy-loading nagrania).</td>
+</tr>
+<tr>
+<td><code>CustomerCreateModalComponent</code> / <code>CustomerEditComponent</code></td>
+<td>Tworzenie/edycja klienta.</td>
+</tr>
+<tr>
+<td><code>CustomerDeleteModalComponent</code></td>
+<td>Usunięcie klienta.</td>
+</tr>
+<tr>
+<td><code>CustomerImportComponent</code></td>
+<td>Pełnoekranowy wizard importu CSV (<code>/supervisor/customers/import</code>), <code>CustomerImportStatus</code>.</td>
+</tr>
+<tr>
+<td><code>GdprAnonymizeModalComponent</code></td>
+<td>Anonimizacja danych klienta (RODO), <code>services/gdpr.service.ts</code>.</td>
+</tr>
+<tr>
+<td><code>services/customer.service.ts</code></td>
+<td>CRUD klientów + <code>getCustomerContacts</code>, <code>getContacts</code> (raport kontaktów), import CSV.</td>
+</tr>
+</tbody></table>
+<h4>Raporty (<code>pages/reports/</code>, <code>pages/contacts-report/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ReportsComponent</code> (<code>reports-placeholder.component.ts</code>)</td>
+<td>Placeholder/menu raportów historycznych (<code>/supervisor/reports</code>).</td>
+</tr>
+<tr>
+<td><code>ContactsReportComponent</code> (<code>/supervisor/reports/contacts</code>)</td>
+<td>Raport kontaktów: 7 filtrów, tabela 9 kolumn z badgami statusu/kanału, paginacja 25/str., eksport CSV client-side. Korzysta z <code>customer.service.ts -&gt; getContacts()</code>.</td>
+</tr>
+<tr>
+<td><code>services/reports.service.ts</code></td>
+<td>Pozostałe endpointy raportowe.</td>
+</tr>
+</tbody></table>
+<h4>Ustawienia (<code>pages/settings/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>EmailSettingsComponent</code></td>
+<td>Ustawienia konfiguracji email (per tenant).</td>
+</tr>
+<tr>
+<td><code>EmailTemplatesComponent</code> (<code>settings/email-templates/</code>)</td>
+<td>CRUD szablonów email – 3 natywne dialogi, podgląd w <code>&lt;iframe&gt;</code>.</td>
+</tr>
+<tr>
+<td><code>DispositionSetsPageComponent</code> (<code>settings/disposition-sets/</code>)</td>
+<td>Zarządzanie zestawami dyspozycji (<code>features/dispositions</code>).</td>
+</tr>
+<tr>
+<td><code>PhoneNumbersComponent</code> (<code>settings/phone-numbers/</code>)</td>
+<td>Lista numerów telefonicznych Twilio.</td>
+</tr>
+<tr>
+<td><code>RoutingRulesComponent</code> + <code>RoutingRuleFormComponent</code> (<code>phone-numbers/routing-rules/</code>)</td>
+<td>Reguły routingu numerów → kolejki/IVR.</td>
+</tr>
+<tr>
+<td><code>TwilioConfigComponent</code> (<code>pages/twilio-config/</code>)</td>
+<td>Konfiguracja Twilio per tenant (zastąpiła starszy <code>settings/twilio-settings.component.ts</code>, który jest legacy/placeholder).</td>
+</tr>
+<tr>
+<td><code>AiConfigComponent</code> (<code>pages/ai-config/</code>)</td>
+<td>Konfiguracja funkcji AI (np. podsumowania kontaktów) – <code>services/ai-config.service.ts</code>.</td>
+</tr>
+<tr>
+<td><code>services/email-config.service.ts</code>, <code>services/phone-number.service.ts</code>, <code>services/twilio-config.service.ts</code></td>
+<td>API odpowiednich ustawień.</td>
+</tr>
+</tbody></table>
+<h4>Integracje społecznościowe (<code>features/integrations/</code>, osadzone w <code>supervisor/settings/integrations</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SocialIntegrationsComponent</code> (<code>pages/social-integrations/</code>)</td>
+<td>3 karty platform (FB/IG/WA), flow OAuth redirect, dialog rozłączenia.</td>
+</tr>
+<tr>
+<td><code>OauthCallbackComponent</code> (<code>pages/oauth-callback/</code>)</td>
+<td>Strona obsługująca powrót z OAuth (<code>/oauth/callback/:platform</code>).</td>
+</tr>
+<tr>
+<td><code>services/social-integration.service.ts</code></td>
+<td>API połączeń/integracji.</td>
+</tr>
+<tr>
+<td><code>models/social-integration.model.ts</code></td>
+<td>DTO.</td>
+</tr>
+</tbody></table>
+<h4>Grupy agentów (<code>pages/agent-groups/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentGroupsPageComponent</code></td>
+<td>Lista grup agentów (<code>/supervisor/agent-groups</code>).</td>
+</tr>
+<tr>
+<td><code>CreateEditGroupModalComponent</code></td>
+<td>Tworzenie/edycja grupy.</td>
+</tr>
+<tr>
+<td><code>GroupMembersModalComponent</code></td>
+<td>Zarządzanie członkami grupy.</td>
+</tr>
+<tr>
+<td>Serwis: <code>core/services/agent-group.service.ts</code> (współdzielony, bo używany też przez admin/agent).</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4>Callbacki (<code>pages/callbacks/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SupervisorCallbacksPageComponent</code></td>
+<td>Widok wszystkich zaplanowanych callbacków tenantu.</td>
+</tr>
+<tr>
+<td><code>EditCallbackModalComponent</code> (<code>components/edit-callback-modal/</code>)</td>
+<td>Edycja zaplanowanego callbacku.</td>
+</tr>
+</tbody></table>
+<h4>IVR (<code>pages/ivr/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>IvrListComponent</code> (<code>/supervisor/ivr</code>)</td>
+<td>Lista flow IVR.</td>
+</tr>
+<tr>
+<td><code>IvrEditorComponent</code> (<code>/supervisor/ivr/:ivrId</code>)</td>
+<td>Edytor drag &amp; drop (HTML5 DnD + SVG Bezier dla połączeń), zoom/fit-to-view, persystencja pozycji węzłów, podpowiadanie zmiennych <code>${...}</code> w promptach, walidacja, mock upload audio.</td>
+</tr>
+<tr>
+<td><code>services/ivr.service.ts</code></td>
+<td>CRUD definicji IVR (pozycje węzłów w <code>localStorage</code> + backend).</td>
+</tr>
+<tr>
+<td><code>models/ivr.model.ts</code></td>
+<td>DTO węzłów/flow IVR.</td>
+</tr>
+</tbody></table>
+<h4>Twilio phone number select (komponent współdzielony w supervisorze)</h4>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TwilioPhoneNumberSelectComponent</code> (<code>components/twilio-phone-number-select/</code>)</td>
+<td><code>ControlValueAccessor</code> – select numerów Twilio z 5 stanami (loading/empty/error/ok/allowNull), używany w <code>TwilioConfigComponent</code> i <code>CampaignFormComponent</code>.</td>
+</tr>
+</tbody></table>
+<h3>4.4 <code>features/agent/</code> (rola: AGENT)</h3>
+<p><strong>Cel</strong>: stanowisko pracy agenta – obsługa kontaktów (telefon, czat, e-mail, social), softphone,
+kalendarz, klienci, callbacki.</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentShellComponent</code></td>
+<td><code>cc-app-shell</code> + <code>cc-incoming-call-banner</code>. W konstruktorze rejestruje <code>effect()</code> reagujący na <code>AgentStatusService.currentStatus()</code> – gdy status = <code>AVAILABLE</code>, inicjalizuje Twilio Device (<code>SoftphoneService.initializeTwilioDevice()</code>).</td>
+</tr>
+<tr>
+<td><code>AgentDesktopComponent</code> (<code>pages/agent-desktop/</code>)</td>
+<td>Główna strona roboczo – header, sidebar, system zakładek kontaktów (<code>ContactTabStore</code>). Hostuje: <code>SoftphoneComponent</code>, <code>CustomerPanelComponent</code>, <code>DispositionPanelComponent</code>, <code>EmailContactComponent</code>, <code>SocialContactComponent</code>, <code>AgentCalendarComponent</code>.</td>
+</tr>
+<tr>
+<td><code>AgentCustomersTabComponent</code> (<code>pages/customers/</code>)</td>
+<td>Wyszukiwanie klientów (<code>/agent/customers</code>) – debounce 300ms (<code>Subject</code>), drawer ze szczegółami, <code>@Output scheduleCallback</code>.</td>
+</tr>
+<tr>
+<td><code>AgentCallbacksPageComponent</code> (<code>pages/callbacks/</code>)</td>
+<td>Lista własnych zaplanowanych callbacków agenta.</td>
+</tr>
+<tr>
+<td><code>AgentDashboardComponent</code></td>
+<td>Alternatywny/uzupełniający widok dashboardu agenta (KPI własne).</td>
+</tr>
+</tbody></table>
+<h4>Komponenty pomocnicze (<code>components/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SoftphoneComponent</code></td>
+<td>UI softphonu WebRTC – 5 stanów (idle/ringing/connecting/active/ended), panel transferu (blind/attended). Stan w <code>SoftphoneService</code> (signal-based maszyna stanów, <code>@twilio/voice-sdk</code>).</td>
+</tr>
+<tr>
+<td><code>CustomerPanelComponent</code></td>
+<td>Panel danych klienta podczas kontaktu – 4 stany (loading/error/empty/data), czysty CSS skeleton. Dane z <code>CustomerLookupService</code> (cache <code>Map</code>, TTL 5 min, 404 → <code>null</code>).</td>
+</tr>
+<tr>
+<td><code>DispositionPanelComponent</code></td>
+<td>Panel ACW (After Call Work) – modal, timer, dropdown dyspozycji, textarea notatek. <code>ContactService.updateDisposition()</code> (<code>PATCH /api/contacts/{id}/disposition</code>). Aktywowany przez <code>effect()</code> monitorujący <code>SoftphoneService.session().state === &#39;ENDED&#39;</code>.</td>
+</tr>
+<tr>
+<td><code>IncomingCallBannerComponent</code></td>
+<td>Banner przychodzącego połączenia (poza <code>&lt;router-outlet&gt;</code>, w shellu).</td>
+</tr>
+<tr>
+<td><code>TransferAgentListComponent</code> / <code>TransferQueueListComponent</code></td>
+<td>Listy do transferu połączenia (agent / kolejka).</td>
+</tr>
+<tr>
+<td><code>ManualCampaignPanelComponent</code></td>
+<td>Panel kampanii manualnych (preview/dial).</td>
+</tr>
+<tr>
+<td><code>AddBreakModalComponent</code></td>
+<td>Dialog rozpoczęcia przerwy (zmiana statusu agenta).</td>
+</tr>
+<tr>
+<td><code>RescheduleCallbackModalComponent</code>, <code>ScheduleInboundCallbackModalComponent</code></td>
+<td>Dialogi zarządzania callbackami.</td>
+</tr>
+<tr>
+<td><code>AgentCalendarComponent</code> (<code>pages/agent-desktop/agent-calendar/</code>)</td>
+<td>Kalendarz tyg./dzień, 3 typy zdarzeń, FAB. Sterowany sygnałem <code>calendarTabActive</code> w <code>AgentDesktopComponent</code>.</td>
+</tr>
+<tr>
+<td><code>EmailContactComponent</code> (<code>pages/agent-desktop/email-contact/</code>)</td>
+<td>Obsługa kontaktu e-mail – split-panel (wątek + odpowiedź), <code>&lt;iframe srcdoc&gt;</code> do renderowania treści, edytor <code>contenteditable</code>.</td>
+</tr>
+<tr>
+<td><code>EmailThreadMessageComponent</code></td>
+<td>Pojedyncza wiadomość w wątku e-mail.</td>
+</tr>
+<tr>
+<td><code>SocialContactComponent</code> (<code>pages/agent-desktop/social-contact/</code>)</td>
+<td>Czat FB/IG/WA – WS event <code>SOCIAL_MESSAGE_RECEIVED</code>, infinite scroll, tryb read-only po zakończeniu kontaktu.</td>
+</tr>
+<tr>
+<td><code>AdhocEmailModalComponent</code></td>
+<td>Wysyłka maila ad-hoc do klienta.</td>
+</tr>
+<tr>
+<td><code>ManualCallbackModalComponent</code></td>
+<td>Tworzenie callbacku manualnego z karty klienta.</td>
+</tr>
+</tbody></table>
+<h4>Serwisy (<code>services/</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Serwis</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentStatusService</code></td>
+<td>Status agenta (<code>AVAILABLE</code>/<code>BUSY</code>/<code>BREAK</code>/...), zapis przez WS i/lub REST.</td>
+</tr>
+<tr>
+<td><code>SoftphoneService</code></td>
+<td>Maszyna stanów połączenia WebRTC (signals), integracja Twilio Voice SDK, transfer blind/attended.</td>
+</tr>
+<tr>
+<td><code>ContactTabStore</code></td>
+<td>Store zakładek aktywnych kontaktów – limity: <code>MAX_PHONE_TABS=1</code>, <code>MAX_ASYNC_TABS=3</code>, <code>MAX_TOTAL_TABS=4</code>. Metody <code>openFromCallIncoming</code>, <code>openFromCallOutbound</code>, <code>openFromContactAssigned</code>, <code>closeTab</code>, <code>markAsWrapping</code>, <code>updateTabStatus</code>. Stan: <code>signal&lt;ContactTab[]&gt;</code> + <code>computed</code> (<code>activeTab</code>, <code>wrappingTab</code>, liczniki).</td>
+</tr>
+<tr>
+<td><code>ContactService</code></td>
+<td>Operacje na kontakcie (m.in. <code>updateDisposition</code>).</td>
+</tr>
+<tr>
+<td><code>CustomerLookupService</code></td>
+<td>Lookup klienta z cache (<code>Map</code>, TTL 5 min).</td>
+</tr>
+<tr>
+<td><code>CustomerSearchService</code></td>
+<td>Wyszukiwanie klientów (debounce).</td>
+</tr>
+<tr>
+<td><code>QueueStateService</code></td>
+<td>Stan kolejki/oczekujących kontaktów dla agenta.</td>
+</tr>
+<tr>
+<td><code>CallbackService</code> / <code>ManualCallbackService</code></td>
+<td>CRUD callbacków.</td>
+</tr>
+<tr>
+<td><code>AgentCalendarService</code></td>
+<td>Zdarzenia kalendarza agenta.</td>
+</tr>
+<tr>
+<td><code>OutboundCallService</code> / <code>DialerService</code></td>
+<td>Inicjowanie połączeń wychodzących.</td>
+</tr>
+<tr>
+<td><code>EmailService</code></td>
+<td>Operacje na kontaktach e-mail (wątki, wysyłka, szablony).</td>
+</tr>
+<tr>
+<td><code>SocialContactService</code></td>
+<td>Operacje na kontaktach social media.</td>
+</tr>
+<tr>
+<td><code>AiSummaryService</code></td>
+<td>Podsumowania AI kontaktu (<code>AiSummaryPanelComponent</code> w <code>shared</code>).</td>
+</tr>
+<tr>
+<td><code>IncomingCallAlertService</code></td>
+<td>Alert dźwiękowy/wizualny dla połączeń przychodzących.</td>
+</tr>
+<tr>
+<td><code>AgentRecoveryService</code></td>
+<td>Odtwarzanie stanu po reconnect WS (rejestruje się przez <code>WebSocketService.onConnect()</code>).</td>
+</tr>
+</tbody></table>
+<h4>Modele (<code>models/</code>)</h4>
+<p><code>agent-calendar.model.ts</code>, <code>agent-status.model.ts</code>, <code>callback.model.ts</code>, <code>call-session.model.ts</code>,
+<code>contact.model.ts</code>, <code>contact-tab.model.ts</code> (<code>ContactTab</code>, <code>ContactType</code>, <code>ContactTabStatus</code>,
+<code>CallDirection</code>), <code>customer-search.model.ts</code>, <code>disposition.model.ts</code>, <code>manual-callback.model.ts</code>,
+<code>queue-item.model.ts</code>, <code>social-message.model.ts</code>, <code>ws-event.model.ts</code> (<code>WsEvent</code> i payloady, np.
+<code>CallIncomingPayload</code>, <code>ContactAssignedPayload</code>).</p>
+<h3>4.5 <code>features/dispositions/</code></h3>
+<p><strong>Cel</strong>: definicje dyspozycji (wyników) kontaktów, współdzielone między supervisor settings i
+panelem ACW agenta.</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>services/disposition-set.service.ts</code></td>
+<td>CRUD zestawów dyspozycji (<code>DispositionSet</code>).</td>
+</tr>
+<tr>
+<td><code>services/custom-disposition.service.ts</code></td>
+<td>CRUD pojedynczych dyspozycji niestandardowych.</td>
+</tr>
+<tr>
+<td><code>models/disposition-set.model.ts</code>, <code>models/custom-disposition.model.ts</code></td>
+<td>DTO.</td>
+</tr>
+<tr>
+<td>UI: <code>DispositionSetsPageComponent</code> (supervisor/settings) oraz <code>DispositionListEditorComponent</code> (shared, edycja listy dyspozycji w formularzu kolejki/kampanii).</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3>4.6 <code>features/customers/</code>, <code>features/campaigns/</code>, <code>features/reports/</code></h3>
+<p>Te katalogi obecnie nie zawierają plików <code>.ts</code> poza ewentualnymi placeholderami – realna
+implementacja klientów, kampanii i raportów żyje w <code>features/supervisor/pages/{customers, campaigns, contacts-report, reports}/</code> (patrz sekcja 4.3). Te puste katalogi mogą być
+zarezerwowane dla przyszłego refaktoru (wydzielenie modułów cross-role).</p>
+<h3>4.7 <code>features/tenants/</code></h3>
+<p>Patrz sekcja 4.2 (Admin → Tenants) – fizycznie w <code>features/tenants/</code>, routowane z
+<code>features/admin/admin.routes.ts</code> jako <code>loadChildren</code>.</p>
+<hr>
+<h2>5. Shared (<code>src/app/shared/</code>)</h2>
+<h3>5.1 Komponenty (<code>shared/components/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Selektor</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AppShellComponent</code></td>
+<td><code>cc-app-shell</code></td>
+<td>Powłoka layoutu: <code>cc-top-navbar</code> + <code>cc-sidenav</code> + <code>cc-breadcrumbs</code> + <code>&lt;router-outlet&gt;</code>. Zarządza otwarciem/zamknięciem sidenava (mobile vs desktop, breakpoint <strong>1280px</strong>), <code>Escape</code> zamyka drawer na mobile.</td>
+</tr>
+<tr>
+<td><code>TopNavbarComponent</code></td>
+<td><code>cc-top-navbar</code></td>
+<td>Górny pasek: hamburger (mobile), KPI agenta (<code>AgentKpiService.kpi$</code> via <code>toSignal</code>), <code>LanguageSwitcherComponent</code>, przełącznik trybu (<code>ThemeService</code>), badge roli, przycisk wylogowania.</td>
+</tr>
+<tr>
+<td><code>SidenavComponent</code></td>
+<td><code>cc-sidenav</code></td>
+<td>Menu boczne zależne od roli (<code>ADMIN_NAV</code> / <code>SUPERVISOR_NAV</code> / <code>AGENT_NAV</code> – statyczne tablice <code>NavItem[]</code> w pliku). Wsparcie dla zagnieżdżonych sekcji (<code>children</code>), auto-expand aktywnej sekcji (<code>effect</code> + <code>toSignal(router.events)</code>), tryb collapsed (ikony, <code>localStorage</code> <code>cc_sidenav_collapsed</code>), badge alertów admina (<code>AdminMetricsService.alertCount$</code>, widoczny tylko na <code>/admin/dashboard</code>).</td>
+</tr>
+<tr>
+<td><code>BreadcrumbsComponent</code></td>
+<td><code>cc-breadcrumbs</code></td>
+<td>Renderuje <code>BreadcrumbService.breadcrumbs()</code>.</td>
+</tr>
+<tr>
+<td><code>ToastContainerComponent</code></td>
+<td><code>cc-toast-container</code></td>
+<td>Renderuje <code>NotificationService.toasts()</code> – własny CSS (bez Angular Material).</td>
+</tr>
+<tr>
+<td><code>ConfirmDialogComponent</code></td>
+<td>—</td>
+<td>Generyczny dialog potwierdzenia (natywny <code>&lt;dialog&gt;</code>).</td>
+</tr>
+<tr>
+<td><code>ContactDetailModalComponent</code></td>
+<td>—</td>
+<td>Modal szczegółów kontaktu – 3 sekcje, lazy-loading nagrania (<code>AudioPlayerComponent</code>).</td>
+</tr>
+<tr>
+<td><code>AudioPlayerComponent</code></td>
+<td>—</td>
+<td>Własny odtwarzacz audio na <code>HTMLAudioElement</code> (bez bibliotek UI).</td>
+</tr>
+<tr>
+<td><code>AiSummaryPanelComponent</code></td>
+<td>—</td>
+<td>Panel podsumowania AI dla kontaktu (<code>AiSummaryService</code>).</td>
+</tr>
+<tr>
+<td><code>DispositionListEditorComponent</code></td>
+<td>—</td>
+<td>Edytor listy dyspozycji (reużywany w formularzach kolejki/kampanii/zestawu dyspozycji).</td>
+</tr>
+<tr>
+<td><code>LanguageSwitcherComponent</code></td>
+<td>—</td>
+<td>Dropdown wyboru języka, osadzony w <code>TopNavbarComponent</code>.</td>
+</tr>
+<tr>
+<td><code>SparklineComponent</code></td>
+<td>—</td>
+<td>Mini-wykres trendu (czysty SVG/CSS) używany w KPI/dashboardach.</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Brak Angular Material</strong> – cały UI (dialogi, dropdowny, toasty) jest budowany na natywnych
+elementach HTML (<code>&lt;dialog&gt;</code>) i custom CSS w oparciu o design tokeny z <code>styles.scss</code>.</p>
+</blockquote>
+<h3>5.2 Serwisy i modele shared</h3>
+<table>
+<thead>
+<tr>
+<th>Plik</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>services/agent-kpi.service.ts</code></td>
+<td><code>AgentKpiService.kpi$</code> – strumień KPI agenta (czas w statusie, liczba obsłużonych kontaktów) wyświetlany w <code>TopNavbarComponent</code>.</td>
+</tr>
+<tr>
+<td><code>models/agent-kpi.model.ts</code></td>
+<td><code>AgentKpiResponse</code>.</td>
+</tr>
+</tbody></table>
+<h3>5.3 Style / design system (<code>styles.scss</code>, <code>shared/styles/</code>)</h3>
+<ul>
+<li><strong>Globalne tokeny CSS</strong> w <code>:root</code> (<code>src/styles.scss</code>, 264 linie):<ul>
+<li><strong>Legacy tokeny</strong> (kolory hex, np. <code>--color-brand: #1565c0</code>, <code>--color-success</code>,
+<code>--color-danger</code>, promienie, czasy przejść <code>--duration-*</code>, <code>--ease-*</code>).</li>
+<li><strong>Nowy design system (oklch)</strong> – osobne palety dla <code>:root</code>/<code>[data-theme=&#39;light&#39;]</code> i
+<code>[data-theme=&#39;dark&#39;]</code>:<ul>
+<li>tła: <code>--bg-app</code>, <code>--bg-sidebar</code>, <code>--bg-surface</code>, <code>--bg-elevated</code>, <code>--bg-subtle</code>, <code>--bg-input</code></li>
+<li>tekst: <code>--text-1/2/3</code>, <code>--text-muted</code></li>
+<li>obramowania: <code>--border-1/2/strong</code></li>
+<li>akcenty/semantyka: <code>--accent*</code>, <code>--success*</code>, <code>--warning*</code>, <code>--danger*</code>, <code>--violet*</code>,
+<code>--neutral*</code></li>
+<li>cienie: <code>--shadow-sm/md/lg/pop</code></li>
+<li>radiusy: <code>--radius-sm/md/lg/xl</code></li>
+</ul>
+</li>
+<li>Przełączanie trybu przez atrybut <code>data-theme=&quot;light&quot;|&quot;dark&quot;</code> na <code>&lt;html&gt;</code>, zarządzane przez
+<code>ThemeService</code> (sekcja 3.3) – tryb <code>auto</code> nasłuchuje <code>prefers-color-scheme</code>.</li>
+</ul>
+</li>
+<li><strong><code>shared/styles/_contact-badges.scss</code></strong> – partial SCSS z placeholderami (<code>%badge-base</code>) i
+klasami <code>.channel-badge--{phone,email,chat,social}</code>, <code>.direction-badge--*</code>,
+<code>.status-badge--*</code> – <strong>importowany w każdym komponencie wyświetlającym dane <code>ContactResponse</code></strong>
+(np. <code>ContactsReportComponent</code>, <code>CustomerDetailComponent</code>, <code>ContactDetailModalComponent</code>).</li>
+<li>Brak biblioteki Angular Material / Bootstrap – cały styling jest własny (SCSS + tokeny).</li>
+</ul>
+<hr>
+<h2>6. State management i komunikacja real-time</h2>
+<h3>6.1 Wzorce stanu</h3>
+<ul>
+<li><strong>Lokalny stan komponentu / store</strong>: <code>signal()</code> + <code>computed()</code> (np. <code>ContactTabStore</code>,
+<code>SoftphoneService</code>, <code>SidenavComponent.expandedSections</code>).</li>
+<li><strong>Strumienie ciągłe</strong> (WebSocket, polling): <code>Subject</code>/<code>BehaviorSubject</code> + RxJS operators
+(<code>switchMap</code>, <code>shareReplay({ refCount: true })</code>), następnie <code>toSignal()</code> w komponencie tam,
+gdzie wygodniej operować na signalu (np. <code>TopNavbarComponent.kpi</code>,
+<code>SidenavComponent.currentUrl</code>).</li>
+<li><strong>Efekty side-effect</strong>: <code>effect()</code> – np. <code>AgentShellComponent</code> inicjalizuje Twilio Device na
+zmianę statusu agenta; <code>AgentDesktopComponent</code> otwiera <code>DispositionPanelComponent</code> na
+zakończenie połączenia (<code>SoftphoneService.session().state === &#39;ENDED&#39;</code>).</li>
+<li><strong>Odpisywanie</strong>: <code>takeUntilDestroyed(destroyRef)</code> (preferowane) – widoczne np. w
+<code>BreadcrumbService</code>, <code>SidenavComponent</code>.</li>
+</ul>
+<h3>6.2 WebSocket – <code>WebSocketService</code></h3>
+<p>Klient <strong>STOMP po natywnym WebSocket</strong> (<code>@stomp/stompjs</code>, <strong>nie</strong> SockJS), URL z
+<code>environment.wsUrl</code> (<code>ws://localhost:8080/ws-native</code> w dev, <code>/ws-native</code> w prod – serwowane przez
+ten sam origin).</p>
+<pre class="mermaid">sequenceDiagram
+    participant FE as WebSocketService
+    participant BE as Backend (STOMP broker)
+
+    FE->>BE: CONNECT (Authorization: Bearer {accessToken})
+    BE-->>FE: CONNECTED
+    FE->>BE: SUBSCRIBE /topic/user/{userId}/events
+    FE->>BE: SUBSCRIBE /topic/tenant/{tenantId}/agents
+    FE->>BE: SUBSCRIBE dodatkowe topiki zarejestrowane przez registerTopic()
+    BE-->>FE: MESSAGE (WsEvent JSON)
+    FE->>FE: events$.next(event)
+</pre>
+<p>Najważniejsze cechy:</p>
+<ul>
+<li><code>connectionState: signal&lt;&#39;CONNECTING&#39;|&#39;CONNECTED&#39;|&#39;DISCONNECTED&#39;|&#39;ERROR&#39;&gt;</code> – używany np. przez
+<code>SupervisorDashboardComponent</code> do banera &quot;rozłączono, łączenie ponownie...&quot;.</li>
+<li><code>beforeConnect</code> zawsze odświeża nagłówek <code>Authorization</code> z <code>AuthService.getAccessToken()</code> –
+istotne po silent-refresh.</li>
+<li><code>reconnectDelay: 1000</code> – auto-reconnect wbudowany w <code>@stomp/stompjs</code>.</li>
+<li><strong>Subskrypcje domyślne</strong> po <code>onConnect</code>:<ul>
+<li><code>/topic/user/{userId}/events</code> – zdarzenia unicast do konkretnego użytkownika (np. przypisanie
+kontaktu, przychodzące połączenie).</li>
+<li><code>/topic/tenant/{tenantId}/agents</code> – broadcast do wszystkich agentów tenantu.</li>
+</ul>
+</li>
+<li><strong><code>registerTopic(destination)</code> / <code>unregisterTopic(destination)</code></strong> – mechanizm dla feature
+modułów (np. <code>SupervisorMetricsService</code> rejestruje <code>/topic/tenant/{id}/supervisor-metrics</code> dla
+zdarzeń <code>SUPERVISOR_METRICS</code>, <code>SocialContactComponent</code> dla <code>SOCIAL_MESSAGE_RECEIVED</code>). Topiki są
+automatycznie ponownie subskrybowane po reconnect.</li>
+<li><strong><code>onConnect(callback)</code></strong> – rejestracja callbacków odtwarzania stanu po (re)connect, np.
+<code>AgentRecoveryService</code> synchronizuje zakładki kontaktów po utracie połączenia.</li>
+<li>Wszystkie zdarzenia trafiają do jednego strumienia <code>events$: Observable&lt;WsEvent&gt;</code> – konsumenci
+filtrują po <code>event.type</code> (typy zdefiniowane w <code>features/agent/models/ws-event.model.ts</code>, np.
+<code>CALL_INCOMING</code>, <code>CONTACT_ASSIGNED</code>, <code>SOCIAL_MESSAGE_RECEIVED</code>, <code>SUPERVISOR_METRICS</code>).</li>
+</ul>
+<h3>6.3 Przepływ danych – przykład: przychodzące połączenie</h3>
+<pre class="mermaid">sequenceDiagram
+    participant BE as Backend
+    participant WS as WebSocketService
+    participant ICA as IncomingCallAlertService
+    participant CTS as ContactTabStore
+    participant SP as SoftphoneService
+    participant UI as AgentDesktopComponent
+
+    BE->>WS: WsEvent{type: CALL_INCOMING, payload}
+    WS->>ICA: events$ (filter CALL_INCOMING)
+    ICA->>UI: pokaż IncomingCallBannerComponent
+    UI->>CTS: openFromCallIncoming(payload)
+    CTS-->>UI: nowa zakładka (signal tabs)
+    SP->>SP: stan połączenia (RINGING → ACTIVE)
+    UI->>UI: render SoftphoneComponent (active tab)
+</pre>
+<hr>
+<h2>7. Build &amp; konfiguracja</h2>
+<h3>7.1 <code>app.config.ts</code> – providery globalne</h3>
+<pre><code class="language-ts">providers: [
+  provideBrowserGlobalErrorListeners(),
+  provideRouter(routes, withComponentInputBinding(), withRouterConfig({ paramsInheritanceStrategy: &#39;always&#39; })),
+  provideHttpClient(withFetch(), withInterceptors([authInterceptor, errorHandlerInterceptor])),
+  { provide: ErrorHandler, useClass: AppErrorHandler },
+  provideTransloco({ ... }),
+  { provide: APP_INITIALIZER, useFactory: ... languageService.init() ... },
+]
+</code></pre>
+<ul>
+<li><code>withFetch()</code> – HttpClient na bazie <code>fetch</code> API (nowy backend Angular 17+).</li>
+<li>Brak <code>BrowserAnimationsModule</code>/Material – animacje robione czystym CSS.</li>
+</ul>
+<h3>7.2 Environments</h3>
+<table>
+<thead>
+<tr>
+<th>Plik</th>
+<th><code>apiUrl</code></th>
+<th><code>wsUrl</code></th>
+<th><code>production</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>environments/environment.ts</code> (dev)</td>
+<td><code>/api</code></td>
+<td><code>ws://localhost:8080/ws-native</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>environments/environment.prod.ts</code></td>
+<td><code>/api</code></td>
+<td><code>/ws-native</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody></table>
+<p>Oba korzystają z relatywnego <code>/api</code> – w dev przez proxy, w prod przez reverse proxy/ten sam
+origin co frontend.</p>
+<h3>7.3 Proxy dev-server – <code>proxy.conf.json</code></h3>
+<pre><code class="language-json">{
+  &quot;/api&quot;: { &quot;target&quot;: &quot;http://localhost:8080&quot;, &quot;changeOrigin&quot;: true },
+  &quot;/ws&quot;: { &quot;target&quot;: &quot;ws://localhost:8080&quot;, &quot;ws&quot;: true, &quot;changeOrigin&quot;: true },
+  &quot;/ws-native&quot;: { &quot;target&quot;: &quot;ws://localhost:8080&quot;, &quot;ws&quot;: true, &quot;changeOrigin&quot;: true }
+}
+</code></pre>
+<h3>7.4 Komendy (uruchamiać z <code>frontend/</code>)</h3>
+<pre><code class="language-bash">npm start          # ng serve --proxy-config proxy.conf.json (dev server + proxy → :8080)
+npm run start:no-proxy
+npm run build       # build (development config)
+npm run build:prod  # ng build --configuration production
+npm run watch       # build --watch (development)
+npm test            # Vitest (przez @angular/build:unit-test)
+npm run lint        # ESLint
+npm run lint:fix
+npm run format         # Prettier --write
+npm run format:check   # Prettier --check
+</code></pre>
+<p>Backend musi działać na <code>localhost:8080</code> (patrz <code>docker compose ... up -d</code> w root <code>CLAUDE.md</code>).</p>
+<hr>
+<h2>8. Testy frontendowe (Vitest)</h2>
+<ul>
+<li>Builder: <code>@angular/build:unit-test</code> (konfiguracja <code>test</code> w <code>angular.json</code>, <code>vitest.config.ts</code>
+zawiera jedynie <code>{ &quot;builder&quot;: &quot;@angular/build:unit-test&quot; }</code> – resztę przejmuje Angular CLI).</li>
+<li>Uruchamianie: <code>npm test</code> (alias <code>ng test</code>).</li>
+<li>Konwencja plików: <code>*.spec.ts</code> współlokowane z plikiem testowanym (np.
+<code>core/services/auth.service.spec.ts</code>, <code>shared/components/language-switcher/language-switcher.component.spec.ts</code>,
+<code>features/agent/services/agent-calendar.service.spec.ts</code>).</li>
+<li><strong>Mocki HTTP</strong>: <code>provideHttpClientTesting()</code> + <code>HttpTestingController</code>, <code>httpMock.verify()</code> w
+<code>afterEach</code>.</li>
+<li><strong>Mocki funkcji</strong>: <code>vi.fn()</code> (Vitest), nie Jasmine <code>jasmine.createSpy</code>.</li>
+<li><strong>Brak <code>fakeAsync</code>/<code>tick</code></strong> – aplikacja jest zoneless, testy operują na promisach/<code>firstValueFrom</code>
+i rzeczywistych mikrotaskach.</li>
+<li><strong>Routing w testach</strong>: <code>provideRouter([{ path: &#39;**&#39;, children: [] }])</code> jako wildcard, by
+<code>router.navigate()</code> nie wybuchał.</li>
+<li><strong>JWT w testach</strong>: budowanie fałszywego tokenu przez <code>buildFakeJwt()</code> – koduje payload base64url
+bez weryfikacji podpisu (zgodnie z <code>TokenService.decodePayload</code>).</li>
+</ul>
+<h3>Przykład (<code>auth.service.spec.ts</code>, fragment)</h3>
+<pre><code class="language-ts">function buildFakeJwt(payload: Partial&lt;JwtPayload&gt; &amp; { exp: number }): string {
+  const encoded = btoa(JSON.stringify(payload))
+    .replace(/\+/g, &#39;-&#39;).replace(/\//g, &#39;_&#39;).replace(/=+$/, &#39;&#39;);
+  return `header.${encoded}.signature`;
+}
+
+describe(&#39;AuthService&#39;, () =&gt; {
+  let service: AuthService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(async () =&gt; {
+    sessionStorage.clear();
+    await TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: &#39;**&#39;, children: [] }]),
+        AuthService,
+        TokenService,
+      ],
+    }).compileComponents();
+
+    service = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() =&gt; {
+    httpMock.verify();
+    sessionStorage.clear();
+  });
+
+  // ...testy login/refresh/logout, weryfikacja HttpTestingController.expectOne()
+});
+</code></pre>
+<hr>
+<h2>9. Konwencje stylu (Prettier / ESLint)</h2>
+<h3>Prettier (<code>.prettierrc</code>)</h3>
+<pre><code class="language-json">{
+  &quot;printWidth&quot;: 100,
+  &quot;tabWidth&quot;: 2,
+  &quot;useTabs&quot;: false,
+  &quot;semi&quot;: true,
+  &quot;singleQuote&quot;: true,
+  &quot;quoteProps&quot;: &quot;as-needed&quot;,
+  &quot;trailingComma&quot;: &quot;all&quot;,
+  &quot;bracketSpacing&quot;: true,
+  &quot;arrowParens&quot;: &quot;always&quot;,
+  &quot;endOfLine&quot;: &quot;lf&quot;,
+  &quot;overrides&quot;: [
+    { &quot;files&quot;: &quot;*.html&quot;, &quot;options&quot;: { &quot;parser&quot;: &quot;angular&quot;, &quot;printWidth&quot;: 120 } }
+  ]
+}
+</code></pre>
+<ul>
+<li>Pliki <code>.html</code> mają zwiększony <code>printWidth</code> do 120 i parser <code>angular</code>.</li>
+<li><code>npm run format</code> / <code>format:check</code> – Prettier na <code>src/**/*.{ts,html,scss,json}</code>.</li>
+<li><code>husky</code> + <code>lint-staged</code> – pre-commit hook uruchamia <code>eslint --fix</code> + <code>prettier --write</code> na
+zmienionych <code>.ts</code>, oraz <code>prettier --write</code> na <code>.html</code>/<code>.scss</code>.</li>
+</ul>
+<h3>ESLint (<code>eslint.config.js</code>)</h3>
+<p>Najważniejsze reguły specyficzne dla projektu:</p>
+<table>
+<thead>
+<tr>
+<th>Reguła</th>
+<th>Wartość</th>
+<th>Skutek</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>@angular-eslint/directive-selector</code></td>
+<td><code>{ type: &#39;attribute&#39;, prefix: &#39;app&#39;, style: &#39;camelCase&#39; }</code></td>
+<td>Dyrektywy muszą mieć prefiks <code>app</code>.</td>
+</tr>
+<tr>
+<td><code>@angular-eslint/component-selector</code></td>
+<td><code>{ type: &#39;element&#39;, prefix: [&#39;app&#39;, &#39;cc&#39;], style: &#39;kebab-case&#39; }</code></td>
+<td>Selektory komponentów: <code>app-*</code> (feature) lub <code>cc-*</code> (shared/shell), kebab-case.</td>
+</tr>
+<tr>
+<td><code>@typescript-eslint/no-explicit-any</code></td>
+<td><code>warn</code></td>
+<td><code>any</code> dozwolone, ale z ostrzeżeniem.</td>
+</tr>
+<tr>
+<td><code>@typescript-eslint/explicit-function-return-type</code></td>
+<td><code>off</code></td>
+<td>Brak wymogu jawnych typów zwracanych.</td>
+</tr>
+<tr>
+<td><code>@typescript-eslint/no-unused-vars</code></td>
+<td><code>error</code>, <code>argsIgnorePattern: &#39;^_&#39;</code></td>
+<td>Nieużywane zmienne błądem; argumenty zaczynające się od <code>_</code> ignorowane (np. <code>_route</code>, <code>_state</code> w guardach).</td>
+</tr>
+<tr>
+<td><code>no-console</code></td>
+<td><code>warn</code>, <code>allow: [&#39;warn&#39;, &#39;error&#39;]</code></td>
+<td><code>console.log</code> ostrzega; <code>console.warn</code>/<code>console.error</code> dozwolone.</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Pliki <code>.html</code> korzystają z <code>angular.configs.templateRecommended</code> +
+<code>angular.configs.templateAccessibility</code> (reguły a11y w szablonach).</li>
+<li><code>eslintConfigPrettier</code> jest zawsze <strong>ostatnim</strong> elementem konfiguracji – wyłącza reguły
+formatujące kolidujące z Prettierem.</li>
+<li>Komendy: <code>npm run lint</code>, <code>npm run lint:fix</code>.</li>
+</ul>
+<hr>
+<h2>10. Szybki onboarding – checklist dla nowego developera</h2>
+<ol>
+<li><code>docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans</code> (root repo) – uruchamia backend + infrastrukturę.</li>
+<li><code>cd frontend &amp;&amp; npm install &amp;&amp; npm start</code> – dev server na <code>http://localhost:4200</code> z proxy do <code>:8080</code>.</li>
+<li>Zaloguj się przez <code>/auth/login</code> – po sukcesie trafisz na <code>/admin</code>, <code>/supervisor</code> lub <code>/agent</code>
+zależnie od roli w JWT (<code>roleRedirectGuard</code>).</li>
+<li>Nowa strona w istniejącym module roli: dodaj wpis do odpowiedniego <code>*.routes.ts</code>
+(<code>loadComponent</code>, <code>data.breadcrumb</code>, ewentualnie <code>data.roles</code> + <code>roleGuard</code>), dodaj wpis do
+<code>NavItem[]</code> w <code>SidenavComponent</code> (odpowiednia tablica <code>ADMIN_NAV</code>/<code>SUPERVISOR_NAV</code>/<code>AGENT_NAV</code>).</li>
+<li>Nowy komponent: standalone, <code>app-</code> lub <code>cc-</code> prefiks, <code>ChangeDetectionStrategy.OnPush</code>,
+<code>signal</code>/<code>computed</code> na stan, <code>inject()</code> w polach klasy.</li>
+<li>Nowy serwis HTTP: wzorzec jak <code>QueueService</code> – <code>environment.apiUrl</code> + <code>HttpParams</code> dla
+paginacji/filtrów, <code>PagedResponse&lt;T&gt;</code> dla list.</li>
+<li>Nowe tłumaczenie: dodaj klucz do <strong>wszystkich</strong> <code>public/i18n/{pl,en,de,uk}.json</code>.</li>
+<li>Przed PR: <code>npm run lint:fix &amp;&amp; npm run format &amp;&amp; npm test</code> (oraz skill <code>/verify</code> dla
+pełnej weryfikacji frontend+backend).</li>
+</ol>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

@@ -43,6 +43,20 @@ public interface CustomerImportService {
                          String columnSeparator, String quoteChar, String columnMappingJson);
 
     /**
+     * Waliduje plik i inicjuje asynchroniczny import klientów z pliku JSON (tablica obiektów
+     * camelCase, zgodna z formatem {@code CreateCustomerRequest}/{@code CustomerResponse}).
+     *
+     * <p>W odróżnieniu od {@link #initiateImport} nie przyjmuje parametrów separatora/mapowania
+     * kolumn – format JSON ich nie potrzebuje (pola identyfikowane po nazwie klucza).
+     *
+     * @param file              plik JSON (multipart) – tablica obiektów klientów
+     * @param deduplicationMode strategia deduplikacji
+     * @return UUID joba – do pollingu statusu (ten sam mechanizm co import CSV)
+     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     */
+    UUID initiateJsonImport(MultipartFile file, DeduplicationMode deduplicationMode);
+
+    /**
      * Pobiera status joba z Redis jako DTO do kontrolera.
      *
      * @param jobId UUID joba

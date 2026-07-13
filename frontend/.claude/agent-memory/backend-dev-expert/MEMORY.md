@@ -1,1 +1,0 @@
-- [AgentBreak scheduler implementation](project_agentbreak_scheduler.md) — AgentBreakActivator: bulk status transitions PLANNED→ACTIVE→COMPLETED, 30s interval

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -49,7 +50,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -230,6 +233,84 @@ class AuthServiceTest {
             assertThat(captor.getValue().getUserId()).isEqualTo(USER_ID);
             assertThat(captor.getValue().getTenantId()).isEqualTo(TENANT_ID);
             assertThat(captor.getValue().getToken()).isEqualTo(REFRESH_TOKEN);
+        }
+
+        // =====================================================================
+        // SUPER_ADMIN – logowanie globalne bez tenantId (refaktor ról)
+        // =====================================================================
+
+        @Test
+        @DisplayName("loguje SUPER_ADMIN z pustym tenantId – buduje klucz GLOBAL:email zamiast tenantId:email")
+        void login_superAdminWithBlankTenantId_buildsGlobalUsernameKey() {
+            AppUser superAdmin = buildSuperAdminUser();
+            Authentication auth = mockAuthentication(superAdmin);
+
+            when(authenticationManager.authenticate(any())).thenReturn(auth);
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(superAdmin));
+            // Nadpisuje domyślny stub z @BeforeEach: anyString() NIE dopasowuje null –
+            // SUPER_ADMIN nie ma tenantName (getTenantName() zwraca null).
+            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean())).thenReturn(ACCESS_TOKEN);
+
+            LoginResponse response = authService.login(
+                    new LoginRequest("", USER_EMAIL, PASSWORD), CLIENT_IP);
+
+            assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+
+            ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
+            verify(authenticationManager).authenticate(authCaptor.capture());
+            assertThat(authCaptor.getValue().getPrincipal())
+                    .isEqualTo(com.contactcenter.security.UserDetailsServiceImpl.buildGlobalKey(USER_EMAIL));
+        }
+
+        @Test
+        @DisplayName("loguje SUPER_ADMIN z null tenantId – buduje klucz GLOBAL:email")
+        void login_superAdminWithNullTenantId_buildsGlobalUsernameKey() {
+            AppUser superAdmin = buildSuperAdminUser();
+            Authentication auth = mockAuthentication(superAdmin);
+
+            when(authenticationManager.authenticate(any())).thenReturn(auth);
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(superAdmin));
+            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean())).thenReturn(ACCESS_TOKEN);
+
+            LoginResponse response = authService.login(
+                    new LoginRequest(null, USER_EMAIL, PASSWORD), CLIENT_IP);
+
+            assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+
+            ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
+            verify(authenticationManager).authenticate(authCaptor.capture());
+            assertThat(authCaptor.getValue().getPrincipal())
+                    .isEqualTo(com.contactcenter.security.UserDetailsServiceImpl.buildGlobalKey(USER_EMAIL));
+        }
+
+        @Test
+        @DisplayName("SUPER_ADMIN: nie woła tenantService.findTenantEntity – tenantName jest null w tokenie")
+        void login_superAdmin_doesNotLookUpTenantName() {
+            AppUser superAdmin = buildSuperAdminUser();
+            when(authenticationManager.authenticate(any())).thenReturn(mockAuthentication(superAdmin));
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(superAdmin));
+
+            authService.login(new LoginRequest(null, USER_EMAIL, PASSWORD), CLIENT_IP);
+
+            verify(tenantService, never()).findTenantEntity(any());
+            verify(jwtService).issueAccessToken(eq(superAdmin), isNull(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("tenantId nadal wymagany w praktyce dla zwykłego usera – pusty tenantId buduje klucz " +
+                "globalny, który nie pasuje do żadnego tenant-scoped usera (odrzucone przez " +
+                "AuthenticationManager tak samo jak błędne hasło)")
+        void login_blankTenantId_forRegularUser_delegatesRejectionToAuthenticationManager() {
+            // AuthServiceImpl samo w sobie nie odróżnia "usera nie znaleziono" od "złe hasło" –
+            // obie ścieżki przechodzą przez AuthenticationManager i kończą się tym samym
+            // BadCredentialsException (generyczny komunikat, brak ujawniania stanu konta).
+            when(authenticationManager.authenticate(any()))
+                    .thenThrow(new BadCredentialsException("Bad credentials"));
+
+            assertThatThrownBy(() -> authService.login(
+                    new LoginRequest("", USER_EMAIL, PASSWORD), CLIENT_IP))
+                    .isInstanceOf(BadCredentialsException.class)
+                    .hasMessageContaining("Nieprawidłowe dane logowania");
         }
     }
 
@@ -578,8 +659,8 @@ class AuthServiceTest {
     class ForcePasswordResetTests {
 
         @Test
-        @DisplayName("ADMIN może zresetować hasło użytkownika dowolnego tenanta")
-        void forcePasswordReset_adminCanResetAnyUser() {
+        @DisplayName("SUPER_ADMIN może zresetować hasło użytkownika dowolnego tenanta")
+        void forcePasswordReset_superAdminCanResetAnyUser() {
             AppUser target = buildUser(false, false, true);
             target.setTenantId(TENANT_B); // inny tenant
 
@@ -587,10 +668,40 @@ class AuthServiceTest {
             when(refreshTokenRepository.revokeAllByUserId(USER_ID)).thenReturn(1);
 
             assertThatNoException().isThrownBy(() ->
-                    authService.forcePasswordReset(USER_ID, TENANT_ID, "ADMIN"));
+                    authService.forcePasswordReset(USER_ID, null, "SUPER_ADMIN"));
 
             verify(appUserRepository).save(org.mockito.ArgumentMatchers.<AppUser>argThat(
                     u -> u.isPasswordResetRequired()));
+        }
+
+        @Test
+        @DisplayName("ADMIN może zresetować hasło użytkownika własnego tenanta")
+        void forcePasswordReset_adminCanResetOwnTenantUser() {
+            AppUser target = buildUser(false, false, true);
+            target.setTenantId(TENANT_ID); // ten sam tenant
+
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(target));
+            when(refreshTokenRepository.revokeAllByUserId(USER_ID)).thenReturn(1);
+
+            assertThatNoException().isThrownBy(() ->
+                    authService.forcePasswordReset(USER_ID, TENANT_ID, "ADMIN"));
+        }
+
+        @Test
+        @DisplayName("ADMIN nie może zresetować hasła użytkownika innego tenanta – cross-tenant isolation")
+        void forcePasswordReset_adminCannotResetOtherTenantUser_crossTenantBlocked() {
+            AppUser target = buildUser(false, false, true);
+            target.setTenantId(TENANT_B); // INNY tenant
+
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(target));
+
+            assertThatThrownBy(() ->
+                    authService.forcePasswordReset(USER_ID, TENANT_ID, "ADMIN"))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("własnego tenanta");
+
+            verify(appUserRepository, never()).save(any());
+            verify(refreshTokenRepository, never()).revokeAllByUserId(any());
         }
 
         @Test
@@ -635,6 +746,24 @@ class AuthServiceTest {
             authService.forcePasswordReset(USER_ID, TENANT_ID, "SUPERVISOR");
 
             verify(refreshTokenRepository).revokeAllByUserId(USER_ID);
+        }
+
+        @Test
+        @DisplayName("unieważnia refresh tokeny PRZED zapisem encji – @Modifying(clearAutomatically=true) " +
+                "na revokeAllByUserId() wywołuje entityManager.clear(), które po cichu odrzuca " +
+                "niezflushowane zmiany na już załadowanej encji AppUser bez żadnego wyjątku")
+        void forcePasswordReset_revokesTokensBeforeSavingUserEntity() {
+            AppUser target = buildUser(false, false, true);
+            target.setTenantId(TENANT_ID);
+
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(target));
+            when(refreshTokenRepository.revokeAllByUserId(USER_ID)).thenReturn(1);
+
+            authService.forcePasswordReset(USER_ID, TENANT_ID, "ADMIN");
+
+            InOrder order = inOrder(refreshTokenRepository, appUserRepository);
+            order.verify(refreshTokenRepository).revokeAllByUserId(USER_ID);
+            order.verify(appUserRepository).save(target);
         }
 
         @Test
@@ -708,6 +837,21 @@ class AuthServiceTest {
                 .mfaEnabled(mfaEnabled)
                 .passwordResetRequired(passwordResetRequired)
                 .status(UserStatus.AVAILABLE)
+                .build();
+    }
+
+    /** Buduje użytkownika SUPER_ADMIN (bez tenanta) – refaktor ról. */
+    private AppUser buildSuperAdminUser() {
+        return AppUser.builder()
+                .id(USER_ID)
+                .tenantId(null)
+                .email(USER_EMAIL)
+                .passwordHash(HASH)
+                .role(UserRole.SUPER_ADMIN)
+                .active(true)
+                .mfaEnabled(false)
+                .passwordResetRequired(false)
+                .status(UserStatus.ACTIVE)
                 .build();
     }
 

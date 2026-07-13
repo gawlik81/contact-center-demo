@@ -15,13 +15,15 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'dashboard',
-        data: { breadcrumb: 'nav.dashboard' },
+        data: { breadcrumb: 'nav.dashboard', roles: ['ADMIN', 'SUPERVISOR'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
           import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
       },
       {
         path: 'agents',
-        data: { breadcrumb: 'nav.users' },
+        data: { breadcrumb: 'nav.users', roles: ['ADMIN', 'SUPERVISOR'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
@@ -45,7 +47,8 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'customers',
-        data: { breadcrumb: 'nav.customers' },
+        data: { breadcrumb: 'nav.customers', roles: ['ADMIN', 'SUPERVISOR'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/customers/customer-list/customer-list.component').then(
             (m) => m.CustomerListComponent,
@@ -98,7 +101,8 @@ export const SUPERVISOR_ROUTES: Routes = [
           { path: '', redirectTo: 'email', pathMatch: 'full' },
           {
             path: 'email',
-            data: { breadcrumb: 'nav.settingsEmail' },
+            data: { breadcrumb: 'nav.settingsEmail', roles: ['ADMIN'] },
+            canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/settings/email-settings.component').then(
                 (m) => m.EmailSettingsComponent,
@@ -106,7 +110,8 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'phone-numbers',
-            data: { breadcrumb: 'nav.settingsPhoneNumbers' },
+            data: { breadcrumb: 'nav.settingsPhoneNumbers', roles: ['ADMIN', 'SUPERVISOR'] },
+            canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/settings/phone-numbers/phone-numbers.component').then(
                 (m) => m.PhoneNumbersComponent,
@@ -114,7 +119,8 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'integrations',
-            data: { breadcrumb: 'nav.settingsSocialMedia' },
+            data: { breadcrumb: 'nav.settingsSocialMedia', roles: ['ADMIN'] },
+            canActivate: [roleGuard],
             loadChildren: () =>
               import('../integrations/integrations.routes').then((m) => m.INTEGRATIONS_ROUTES),
           },
@@ -138,7 +144,7 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'twilio',
-            data: { breadcrumb: 'nav.settingsTwilioConfig', roles: ['SUPERVISOR', 'ADMIN'] },
+            data: { breadcrumb: 'nav.settingsTwilioConfig', roles: ['ADMIN'] },
             canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/twilio-config/twilio-config.component').then(
@@ -147,13 +153,14 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'ai-config',
-            data: { breadcrumb: 'nav.settingsAiConfig' },
+            data: { breadcrumb: 'nav.settingsAiConfig', roles: ['ADMIN'] },
+            canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/ai-config/ai-config.component').then((m) => m.AiConfigComponent),
           },
           {
             path: 'plugins',
-            data: { breadcrumb: 'nav.settingsPlugins', roles: ['SUPERVISOR', 'ADMIN'] },
+            data: { breadcrumb: 'nav.settingsPlugins', roles: ['ADMIN'] },
             canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/settings/plugins/plugins-page.component').then(

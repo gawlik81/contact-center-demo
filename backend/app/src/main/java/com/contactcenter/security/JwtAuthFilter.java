@@ -121,7 +121,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
 
             // Krok 3: Załaduj UserDetails z bazy (weryfikacja istnienia i aktywności konta)
-            String userKey = UserDetailsServiceImpl.buildKey(claims.tenantId(), claims.subject());
+            // SUPER_ADMIN (refaktor ról): claims.tenantId() jest null – budujemy klucz GLOBAL:email
+            // zamiast tenantId:email, inaczej buildKey() rzuciłby NPE na tenantId.toString().
+            String userKey = claims.tenantId() != null
+                    ? UserDetailsServiceImpl.buildKey(claims.tenantId(), claims.subject())
+                    : UserDetailsServiceImpl.buildGlobalKey(claims.subject());
             UserDetails userDetails = userDetailsService.loadUserByUsername(userKey);
 
             // Krok 4: Ustaw Authentication w SecurityContext

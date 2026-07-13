@@ -34,19 +34,19 @@ export const routes: Routes = [
       import('./features/auth/forbidden/forbidden.component').then((m) => m.ForbiddenComponent),
   },
 
-  // Admin – protected: ADMIN role only
+  // Admin – protected: SUPER_ADMIN role only
   {
     path: 'admin',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['ADMIN'] as UserRole[] },
+    data: { roles: ['SUPER_ADMIN'] as UserRole[] },
     loadChildren: () => import('./features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
 
-  // Supervisor – protected: SUPERVISOR role only
+  // Supervisor – protected: ADMIN (tenant-scoped) and SUPERVISOR roles
   {
     path: 'supervisor',
     canActivate: [authGuard, roleGuard],
-    data: { roles: ['SUPERVISOR'] as UserRole[] },
+    data: { roles: ['ADMIN', 'SUPERVISOR'] as UserRole[] },
     loadChildren: () =>
       import('./features/supervisor/supervisor.routes').then((m) => m.SUPERVISOR_ROUTES),
   },

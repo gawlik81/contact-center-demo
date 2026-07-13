@@ -135,6 +135,16 @@ public class CrossTenantAspect {
                 return;
             }
 
+            // SUPER_ADMIN (globalny administrator platformy, refaktor ról) celowo nie ma
+            // tenant_id – TenantFilter nie wywołuje TenantContext.setTenantId() dla tej roli,
+            // więc isSet() zawsze zwróci false. To NIE jest błąd konfiguracji filtrów.
+            if ("SUPER_ADMIN".equals(TenantContext.getUserRole())) {
+                log.trace("[CrossTenant][SuperAdmin] TenantContext bez tenant_id dla {}.{} "
+                        + "(oczekiwane – SUPER_ADMIN jest globalny, brak tenanta)",
+                        className, methodName);
+                return;
+            }
+
             // Sprawdź czy wywołanie pochodzi z wątku HTTP czy asynchronicznego.
             // RequestContextHolder ma aktywne atrybuty tylko dla żądań HTTP.
             boolean isHttpRequestThread = RequestContextHolder.getRequestAttributes() != null;
@@ -172,10 +182,18 @@ public class CrossTenantAspect {
      * Metody serwisów domenowych wywoływane przez JwtAuthFilter / UserDetailsServiceImpl
      * jako część bootstrapu autentykacji – PRZED TenantFilter, więc TenantContext
      * jest celowo nieustawiony niezależnie od URI żądania.
+     *
+     * <p>{@code findAuthenticatableGlobalUser} (refaktor ról, SUPER_ADMIN) jest odpowiednikiem
+     * {@code findAuthenticatableUser} dla logowania globalnego (bez tenanta) – wywoływana
+     * przez {@code JwtAuthFilter} na KAŻDYM uwierzytelnionym żądaniu SUPER_ADMIN (nie tylko
+     * {@code /api/auth/login}), więc musi być tu wymieniona jawnie – w przeciwnym razie każde
+     * żądanie SUPER_ADMIN (np. {@code GET /api/tenants}) generowałoby fałszywy alarm ERROR
+     * poniżej (URI nie pasuje do {@link #isExpectedPublicPath}).
      */
     private boolean isAuthenticationBootstrapMethod(String className, String methodName) {
         return "UserServiceImpl".equals(className)
-            && "findAuthenticatableUser".equals(methodName);
+            && ("findAuthenticatableUser".equals(methodName)
+                || "findAuthenticatableGlobalUser".equals(methodName));
     }
 
     /**

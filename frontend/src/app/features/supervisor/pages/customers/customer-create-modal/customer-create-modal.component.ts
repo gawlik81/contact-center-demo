@@ -10,11 +10,25 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormArray,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, finalize, of } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerResponse } from '../../../models/customer.model';
+
+type CustomFieldFormGroup = FormGroup<{
+  key: FormControl<string>;
+  value: FormControl<string>;
+}>;
 
 @Component({
   selector: 'app-customer-create-modal',
@@ -42,12 +56,23 @@ export class CustomerCreateModalComponent {
   readonly form = this.fb.group({
     firstName: ['', [Validators.maxLength(100)]],
     lastName: ['', [Validators.maxLength(100)]],
+    externalId: ['', [Validators.maxLength(255)]],
     phones: [''],
     emails: [''],
+    customFields: this.fb.array<CustomFieldFormGroup>([]),
+    gdprConsent: this.fb.group({
+      consent_given: [false],
+      marketing_consent: [false],
+    }),
   });
+
+  get customFieldsArray(): FormArray {
+    return this.form.get('customFields') as FormArray;
+  }
 
   open(): void {
     this.form.reset();
+    this.customFieldsArray.clear();
     this.visible.set(true);
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && !dialog.open) {
@@ -77,6 +102,28 @@ export class CustomerCreateModalComponent {
     }
   }
 
+  private createCustomFieldGroup(key = '', value = ''): CustomFieldFormGroup {
+    return this.fb.group({
+      key: this.fb.control(key, { nonNullable: true, validators: [Validators.maxLength(100)] }),
+      value: this.fb.control(value, {
+        nonNullable: true,
+        validators: [Validators.maxLength(500)],
+      }),
+    });
+  }
+
+  addCustomField(): void {
+    this.customFieldsArray.push(this.createCustomFieldGroup());
+  }
+
+  removeCustomField(index: number): void {
+    this.customFieldsArray.removeAt(index);
+  }
+
+  getControl(array: FormArray, index: number): AbstractControl {
+    return array.at(index);
+  }
+
   onSubmit(): void {
     if (this.form.invalid || this.saving()) return;
 
@@ -84,12 +131,23 @@ export class CustomerCreateModalComponent {
 
     const phone = this.parseCommaSeparated(raw.phones ?? '');
     const email = this.parseCommaSeparated(raw.emails ?? '');
+    const customFields = Object.fromEntries(
+      raw.customFields
+        .map((f) => [f.key.trim(), f.value.trim()] as [string, string])
+        .filter(([key]) => key.length > 0),
+    );
 
     const payload = {
       firstName: raw.firstName?.trim() || undefined,
       lastName: raw.lastName?.trim() || undefined,
+      externalId: raw.externalId?.trim() || undefined,
       phone,
       email,
+      customFields,
+      gdprConsent: {
+        consent_given: raw.gdprConsent.consent_given,
+        marketing_consent: raw.gdprConsent.marketing_consent,
+      },
     };
 
     this.saving.set(true);
@@ -98,10 +156,14 @@ export class CustomerCreateModalComponent {
       .createCustomer(payload)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        catchError(() => {
-          this.notifications.error(
-            this.transloco.translate('supervisor.customerCreate.errorCreate'),
-          );
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 409 && err.error?.detail) {
+            this.notifications.error(err.error.detail);
+          } else {
+            this.notifications.error(
+              this.transloco.translate('supervisor.customerCreate.errorCreate'),
+            );
+          }
           return of(null);
         }),
         finalize(() => this.saving.set(false)),

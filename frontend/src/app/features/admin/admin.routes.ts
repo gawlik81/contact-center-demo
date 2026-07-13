@@ -4,7 +4,7 @@ export const ADMIN_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => import('./admin-shell.component').then((m) => m.AdminShellComponent),
-    data: { breadcrumb: 'role.admin' },
+    data: { breadcrumb: 'role.superAdmin' },
     children: [
       {
         path: '',

@@ -206,6 +206,55 @@ class TenantFilterTest {
     }
 
     // =========================================================================
+    // Testy dla SUPER_ADMIN (refaktor ról) – tenant_id nieobecny w tokenie
+    // =========================================================================
+
+    @Nested
+    @DisplayName("SUPER_ADMIN – token bez tenant_id (refaktor ról)")
+    class SuperAdminWithoutTenantId {
+
+        @Test
+        @DisplayName("token SUPER_ADMIN bez tenant_id kontynuuje łańcuch filtrów bez ustawienia TenantContext.tenantId")
+        void superAdminToken_withoutTenantId_continuesWithoutTenantContext() throws Exception {
+            JwtClaims claims = new JwtClaims(null, USER_ID, "SUPER_ADMIN", "superadmin@test.com", null);
+            when(jwtParser.parse(VALID_TOKEN)).thenReturn(claims);
+
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenants");
+            request.addHeader("Authorization", "Bearer " + VALID_TOKEN);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            doAnswer(invocation -> {
+                assertThat(TenantContext.getTenantIdOrNull()).isNull();
+                assertThat(TenantContext.getUserId()).isEqualTo(USER_ID);
+                assertThat(TenantContext.getUserRole()).isEqualTo("SUPER_ADMIN");
+                return null;
+            }).when(filterChain).doFilter(request, response);
+
+            tenantFilter.doFilter(request, response, filterChain);
+
+            verify(filterChain).doFilter(request, response);
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+
+        @Test
+        @DisplayName("token bez tenant_id dla roli innej niż SUPER_ADMIN zwraca HTTP 401 (defensywny check)")
+        void nonSuperAdminToken_withoutTenantId_returns401() throws Exception {
+            JwtClaims claims = new JwtClaims(null, USER_ID, "ADMIN", "admin@test.com", null);
+            when(jwtParser.parse(VALID_TOKEN)).thenReturn(claims);
+
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/contacts");
+            request.addHeader("Authorization", "Bearer " + VALID_TOKEN);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            tenantFilter.doFilter(request, response, filterChain);
+
+            assertThat(response.getStatus()).isEqualTo(401);
+            verifyNoInteractions(filterChain);
+            assertThat(TenantContext.getTenantIdOrNull()).isNull();
+        }
+    }
+
+    // =========================================================================
     // Testy dla żądań bez JWT
     // =========================================================================
 

@@ -72,6 +72,20 @@ export class CampaignService {
     );
   }
 
+  importContactsJson(
+    campaignId: string,
+    file: File,
+    skipDuplicates: boolean,
+  ): Observable<ImportJobStartResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('skipDuplicates', String(skipDuplicates));
+    return this.http.post<ImportJobStartResponse>(
+      `${this.API}/${campaignId}/contacts/import/json`,
+      formData,
+    );
+  }
+
   getImportStatus(campaignId: string, jobId: string): Observable<ImportJobStatus> {
     return this.http.get<ImportJobStatus>(`${this.API}/${campaignId}/import-status/${jobId}`);
   }

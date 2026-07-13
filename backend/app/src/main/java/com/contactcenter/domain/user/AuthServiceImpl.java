@@ -26,8 +26,10 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -83,7 +85,8 @@ class AuthServiceImpl implements AuthService {
      *   <li>Po udanym logowaniu resetuje licznik rate limit dla IP</li>
      * </ol>
      *
-     * @param request dane logowania (tenantId, email, password)
+     * @param request dane logowania (tenantId – opcjonalny, email, password). Puste/null
+     *                {@code tenantId} oznacza próbę logowania globalnego konta SUPER_ADMIN.
      * @param ip      adres IP klienta (do rate limiting)
      * @return para tokenów; pole {@code mfaRequired=true} lub {@code passwordResetRequired=true}
      *         gdy wymagane dodatkowe akcje
@@ -97,17 +100,28 @@ class AuthServiceImpl implements AuthService {
         // Rate limiting: sprawdź i inkrementuj licznik dla IP
         loginRateLimiter.checkAndIncrement(ip);
 
-        UUID tenantId;
-        try {
-            tenantId = UUID.fromString(request.tenantId());
-        } catch (IllegalArgumentException e) {
-            log.warn("[Auth] Nieprawidłowy format tenantId: {}", request.tenantId());
-            throw new BadCredentialsException("Nieprawidłowe dane logowania");
+        // AuthenticationManager wywołuje UserDetailsServiceImpl.loadUserByUsername(tenantId:email
+        // lub GLOBAL:email) i weryfikuje hasło przez BCryptPasswordEncoder.
+        //
+        // Puste/null tenantId = próba logowania globalnego SUPER_ADMIN (bez tenanta) – rozszerzenie
+        // istniejącego flow logowania (refaktor ról), zamiast osobnego endpointu. Dla wszystkich
+        // pozostałych ról tenantId jest w praktyce wymagany: findAuthenticatableGlobalUser() nie
+        // znajdzie użytkownika tenant-scoped (ma tenant_id NOT NULL), więc authenticate() rzuci
+        // BadCredentialsException tak samo jak przy błędnym haśle (brak ujawniania stanu konta).
+        String usernameKey;
+        if (StringUtils.hasText(request.tenantId())) {
+            UUID tenantId;
+            try {
+                tenantId = UUID.fromString(request.tenantId());
+            } catch (IllegalArgumentException e) {
+                log.warn("[Auth] Nieprawidłowy format tenantId: {}", request.tenantId());
+                throw new BadCredentialsException("Nieprawidłowe dane logowania");
+            }
+            usernameKey = UserDetailsServiceImpl.buildKey(tenantId, request.email());
+        } else {
+            usernameKey = UserDetailsServiceImpl.buildGlobalKey(request.email());
         }
 
-        // AuthenticationManager wywołuje UserDetailsServiceImpl.loadUserByUsername(tenantId:email)
-        // i weryfikuje hasło przez BCryptPasswordEncoder
-        String usernameKey = UserDetailsServiceImpl.buildKey(tenantId, request.email());
         Authentication authRequest = new UsernamePasswordAuthenticationToken(
                 usernameKey, request.password()
         );
@@ -117,7 +131,8 @@ class AuthServiceImpl implements AuthService {
             authentication = authenticationManager.authenticate(authRequest);
         } catch (AuthenticationException e) {
             log.warn("[Auth] Nieudana próba logowania dla tenant={}, email={}: {}",
-                    tenantId, request.email(), e.getClass().getSimpleName());
+                    StringUtils.hasText(request.tenantId()) ? request.tenantId() : "GLOBAL",
+                    request.email(), e.getClass().getSimpleName());
             // Generyczny komunikat – nie zdradzamy czy problem z hasłem czy z kontem
             throw new BadCredentialsException("Nieprawidłowe dane logowania");
         }
@@ -426,26 +441,26 @@ class AuthServiceImpl implements AuthService {
     }
 
     // =========================================================================
-    // Force Password Reset (Admin / Supervisor)
+    // Force Password Reset (Super Admin / Admin)
     // =========================================================================
 
     /**
      * Wymusza zmianę hasła przy następnym logowaniu docelowego użytkownika.
      *
-     * <p>Uprawnienia:
+     * <p>Uprawnienia (SUPERVISOR nie ma dostępu do tego endpointu – refaktor ról):
      * <ul>
-     *   <li>ADMIN – może resetować dowolnego użytkownika (cross-tenant)</li>
-     *   <li>SUPERVISOR – może resetować tylko użytkowników własnego tenanta</li>
+     *   <li>SUPER_ADMIN – może resetować dowolnego użytkownika (cross-tenant)</li>
+     *   <li>ADMIN – tenant-scoped, może resetować wyłącznie użytkowników własnego tenanta</li>
      * </ul>
      *
      * <p>Skutki: ustawia {@code passwordResetRequired=true} i unieważnia
      * wszystkie aktywne refresh tokeny (wymusza wylogowanie ze wszystkich urządzeń).
      *
      * @param targetUserId  UUID użytkownika do zresetowania
-     * @param callerTenantId UUID tenanta wywołującego (z JWT)
-     * @param callerRole    rola wywołującego ("ADMIN" lub "SUPERVISOR")
+     * @param callerTenantId UUID tenanta wywołującego (z JWT, null dla SUPER_ADMIN)
+     * @param callerRole    rola wywołującego ("SUPER_ADMIN" lub "ADMIN")
      * @throws IllegalArgumentException gdy użytkownik nie istnieje
-     * @throws AccessDeniedException    gdy SUPERVISOR próbuje resetować użytkownika innego tenanta
+     * @throws AccessDeniedException    gdy ADMIN próbuje resetować użytkownika innego tenanta
      */
     @Transactional
     @Override
@@ -453,20 +468,26 @@ class AuthServiceImpl implements AuthService {
         AppUser target = appUserRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Użytkownik nie istnieje"));
 
-        // SUPERVISOR może resetować tylko użytkowników swojego tenanta
-        if ("SUPERVISOR".equals(callerRole) && !target.getTenantId().equals(callerTenantId)) {
-            log.warn("[Auth] SUPERVISOR próbuje force-reset użytkownika innego tenanta: " +
+        // ADMIN jest tenant-scoped – może resetować tylko użytkowników swojego tenanta.
+        // SUPER_ADMIN (callerTenantId == null) omija tę weryfikację.
+        if (!"SUPER_ADMIN".equals(callerRole) && !Objects.equals(target.getTenantId(), callerTenantId)) {
+            log.warn("[Auth] {} próbuje force-reset użytkownika innego tenanta: " +
                      "callerTenant={}, targetUserId={}, targetTenant={}",
-                     callerTenantId, targetUserId, target.getTenantId());
-            throw new AccessDeniedException("Supervisor może resetować hasła tylko agentów własnego tenanta");
+                     callerRole, callerTenantId, targetUserId, target.getTenantId());
+            throw new AccessDeniedException("Możesz resetować hasła tylko użytkowników własnego tenanta");
         }
 
-        target.setPasswordResetRequired(true);
-        appUserRepository.save(target);
-
+        // Bulk-update (@Modifying(clearAutomatically = true)) MUSI wykonać się przed zapisem
+        // encji target – clearAutomatically wywołuje entityManager.clear() po zapytaniu, co
+        // odrywa (detach) już załadowaną encję i odrzuca jej niezflushowane zmiany bez błędu.
+        // Odwrócenie kolejności (save() przed revokeAllByUserId()) po cichu gubi
+        // passwordResetRequired=true – flaga nigdy nie trafia do bazy mimo braku wyjątku.
         int revokedCount = refreshTokenRepository.revokeAllByUserId(targetUserId);
         log.info("[Auth] Force password reset: targetUserId={}, by role={}, unieważniono {} tokenów",
                 targetUserId, callerRole, revokedCount);
+
+        target.setPasswordResetRequired(true);
+        appUserRepository.save(target);
     }
 
     // =========================================================================
@@ -474,9 +495,13 @@ class AuthServiceImpl implements AuthService {
     // =========================================================================
 
     /**
-     * Tworzy i zapisuje nowy refresh token w bazie danych.
+     * Zwraca nazwę tenanta użytkownika – lub {@code null} dla SUPER_ADMIN (bez tenanta),
+     * żeby nie wołać {@code tenantService.findTenantEntity(null)}.
      */
     private String getTenantName(AppUser user) {
+        if (user.getTenantId() == null) {
+            return null;
+        }
         return tenantService.findTenantEntity(user.getTenantId())
                 .map(Tenant::getName)
                 .orElse(user.getTenantId().toString());

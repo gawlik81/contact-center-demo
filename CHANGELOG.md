@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0](https://github.com/gawlik81/contact-center-demo/compare/v1.3.0...v1.4.0) (2026-07-13)
+
+
+### Features
+
+* **auth:** refaktor ról użytkowników i dodanie roli SUPER_ADMIN ([64a20cd](https://github.com/gawlik81/contact-center-demo/commit/64a20cd94c31409bf7cc112b5362ae06a7a9c793))
+* **auth:** refaktor ról użytkowników i dodanie roli SUPER_ADMIN ([f8470a9](https://github.com/gawlik81/contact-center-demo/commit/f8470a95aca906c02e8a7710a3dac7d52ebed044))
+* **campaign-import:** dodaj import kontaktów kampanii z pliku JSON ([87cf1e8](https://github.com/gawlik81/contact-center-demo/commit/87cf1e879ab7bab35fac71a5d73448d85dcf4b97))
+* **customer-create:** dodaj pola dodatkowe i zgody RODO do modala nowego klienta ([853d1a6](https://github.com/gawlik81/contact-center-demo/commit/853d1a6b543d1f151e884d81cc4e5e700490fb71))
+* **customer-import:** dodaj import klientów z pliku JSON ([ab1f685](https://github.com/gawlik81/contact-center-demo/commit/ab1f68537fb53a514196bceb76b9f08bd1e433df))
+* **customer:** dodaj externalId (identyfikator zewnętrzny CRM) do domeny klienta ([ae64741](https://github.com/gawlik81/contact-center-demo/commit/ae6474157fd7d017d032ee22b5e30375b0198d45))
+* **email-templates:** dodaj externalId i pola dodatkowe do zmiennych szablonów ([cba1dee](https://github.com/gawlik81/contact-center-demo/commit/cba1dee3bed282cbc1c0e89c5e9f0bb82cdf39a4))
+
+
+### Bug Fixes
+
+* **customer-detail:** napraw czytelność i układ kart w profilu klienta ([10fb430](https://github.com/gawlik81/contact-center-demo/commit/10fb4305572a87320005f10cf512ef273dbd2b42))
+* **customer-import:** obsługa wielu telefonów/e-maili, nazwanych pól dodatkowych i zgód RODO ([fa0a0d1](https://github.com/gawlik81/contact-center-demo/commit/fa0a0d191223d9227fef2faf55f6155cd6151046))
+* **examples:** zanonimizuj przykładowe dane w campaign.json ([84ddfb2](https://github.com/gawlik81/contact-center-demo/commit/84ddfb2b0cdd9e1fbe6778a727e318cab15fe450))
+* **plugins:** dodaj podstawianie {customerExternalId} w CRM URL Launcher ([bb2549a](https://github.com/gawlik81/contact-center-demo/commit/bb2549adf35f6a43229a79becf9aed6318a642dd))
+
 ## [1.3.0](https://github.com/gawlik81/contact-center-demo/compare/v1.2.3...v1.3.0) (2026-07-05)
 
 

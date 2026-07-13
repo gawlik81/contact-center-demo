@@ -71,7 +71,7 @@ public class SocialOAuthController {
     // =========================================================================
 
     @GetMapping("/api/integrations")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Lista integracji social media tenanta")
     public ResponseEntity<SocialIntegrationListResponse> listIntegrations() {
         var integrations = integrationService.getIntegrations();
@@ -90,7 +90,7 @@ public class SocialOAuthController {
      * W callbacku state jest weryfikowany i usuwany (single-use).
      */
     @PostMapping("/api/integrations/{platform}/initiate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Inicjacja OAuth – generuje URL autoryzacji")
     public ResponseEntity<OAuthInitiateResponse> initiateOAuth(
             @PathVariable @Parameter(description = "Platforma: FACEBOOK, INSTAGRAM, WHATSAPP") String platform) {
@@ -240,7 +240,7 @@ public class SocialOAuthController {
     // =========================================================================
 
     @DeleteMapping("/api/integrations/{integrationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Revoke tokenu u providera i usunięcie integracji z DB")
     public void deleteIntegration(

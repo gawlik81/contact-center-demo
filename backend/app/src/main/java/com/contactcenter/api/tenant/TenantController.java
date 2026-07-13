@@ -28,7 +28,9 @@ import java.util.UUID;
 /**
  * Kontroler REST zarządzający tenantami platformy Contact Center.
  *
- * <p>Wszystkie endpointy wymagają roli <strong>ADMIN</strong>.
+ * <p>Większość endpointów wymaga roli <strong>SUPER_ADMIN</strong> (globalny administrator
+ * platformy, refaktor ról – zastąpił dawny cross-tenant zakres ADMIN). Wyjątek:
+ * {@code GET}/{@code PATCH /{id}/config} – patrz adnotacje metod poniżej.
  *
  * <p>Endpointy:
  * <ul>
@@ -44,9 +46,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/tenants")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Tenant Management", description = "Zarządzanie tenantami platformy (tylko ADMIN)")
+@Tag(name = "Tenant Management", description = "Zarządzanie tenantami platformy (tylko SUPER_ADMIN)")
 public class TenantController {
 
     private final TenantService tenantService;
@@ -195,13 +197,13 @@ public class TenantController {
     // =========================================================================
 
     @GetMapping("/{id}/config")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('ADMIN') or hasRole('SUPERVISOR')")
     @Operation(
         summary = "Pobierz konfigurację Twilio per-tenant",
         description = "Zwraca pola konfiguracyjne Twilio dla tenanta. " +
-                      "ADMIN może pobierać konfigurację dowolnego tenanta. " +
-                      "SUPERVISOR może pobierać wyłącznie konfigurację swojego tenanta " +
-                      "(weryfikacja na podstawie tenant_id z JWT).",
+                      "SUPER_ADMIN (globalny administrator platformy) może pobierać konfigurację " +
+                      "dowolnego tenanta. ADMIN i SUPERVISOR są tenant-scoped i mogą pobierać " +
+                      "wyłącznie konfigurację swojego tenanta (weryfikacja na podstawie tenant_id z JWT).",
         responses = {
             @ApiResponse(responseCode = "200", description = "Konfiguracja tenanta"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
@@ -218,17 +220,21 @@ public class TenantController {
     }
 
     @PatchMapping("/{id}/config")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('ADMIN') or hasRole('SUPERVISOR')")
     @Operation(
         summary = "Aktualizuj konfigurację Twilio per-tenant",
         description = "Zapisuje numer telefonu Twilio i/lub URL webhooka specyficzny dla tenanta " +
                       "w polu config JSONB. Pola null usuwają konfigurację (fallback do globalnych " +
                       "ustawień twilio.phone-number i twilio.status-callback-url). " +
-                      "Nie modyfikuje pozostałych kluczy konfiguracji (max_agents itp.).",
+                      "Nie modyfikuje pozostałych kluczy konfiguracji (max_agents itp.). " +
+                      "SUPER_ADMIN może aktualizować konfigurację dowolnego tenanta. " +
+                      "ADMIN i SUPERVISOR są tenant-scoped i mogą aktualizować wyłącznie " +
+                      "konfigurację swojego tenanta (weryfikacja na podstawie tenant_id z JWT).",
         responses = {
             @ApiResponse(responseCode = "200", description = "Konfiguracja zaktualizowana"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji (np. nieprawidłowy format E.164)"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak roli ADMIN"),
+            @ApiResponse(responseCode = "403", description = "Brak wymaganej roli"),
             @ApiResponse(responseCode = "422", description = "Tenant nie istnieje")
         }
     )

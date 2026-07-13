@@ -52,9 +52,9 @@ export class AdminMetricsService {
    * Polling stream driven by the current user role.
    *
    * The outer switchMap listens to role changes via toObservable(). When the
-   * role is 'ADMIN' it starts timer(0, POLL_INTERVAL_MS); for any other role
-   * (SUPERVISOR, AGENT, null) it emits EMPTY, which means no timer is created
-   * and any running timer from a previous ADMIN session is automatically
+   * role is 'SUPER_ADMIN' it starts timer(0, POLL_INTERVAL_MS); for any other role
+   * (ADMIN, SUPERVISOR, AGENT, null) it emits EMPTY, which means no timer is created
+   * and any running timer from a previous SUPER_ADMIN session is automatically
    * cancelled by switchMap's unsubscription logic.
    *
    * refCount: true — the shareReplay unsubscribes (and stops the timer) when
@@ -64,9 +64,9 @@ export class AdminMetricsService {
    */
   private readonly _poll$: Observable<GlobalMetrics> = toObservable(this.auth.currentRole).pipe(
     switchMap((role) => {
-      if (role !== 'ADMIN') {
-        // Not an admin – emit nothing. Any running timer from a prior ADMIN
-        // session is torn down by switchMap automatically.
+      if (role !== 'SUPER_ADMIN') {
+        // Not the super admin – emit nothing. Any running timer from a prior
+        // SUPER_ADMIN session is torn down by switchMap automatically.
         return EMPTY;
       }
       return timer(0, POLL_INTERVAL_MS).pipe(
@@ -78,7 +78,7 @@ export class AdminMetricsService {
               this._error$.next(false);
             }),
             catchError((err: HttpErrorResponse) => {
-              // 403 means the JWT lost ADMIN access mid-session.
+              // 403 means the JWT lost SUPER_ADMIN access mid-session.
               // Do NOT set the error flag – silently drop this tick.
               if (err.status === 403) {
                 return EMPTY;

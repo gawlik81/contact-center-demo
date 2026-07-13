@@ -26,17 +26,13 @@ import java.util.UUID;
  * Endpoint administratora systemowego — platform-level kill switch dla wersji pluginu
  * (EPIC-28, BE-106, ARCHITECTURE.md §11.11).
  *
- * <p><strong>Known limitation / dług techniczny (decyzja świadoma, udokumentowana):</strong>
- * projekt NIE posiada odrębnej roli "administratora systemowego" — {@code UserRole} ma tylko
- * {@code ADMIN, SUPERVISOR, AGENT}, wszystkie tenant-scoped (potwierdzone: nawet
- * {@code POST /api/tenants}, jedyna inna operacja faktycznie cross-tenant w tym projekcie,
- * używa zwykłego {@code hasRole('ADMIN')} — patrz {@code AdminMetricsController},
- * {@code AdminTenantController}). Ten endpoint reużywa **tę samą** rolę tenantową
- * {@code ADMIN}, mimo że semantycznie {@code revoke} wpływa na WSZYSTKICH tenantów, nie tylko
- * na tenanta wywołującego. Skutek: każdy tenantowy ADMIN może globalnie wycofać wersję pluginu
- * również innym tenantom (nie tylko swojemu). Naprawienie tego wymaga nowej roli + migracji
- * DB — poza zakresem BE-106 (nie wprowadzaj nowej roli/migracji w ramach tego ticketu, zgodnie
- * z decyzją podjętą przy planowaniu). Odnotowane też w {@code TASKS-BACKEND.md} (BE-106).
+ * <p><strong>Aktualizacja (refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT):</strong>
+ * poprzednia wersja tego komentarza dokumentowała known limitation – brak odrębnej roli
+ * "administratora systemowego", przez co ten endpoint reużywał tenantową rolę {@code ADMIN}
+ * mimo że {@code revoke} wpływa cross-tenant. Ten dług techniczny jest teraz spłacony:
+ * rola {@code SUPER_ADMIN} (globalna, {@code tenant_id IS NULL}, tworzona wyłącznie przez
+ * bootstrap systemu) przejęła dokładnie ten zakres. Zwykły tenantowy {@code ADMIN} NIE ma
+ * już dostępu do tego endpointu.
  *
  * <p>Endpoint:
  * <ul>
@@ -52,7 +48,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/admin/plugins")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "Plugin Platform Admin",
         description = "Operacje administratora systemowego na pluginach — kill switch globalny REVOKED (EPIC-28)")

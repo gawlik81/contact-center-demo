@@ -439,4 +439,63 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     default Page<AppUser> findAllByTenantIdAndDeletedFalseForAdmin(UUID tenantId, Pageable pageable) {
         return findAllByTenantIdAndDeletedFalse(tenantId, pageable);
     }
+
+    // =========================================================================
+    // SUPER_ADMIN – rola globalna bez tenanta (refaktor ról)
+    // =========================================================================
+
+    /**
+     * Sprawdza czy w systemie istnieje już użytkownik z podaną rolą.
+     *
+     * <p>Używane przez {@code SuperAdminBootstrapRunner} do idempotentnego
+     * bootstrapu konta SUPER_ADMIN przy starcie aplikacji – jeśli już istnieje
+     * co najmniej jeden SUPER_ADMIN, bootstrap jest no-op.
+     *
+     * @param role rola do sprawdzenia
+     * @return true gdy istnieje co najmniej jeden użytkownik z podaną rolą
+     */
+    boolean existsByRole(AppUser.UserRole role);
+
+    /**
+     * Znajdź aktywnego, nieusuniętego użytkownika globalnego (bez tenanta) po email.
+     *
+     * <p>Używane przez {@code UserDetailsServiceImpl}/{@code AuthServiceImpl} do logowania
+     * SUPER_ADMIN – jedynej roli z {@code tenantId == null}. Analogiczne do
+     * {@link #findByTenantIdAndEmailAndActiveTrue} dla ścieżki tenant-scoped, ale bez
+     * warunku tenantId (bo SUPER_ADMIN go nie ma).
+     *
+     * <p>W praktyce zwraca tylko wiersze z {@code role = SUPER_ADMIN}, bo
+     * {@code chk_super_admin_tenant_invariant} (V080) gwarantuje że tylko ta rola
+     * może mieć {@code tenant_id IS NULL}.
+     *
+     * @param email adres e-mail (dopasowanie dokładne – case-sensitive na poziomie
+     *              Spring Data derived query; wywołujący musi znormalizować wielkość
+     *              liter tak samo jak przy zapisie – patrz {@code UserServiceImpl#createUser}
+     *              które zapisuje email przez {@code toLowerCase()})
+     * @return Optional z użytkownikiem globalnym lub empty jeśli nie istnieje/nieaktywny
+     */
+    Optional<AppUser> findByEmailAndTenantIdIsNullAndActiveTrue(String email);
+
+    /**
+     * Sprawdza czy podany e-mail należy do aktywnego, nieusuniętego konta SUPER_ADMIN.
+     *
+     * <p>Używane przez publiczny endpoint {@code POST /api/public/tenants-by-email} do
+     * ustawienia flagi {@code superAdminAccount} w odpowiedzi (flow logowania bez tenanta).
+     *
+     * <p><strong>Zasady bezpieczeństwa:</strong> spójne z {@link #findActiveTenantsByUserEmail} –
+     * porównanie case-insensitive przez {@code LOWER(email)}, email nie jest logowany.
+     *
+     * @param email adres e-mail użytkownika (case-insensitive)
+     * @return true gdy istnieje aktywny, nieusunięty SUPER_ADMIN z tym emailem
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM app_user
+                WHERE LOWER(email) = LOWER(:email)
+                  AND role = 'SUPER_ADMIN'
+                  AND is_active  = TRUE
+                  AND is_deleted = FALSE
+            )
+            """, nativeQuery = true)
+    boolean existsActiveSuperAdminByEmail(@Param("email") String email);
 }

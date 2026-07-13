@@ -191,6 +191,7 @@
     "settingsPlugins": "Plugins"
   },
   "role": {
+    "superAdmin": "Hauptadministrator",
     "admin": "Administrator",
     "supervisor": "Supervisor",
     "agent": "Agent"
@@ -947,6 +948,8 @@
       "emailLabel": "E-Mail",
       "passwordLabel": "Passwort",
       "passwordHint": "Mind. 8 Zeichen, 1 Großbuchstabe, 1 Ziffer.",
+      "titleEditSkills": "Fähigkeiten bearbeiten",
+      "skillsOnlyHint": "Sie können nur die Fähigkeiten von {{name}} bearbeiten.",
       "roleLabel": "Rolle",
       "skillsLabel": "Fähigkeiten",
       "skillsPlaceholder": "Fähigkeit eingeben und Enter oder Komma drücken...",
@@ -976,7 +979,7 @@
       "skillsAvailable": "Verfügbare Fähigkeiten",
       "skillsHint": "Enter drücken oder aus der Liste auswählen, um eine Fähigkeit hinzuzufügen.",
       "saveLabel": "Benutzer speichern",
-      "errorForbidden": "Supervisors können nur Benutzer mit der Rolle Supervisor oder Agent erstellen."
+      "errorForbidden": "Sie haben keine Berechtigung für diesen Vorgang."
     },
     "userDelete": {
       "title": "Benutzer löschen",
@@ -2496,6 +2499,8 @@
       "tableActions": "Aktionen",
       "editLabel": "Benutzer bearbeiten",
       "deleteLabel": "Benutzer löschen",
+      "cannotEditSelf": "Das eigene Konto kann in diesem Bereich nicht bearbeitet werden",
+      "cannotDeleteSelf": "Das eigene Konto kann in diesem Bereich nicht gelöscht werden",
       "emptyText": "Keine Benutzer.",
       "loadingLabel": "Benutzer werden geladen...",
       "allTenants": "Alle Mandanten",
@@ -2543,6 +2548,7 @@
         "tenantRequired": "Mandant ist erforderlich."
       },
       "passwordHint": "Min. 8 Zeichen, 1 Großbuchstabe, 1 Ziffer.",
+      "superAdminHint": "Der Hauptadministrator ist global und keinem Mandanten zugeordnet.",
       "successCreate": "Benutzer wurde erstellt.",
       "successEdit": "Benutzer wurde aktualisiert."
     }

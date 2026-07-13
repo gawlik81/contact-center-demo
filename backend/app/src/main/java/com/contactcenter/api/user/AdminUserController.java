@@ -35,8 +35,8 @@ import java.util.UUID;
  *   <li>POST /api/admin/users             – tworzenie użytkownika w podanym tenancie</li>
  * </ul>
  *
- * <p>Zabezpieczenie: {@code SecurityConfig} wymaga roli ADMIN dla całego prefiksu {@code /api/admin/**}.
- * Metody dodatkowo chronione przez {@code @PreAuthorize("hasRole('ADMIN')")}.
+ * <p>Zabezpieczenie: {@code SecurityConfig} wymaga roli SUPER_ADMIN dla całego prefiksu
+ * {@code /api/admin/**}. Metody dodatkowo chronione przez {@code @PreAuthorize("hasRole('SUPER_ADMIN')")}.
  *
  * <p>Brak RLS: {@code AppUserRepository} nie wywołuje {@code set_tenant_context()} –
  * zapytania cross-tenant działają bez Row-Level Security.
@@ -45,9 +45,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Admin User Management", description = "Zarządzanie użytkownikami wszystkich tenantów (tylko ADMIN)")
+@Tag(name = "Admin User Management", description = "Zarządzanie użytkownikami wszystkich tenantów (tylko SUPER_ADMIN)")
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
@@ -61,11 +61,11 @@ public class AdminUserController {
         summary = "Lista użytkowników wszystkich tenantów",
         description = "Zwraca stronę użytkowników ze wszystkich tenantów. " +
                       "Opcjonalny parametr tenantId filtruje do jednego tenanta. " +
-                      "Paginacja: page, size, sort. Tylko rola ADMIN.",
+                      "Paginacja: page, size, sort. Tylko rola SUPER_ADMIN.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lista użytkowników z metadanymi paginacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola ADMIN")
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola SUPER_ADMIN")
         }
     )
     public ResponseEntity<PagedResponse<UserResponse>> listUsers(
@@ -90,7 +90,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "201", description = "Użytkownik utworzony"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola ADMIN"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola SUPER_ADMIN"),
             @ApiResponse(responseCode = "422", description = "Email zajęty lub przekroczono limit agentów")
         }
     )
@@ -125,7 +125,7 @@ public class AdminUserController {
             @ApiResponse(responseCode = "200", description = "Użytkownik zaktualizowany"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola ADMIN"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola SUPER_ADMIN"),
             @ApiResponse(responseCode = "404", description = "Użytkownik nie istnieje"),
             @ApiResponse(responseCode = "422", description = "Email zajęty w tenancie")
         }
@@ -152,7 +152,7 @@ public class AdminUserController {
         responses = {
             @ApiResponse(responseCode = "204", description = "Użytkownik usunięty"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola ADMIN"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola SUPER_ADMIN"),
             @ApiResponse(responseCode = "404", description = "Użytkownik nie istnieje lub już usunięty")
         }
     )
@@ -177,7 +177,7 @@ public class AdminUserController {
         responses = {
             @ApiResponse(responseCode = "204", description = "Flaga wymaganej zmiany hasła ustawiona"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola ADMIN"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień – wymagana rola SUPER_ADMIN"),
             @ApiResponse(responseCode = "404", description = "Użytkownik nie istnieje")
         }
     )

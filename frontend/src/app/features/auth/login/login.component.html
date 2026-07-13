@@ -61,7 +61,7 @@
         </p>
 
         <form [formGroup]="credentialsForm" (ngSubmit)="onSubmitCredentials()" novalidate>
-          @if (showTenantSelect()) {
+          @if (showTenantSelect() && !isSuperAdminLogin()) {
             <div class="form-field">
               <label for="tenantId" class="form-label">{{ 'auth.login.orgLabel' | transloco }}</label>
               <select

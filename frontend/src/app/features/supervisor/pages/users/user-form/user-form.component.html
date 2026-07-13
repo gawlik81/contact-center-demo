@@ -3,7 +3,11 @@
     <div class="user-form-dialog__header">
       <h2 id="user-form-title" class="user-form-dialog__title">
         {{
-          isEditMode() ? ('supervisor.userForm.titleEdit' | transloco) : ('supervisor.userForm.titleCreate' | transloco)
+          isSkillsOnlyMode()
+            ? ('supervisor.userForm.titleEditSkills' | transloco)
+            : isEditMode()
+              ? ('supervisor.userForm.titleEdit' | transloco)
+              : ('supervisor.userForm.titleCreate' | transloco)
         }}
       </h2>
       <button
@@ -21,46 +25,54 @@
     </div>
 
     <form class="user-form-dialog__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate id="user-form">
-      <!-- First name -->
-      <div class="form-field" [class.form-field--error]="firstNameError">
-        <label class="form-label" for="firstName">
-          {{ 'common.firstName' | transloco }} <span class="required" aria-hidden="true">*</span>
-        </label>
-        <input
-          id="firstName"
-          type="text"
-          class="form-input"
-          formControlName="firstName"
-          autocomplete="given-name"
-          [attr.aria-describedby]="firstNameError ? 'firstName-error' : null"
-          [attr.aria-invalid]="firstNameError ? 'true' : null"
-        />
-        @if (firstNameError) {
-          <span id="firstName-error" class="form-error" role="alert">{{ firstNameError }}</span>
-        }
-      </div>
+      @if (isSkillsOnlyMode()) {
+        <p class="form-hint">
+          {{ 'supervisor.userForm.skillsOnlyHint' | transloco: { name: user()?.firstName + ' ' + user()?.lastName } }}
+        </p>
+      }
 
-      <!-- Last name -->
-      <div class="form-field" [class.form-field--error]="lastNameError">
-        <label class="form-label" for="lastName">
-          {{ 'common.lastName' | transloco }} <span class="required" aria-hidden="true">*</span>
-        </label>
-        <input
-          id="lastName"
-          type="text"
-          class="form-input"
-          formControlName="lastName"
-          autocomplete="family-name"
-          [attr.aria-describedby]="lastNameError ? 'lastName-error' : null"
-          [attr.aria-invalid]="lastNameError ? 'true' : null"
-        />
-        @if (lastNameError) {
-          <span id="lastName-error" class="form-error" role="alert">{{ lastNameError }}</span>
-        }
-      </div>
+      <!-- First name -->
+      @if (!isSkillsOnlyMode()) {
+        <div class="form-field" [class.form-field--error]="firstNameError">
+          <label class="form-label" for="firstName">
+            {{ 'common.firstName' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="firstName"
+            type="text"
+            class="form-input"
+            formControlName="firstName"
+            autocomplete="given-name"
+            [attr.aria-describedby]="firstNameError ? 'firstName-error' : null"
+            [attr.aria-invalid]="firstNameError ? 'true' : null"
+          />
+          @if (firstNameError) {
+            <span id="firstName-error" class="form-error" role="alert">{{ firstNameError }}</span>
+          }
+        </div>
+
+        <!-- Last name -->
+        <div class="form-field" [class.form-field--error]="lastNameError">
+          <label class="form-label" for="lastName">
+            {{ 'common.lastName' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="lastName"
+            type="text"
+            class="form-input"
+            formControlName="lastName"
+            autocomplete="family-name"
+            [attr.aria-describedby]="lastNameError ? 'lastName-error' : null"
+            [attr.aria-invalid]="lastNameError ? 'true' : null"
+          />
+          @if (lastNameError) {
+            <span id="lastName-error" class="form-error" role="alert">{{ lastNameError }}</span>
+          }
+        </div>
+      }
 
       <!-- Email (only on create) -->
-      @if (!isEditMode()) {
+      @if (!isEditMode() && !isSkillsOnlyMode()) {
         <div class="form-field" [class.form-field--error]="emailError">
           <label class="form-label" for="email">
             {{ 'common.email' | transloco }} <span class="required" aria-hidden="true">*</span>
@@ -81,7 +93,7 @@
       }
 
       <!-- Password (only on create) -->
-      @if (!isEditMode()) {
+      @if (!isEditMode() && !isSkillsOnlyMode()) {
         <div class="form-field" [class.form-field--error]="passwordError">
           <label class="form-label" for="password">
             {{ 'supervisor.userForm.passwordLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
@@ -104,16 +116,18 @@
       }
 
       <!-- Role -->
-      <div class="form-field">
-        <label class="form-label" for="role">
-          {{ 'common.role' | transloco }} <span class="required" aria-hidden="true">*</span>
-        </label>
-        <select id="role" class="form-select" formControlName="role" aria-required="true">
-          @for (opt of roleOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
-          }
-        </select>
-      </div>
+      @if (!isSkillsOnlyMode()) {
+        <div class="form-field">
+          <label class="form-label" for="role">
+            {{ 'common.role' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
+          <select id="role" class="form-select" formControlName="role" aria-required="true">
+            @for (opt of roleOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+      }
 
       <!-- Skills multi-select -->
       <div class="form-field">

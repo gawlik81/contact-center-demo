@@ -32,14 +32,18 @@ import java.util.UUID;
  *   <li>POST   /api/supervisor/twilio-config/test   – test połączenia z Twilio</li>
  * </ul>
  *
- * <p>Dostęp wyłącznie dla roli SUPERVISOR.
+ * <p>Dostęp wyłącznie dla roli ADMIN (konfiguracja Twilio to jeden z 5 technicznych obszarów
+ * odebranych SUPERVISOR w refaktorze ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT), z wyjątkiem
+ * {@code GET /phone-numbers} – lista numerów jest częścią biznesowej strony "Numery telefonów"
+ * dostępnej też dla SUPERVISOR i nie ujawnia sekretów Twilio (patrz {@code @PreAuthorize}
+ * na tej metodzie, nadpisujący regułę klasy).
  * TenantId pobierany z {@link TenantContext} ustawionego przez {@code TenantFilter}.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/supervisor/twilio-config")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SUPERVISOR')")
+@PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "Twilio Config", description = "Per-tenant konfiguracja Twilio – zarządzanie przez supervisora")
 public class TenantTwilioConfigController {
@@ -55,7 +59,7 @@ public class TenantTwilioConfigController {
             @ApiResponse(responseCode = "200", description = "Konfiguracja istnieje"),
             @ApiResponse(responseCode = "204", description = "Brak konfiguracji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola SUPERVISOR)")
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola ADMIN)")
         }
     )
     public ResponseEntity<TenantTwilioConfigResponse> getConfig() {
@@ -107,15 +111,18 @@ public class TenantTwilioConfigController {
     }
 
     @GetMapping("/phone-numbers")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(
         summary = "Pobierz listę aktywnych numerów Twilio",
         description = "Zwraca listę numerów telefonu przypisanych do konta Twilio tenanta. " +
                       "Wymaga skonfigurowanej konfiguracji Twilio per-tenant. " +
-                      "Zwraca pustą listę gdy konto Twilio nie ma żadnych numerów.",
+                      "Zwraca pustą listę gdy konto Twilio nie ma żadnych numerów. " +
+                      "Wyjątkowo dostępne też dla SUPERVISOR – używane przez biznesową stronę " +
+                      "\"Numery telefonów\" do wypełnienia listy wyboru; nie ujawnia sekretów Twilio.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lista numerów (może być pusta)"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola SUPERVISOR)"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola ADMIN lub SUPERVISOR)"),
             @ApiResponse(responseCode = "404", description = "Brak konfiguracji Twilio dla tenanta"),
             @ApiResponse(responseCode = "502", description = "Twilio API niedostępne lub błąd autoryzacji")
         }

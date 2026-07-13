@@ -132,10 +132,14 @@
     border-radius: 9999px;
     border: 1px solid var(--border-1, #e2e8f0);
     background: var(--bg-subtle, #f8fafc);
-    max-width: 280px;
+    // Szerokość musi pomieścić pełny e-mail obok najdłuższej plakietki roli
+    // ("ADMINISTRATOR GŁÓWNY" – SUPER_ADMIN, refaktor ról). Plakietka ma
+    // flex-shrink: 0, więc bez odpowiedniego zapasu e-mail i tak obcina się
+    // przez ellipsis, niezależnie od min-width na user-info.
+    max-width: 460px;
 
     @media (max-width: 900px) {
-      max-width: 180px;
+      max-width: 260px;
     }
 
     @media (max-width: 640px) {
@@ -160,7 +164,9 @@
   &__user-info {
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    // min-width zamiast 0 – gwarantuje czytelną minimalną szerokość e-maila
+    // nawet obok najdłuższej plakietki roli (ADMINISTRATOR GŁÓWNY).
+    min-width: 70px;
     gap: 0;
   }
 
@@ -449,6 +455,12 @@
   text-transform: uppercase;
   white-space: nowrap;
   flex-shrink: 0;
+
+  &--super-admin {
+    background: var(--danger-soft, #fee2e2);
+    color: var(--danger-text, #991b1b);
+    border: 1px solid oklch(80% 0.08 25);
+  }
 
   &--admin {
     background: var(--warning-soft, #fef9c3);

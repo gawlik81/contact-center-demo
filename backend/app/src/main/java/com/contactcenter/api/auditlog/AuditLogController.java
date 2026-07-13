@@ -27,7 +27,8 @@ import java.util.UUID;
 /**
  * Kontroler REST udostępniający dziennik audytu.
  *
- * <p>Dostępny wyłącznie dla roli <strong>ADMIN</strong>.
+ * <p>Dostępny wyłącznie dla roli <strong>SUPER_ADMIN</strong> (globalny administrator
+ * platformy, refaktor ról).
  *
  * <p>Endpoint:
  * <ul>
@@ -41,9 +42,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/audit-logs")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Audit Log", description = "Dziennik audytu – historia operacji (tylko ADMIN)")
+@Tag(name = "Audit Log", description = "Dziennik audytu – historia operacji (tylko SUPER_ADMIN)")
 public class AuditLogController {
 
     /** Maksymalna liczba rekordów na stronę (wymóg akceptacyjny). */

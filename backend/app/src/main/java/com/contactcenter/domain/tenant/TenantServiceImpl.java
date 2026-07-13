@@ -199,32 +199,26 @@ class TenantServiceImpl implements TenantService {
     }
 
     /**
-     * Zwraca konfigurację tenanta dostępną dla SUPERVISOR i ADMIN.
+     * Zwraca konfigurację tenanta dostępną dla SUPER_ADMIN, ADMIN i SUPERVISOR.
      *
-     * <p>SUPERVISOR może odczytywać wyłącznie konfigurację własnego tenanta
+     * <p>ADMIN i SUPERVISOR są tenant-scoped od refaktoru ról (EPIC ról SUPER_ADMIN) –
+     * obie role mogą odczytywać wyłącznie konfigurację własnego tenanta
      * (tenant_id z JWT musi zgadzać się z żądanym {@code tenantId}).
-     * ADMIN może odczytywać dowolnego tenanta (brak weryfikacji własności).
+     * SUPER_ADMIN (globalny administrator platformy, bez tenant_id) może odczytywać
+     * konfigurację dowolnego tenanta.
      *
      * <p>Autoryzacja roli (@PreAuthorize) jest wykonywana w warstwie kontrolera.
-     * Serwis weryfikuje własność tenanta dla roli SUPERVISOR.
+     * Serwis weryfikuje własność tenanta dla ról ADMIN i SUPERVISOR.
      *
      * @param tenantId UUID tenanta do odczytu
      * @return DTO z danymi tenanta (włącznie z config JSONB)
      * @throws EntityNotFoundException   gdy tenant nie istnieje
-     * @throws CrossTenantAccessException gdy SUPERVISOR próbuje odczytać cudzego tenanta
+     * @throws CrossTenantAccessException gdy ADMIN/SUPERVISOR próbuje odczytać cudzego tenanta
      */
     @Transactional(readOnly = true)
     @Override
     public TenantResponse getTenantConfig(UUID tenantId) {
-        String role = TenantContext.getUserRole();
-        if ("SUPERVISOR".equals(role)) {
-            UUID callerTenantId = TenantContext.getTenantId();
-            if (!tenantId.equals(callerTenantId)) {
-                log.warn("[TenantService] SUPERVISOR {} próbuje odczytać config tenanta {}, własny tenant: {}",
-                        TenantContext.getUserIdOrNull(), tenantId, callerTenantId);
-                throw new CrossTenantAccessException(tenantId, callerTenantId);
-            }
-        }
+        assertSameTenantUnlessSuperAdmin(tenantId, "odczytać");
         Tenant tenant = findTenantOrThrow(tenantId);
         return TenantResponse.from(tenant);
     }
@@ -347,16 +341,22 @@ class TenantServiceImpl implements TenantService {
      *
      * <p>Nie dotyka pozostałych kluczy konfiguracji (max_agents, max_queues itp.).
      *
+     * <p>ADMIN i SUPERVISOR (tenant-scoped) mogą aktualizować wyłącznie konfigurację
+     * własnego tenanta (tenant_id z JWT musi zgadzać się z żądanym {@code tenantId}).
+     * SUPER_ADMIN może aktualizować konfigurację dowolnego tenanta.
+     *
      * @param tenantId UUID tenanta do aktualizacji
      * @param request  nowa konfiguracja Twilio (pola nullable)
      * @return DTO z zaktualizowanymi danymi tenanta
      * @throws jakarta.persistence.EntityNotFoundException gdy tenant nie istnieje
+     * @throws CrossTenantAccessException gdy ADMIN/SUPERVISOR próbuje zaktualizować cudzego tenanta
      */
     @Audited(action = "TENANT_TWILIO_CONFIG_UPDATED", entityType = "TENANT")
     @Transactional
     @Override
     public TenantResponse updateTwilioConfig(UUID tenantId, TenantTwilioConfigRequest request) {
         log.info("[TenantService] Aktualizacja konfiguracji Twilio dla tenanta: id={}", tenantId);
+        assertSameTenantUnlessSuperAdmin(tenantId, "zaktualizować");
 
         Tenant tenant = findTenantOrThrow(tenantId);
 
@@ -474,6 +474,30 @@ class TenantServiceImpl implements TenantService {
     private Tenant findTenantOrThrow(UUID tenantId) {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new EntityNotFoundException("Tenant nie istnieje: " + tenantId));
+    }
+
+    /**
+     * Weryfikuje, że wywołujący ma prawo operować na {@code tenantId}.
+     *
+     * <p>SUPER_ADMIN (brak tenant_id, globalny administrator platformy) omija tę
+     * weryfikację. ADMIN i SUPERVISOR są tenant-scoped – mogą operować wyłącznie
+     * na własnym tenancie (tenant_id z JWT musi zgadzać się z żądanym {@code tenantId}).
+     *
+     * @param tenantId UUID tenanta, na którym wykonywana jest operacja
+     * @param action   czasownik do komunikatu logu (np. "odczytać", "zaktualizować")
+     * @throws CrossTenantAccessException gdy ADMIN/SUPERVISOR próbuje operować na cudzym tenancie
+     */
+    private void assertSameTenantUnlessSuperAdmin(UUID tenantId, String action) {
+        String role = TenantContext.getUserRole();
+        if ("SUPER_ADMIN".equals(role)) {
+            return;
+        }
+        UUID callerTenantId = TenantContext.getTenantId();
+        if (!tenantId.equals(callerTenantId)) {
+            log.warn("[TenantService] {} {} próbuje {} config tenanta {}, własny tenant: {}",
+                    role, TenantContext.getUserIdOrNull(), action, tenantId, callerTenantId);
+            throw new CrossTenantAccessException(tenantId, callerTenantId);
+        }
     }
 
     /**

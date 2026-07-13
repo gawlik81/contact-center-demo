@@ -317,8 +317,12 @@ describe('AuthService', () => {
   // ── getRoleDefaultRoute() ─────────────────────────────────────────────────
 
   describe('getRoleDefaultRoute()', () => {
-    it('should return /admin for ADMIN role', () => {
-      expect(service.getRoleDefaultRoute('ADMIN')).toBe('/admin');
+    it('should return /admin for SUPER_ADMIN role', () => {
+      expect(service.getRoleDefaultRoute('SUPER_ADMIN')).toBe('/admin');
+    });
+
+    it('should return /supervisor for ADMIN role', () => {
+      expect(service.getRoleDefaultRoute('ADMIN')).toBe('/supervisor');
     });
 
     it('should return /supervisor for SUPERVISOR role', () => {

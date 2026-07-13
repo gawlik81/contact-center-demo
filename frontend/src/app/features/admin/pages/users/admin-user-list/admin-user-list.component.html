@@ -96,6 +96,7 @@
                 <td>
                   <span
                     class="role-badge"
+                    [class.role-badge--super-admin]="user.role === 'SUPER_ADMIN'"
                     [class.role-badge--admin]="user.role === 'ADMIN'"
                     [class.role-badge--supervisor]="user.role === 'SUPERVISOR'"
                     [class.role-badge--agent]="user.role === 'AGENT'"
@@ -137,10 +138,14 @@
                       class="btn btn-icon btn-edit"
                       type="button"
                       (click)="openEditModal(user)"
+                      [disabled]="isSelf(user)"
+                      [attr.aria-disabled]="isSelf(user)"
                       [attr.aria-label]="
                         ('admin.userList.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
                       "
-                      [title]="'common.edit' | transloco"
+                      [title]="
+                        isSelf(user) ? ('admin.userList.cannotEditSelf' | transloco) : ('common.edit' | transloco)
+                      "
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
                         <path
@@ -167,10 +172,14 @@
                       class="btn btn-icon btn-delete"
                       type="button"
                       (click)="openDeleteModal(user)"
+                      [disabled]="isSelf(user)"
+                      [attr.aria-disabled]="isSelf(user)"
                       [attr.aria-label]="
                         ('admin.userList.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
                       "
-                      [title]="'common.delete' | transloco"
+                      [title]="
+                        isSelf(user) ? ('admin.userList.cannotDeleteSelf' | transloco) : ('common.delete' | transloco)
+                      "
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
                         <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />

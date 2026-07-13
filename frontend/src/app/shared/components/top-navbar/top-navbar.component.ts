@@ -56,6 +56,8 @@ export class TopNavbarComponent {
 
   getRoleBadgeClass(role: UserRole | null): string {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return 'badge badge--super-admin';
       case 'ADMIN':
         return 'badge badge--admin';
       case 'SUPERVISOR':
@@ -69,6 +71,8 @@ export class TopNavbarComponent {
 
   getRoleLabel(role: UserRole | null): string {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return this.transloco.translate('role.superAdmin');
       case 'ADMIN':
         return this.transloco.translate('role.admin');
       case 'SUPERVISOR':

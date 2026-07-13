@@ -191,6 +191,7 @@
     "settingsPlugins": "Pluginy"
   },
   "role": {
+    "superAdmin": "Administrator Główny",
     "admin": "Admin",
     "supervisor": "Supervisor",
     "agent": "Agent"
@@ -947,6 +948,8 @@
       "emailLabel": "Email",
       "passwordLabel": "Hasło",
       "passwordHint": "Min. 8 znaków, 1 wielka litera, 1 cyfra.",
+      "titleEditSkills": "Edytuj umiejętności",
+      "skillsOnlyHint": "Możesz modyfikować wyłącznie umiejętności użytkownika {{name}}.",
       "roleLabel": "Rola",
       "skillsLabel": "Skille",
       "skillsPlaceholder": "Wpisz skill i naciśnij Enter lub przecinek...",
@@ -976,7 +979,7 @@
       "skillsAvailable": "Dostępne skills",
       "skillsHint": "Naciśnij Enter lub wybierz z listy, aby dodać skill.",
       "saveLabel": "Zapisz użytkownika",
-      "errorForbidden": "Supervisorzy mogą tworzyć użytkowników tylko z rolą Supervisor lub Agent."
+      "errorForbidden": "Nie masz uprawnień do wykonania tej operacji."
     },
     "userDelete": {
       "title": "Usuń użytkownika",
@@ -2500,6 +2503,8 @@
       "tableActions": "Akcje",
       "editLabel": "Edytuj użytkownika",
       "deleteLabel": "Usuń użytkownika",
+      "cannotEditSelf": "Nie można edytować własnego konta z tego panelu",
+      "cannotDeleteSelf": "Nie można usunąć własnego konta z tego panelu",
       "emptyText": "Brak użytkowników.",
       "loadingLabel": "Wczytywanie użytkowników...",
       "allTenants": "Wszystkie tenanty",
@@ -2539,6 +2544,7 @@
       "errorEdit": "Nie udało się zaktualizować użytkownika.",
       "successEdit": "Użytkownik został zaktualizowany.",
       "passwordHint": "Min. 8 znaków, 1 wielka litera, 1 cyfra.",
+      "superAdminHint": "Administrator Główny jest globalny i nie jest przypisany do żadnego tenanta.",
       "errors": {
         "firstNameRequired": "Imię jest wymagane.",
         "lastNameRequired": "Nazwisko jest wymagane.",

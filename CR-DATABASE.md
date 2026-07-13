@@ -350,3 +350,45 @@ _None identified._
 Migracja jest solidna: RLS skonfigurowana poprawnie z FORCE i WITH CHECK, CHECK constraints na tone, UNIQUE constraints na właściwych kolumnach. Główne usterki to brak kolumn `created_at/updated_at` na `disposition_set_item` (naruszenie konwencji projektu) oraz brak indeksu `(tenant_id, id)` na `disposition_set`. Żadna usterka nie blokuje production pod względem bezpieczeństwa.
 
 **Ocena: 4/5** — dobra podstawa, wymaga dodania timestamps na item i composite index (tenant_id, id) przed merge.
+
+---
+
+## Review: V080__add_super_admin_role.sql, V081__refresh_token_nullable_tenant_id.sql — 2026-07-12
+
+**Branch:** rule-refactor
+**Kontekst:** refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT — nowa rola globalna `SUPER_ADMIN` z `tenant_id IS NULL` (jedyny wyjątek od reguły „każda tabela ma `tenant_id NOT NULL`” z CLAUDE.md, celowo i wąsko wyegzekwowany przez CHECK constraint). Pełny plan: `linked-questing-sedgewick.md`.
+
+### 🐛 Bugs / Critical Issues
+
+_Brak zidentyfikowanych._
+
+### ⚠️ Security Concerns
+
+_Brak nowych zagrożeń._ Zweryfikowałem względem aktualnej treści migracji, do których odwołuje się komentarz w `V080` (nie tylko zaufałem opisowi w pliku):
+- `pol_app_user_select` (V012) rzeczywiście używa `USING (tenant_id = current_setting('app.current_tenant_id')::UUID)` — dla wiersza SUPER_ADMIN (`tenant_id IS NULL`) warunek jest zawsze `NULL`/`false`, więc RLS poprawnie nigdy nie ujawni wiersza SUPER_ADMIN przez sesję z ustawionym kontekstem tenanta. Zgodne z opisem w migracji.
+- `chk_super_admin_tenant_invariant` jest jedynym miejscem egzekwującym wyjątek od `tenant_id NOT NULL` — sam CHECK constraint (nie tylko walidacja aplikacyjna) gwarantuje, że żaden przyszły bug w Javie nie utworzy wiersza `ADMIN`/`SUPERVISOR`/`AGENT` z `tenant_id IS NULL`, ani wiersza `SUPER_ADMIN` z `tenant_id` ustawionym. To poprawny wzorzec „defense in depth” na poziomie schematu.
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak naruszeń._ Zgodność ze standardami z CLAUDE.md zweryfikowana punkt po punkcie:
+- Nazewnictwo `V080__add_super_admin_role.sql` / `V081__refresh_token_nullable_tenant_id.sql` — poprawny format `V{NNN}__{description}.sql`, numeracja sekwencyjna kontynuująca `V079`.
+- **Wzorowe przestrzeganie reguły „nigdy nie edytuj zaaplikowanej migracji”**: `V081` powstał jako osobny plik po tym, jak podczas implementacji backendu wykryto, że `refresh_token.tenant_id` (NOT NULL od V003) też wymaga zmiany na nullable — zamiast dopisać to do `V080`, autor stworzył nowy plik z jawnym komentarzem tłumaczącym dlaczego (`"stad osobny plik zamiast edycji juz zaaplikowanego V080 (zasada z CLAUDE.md)"`). To dokładnie ten proces, jaki CLAUDE.md nakazuje.
+- Partial unique index `uq_super_admin_email ON app_user (LOWER(email)) WHERE role = 'SUPER_ADMIN' AND is_deleted = FALSE` używa wyłącznie `LOWER()` (IMMUTABLE) w predykacie i w wyrażeniu indeksowanym — brak `::DATE`/`NOW()`/innych funkcji mutowalnych, zgodnie z regułą o partial index predicates.
+- `tenant_id UUID` (nullable) na `app_user`/`refresh_token` jest jedynym świadomym wyjątkiem od reguły „`tenant_id UUID NOT NULL` na każdej tabeli” z CLAUDE.md — uzasadnionym i, co ważne, **wyegzekwowanym przez CHECK constraint**, a nie tylko udokumentowanym komentarzem. To właściwy sposób na wprowadzenie wyjątku od konwencji projektu: nie cichym pominięciem reguły, tylko jawnym, wąsko zakresowanym constraintem opisującym dokładnie kiedy wyjątek jest dozwolony.
+- FK `fk_user_tenant`/`fk_refresh_token_tenant` nie wymagały zmian — poprawnie zauważone w komentarzu, że FK nie waliduje wartości NULL, więc nullable kolumna z FK działa od razu poprawnie bez modyfikacji ograniczenia.
+
+### 🔧 Improvements & Suggestions
+
+- **Brak dedykowanego testu na poziomie bazy (IT/Testcontainers) weryfikującego, że `chk_super_admin_tenant_invariant` faktycznie odrzuca niepoprawną kombinację** (np. `INSERT ... role='ADMIN', tenant_id=NULL` lub `role='SUPER_ADMIN', tenant_id='<uuid>'`). Obecne testy Java (`AppUser`/`AppUserRepository`) nie mogą tego łatwo zweryfikować, bo warstwa JPA/Hibernate nie ma już `nullable=false` na tym polu i nie stoi na przeszkodzie zbudowaniu takiej encji w pamięci — jedynym egzekwującym elementem jest CHECK w bazie. Warto dodać chociaż jeden lekki IT test (raw JDBC/`@SpringBootTest` z prawdziwym Postgresem) który próbuje wstawić niepoprawną kombinację i asercjonuje `DataIntegrityViolationException`/`PSQLException` z kodem `23514` (check_violation) — obecnie ten constraint jest chroniony wyłącznie ręczną analizą w komentarzu migracji, nie automatycznym testem.
+- Brak indeksu na samej kolumnie `role` (używanej przez `existsByRole()` w bootstrapie) — dla docelowo małej tabeli `app_user` to nieistotne wydajnościowo (bootstrap wykonuje się raz na start aplikacji), więc nie blokujące, ale warto odnotować gdyby tabela kiedyś urosła do rozmiarów, przy których sequential scan zacząłby mieć znaczenie.
+
+### ✅ Positive Observations
+
+- **Wyjątkowa jakość dokumentacji migracji** — sekcja „Analiza wplywu na obiekty zalezne od app_user” w nagłówku `V080` systematycznie wymienia KAŻDY zależny widok/funkcję/politykę RLS (`v_tenant_stats`, `v_queue_available_agents`, `v_queue_realtime_stats`, `v_active_contacts`, `check_tenant_limit()`, `fn_contact_ref_integrity()`, `pol_app_user_select`) z konkretnym uzasadnieniem dlaczego SUPER_ADMIN (`tenant_id IS NULL`) go nie psuje. Zweryfikowałem samodzielnie treść `pol_app_user_select` (V012) i potwierdzam, że opis w komentarzu jest dokładny, nie tylko wiarygodnie brzmiący — rzadko spotykany poziom rygoru w migracji Flyway.
+- **Constraint niezmienniczy (`chk_super_admin_tenant_invariant`) jako właściwa alternatywa dla „cichej” nullable kolumny** — zamiast po prostu zdjąć `NOT NULL` i polegać na walidacji aplikacyjnej, migracja od razu dodaje CHECK wiążący `tenant_id IS NULL` ściśle z `role = 'SUPER_ADMIN'` w obie strony. To domyka lukę, którą sam `DROP NOT NULL` by otworzył (możliwość ustawienia `tenant_id = NULL` dla DOWOLNEJ roli).
+- **V081 jako podręcznikowy przykład właściwej reakcji na błąd znaleziony podczas implementacji** — zamiast edytować już zastosowaną migrację V080 (co CLAUDE.md wprost zabrania i co zablokowałoby start aplikacji przy walidacji Flyway), błąd (`refresh_token.tenant_id NOT NULL` przeoczone przy projektowaniu V080) został naprawiony nowym, w pełni udokumentowanym plikiem.
+- Zgodność z dev-seedem potwierdzona w komentarzu i przez fakt, że `mvn verify` (1531 testów) przechodzi bez błędów związanych z migracją — istniejący wiersz `role='ADMIN'` w danych deweloperskich ma `tenant_id NOT NULL`, więc spełnia nowy constraint bez potrzeby migracji danych.
+
+### Summary
+
+**Ocena: 5/5 ⭐** — wzorcowa para migracji: precyzyjnie zakresowany wyjątek od konwencji `tenant_id NOT NULL` (wyegzekwowany CHECK constraintem, nie tylko udokumentowany), poprawny partial unique index z IMMUTABLE predykatem, i podręcznikowe zastosowanie zasady „nigdy nie edytuj zaaplikowanej migracji” przy V081. Jedyna sugestia to dodanie automatycznego testu DB-level dla samego CHECK constraintu, żeby nie polegać wyłącznie na ręcznej weryfikacji udokumentowanej w komentarzu.

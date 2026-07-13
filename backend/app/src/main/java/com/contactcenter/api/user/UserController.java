@@ -34,14 +34,19 @@ import java.util.UUID;
  *
  * <p>Endpointy:
  * <ul>
- *   <li>POST   /api/users               – tworzenie użytkownika (ADMIN/SUPERVISOR)</li>
+ *   <li>POST   /api/users               – tworzenie użytkownika (ADMIN)</li>
  *   <li>GET    /api/users               – lista użytkowników z paginacją (ADMIN/SUPERVISOR)</li>
  *   <li>GET    /api/users/skills        – lista unikalnych skills tenanta (ADMIN/SUPERVISOR)</li>
  *   <li>GET    /api/users/{id}          – szczegóły użytkownika (ADMIN/SUPERVISOR)</li>
- *   <li>PATCH  /api/users/{id}          – aktualizacja użytkownika (ADMIN/SUPERVISOR)</li>
- *   <li>DELETE /api/users/{id}          – soft delete (ADMIN/SUPERVISOR)</li>
+ *   <li>PATCH  /api/users/{id}          – aktualizacja użytkownika (ADMIN pełna; SUPERVISOR wyłącznie skills agenta)</li>
+ *   <li>DELETE /api/users/{id}          – soft delete (ADMIN)</li>
  *   <li>PATCH  /api/users/{id}/status   – zmiana statusu agenta (AGENT/SUPERVISOR/ADMIN)</li>
  * </ul>
+ *
+ * <p>Refaktor ról: SUPERVISOR stracił zarządzanie użytkownikami (tworzenie, usuwanie,
+ * edycja danych) – zostaje mu wyłącznie modyfikacja skills agentów przez PATCH
+ * (egzekwowane w {@code UserServiceImpl.updateUser}, bo @PreAuthorize nie wyrazi
+ * ograniczenia "tylko pole X dla roli Y").
  *
  * <p>TenantId pobierany jest z {@link TenantContext} ustawionego przez {@code TenantFilter} –
  * SUPERVISOR zawsze operuje w swoim tenancie, nie może zarządzać użytkownikami innych tenantów.
@@ -61,10 +66,11 @@ public class UserController {
     // =========================================================================
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Utwórz użytkownika",
-        description = "Tworzy nowego użytkownika w tenancie. " +
+        description = "Tworzy nowego użytkownika w tenancie. Wyłącznie rola ADMIN – " +
+                      "SUPERVISOR stracił zarządzanie użytkownikami w refaktorze ról. " +
                       "Dla roli AGENT sprawdzany jest limit max_agents tenanta. " +
                       "Hasło jest hashowane BCrypt(12) przed zapisem.",
         responses = {
@@ -210,12 +216,17 @@ public class UserController {
         summary = "Aktualizuj użytkownika",
         description = "Aktualizuje dane użytkownika (PATCH semantics). " +
                       "Pola null w żądaniu są ignorowane. " +
-                      "Nie pozwala na zmianę email, roli ani hasła.",
+                      "Nie pozwala na zmianę email, roli ani hasła. " +
+                      "SUPERVISOR może modyfikować wyłącznie pole skills, i tylko dla " +
+                      "użytkowników z rolą AGENT (refaktor ról – utrata zarządzania " +
+                      "użytkownikami). ADMIN może edytować firstName/lastName/skills/mfaEnabled " +
+                      "dowolnego użytkownika tenanta.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Użytkownik zaktualizowany"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień, lub SUPERVISOR próbuje zmienić " +
+                                                              "coś poza skills agenta"),
             @ApiResponse(responseCode = "422", description = "Użytkownik nie istnieje")
         }
     )
@@ -234,10 +245,12 @@ public class UserController {
     // =========================================================================
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Usuń użytkownika (soft delete)",
         description = "Ustawia is_deleted=true i is_active=false (soft delete pattern). " +
+                      "Wyłącznie rola ADMIN – SUPERVISOR stracił zarządzanie użytkownikami " +
+                      "w refaktorze ról. " +
                       "Nie można usunąć agenta z aktywnymi kontaktami (HTTP 409). " +
                       "Nie można usunąć własnego konta (HTTP 422).",
         responses = {

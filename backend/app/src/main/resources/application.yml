@@ -219,6 +219,16 @@ jwt:
   refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
 
 # =============================================================================
+# Super Admin – bootstrap globalnego administratora platformy przy starcie
+# (SuperAdminBootstrapRunner, refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT)
+# Uruchamiany we wszystkich profilach. W dev: fallback gdy zmienne puste.
+# W prod (i każdym profilu innym niż dev): brak obu zmiennych = fail-fast przy starcie.
+# =============================================================================
+super-admin:
+  email: ${SUPER_ADMIN_EMAIL:}
+  password: ${SUPER_ADMIN_PASSWORD:}
+
+# =============================================================================
 # WebSocket – konfiguracja STOMP endpointu (BE-012)
 # =============================================================================
 websocket:

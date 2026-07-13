@@ -177,6 +177,22 @@ public interface UserService {
     Optional<AppUser> findAuthenticatableUser(UUID tenantId, String email);
 
     /**
+     * Znajdź aktywnego, nieusuniętego użytkownika globalnego (SUPER_ADMIN, bez tenanta) po email.
+     *
+     * <p>Używane przez {@code UserDetailsServiceImpl} podczas logowania globalnego
+     * (żądanie bez {@code tenantId} – patrz {@code LoginRequest}). Analogiczne do
+     * {@link #findAuthenticatableUser} dla ścieżki tenant-scoped.
+     *
+     * <p><strong>Uwaga:</strong> ta metoda jest wywoływana z bootstrapu autentykacji
+     * (przed {@code TenantFilter}), więc – tak samo jak {@link #findAuthenticatableUser} –
+     * nie może odwoływać się do {@code TenantContext}.
+     *
+     * @param email adres e-mail użytkownika
+     * @return Optional z użytkownikiem globalnym lub empty jeśli nie istnieje/nieaktywny/nie SUPER_ADMIN
+     */
+    Optional<AppUser> findAuthenticatableGlobalUser(String email);
+
+    /**
      * Dezaktywuje wszystkich aktywnych użytkowników tenanta jednym bulk UPDATE.
      *
      * <p>Używane przy dezaktywacji tenanta ({@code TenantService#deactivateTenant}).
@@ -261,6 +277,47 @@ public interface UserService {
      * @return lista wierszy [tenant_id, name] aktywnych tenantów z dopasowaniem
      */
     List<Object[]> findActiveTenantsByUserEmail(String email);
+
+    /**
+     * Sprawdza czy podany e-mail należy do aktywnego, nieusuniętego konta SUPER_ADMIN.
+     *
+     * <p>Używane przez publiczny endpoint email-first login flow do ustawienia flagi
+     * {@code superAdminAccount} w odpowiedzi – frontend pomija wtedy krok wyboru tenanta.
+     *
+     * @param email adres e-mail użytkownika (case-insensitive)
+     * @return true gdy istnieje aktywny, nieusunięty SUPER_ADMIN z tym emailem
+     */
+    boolean isSuperAdminEmail(String email);
+
+    // =========================================================================
+    // Bootstrap SUPER_ADMIN (SuperAdminBootstrapRunner)
+    // =========================================================================
+
+    /**
+     * Sprawdza czy w systemie istnieje już co najmniej jeden użytkownik SUPER_ADMIN.
+     *
+     * <p>Używane przez {@code SuperAdminBootstrapRunner} do idempotentnego bootstrapu
+     * przy starcie aplikacji – gdy zwraca {@code true}, bootstrap jest no-op.
+     *
+     * @return true gdy istnieje co najmniej jeden SUPER_ADMIN
+     */
+    boolean existsSuperAdmin();
+
+    /**
+     * Tworzy nowe konto SUPER_ADMIN ({@code tenant_id = null}, {@code is_active = true}).
+     *
+     * <p><strong>Wywoływane wyłącznie przez {@code SuperAdminBootstrapRunner} przy starcie
+     * aplikacji.</strong> Nie jest dostępne przez żaden endpoint REST – utworzenie SUPER_ADMIN
+     * przez UI/API jest jawnie zablokowane (patrz {@link #createUser} i
+     * {@code AdminUserServiceImpl}). Hasło jest hashowane BCrypt(12) wewnątrz tej metody.
+     * Ustawia {@code passwordResetRequired = true}, żeby wymusić zmianę hasła przy pierwszym
+     * logowaniu.
+     *
+     * @param email       adres e-mail konta SUPER_ADMIN (zapisywany znormalizowany – lowercase/trim)
+     * @param rawPassword hasło w plain text – hashowane przed zapisem, nigdy nie logowane
+     * @return utworzona encja SUPER_ADMIN
+     */
+    AppUser createSuperAdminBootstrap(String email, String rawPassword);
 
     /**
      * Zwraca liczbę aktywnych kontaktów dla listy agentów w jednym zapytaniu SQL (batch).

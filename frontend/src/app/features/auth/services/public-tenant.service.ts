@@ -8,6 +8,11 @@ export interface PublicTenant {
   name: string;
 }
 
+export interface TenantsByEmailResponse {
+  tenants: PublicTenant[];
+  superAdminAccount: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicTenantService {
   private readonly http = inject(HttpClient);
@@ -21,14 +26,19 @@ export class PublicTenantService {
   }
 
   /**
-   * Returns tenants associated with the given email address.
+   * Returns tenants associated with the given email address, plus a flag
+   * indicating whether the email belongs to a global SUPER_ADMIN account
+   * (which has no tenant).
    * Calls POST /api/public/tenants-by-email.
-   * On any error falls back to an empty list – the login flow continues
-   * and the backend will return 401 if the credentials are invalid.
+   * On any error falls back to an empty list and superAdminAccount: false –
+   * the login flow continues and the backend will return 401 if the
+   * credentials are invalid.
    */
-  getTenantsByEmail(email: string): Observable<PublicTenant[]> {
+  getTenantsByEmail(email: string): Observable<TenantsByEmailResponse> {
     return this.http
-      .post<PublicTenant[]>(`${this.baseUrl}/tenants-by-email`, { email })
-      .pipe(catchError(() => of<PublicTenant[]>([])));
+      .post<TenantsByEmailResponse>(`${this.baseUrl}/tenants-by-email`, { email })
+      .pipe(
+        catchError(() => of<TenantsByEmailResponse>({ tenants: [], superAdminAccount: false })),
+      );
   }
 }

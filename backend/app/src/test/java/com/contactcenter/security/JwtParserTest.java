@@ -166,6 +166,37 @@ class JwtParserTest {
             assertThat(claims).isNotNull();
             assertThat(claims.tenantId()).isEqualTo(TENANT_ID);
         }
+
+        @Test
+        @DisplayName("parse() zwraca tenantId=null gdy claim tenant_id nieobecny (SUPER_ADMIN, refaktor ról)")
+        void parse_tokenWithoutTenantId_returnsNullTenantId() {
+            String token = buildTokenWithoutTenantId();
+
+            JwtClaims claims = jwtParser.parse(token);
+
+            assertThat(claims.tenantId()).isNull();
+            assertThat(claims.userId()).isEqualTo(USER_ID);
+            assertThat(claims.role()).isEqualTo(ROLE);
+        }
+
+        @Test
+        @DisplayName("parse() rzuca JwtValidationException gdy claim tenant_id jest obecny, ale nie jest poprawnym UUID")
+        void parse_malformedTenantId_throwsJwtValidationException() {
+            String token = Jwts.builder()
+                    .subject(SUBJECT)
+                    .issuer(ISSUER)
+                    .issuedAt(Date.from(Instant.now()))
+                    .expiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
+                    .claim(JwtParser.CLAIM_TENANT_ID, "not-a-uuid")
+                    .claim(JwtParser.CLAIM_USER_ID, USER_ID.toString())
+                    .claim(JwtParser.CLAIM_ROLE, ROLE)
+                    .signWith(privateKey)
+                    .compact();
+
+            assertThatThrownBy(() -> jwtParser.parse(token))
+                    .isInstanceOf(JwtValidationException.class)
+                    .hasMessageContaining("tenant_id");
+        }
     }
 
     // =========================================================================
@@ -187,13 +218,23 @@ class JwtParserTest {
         }
 
         @Test
-        @DisplayName("parse() rzuca JwtValidationException gdy brak claim tenant_id")
-        void parse_tokenWithoutTenantId_throwsJwtValidationException() {
-            String token = buildTokenWithoutTenantId();
+        @DisplayName("parse() rzuca JwtValidationException gdy brak wymaganego claim user_id")
+        void parse_tokenWithoutUserId_throwsJwtValidationException() {
+            String token = Jwts.builder()
+                    .subject(SUBJECT)
+                    .issuer(ISSUER)
+                    .issuedAt(Date.from(Instant.now()))
+                    .expiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
+                    .claim(JwtParser.CLAIM_TENANT_ID, TENANT_ID.toString())
+                    .claim(JwtParser.CLAIM_ROLE, ROLE)
+                    // brak claim user_id – w przeciwieństwie do tenant_id, user_id pozostaje
+                    // wymagany dla WSZYSTKICH ról (SUPER_ADMIN też ma userId)
+                    .signWith(privateKey)
+                    .compact();
 
             assertThatThrownBy(() -> jwtParser.parse(token))
                     .isInstanceOf(JwtValidationException.class)
-                    .hasMessageContaining("tenant_id");
+                    .hasMessageContaining("user_id");
         }
 
         @Test

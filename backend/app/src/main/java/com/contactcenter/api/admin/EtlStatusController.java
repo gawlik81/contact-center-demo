@@ -20,7 +20,8 @@ import java.util.List;
 /**
  * Kontroler REST dla statusu pipeline ETL.
  *
- * <p>Dostępny wyłącznie dla roli <strong>ADMIN</strong>.
+ * <p>Dostępny wyłącznie dla roli <strong>SUPER_ADMIN</strong> (globalny administrator
+ * platformy, refaktor ról).
  * Ścieżka {@code /api/admin/**} jest zabezpieczona na poziomie {@link com.contactcenter.security.SecurityConfig}.
  *
  * <p>Endpointy:
@@ -33,9 +34,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/etl")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Admin ETL", description = "Status pipeline ETL do Data Warehouse (tylko ADMIN)")
+@Tag(name = "Admin ETL", description = "Status pipeline ETL do Data Warehouse (tylko SUPER_ADMIN)")
 public class EtlStatusController {
 
     private final EtlSyncService etlSyncService;

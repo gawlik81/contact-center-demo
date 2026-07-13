@@ -163,6 +163,36 @@ class JwtServiceTest {
         }
 
         @Test
+        @DisplayName("Token użytkownika bez tenanta (SUPER_ADMIN) nie zawiera claimów tenant_id/tenant_name")
+        void shouldOmitTenantClaimsForUserWithoutTenant() {
+            AppUser superAdmin = AppUser.builder()
+                    .id(USER_ID)
+                    .tenantId(null)
+                    .email("superadmin@test.com")
+                    .passwordHash("$2a$12$hash")
+                    .role(UserRole.SUPER_ADMIN)
+                    .active(true)
+                    .mfaEnabled(false)
+                    .status(UserStatus.ACTIVE)
+                    .build();
+
+            String token = jwtService.issueAccessToken(superAdmin, null, false);
+
+            JwtParser.JwtClaims claims = jwtParser.parse(token);
+            assertThat(claims.tenantId()).isNull();
+            assertThat(claims.userId()).isEqualTo(USER_ID);
+            assertThat(claims.role()).isEqualTo("SUPER_ADMIN");
+
+            Claims rawClaims = Jwts.parser()
+                    .verifyWith(publicKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            assertThat(rawClaims.get(JwtService.CLAIM_TENANT_ID)).isNull();
+            assertThat(rawClaims.get(JwtService.CLAIM_TENANT_NAME)).isNull();
+        }
+
+        @Test
         @DisplayName("Token zawiera email w claims")
         void shouldContainEmail() {
             AppUser user = buildUser();

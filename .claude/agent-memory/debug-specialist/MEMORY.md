@@ -29,3 +29,5 @@
 - [ContactAssignmentMonitor — nieskończona pętla dla EMAIL (brak accept)](pattern_email_assignment_monitor_loop.md) — brak POST /accept (ASSIGNED→ACTIVE); monitor zapętla się; fix: acceptContact() w serwisie + endpointy + wywołanie w EmailContactComponent.ngOnInit()
 - [EmailContactCreator — duplikaty OUTBOUND (brak idempotentności)](pattern_email_outbound_duplicate.md) — createOutboundContact() nie sprawdzał istnienia OUTBOUND; fix: findByChannelMetadataValue przed insertем
 - [Twilio Device register race przy natychmiastowym routingu](pattern_twilio_device_register_race_on_instant_routing.md) — agent dostaje przydział oczekującego kontaktu zaraz po AVAILABLE, zanim Device.register() się skończy; klient słyszy hold music mimo CALL_ANSWERED/ACTIVE
+- [Adapter telefonii w Docker local-demo — Twilio zamiast Mock](project_adapter_selection_docker.md) — profil prod + domyślne telephony.provider=twilio aktywuje Twilio adapter zamiast Mock; naprawa przez TELEPHONY_PROVIDER=mock w .env.local-demo
+- [Plugin runtime config freshness](plugin_runtime_config_freshness.md) — PATCH configu pluginu jest od razu świeży w MANUAL_ACTION/PRE_CONTACT_CONNECT, bez disable/enable

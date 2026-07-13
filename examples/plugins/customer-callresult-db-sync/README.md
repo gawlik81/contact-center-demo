@@ -2,7 +2,7 @@
 
 Przykładowy, w pełni działający plugin dla systemu rozszerzeń Contact Center (EPIC-28),
 demonstrujący kompletny przepływ SDK opisany w
-[`documentation/10-plugin-development.md`](../../../documentation/10-plugin-development.md), w
+[`documentation/tech/10-plugin-development.md`](../../../documentation/tech/10-plugin-development.md), w
 szczególności `DbEgressClient` — jedyny dozwolony kanał dostępu pluginu do zewnętrznej bazy
 danych.
 
@@ -227,7 +227,7 @@ to tylko `executeUpdate`).
 `PluginDbEgressClientImpl` (host) używa `java.sql.DriverManager` bez poolingu — sterownik JDBC
 musi być na classpath **backendu** (`backend/app`), nie pluginu (plugin nigdy nie dostarcza
 własnego sterownika — `ServiceLoader` jest zablokowany przez skan ASM, patrz
-[§7 dokumentacji](../../../documentation/10-plugin-development.md#7-ograniczenia-bytecode-statyczny-skan-asm)).
+[§7 dokumentacji](../../../documentation/tech/10-plugin-development.md#7-ograniczenia-bytecode-statyczny-skan-asm)).
 PostgreSQL jest już obecny na classpath backendu (główny stos platformy), więc demo z `jdbcUrl`
 PostgreSQL działa od razu. Jeśli tenant chce skonfigurować inny silnik (MySQL, Oracle, SQL
 Server, ...), administrator platformy musi dodać odpowiedni sterownik JDBC do classpath
@@ -258,7 +258,7 @@ customer-callresult-db-sync/
 własnym JAR-ze, ale **żadna klasa w JAR-ze nie może odwoływać się do API zablokowanych przez
 statyczny skan bytecode platformy** (`Thread#getContextClassLoader`/`setContextClassLoader`,
 `ServiceLoader`, `setAccessible`, `ProcessBuilder`, `java.nio.file.*`, `sun.misc.*`, podklasy
-`ClassLoader` — pełna lista w `documentation/10-plugin-development.md`, §7). To jest właśnie
+`ClassLoader` — pełna lista w `documentation/tech/10-plugin-development.md`, §7). To jest właśnie
 powód, dla którego ten plugin **nie** łączy się z bazą surowym JDBC wewnątrz własnego JAR-a:
 sterowniki JDBC zwykle rejestrują się przez `ServiceLoader` (blokowane), a nawet gdyby nie —
 plugin omijałby cały model allow-listy egress. Stąd `DbEgressClient`: cała obsługa JDBC żyje po

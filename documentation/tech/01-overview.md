@@ -8,10 +8,10 @@ klientów przez telefon (VoIP/WebRTC za pomocą Twilio), e-mail i media społecz
 "agent desktopu", a supervisorom i administratorom – monitorować i konfigurować pracę zespołów
 w czasie rzeczywistym.
 
-Pełny kontekst biznesowy, persony i wymagania funkcjonalne znajdują się w [`PRD.md`](../PRD.md).
+Pełny kontekst biznesowy, persony i wymagania funkcjonalne znajdują się w [`PRD.md`](../../PRD.md).
 Ten dokument (oraz pliki w `documentation/`) opisują **stan faktyczny implementacji** – jak system
 jest *zbudowany*, nie jak był pierwotnie *zaplanowany* (pierwotny projekt architektury w
-[`ARCHITECTURE.md`](../ARCHITECTURE.md) bywa częściowo nieaktualny).
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md) bywa częściowo nieaktualny).
 
 ## 1.2 Persony użytkowników
 

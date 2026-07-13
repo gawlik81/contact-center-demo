@@ -468,7 +468,9 @@
       "Bash(unzip *)",
       "Bash(pandoc --version)",
       "Bash(rm -rf jar100 jar110)",
-      "Bash(mkdir -p jar100 jar110)"
+      "Bash(mkdir -p jar100 jar110)",
+      "Bash(sed -i 's#]\\(\\\\.\\\\./#]\\(../../#g' 01-overview.md 02-architecture.md 08-infrastructure.md 10-plugin-development.md 07-data-flows.md)",
+      "Bash(sed -i 's#]\\(plugin/#]\\(../plugin/#g' 00-index.md 10-plugin-development.md)"
     ]
   }
 }

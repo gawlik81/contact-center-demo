@@ -683,17 +683,17 @@ infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz <code>TASKS-
 <p><strong>Trzy pełne, działające przykłady</strong> (skompilowane, zweryfikowane przez realny
 <code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) w katalogu <code>examples/plugins/</code>:</p>
 <ul>
-<li><p><a href="../examples/plugins/customer-google-lookup/"><code>customer-google-lookup/</code></a> — panel boczny
+<li><p><a href="../../examples/plugins/customer-google-lookup/"><code>customer-google-lookup/</code></a> — panel boczny
 agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla bieżącego
 klienta. Demonstruje <code>http:egress</code>, <code>PRE_CONTACT_CONNECT</code> i <code>MANUAL_ACTION</code>.</p>
 </li>
-<li><p><a href="../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a> —
+<li><p><a href="../../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a> —
 zapis wyniku zakończonego kontaktu i dyspozycji do zewnętrznej bazy danych CRM tenanta.
 Demonstruje <code>DbEgressClient</code> (<code>db:egress:&lt;host&gt;:&lt;port&gt;</code>), <code>POST_CONTACT_END</code> i
 <code>DISPOSITION_SET</code>. Zawiera gotowy <code>docker-compose.yml</code> z PostgreSQL 16 dołączającym do
 sieci <code>contact-center-network</code>.</p>
 </li>
-<li><p><a href="../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a> — najprostszy wzorzec
+<li><p><a href="../../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a> — najprostszy wzorzec
 integracji UI: agent klika przycisk w panelu bocznym, plugin buduje URL (z podstawieniem
 zmiennych <code>{customerId}</code>, <code>{contactId}</code> itd. oraz opcjonalnymi parametrami wpisywanymi
 przez agenta) i otwiera go w nowej zakładce przez <code>PluginUiSdk.openUrl</code>. Demonstruje
@@ -835,7 +835,7 @@ katalogu <code>crm-demo-db/</code>.</li>
 </code></pre>
 <p>Administrator tenanta musi ustawić w konfiguracji instalacji (<code>installation_config</code>):
 <code>jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm</code>, <code>dbUsername</code>, <code>dbPassword</code>.
-Pełny, działający przykład: <a href="../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a>.</p>
+Pełny, działający przykład: <a href="../../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a>.</p>
 <h3>10.2 Wzorzec: uruchamianie URL-a CRM z kontekstem rozmowy</h3>
 <p>Najprostszy i bardzo częsty przypadek użycia pluginu UI: agent pracujący na połączeniu klika
 jeden przycisk, a otwiera się karta CRM/helpdesku z profilem bieżącego klienta lub
@@ -887,11 +887,11 @@ formularz dla opcjonalnych pól agenta. Po kliknięciu &quot;Otwórz w CRM&quot;
 </tr>
 </tbody></table>
 <p>Pełny przykład z obsługą <code>agentParams</code> (pól wpisywanych przez agenta) i konfiguracją
-szablonu URL przez UI admina: <a href="../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a>.</p>
+szablonu URL przez UI admina: <a href="../../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a>.</p>
 <hr>
 <h2>11. Powiązane materiały</h2>
 <ul>
-<li><strong><a href="../plugin/plugin-development-guide.html">Plugin Developer Guide</a></strong> (<a href="../plugin/plugin-development-guide.html">HTML</a>)
+<li><strong><a href="../../plugin/plugin-development-guide.html">Plugin Developer Guide</a></strong> (<a href="../../plugin/plugin-development-guide.html">HTML</a>)
 — kompletna referencja techniczna dla zewnętrznych dostawców pluginów: pełne API SDK,
 wszystkie extension pointy, manifest, model uprawnień, integracja UI, procedura checksumu,
 REST API, trzy przykłady z omówieniem. Czytaj ten dokument jeśli budujesz plugin — niniejszy

@@ -8,7 +8,7 @@ metadata:
 Plugin SDK rozszerzony o `DbEgressClient` — drugi (po `HttpEgressClient`) restricted egress
 channel dla pluginów. Decyzja architektoniczna (po konsultacji z użytkownikiem): pluginy NIE
 łączą się surowym JDBC wewnątrz własnego JAR-a (ServiceLoader sterowników JDBC jest blokowany
-przez skan ASM, §7 documentation/10-plugin-development.md) — cała obsługa JDBC żyje po stronie
+przez skan ASM, §7 documentation/tech/10-plugin-development.md) — cała obsługa JDBC żyje po stronie
 hosta (`backend/app`, normalny classpath, gdzie ServiceLoader działa bez przeszkód).
 
 **Why:** sterowniki JDBC rejestrują się przez `ServiceLoader`, zablokowany w pluginach przez

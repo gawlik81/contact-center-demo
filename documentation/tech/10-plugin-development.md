@@ -507,17 +507,17 @@ ograniczeń **aktualnie obecnych w kodzie** (nie tylko teoretycznych):
 > **Trzy pełne, działające przykłady** (skompilowane, zweryfikowane przez realny
 > `PluginValidationService` z wynikiem `VALIDATED`) w katalogu `examples/plugins/`:
 >
-> - [`customer-google-lookup/`](../examples/plugins/customer-google-lookup/) — panel boczny
+> - [`customer-google-lookup/`](../../examples/plugins/customer-google-lookup/) — panel boczny
 >   agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla bieżącego
 >   klienta. Demonstruje `http:egress`, `PRE_CONTACT_CONNECT` i `MANUAL_ACTION`.
 >
-> - [`customer-callresult-db-sync/`](../examples/plugins/customer-callresult-db-sync/) —
+> - [`customer-callresult-db-sync/`](../../examples/plugins/customer-callresult-db-sync/) —
 >   zapis wyniku zakończonego kontaktu i dyspozycji do zewnętrznej bazy danych CRM tenanta.
 >   Demonstruje `DbEgressClient` (`db:egress:<host>:<port>`), `POST_CONTACT_END` i
 >   `DISPOSITION_SET`. Zawiera gotowy `docker-compose.yml` z PostgreSQL 16 dołączającym do
 >   sieci `contact-center-network`.
 >
-> - [`crm-url-launcher/`](../examples/plugins/crm-url-launcher/) — najprostszy wzorzec
+> - [`crm-url-launcher/`](../../examples/plugins/crm-url-launcher/) — najprostszy wzorzec
 >   integracji UI: agent klika przycisk w panelu bocznym, plugin buduje URL (z podstawieniem
 >   zmiennych `{customerId}`, `{contactId}` itd. oraz opcjonalnymi parametrami wpisywanymi
 >   przez agenta) i otwiera go w nowej zakładce przez `PluginUiSdk.openUrl`. Demonstruje
@@ -672,7 +672,7 @@ Wymagany manifest (fragment):
 
 Administrator tenanta musi ustawić w konfiguracji instalacji (`installation_config`):
 `jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm`, `dbUsername`, `dbPassword`.
-Pełny, działający przykład: [`customer-callresult-db-sync/`](../examples/plugins/customer-callresult-db-sync/).
+Pełny, działający przykład: [`customer-callresult-db-sync/`](../../examples/plugins/customer-callresult-db-sync/).
 
 ### 10.2 Wzorzec: uruchamianie URL-a CRM z kontekstem rozmowy
 
@@ -706,13 +706,13 @@ Szablon URL może zawierać zmienne w klamrach:
 | Dowolna inna | Pobrana z `installation_config` lub podana przez agenta w formularzu |
 
 Pełny przykład z obsługą `agentParams` (pól wpisywanych przez agenta) i konfiguracją
-szablonu URL przez UI admina: [`crm-url-launcher/`](../examples/plugins/crm-url-launcher/).
+szablonu URL przez UI admina: [`crm-url-launcher/`](../../examples/plugins/crm-url-launcher/).
 
 ---
 
 ## 11. Powiązane materiały
 
-- **[Plugin Developer Guide](plugin/plugin-development-guide.md)** ([HTML](plugin/plugin-development-guide.html))
+- **[Plugin Developer Guide](../plugin/plugin-development-guide.md)** ([HTML](../plugin/plugin-development-guide.html))
   — kompletna referencja techniczna dla zewnętrznych dostawców pluginów: pełne API SDK,
   wszystkie extension pointy, manifest, model uprawnień, integracja UI, procedura checksumu,
   REST API, trzy przykłady z omówieniem. Czytaj ten dokument jeśli budujesz plugin — niniejszy

@@ -157,7 +157,7 @@ Status synchronizacji widoczny w panelu admina przez `EtlStatusController` /
 - Każda istotna operacja (np. zmiana danych klienta, eksport, usunięcie) jest logowana w
   module `auditlog` (kto, kiedy, co – encja + diff).
 - Moduł `customer` wspiera right-to-erasure / eksport danych (zgodnie z PRD – sekcja GDPR w
-  [`ARCHITECTURE.md`](../ARCHITECTURE.md) §6.4, do zweryfikowania przy konkretnej
+  [`ARCHITECTURE.md`](../../ARCHITECTURE.md) §6.4, do zweryfikowania przy konkretnej
   implementacji w `04-backend.md`).
 
 ## 7.11 Kanał e-mail

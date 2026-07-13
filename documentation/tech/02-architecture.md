@@ -1,7 +1,7 @@
 # 2. Architektura systemu (as-built)
 
 > Ten dokument opisuje architekturę **w stanie faktycznym implementacji**. Pierwotny projekt
-> architektoniczny (przed implementacją) znajduje się w [`ARCHITECTURE.md`](../ARCHITECTURE.md) –
+> architektoniczny (przed implementacją) znajduje się w [`ARCHITECTURE.md`](../../ARCHITECTURE.md) –
 > wiele decyzji (ADR-01..08) pozostało aktualnych, ale rzeczywisty system poszerzył stos o
 > ClickHouse i MinIO, których nie było w pierwotnym dokumencie.
 

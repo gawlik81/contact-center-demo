@@ -104,6 +104,6 @@ rozgrzanie).
 
 ## 8.8 Więcej informacji
 
-- Pełny opis środowisk produkcyjnych/K8s (jeśli aktualny) – [`DEPLOYMENT.md`](../DEPLOYMENT.md).
-- Komendy referencyjne Dockera – [`DOCKER-COMMANDS.md`](../DOCKER-COMMANDS.md).
+- Pełny opis środowisk produkcyjnych/K8s (jeśli aktualny) – [`DEPLOYMENT.md`](../../DEPLOYMENT.md).
+- Komendy referencyjne Dockera – [`DOCKER-COMMANDS.md`](../../DOCKER-COMMANDS.md).
 - Jak uruchomić projekt od zera lokalnie – [`09-getting-started.md`](09-getting-started.md).

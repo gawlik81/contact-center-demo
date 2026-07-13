@@ -2,7 +2,7 @@
 
 Przykładowy, w pełni działający plugin dla systemu rozszerzeń Contact Center (EPIC-28),
 demonstrujący kompletny przepływ SDK opisany w
-[`documentation/10-plugin-development.md`](../../../documentation/10-plugin-development.md).
+[`documentation/tech/10-plugin-development.md`](../../../documentation/tech/10-plugin-development.md).
 
 **Co robi:** panel boczny w pulpicie agenta, aktywowany automatycznie w momencie rozmowy z
 klientem — wyszukuje dane klienta (imię + nazwisko, awaryjnie numer telefonu) w
@@ -162,7 +162,7 @@ customer-google-lookup/
 własnym JAR-ze, ale **żadna klasa w JAR-ze nie może odwoływać się do API zablokowanych przez
 statyczny skan bytecode platformy** (`Thread#getContextClassLoader`/`setContextClassLoader`,
 `ServiceLoader`, `setAccessible`, `ProcessBuilder`, `java.nio.file.*`, `sun.misc.*`, podklasy
-`ClassLoader` — pełna lista w `documentation/10-plugin-development.md`, §7). Ten przykład
+`ClassLoader` — pełna lista w `documentation/tech/10-plugin-development.md`, §7). Ten przykład
 celowo nie dodaje żadnej zależności (stąd `MinimalJson`), żeby zademonstrować plugin w
 najprostszej, samodzielnej formie — produkcyjny plugin z bardziej złożonymi potrzebami JSON
 może bezpiecznie dołączyć sprawdzoną bibliotekę (Gson, Jackson — zshade'owaną do własnego

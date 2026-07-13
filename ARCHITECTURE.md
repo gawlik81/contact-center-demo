@@ -9,13 +9,13 @@
 > written *before implementation* and described the planned architecture. This version 2.0
 > updates the document to reflect the **actual state of the implemented system** as of
 > 2026-06-12, based on the verified technical documentation in
-> [`documentation/`](documentation/00-index.md) (which is itself cross-checked against the
+> [`documentation/`](documentation/tech/00-index.md) (which is itself cross-checked against the
 > code). Where the original plan diverged from what was actually built, this document now
 > describes "as-built" reality and marks unrealized parts of the original plan as
 > **"Future / not yet implemented"**.
 >
 > For detailed, module-by-module documentation (backend modules, frontend routing, database
-> schema, data flows, infrastructure), see [`documentation/00-index.md`](documentation/00-index.md) —
+> schema, data flows, infrastructure), see [`documentation/tech/00-index.md`](documentation/tech/00-index.md) —
 > that directory is the primary source of truth for implementation details; this document
 > remains the high-level architectural reference and historical decision record (ADRs).
 
@@ -61,7 +61,7 @@ The system targets three user personas: a global **Administrator** who manages t
 | ID | Decision | Status (as-built, 2026-06-12) |
 |----|----------|--------------------------------|
 | ADR-01 | Modular monolith in Phase 1, with module boundaries designed for future microservice extraction | ✅ Current — single Spring Boot app (`backend/app`), 24 domain modules under `com.contactcenter.api.<domain>` |
-| ADR-02 | Single shared PostgreSQL database with logical multi-tenancy via tenant_id + Row-Level Security | ✅ Current — PostgreSQL 16, `tenant_id` + RLS via `app.current_tenant_id` (see `documentation/06-database.md`) |
+| ADR-02 | Single shared PostgreSQL database with logical multi-tenancy via tenant_id + Row-Level Security | ✅ Current — PostgreSQL 16, `tenant_id` + RLS via `app.current_tenant_id` (see `documentation/tech/06-database.md`) |
 | ADR-03 | RabbitMQ as the message broker (confirmed in TECH-STACK) | ✅ Current — RabbitMQ 3.13, extensive exchange/queue topology for domain events, voicebot escalation, social/email |
 | ADR-04 | Redis for distributed caching, session state, agent presence, and queue state | ✅ Current — Redis 7: cache, agent presence, JWT blacklist, IVR sessions, rate limiting |
 | ADR-05 | Telephony via external CPaaS provider behind an Adapter interface (provider selected separately) | ✅ Current — implemented for **Twilio Programmable Voice** (`TelephonyAdapter` / `TwilioTelephonyAdapter` / `MockTelephonyAdapter`) |
@@ -76,7 +76,7 @@ The system targets three user personas: a global **Administrator** who manages t
   node positioning, zoom/fit-to-view; progressive dialer with `SKIP LOCKED` queue semantics).
 - `social` module with adapters for Facebook Messenger, Instagram, and WhatsApp Cloud API.
 
-See `documentation/02-architecture.md` §2.7 for the full ADR status table.
+See `documentation/tech/02-architecture.md` §2.7 for the full ADR status table.
 
 ---
 
@@ -229,7 +229,7 @@ self-hosted signaling — Twilio's SDK handles the WebRTC/SIP layer.
 **UI:** no Angular Material/Bootstrap — custom CSS design system (`styles.scss`, oklch color
 tokens, light/dark theme via `data-theme` attribute), native `<dialog>` elements for modals.
 
-See `documentation/05-frontend.md` for full routing tables, component inventories, and
+See `documentation/tech/05-frontend.md` for full routing tables, component inventories, and
 WebSocket event flows.
 
 ### 3.2 Spring Boot Backend (Modular Monolith)
@@ -277,7 +277,7 @@ by `domain/service` and `domain/repository`):
 - Flyway migrations are shared across the whole application (single sequential numbering
   `V001`–`V073+`, not per-module prefixes).
 
-See `documentation/04-backend.md` and `documentation/01-overview.md` §1.3 for full module
+See `documentation/tech/04-backend.md` and `documentation/tech/01-overview.md` §1.3 for full module
 detail (classes, endpoints, RabbitMQ bindings).
 
 ### 3.3 Python AI Service (Voicebot, FastAPI)
@@ -314,7 +314,7 @@ shared conversation-session state (`ivr:session:{callId}`).
 > The original plan's `/chatbot/process`, `/tts/synthesize`, `/classify/intent` endpoints,
 > Rasa/Dialogflow integrations, and a separate text chatbot do **not** exist in the codebase.
 > A text-based chatbot for social/chat channels remains a **planned, unimplemented** feature
-> (see `documentation/07-data-flows.md` §7.13).
+> (see `documentation/tech/07-data-flows.md` §7.13).
 
 ### 3.4 Channel Adapters
 
@@ -413,7 +413,7 @@ via the ClickHouse JDBC driver (`ClickHouseDwWriter`). There is no `outbox` tabl
 
 > **As-built note:** the model below reflects the real schema (PostgreSQL 16, Flyway
 > `V001`-`V073+`). For full table-by-table detail, indexes, ER diagrams and known schema
-> inconsistencies, see `documentation/06-database.md`.
+> inconsistencies, see `documentation/tech/06-database.md`.
 
 ### 4.1 Multi-Tenancy Strategy
 
@@ -506,7 +506,7 @@ TENANT (1) ───────────────────────
   AES-256-GCM via JPA `AttributeConverter`s, stored as `Base64(IV‖ciphertext)`.
 
 Full DDL, indexes, partitioning helper functions and Mermaid ER diagrams:
-`documentation/06-database.md` §3-4.
+`documentation/tech/06-database.md` §3-4.
 
 ### 4.4 Redis Data Structures
 
@@ -521,8 +521,8 @@ Full DDL, indexes, partitioning helper functions and Mermaid ER diagrams:
 > The original plan's Redis-only "queue depth / sorted-set of waiting contacts" model is
 > **not** the primary mechanism in the as-built system — queue/agent availability is read
 > primarily from PostgreSQL (`v_queue_available_agents`), with Redis used for presence,
-> session/auth state, and dialer locking. See `documentation/02-architecture.md` §2.5 and
-> `documentation/06-database.md`.
+> session/auth state, and dialer locking. See `documentation/tech/02-architecture.md` §2.5 and
+> `documentation/tech/06-database.md`.
 
 ### 4.5 Data Warehouse Schema (ClickHouse)
 
@@ -662,7 +662,7 @@ Audit Log (auditlog)
 ```
 
 > For the full per-module endpoint inventory (request/response DTOs, query params,
-> `@PreAuthorize` rules), see `documentation/04-backend.md`.
+> `@PreAuthorize` rules), see `documentation/tech/04-backend.md`.
 
 ### 5.3 WebSocket API
 
@@ -854,7 +854,7 @@ Retention: 2 years, old partitions dropped via `drop_old_audit_log_partitions()`
 > **As-built note:** the implemented deployment is **Docker Compose**, not Kubernetes. §7.3
 > ("Production Infrastructure (Kubernetes)") and §7.4 (HA design) below describe a **future
 > target state** that has not been built; treat them as forward-looking planning, not current
-> reality. See `documentation/08-infrastructure.md` for the actual local/local-demo setup.
+> reality. See `documentation/tech/08-infrastructure.md` for the actual local/local-demo setup.
 
 ### 7.1 Environments (current)
 
@@ -982,7 +982,7 @@ No CI/CD pipeline currently exists in the repository; tests are run locally
 Flyway manages schema migrations: `backend/src/main/resources/db/migration/`,
 sequential `V001`...`V073+` (current count), naming `V<number>__<description>.sql`.
 
-Rules (see `CLAUDE.md` and `documentation/06-database.md` §1):
+Rules (see `CLAUDE.md` and `documentation/tech/06-database.md` §1):
 - **Never edit an applied migration** — Flyway validates checksums (`validate-on-migrate:
   true`) and refuses to start on mismatch. Always add a new `Vxxx__fix_*.sql`.
 - `clean-disabled: true` on all profiles — `flyway clean` is blocked.
@@ -1071,7 +1071,7 @@ PostgreSQL views (`v_queue_available_agents`, `mv_campaign_stats`) and ClickHous
 | pg_cron jobs (DB-side) | daily/periodic | create next-month `contact`/`audit_log` partitions, clean up `refresh_token`, archive `campaign_contact` |
 
 All `@Scheduled` jobs that touch tenant-scoped data must follow the `TenantContext.snapshot()`/
-`restore()`/`clear()` pattern documented in `CLAUDE.md` and `documentation/04-backend.md`,
+`restore()`/`clear()` pattern documented in `CLAUDE.md` and `documentation/tech/04-backend.md`,
 since `@Scheduled` methods run outside the normal request thread and filter chain.
 
 ---
@@ -1080,7 +1080,7 @@ since `@Scheduled` methods run outside the normal request thread and filter chai
 
 > The ADRs below are kept as the **historical record** of the original design rationale.
 > See §1.3 for the as-built status of each (✅ current / ⚠️ modified / ⚠️ partial), and
-> `documentation/02-architecture.md` §2.7 for the as-built summary.
+> `documentation/tech/02-architecture.md` §2.7 for the as-built summary.
 
 ### ADR-01: Modular Monolith in Phase 1
 
@@ -1120,7 +1120,7 @@ notifications      (topic exchange)  → websocket_broadcaster
 > e.g. `cc.queue.contact-routing`, `cc.queue.agent-status`, `cc.queue.agent-direct`,
 > `cc.queue.routing-hangup`, `cc.queue.call-events`, `cc.queue.social-incoming`, plus
 > voicebot escalation queues. There is no `dwh.cdc` exchange — DWH sync is a periodic ETL
-> (ADR-07). See `documentation/02-architecture.md` and `documentation/04-backend.md` for the
+> (ADR-07). See `documentation/tech/02-architecture.md` and `documentation/tech/04-backend.md` for the
 > real bindings.
 
 ### ADR-04: Redis for Agent Presence and Real-Time State

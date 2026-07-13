@@ -39,7 +39,7 @@ Znana niekonsekwencja RLS (do uwagi przy nowych tabelach i przy ewentualnym fix)
 - Ale V059 (contact_event), V064 (tenant_ai_config), V067 (contact_transcription), V068 (contact_ai_summary) używają app.tenant_id (bez current_)
 - Zawsze pisz nowe polityki RLS z app.current_tenant_id — to jest to, co faktycznie ustawia aplikacja.
 
-Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/06-database.md
+Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/tech/06-database.md
 - Pokrywa wszystkie 73 migracje (V001-V073), konwencje Flyway, RLS, mapę schematu per domena, ERD mermaid, wzorce (soft-delete/audit/wersjonowanie/JSONB/enum->varchar/partycjonowanie), anti-pattern overloaded columns, krok-po-kroku jak dodać tabelę.
 
 Lokalizacja migracji:

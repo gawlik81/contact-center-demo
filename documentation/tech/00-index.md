@@ -18,9 +18,9 @@ dokumentów projektowych (`PRD.md`, `ARCHITECTURE.md`), które opisują plan z p
 9. [Getting Started](09-getting-started.md) – jak uruchomić projekt i zacząć pracę
 10. [Tworzenie pluginów (EPIC-28)](10-plugin-development.md) – SDK, manifest, cykl życia,
     integracja UI, bezpieczeństwo
-11. [Plugin Developer Guide](plugin/plugin-development-guide.md) – dokumentacja techniczna
+11. [Plugin Developer Guide](../plugin/plugin-development-guide.md) – dokumentacja techniczna
     dla zewnętrznych dostawców: pełna referencja SDK, extension pointy, manifest, uprawnienia,
-    integracja UI, budowa JAR, REST API, przykłady ([HTML](plugin/plugin-development-guide.html))
+    integracja UI, budowa JAR, REST API, przykłady ([HTML](../plugin/plugin-development-guide.html))
 
 ## Sugerowana kolejność czytania dla nowej osoby
 

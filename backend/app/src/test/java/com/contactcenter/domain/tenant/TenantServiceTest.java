@@ -4,10 +4,14 @@ import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
+import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
+import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -74,6 +78,11 @@ class TenantServiceTest {
         // pomijając pola non-final (adminMetricsService, userService). Ustawiamy ręcznie przez setter.
         tenantService.setAdminMetricsService(adminMetricsService);
         tenantService.setUserService(userService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     // =========================================================================
@@ -409,6 +418,126 @@ class TenantServiceTest {
             assertThat(response.limits().maxAgents()).isEqualTo(200);
             assertThat(response.limits().maxQueues()).isEqualTo(100);
             assertThat(response.limits().maxCampaigns()).isEqualTo(40);
+        }
+    }
+
+    // =========================================================================
+    // Konfiguracja Twilio per-tenant – izolacja cross-tenant
+    // =========================================================================
+
+    private static final UUID OTHER_TENANT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+    @Nested
+    @DisplayName("getTenantConfig()")
+    class GetTenantConfig {
+
+        @Test
+        @DisplayName("SUPER_ADMIN może odczytać konfigurację dowolnego tenanta")
+        void superAdminCanReadAnyTenantConfig() {
+            TenantContext.setUserRole("SUPER_ADMIN");
+            TenantContext.setUserId(USER_ID);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+
+            TenantResponse response = tenantService.getTenantConfig(TENANT_ID);
+
+            assertThat(response.id()).isEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("ADMIN może odczytać wyłącznie konfigurację własnego tenanta")
+        void adminCanReadOwnTenantConfig() {
+            TenantContext.setUserRole("ADMIN");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+
+            TenantResponse response = tenantService.getTenantConfig(TENANT_ID);
+
+            assertThat(response.id()).isEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("ADMIN nie może odczytać konfiguracji cudzego tenanta")
+        void adminCannotReadOtherTenantConfig() {
+            TenantContext.setUserRole("ADMIN");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+
+            assertThatThrownBy(() -> tenantService.getTenantConfig(OTHER_TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+            verify(tenantRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR nie może odczytać konfiguracji cudzego tenanta")
+        void supervisorCannotReadOtherTenantConfig() {
+            TenantContext.setUserRole("SUPERVISOR");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+
+            assertThatThrownBy(() -> tenantService.getTenantConfig(OTHER_TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+            verify(tenantRepository, never()).findById(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("updateTwilioConfig()")
+    class UpdateTwilioConfig {
+
+        private final TenantTwilioConfigRequest request =
+                new TenantTwilioConfigRequest("+48111000111", "https://example.com/webhook");
+
+        @Test
+        @DisplayName("SUPER_ADMIN może zaktualizować konfigurację dowolnego tenanta")
+        void superAdminCanUpdateAnyTenantConfig() {
+            TenantContext.setUserRole("SUPER_ADMIN");
+            TenantContext.setUserId(USER_ID);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+            when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TenantResponse response = tenantService.updateTwilioConfig(TENANT_ID, request);
+
+            assertThat(response.id()).isEqualTo(TENANT_ID);
+            verify(tenantRepository).save(any(Tenant.class));
+        }
+
+        @Test
+        @DisplayName("ADMIN nie może zaktualizować konfiguracji cudzego tenanta (regresja IDOR)")
+        void adminCannotUpdateOtherTenantConfig() {
+            TenantContext.setUserRole("ADMIN");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+
+            assertThatThrownBy(() -> tenantService.updateTwilioConfig(OTHER_TENANT_ID, request))
+                    .isInstanceOf(CrossTenantAccessException.class);
+            verify(tenantRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR nie może zaktualizować konfiguracji cudzego tenanta (regresja IDOR)")
+        void supervisorCannotUpdateOtherTenantConfig() {
+            TenantContext.setUserRole("SUPERVISOR");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+
+            assertThatThrownBy(() -> tenantService.updateTwilioConfig(OTHER_TENANT_ID, request))
+                    .isInstanceOf(CrossTenantAccessException.class);
+            verify(tenantRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("SUPERVISOR może zaktualizować konfigurację własnego tenanta")
+        void supervisorCanUpdateOwnTenantConfig() {
+            TenantContext.setUserRole("SUPERVISOR");
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setTenantId(TENANT_ID);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+            when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TenantResponse response = tenantService.updateTwilioConfig(TENANT_ID, request);
+
+            assertThat(response.id()).isEqualTo(TENANT_ID);
         }
     }
 

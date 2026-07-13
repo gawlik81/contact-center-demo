@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -14,6 +15,7 @@ import {
   distinctUntilChanged,
   catchError,
   of,
+  EMPTY,
   finalize,
   filter,
   timer,
@@ -64,6 +66,18 @@ export class UserListComponent implements OnInit {
 
   readonly currentPage = signal(0);
   readonly pageSize = 20;
+
+  /**
+   * SUPERVISOR stracił zarządzanie użytkownikami (refaktor ról) – może wyłącznie
+   * modyfikować skills agentów. ADMIN zachowuje pełne zarządzanie (create/edit/delete/
+   * force-reset dowolnego użytkownika tenanta).
+   */
+  readonly isAdmin = computed(() => this.auth.currentRole() === 'ADMIN');
+
+  /** SUPERVISOR może otworzyć edycję (tryb "tylko skille") wyłącznie dla agentów. */
+  canEdit(user: UserResponse): boolean {
+    return this.isAdmin() || user.role === 'AGENT';
+  }
 
   readonly selectedUser = signal<UserResponse | null>(null);
   readonly showFormModal = signal(false);
@@ -237,12 +251,14 @@ export class UserListComponent implements OnInit {
   }
 
   openCreateModal(): void {
+    if (!this.isAdmin()) return;
     this.selectedUser.set(null);
     this.isEditMode.set(false);
     this.showFormModal.set(true);
   }
 
   openEditModal(user: UserResponse): void {
+    if (!this.canEdit(user)) return;
     this.selectedUser.set(user);
     this.isEditMode.set(true);
     this.showFormModal.set(true);
@@ -259,6 +275,7 @@ export class UserListComponent implements OnInit {
   }
 
   openDeleteModal(user: UserResponse): void {
+    if (!this.isAdmin()) return;
     this.selectedUser.set(user);
     this.showDeleteModal.set(true);
   }
@@ -299,6 +316,7 @@ export class UserListComponent implements OnInit {
   }
 
   openResetPasswordModal(user: UserResponse): void {
+    if (!this.isAdmin()) return;
     this.selectedUser.set(user);
     this.showResetPasswordModal.set(true);
   }
@@ -318,14 +336,14 @@ export class UserListComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
           this.notifications.error(this.transloco.translate('supervisor.users.errorResetPassword'));
-          return of(undefined);
+          return EMPTY;
         }),
+        finalize(() => this.closeResetPasswordModal()),
       )
       .subscribe(() => {
         this.notifications.success(
           `"${user.firstName} ${user.lastName}" ${this.transloco.translate('supervisor.users.successResetPassword')}`,
         );
-        this.closeResetPasswordModal();
         this.loadUsers();
       });
   }

@@ -9,10 +9,11 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { catchError, of, EMPTY } from 'rxjs';
 import { AdminUserService } from '../../../services/admin-user.service';
 import { TenantService } from '../../../../tenants/tenant.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { AuthService } from '../../../../../core/services/auth.service';
 import { AdminPagedResponse, AdminUserResponse } from '../../../models/admin-user.model';
 import { Tenant } from '../../../../tenants/tenant.model';
 import { AdminUserFormComponent } from '../admin-user-form/admin-user-form.component';
@@ -29,6 +30,7 @@ export class AdminUserListComponent implements OnInit {
   private readonly adminUserService = inject(AdminUserService);
   private readonly tenantService = inject(TenantService);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -121,8 +123,19 @@ export class AdminUserListComponent implements OnInit {
       });
   }
 
-  getTenantName(tenantId: string): string {
+  getTenantName(tenantId: string | null): string {
+    if (!tenantId) return '';
     return this.tenants().find((t) => t.id === tenantId)?.name ?? tenantId;
+  }
+
+  /**
+   * True gdy `user` to konto, na którym jest aktualnie zalogowany wywołujący.
+   * Używane do zablokowania edycji/usunięcia własnego konta z tego panelu –
+   * zapobiega przypadkowej samo-blokadzie dostępu (np. dezaktywacja lub
+   * usunięcie jedynego SUPER_ADMIN, na którym akurat pracujemy).
+   */
+  isSelf(user: AdminUserResponse): boolean {
+    return user.id === this.auth.currentUserId();
   }
 
   // ── Tworzenie ─────────────────────────────────────────────────────────────
@@ -135,6 +148,7 @@ export class AdminUserListComponent implements OnInit {
   // ── Edycja ────────────────────────────────────────────────────────────────
 
   openEditModal(user: AdminUserResponse): void {
+    if (this.isSelf(user)) return;
     this.editingUser.set(user);
     this.showFormModal.set(true);
   }
@@ -152,6 +166,7 @@ export class AdminUserListComponent implements OnInit {
   // ── Usunięcie ─────────────────────────────────────────────────────────────
 
   openDeleteModal(user: AdminUserResponse): void {
+    if (this.isSelf(user)) return;
     this.deletingUser.set(user);
     this.showDeleteModal.set(true);
   }
@@ -172,17 +187,15 @@ export class AdminUserListComponent implements OnInit {
         catchError(() => {
           this.deleteSubmitting.set(false);
           this.notifications.error(this.transloco.translate('admin.userList.errorDelete'));
-          return of(undefined);
+          return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.deleteSubmitting.set(false);
-          this.notifications.success(this.transloco.translate('admin.userList.successDelete'));
-          this.closeDeleteModal();
-          this.loadUsers();
-        }
+      .subscribe(() => {
+        this.deleteSubmitting.set(false);
+        this.notifications.success(this.transloco.translate('admin.userList.successDelete'));
+        this.closeDeleteModal();
+        this.loadUsers();
       });
   }
 
@@ -209,19 +222,17 @@ export class AdminUserListComponent implements OnInit {
         catchError(() => {
           this.forceResetSubmitting.set(false);
           this.notifications.error(this.transloco.translate('admin.userList.errorDelete'));
-          return of(undefined);
+          return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.forceResetSubmitting.set(false);
-          this.notifications.success(
-            this.transloco.translate('supervisor.users.successResetPassword'),
-          );
-          this.closeForceResetModal();
-          this.loadUsers();
-        }
+      .subscribe(() => {
+        this.forceResetSubmitting.set(false);
+        this.notifications.success(
+          this.transloco.translate('supervisor.users.successResetPassword'),
+        );
+        this.closeForceResetModal();
+        this.loadUsers();
       });
   }
 
@@ -252,6 +263,8 @@ export class AdminUserListComponent implements OnInit {
 
   getRoleLabel(role: UserRole): string {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return 'Administrator Główny';
       case 'ADMIN':
         return 'Admin';
       case 'SUPERVISOR':

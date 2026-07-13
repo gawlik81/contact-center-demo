@@ -26,6 +26,20 @@ export interface NavItem {
   svgPath: string;
   ariaLabel: string;
   children?: NavItem[];
+  /** Restricts visibility to the listed roles. Omit to show to all roles the parent nav array is used for. */
+  roles?: UserRole[];
+}
+
+/**
+ * Filters a nav-item array (and each item's children) by role.
+ * An item without a `roles` field is visible to every role that array is shared with.
+ */
+function filterNavItemsByRole(items: NavItem[], role: UserRole): NavItem[] {
+  return items
+    .filter((item) => !item.roles || item.roles.includes(role))
+    .map((item) =>
+      item.children ? { ...item, children: filterNavItemsByRole(item.children, role) } : item,
+    );
 }
 
 const ADMIN_NAV: NavItem[] = [
@@ -147,6 +161,7 @@ const SUPERVISOR_NAV: NavItem[] = [
         ariaLabel: 'nav.settingsEmail',
         svgPath:
           'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
+        roles: ['ADMIN'],
       },
       {
         label: 'nav.settingsPhoneNumbers',
@@ -161,6 +176,7 @@ const SUPERVISOR_NAV: NavItem[] = [
         ariaLabel: 'nav.settingsSocialMedia',
         svgPath:
           'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z',
+        roles: ['ADMIN'],
       },
       {
         label: 'nav.settingsEmailTemplates',
@@ -175,6 +191,7 @@ const SUPERVISOR_NAV: NavItem[] = [
         ariaLabel: 'nav.settingsTwilioConfig',
         svgPath:
           'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z',
+        roles: ['ADMIN'],
       },
       {
         label: 'nav.settingsAiConfig',
@@ -182,6 +199,7 @@ const SUPERVISOR_NAV: NavItem[] = [
         ariaLabel: 'nav.settingsAiConfig',
         svgPath:
           'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+        roles: ['ADMIN'],
       },
       {
         label: 'nav.settingsDispositionSets',
@@ -196,6 +214,7 @@ const SUPERVISOR_NAV: NavItem[] = [
         ariaLabel: 'nav.settingsPlugins',
         svgPath:
           'M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z',
+        roles: ['ADMIN'],
       },
     ],
   },
@@ -260,10 +279,11 @@ export class SidenavComponent implements OnInit {
   readonly navItems = computed<NavItem[]>(() => {
     const role: UserRole | null = this.auth.currentRole();
     switch (role) {
-      case 'ADMIN':
+      case 'SUPER_ADMIN':
         return ADMIN_NAV;
+      case 'ADMIN':
       case 'SUPERVISOR':
-        return SUPERVISOR_NAV;
+        return filterNavItemsByRole(SUPERVISOR_NAV, role);
       case 'AGENT':
         return AGENT_NAV;
       default:
@@ -274,8 +294,8 @@ export class SidenavComponent implements OnInit {
   /** Number of active system alerts – displayed as badge on the Dashboard nav item */
   readonly alertCount = signal(0);
 
-  /** True when the current user is an Admin (only then do we show the badge) */
-  readonly isAdmin = computed(() => this.auth.currentRole() === 'ADMIN');
+  /** True when the current user is the global Super Admin (only then do we show the platform alert badge) */
+  readonly isSuperAdmin = computed(() => this.auth.currentRole() === 'SUPER_ADMIN');
 
   /**
    * Reactive signal tracking the current URL after every completed navigation.
@@ -295,7 +315,7 @@ export class SidenavComponent implements OnInit {
    *  3. The active URL is exactly '/admin/dashboard'
    */
   readonly showAlertBadge = computed(
-    () => this.isAdmin() && this.alertCount() > 0 && this.currentUrl() === ALERT_BADGE_ROUTE,
+    () => this.isSuperAdmin() && this.alertCount() > 0 && this.currentUrl() === ALERT_BADGE_ROUTE,
   );
 
   /**
@@ -333,7 +353,7 @@ export class SidenavComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    if (this.auth.currentRole() !== 'ADMIN') {
+    if (this.auth.currentRole() !== 'SUPER_ADMIN') {
       return;
     }
     this.metricsService.alertCount$

@@ -71,11 +71,22 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
 
   readonly isEditMode = computed(() => this.user() !== null);
 
-  readonly roleOptions: { value: UserRole; label: string }[] = [
-    { value: 'AGENT', label: 'Agent' },
-    { value: 'SUPERVISOR', label: 'Supervisor' },
-    { value: 'ADMIN', label: 'Admin' },
-  ];
+  /**
+   * SUPER_ADMIN jest dostępny wyłącznie przy tworzeniu nowego konta – promocja
+   * istniejącego użytkownika do SUPER_ADMIN przez edycję nie jest wspierana
+   * przez backend (wymagałaby też wyzerowania tenantId, którego ten formularz
+   * nie edytuje).
+   */
+  readonly roleOptions = computed<{ value: UserRole; label: string }[]>(() => {
+    const base: { value: UserRole; label: string }[] = [
+      { value: 'AGENT', label: 'Agent' },
+      { value: 'SUPERVISOR', label: 'Supervisor' },
+      { value: 'ADMIN', label: 'Admin' },
+    ];
+    return this.isEditMode()
+      ? base
+      : [{ value: 'SUPER_ADMIN', label: 'Administrator Główny' }, ...base];
+  });
 
   readonly form = this.fb.group({
     tenantId: ['' as string, Validators.required],
@@ -112,7 +123,28 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
       if (tenantList.length === 1) {
         this.form.get('tenantId')?.setValue(tenantList[0].id);
       }
+
+      // SUPER_ADMIN nie ma tenanta – wyłącz wymagalność pola i wyczyść wartość
+      // gdy użytkownik wybierze tę rolę; przywróć wymagalność dla pozostałych ról.
+      this.form
+        .get('role')
+        ?.valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((role) => {
+          const tenantCtrl = this.form.get('tenantId')!;
+          if (role === 'SUPER_ADMIN') {
+            tenantCtrl.clearValidators();
+            tenantCtrl.setValue('');
+          } else {
+            tenantCtrl.setValidators(Validators.required);
+          }
+          tenantCtrl.updateValueAndValidity();
+        });
     }
+  }
+
+  /** True gdy w trybie tworzenia wybrano rolę SUPER_ADMIN (pole tenanta ukryte). */
+  get isSuperAdminRoleSelected(): boolean {
+    return this.form.get('role')?.value === 'SUPER_ADMIN';
   }
 
   ngAfterViewInit(): void {
@@ -262,7 +294,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
       // Tryb tworzenia
       this.adminUserService
         .createUser({
-          tenantId: raw.tenantId!,
+          tenantId: raw.role === 'SUPER_ADMIN' ? null : raw.tenantId!,
           firstName: raw.firstName!.trim(),
           lastName: raw.lastName!.trim(),
           email: raw.email!.trim(),

@@ -37,10 +37,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/supervisor/plugins")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+@PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "Supervisor Plugin Invocation History",
-        description = "Historia wywołań pluginów (plugin_invocation_log) — tylko SUPERVISOR/ADMIN.")
+        description = "Historia wywołań pluginów (plugin_invocation_log) — tylko ADMIN (refaktor ról – pluginy to jeden z 5 technicznych obszarów odebranych SUPERVISOR).")
 public class PluginInvocationLogController {
 
     private final PluginInvocationLogService pluginInvocationLogService;
@@ -56,7 +56,7 @@ public class PluginInvocationLogController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Strona wpisów dziennika"),
                     @ApiResponse(responseCode = "401", description = "Brak lub nieprawidłowy token JWT"),
-                    @ApiResponse(responseCode = "403", description = "Brak roli SUPERVISOR/ADMIN"),
+                    @ApiResponse(responseCode = "403", description = "Brak roli ADMIN"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje (lub należy do innego tenanta)")
             }
     )

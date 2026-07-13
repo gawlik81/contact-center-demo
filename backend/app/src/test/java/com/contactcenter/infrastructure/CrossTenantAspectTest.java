@@ -226,6 +226,19 @@ class CrossTenantAspectTest {
         }
 
         @Test
+        @DisplayName("nie rzuca i nie loguje ERROR dla SUPER_ADMIN bez tenant_id "
+                + "(globalny administrator platformy – oczekiwany brak tenanta)")
+        void verifyTenantContext_superAdminRole_withoutTenantId_doesNotThrow() {
+            // SUPER_ADMIN nie ma tenant_id (TenantFilter celowo nie ustawia TenantContext.tenantId),
+            // ale rola JEST ustawiona – to nie jest błąd konfiguracji filtrów.
+            TenantContext.setUserRole("SUPER_ADMIN");
+            when(signature.getName()).thenReturn("listTenants");
+
+            assertThatCode(() -> aspect.verifyTenantContext(joinPoint))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
         @DisplayName("wywołanie wielokrotne nie powoduje błędów (idempotentność)")
         void verifyTenantContext_multipleCalls_doesNotThrow() {
             TenantContext.setTenantId(TENANT_A);

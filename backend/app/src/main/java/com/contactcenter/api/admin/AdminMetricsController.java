@@ -22,7 +22,8 @@ import java.util.UUID;
 /**
  * Kontroler REST dla metryk RT (real-time) platformy Contact Center.
  *
- * <p>Dostępny wyłącznie dla roli <strong>ADMIN</strong>.
+ * <p>Dostępny wyłącznie dla roli <strong>SUPER_ADMIN</strong> (globalny administrator
+ * platformy, refaktor ról).
  *
  * <p>Endpointy:
  * <ul>
@@ -31,16 +32,16 @@ import java.util.UUID;
  * </ul>
  *
  * <p>Ścieżka {@code /api/admin/**} jest zabezpieczona na poziomie {@code SecurityConfig}
- * (reguła {@code hasRole("ADMIN")}). Adnotacja {@code @PreAuthorize} dodaje
+ * (reguła {@code hasRole("SUPER_ADMIN")}). Adnotacja {@code @PreAuthorize} dodaje
  * dodatkową warstwę ochrony na poziomie metody (defense in depth).
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/admin/metrics")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Admin Metrics", description = "Metryki RT platformy Contact Center (tylko ADMIN)")
+@Tag(name = "Admin Metrics", description = "Metryki RT platformy Contact Center (tylko SUPER_ADMIN)")
 public class AdminMetricsController {
 
     private final AdminMetricsService adminMetricsService;

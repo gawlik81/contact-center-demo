@@ -29,14 +29,15 @@ import java.util.UUID;
  *   <li>DELETE /api/supervisor/ai-config  – usuń konfigurację</li>
  * </ul>
  *
- * <p>Dostęp wyłącznie dla roli SUPERVISOR.
+ * <p>Dostęp wyłącznie dla roli ADMIN (konfiguracja AI to jeden z 5 technicznych obszarów
+ * odebranych SUPERVISOR w refaktorze ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT).
  * TenantId pobierany z {@link TenantContext} ustawionego przez {@code TenantFilter}.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/supervisor/ai-config")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SUPERVISOR')")
+@PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "AI Config", description = "Per-tenant konfiguracja AI – zarządzanie przez supervisora")
 public class TenantAiConfigController {
@@ -52,7 +53,7 @@ public class TenantAiConfigController {
             @ApiResponse(responseCode = "200", description = "Konfiguracja istnieje"),
             @ApiResponse(responseCode = "204", description = "Brak konfiguracji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola SUPERVISOR)")
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola ADMIN)")
         }
     )
     public ResponseEntity<TenantAiConfigResponse> getConfig() {

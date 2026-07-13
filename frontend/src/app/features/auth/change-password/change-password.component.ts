@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
+import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   ReactiveFormsModule,
@@ -8,6 +9,7 @@ import {
   ValidatorFn,
 } from '@angular/forms';
 import { Router } from '@angular/router';
+import { merge } from 'rxjs';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 
@@ -68,25 +70,44 @@ export class ChangePasswordComponent {
     return this.form.get('confirmPassword')!;
   }
 
+  // FormControl.invalid/.dirty/.touched/.value are plain mutable properties, not
+  // signals – a computed() that only reads them tracks no dependency and freezes
+  // forever at its first-render result (e.g. "not invalid", since dirty/touched
+  // are both false on first render), no matter how the user interacts afterwards.
+  // formTick ticks on every valueChanges/statusChanges emission, giving the
+  // computed()s below something real to depend on. markAllAsTouched() (onSubmit)
+  // doesn't emit either observable, so it bumps formTick manually.
+  private readonly formTick = signal(0);
+
+  constructor() {
+    merge(this.form.valueChanges, this.form.statusChanges)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.formTick.update((n) => n + 1));
+  }
+
   // ── Validation signals ────────────────────────────────────────────────────
 
   readonly currentPasswordInvalid = computed(() => {
+    this.formTick();
     const ctrl = this.currentPasswordCtrl;
     return ctrl.invalid && (ctrl.dirty || ctrl.touched);
   });
 
   readonly newPasswordInvalid = computed(() => {
+    this.formTick();
     const ctrl = this.newPasswordCtrl;
     return ctrl.invalid && (ctrl.dirty || ctrl.touched);
   });
 
   readonly confirmPasswordInvalid = computed(() => {
+    this.formTick();
     const ctrl = this.confirmPasswordCtrl;
     const groupInvalid = this.form.hasError('passwordsMismatch');
     return (ctrl.invalid || groupInvalid) && (ctrl.dirty || ctrl.touched);
   });
 
   readonly currentPasswordError = computed(() => {
+    this.formTick();
     const ctrl = this.currentPasswordCtrl;
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
     if (ctrl.hasError('required'))
@@ -95,6 +116,7 @@ export class ChangePasswordComponent {
   });
 
   readonly newPasswordError = computed(() => {
+    this.formTick();
     const ctrl = this.newPasswordCtrl;
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
     if (ctrl.hasError('required'))
@@ -105,6 +127,7 @@ export class ChangePasswordComponent {
   });
 
   readonly confirmPasswordError = computed(() => {
+    this.formTick();
     const ctrl = this.confirmPasswordCtrl;
     if (!(ctrl.dirty || ctrl.touched)) return null;
     if (ctrl.hasError('required'))
@@ -116,10 +139,15 @@ export class ChangePasswordComponent {
 
   // ── Password strength ─────────────────────────────────────────────────────
 
-  readonly strengthScore = computed(() => {
-    const val = this.newPasswordCtrl.value as string | null;
-    return computeStrength(val ?? '');
+  // FormControl.value is a plain property, not a signal – computed() would never
+  // re-evaluate if it read it directly (no tracked dependency), so the strength
+  // indicator would freeze at whatever it was on first read (empty password = 0).
+  // valueChanges -> toSignal() gives computed() a real reactive dependency.
+  private readonly newPasswordValue = toSignal(this.newPasswordCtrl.valueChanges, {
+    initialValue: this.newPasswordCtrl.value as string,
   });
+
+  readonly strengthScore = computed(() => computeStrength(this.newPasswordValue() ?? ''));
 
   readonly strengthLabel = computed(() => {
     const keys = [
@@ -142,6 +170,7 @@ export class ChangePasswordComponent {
 
   onSubmit(): void {
     this.form.markAllAsTouched();
+    this.formTick.update((n) => n + 1); // markAllAsTouched() doesn't emit statusChanges
     if (this.form.invalid) return;
 
     this.loading.set(true);

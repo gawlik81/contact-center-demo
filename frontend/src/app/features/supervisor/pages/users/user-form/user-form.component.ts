@@ -24,6 +24,7 @@ import {
 import { catchError, of } from 'rxjs';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { AuthService } from '../../../../../core/services/auth.service';
 import { UserResponse, UserRole } from '../../../models/user.model';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
@@ -54,6 +55,7 @@ export class UserFormComponent implements OnInit, AfterViewInit {
 
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
@@ -69,7 +71,15 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   readonly roleOptions: { value: UserRole; label: string }[] = [
     { value: 'AGENT', label: 'Agent' },
     { value: 'SUPERVISOR', label: 'Supervisor' },
+    { value: 'ADMIN', label: 'Admin' },
   ];
+
+  /**
+   * SUPERVISOR stracił zarządzanie użytkownikami (refaktor ról) – może wyłącznie
+   * modyfikować pole skills agenta. Ten formularz jest dla niego zawsze w trybie
+   * "tylko skille" (create jest w ogóle niedostępny – patrz user-list.component).
+   */
+  readonly isSkillsOnlyMode = computed(() => this.auth.currentRole() === 'SUPERVISOR');
 
   readonly form = this.fb.group({
     firstName: ['', [Validators.required, Validators.maxLength(100)]],
@@ -96,6 +106,19 @@ export class UserFormComponent implements OnInit, AfterViewInit {
     } else {
       this.form.get('email')?.enable();
       this.form.get('password')?.setValidators([Validators.required, passwordStrengthValidator]);
+    }
+
+    if (this.isSkillsOnlyMode()) {
+      // SUPERVISOR modyfikuje wyłącznie skills – pozostałe pola nie są renderowane
+      // w szablonie, więc nie mogą blokować walidacji formularza.
+      this.form.get('firstName')?.clearValidators();
+      this.form.get('lastName')?.clearValidators();
+      this.form.get('email')?.clearValidators();
+      this.form.get('role')?.clearValidators();
+      this.form.get('firstName')?.updateValueAndValidity();
+      this.form.get('lastName')?.updateValueAndValidity();
+      this.form.get('email')?.updateValueAndValidity();
+      this.form.get('role')?.updateValueAndValidity();
     }
     this.form.get('password')?.updateValueAndValidity();
   }
@@ -227,20 +250,21 @@ export class UserFormComponent implements OnInit, AfterViewInit {
 
     const editUser = this.user();
     if (this.isEditMode() && editUser) {
+      // SUPERVISOR (isSkillsOnlyMode) wysyła wyłącznie skills – firstName/lastName
+      // są pomijane, żeby nie trafić na backendową walidację "tylko pole skills".
+      const updatePayload = this.isSkillsOnlyMode()
+        ? { skills }
+        : { firstName: raw.firstName!.trim(), lastName: raw.lastName!.trim(), skills };
+
       this.userService
-        .updateUser(editUser.id, {
-          firstName: raw.firstName!.trim(),
-          lastName: raw.lastName!.trim(),
-          role: raw.role as UserRole,
-          skills,
-        })
+        .updateUser(editUser.id, updatePayload)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: () => {
             this.submitting.set(false);
             this.notifications.success(
               this.transloco.translate('supervisor.userForm.successEdit', {
-                name: `${raw.firstName} ${raw.lastName}`,
+                name: `${editUser.firstName} ${editUser.lastName}`,
               }),
             );
             this.saved.emit();

@@ -12,11 +12,16 @@ import java.util.UUID;
  * <p>Różni się od {@link CreateUserRequest} obecnością pola {@code tenantId} –
  * Admin tworzy użytkownika w dowolnym tenancie, nie tylko w swoim własnym.
  *
- * <p>Używane przez endpoint {@code POST /api/admin/users} (tylko rola ADMIN).
+ * <p>{@code tenantId} jest opcjonalny wyłącznie dla roli {@code SUPER_ADMIN}
+ * (globalny administrator platformy, brak przypisania do tenanta) – dla
+ * wszystkich pozostałych ról jest wymagany, co jest walidowane w serwisie
+ * ({@link com.contactcenter.domain.user.AdminUserServiceImpl}), a nie na
+ * poziomie tej adnotacji.
+ *
+ * <p>Używane przez endpoint {@code POST /api/admin/users} (tylko rola SUPER_ADMIN).
  */
 public record AdminCreateUserRequest(
 
-        @NotNull(message = "TenantId jest wymagany")
         UUID tenantId,
 
         @NotBlank(message = "Email jest wymagany")

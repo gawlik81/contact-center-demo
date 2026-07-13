@@ -19,8 +19,8 @@
     </div>
 
     <form class="user-form-dialog__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate id="admin-user-form">
-      <!-- Tenant selector (only in create mode) -->
-      @if (!isEditMode()) {
+      <!-- Tenant selector (only in create mode, hidden for SUPER_ADMIN – no tenant) -->
+      @if (!isEditMode() && !isSuperAdminRoleSelected) {
         <div class="form-field" [class.form-field--error]="tenantIdError">
           <label class="form-label" for="tenantId"> Tenant <span class="required" aria-hidden="true">*</span> </label>
           <select
@@ -124,10 +124,13 @@
       <div class="form-field">
         <label class="form-label" for="adm-role"> Rola <span class="required" aria-hidden="true">*</span> </label>
         <select id="adm-role" class="form-select" formControlName="role" aria-required="true">
-          @for (opt of roleOptions; track opt.value) {
+          @for (opt of roleOptions(); track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
           }
         </select>
+        @if (isSuperAdminRoleSelected) {
+          <span class="form-hint">{{ 'admin.userForm.superAdminHint' | transloco }}</span>
+        }
       </div>
 
       <!-- Active toggle (only in edit mode) -->

@@ -191,6 +191,7 @@
     "settingsPlugins": "Plugins"
   },
   "role": {
+    "superAdmin": "Super Admin",
     "admin": "Admin",
     "supervisor": "Supervisor",
     "agent": "Agent"
@@ -947,6 +948,8 @@
       "emailLabel": "Email",
       "passwordLabel": "Password",
       "passwordHint": "Min. 8 characters, 1 uppercase letter, 1 digit.",
+      "titleEditSkills": "Edit skills",
+      "skillsOnlyHint": "You can only modify skills for user {{name}}.",
       "roleLabel": "Role",
       "skillsLabel": "Skills",
       "skillsPlaceholder": "Type a skill and press Enter or comma...",
@@ -976,7 +979,7 @@
       "skillsAvailable": "Available skills",
       "skillsHint": "Press Enter or select from list to add skill.",
       "saveLabel": "Save user",
-      "errorForbidden": "Supervisors can only create users with Supervisor or Agent role."
+      "errorForbidden": "You do not have permission to perform this operation."
     },
     "userDelete": {
       "title": "Delete user",
@@ -2500,6 +2503,8 @@
       "tableActions": "Actions",
       "editLabel": "Edit user",
       "deleteLabel": "Delete user",
+      "cannotEditSelf": "You cannot edit your own account from this panel",
+      "cannotDeleteSelf": "You cannot delete your own account from this panel",
       "emptyText": "No users.",
       "loadingLabel": "Loading users...",
       "allTenants": "All tenants",
@@ -2539,6 +2544,7 @@
       "errorEdit": "Failed to update user.",
       "successEdit": "User updated.",
       "passwordHint": "Min. 8 chars, 1 uppercase, 1 digit.",
+      "superAdminHint": "The Super Admin is global and is not assigned to any tenant.",
       "errors": {
         "firstNameRequired": "First name is required.",
         "lastNameRequired": "Last name is required.",

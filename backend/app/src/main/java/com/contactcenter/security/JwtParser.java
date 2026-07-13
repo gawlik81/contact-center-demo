@@ -105,9 +105,15 @@ public class JwtParser {
     /**
      * Parsuje i waliduje token JWT.
      *
+     * <p>Claim {@code tenant_id} jest opcjonalny – nieobecny dla tokenów SUPER_ADMIN
+     * (globalny administrator platformy bez tenanta, refaktor ról). W takim przypadku
+     * {@link JwtClaims#tenantId()} zwraca {@code null} zamiast rzucać wyjątek. Claim
+     * {@code user_id} pozostaje wymagany dla WSZYSTKICH ról (SUPER_ADMIN też ma userId).
+     *
      * @param token surowy token JWT (bez prefiksu "Bearer ")
      * @return ekstrahowane claims
-     * @throws JwtValidationException gdy token jest nieprawidłowy, wygasł lub podpis nie pasuje
+     * @throws JwtValidationException gdy token jest nieprawidłowy, wygasł, podpis nie pasuje
+     *                                 lub brakuje wymaganego claim {@code user_id}
      */
     public JwtClaims parse(String token) {
         try {
@@ -115,7 +121,7 @@ public class JwtParser {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            UUID tenantId  = extractUuid(claims, CLAIM_TENANT_ID);
+            UUID tenantId  = extractOptionalUuid(claims, CLAIM_TENANT_ID);
             UUID userId    = extractUuid(claims, CLAIM_USER_ID);
             String role    = claims.get(CLAIM_ROLE, String.class);
             // Pobieramy rzeczywisty exp z tokenu – wymagane do ustawienia precyzyjnego TTL blacklisty
@@ -205,6 +211,27 @@ public class JwtParser {
             throw new JwtValidationException(
                     "Brak wymaganego claim '" + claimName + "' w tokenie JWT"
             );
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            throw new JwtValidationException(
+                    "Nieprawidłowy format UUID w claim '" + claimName + "': " + value
+            );
+        }
+    }
+
+    /**
+     * Ekstrahuje UUID z opcjonalnego claim – zwraca {@code null} gdy claim jest nieobecny
+     * lub pusty, zamiast rzucać wyjątek. Używane dla {@code tenant_id}, który jest
+     * nieobecny w tokenach SUPER_ADMIN (globalny administrator platformy bez tenanta).
+     *
+     * @throws JwtValidationException gdy claim jest obecny, ale nie jest poprawnym UUID
+     */
+    private UUID extractOptionalUuid(Claims claims, String claimName) {
+        String value = claims.get(claimName, String.class);
+        if (!StringUtils.hasText(value)) {
+            return null;
         }
         try {
             return UUID.fromString(value);

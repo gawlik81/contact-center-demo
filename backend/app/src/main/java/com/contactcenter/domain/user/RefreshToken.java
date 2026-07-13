@@ -38,7 +38,12 @@ public class RefreshToken {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "tenant_id", nullable = false)
+    /**
+     * FK do tenant. NULL wyłącznie dla refresh tokenów użytkownika SUPER_ADMIN
+     * (globalny administrator platformy, bez tenanta) – spójnie z
+     * {@code AppUser.tenantId} (V080/V081).
+     */
+    @Column(name = "tenant_id")
     private UUID tenantId;
 
     /**

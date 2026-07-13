@@ -2,7 +2,8 @@ import { UserRole, UserStatus } from '../../supervisor/models/user.model';
 
 export interface AdminUserResponse {
   id: string;
-  tenantId: string;
+  /** Null dla SUPER_ADMIN (globalny administrator platformy, bez przypisania do tenanta). */
+  tenantId: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -18,7 +19,8 @@ export interface AdminUserResponse {
 }
 
 export interface AdminCreateUserRequest {
-  tenantId: string;
+  /** Wymagany dla wszystkich ról poza SUPER_ADMIN (globalny, bez przypisania do tenanta). */
+  tenantId: string | null;
   email: string;
   password: string;
   firstName: string;

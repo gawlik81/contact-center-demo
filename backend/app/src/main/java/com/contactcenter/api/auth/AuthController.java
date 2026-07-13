@@ -236,13 +236,15 @@ public class AuthController {
 
     @PostMapping("/force-reset/{userId}")
     @SecurityRequirement(name = "Bearer Authentication")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(
         summary = "Wymuś zmianę hasła użytkownika",
         description = "Ustawia flagę passwordResetRequired=true i unieważnia wszystkie sesje docelowego " +
                       "użytkownika. Przy następnym logowaniu użytkownik będzie zmuszony do zmiany hasła. " +
-                      "ADMIN może resetować dowolnego użytkownika. SUPERVISOR – tylko użytkowników " +
-                      "własnego tenanta.",
+                      "SUPER_ADMIN może resetować dowolnego użytkownika (dowolny tenant). " +
+                      "ADMIN – wyłącznie użytkowników własnego tenanta. SUPERVISOR nie ma dostępu " +
+                      "(refaktor ról – utrata zarządzania użytkownikami, zostaje tylko modyfikacja " +
+                      "skills agentów).",
         responses = {
             @ApiResponse(responseCode = "204", description = "Flaga ustawiona, sesje unieważnione"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień lub cross-tenant"),

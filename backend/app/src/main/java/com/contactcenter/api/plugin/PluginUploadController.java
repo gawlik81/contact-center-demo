@@ -39,7 +39,7 @@ import java.util.UUID;
  * </ul>
  *
  * <p>To jest upload do katalogu <strong>globalnego</strong> (nie instalacja per tenant –
- * to BE-100, kolejny ticket). Dostęp: SUPERVISOR i ADMIN.
+ * to BE-100, kolejny ticket). Dostęp: wyłącznie ADMIN (refaktor ról – pluginy to jeden z 5 technicznych obszarów odebranych SUPERVISOR).
  *
  * <p>Pipeline: {@link PluginValidationService#validate} (ARCHITECTURE.md §11.4) → jeśli
  * {@code REJECTED}, JAR nie jest zapisywany nigdzie (storage/DB) i zwracamy 400 z listą
@@ -65,7 +65,7 @@ public class PluginUploadController {
     private final PluginStorageService pluginStorageService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Upload pluginu (JAR) do globalnego katalogu",
         description = """
@@ -104,7 +104,7 @@ public class PluginUploadController {
                 content = @Content(schema = @Schema(implementation = PluginValidationErrorResponse.class))
             ),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)")
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)")
         }
     )
     public ResponseEntity<?> uploadPlugin(

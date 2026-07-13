@@ -26,7 +26,12 @@ export class LoginComponent {
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
 
-  readonly showTenantSelect = computed(() => this.matchedTenants().length > 1);
+  /** True when the entered email belongs to a global SUPER_ADMIN account (no tenant). */
+  readonly isSuperAdminLogin = signal(false);
+
+  readonly showTenantSelect = computed(
+    () => !this.isSuperAdminLogin() && this.matchedTenants().length > 1,
+  );
   readonly isMfaStep = computed(() => this.step() === 'mfa');
 
   /** Stored after successful login when MFA is required */
@@ -132,8 +137,20 @@ export class LoginComponent {
     const email = this.emailValue;
 
     this.publicTenantService.getTenantsByEmail(email).subscribe({
-      next: (tenants) => {
+      next: ({ tenants, superAdminAccount }) => {
         this.loading.set(false);
+        this.isSuperAdminLogin.set(superAdminAccount);
+
+        if (superAdminAccount) {
+          // Global SUPER_ADMIN account has no tenant – skip tenant matching
+          // entirely, even if the (unlikely) response also contained tenants.
+          this.matchedTenants.set([]);
+          this.resolvedTenantId = '';
+          this.credentialsForm.patchValue({ tenantId: '' });
+          this.step.set('credentials');
+          return;
+        }
+
         this.matchedTenants.set(tenants);
 
         if (tenants.length === 1) {
@@ -152,6 +169,7 @@ export class LoginComponent {
       error: () => {
         // Fallback on network error – proceed with empty tenantId
         this.loading.set(false);
+        this.isSuperAdminLogin.set(false);
         this.matchedTenants.set([]);
         this.resolvedTenantId = '';
         this.credentialsForm.patchValue({ tenantId: '' });
@@ -222,6 +240,7 @@ export class LoginComponent {
   backToEmail(): void {
     this.errorMessage.set(null);
     this.credentialsForm.reset();
+    this.isSuperAdminLogin.set(false);
     this.step.set('email');
   }
 

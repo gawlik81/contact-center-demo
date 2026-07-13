@@ -1358,3 +1358,41 @@ Deliberate, udokumentowana decyzja implementatora żeby NIE przenosić nazw `csv
 ### Summary
 
 **Ocena: 4.5/5 ⭐** — implementacja nie tylko poprawnie odtwarza wzorzec referencyjny (kompletna migracja `allSteps()`, poprawny kontrakt z backendem, spójne i18n bez wycieku między namespace'ami klient/kontakt), ale w jednym miejscu (pusta tablica JSON) realnie go **poprawia** względem znanego wcześniej buga w `customer-import.component.ts`. Jedyne uwagi to drobna nadmiarowość (podwójne parsowanie podglądu, odziedziczone z części CSV) i brak paru testów regresyjnych dla przypadków brzegowych, które komponent już poprawnie obsługuje.
+
+---
+
+## Review: Refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT (frontend, working tree na `rule-refactor`) — 2026-07-12
+
+Kontekst: odpowiednik backendowego refaktoru ról — `SUPER_ADMIN` (nowa persona, `/admin`), `ADMIN` (tenant-scoped, przejmuje pełne menu dawnego SUPERVISOR pod `/supervisor`), `SUPERVISOR` (zawężony — traci 5 technicznych pozycji menu, zachowuje resztę). Pełny plan: `linked-questing-sedgewick.md`. Przegląd objął wszystkie niezacommitowane pliki frontendu: `jwt-payload.model.ts`, `auth.service.ts`/`auth.service.spec.ts`, `app.routes.ts`, `supervisor.routes.ts`, `sidenav.component.ts`, `login.component.ts`/`.html`, `public-tenant.service.ts`, `top-navbar.component.ts`/`.scss`, oraz i18n (`de/en/pl/uk.json`).
+
+### 🐛 Bugs / Critical Issues
+
+_Brak zidentyfikowanych._ Przeszedłem cały nowy przepływ logowania SUPER_ADMIN (`onSubmitEmail` → `isSuperAdminLogin` → pominięcie dropdownu tenanta → `onSubmitCredentials` wysyła `tenantId: ''`) oraz `roleGuard`/`app.routes.ts`/`supervisor.routes.ts` linia po linii — nie znalazłem przypadku, w którym `UserRole` mogłoby być `undefined`/`null` bez obsługi (`roleGuard` poprawnie przekierowuje do `/forbidden` gdy `!userRole`), ani przypadku wyścigu między `isSuperAdminLogin` a resetem stanu (`backToEmail()` poprawnie zeruje flagę).
+
+### ⚠️ Security Concerns
+
+_Brak nowych zagrożeń._ Zweryfikowałem:
+- `roleGuard` (`role.guard.ts`) jest zastosowany na WSZYSTKICH 5 technicznych trasach (`email`, `integrations`, `twilio`, `ai-config`, `plugins`) z `roles: ['ADMIN']` — dokładnie zgodnie z planem, żaden nie został pominięty.
+- `/admin` → `roles: ['SUPER_ADMIN']`, `/supervisor` → `roles: ['ADMIN', 'SUPERVISOR']` w `app.routes.ts` — to tylko UX-owa warstwa ochrony (prawdziwa autoryzacja jest po stronie API, poprawnie zweryfikowana w CR-BACKEND.md), ale jest spójna z backendem, więc SUPERVISOR realnie nie zobaczy w UI żadnej z 5 technicznych pozycji ani nie zdoła wejść na ich URL bezpośrednio (przekierowanie do `/forbidden` zamiast wycieku UI z niedziałającymi przyciskami).
+- `jwt-payload.model.ts`: `tenant_id?: string` (opcjonalne) poprawnie odzwierciedla nowy kontrakt tokenu bez tego pola dla SUPER_ADMIN — sprawdziłem wszystkich konsumentów `currentTenantId`/`currentTenantName` (`websocket.service.ts`, `logging.service.ts`, plus komponenty w obszarze agent/supervisor) i każdy z nich obsługuje `null` bezpiecznie (`?? null`/`?? undefined`, `if (tenantId)`) — brak ryzyka wycieku wyjątku w runtime dla SUPER_ADMIN, mimo że SUPER_ADMIN i tak nigdy nie trafia do tych komponentów (żyją wyłącznie pod `/agent`/`/supervisor`).
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak naruszeń._ Wszystkie zmienione/nowe komponenty pozostają standalone (bez NgModule), stan logowania oparty w całości o `signal()`/`computed()` (`isSuperAdminLogin`, `showTenantSelect`), brak nieobsłużonych subskrypcji (wszystkie `.subscribe()` w `login.component.ts` mają jawne `next`/`error`, żaden strumień nie jest długożyjący więc `takeUntil` nie jest tu wymagane — spójne z resztą pliku sprzed zmian). `roleGuard` (funkcyjny, `CanActivateFn`) reużyty bez modyfikacji — dobra, minimalna zmiana zamiast pisania nowego guarda dla nowej roli.
+
+### 🔧 Improvements & Suggestions
+
+- **`frontend/src/app/features/admin/admin.routes.ts:7`** — breadcrumb dla shellu `/admin` nadal używa klucza i18n `role.admin` (tłumaczy się jako „Admin”), mimo że ta cała sekcja jest teraz wyłącznie dla `SUPER_ADMIN` (persona „Administrator Główny” / `role.superAdmin`, już dodana w tym samym diffie i użyta poprawnie w `top-navbar.component.ts` do wyświetlenia badge'a roli). Efekt: użytkownik zalogowany jako SUPER_ADMIN zobaczy w top-navbar badge „Administrator Główny”, ale breadcrumb strony powie „Admin” — drobna, ale realna niespójność nazewnictwa w UI, myląca zwłaszcza że w nowym modelu ról nazwa „Admin” oznacza teraz zupełnie inną (tenant-scoped) personę widoczną pod `/supervisor`. Sugestia: zmienić na `data: { breadcrumb: 'role.superAdmin' }`.
+
+### ✅ Positive Observations
+
+- **Przepływ logowania SUPER_ADMIN zaimplementowany dokładnie zgodnie z kontraktem z planu** (`{ tenants, superAdminAccount }`), z poprawnym fallbackiem przy błędzie sieci (`catchError` → `{ tenants: [], superAdminAccount: false }`, zachowuje istniejący wzorzec „nie ujawniaj czy e-mail istnieje”) i poprawnym resetem stanu (`isSuperAdminLogin.set(false)`) przy powrocie do kroku e-mail.
+- **`filterNavItemsByRole` w `sidenav.component.ts` to czysta, minimalna, dobrze przemyślana abstrakcja** — rekurencyjnie filtruje też `children`, domyślnie pokazuje pozycję gdy `roles` nie jest podane (bezpieczny default, nie trzeba było oznaczać dziesiątek istniejących pozycji menu, tylko 5 nowych technicznych). Rozszerzenie interfejsu `NavItem` o opcjonalne `roles?: UserRole[]` jest w pełni wstecznie kompatybilne.
+- **Konsekwentne przemianowanie `isAdmin`→`isSuperAdmin`/`showAlertBadge`** w `sidenav.component.ts` bez pozostawienia martwych odwołań w szablonie (zweryfikowane grep-em po `sidenav.component.html`) — potwierdzone też przez przechodzący `npm run build` wg opisu w briefie.
+- **i18n w pełni skonsystentne w 4 językach** (`de/en/pl/uk`) — klucz `role.superAdmin` obecny i poprawnie przetłumaczony wszędzie (`"Administrator Główny"`, `"Super Admin"`, `"Hauptadministrator"`, `"Головний адміністратор"`), żaden język nie został pominięty.
+- **`onSubmitCredentials()` poprawnie wysyła `tenantId: ''` dla SUPER_ADMIN** przez istniejący mechanizm `resolvedTenantId` zamiast dodawania nowej, równoległej ścieżki — minimalna, czytelna zmiana zamiast rozrostu złożoności formularza logowania.
+- Testy `auth.service.spec.ts` i `login.component` (przechodzące wg briefu, 155/155) poprawnie zaktualizowane pod nową macierz `getRoleDefaultRoute` (`SUPER_ADMIN→/admin`, `ADMIN→/supervisor`, `SUPERVISOR→/supervisor`).
+
+### Summary
+
+**Ocena: 4.5/5 ⭐** — czysty, minimalny, w pełni spójny z backendem i planem refaktor. Jedyna uwaga to drobna kosmetyczna niespójność etykiety (breadcrumb `/admin` wciąż mówi „Admin” zamiast „Administrator Główny”) — nieblokująca, ale warta poprawki przy najbliższej okazji.

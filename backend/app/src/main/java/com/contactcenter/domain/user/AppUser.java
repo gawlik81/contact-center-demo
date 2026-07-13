@@ -44,7 +44,13 @@ public class AppUser {
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "tenant_id", nullable = false)
+    /**
+     * FK do tenant. NULL wyłącznie dla roli {@link UserRole#SUPER_ADMIN} (globalny
+     * administrator platformy, bez przypisania do tenanta) – wymuszone przez
+     * constraint {@code chk_super_admin_tenant_invariant} (V080). Dla ADMIN/SUPERVISOR/AGENT
+     * zawsze NOT NULL (tenant-scoped).
+     */
+    @Column(name = "tenant_id")
     private UUID tenantId;
 
     @Column(name = "email", nullable = false)
@@ -161,8 +167,17 @@ public class AppUser {
     // Enumy zgodne ze schematem DB-001
     // =========================================================================
 
+    /**
+     * Role użytkownika, zgodne z {@code chk_app_user_role} (V019, rozszerzone w V080).
+     *
+     * <p>{@link #SUPER_ADMIN} – globalny administrator platformy (cross-tenant),
+     * {@code tenantId == null}, tworzony wyłącznie przez bootstrap przy starcie
+     * systemu (patrz {@code SuperAdminBootstrapRunner}), nie przez UI/API.
+     * {@link #ADMIN} i {@link #SUPERVISOR} i {@link #AGENT} są zawsze tenant-scoped
+     * ({@code tenantId != null}).
+     */
     public enum UserRole {
-        ADMIN, SUPERVISOR, AGENT
+        SUPER_ADMIN, ADMIN, SUPERVISOR, AGENT
     }
 
     public enum UserStatus {

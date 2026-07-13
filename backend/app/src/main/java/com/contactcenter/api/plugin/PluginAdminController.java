@@ -52,17 +52,18 @@ import java.util.UUID;
  * (JVM classloading, BE-101) — jest jedynym miejscem w aplikacji, gdzie obie warstwy są
  * świadomie spinane w jednej operacji.
  *
- * <p>Dostęp: SUPERVISOR/ADMIN tenanta — to są operacje administracyjne ograniczone do
- * własnego tenanta (RLS na {@code tenant_plugin_installation} + jawny {@code tenantId}
- * z {@link TenantContext} na każdym wywołaniu serwisów), w odróżnieniu od
+ * <p>Dostęp: wyłącznie ADMIN tenanta (pluginy to jeden z 5 technicznych obszarów odebranych
+ * SUPERVISOR w refaktorze ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT) — to są operacje
+ * administracyjne ograniczone do własnego tenanta (RLS na {@code tenant_plugin_installation} +
+ * jawny {@code tenantId} z {@link TenantContext} na każdym wywołaniu serwisów), w odróżnieniu od
  * {@link PluginRevokeController}, który jest operacją systemową dotykającą wszystkich
- * tenantów na raz.
+ * tenantów na raz (rola SUPER_ADMIN).
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/supervisor/plugins")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+@PreAuthorize("hasRole('ADMIN')")
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "Plugins", description = "Instalacja, enable/disable, rollback i uninstall pluginów per tenant (EPIC-28)")
 public class PluginAdminController {
@@ -82,7 +83,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Lista instalacji"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)")
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)")
             }
     )
     public ResponseEntity<List<TenantPluginInstallationDto>> listInstallations() {
@@ -116,7 +117,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Lista wersji tenanta, najnowsze pierwsze"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)")
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)")
             }
     )
     public ResponseEntity<List<PluginVersionDto>> listCatalog() {
@@ -135,7 +136,7 @@ public class PluginAdminController {
     // =========================================================================
 
     @DeleteMapping("/catalog/{pluginVersionId}")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "Usuwa wersję pluginu z katalogu tenanta",
             description = """
@@ -182,7 +183,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "201", description = "Instalacja utworzona"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Wersja pluginu nie istnieje"),
                     @ApiResponse(responseCode = "409", description = "Tenant ma już zainstalowaną tę wersję")
             }
@@ -221,7 +222,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Instalacja włączona"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje"),
                     @ApiResponse(responseCode = "500", description = "Aktywacja runtime nie powiodła się (onActivate/timeout/REVOKED)")
             }
@@ -267,7 +268,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Instalacja wyłączona"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
             }
     )
@@ -305,7 +306,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Rollback wykonany"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Któraś instalacja nie istnieje dla tenanta")
             }
     )
@@ -347,7 +348,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "204", description = "Instalacja odinstalowana"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
             }
     )
@@ -394,7 +395,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Lista wpisów konfiguracji (pusta gdy brak configu)"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
             }
     )
@@ -426,7 +427,7 @@ public class PluginAdminController {
             responses = {
                     @ApiResponse(responseCode = "200", description = "Konfiguracja zastąpiona"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
             }
     )

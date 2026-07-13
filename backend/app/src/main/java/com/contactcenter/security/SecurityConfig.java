@@ -153,18 +153,26 @@ public class SecurityConfig {
                 .requestMatchers("/api/logs").permitAll()
                 // Actuator (poza health) – wymaga autentykacji
                 .requestMatchers("/actuator/**").authenticated()
-                // Endpointy ADMIN – tylko rola ADMIN
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Odczyt konfiguracji Twilio per-tenant – ADMIN lub SUPERVISOR (FE-025)
+                // Endpointy ADMIN platformy – tylko rola SUPER_ADMIN (refaktor ról:
+                // SUPER_ADMIN przejmuje dzisiejszy zakres cross-tenant dawnego ADMIN)
+                .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+                // Odczyt/zapis konfiguracji Twilio per-tenant – SUPER_ADMIN (cross-tenant),
+                // ADMIN lub SUPERVISOR własnego tenanta (FE-025)
                 // Musi być przed ogólną regułą /api/tenants/** (Spring Security dopasowuje po kolei)
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tenants/*/config").hasAnyRole("ADMIN", "SUPERVISOR")
-                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/tenants/*/config").hasAnyRole("ADMIN", "SUPERVISOR")
-                // Tenant management – tylko ADMIN (BE-006)
-                .requestMatchers("/api/tenants/**").hasRole("ADMIN")
-                // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057)
-                .requestMatchers("/api/supervisor/twilio-config/**").hasRole("SUPERVISOR")
-                // AI Config – zarządzanie konfiguracją AI per-tenant (BE-088)
-                .requestMatchers("/api/supervisor/ai-config/**").hasRole("SUPERVISOR")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tenants/*/config").hasAnyRole("SUPER_ADMIN", "ADMIN", "SUPERVISOR")
+                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/tenants/*/config").hasAnyRole("SUPER_ADMIN", "ADMIN", "SUPERVISOR")
+                // Tenant management – tylko SUPER_ADMIN (BE-006, refaktor ról)
+                .requestMatchers("/api/tenants/**").hasRole("SUPER_ADMIN")
+                // Lista numerów Twilio – wyjątek od reguły "Twilio config = techniczne ADMIN-only":
+                // numery telefonów i reguły routingu są biznesową konfiguracją dostępną dla
+                // SUPERVISOR (strona "Numery telefonów"), a ten odczyt nie ujawnia żadnych
+                // sekretów Twilio (tylko sid/numer/nazwa). Musi być przed ogólną regułą poniżej.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/supervisor/twilio-config/phone-numbers").hasAnyRole("ADMIN", "SUPERVISOR")
+                // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057).
+                // Refaktor ról: techniczne 5 obszarów przechodzą z SUPERVISOR na (nowy) ADMIN.
+                .requestMatchers("/api/supervisor/twilio-config/**").hasRole("ADMIN")
+                // AI Config – zarządzanie konfiguracją AI per-tenant (BE-088). Refaktor ról: j.w.
+                .requestMatchers("/api/supervisor/ai-config/**").hasRole("ADMIN")
                 // AI Summary – generowanie podsumowania AI dla kontaktu (BE-090)
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR", "ADMIN")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji

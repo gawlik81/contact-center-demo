@@ -14,7 +14,7 @@ sequenceDiagram
     API-->>FE: 200 {accessToken (JWT), refreshToken}
     Note over API: JWT zawiera: userId, tenantId, role(s), exp
 
-    FE->>API: kolejne żądania z Authorization: Bearer <JWT>
+    FE->>API: kolejne żądania z Authorization: Bearer {JWT}
     API->>API: JwtAuthFilter -> waliduje token
     API->>API: TenantFilter -> TenantContext.set(tenantId)
     API->>DB: zapytania repozytoriów (filtrowane po tenant_id / RLS)

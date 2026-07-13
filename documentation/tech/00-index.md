@@ -21,6 +21,9 @@ dokumentów projektowych (`PRD.md`, `ARCHITECTURE.md`), które opisują plan z p
 11. [Plugin Developer Guide](../plugin/plugin-development-guide.md) – dokumentacja techniczna
     dla zewnętrznych dostawców: pełna referencja SDK, extension pointy, manifest, uprawnienia,
     integracja UI, budowa JAR, REST API, przykłady ([HTML](../plugin/plugin-development-guide.html))
+12. [Integracja Twilio](../twalio/twilio-integration.md) – szczegółowy opis adaptera telefonii,
+    inbound/outbound, webhooki, transfer połączeń, nagrywanie, konfiguracja per-tenant (BYOT),
+    bezpieczeństwo ([HTML](../twalio/twilio-integration.html))
 
 ## Sugerowana kolejność czytania dla nowej osoby
 

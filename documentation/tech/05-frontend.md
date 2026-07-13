@@ -615,11 +615,11 @@ sequenceDiagram
     participant FE as WebSocketService
     participant BE as Backend (STOMP broker)
 
-    FE->>BE: CONNECT (Authorization: Bearer <accessToken>)
+    FE->>BE: CONNECT (Authorization: Bearer {accessToken})
     BE-->>FE: CONNECTED
     FE->>BE: SUBSCRIBE /topic/user/{userId}/events
     FE->>BE: SUBSCRIBE /topic/tenant/{tenantId}/agents
-    FE->>BE: SUBSCRIBE <extra topics zarejestrowane przez registerTopic()>
+    FE->>BE: SUBSCRIBE dodatkowe topiki zarejestrowane przez registerTopic()
     BE-->>FE: MESSAGE (WsEvent JSON)
     FE->>FE: events$.next(event)
 ```

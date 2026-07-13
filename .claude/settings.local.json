@@ -470,7 +470,11 @@
       "Bash(rm -rf jar100 jar110)",
       "Bash(mkdir -p jar100 jar110)",
       "Bash(sed -i 's#]\\(\\\\.\\\\./#]\\(../../#g' 01-overview.md 02-architecture.md 08-infrastructure.md 10-plugin-development.md 07-data-flows.md)",
-      "Bash(sed -i 's#]\\(plugin/#]\\(../plugin/#g' 00-index.md 10-plugin-development.md)"
+      "Bash(sed -i 's#]\\(plugin/#]\\(../plugin/#g' 00-index.md 10-plugin-development.md)",
+      "Bash(xargs -I{} sh -c 'echo \"== {} ==\" ; grep -n -i \"telephony\\\\|twilio\" {}')",
+      "Bash(awk '/```mermaid/{f=1} f{print NR\": \"$0} /```/{if\\(f && NR>1 && $0==\"```\" && f==1\\){}} ' /home/pawelm/contact-center/documentation/twalio/twilio-integration.md)",
+      "Bash(awk '/^```mermaid$/{f=1;next} /^```$/{f=0} f' /home/pawelm/contact-center/documentation/twalio/twilio-integration.md)",
+      "Bash(awk '/^```mermaid$/{f=1;next} /^```$/{f=0} f' /home/pawelm/contact-center/documentation/tech/06-database.md)"
     ]
   }
 }

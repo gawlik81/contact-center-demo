@@ -63,10 +63,10 @@ for (const file of files) {
   // przepisz linki .md -> .html (linki relatywne w dokumentacji)
   const mdRewritten = md
     .replace(/\((\d{2}-[a-z-]+)\.md(#[^)]*)?\)/g, (m, p1, p2) => `(${p1}.html${p2 || ''})`)
-    // ../plugin/*.md -> ../../plugin/*.html (wyjście jest teraz w tech/html/, guide jest w documentation/plugin/)
-    .replace(/\(\.\.\/plugin\/([a-z0-9-]+)\.md(#[^)]*)?\)/g, (m, p1, p2) => `(../../plugin/${p1}.html${p2 || ''})`)
-    // ../plugin/*.html -> ../../plugin/*.html (ten sam powód — przesuń w górę z tech/html/)
-    .replace(/\(\.\.\/plugin\/([a-z0-9-]+)\.html(#[^)]*)?\)/g, (m, p1, p2) => `(../../plugin/${p1}.html${p2 || ''})`);
+    // ../<dir>/*.md -> ../../<dir>/*.html (wyjście jest teraz w tech/html/; np. ../plugin/, ../twalio/ są siostrzane katalogi documentation/)
+    .replace(/\(\.\.\/([a-z0-9-]+)\/([a-z0-9-]+)\.md(#[^)]*)?\)/g, (m, dir, p1, p2) => `(../../${dir}/${p1}.html${p2 || ''})`)
+    // ../<dir>/*.html -> ../../<dir>/*.html (ten sam powód — przesuń w górę z tech/html/)
+    .replace(/\(\.\.\/([a-z0-9-]+)\/([a-z0-9-]+)\.html(#[^)]*)?\)/g, (m, dir, p1, p2) => `(../../${dir}/${p1}.html${p2 || ''})`);
   let body = marked.parse(mdRewritten);
   // umożliwia renderowanie diagramów mermaid w przeglądarce (mermaid.js z CDN)
   body = body.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (m, code) => {

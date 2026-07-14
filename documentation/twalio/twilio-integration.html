@@ -31,14 +31,14 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="../tech/html/00-index.html">&larr; Dokumentacja techniczna</a></div>
-<h1>Integracja Twilio — dokumentacja techniczna</h1>
+<h1 id="integracja-twilio--dokumentacja-techniczna">Integracja Twilio — dokumentacja techniczna</h1>
 <blockquote>
 <p>Ten dokument opisuje <strong>stan faktyczny implementacji</strong> integracji Twilio w Contact Center SaaS (backend <code>com.contactcenter.domain.telephony</code> / <code>com.contactcenter.api.telephony</code>, frontend <code>frontend/src/app/features/agent/**/softphone*</code>, <code>frontend/src/app/features/supervisor/**/twilio*</code>) — nie jest to dokument projektowy. Uzupełnia <a href="../tech/html/04-backend.html"><code>documentation/tech/04-backend.md</code></a> i <a href="../tech/html/07-data-flows.html"><code>documentation/tech/07-data-flows.md</code></a>, które opisują telefonię w skrócie jako część całego systemu.</p>
 </blockquote>
 <p><strong>Zakres:</strong> adapter telefonii (Mock ↔ Twilio), obsługa połączeń przychodzących/wychodzących, webhooki i mapowanie statusów, transfer połączeń (blind/attended), nagrywanie, konfiguracja per-tenant (BYOT), integracja frontendowa (Twilio Voice JS SDK), bezpieczeństwo.</p>
 <p><strong>Wersje:</strong> Twilio Java SDK <code>10.9.1</code> (<code>backend/app/pom.xml</code>), <code>@twilio/voice-sdk</code> <code>^2.18.1</code> (<code>frontend/package.json</code>), Spring Boot <code>3.3.5</code> / Java <code>21</code>, Angular <code>^21.2.0</code>.</p>
 <hr>
-<h2>Spis treści</h2>
+<h2 id="spis-treści">Spis treści</h2>
 <ol>
 <li><a href="#1-architektura-adaptera-telefonii">Architektura adaptera telefonii</a></li>
 <li><a href="#2-po%C5%82%C4%85czenie-przychodz%C4%85ce-inbound">Połączenie przychodzące (inbound)</a></li>
@@ -55,7 +55,7 @@
 <li><a href="#13-powi%C4%85zane-dokumenty">Powiązane dokumenty</a></li>
 </ol>
 <hr>
-<h2>1. Architektura adaptera telefonii</h2>
+<h2 id="1-architektura-adaptera-telefonii">1. Architektura adaptera telefonii</h2>
 <p>Wzorzec Adapter — jeden interfejs <code>TelephonyAdapter</code> (<code>backend/app/src/main/java/com/contactcenter/domain/telephony/TelephonyAdapter.java</code>), dwie implementacje przełączane przez Spring conditional beans:</p>
 <table>
 <thead>
@@ -77,7 +77,7 @@
 </tr>
 </tbody></table>
 <p><strong>Uwaga dot. domyślnego zachowania:</strong> Javadoc <code>MockTelephonyAdapter</code> opisuje tryb <code>mock</code> jako domyślny (<code>matchIfMissing=true</code>), ale <code>application.yml</code> ustawia <code>telephony.provider: ${TELEPHONY_PROVIDER:twilio}</code> oraz <code>twilio.enabled: ${TWILIO_ENABLED:true}</code> — czyli w praktyce <strong>Twilio jest domyślnym adapterem</strong> w każdym środowisku, które nie nadpisze jawnie tych zmiennych. Faktycznym przełącznikiem decydującym, który bean zostanie użyty, jest <code>twilio.enabled</code>, nie <code>telephony.provider</code>.</p>
-<h3>Kluczowe metody interfejsu</h3>
+<h3 id="kluczowe-metody-interfejsu">Kluczowe metody interfejsu</h3>
 <ul>
 <li><code>CallSession initiateCall(tenantId, from, to, agentId, campaignId, callbackId)</code> — inicjacja połączenia wychodzącego</li>
 <li><code>answerCall(callId, agentId)</code> / <code>hangupCall(callId)</code> (idempotentne) / <code>holdCall(callId, hold)</code> / <code>muteCall(callId, mute)</code></li>
@@ -87,13 +87,13 @@
 <li><code>getCallSession(callId)</code> / <code>getSession(callId)</code> (wariant bez wyjątku)</li>
 <li>Wyjątek: <code>TelephonyAdapter.TelephonyException</code> (statyczna klasa wewnętrzna), niesie opcjonalny <code>callId</code></li>
 </ul>
-<h3>Stan sesji połączenia</h3>
+<h3 id="stan-sesji-połączenia">Stan sesji połączenia</h3>
 <ul>
 <li><strong>Mock:</strong> <code>ConcurrentHashMap&lt;String, CallSession&gt;</code> w pamięci + mapa odwrotna <code>contactId → callId</code>.</li>
 <li><strong>Twilio:</strong> Redis, klucz <code>call-session:{callSid}</code>, TTL 24h. Dodatkowy indeks odwrotny <code>contact-session-index:{contactId} → callSid</code> pozwala odnaleźć sesję, gdy frontend przekazuje <code>contactId</code> zamiast Twilio Call SID. <code>requireSession()</code> ma trzy poziomy fallbacku: indeks Redis → lookup w DB po <code>sip_call_id</code> → odtworzenie sesji z DB, gdy identyfikator zaczyna się od <code>&quot;CA&quot;</code> (prefiks Twilio Call SID).</li>
 </ul>
 <hr>
-<h2>2. Połączenie przychodzące (inbound)</h2>
+<h2 id="2-połączenie-przychodzące-inbound">2. Połączenie przychodzące (inbound)</h2>
 <pre class="mermaid">sequenceDiagram
     participant Caller as Klient (PSTN)
     participant Twilio
@@ -140,7 +140,7 @@
 <li>Agent klika „Odbierz” → <code>POST /api/telephony/calls/{callId}/answer</code> → <code>dialAgentIntoConference()</code> — tworzy połączenie do <code>client:agent-{agentId}</code> przez Twilio Client SDK i dołącza agenta do konferencji <code>contact-{contactId}</code> jako moderatora (<code>startConferenceOnEnter=true</code>).</li>
 </ol>
 <hr>
-<h2>3. Połączenie wychodzące (outbound)</h2>
+<h2 id="3-połączenie-wychodzące-outbound">3. Połączenie wychodzące (outbound)</h2>
 <pre class="mermaid">sequenceDiagram
     participant Agent as Agent Desktop
     participant API as AgentCallController
@@ -171,7 +171,7 @@
 <li><code>campaignId</code>/<code>callbackId</code> są przyjmowane przez <code>initiateCall()</code> i zapisywane na <code>Contact</code> — adapter sam w sobie nie zawiera pętli dialera; wywołujący (np. logika kampanii/callbacków) woła <code>initiateCall()</code> per kontakt.</li>
 </ul>
 <hr>
-<h2>4. Webhooki i mapowanie statusów</h2>
+<h2 id="4-webhooki-i-mapowanie-statusów">4. Webhooki i mapowanie statusów</h2>
 <p>Kontroler <code>TwilioWebhookController</code> jest aktywny tylko gdy istnieje bean <code>TwilioTelephonyAdapter</code> (<code>@ConditionalOnBean</code>).</p>
 <table>
 <thead>
@@ -218,15 +218,15 @@
 <p><strong>Conference callback:</strong> wykrywa porzucenie kolejki (klient rozłączył się przed odebraniem) — jeśli kontakt ma status <code>QUEUED</code>/<code>ASSIGNED</code>, a konferencja <code>contact-{contactId}</code> się zakończyła → <code>ABANDONED</code>, przez <code>updateContactStatusIfNotTerminal()</code> (chroni przed nadpisaniem statusów terminalnych, w tym <code>TRANSFERRED</code>).</p>
 <p><strong>Recording callback:</strong> weryfikuje sygnaturę, sprawdza <code>RecordingStatus=completed</code>, deleguje do <code>@Async</code> <code>TwilioRecordingDownloadService.downloadAndStore()</code> i zwraca 204 natychmiast — timeout wewnętrznego wywołania Twilio SDK (do 30s) nie blokuje puli wątków Tomcata.</p>
 <hr>
-<h2>5. Transfer połączeń</h2>
+<h2 id="5-transfer-połączeń">5. Transfer połączeń</h2>
 <p>Transfer opiera się w całości na przekierowywaniu istniejących połączeń (<code>Call.updater(...).setTwiml(...)</code>) i konferencjach Twilio — nigdy na natywnej funkcji Twilio &quot;Call Transfer&quot;.</p>
-<h3>5.1 Blind transfer na numer (PHONE)</h3>
+<h3 id="51-blind-transfer-na-numer-phone">5.1 Blind transfer na numer (PHONE)</h3>
 <p><code>Call.updater(twilioCallSid).setTwiml(&quot;&lt;Dial&gt;&lt;Number&gt;{target}&lt;/Number&gt;&lt;/Dial&gt;&quot;)</code> — redirect istniejącej nogi klienta na nowy TwiML. Cel zaczynający się od <code>client:</code> generuje <code>&lt;Client&gt;</code> zamiast <code>&lt;Number&gt;</code>. Kontakt oznaczany <code>TRANSFERRED</code>.</p>
-<h3>5.2 Blind transfer do agenta (przez konferencję)</h3>
+<h3 id="52-blind-transfer-do-agenta-przez-konferencję">5.2 Blind transfer do agenta (przez konferencję)</h3>
 <p><code>transferToAgentViaConference()</code>: generuje nowy <code>newContactId</code>/nazwę konferencji, przekierowuje klienta do nowej konferencji (<code>waitUrl</code> = hold music), tworzy nowy <code>Contact</code> z <code>transferredFromContactId</code>, publikuje <code>DirectAgentAssignmentMessage</code> na RabbitMQ — <code>RoutingService</code> przypisuje docelowego agenta i woła <code>dialAgentIntoConference()</code>.</p>
-<h3>5.3 Blind transfer do kolejki</h3>
+<h3 id="53-blind-transfer-do-kolejki">5.3 Blind transfer do kolejki</h3>
 <p><code>transferToQueue()</code>: analogicznie — nowy <code>contactId</code>, redirect do nowej konferencji, publikacja <code>ContactQueuedMessage</code>, żeby <code>RoutingService</code> natychmiast przydzielił dostępnego agenta. <strong>Attended transfer do kolejki jest odrzucany</strong> przez walidację <code>TransferRequest.validate()</code> (spójnie egzekwowane też w <code>MockTelephonyAdapter</code>).</p>
-<h3>5.4 Attended transfer (PHONE lub AGENT)</h3>
+<h3 id="54-attended-transfer-phone-lub-agent">5.4 Attended transfer (PHONE lub AGENT)</h3>
 <pre class="mermaid">sequenceDiagram
     participant Agent1 as Agent 1
     participant TA as TwilioTelephonyAdapter
@@ -255,7 +255,7 @@
 <li>Gdy Agent 2 odbierze → webhook <code>in-progress</code> → event <code>CALL_CONSULT_ANSWERED</code> do Agenta 1 (aktywuje przycisk „Przekaż”).</li>
 <li>Anulowanie konsultacji (Agent 2 zajęty/nie odbiera) → event <code>CALL_CONSULT_CANCELLED</code> — Agent 2 wraca do <code>AVAILABLE</code> bez ekranu podsumowania (ACW).</li>
 </ol>
-<h3>5.5 Finalizacja attended transfer — <code>bridgeCalls()</code></h3>
+<h3 id="55-finalizacja-attended-transfer--bridgecalls">5.5 Finalizacja attended transfer — <code>bridgeCalls()</code></h3>
 <p><code>bridgeCalls()</code> <strong>nie łączy dwóch istniejących konferencji</strong> — przekierowuje <strong>obie nogi</strong> (klienta i Agenta 2) do <strong>nowej, trzeciej</strong> konferencji <code>contact-{newContactId}</code>:</p>
 <ol>
 <li>Redirect Agenta 2 najpierw — musi dołączyć, zanim klient opuści starą konferencję (noga konsultacyjna ma <code>endConferenceOnExit=false</code>, więc Agent 2 opuszczając starą konferencję jej nie kończy).</li>
@@ -265,7 +265,7 @@
 <li>Stara konferencja generuje osobne nagranie (kończy się, gdy klient ją opuszcza), nowa konferencja — osobne nagranie dla nowego kontaktu.</li>
 </ol>
 <p><strong>Łańcuch transferów</strong> (transfer po transferze) jest obsłużony przez propagację <code>customerCallSid</code> w sesji — każdy kolejny transfer/<code>bridgeCalls</code> odczytuje <code>session.getCustomerCallSid()</code> (fallback na <code>callId</code>), żeby zawsze operować na rzeczywistej nodze klienta.</p>
-<h3>5.6 Frontend transferu</h3>
+<h3 id="56-frontend-transferu">5.6 Frontend transferu</h3>
 <p><code>SoftphoneComponent</code> — panel z zakładkami PHONE/AGENT/QUEUE i przełącznikiem trybu BLIND/ATTENDED (ukryty dla QUEUE, spójnie z walidacją backendową). <code>SoftphoneService</code>:</p>
 <ul>
 <li><code>initiateBlindTransfer</code> / <code>initiateAttendedTransfer</code> → <code>POST /telephony/calls/{contactId}/transfer</code> z <code>targetType=PHONE</code>.</li>
@@ -275,7 +275,7 @@
 <li>Sygnał <code>attendedConnected</code> ustawiany <strong>wyłącznie</strong> przez event WS <code>CALL_CONSULT_ANSWERED</code>, nigdy przez sam fakt zainicjowania żądania HTTP — zapobiega przedwczesnemu aktywowaniu przycisku „Przekaż”, zanim druga noga faktycznie odbierze.</li>
 </ul>
 <hr>
-<h2>6. Nagrywanie rozmów</h2>
+<h2 id="6-nagrywanie-rozmów">6. Nagrywanie rozmów</h2>
 <ul>
 <li><strong>Włączanie:</strong> <code>twilio.recording-enabled</code> (<code>TWILIO_RECORDING_ENABLED</code>, domyślnie <code>true</code>). Sprawdzane przy każdym budowaniu TwiML <code>&lt;Conference&gt;</code> (inicjacja, transfer do agenta/kolejki, <code>bridgeCalls</code>) — dodaje <code>record=&quot;record-from-start&quot;</code>, <code>recordingStatusCallback</code>, <code>recordingStatusCallbackMethod=&quot;POST&quot;</code>.</li>
 <li><strong>Poziom:</strong> nagrywana jest cała <strong>konferencja</strong>, nie pojedyncza noga — jedno nagranie na kontakt/konferencję. Brak skonfigurowanego <code>twilio.status-callback-url</code> przy włączonym nagrywaniu loguje ostrzeżenie i nagranie efektywnie się nie zapisze do DB.</li>
@@ -287,8 +287,8 @@
 <li><strong>Fallback recovery:</strong> po <code>hangupCall()</code> planowane jest sprawdzenie przez Twilio Recording API po 90 sekundach (<code>CompletableFuture.delayedExecutor</code>), na wypadek gdyby <code>recordingStatusCallback</code> nie dotarł (restart aplikacji, 502, timeout Twilio).</li>
 </ul>
 <hr>
-<h2>7. Konfiguracja per-tenant (BYOT)</h2>
-<h3>Model danych</h3>
+<h2 id="7-konfiguracja-per-tenant-byot">7. Konfiguracja per-tenant (BYOT)</h2>
+<h3 id="model-danych">Model danych</h3>
 <p>Encja <code>TenantTwilioConfig</code>, tabela <code>tenant_twilio_config</code> (<code>V051__create_tenant_twilio_config.sql</code>), <strong>jeden wiersz per tenant</strong> (<code>UNIQUE(tenant_id)</code>), z Row-Level Security izolującym po <code>current_setting(&#39;app.current_tenant_id&#39;)</code>.</p>
 <table>
 <thead>
@@ -308,9 +308,9 @@
 </tbody></table>
 <p><strong>Szyfrowanie:</strong> losowy IV (12 bajtów) per operacja, <code>GCMParameterSpec</code> (tag 128 bitów), wynik <code>Base64(IV || ciphertext)</code>. Klucz z <code>APP_ENCRYPTION_SECRET</code> — musi mieć min. 32 bajty po dekodowaniu Base64, inaczej aplikacja rzuca wyjątek przy starcie.</p>
 <p><code>TenantTwilioConfigDecrypted</code> — wewnętrzny rekord z odszyfrowanymi wartościami, jawnie oznaczony jako niemający nigdy trafić do odpowiedzi REST.</p>
-<h3>Fallback do globalnych credentials</h3>
+<h3 id="fallback-do-globalnych-credentials">Fallback do globalnych credentials</h3>
 <p><code>buildClientForTenant()</code>: priorytet API Key (<code>apiKeySid</code>+<code>apiKeySecret</code>+<code>accountSid</code>) → Auth Token (<code>accountSid</code>+<code>authToken</code>) → globalny klient z <code>TwilioProperties</code>. Cache per-tenant (<code>Caffeine</code>, max 100 wpisów, TTL 15 min), inwalidowany eventem opisanym niżej.</p>
-<h3>REST API</h3>
+<h3 id="rest-api">REST API</h3>
 <p><code>TenantTwilioConfigController</code>, bazowy path <code>/api/supervisor/twilio-config</code>, <code>@PreAuthorize(&quot;hasRole(&#39;ADMIN&#39;)&quot;)</code> na poziomie klasy (wyjątek: lista numerów dostępna też dla <code>SUPERVISOR</code>).</p>
 <table>
 <thead>
@@ -349,11 +349,11 @@
 <p><strong>Walidacja:</strong> <code>accountSid</code> — <code>^AC[0-9a-fA-F]{32}$</code>; <code>phoneNumber</code> — E.164 <code>^\+[1-9]\d{7,14}$</code> (te same wzorce po stronie serwisu i DTO).</p>
 <p><strong>Maskowanie:</strong> <code>authToken</code>/<code>apiKeySecret</code> zwracane jako <code>&quot;●●●●●●●●&quot; + ostatnie 4 znaki</code> (lub same <code>●</code> dla wartości ≤4 znaków). <code>apiKeySid</code> <strong>nie jest maskowany</strong> — świadoma decyzja (nie jest traktowany jako sekret krytyczny, analogicznie do <code>accountSid</code>).</p>
 <p><strong>Semantyka „zachowaj obecną wartość”:</strong> <code>authToken</code>/<code>apiKeySecret</code> nadpisywane tylko przy niepustej wartości w żądaniu — pusty string oznacza „nie zmieniaj”. Frontend celowo wysyła pusty string dla pól, które wyświetla jako zamaskowane.</p>
-<h3>Event po zmianie konfiguracji</h3>
+<h3 id="event-po-zmianie-konfiguracji">Event po zmianie konfiguracji</h3>
 <p><code>TwilioConfigChangedEvent(tenantId)</code> publikowany po zapisie/usunięciu configu. Jedyny nasłuchujący: <code>TwilioTelephonyAdapter.onTwilioConfigChanged()</code> — inwaliduje wpis w cache klientów Twilio dla danego tenanta, żeby kolejne wywołanie API użyło świeżych danych.</p>
 <hr>
-<h2>8. Frontend</h2>
-<h3><code>SoftphoneService</code> (<code>frontend/src/app/features/agent/services/softphone.service.ts</code>)</h3>
+<h2 id="8-frontend">8. Frontend</h2>
+<h3 id="softphoneservice-frontend/src/app/features/agent/services/softphoneservicets"><code>SoftphoneService</code> (<code>frontend/src/app/features/agent/services/softphone.service.ts</code>)</h3>
 <ul>
 <li>Stan jako Angular Signal (<code>session = signal&lt;CallSession | null&gt;(null)</code>), stany: <code>RINGING / ACTIVE / ON_HOLD / TRANSFERRING / ENDED</code>.</li>
 <li>Integracja Twilio Voice JS SDK (<code>@twilio/voice-sdk</code>): <code>initializeTwilioDevice()</code> pobiera token z <code>GET /telephony/voice-token</code>, tworzy <code>new Device(token, {codecPreferences: [Opus, PCMU]})</code>, rejestruje handlery <code>incoming/registered/unregistered/error</code>.</li>
@@ -363,9 +363,9 @@
 <li><strong>Reset przy wylogowaniu:</strong> ponieważ serwis jest singletonem (<code>providedIn: &#39;root&#39;</code>) przeżywającym cykl logowania, <code>resetForLogout()</code> jawnie niszczy stare <code>Device</code>, żeby uniknąć rejestracji „martwego” urządzenia pod starą tożsamością agenta (opisany w kodzie realny, zaobserwowany objaw: połączenie osiąga <code>ACTIVE</code> po stronie backendu, ale audio nigdy się nie zestawia).</li>
 <li>Serwis sam nie subskrybuje WebSocketu — zdarzenia takie jak <code>CALL_CONSULT_ANSWERED</code> docierają przez <code>AgentDesktopComponent</code>, który konsumuje WS i woła metody serwisu (<code>markConsultAnswered()</code>, <code>updateSessionAfterBridge()</code>).</li>
 </ul>
-<h3><code>SoftphoneComponent</code></h3>
+<h3 id="softphonecomponent"><code>SoftphoneComponent</code></h3>
 <p>Sygnały: <code>transferMode</code> (BLIND/ATTENDED), <code>transferTarget</code>, <code>transferTargetType</code> (PHONE/AGENT/QUEUE), <code>attendedConnected</code>, <code>isTransferring</code>. Zakładka QUEUE widoczna tylko gdy kontakt ma <code>queueName</code> (połączenia przychodzące przez kolejkę — outbound jej nie ma).</p>
-<h3>Konfiguracja Twilio w panelu supervisora — dwa równoległe komponenty</h3>
+<h3 id="konfiguracja-twilio-w-panelu-supervisora--dwa-równoległe-komponenty">Konfiguracja Twilio w panelu supervisora — dwa równoległe komponenty</h3>
 <p><code>TwilioConfigService</code> zawiera <strong>dwa niezależne zestawy endpointów</strong>, co ma bezpośredni wpływ na zachowanie systemu (patrz Finding #2 w sekcji 9):</p>
 <table>
 <thead>
@@ -388,8 +388,8 @@
 </tbody></table>
 <p><code>TwilioPhoneNumberSelectComponent</code> — <code>ControlValueAccessor</code> używany w formularzu <code>TwilioConfigComponent</code>, pobiera realną listę numerów z konta Twilio tenanta (nie z lokalnej tabeli <code>phone_number</code>) ze stanami ładowania <code>loading / error-502 / no-config / empty / ready</code>.</p>
 <hr>
-<h2>9. Bezpieczeństwo — mechanizmy i znane niespójności</h2>
-<h3>Mechanizmy obecne w kodzie</h3>
+<h2 id="9-bezpieczeństwo--mechanizmy-i-znane-niespójności">9. Bezpieczeństwo — mechanizmy i znane niespójności</h2>
+<h3 id="mechanizmy-obecne-w-kodzie">Mechanizmy obecne w kodzie</h3>
 <ul>
 <li>Walidacja <code>X-Twilio-Signature</code> (<code>com.twilio.security.RequestValidator</code>), sterowana <code>twilio.signature-validation-enabled</code> (domyślnie włączona, wyłączona w profilu <code>dev</code> z ostrzeżeniem w logu startowym).</li>
 <li>Szyfrowanie AES-256-GCM danych <code>TenantTwilioConfig</code> (accountSid/authToken/apiKeySid/apiKeySecret).</li>
@@ -397,7 +397,7 @@
 <li>Row-Level Security na <code>tenant_twilio_config</code>.</li>
 <li>Generyczny <code>TelephonyWebhookController</code> (pozostałość architektury multi-provider) chroniony osobnym nagłówkiem <code>X-Webhook-Secret</code> porównywanym do stałego sekretu — kod zawiera własny komentarz sugerujący, że w produkcji warto rozważyć HMAC-SHA256 zamiast prostego współdzielonego sekretu.</li>
 </ul>
-<h3>Zidentyfikowane niespójności (do weryfikacji/naprawy)</h3>
+<h3 id="zidentyfikowane-niespójności-do-weryfikacji/naprawy">Zidentyfikowane niespójności (do weryfikacji/naprawy)</h3>
 <p><strong>Finding #1 — walidacja podpisu webhooka używa globalnego auth tokenu, nie per-tenant.</strong>
 <code>TwilioWebhookController</code> waliduje <code>X-Twilio-Signature</code> wyłącznie globalnym <code>twilioProperties.getAuthToken()</code>. Dla tenanta z własnymi kredencjałami BYOT Twilio podpisuje webhook <strong>swoim</strong> auth tokenem konta — walidacja globalnym tokenem dla takiego tenanta zawsze zawiedzie (403), chyba że operator globalnie wyłączy walidację (co osłabia bezpieczeństwo dla wszystkich tenantów, także tych na globalnych kredencjałach). <code>tenantId</code> jest już dostępny jako parametr w większości handlerów w momencie walidacji, więc rozszerzenie o per-tenant token (analogicznie do rozwiązania już zastosowanego np. przy konfigurowaniu callbacków wychodzących) jest wykonalne bez większej przebudowy.</p>
 <p><strong>Finding #2 — <code>TenantTwilioConfig.phoneNumber</code>/<code>statusCallbackUrl</code> (nowe REST API BYOT) nie sterują faktycznym numerem „from” ani URL webhooków.</strong>
@@ -409,7 +409,7 @@ Wygląda na pozostałość po architekturze wspierającej wielu dostawców telef
 <p><strong>Finding #5 — wyłączenie globalnej walidacji podpisu (by obsłużyć BYOT, patrz Finding #1) osłabia ochronę wszystkich tenantów.</strong>
 Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeby webhooki tenantów BYOT nie były permanentnie odrzucane, wszyscy tenanci (także ci na globalnych kredencjałach) tracą ochronę przed sfałszowanym <code>recordingStatusCallback</code> — serwer wykona <code>HTTP GET</code> z danymi Basic Auth Twilio do dowolnego hosta wskazanego w polu <code>RecordingUrl</code> żądania.</p>
 <hr>
-<h2>10. Zmienne środowiskowe</h2>
+<h2 id="10-zmienne-środowiskowe">10. Zmienne środowiskowe</h2>
 <p>Źródła: <code>backend/app/src/main/resources/application.yml</code>, <code>application-dev.yml</code>, <code>application-prod.yml</code>, <code>.env.local-demo</code>.</p>
 <table>
 <thead>
@@ -508,7 +508,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 <p><code>docker-compose.local-demo.yml</code> przekazuje wszystkie powyższe zmienne do kontenera backendu przez <code>env_file: .env.local-demo</code>. Wariant <code>docker-compose.yml</code> (pełny/produkcyjny) nie zawiera odwołań do zmiennych <code>TWILIO_*</code>/<code>TELEPHONY_*</code> — muszą być dostarczone przez zewnętrzny mechanizm (ENV hosta, sekrety orkiestratora).</p>
 <p>Bez uzupełnienia <code>TWILIO_API_KEY_SID</code>/<code>TWILIO_API_KEY_SECRET</code>/<code>TWILIO_TWIML_APP_SID</code> (domyślnie puste w <code>local-demo</code>) Voice JS SDK po stronie frontendu zwróci błąd braku klucza API przy próbie pobrania tokenu (<code>GET /telephony/voice-token</code>).</p>
 <hr>
-<h2>11. Testy</h2>
+<h2 id="11-testy">11. Testy</h2>
 <table>
 <thead>
 <tr>
@@ -547,9 +547,9 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 </tbody></table>
 <p>Uruchomienie lokalne z adapterem Mock (bez realnego Twilio): <code>TELEPHONY_PROVIDER=mock</code> (lub <code>TWILIO_ENABLED=false</code>) w <code>.env.local-demo</code> — patrz też <code>.claude/agent-memory/debug-specialist/project_adapter_selection_docker.md</code> (profil <code>prod</code> domyślnie aktywuje Twilio zamiast Mock, mimo intencji lokalnego demo).</p>
 <hr>
-<h2>12. Konfiguracja w konsoli Twilio (krok po kroku)</h2>
+<h2 id="12-konfiguracja-w-konsoli-twilio-krok-po-kroku">12. Konfiguracja w konsoli Twilio (krok po kroku)</h2>
 <p>Sekcje 7 i 10 opisują, jak aplikacja <strong>przechowuje i wykorzystuje</strong> dane konfiguracyjne Twilio. Ta sekcja opisuje, co trzeba skonfigurować <strong>po stronie konta Twilio</strong> (console.twilio.com), żeby cokolwiek z tego zadziałało — zarówno dla globalnej konfiguracji (jedno konto Twilio dla całej instalacji), jak i dla per-tenant BYOT.</p>
-<h3>12.1 Zasoby wymagane w koncie Twilio</h3>
+<h3 id="121-zasoby-wymagane-w-koncie-twilio">12.1 Zasoby wymagane w koncie Twilio</h3>
 <table>
 <thead>
 <tr>
@@ -580,7 +580,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 </tr>
 </tbody></table>
 <p><strong>Uwaga dot. TwiML App:</strong> w tej implementacji przeglądarka agenta <strong>nigdy nie inicjuje połączeń wychodzących przez <code>Device.connect()</code></strong> — cały outbound idzie przez REST (<code>POST /api/telephony/calls/outbound</code>, sekcja 3). Oznacza to, że pole „Voice Configuration → Request URL” samej aplikacji TwiML App w praktyce nie jest wywoływane przez obecne przepływy — wystarczy je ustawić na dowolny poprawny HTTPS URL (np. na <code>{APP_BASE_URL}/api/telephony/hold-music</code>), żeby założyć aplikację i uzyskać jej SID. Sam SID jest wymagany, żeby konstrukcja <code>VoiceGrant</code> się powiodła.</p>
-<h3>12.2 Konfiguracja numeru telefonu — Voice URL</h3>
+<h3 id="122-konfiguracja-numeru-telefonu--voice-url">12.2 Konfiguracja numeru telefonu — Voice URL</h3>
 <p>Phone Numbers → Manage → Active Numbers → wybrany numer → sekcja <strong>Voice Configuration</strong> → „A call comes in”:</p>
 <ul>
 <li><strong>Webhook</strong>, metoda <strong>HTTP POST</strong></li>
@@ -588,7 +588,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 </ul>
 <p><code>tenantId</code> jest <strong>parametrem wymaganym</strong> (<code>@RequestParam(&quot;tenantId&quot;) UUID tenantId</code>, <code>TwilioWebhookController.java:167</code>) — bez niego webhook zwróci błąd. W modelu jeden-numer-na-tenanta (typowym dla BYOT) każdy numer w każdym koncie Twilio wskazuje na ten sam, globalny <code>APP_BASE_URL</code> aplikacji, różniąc się wyłącznie wartością <code>tenantId</code> w query stringu — to właśnie ten parametr, a nie numer telefonu, jednoznacznie identyfikuje tenanta w momencie, gdy przychodzi połączenie.</p>
 <p>Nie trzeba osobno konfigurować <code>Status Callback URL</code> na poziomie numeru w konsoli — aplikacja ustawia go dynamicznie w każdym TwiML (<code>statusCallback</code> atrybut <code>&lt;Dial&gt;</code>/<code>&lt;Conference&gt;</code>), bazując na <code>APP_BASE_URL</code>/<code>TWILIO_STATUS_CALLBACK_URL</code>.</p>
-<h3>12.3 Tunel publiczny dla środowiska lokalnego (local-demo)</h3>
+<h3 id="123-tunel-publiczny-dla-środowiska-lokalnego-local-demo">12.3 Tunel publiczny dla środowiska lokalnego (local-demo)</h3>
 <p>Twilio musi mieć możliwość wywołania webhooka na publicznie dostępnym URL — w <code>docker-compose.local-demo.yml</code> / <code>.env.local-demo</code> używany jest do tego tunel (np. <code>ngrok http 8080</code>). <strong>Checklist przy każdym restarcie tunelu</strong> (adres zmienia się na darmowym planie ngrok):</p>
 <ol>
 <li>Zaktualizuj <code>APP_BASE_URL</code> i <code>TWILIO_STATUS_CALLBACK_URL</code> w <code>.env.local-demo</code> na nowy adres tunelu.</li>
@@ -596,7 +596,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 <li>Zrestartuj kontener backendu, żeby podjął nową wartość <code>APP_BASE_URL</code>.</li>
 </ol>
 <p>Pominięcie kroku 2 jest częstą przyczyną „połączenia przychodzące nie działają” po restarcie środowiska lokalnego — aplikacja może mieć poprawny <code>APP_BASE_URL</code>, ale Twilio wciąż wywołuje stary, nieaktualny adres zapisany w konsoli.</p>
-<h3>12.4 Konfiguracja globalna — krok po kroku (jedno konto Twilio dla całej instalacji)</h3>
+<h3 id="124-konfiguracja-globalna--krok-po-kroku-jedno-konto-twilio-dla-całej-instalacji">12.4 Konfiguracja globalna — krok po kroku (jedno konto Twilio dla całej instalacji)</h3>
 <ol>
 <li>Załóż konto Twilio (do testów wystarczy trial — ograniczenia: można dzwonić tylko na numery zweryfikowane w <em>Verified Caller IDs</em>, a każde połączenie zaczyna się od komunikatu o koncie testowym).</li>
 <li>Skopiuj <strong>Account SID</strong> i <strong>Auth Token</strong> z Console Dashboard → <code>TWILIO_ACCOUNT_SID</code> / <code>TWILIO_AUTH_TOKEN</code>.</li>
@@ -609,7 +609,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 <li>Ustaw <code>TWILIO_ENABLED=true</code>, <code>TELEPHONY_PROVIDER=twilio</code>, zrestartuj backend.</li>
 <li>Opcjonalnie: <code>TWILIO_RECORDING_ENABLED=true</code> — konta trial obsługują nagrywanie konferencji, nie jest wymagany plan płatny.</li>
 </ol>
-<h3>12.5 Konfiguracja per-tenant (BYOT) — co robi administrator tenanta</h3>
+<h3 id="125-konfiguracja-per-tenant-byot--co-robi-administrator-tenanta">12.5 Konfiguracja per-tenant (BYOT) — co robi administrator tenanta</h3>
 <ol>
 <li>Tenant musi mieć własne konto Twilio (Account SID + Auth Token, opcjonalnie API Key/Secret) i własny numer telefonu — kroki 1–5 z sekcji 12.4, wykonane we <strong>własnym</strong> koncie Twilio administratora tenanta.</li>
 <li>W panelu supervisora aplikacji: <em>Ustawienia → Konfiguracja Twilio</em> (<code>TwilioConfigComponent</code>, <code>PUT /api/supervisor/twilio-config</code>) — uzupełnia <code>accountSid</code>, <code>authToken</code> (lub <code>apiKeySid</code>+<code>apiKeySecret</code>), <code>twimlAppSid</code>, <code>phoneNumber</code>, <code>statusCallbackUrl</code>.</li>
@@ -618,7 +618,7 @@ Jeśli operator wyłączy <code>twilio.signature-validation-enabled</code>, żeb
 <li><strong>Ryzyko do zaadresowania przed produkcyjnym BYOT</strong> (Finding #1, sekcja 9): jeśli globalna walidacja <code>X-Twilio-Signature</code> pozostanie włączona, webhooki tego tenanta (podpisane jego własnym Auth Tokenem) będą odrzucane z <code>403</code>, ponieważ kontroler waliduje wyłącznie globalnym tokenem. Obejściem jest globalne wyłączenie <code>TWILIO_SIGNATURE_VALIDATION_ENABLED</code>, co jednak osłabia bezpieczeństwo webhooków dla wszystkich tenantów — właściwym rozwiązaniem jest rozszerzenie walidacji o per-tenant token przed udostępnieniem BYOT produkcyjnie.</li>
 </ol>
 <hr>
-<h2>13. Powiązane dokumenty</h2>
+<h2 id="13-powiązane-dokumenty">13. Powiązane dokumenty</h2>
 <ul>
 <li><a href="../tech/html/04-backend.html"><code>documentation/tech/04-backend.md</code></a> — moduły backendu, w tym telefonia w kontekście całej architektury</li>
 <li><a href="../tech/html/07-data-flows.html"><code>documentation/tech/07-data-flows.md</code></a> — przepływy end-to-end (inbound call, dialer kampanii, nagrywanie) na tle innych flow systemu</li>

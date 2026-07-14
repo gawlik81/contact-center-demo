@@ -31,8 +31,8 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>8. Infrastruktura i wdrożenie</h1>
-<h2>8.1 Docker Compose – usługi</h2>
+<h1 id="8-infrastruktura-i-wdrożenie">8. Infrastruktura i wdrożenie</h1>
+<h2 id="81-docker-compose--usługi">8.1 Docker Compose – usługi</h2>
 <p>Projekt uruchamia się przez dwa pliki compose łączone razem:</p>
 <pre><code class="language-bash">docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans
 </code></pre>
@@ -41,7 +41,7 @@
 użyje domyślnych/puste haseł (<code>guest:guest</code>) i może odtworzyć kontenery z błędną konfiguracją,
 niszcząc dane w wolumenach (patrz <code>CLAUDE.md</code>).</p>
 </blockquote>
-<h3>Usługi z <code>docker-compose.yml</code> (baza infrastruktury)</h3>
+<h3 id="usługi-z-docker-composeyml-baza-infrastruktury">Usługi z <code>docker-compose.yml</code> (baza infrastruktury)</h3>
 <table>
 <thead>
 <tr>
@@ -88,7 +88,7 @@ niszcząc dane w wolumenach (patrz <code>CLAUDE.md</code>).</p>
 <td>Serwis AI: ASR/NLU/podsumowania</td>
 </tr>
 </tbody></table>
-<h3>Nadpisania z <code>docker-compose.local-demo.yml</code></h3>
+<h3 id="nadpisania-z-docker-composelocal-demoyml">Nadpisania z <code>docker-compose.local-demo.yml</code></h3>
 <table>
 <thead>
 <tr>
@@ -114,7 +114,7 @@ niszcząc dane w wolumenach (patrz <code>CLAUDE.md</code>).</p>
 </tr>
 </tbody></table>
 <p>Sieć: wszystkie usługi w <code>cc-network</code> (Docker bridge network).</p>
-<h2>8.2 Zmienne środowiskowe (<code>.env.local-demo</code>)</h2>
+<h2 id="82-zmienne-środowiskowe-envlocal-demo">8.2 Zmienne środowiskowe (<code>.env.local-demo</code>)</h2>
 <p>Plik <code>.env.local-demo</code> definiuje konfigurację dla local-demo. Najważniejsze grupy zmiennych
 (nazwy – wartości w pliku lokalnym, nie commitować realnych sekretów produkcyjnych):</p>
 <table>
@@ -165,7 +165,7 @@ niszcząc dane w wolumenach (patrz <code>CLAUDE.md</code>).</p>
 <td><code>SERVER_PORT</code>, <code>SPRING_PROFILES_ACTIVE</code>, <code>CORS_ALLOWED_ORIGINS</code>, <code>WEBSOCKET_ALLOWED_ORIGINS</code>, <code>LOG_PATH</code>, <code>LOG_FILE</code>, <code>PROMETHEUS_ENABLED</code>, <code>APP_BASE_URL</code></td>
 </tr>
 </tbody></table>
-<h2>8.3 Lokalne porty (po <code>docker compose up -d</code> – usługi bazowe)</h2>
+<h2 id="83-lokalne-porty-po-docker-compose-up--d--usługi-bazowe">8.3 Lokalne porty (po <code>docker compose up -d</code> – usługi bazowe)</h2>
 <table>
 <thead>
 <tr>
@@ -208,14 +208,14 @@ niszcząc dane w wolumenach (patrz <code>CLAUDE.md</code>).</p>
 </tbody></table>
 <p>W trybie <strong>local-demo</strong> (pełny stack w Dockerze + Nginx + ngrok) wystawiony jest tylko port <strong>80</strong>
 przez kontener <code>cc-nginx</code> – pozostałe usługi komunikują się wewnętrznie przez <code>cc-network</code>.</p>
-<h2>8.4 Reverse proxy (Nginx)</h2>
+<h2 id="84-reverse-proxy-nginx">8.4 Reverse proxy (Nginx)</h2>
 <p><code>nginx/nginx-local-demo.conf</code> – konfiguracja Nginx dla local-demo:</p>
 <ul>
 <li>routing <code>/</code> → <code>cc-frontend</code> (statyczny Angular build),</li>
 <li>routing <code>/api</code>, <code>/ws</code> (i webhooki Twilio) → <code>cc-backend:8080</code>,</li>
 <li>SSL terminowany na zewnątrz (ngrok), Nginx słucha tylko HTTP (port 80).</li>
 </ul>
-<h2>8.5 Persystencja (wolumeny)</h2>
+<h2 id="85-persystencja-wolumeny">8.5 Persystencja (wolumeny)</h2>
 <table>
 <thead>
 <tr>
@@ -242,7 +242,7 @@ przez kontener <code>cc-nginx</code> – pozostałe usługi komunikują się wew
 </tbody></table>
 <p><code>docker compose down</code> zachowuje wolumeny; <code>docker compose down -v</code> usuwa dane – używać tylko
 świadomie.</p>
-<h2>8.6 Build obrazów</h2>
+<h2 id="86-build-obrazów">8.6 Build obrazów</h2>
 <ul>
 <li>Backend: <code>backend/Dockerfile.backend</code> – wieloetapowy build Maven → JRE 21.</li>
 <li>Frontend: <code>frontend/Dockerfile.frontend</code> – <code>npm run build</code> → statyczne pliki serwowane przez
@@ -250,12 +250,12 @@ Nginx w kontenerze.</li>
 <li>Voicebot: <code>voicebot/Dockerfile</code> (jeśli istnieje) – Python + zależności z <code>requirements.txt</code>,
 model Whisper ładowany przy starcie (<code>lifespan</code>).</li>
 </ul>
-<h2>8.7 Healthchecki i kolejność startu</h2>
+<h2 id="87-healthchecki-i-kolejność-startu">8.7 Healthchecki i kolejność startu</h2>
 <p><code>docker-compose.local-demo.yml</code> definiuje <code>depends_on</code> z <code>condition: service_healthy</code> dla
 <code>postgres</code>, <code>redis</code>, <code>rabbitmq</code> – backend startuje dopiero gdy te usługi są zdrowe. Backend ma
 własny healthcheck (<code>/actuator/health</code>) z <code>start_period: 120s</code> (czas na migracje Flyway i
 rozgrzanie).</p>
-<h2>8.8 Więcej informacji</h2>
+<h2 id="88-więcej-informacji">8.8 Więcej informacji</h2>
 <ul>
 <li>Pełny opis środowisk produkcyjnych/K8s (jeśli aktualny) – <a href="../../DEPLOYMENT.md"><code>DEPLOYMENT.md</code></a>.</li>
 <li>Komendy referencyjne Dockera – <a href="../../DOCKER-COMMANDS.md"><code>DOCKER-COMMANDS.md</code></a>.</li>

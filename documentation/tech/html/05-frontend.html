@@ -31,7 +31,7 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>Frontend – Angular (Contact Center SaaS)</h1>
+<h1 id="frontend--angular-contact-center-saas">Frontend – Angular (Contact Center SaaS)</h1>
 <p>Dokumentacja warstwy frontendowej projektu Contact Center SaaS. Frontend znajduje się w katalogu
 <code>frontend/</code> i komunikuje się z backendem Spring Boot (<code>localhost:8080</code>) przez REST API (<code>/api/*</code>)
 oraz natywny WebSocket (STOMP, <code>/ws-native</code>).</p>
@@ -40,7 +40,7 @@ oraz natywny WebSocket (STOMP, <code>/ws-native</code>).</p>
 Testy: <strong>Vitest</strong> (<code>@angular/build:unit-test</code>).</p>
 </blockquote>
 <hr>
-<h2>1. Struktura projektu</h2>
+<h2 id="1-struktura-projektu">1. Struktura projektu</h2>
 <pre><code>frontend/
 ├── src/
 │   ├── app/
@@ -82,7 +82,7 @@ Testy: <strong>Vitest</strong> (<code>@angular/build:unit-test</code>).</p>
 ├── eslint.config.js
 └── .prettierrc(.json)
 </code></pre>
-<h3>Konwencje nazewnictwa</h3>
+<h3 id="konwencje-nazewnictwa">Konwencje nazewnictwa</h3>
 <ul>
 <li><strong>Prefiks selektora komponentu</strong>:<ul>
 <li><code>app-</code> – komponenty specyficzne dla feature (np. <code>app-agent-desktop</code>, <code>app-customer-detail</code>)</li>
@@ -101,7 +101,7 @@ komponenty mają inline <code>template</code>/<code>styles</code>), <code>*.serv
 <li><strong>Struktura feature</strong>: <code>pages/</code> (komponenty-strony, routowalne), <code>components/</code> (komponenty
 pomocnicze osadzane w stronach), <code>services/</code>, <code>models/</code>.</li>
 </ul>
-<h3>Stan – zasady ogólne (z <code>CLAUDE.md</code>)</h3>
+<h3 id="stan--zasady-ogólne-z-claudemd">Stan – zasady ogólne (z <code>CLAUDE.md</code>)</h3>
 <ul>
 <li>Preferowane: <code>signal()</code> / <code>computed()</code> / <code>effect()</code>.</li>
 <li><code>BehaviorSubject</code> / RxJS – tylko dla strumieni (WebSocket, polling).</li>
@@ -109,7 +109,7 @@ pomocnicze osadzane w stronach), <code>services/</code>, <code>models/</code>.</
 oraz <code>takeUntilDestroyed(destroyRef)</code> do automatycznego odpisywania.</li>
 </ul>
 <hr>
-<h2>2. Routing – <code>app.routes.ts</code></h2>
+<h2 id="2-routing--approutests">2. Routing – <code>app.routes.ts</code></h2>
 <p>Plik <code>src/app/app.routes.ts</code> definiuje <strong>trasy najwyższego poziomu</strong>. Każda sekcja roli jest
 lazy-loaded (<code>loadChildren</code>) i chroniona guardami.</p>
 <pre class="mermaid">flowchart LR
@@ -123,7 +123,7 @@ lazy-loaded (<code>loadChildren</code>) i chroniona guardami.</p>
     Forbidden["/forbidden"]
     Wildcard["**"] --> Root
 </pre>
-<h3>Tabela tras najwyższego poziomu</h3>
+<h3 id="tabela-tras-najwyższego-poziomu">Tabela tras najwyższego poziomu</h3>
 <table>
 <thead>
 <tr>
@@ -189,7 +189,7 @@ lazy-loaded (<code>loadChildren</code>) i chroniona guardami.</p>
 <li><code>withRouterConfig({ paramsInheritanceStrategy: &#39;always&#39; })</code> – dzieci dziedziczą parametry
 rodzica.</li>
 </ul>
-<h3><code>/auth/**</code> – <code>features/auth/auth.routes.ts</code></h3>
+<h3 id="/auth/**--features/auth/authroutests"><code>/auth/**</code> – <code>features/auth/auth.routes.ts</code></h3>
 <table>
 <thead>
 <tr>
@@ -214,7 +214,7 @@ rodzica.</li>
 <td>redirect → <code>login</code></td>
 </tr>
 </tbody></table>
-<h3><code>/admin/**</code> – <code>features/admin/admin.routes.ts</code></h3>
+<h3 id="/admin/**--features/admin/adminroutests"><code>/admin/**</code> – <code>features/admin/admin.routes.ts</code></h3>
 <p>Wszystko pod <code>AdminShellComponent</code> (powłoka z <code>cc-app-shell</code>).</p>
 <table>
 <thead>
@@ -256,7 +256,7 @@ rodzica.</li>
 </tr>
 </tbody></table>
 <p><code>TENANT_ROUTES</code> ma tylko jedną trasę: <code>admin/tenants</code> → <code>TenantListComponent</code>.</p>
-<h3><code>/supervisor/**</code> – <code>features/supervisor/supervisor.routes.ts</code></h3>
+<h3 id="/supervisor/**--features/supervisor/supervisorroutests"><code>/supervisor/**</code> – <code>features/supervisor/supervisor.routes.ts</code></h3>
 <p>Wszystko pod <code>SupervisorShellComponent</code>.</p>
 <table>
 <thead>
@@ -364,7 +364,7 @@ rodzica.</li>
 <td><code>IvrEditorComponent</code></td>
 </tr>
 </tbody></table>
-<h4><code>supervisor/settings/**</code> (zagnieżdżone, redirect <code>&#39;&#39;</code> → <code>email</code>)</h4>
+<h4 id="supervisor/settings/**-zagnieżdżone-redirect-&#39&#39-→-email"><code>supervisor/settings/**</code> (zagnieżdżone, redirect <code>&#39;&#39;</code> → <code>email</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -426,7 +426,7 @@ rodzica.</li>
 <td><code>OauthCallbackComponent</code></td>
 </tr>
 </tbody></table>
-<h3><code>/agent/**</code> – <code>features/agent/agent.routes.ts</code></h3>
+<h3 id="/agent/**--features/agent/agentroutests"><code>/agent/**</code> – <code>features/agent/agent.routes.ts</code></h3>
 <p>Wszystko pod <code>AgentShellComponent</code> (<code>cc-app-shell</code> + <code>cc-incoming-call-banner</code>).</p>
 <table>
 <thead>
@@ -458,8 +458,8 @@ rodzica.</li>
 </tr>
 </tbody></table>
 <hr>
-<h2>3. Core (<code>src/app/core/</code>)</h2>
-<h3>3.1 Guardy (<code>core/guards/</code>)</h3>
+<h2 id="3-core-src/app/core/">3. Core (<code>src/app/core/</code>)</h2>
+<h3 id="31-guardy-core/guards/">3.1 Guardy (<code>core/guards/</code>)</h3>
 <table>
 <thead>
 <tr>
@@ -484,9 +484,9 @@ rodzica.</li>
 <td>Guard trasy <code>/</code>. Niezalogowany → <code>/auth/login</code>. Zalogowany → <code>AuthService.getRoleDefaultRoute(role)</code> (<code>/admin</code>, <code>/supervisor</code>, <code>/agent</code>).</td>
 </tr>
 </tbody></table>
-<h3>3.2 Interceptory (<code>core/interceptors/</code>)</h3>
+<h3 id="32-interceptory-core/interceptors/">3.2 Interceptory (<code>core/interceptors/</code>)</h3>
 <p>Zarejestrowane w <code>app.config.ts</code> w kolejności: <code>authInterceptor</code> → <code>errorHandlerInterceptor</code>.</p>
-<h4><code>authInterceptor</code> (<code>auth.interceptor.ts</code>)</h4>
+<h4 id="authinterceptor-authinterceptorts"><code>authInterceptor</code> (<code>auth.interceptor.ts</code>)</h4>
 <ul>
 <li>Dodaje nagłówek <code>Authorization: Bearer &lt;token&gt;</code> do każdego requestu (poza endpointami auth:
 <code>/auth/login</code>, <code>/auth/refresh</code>, <code>/auth/logout</code>, <code>/auth/mfa/verify</code>).</li>
@@ -497,7 +497,7 @@ token i powtarza request. Jeśli refresh już trwa – kolejne requesty czekają
 przechowujący <code>isRefreshing: boolean</code> i <code>BehaviorSubject&lt;string|null&gt;</code> – wydzielony ze stanu
 modułowego właśnie po to, by uniknąć race condition między wielowiarstwowymi injectorami.</li>
 </ul>
-<h4><code>errorHandlerInterceptor</code> (<code>error-handler.interceptor.ts</code>)</h4>
+<h4 id="errorhandlerinterceptor-error-handlerinterceptorts"><code>errorHandlerInterceptor</code> (<code>error-handler.interceptor.ts</code>)</h4>
 <ul>
 <li>Globalna obsługa błędów HTTP → toast (<code>NotificationService</code> + Transloco):<ul>
 <li><code>status === 0</code> → <code>common.errorNetwork</code></li>
@@ -512,7 +512,7 @@ modułowego właśnie po to, by uniknąć race condition między wielowiarstwowy
 <code>{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }</code>, aby wyciszyć globalny toast dla
 konkretnego żądania (np. gdy komponent sam obsługuje błąd inline).</li>
 </ul>
-<h3>3.3 Serwisy (<code>core/services/</code>)</h3>
+<h3 id="33-serwisy-core/services/">3.3 Serwisy (<code>core/services/</code>)</h3>
 <table>
 <thead>
 <tr>
@@ -565,7 +565,7 @@ konkretnego żądania (np. gdy komponent sam obsługuje błąd inline).</li>
 <td>Globalny <code>ErrorHandler</code> (Angular <code>provideBrowserGlobalErrorListeners</code> + custom klasa) – łapie nieobsłużone błędy JS i wysyła do <code>LoggingService</code>.</td>
 </tr>
 </tbody></table>
-<h3>3.4 Modele (<code>core/models/</code>)</h3>
+<h3 id="34-modele-core/models/">3.4 Modele (<code>core/models/</code>)</h3>
 <table>
 <thead>
 <tr>
@@ -602,7 +602,7 @@ konkretnego żądania (np. gdy komponent sam obsługuje błąd inline).</li>
 <td>Struktura logu wysyłanego do <code>LoggingService</code>.</td>
 </tr>
 </tbody></table>
-<h3>3.5 Transloco (i18n)</h3>
+<h3 id="35-transloco-i18n">3.5 Transloco (i18n)</h3>
 <ul>
 <li>Konfiguracja w <code>app.config.ts</code>:<pre><code class="language-ts">provideTransloco({
   config: {
@@ -638,8 +638,8 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <code>TopNavbarComponent</code>, własny stan <code>isOpen</code> (signal) + <code>HostListener</code> na klik poza komponentem.</li>
 </ul>
 <hr>
-<h2>4. Moduły features</h2>
-<h3>4.1 <code>features/auth/</code></h3>
+<h2 id="4-moduły-features">4. Moduły features</h2>
+<h3 id="41-features/auth/">4.1 <code>features/auth/</code></h3>
 <p><strong>Cel</strong>: logowanie, MFA, zmiana hasła, ekran „brak dostępu”.</p>
 <table>
 <thead>
@@ -665,7 +665,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>Pobiera publiczną listę/identyfikację tenantów na ekranie logowania (bez auth).</td>
 </tr>
 </tbody></table>
-<h3>4.2 <code>features/admin/</code> (rola: ADMIN)</h3>
+<h3 id="42-features/admin/-rola-admin">4.2 <code>features/admin/</code> (rola: ADMIN)</h3>
 <p><strong>Cel</strong>: globalne zarządzanie platformą – tenants, użytkownicy cross-tenant, metryki systemowe.</p>
 <table>
 <thead>
@@ -750,9 +750,9 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>DTO <code>Tenant</code>, <code>CreateTenantRequest</code>, <code>UpdateTenantRequest</code>.</td>
 </tr>
 </tbody></table>
-<h3>4.3 <code>features/supervisor/</code> (rola: SUPERVISOR, część <code>ADMIN</code>)</h3>
+<h3 id="43-features/supervisor/-rola-supervisor-część-admin">4.3 <code>features/supervisor/</code> (rola: SUPERVISOR, część <code>ADMIN</code>)</h3>
 <p>Największy moduł – zarządzanie operacyjne tenantem.</p>
-<h4>Dashboard i agenci</h4>
+<h4 id="dashboard-i-agenci">Dashboard i agenci</h4>
 <table>
 <thead>
 <tr>
@@ -793,7 +793,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>Real-time metryki supervisora (WS <code>SUPERVISOR_METRICS</code>).</td>
 </tr>
 </tbody></table>
-<h4>Kolejki (<code>pages/queues/</code>)</h4>
+<h4 id="kolejki-pages/queues/">Kolejki (<code>pages/queues/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -830,7 +830,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td><code>getQueues(page,size,name?)</code>, <code>getQueue</code>, <code>createQueue</code>, <code>updateQueue</code> (PATCH), <code>deleteQueue</code>, <code>getRoutingStrategies</code>. Wzorzec API typowy dla całego projektu – <code>HttpParams</code> do paginacji/filtrów, <code>PagedResponse&lt;T&gt;</code>.</td>
 </tr>
 </tbody></table>
-<h4>Kampanie (<code>pages/campaigns/</code>)</h4>
+<h4 id="kampanie-pages/campaigns/">Kampanie (<code>pages/campaigns/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -875,7 +875,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>DTO kampanii.</td>
 </tr>
 </tbody></table>
-<h4>Klienci (<code>pages/customers/</code>)</h4>
+<h4 id="klienci-pages/customers/">Klienci (<code>pages/customers/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -912,7 +912,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>CRUD klientów + <code>getCustomerContacts</code>, <code>getContacts</code> (raport kontaktów), import CSV.</td>
 </tr>
 </tbody></table>
-<h4>Raporty (<code>pages/reports/</code>, <code>pages/contacts-report/</code>)</h4>
+<h4 id="raporty-pages/reports/-pages/contacts-report/">Raporty (<code>pages/reports/</code>, <code>pages/contacts-report/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -933,7 +933,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>Pozostałe endpointy raportowe.</td>
 </tr>
 </tbody></table>
-<h4>Ustawienia (<code>pages/settings/</code>)</h4>
+<h4 id="ustawienia-pages/settings/">Ustawienia (<code>pages/settings/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -974,7 +974,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>API odpowiednich ustawień.</td>
 </tr>
 </tbody></table>
-<h4>Integracje społecznościowe (<code>features/integrations/</code>, osadzone w <code>supervisor/settings/integrations</code>)</h4>
+<h4 id="integracje-społecznościowe-features/integrations/-osadzone-w-supervisor/settings/integrations">Integracje społecznościowe (<code>features/integrations/</code>, osadzone w <code>supervisor/settings/integrations</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -999,7 +999,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>DTO.</td>
 </tr>
 </tbody></table>
-<h4>Grupy agentów (<code>pages/agent-groups/</code>)</h4>
+<h4 id="grupy-agentów-pages/agent-groups/">Grupy agentów (<code>pages/agent-groups/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -1024,7 +1024,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td></td>
 </tr>
 </tbody></table>
-<h4>Callbacki (<code>pages/callbacks/</code>)</h4>
+<h4 id="callbacki-pages/callbacks/">Callbacki (<code>pages/callbacks/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -1041,7 +1041,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>Edycja zaplanowanego callbacku.</td>
 </tr>
 </tbody></table>
-<h4>IVR (<code>pages/ivr/</code>)</h4>
+<h4 id="ivr-pages/ivr/">IVR (<code>pages/ivr/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -1066,7 +1066,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td>DTO węzłów/flow IVR.</td>
 </tr>
 </tbody></table>
-<h4>Twilio phone number select (komponent współdzielony w supervisorze)</h4>
+<h4 id="twilio-phone-number-select-komponent-współdzielony-w-supervisorze">Twilio phone number select (komponent współdzielony w supervisorze)</h4>
 <table>
 <thead>
 <tr>
@@ -1079,7 +1079,7 @@ użyj <code>{{ &#39;klucz.podklucz&#39; | transloco }}</code> lub <code>transloc
 <td><code>ControlValueAccessor</code> – select numerów Twilio z 5 stanami (loading/empty/error/ok/allowNull), używany w <code>TwilioConfigComponent</code> i <code>CampaignFormComponent</code>.</td>
 </tr>
 </tbody></table>
-<h3>4.4 <code>features/agent/</code> (rola: AGENT)</h3>
+<h3 id="44-features/agent/-rola-agent">4.4 <code>features/agent/</code> (rola: AGENT)</h3>
 <p><strong>Cel</strong>: stanowisko pracy agenta – obsługa kontaktów (telefon, czat, e-mail, social), softphone,
 kalendarz, klienci, callbacki.</p>
 <table>
@@ -1110,7 +1110,7 @@ kalendarz, klienci, callbacki.</p>
 <td>Alternatywny/uzupełniający widok dashboardu agenta (KPI własne).</td>
 </tr>
 </tbody></table>
-<h4>Komponenty pomocnicze (<code>components/</code>)</h4>
+<h4 id="komponenty-pomocnicze-components/">Komponenty pomocnicze (<code>components/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -1175,7 +1175,7 @@ kalendarz, klienci, callbacki.</p>
 <td>Tworzenie callbacku manualnego z karty klienta.</td>
 </tr>
 </tbody></table>
-<h4>Serwisy (<code>services/</code>)</h4>
+<h4 id="serwisy-services/">Serwisy (<code>services/</code>)</h4>
 <table>
 <thead>
 <tr>
@@ -1244,13 +1244,13 @@ kalendarz, klienci, callbacki.</p>
 <td>Odtwarzanie stanu po reconnect WS (rejestruje się przez <code>WebSocketService.onConnect()</code>).</td>
 </tr>
 </tbody></table>
-<h4>Modele (<code>models/</code>)</h4>
+<h4 id="modele-models/">Modele (<code>models/</code>)</h4>
 <p><code>agent-calendar.model.ts</code>, <code>agent-status.model.ts</code>, <code>callback.model.ts</code>, <code>call-session.model.ts</code>,
 <code>contact.model.ts</code>, <code>contact-tab.model.ts</code> (<code>ContactTab</code>, <code>ContactType</code>, <code>ContactTabStatus</code>,
 <code>CallDirection</code>), <code>customer-search.model.ts</code>, <code>disposition.model.ts</code>, <code>manual-callback.model.ts</code>,
 <code>queue-item.model.ts</code>, <code>social-message.model.ts</code>, <code>ws-event.model.ts</code> (<code>WsEvent</code> i payloady, np.
 <code>CallIncomingPayload</code>, <code>ContactAssignedPayload</code>).</p>
-<h3>4.5 <code>features/dispositions/</code></h3>
+<h3 id="45-features/dispositions/">4.5 <code>features/dispositions/</code></h3>
 <p><strong>Cel</strong>: definicje dyspozycji (wyników) kontaktów, współdzielone między supervisor settings i
 panelem ACW agenta.</p>
 <table>
@@ -1277,16 +1277,16 @@ panelem ACW agenta.</p>
 <td></td>
 </tr>
 </tbody></table>
-<h3>4.6 <code>features/customers/</code>, <code>features/campaigns/</code>, <code>features/reports/</code></h3>
+<h3 id="46-features/customers/-features/campaigns/-features/reports/">4.6 <code>features/customers/</code>, <code>features/campaigns/</code>, <code>features/reports/</code></h3>
 <p>Te katalogi obecnie nie zawierają plików <code>.ts</code> poza ewentualnymi placeholderami – realna
 implementacja klientów, kampanii i raportów żyje w <code>features/supervisor/pages/{customers, campaigns, contacts-report, reports}/</code> (patrz sekcja 4.3). Te puste katalogi mogą być
 zarezerwowane dla przyszłego refaktoru (wydzielenie modułów cross-role).</p>
-<h3>4.7 <code>features/tenants/</code></h3>
+<h3 id="47-features/tenants/">4.7 <code>features/tenants/</code></h3>
 <p>Patrz sekcja 4.2 (Admin → Tenants) – fizycznie w <code>features/tenants/</code>, routowane z
 <code>features/admin/admin.routes.ts</code> jako <code>loadChildren</code>.</p>
 <hr>
-<h2>5. Shared (<code>src/app/shared/</code>)</h2>
-<h3>5.1 Komponenty (<code>shared/components/</code>)</h3>
+<h2 id="5-shared-src/app/shared/">5. Shared (<code>src/app/shared/</code>)</h2>
+<h3 id="51-komponenty-shared/components/">5.1 Komponenty (<code>shared/components/</code>)</h3>
 <table>
 <thead>
 <tr>
@@ -1360,7 +1360,7 @@ zarezerwowane dla przyszłego refaktoru (wydzielenie modułów cross-role).</p>
 <p><strong>Brak Angular Material</strong> – cały UI (dialogi, dropdowny, toasty) jest budowany na natywnych
 elementach HTML (<code>&lt;dialog&gt;</code>) i custom CSS w oparciu o design tokeny z <code>styles.scss</code>.</p>
 </blockquote>
-<h3>5.2 Serwisy i modele shared</h3>
+<h3 id="52-serwisy-i-modele-shared">5.2 Serwisy i modele shared</h3>
 <table>
 <thead>
 <tr>
@@ -1377,7 +1377,7 @@ elementach HTML (<code>&lt;dialog&gt;</code>) i custom CSS w oparciu o design to
 <td><code>AgentKpiResponse</code>.</td>
 </tr>
 </tbody></table>
-<h3>5.3 Style / design system (<code>styles.scss</code>, <code>shared/styles/</code>)</h3>
+<h3 id="53-style-/-design-system-stylesscss-shared/styles/">5.3 Style / design system (<code>styles.scss</code>, <code>shared/styles/</code>)</h3>
 <ul>
 <li><strong>Globalne tokeny CSS</strong> w <code>:root</code> (<code>src/styles.scss</code>, 264 linie):<ul>
 <li><strong>Legacy tokeny</strong> (kolory hex, np. <code>--color-brand: #1565c0</code>, <code>--color-success</code>,
@@ -1404,8 +1404,8 @@ klasami <code>.channel-badge--{phone,email,chat,social}</code>, <code>.direction
 <li>Brak biblioteki Angular Material / Bootstrap – cały styling jest własny (SCSS + tokeny).</li>
 </ul>
 <hr>
-<h2>6. State management i komunikacja real-time</h2>
-<h3>6.1 Wzorce stanu</h3>
+<h2 id="6-state-management-i-komunikacja-real-time">6. State management i komunikacja real-time</h2>
+<h3 id="61-wzorce-stanu">6.1 Wzorce stanu</h3>
 <ul>
 <li><strong>Lokalny stan komponentu / store</strong>: <code>signal()</code> + <code>computed()</code> (np. <code>ContactTabStore</code>,
 <code>SoftphoneService</code>, <code>SidenavComponent.expandedSections</code>).</li>
@@ -1419,7 +1419,7 @@ zakończenie połączenia (<code>SoftphoneService.session().state === &#39;ENDED
 <li><strong>Odpisywanie</strong>: <code>takeUntilDestroyed(destroyRef)</code> (preferowane) – widoczne np. w
 <code>BreadcrumbService</code>, <code>SidenavComponent</code>.</li>
 </ul>
-<h3>6.2 WebSocket – <code>WebSocketService</code></h3>
+<h3 id="62-websocket--websocketservice">6.2 WebSocket – <code>WebSocketService</code></h3>
 <p>Klient <strong>STOMP po natywnym WebSocket</strong> (<code>@stomp/stompjs</code>, <strong>nie</strong> SockJS), URL z
 <code>environment.wsUrl</code> (<code>ws://localhost:8080/ws-native</code> w dev, <code>/ws-native</code> w prod – serwowane przez
 ten sam origin).</p>
@@ -1458,7 +1458,7 @@ automatycznie ponownie subskrybowane po reconnect.</li>
 filtrują po <code>event.type</code> (typy zdefiniowane w <code>features/agent/models/ws-event.model.ts</code>, np.
 <code>CALL_INCOMING</code>, <code>CONTACT_ASSIGNED</code>, <code>SOCIAL_MESSAGE_RECEIVED</code>, <code>SUPERVISOR_METRICS</code>).</li>
 </ul>
-<h3>6.3 Przepływ danych – przykład: przychodzące połączenie</h3>
+<h3 id="63-przepływ-danych--przykład-przychodzące-połączenie">6.3 Przepływ danych – przykład: przychodzące połączenie</h3>
 <pre class="mermaid">sequenceDiagram
     participant BE as Backend
     participant WS as WebSocketService
@@ -1476,8 +1476,8 @@ filtrują po <code>event.type</code> (typy zdefiniowane w <code>features/agent/m
     UI->>UI: render SoftphoneComponent (active tab)
 </pre>
 <hr>
-<h2>7. Build &amp; konfiguracja</h2>
-<h3>7.1 <code>app.config.ts</code> – providery globalne</h3>
+<h2 id="7-build-&amp-konfiguracja">7. Build &amp; konfiguracja</h2>
+<h3 id="71-appconfigts--providery-globalne">7.1 <code>app.config.ts</code> – providery globalne</h3>
 <pre><code class="language-ts">providers: [
   provideBrowserGlobalErrorListeners(),
   provideRouter(routes, withComponentInputBinding(), withRouterConfig({ paramsInheritanceStrategy: &#39;always&#39; })),
@@ -1491,7 +1491,7 @@ filtrują po <code>event.type</code> (typy zdefiniowane w <code>features/agent/m
 <li><code>withFetch()</code> – HttpClient na bazie <code>fetch</code> API (nowy backend Angular 17+).</li>
 <li>Brak <code>BrowserAnimationsModule</code>/Material – animacje robione czystym CSS.</li>
 </ul>
-<h3>7.2 Environments</h3>
+<h3 id="72-environments">7.2 Environments</h3>
 <table>
 <thead>
 <tr>
@@ -1516,14 +1516,14 @@ filtrują po <code>event.type</code> (typy zdefiniowane w <code>features/agent/m
 </tbody></table>
 <p>Oba korzystają z relatywnego <code>/api</code> – w dev przez proxy, w prod przez reverse proxy/ten sam
 origin co frontend.</p>
-<h3>7.3 Proxy dev-server – <code>proxy.conf.json</code></h3>
+<h3 id="73-proxy-dev-server--proxyconfjson">7.3 Proxy dev-server – <code>proxy.conf.json</code></h3>
 <pre><code class="language-json">{
   &quot;/api&quot;: { &quot;target&quot;: &quot;http://localhost:8080&quot;, &quot;changeOrigin&quot;: true },
   &quot;/ws&quot;: { &quot;target&quot;: &quot;ws://localhost:8080&quot;, &quot;ws&quot;: true, &quot;changeOrigin&quot;: true },
   &quot;/ws-native&quot;: { &quot;target&quot;: &quot;ws://localhost:8080&quot;, &quot;ws&quot;: true, &quot;changeOrigin&quot;: true }
 }
 </code></pre>
-<h3>7.4 Komendy (uruchamiać z <code>frontend/</code>)</h3>
+<h3 id="74-komendy-uruchamiać-z-frontend/">7.4 Komendy (uruchamiać z <code>frontend/</code>)</h3>
 <pre><code class="language-bash">npm start          # ng serve --proxy-config proxy.conf.json (dev server + proxy → :8080)
 npm run start:no-proxy
 npm run build       # build (development config)
@@ -1537,7 +1537,7 @@ npm run format:check   # Prettier --check
 </code></pre>
 <p>Backend musi działać na <code>localhost:8080</code> (patrz <code>docker compose ... up -d</code> w root <code>CLAUDE.md</code>).</p>
 <hr>
-<h2>8. Testy frontendowe (Vitest)</h2>
+<h2 id="8-testy-frontendowe-vitest">8. Testy frontendowe (Vitest)</h2>
 <ul>
 <li>Builder: <code>@angular/build:unit-test</code> (konfiguracja <code>test</code> w <code>angular.json</code>, <code>vitest.config.ts</code>
 zawiera jedynie <code>{ &quot;builder&quot;: &quot;@angular/build:unit-test&quot; }</code> – resztę przejmuje Angular CLI).</li>
@@ -1555,7 +1555,7 @@ i rzeczywistych mikrotaskach.</li>
 <li><strong>JWT w testach</strong>: budowanie fałszywego tokenu przez <code>buildFakeJwt()</code> – koduje payload base64url
 bez weryfikacji podpisu (zgodnie z <code>TokenService.decodePayload</code>).</li>
 </ul>
-<h3>Przykład (<code>auth.service.spec.ts</code>, fragment)</h3>
+<h3 id="przykład-authservicespects-fragment">Przykład (<code>auth.service.spec.ts</code>, fragment)</h3>
 <pre><code class="language-ts">function buildFakeJwt(payload: Partial&lt;JwtPayload&gt; &amp; { exp: number }): string {
   const encoded = btoa(JSON.stringify(payload))
     .replace(/\+/g, &#39;-&#39;).replace(/\//g, &#39;_&#39;).replace(/=+$/, &#39;&#39;);
@@ -1591,8 +1591,8 @@ describe(&#39;AuthService&#39;, () =&gt; {
 });
 </code></pre>
 <hr>
-<h2>9. Konwencje stylu (Prettier / ESLint)</h2>
-<h3>Prettier (<code>.prettierrc</code>)</h3>
+<h2 id="9-konwencje-stylu-prettier-/-eslint">9. Konwencje stylu (Prettier / ESLint)</h2>
+<h3 id="prettier-prettierrc">Prettier (<code>.prettierrc</code>)</h3>
 <pre><code class="language-json">{
   &quot;printWidth&quot;: 100,
   &quot;tabWidth&quot;: 2,
@@ -1615,7 +1615,7 @@ describe(&#39;AuthService&#39;, () =&gt; {
 <li><code>husky</code> + <code>lint-staged</code> – pre-commit hook uruchamia <code>eslint --fix</code> + <code>prettier --write</code> na
 zmienionych <code>.ts</code>, oraz <code>prettier --write</code> na <code>.html</code>/<code>.scss</code>.</li>
 </ul>
-<h3>ESLint (<code>eslint.config.js</code>)</h3>
+<h3 id="eslint-eslintconfigjs">ESLint (<code>eslint.config.js</code>)</h3>
 <p>Najważniejsze reguły specyficzne dla projektu:</p>
 <table>
 <thead>
@@ -1664,7 +1664,7 @@ formatujące kolidujące z Prettierem.</li>
 <li>Komendy: <code>npm run lint</code>, <code>npm run lint:fix</code>.</li>
 </ul>
 <hr>
-<h2>10. Szybki onboarding – checklist dla nowego developera</h2>
+<h2 id="10-szybki-onboarding--checklist-dla-nowego-developera">10. Szybki onboarding – checklist dla nowego developera</h2>
 <ol>
 <li><code>docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans</code> (root repo) – uruchamia backend + infrastrukturę.</li>
 <li><code>cd frontend &amp;&amp; npm install &amp;&amp; npm start</code> – dev server na <code>http://localhost:4200</code> z proxy do <code>:8080</code>.</li>

@@ -31,7 +31,7 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>Backend – dokumentacja techniczna</h1>
+<h1 id="backend--dokumentacja-techniczna">Backend – dokumentacja techniczna</h1>
 <blockquote>
 <p>Dokument onboardingowy dla warstwy backendowej Contact Center SaaS (<code>backend/</code>).
 Stack: <strong>Java 21 + Spring Boot 3.3.x</strong>, <strong>PostgreSQL 16</strong> (Flyway, Row Level Security),
@@ -43,7 +43,7 @@ opcjonalna mikrousługa <strong>Python/FastAPI</strong> (<code>voicebot/</code>)
 <code>backend/app/src/main/java/com/contactcenter/</code>, migracje SQL w
 <code>backend/src/main/resources/db/migration/</code> (146 plików, V001…V073+).</p>
 <hr>
-<h2>1. Struktura modułów</h2>
+<h2 id="1-struktura-modułów">1. Struktura modułów</h2>
 <p>Pakiety główne pod <code>com.contactcenter</code>:</p>
 <pre><code>api/             – kontrolery REST + DTO (warstwa wejścia/wyjścia)
 app/             – ContactCenterApplication (main class)
@@ -65,7 +65,7 @@ repozytoria i serwisy danej domeny znajdują się w jej pakiecie. Wyjątkiem są
 <code>contact</code>, <code>customer</code>, <code>disposition</code>, <code>email</code>, <code>etl</code>, <code>exception</code>, <code>gdpr</code>, <code>ivr</code>,
 <code>messaging</code>, <code>phonenumber</code>, <code>queue</code>, <code>recording</code>, <code>reporting</code>, <code>repository</code>, <code>routing</code>,
 <code>social</code>, <code>telephony</code>, <code>tenant</code>, <code>user</code>, <code>voicebot</code>, <code>websocket</code>.</p>
-<h3>1.0 Konwencje pakietów domenowych i enkapsulacja</h3>
+<h3 id="10-konwencje-pakietów-domenowych-i-enkapsulacja">1.0 Konwencje pakietów domenowych i enkapsulacja</h3>
 <p>Każda domena w <code>com.contactcenter.domain.&lt;nazwa&gt;</code> stosuje następujący wzorzec enkapsulacji
 (obowiązujący także dla nowych domen/refaktorów):</p>
 <ol>
@@ -96,7 +96,7 @@ pomiędzy warstwami (<code>api/</code>, <code>domain/</code>), nie implementacje
 └── AgentGroupServiceImpl.java   – package-private @Service implements AgentGroupService
 </code></pre>
 <hr>
-<h3>1.1 admin</h3>
+<h3 id="11-admin">1.1 admin</h3>
 <p><strong>Cel:</strong> metryki administracyjne (przegląd wszystkich tenantów) oraz status pipeline&#39;u ETL.</p>
 <table>
 <thead>
@@ -155,7 +155,7 @@ pomiędzy warstwami (<code>api/</code>, <code>domain/</code>), nie implementacje
 <p>Relacje: <code>AdminMetricsService</code> odpytuje repozytoria innych modułów (cross-tenant –
 endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 <hr>
-<h3>1.2 agentbreak</h3>
+<h3 id="12-agentbreak">1.2 agentbreak</h3>
 <p><strong>Cel:</strong> zarządzanie przerwami agentów (lunch, szkolenie itd.) i kalendarzem agenta
 (przerwy + zaplanowane oddzwonienia + kampanie).</p>
 <table>
@@ -243,7 +243,7 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 <code>agent.breaks.activator.interval-ms</code>, domyślnie 30s) – ustawia status agenta na
 <code>ON_BREAK</code>/<code>AVAILABLE</code> w zależności od czasu rozpoczęcia/zakończenia przerwy.</p>
 <hr>
-<h3>1.3 agentgroup</h3>
+<h3 id="13-agentgroup">1.3 agentgroup</h3>
 <p><strong>Cel:</strong> grupowanie agentów (do przypisań kolejek/kampanii i widoczności w raportach).</p>
 <table>
 <thead>
@@ -312,7 +312,7 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 <p>Relacje: grupy są referowane przez <code>Queue</code>/<code>Campaign</code> (przypisania – patrz moduły
 <code>queue</code>, <code>campaign</code>) i wykorzystywane przez <code>RoutingEngine</code> (skill-based routing).</p>
 <hr>
-<h3>1.4 auditlog</h3>
+<h3 id="14-auditlog">1.4 auditlog</h3>
 <p><strong>Cel:</strong> dziennik audytu (CRUD na encjach wrażliwych: user, tenant, customer itd.).</p>
 <table>
 <thead>
@@ -375,7 +375,7 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 <p>Błędy audytu (serializacja/publikacja) są logowane, ale <strong>nie przerywają</strong> operacji
 biznesowej.</p>
 <hr>
-<h3>1.5 auth</h3>
+<h3 id="15-auth">1.5 auth</h3>
 <p><strong>Cel:</strong> logowanie, refresh tokenów, MFA (TOTP), zmiana/reset hasła, rate limiting.</p>
 <table>
 <thead>
@@ -473,7 +473,7 @@ biznesowej.</p>
 </tbody></table>
 <p>Szczegóły JWT i MFA – patrz sekcja 2 (Security).</p>
 <hr>
-<h3>1.6 campaign</h3>
+<h3 id="16-campaign">1.6 campaign</h3>
 <p><strong>Cel:</strong> kampanie outbound (predictive/progressive dialer), import kontaktów CSV,
 przypisania agentów/grup, historia połączeń per rekord kampanii.</p>
 <table>
@@ -615,7 +615,7 @@ przypisania agentów/grup, historia połączeń per rekord kampanii.</p>
 status zapisywany w Redis (<code>QUEUED/PROCESSING/COMPLETED/FAILED_PARTIAL</code>), unikalny
 indeks z V027 zapobiega duplikatom.</p>
 <hr>
-<h3>1.7 contact</h3>
+<h3 id="17-contact">1.7 contact</h3>
 <p><strong>Cel:</strong> centralna historia kontaktów (calls, email, social, callbacks) – tabela
 partycjonowana <code>contact</code>. To &quot;rdzeń&quot; CRM-owy, do którego odwołuje się większość modułów.</p>
 <table>
@@ -766,7 +766,7 @@ VARCHAR+CHECK w V025 → repozytorium musi rzucać <code>CAST(:x AS VARCHAR)</co
 <li><code>customer.phone</code> to JSONB array – zapytania przez <code>phone @&gt; to_jsonb(...)</code>.</li>
 </ul>
 <hr>
-<h3>1.8 customer</h3>
+<h3 id="18-customer">1.8 customer</h3>
 <p><strong>Cel:</strong> baza klientów (CRM), fuzzy search, import CSV, RODO (eksport/anonimizacja).</p>
 <table>
 <thead>
@@ -898,7 +898,7 @@ VARCHAR+CHECK w V025 → repozytorium musi rzucać <code>CAST(:x AS VARCHAR)</co
 <p><strong>Integracja:</strong> przy nieznanym numerze przychodzącym (<code>call.unknown_caller</code>,
 kolejka <code>cc.queue.unknown-caller</code>) automatycznie tworzony jest profil klienta (BE-025).</p>
 <hr>
-<h3>1.9 dialer</h3>
+<h3 id="19-dialer">1.9 dialer</h3>
 <p><strong>Cel:</strong> Progressive Dialer (automatyczne wybieranie numerów kampanii) + zaplanowane
 oddzwonienia (scheduled callbacks) + ręczne połączenia agenta.</p>
 <table>
@@ -1014,7 +1014,7 @@ w <code>api/</code> korzysta z serwisów domeny <code>campaign</code>).</p>
 atomowo oznacza callback jako <code>IN_PROGRESS</code> (<code>updateStatusIfPending</code>) przed
 zainicjowaniem połączenia – chroni przed podwójnym przetworzeniem.</p>
 <hr>
-<h3>1.10 disposition</h3>
+<h3 id="110-disposition">1.10 disposition</h3>
 <p><strong>Cel:</strong> kody dyspozycji (np. &quot;Sprzedano&quot;, &quot;Nie zainteresowany&quot;) oraz zestawy
 dyspozycji przypisywane do kampanii/kolejek.</p>
 <table>
@@ -1108,7 +1108,7 @@ dyspozycji przypisywane do kampanii/kolejek.</p>
 <p>Relacje: <code>ContactController.GET /{contactId}/available-dispositions</code> odczytuje
 zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 <hr>
-<h3>1.11 email</h3>
+<h3 id="111-email">1.11 email</h3>
 <p><strong>Cel:</strong> kanał e-mail – IMAP polling (odbieranie), SMTP (wysyłka), szablony
 (Mustache), routing wiadomości do kolejek/kontaktów.</p>
 <table>
@@ -1281,7 +1281,7 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 <p><strong>Async eventy:</strong> <code>EXCHANGE_EVENTS</code> routing key <code>email.#</code> → <code>QUEUE_EMAIL_EVENTS</code>
 (received, queued, sent, assigned).</p>
 <hr>
-<h3>1.12 ivr</h3>
+<h3 id="112-ivr">1.12 ivr</h3>
 <p><strong>Cel:</strong> silnik IVR (drzewa decyzyjne, DTMF, integracja z voicebotem).</p>
 <table>
 <thead>
@@ -1383,7 +1383,7 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 <p>Typ węzła <code>VOICEBOT</code> (<code>IvrNodeType.VOICEBOT</code>) wywołuje <code>VoicebotClient</code> (sekcja 5).
 Timeout DTMF realizowany przez <code>TaskScheduler</code> z <code>AsyncConfig</code>.</p>
 <hr>
-<h3>1.13 phonenumber</h3>
+<h3 id="113-phonenumber">1.13 phonenumber</h3>
 <p><strong>Cel:</strong> zarządzanie numerami telefonów tenanta (E.164) oraz reguły routingu
 numerów (np. godziny pracy → kolejka/IVR).</p>
 <table>
@@ -1484,7 +1484,7 @@ numerów (np. godziny pracy → kolejka/IVR).</p>
 <code>trg_routing_rule_collision</code> (last-resort, <code>DataIntegrityViolationException</code> z
 komunikatem <code>routing_rule_collision</code>).</p>
 <hr>
-<h3>1.14 public_</h3>
+<h3 id="114-public_">1.14 public_</h3>
 <p><strong>Cel:</strong> endpointy bez JWT – ekran logowania (lista tenantów).</p>
 <table>
 <thead>
@@ -1518,7 +1518,7 @@ komunikatem <code>routing_rule_collision</code>).</p>
 </tr>
 </tbody></table>
 <hr>
-<h3>1.15 queue</h3>
+<h3 id="115-queue">1.15 queue</h3>
 <p><strong>Cel:</strong> kolejki obsługi (skill-based routing), przypisania agentów/grup, statystyki
 oczekiwania (EWT).</p>
 <table>
@@ -1610,7 +1610,7 @@ oczekiwania (EWT).</p>
 </tbody></table>
 <p>Wszystkie endpointy: <code>@PreAuthorize hasAnyRole(&#39;SUPERVISOR&#39;,&#39;ADMIN&#39;)</code>.</p>
 <hr>
-<h3>1.16 recording</h3>
+<h3 id="116-recording">1.16 recording</h3>
 <p><strong>Cel:</strong> dostęp do nagrań rozmów (S3/MinIO, presigned URL) oraz retencja.</p>
 <table>
 <thead>
@@ -1654,7 +1654,7 @@ oczekiwania (EWT).</p>
 <p>Konferencje Twilio (<code>TwilioWebhookController</code> → <code>/recording</code>) wywołują
 <code>TwilioRecordingDownloadService</code> po zakończeniu nagrywania.</p>
 <hr>
-<h3>1.17 reports</h3>
+<h3 id="117-reports">1.17 reports</h3>
 <p><strong>Cel:</strong> raporty agregowane (agenci, kampanie) + eksport CSV/XLSX.</p>
 <table>
 <thead>
@@ -1707,7 +1707,7 @@ oczekiwania (EWT).</p>
 </tbody></table>
 <p>Wszystkie: <code>hasAnyRole(&#39;SUPERVISOR&#39;,&#39;ADMIN&#39;)</code>.</p>
 <hr>
-<h3>1.18 social</h3>
+<h3 id="118-social">1.18 social</h3>
 <p><strong>Cel:</strong> integracje Facebook Messenger / Instagram / WhatsApp Business – OAuth,
 webhooki, wysyłka/odbiór wiadomości.</p>
 <table>
@@ -1815,7 +1815,7 @@ trafia do <code>QUEUE_SOCIAL_INCOMING</code> (routing przez <code>SocialMessageP
 <code>SocialMessageConsumer</code> przetwarza ją asynchronicznie (tworzy/aktualizuje <code>contact</code> +
 <code>social_message</code>, cross-tenant <code>findByPlatformAndPageId</code>).</p>
 <hr>
-<h3>1.19 supervisor</h3>
+<h3 id="119-supervisor">1.19 supervisor</h3>
 <p><strong>Cel:</strong> panel supervisora – konfiguracja AI (podsumowania) i Twilio per tenant,
 metryki real-time (WebSocket).</p>
 <table>
@@ -1889,7 +1889,7 @@ metryki real-time (WebSocket).</p>
 <p><code>SupervisorMetricsService</code> publikuje KPI na WebSocket
 (<code>/topic/tenant/{tenantId}/supervisor</code>) – patrz sekcja 5.</p>
 <hr>
-<h3>1.20 telemetry</h3>
+<h3 id="120-telemetry">1.20 telemetry</h3>
 <p><strong>Cel:</strong> odbiór logów z frontendu (debugging w produkcji).</p>
 <table>
 <thead>
@@ -1918,7 +1918,7 @@ metryki real-time (WebSocket).</p>
 </tr>
 </tbody></table>
 <hr>
-<h3>1.21 telephony</h3>
+<h3 id="121-telephony">1.21 telephony</h3>
 <p><strong>Cel:</strong> integracja z CPaaS (Twilio), kontrola połączeń przez agenta, webhooki,
 transfer.</p>
 <table>
@@ -2097,7 +2097,7 @@ transfer.</p>
 </tbody></table>
 <p>Webhooki Twilio – patrz sekcja 5.</p>
 <hr>
-<h3>1.22 tenant</h3>
+<h3 id="122-tenant">1.22 tenant</h3>
 <p><strong>Cel:</strong> zarządzanie tenantami (ADMIN), limity zasobów, konfiguracja per-tenant.</p>
 <table>
 <thead>
@@ -2189,7 +2189,7 @@ transfer.</p>
 <p>Przekroczenie limitu zasobu → <code>ResourceLimitExceededException</code> → HTTP 422
 (<code>resourceType</code>, <code>limit</code>, <code>current</code> w odpowiedzi).</p>
 <hr>
-<h3>1.23 user</h3>
+<h3 id="123-user">1.23 user</h3>
 <p><strong>Cel:</strong> zarządzanie użytkownikami (agenci/supervisorzy/admini), statusy agenta,
 preferencje UI.</p>
 <table>
@@ -2333,7 +2333,7 @@ preferencje UI.</p>
 <code>RoutingService</code> (<code>QUEUE_AGENT_STATUS</code>), <code>ProgressiveDialerService</code>
 (<code>QUEUE_DIALER_AGENT_STATUS</code>) – patrz RabbitMQ w sekcji 6.</p>
 <hr>
-<h3>1.24 websocket</h3>
+<h3 id="124-websocket">1.24 websocket</h3>
 <p><strong>Cel:</strong> kanał real-time do Agent Desktop (STOMP over WebSocket).</p>
 <table>
 <thead>
@@ -2365,8 +2365,8 @@ preferencje UI.</p>
 </tbody></table>
 <p>Szczegóły – sekcja 5.</p>
 <hr>
-<h2>2. Warstwa security</h2>
-<h3>2.1 Kolejność filtrów (krytyczne)</h3>
+<h2 id="2-warstwa-security">2. Warstwa security</h2>
+<h3 id="21-kolejność-filtrów-krytyczne">2.1 Kolejność filtrów (krytyczne)</h3>
 <pre><code>HTTP Request
    │
    ▼
@@ -2391,7 +2391,7 @@ autoryzację Spring Security (role, <code>@PreAuthorize</code>), <code>TenantFil
 multi-tenancy (<code>TenantContext</code> ThreadLocal + RLS w DB). Rozdzielenie odpowiedzialności
 ułatwia testowanie i pozwala <code>TenantFilter</code> zwracać RFC 7807 bezpośrednio (przed
 <code>ExceptionTranslationFilter</code>).</p>
-<h3>2.2 JWT – claims i lifecycle</h3>
+<h3 id="22-jwt--claims-i-lifecycle">2.2 JWT – claims i lifecycle</h3>
 <p><code>JwtService</code> (wystawianie, RS256, klucz prywatny) / <code>JwtParser</code> (weryfikacja, klucz
 publiczny):</p>
 <table>
@@ -2444,7 +2444,7 @@ refresh token na nowy access token (+ rotacja refresh tokenu).</p>
 <p><strong>Logout:</strong> <code>POST /api/auth/logout</code> – unieważnia refresh token w DB + wpisuje access
 token na blacklistę Redis (<code>TokenBlacklistService</code>, TTL = pozostały czas życia
 tokenu). <code>JwtAuthFilter</code> sprawdza blacklistę przy każdym żądaniu.</p>
-<h3>2.3 MFA (TOTP)</h3>
+<h3 id="23-mfa-totp">2.3 MFA (TOTP)</h3>
 <p><code>MfaService</code> – RFC 6238, SHA1, 6 cyfr, okres 30s, tolerancja ±1 krok (90s razem).
 Ochrona przed replay attack: użyty kod zapisywany w Redis
 (<code>mfa:used:{userId}:{code}</code>, TTL 90s).</p>
@@ -2454,7 +2454,7 @@ Ochrona przed replay attack: użyty kod zapisywany w Redis
 POST /api/auth/mfa/verify → verifyCode(secret, code, userId)
                               sukces → JWT z mfaVerified=true
 </code></pre>
-<h3>2.4 Role i autoryzacja</h3>
+<h3 id="24-role-i-autoryzacja">2.4 Role i autoryzacja</h3>
 <p><code>@EnableMethodSecurity(prePostEnabled = true)</code> + <code>@PreAuthorize</code> na poziomie metod
 kontrolerów. Role: <code>ADMIN</code>, <code>SUPERVISOR</code>, <code>AGENT</code> (z claim <code>role</code>, prefiks <code>ROLE_</code>
 dodawany automatycznie przez <code>AppUserDetails.getAuthorities()</code>).</p>
@@ -2469,7 +2469,7 @@ ogólną regułą <code>/api/tenants/**</code>)</li>
 <li><code>POST /api/contacts/*/ai-summary</code> → <code>AGENT</code>/<code>SUPERVISOR</code>/<code>ADMIN</code></li>
 <li>pozostałe → <code>authenticated()</code></li>
 </ul>
-<h3>2.5 Publiczne ścieżki – dwa miejsca synchronizacji</h3>
+<h3 id="25-publiczne-ścieżki--dwa-miejsca-synchronizacji">2.5 Publiczne ścieżki – dwa miejsca synchronizacji</h3>
 <p>Każdy nowy publiczny endpoint wymaga wpisu w <strong>obu</strong> miejscach:</p>
 <ol>
 <li><code>SecurityConfig.securityFilterChain()</code> – <code>requestMatchers(...).permitAll()</code></li>
@@ -2481,14 +2481,14 @@ ogólną regułą <code>/api/tenants/**</code>)</li>
 <code>/api/auth/login</code>, <code>/api/auth/refresh</code>, <code>/api/public/</code>, <code>/webhooks/</code>,
 <code>/api/webhooks/</code>, <code>/api/telephony/webhook/**</code>, <code>/api/telephony/hold-music</code>,
 <code>/api/oauth/*/callback</code>, <code>/ws/**</code>, <code>/ws-native/**</code>, <code>/api/logs</code>.</p>
-<h3>2.6 WebSocket – autentykacja STOMP</h3>
+<h3 id="26-websocket--autentykacja-stomp">2.6 WebSocket – autentykacja STOMP</h3>
 <p>Endpoint <code>/ws</code> i <code>/ws-native</code> są publiczne w <code>SecurityConfig</code> (HTTP upgrade), ale
 <code>WebSocketAuthInterceptor</code> (kanał inbound STOMP) weryfikuje JWT przy ramce
 <code>CONNECT</code> i tworzy <code>StompPrincipal(userId, tenantId, role)</code>. Brak/nieprawidłowy JWT
 → odmowa CONNECT.</p>
 <hr>
-<h2>3. Multi-tenancy</h2>
-<h3>3.1 TenantContext</h3>
+<h2 id="3-multi-tenancy">3. Multi-tenancy</h2>
+<h3 id="31-tenantcontext">3.1 TenantContext</h3>
 <p><code>security/TenantContext.java</code> – <code>InheritableThreadLocal&lt;UUID&gt;</code> dla <code>tenantId</code>,
 <code>userId</code>, <code>tenantName</code>, <code>userRole</code>. Ustawiany przez <code>TenantFilter</code> na początku
 żądania HTTP, <strong>czyszczony w <code>finally</code></strong> (zapobiega cross-tenant leakage przy
@@ -2501,7 +2501,7 @@ reużyciu wątków z puli).</p>
 <li><code>restore(Snapshot)</code> – przywraca kontekst w wątku roboczym</li>
 <li><code>clear()</code> – <strong>obowiązkowe</strong> w <code>finally</code> po <code>restore()</code></li>
 </ul>
-<h3>3.2 Wzorzec propagacji do @Async / RabbitMQ listenerów</h3>
+<h3 id="32-wzorzec-propagacji-do-@async-/-rabbitmq-listenerów">3.2 Wzorzec propagacji do @Async / RabbitMQ listenerów</h3>
 <pre><code class="language-java">// Wątek wywołujący (HTTP):
 TenantContext.Snapshot snapshot = TenantContext.snapshot();
 asyncExecutor.execute(() -&gt; {
@@ -2521,7 +2521,7 @@ Te serwisy muszą jawnie wywołać <code>TenantContext.setTenantId(...)</code> (
 <code>infrastructure/aspect/CrossTenantAspect</code> celowo <strong>wyklucza</strong> pakiet
 <code>domain.websocket</code> z monitoringu, bo te klasy działają w wątkach RabbitMQ bez
 <code>TenantContext</code>.</p>
-<h3>3.3 TenantAwareRepository i RLS</h3>
+<h3 id="33-tenantawarerepository-i-rls">3.3 TenantAwareRepository i RLS</h3>
 <p><code>domain/repository/TenantAwareRepository.java</code> – klasa bazowa dla repozytoriów:</p>
 <ul>
 <li><code>setTenantContextInDb()</code> – <code>SELECT set_tenant_context(CAST(:tenantId AS uuid))</code>
@@ -2531,7 +2531,7 @@ per-transakcja)</li>
 (HTTP 403) gdy <code>tenant_id</code> encji ≠ <code>TenantContext.getTenantId()</code></li>
 <li><code>denyAccess(resourceId)</code> – jawna odmowa (gdy zasób istnieje, ale innego tenanta)</li>
 </ul>
-<h3>3.4 PostgreSQL RLS</h3>
+<h3 id="34-postgresql-rls">3.4 PostgreSQL RLS</h3>
 <ul>
 <li>Funkcja <code>set_tenant_context(uuid)</code> (V023) – <code>set_config(&#39;app.current_tenant_id&#39;, ..., TRUE)</code>
 (ustawienie <strong>lokalne dla transakcji</strong>, resetowane po COMMIT/ROLLBACK)</li>
@@ -2546,8 +2546,8 @@ V032, V041, V042, V069-V072 dla nowych modułów).</li>
 <p>RLS jest <strong>drugą linią obrony</strong> – <code>assertSameTenant()</code> w warstwie aplikacji jest
 pierwszą (chroni przed błędami logiki przed wysłaniem zapytania do DB).</p>
 <hr>
-<h2>4. Wzorce i konwencje</h2>
-<h3>4.1 GlobalExceptionHandler (RFC 7807)</h3>
+<h2 id="4-wzorce-i-konwencje">4. Wzorce i konwencje</h2>
+<h3 id="41-globalexceptionhandler-rfc-7807">4.1 GlobalExceptionHandler (RFC 7807)</h3>
 <p><code>api/GlobalExceptionHandler.java</code> – <code>@RestControllerAdvice</code>, wszystkie błędy w
 formacie <code>ProblemDetail</code>:</p>
 <pre><code class="language-json">{
@@ -2673,7 +2673,7 @@ formacie <code>ProblemDetail</code>:</p>
 <td>bez szczegółów w odpowiedzi</td>
 </tr>
 </tbody></table>
-<h3>4.2 DTO i mapowanie</h3>
+<h3 id="42-dto-i-mapowanie">4.2 DTO i mapowanie</h3>
 <ul>
 <li>DTO jako <code>record</code> w pakietach <code>api/&lt;moduł&gt;/dto/</code></li>
 <li>Walidacja przez Jakarta Bean Validation (<code>@NotNull</code>, <code>@Pattern</code>, <code>@Email</code>...)
@@ -2681,7 +2681,7 @@ na rekordach DTO + <code>@Valid</code> w kontrolerach</li>
 <li>Brak generycznego mappera (MapStruct) – mapowanie ręczne w serwisach/kontrolerach
 (konstruktory DTO / statyczne fabryki <code>XxxResponse.from(entity)</code>)</li>
 </ul>
-<h3>4.3 Paginacja – PagedResponse<T></h3>
+<h3 id="43-paginacja--pagedresponse">4.3 Paginacja – PagedResponse<T></h3>
 <p><code>api/PagedResponse.java</code> – generyczny wrapper nad Spring Data <code>Page&lt;T&gt;</code>:</p>
 <pre><code class="language-json">{
   &quot;content&quot;: [...],
@@ -2692,7 +2692,7 @@ na rekordach DTO + <code>@Valid</code> w kontrolerach</li>
 </code></pre>
 <p>Globalny limit: <code>spring.data.web.pageable.max-page-size: 100</code>,
 <code>default-page-size: 20</code> (application.yml).</p>
-<h3>4.4 Audyt (<code>@Audited</code> + <code>AuditAspect</code>)</h3>
+<h3 id="44-audyt-@audited-+-auditaspect">4.4 Audyt (<code>@Audited</code> + <code>AuditAspect</code>)</h3>
 <p>Metody serwisów oznaczone <code>@Audited(entityType=&quot;USER&quot;, captureOldValue=true)</code> są
 przechwytywane przez <code>infrastructure/aspect/AuditAspect</code>:</p>
 <ol>
@@ -2705,12 +2705,12 @@ możliwe (mapowanie <code>entityType</code> → klasa JPA w <code>ENTITY_CLASS_M
 → INSERT do <code>audit_log</code></li>
 </ol>
 <p>Błędy audytu nie przerywają operacji biznesowej (logowane jako WARN/ERROR).</p>
-<h3>4.5 Optimistic locking</h3>
+<h3 id="45-optimistic-locking">4.5 Optimistic locking</h3>
 <p>Encje z <code>@Version</code> (np. <code>Campaign</code>, <code>Queue</code>) – konflikt równoczesnej edycji →
 <code>ObjectOptimisticLockingFailureException</code> → HTTP 409 (klient odświeża i ponawia).</p>
 <hr>
-<h2>5. Integracje zewnętrzne</h2>
-<h3>5.1 Telephony – Twilio Programmable Voice</h3>
+<h2 id="5-integracje-zewnętrzne">5. Integracje zewnętrzne</h2>
+<h3 id="51-telephony--twilio-programmable-voice">5.1 Telephony – Twilio Programmable Voice</h3>
 <p><code>telephony.provider</code> (<code>mock</code> | <code>twilio</code>) wybiera implementację <code>TelephonyAdapter</code>:</p>
 <ul>
 <li><strong><code>MockTelephonyAdapter</code></strong> (695 linii) – symulacja w pamięci + Redis, do dev/test.
@@ -2775,7 +2775,7 @@ do użytku wewnętrznego, np. <code>TwilioTelephonyAdapter</code>) + <code>Twili
 <code>TransferAgentQueueRepository</code> (UNION 3 źródeł kolejek, batch query bez N+1).
 <code>AgentCallController.POST /{callId}/transfer</code> deleguje do
 <code>ContactService.initiateTransfer()</code> → <code>TelephonyAdapter.initiateTransfer()</code>.</p>
-<h3>5.2 WebSocket – kanały i eventy</h3>
+<h3 id="52-websocket--kanały-i-eventy">5.2 WebSocket – kanały i eventy</h3>
 <pre><code>Destinations (broker /topic, /user):
   /topic/tenant/{tenantId}/supervisor   – broadcast KPI/eventy do supervisorów
   /topic/tenant/{tenantId}/agents       – broadcast do agentów tenanta
@@ -2794,7 +2794,7 @@ wiadomości STOMP i wysyłane na odpowiednie topiki/kolejki użytkownika.</p>
 dotrze do agenta (np. rozłączenie), <code>ContactAssignmentMonitor</code> + status
 <code>ASSIGNED</code> + <code>GET /api/agent/me/assigned-contact</code> pozwalają agentowi odzyskać
 przydzielony kontakt po reconnect (V046).</p>
-<h3>5.3 Voicebot (Python/FastAPI, ASR+NLU)</h3>
+<h3 id="53-voicebot-python/fastapi-asr+nlu">5.3 Voicebot (Python/FastAPI, ASR+NLU)</h3>
 <p>Katalog <code>voicebot/app/</code> (FastAPI): <code>main.py</code>, <code>asr.py</code> (rozpoznawanie mowy –
 Whisper), <code>nlu.py</code> (intencje), <code>summarize.py</code> (podsumowania), <code>session.py</code>,
 <code>rabbit.py</code>.</p>
@@ -2815,9 +2815,9 @@ np. przekierowanie do kolejki/agenta). Aktywowane przez <code>IvrNodeType.VOICEB
 w drzewie IVR. Uruchomienie: <code>docker compose --profile ai up -d</code>.</li>
 </ul>
 <hr>
-<h2>6. Async / messaging (RabbitMQ)</h2>
+<h2 id="6-async-/-messaging-rabbitmq">6. Async / messaging (RabbitMQ)</h2>
 <p>Konfiguracja: <code>infrastructure/config/RabbitMQConfig.java</code>.</p>
-<h3>6.1 Exchanges</h3>
+<h3 id="61-exchanges">6.1 Exchanges</h3>
 <table>
 <thead>
 <tr>
@@ -2847,7 +2847,7 @@ w drzewie IVR. Uruchomienie: <code>docker compose --profile ai up -d</code>.</li
 <td>dead letter exchange (wszystkie kolejki mają DLQ)</td>
 </tr>
 </tbody></table>
-<h3>6.2 Kolejki i konsumenci</h3>
+<h3 id="62-kolejki-i-konsumenci">6.2 Kolejki i konsumenci</h3>
 <table>
 <thead>
 <tr>
@@ -2963,7 +2963,7 @@ routing key (np. <code>call.hangup</code> → <code>dialer-hangup</code> + <code
 <p><strong>Konwencja:</strong> każda kolejka ma <code>x-dead-letter-exchange: cc.dlx</code>,
 <code>x-dead-letter-routing-key: dlq</code>. Wiadomości niedostarczone (publisher
 returns/mandatory) są logowane jako WARN.</p>
-<h3>6.3 Wzorzec implementacji kolejki</h3>
+<h3 id="63-wzorzec-implementacji-kolejki">6.3 Wzorzec implementacji kolejki</h3>
 <pre><code class="language-java">// 1. Stała nazwy w RabbitMQConfig
 public static final String QUEUE_XXX = &quot;cc.queue.xxx&quot;;
 
@@ -2979,10 +2979,10 @@ public void onEvent(SomeEvent event) {
 }
 </code></pre>
 <hr>
-<h2>7. Konfiguracja</h2>
+<h2 id="7-konfiguracja">7. Konfiguracja</h2>
 <p>Hierarchia: <code>application.yml</code> (base) → <code>application-{dev|prod}.yml</code> (override).
 Profil domyślny: <code>dev</code> (<code>spring.profiles.default</code>).</p>
-<h3>7.1 Kluczowe sekcje <code>application.yml</code></h3>
+<h3 id="71-kluczowe-sekcje-applicationyml">7.1 Kluczowe sekcje <code>application.yml</code></h3>
 <table>
 <thead>
 <tr>
@@ -3125,7 +3125,7 @@ Profil domyślny: <code>dev</code> (<code>spring.profiles.default</code>).</p>
 <td></td>
 </tr>
 </tbody></table>
-<h3>7.2 Sekrety produkcyjne (ENV vars)</h3>
+<h3 id="72-sekrety-produkcyjne-env-vars">7.2 Sekrety produkcyjne (ENV vars)</h3>
 <p><code>JWT_PRIVATE_KEY_VALUE</code> / <code>JWT_PUBLIC_KEY_VALUE</code>, <code>TWILIO_ACCOUNT_SID</code>,
 <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_API_KEY_SID/SECRET</code>, <code>APP_ENCRYPTION_SECRET</code>,
 <code>EMAIL_ENCRYPTION_KEY</code>, <code>SOCIAL_TOKEN_ENCRYPTION_KEY</code>, <code>S3_ACCESS_KEY/SECRET_KEY</code>,
@@ -3133,12 +3133,12 @@ Profil domyślny: <code>dev</code> (<code>spring.profiles.default</code>).</p>
 realnych wartości – domyślne wartości w <code>application.yml</code> są bezpieczne tylko
 dla <code>dev</code>.</p>
 <hr>
-<h2>8. Testy backendowe</h2>
+<h2 id="8-testy-backendowe">8. Testy backendowe</h2>
 <p>Lokalizacja: <code>backend/app/src/test/java/com/contactcenter/</code> (83 klasy <code>*Test.java</code></p>
 <ul>
 <li>1 <code>*IT.java</code>).</li>
 </ul>
-<h3>8.1 Struktura</h3>
+<h3 id="81-struktura">8.1 Struktura</h3>
 <pre><code>api/                – testy kontrolerów (MockMvc / standalone)
   supervisor/, telephony/
 domain/
@@ -3152,7 +3152,7 @@ infrastructure/
 security/
 ContactCenterApplicationIT.java   – smoke test (Spring context + actuator/health)
 </code></pre>
-<h3>8.2 Konwencje</h3>
+<h3 id="82-konwencje">8.2 Konwencje</h3>
 <ul>
 <li><strong>Brak H2</strong> – repozytoria (<code>*Repository extends TenantAwareRepository</code>) testowane
 przez <code>Mockito</code> na <code>EntityManager</code> + <code>ReflectionTestUtils</code> (nie pełny kontekst
@@ -3175,13 +3175,13 @@ osobno; rozwiązanie: <code>@MockitoSettings(Strictness.LENIENT)</code> + przeni
 <li>Znany flaky test: <code>SupervisorMetricsServiceTest$KpiCallsInIvrTests</code>
 (order-dependent, nie traktować jako regresji).</li>
 </ul>
-<h3>8.3 Uruchamianie</h3>
+<h3 id="83-uruchamianie">8.3 Uruchamianie</h3>
 <pre><code class="language-bash">mvn test -pl app                           # wszystkie testy
 mvn test -pl app -Dtest=JwtServiceTest     # jedna klasa
 mvn verify -pl app                         # pełna weryfikacja (bez pakowania)
 </code></pre>
 <hr>
-<h2>Dodatek: szybka mapa &quot;od żądania do bazy danych&quot;</h2>
+<h2 id="dodatek-szybka-mapa-&quotod-żądania-do-bazy-danych&quot">Dodatek: szybka mapa &quot;od żądania do bazy danych&quot;</h2>
 <pre><code>HTTP Request (Authorization: Bearer &lt;JWT&gt;)
    │
    ▼

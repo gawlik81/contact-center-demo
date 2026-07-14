@@ -31,7 +31,7 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>Baza danych – dokumentacja techniczna</h1>
+<h1 id="baza-danych--dokumentacja-techniczna">Baza danych – dokumentacja techniczna</h1>
 <blockquote>
 <p>Dokument onboardingowy dla warstwy danych Contact Center SaaS.
 Silnik: <strong>PostgreSQL 16</strong> (Docker), migracje <strong>Flyway</strong> (<code>backend/src/main/resources/db/migration/</code>,
@@ -41,8 +41,8 @@ obecnie <strong>73 pliki</strong>, <code>V001</code>…<code>V073</code>), izola
 </ul>
 </blockquote>
 <hr>
-<h2>1. Konwencje migracji (Flyway)</h2>
-<h3>1.1 Lokalizacja i nazewnictwo</h3>
+<h2 id="1-konwencje-migracji-flyway">1. Konwencje migracji (Flyway)</h2>
+<h3 id="11-lokalizacja-i-nazewnictwo">1.1 Lokalizacja i nazewnictwo</h3>
 <ul>
 <li>Katalog: <code>backend/src/main/resources/db/migration/</code></li>
 <li>Format nazwy: <code>V&lt;numer&gt;__&lt;opis_snake_case&gt;.sql</code>, np. <code>V069__create_custom_disposition.sql</code>.</li>
@@ -51,7 +51,7 @@ obecnie <strong>73 pliki</strong>, <code>V001</code>…<code>V073</code>), izola
 <li>Plik seedów developerskich (dane testowe, <strong>nie</strong> część łańcucha walidowanego checksumami
 w taki sam sposób co migracje produkcyjne) leży osobno: <code>backend/src/main/resources/db/seed/</code>.</li>
 </ul>
-<h3>1.2 ZŁOTA ZASADA – nigdy nie edytuj zastosowanej migracji</h3>
+<h3 id="12-złota-zasada--nigdy-nie-edytuj-zastosowanej-migracji">1.2 ZŁOTA ZASADA – nigdy nie edytuj zastosowanej migracji</h3>
 <blockquote>
 <p><strong>Nigdy nie edytuj pliku migracji, który już został zastosowany</strong> (czyli ma wpis w tabeli
 <code>flyway_schema_history</code>). Flyway liczy checksum (CRC32) treści każdego pliku przy starcie
@@ -67,7 +67,7 @@ spowoduje błąd walidacji i <strong>zablokuje start aplikacji</strong>.</p>
 <p>Przykład z rzeczywistej historii projektu: <code>V070__fix_custom_disposition_rls_and_indexes.sql</code>
 naprawia błędy wprowadzone w <code>V069__create_custom_disposition.sql</code> (błędna nazwa zmiennej RLS,
 brakujący <code>WITH CHECK</code>, brak <code>FORCE ROW LEVEL SECURITY</code>) – <strong>bez modyfikacji V069</strong>.</p>
-<h3>1.3 Ustawienia Flyway per profil</h3>
+<h3 id="13-ustawienia-flyway-per-profil">1.3 Ustawienia Flyway per profil</h3>
 <p>Konfiguracja: <code>backend/app/src/main/resources/application.yml</code> (+ <code>application-dev.yml</code>,
 <code>application-prod.yml</code>).</p>
 <pre><code class="language-yaml">spring:
@@ -109,14 +109,14 @@ automatycznego czyszczenia bazy – aplikacja po prostu <strong>nie wstanie</str
 <li>Następujące ustawienia <strong>nigdy nie mogą trafić na żaden profil</strong>, a zwłaszcza prod:
 <code>clean-on-validation-error: true</code>, <code>clean-disabled: false</code>.</li>
 </ul>
-<h3>1.4 Jak naprawić błąd checksumy &quot;ręcznie&quot; (sytuacja wyjątkowa)</h3>
+<h3 id="14-jak-naprawić-błąd-checksumy-&quotręcznie&quot-sytuacja-wyjątkowa">1.4 Jak naprawić błąd checksumy &quot;ręcznie&quot; (sytuacja wyjątkowa)</h3>
 <p>Jeśli migracja już trafiła do współdzielonej bazy (np. dev) z błędem, a poprawiony plik
 <code>Vxxx__fix_*.sql</code> nie wystarcza (np. trzeba poprawić zarejestrowany checksum), operację
 wykonuje się <strong>ręcznie przez psql</strong> na tabeli <code>flyway_schema_history</code> – tak jak
 udokumentowano dla <code>V070</code> (ręczny <code>INSERT</code> z poprawnym checksumem CRC32). To wyjątek,
 nie standardowa praktyka – domyślnie zawsze wystarcza nowy plik <code>Vxxx__fix_*.sql</code>.</p>
 <hr>
-<h2>2. Multi-tenancy w bazie danych</h2>
+<h2 id="2-multi-tenancy-w-bazie-danych">2. Multi-tenancy w bazie danych</h2>
 <p>Izolacja danych jest realizowana <strong>dwuwarstwowo</strong>:</p>
 <ol>
 <li><strong>Warstwa aplikacji</strong> – każde repozytorium rozszerza <code>TenantAwareRepository</code> i przed
@@ -125,7 +125,7 @@ każdym zapisem wywołuje <code>assertSameTenant(entity.getTenantId())</code> (p
 <strong>druga linia obrony</strong> (defense in depth) – nawet błąd w warstwie repozytorium nie
 spowoduje wycieku danych między tenantami.</li>
 </ol>
-<h3>2.1 Kolumna <code>tenant_id</code></h3>
+<h3 id="21-kolumna-tenant_id">2.1 Kolumna <code>tenant_id</code></h3>
 <p>Każda tabela domenowa zawiera kolumnę <code>tenant_id UUID NOT NULL</code> (komentarz schematu z <code>V001</code>:
 <em>&quot;Multi-tenant: każda tabela zawiera kolumnę tenant_id UUID NOT NULL&quot;</em>). Wyjątki:</p>
 <ul>
@@ -133,7 +133,7 @@ spowoduje wycieku danych między tenantami.</li>
 tenanta), widoczne dla wszystkich.</li>
 <li>Tabele referencyjne bez kontekstu tenanta (np. <code>cron_log</code>) nie mają <code>tenant_id</code>.</li>
 </ul>
-<h3>2.2 Role bazodanowe (V012)</h3>
+<h3 id="22-role-bazodanowe-v012">2.2 Role bazodanowe (V012)</h3>
 <pre><code class="language-sql">-- Rola aplikacyjna: podlega RLS
 CREATE ROLE app_user NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
 
@@ -146,7 +146,7 @@ CREATE ROLE admin_user NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE BYPASSRLS;
 <li><code>admin_user</code> – <code>BYPASSRLS = TRUE</code>, pełne <code>ALL PRIVILEGES</code>. Tego konta używa <strong>Flyway</strong>
 i operacje administracyjne/ETL cross-tenant. <strong>Nigdy nie używaj roli <code>app_user</code> w migracjach.</strong></li>
 </ul>
-<h3>2.3 Ustawienie kontekstu tenanta</h3>
+<h3 id="23-ustawienie-kontekstu-tenanta">2.3 Ustawienie kontekstu tenanta</h3>
 <p>Aplikacja ustawia zmienną sesji/transakcji przed każdym zapytaniem:</p>
 <pre><code class="language-sql">SET LOCAL app.current_tenant_id = &#39;&lt;uuid tenanta&gt;&#39;;
 </code></pre>
@@ -161,7 +161,7 @@ gdy konwencja ustalona w <code>V012</code> i utrwalona w <code>V042</code>/<code
 <code>app.current_tenant_id</code></strong> (zgodnie z tym, co faktycznie ustawia aplikacja) i jeśli
 natrafisz na tabelę z <code>app.tenant_id</code>, zgłoś to jako kandydata do migracji <code>Vxxx__fix_*</code>.</p>
 </blockquote>
-<h3>2.4 Przykładowe polityki RLS (z <code>V012</code>)</h3>
+<h3 id="24-przykładowe-polityki-rls-z-v012">2.4 Przykładowe polityki RLS (z <code>V012</code>)</h3>
 <pre><code class="language-sql">ALTER TABLE customer ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer FORCE ROW LEVEL SECURITY;  -- nawet właściciel tabeli podlega RLS
 
@@ -191,20 +191,20 @@ CREATE POLICY agent_group_tenant_isolation ON agent_group
 <code>phone_routing_rule</code> (V039), <code>tenant_ai_config</code> (V064), <code>contact_transcription</code> (V067),
 <code>contact_ai_summary</code> (V068), <code>custom_disposition</code> (V069/V070), <code>disposition_set</code>,
 <code>disposition_set_item</code> (V071), <code>contact_event</code> (V059).</p>
-<h3>2.5 <code>assertSameTenant</code> – konwencja aplikacyjna</h3>
+<h3 id="25-assertsametenant--konwencja-aplikacyjna">2.5 <code>assertSameTenant</code> – konwencja aplikacyjna</h3>
 <p>Każde repozytorium dziedziczy po <code>TenantAwareRepository</code> i przed <code>save()</code>/<code>update()</code>
 wywołuje <code>assertSameTenant(entity.getTenantId())</code>, które porównuje <code>tenant_id</code> encji
 z <code>TenantContext</code> aktualnego żądania i rzuca wyjątek przy niezgodności – RLS jest
 warstwą zapasową, ten check wyłapuje błędy <em>przed</em> zapytaniem SQL.</p>
 <hr>
-<h2>3. Mapa schematu per domena</h2>
+<h2 id="3-mapa-schematu-per-domena">3. Mapa schematu per domena</h2>
 <blockquote>
 <p>Konwencja PK: w tym projekcie klucze główne <strong>nie</strong> nazywają się <code>id</code> (z wyjątkiem
 nowszych tabel z <code>V042+</code>, gdzie spotyka się zarówno <code>id</code>, jak i <code>&lt;encja&gt;_id</code> – patrz
 tabela poniżej). Przed pisaniem <code>REFERENCES</code> zawsze zweryfikuj realną nazwę PK przez
 <code>\d &lt;tabela&gt;</code> w psql.</p>
 </blockquote>
-<h3>3.1 Tenant / User / Auth (V002, V003, V012, V018, V020, V021, V050)</h3>
+<h3 id="31-tenant-/-user-/-auth-v002-v003-v012-v018-v020-v021-v050">3.1 Tenant / User / Auth (V002, V003, V012, V018, V020, V021, V050)</h3>
 <table>
 <thead>
 <tr>
@@ -241,7 +241,7 @@ tabela poniżej). Przed pisaniem <code>REFERENCES</code> zawsze zweryfikuj realn
 <code>ACTIVE</code>, <code>INACTIVE</code> (konto), <code>AVAILABLE</code>, <code>BUSY</code>, <code>BREAK</code>, <code>AFTER_CONTACT</code>, <code>OFFLINE</code> (V021).</p>
 <p><strong>Role (<code>app_user.role</code>):</strong> <code>ADMIN</code> (platforma, cross-tenant), <code>SUPERVISOR</code>, <code>AGENT</code>.</p>
 <hr>
-<h3>3.2 Customer (V006, V016, V017, V024, V025, V035)</h3>
+<h3 id="32-customer-v006-v016-v017-v024-v025-v035">3.2 Customer (V006, V016, V017, V024, V025, V035)</h3>
 <table>
 <thead>
 <tr>
@@ -269,7 +269,7 @@ w <code>V024__fix_search_customers_prefix_search.sql</code>.</p>
 <code>export_customer_data()</code> (V017), widok historii klienta <code>v_customer_timeline</code> (UNION ALL
 CONTACT + EMAIL + SOCIAL, V017).</p>
 <hr>
-<h3>3.3 Contact – rdzeń interakcji (V007, V040, V046, V054, V056, V058, V060, V061, V063, V065→V068, V073)</h3>
+<h3 id="33-contact--rdzeń-interakcji-v007-v040-v046-v054-v056-v058-v060-v061-v063-v065→v068-v073">3.3 Contact – rdzeń interakcji (V007, V040, V046, V054, V056, V058, V060, V061, V063, V065→V068, V073)</h3>
 <table>
 <thead>
 <tr>
@@ -333,7 +333,7 @@ w wyrażeniach indeksowych na <code>timestamptz</code> – te funkcje są <code>
 (wynik zależy od <code>TimeZone</code> GUC), PostgreSQL odrzuci <code>CREATE INDEX</code>. Patrz poprawki
 w <code>V007</code> i <code>V011</code>.</p>
 <hr>
-<h3>3.4 Campaign / Dialer / Scheduled callback (V009, V015, V027, V032–V038, V045, V047, V052–V057, V062)</h3>
+<h3 id="34-campaign-/-dialer-/-scheduled-callback-v009-v015-v027-v032v038-v045-v047-v052v057-v062">3.4 Campaign / Dialer / Scheduled callback (V009, V015, V027, V032–V038, V045, V047, V052–V057, V062)</h3>
 <table>
 <thead>
 <tr>
@@ -414,7 +414,7 @@ przy tworzeniu kampanii: <code>CREATE TABLE campaign_contact_&lt;uuid&gt; PARTIT
 </tr>
 </tbody></table>
 <hr>
-<h3>3.5 Queue / Routing / IVR (V008, V039, V042–V044)</h3>
+<h3 id="35-queue-/-routing-/-ivr-v008-v039-v042v044">3.5 Queue / Routing / IVR (V008, V039, V042–V044)</h3>
 <table>
 <thead>
 <tr>
@@ -475,7 +475,7 @@ przy tworzeniu kampanii: <code>CREATE TABLE campaign_contact_&lt;uuid&gt; PARTIT
 agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_active=TRUE</code>; aplikacja dofiltrowuje
 <code>agent_skills @&gt; queue_required_skills</code> dla <code>SKILL_BASED</code>.</p>
 <hr>
-<h3>3.6 Email / Social (V010, V028, V029, V041)</h3>
+<h3 id="36-email-/-social-v010-v028-v029-v041">3.6 Email / Social (V010, V028, V029, V041)</h3>
 <table>
 <thead>
 <tr>
@@ -511,7 +511,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 </tr>
 </tbody></table>
 <hr>
-<h3>3.7 Konfiguracja integracji per tenant (V051, V064)</h3>
+<h3 id="37-konfiguracja-integracji-per-tenant-v051-v064">3.7 Konfiguracja integracji per tenant (V051, V064)</h3>
 <table>
 <thead>
 <tr>
@@ -533,7 +533,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 </tbody></table>
 <p>Obie tabele: partial index <code>WHERE is_active</code>, RLS <code>USING (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::uuid)</code>.</p>
 <hr>
-<h3>3.8 Agent groups / breaks (V042, V048)</h3>
+<h3 id="38-agent-groups-/-breaks-v042-v048">3.8 Agent groups / breaks (V042, V048)</h3>
 <table>
 <thead>
 <tr>
@@ -554,7 +554,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 </tr>
 </tbody></table>
 <hr>
-<h3>3.9 Audit / GDPR / ETL / Cron (V004, V013, V014, V015, V017, V036, V045)</h3>
+<h3 id="39-audit-/-gdpr-/-etl-/-cron-v004-v013-v014-v015-v017-v036-v045">3.9 Audit / GDPR / ETL / Cron (V004, V013, V014, V015, V017, V036, V045)</h3>
 <table>
 <thead>
 <tr>
@@ -585,7 +585,7 @@ CONTACT + EMAIL + SOCIAL przez <code>UNION ALL</code>).</p>
 <p><strong>pg_cron (V014):</strong> zadania okresowe – tworzenie partycji <code>audit_log</code>/<code>contact</code> na
 następny miesiąc, czyszczenie <code>refresh_token</code>, archiwizacja <code>campaign_contact</code>.</p>
 <hr>
-<h3>3.10 Widoki diagnostyczne i raportowe (V011, V016)</h3>
+<h3 id="310-widoki-diagnostyczne-i-raportowe-v011-v016">3.10 Widoki diagnostyczne i raportowe (V011, V016)</h3>
 <ul>
 <li><code>v_active_contacts</code> – aktywne kontakty (status <code>QUEUED/ACTIVE/ON_HOLD</code>).</li>
 <li><code>v_queue_realtime_stats</code> – statystyki kolejek na żywo (przebudowany po V019).</li>
@@ -595,8 +595,8 @@ następny miesiąc, czyszczenie <code>refresh_token</code>, archiwizacja <code>c
 o kolumny <code>not_reached_records</code>, <code>callback_records</code>).</li>
 </ul>
 <hr>
-<h2>4. Diagramy ER (Mermaid)</h2>
-<h3>4.1 Campaign + Dialer + Contact</h3>
+<h2 id="4-diagramy-er-mermaid">4. Diagramy ER (Mermaid)</h2>
+<h3 id="41-campaign-+-dialer-+-contact">4.1 Campaign + Dialer + Contact</h3>
 <pre class="mermaid">erDiagram
     TENANT ||--o{ CAMPAIGN : "ma"
     TENANT ||--o{ CUSTOMER : "ma"
@@ -654,7 +654,7 @@ o kolumny <code>not_reached_records</code>, <code>callback_records</code>).</li>
         varchar status
     }
 </pre>
-<h3>4.2 Customer + Contact (historia interakcji, multi-kanał)</h3>
+<h3 id="42-customer-+-contact-historia-interakcji-multi-kanał">4.2 Customer + Contact (historia interakcji, multi-kanał)</h3>
 <pre class="mermaid">erDiagram
     CUSTOMER ||--o{ CONTACT : "customer_id (SET NULL on delete)"
     CONTACT ||--o{ CONTACT_EVENT : "etapy: IVR/QUEUE/AGENT/..."
@@ -702,7 +702,7 @@ o kolumny <code>not_reached_records</code>, <code>callback_records</code>).</li>
 powiązanie <code>contact_id</code> jest logiczne (PostgreSQL nie wspiera FK do partycjonowanej tabeli
 ze strony child).</p>
 </blockquote>
-<h3>4.3 Queue + Routing + IVR</h3>
+<h3 id="43-queue-+-routing-+-ivr">4.3 Queue + Routing + IVR</h3>
 <pre class="mermaid">erDiagram
     TENANT ||--o{ PHONE_NUMBER : ""
     PHONE_NUMBER ||--o{ PHONE_ROUTING_RULE : "harmonogram"
@@ -745,8 +745,8 @@ ze strony child).</p>
     }
 </pre>
 <hr>
-<h2>5. Wzorce projektowe w schemacie</h2>
-<h3>5.1 Soft delete</h3>
+<h2 id="5-wzorce-projektowe-w-schemacie">5. Wzorce projektowe w schemacie</h2>
+<h3 id="51-soft-delete">5.1 Soft delete</h3>
 <ul>
 <li><code>customer.is_deleted</code>, <code>app_user.is_deleted</code>, <code>scheduled_callback.is_deleted</code> (V032),
 <code>phone_number.is_deleted</code> (V039) – <code>BOOLEAN NOT NULL DEFAULT FALSE</code>.</li>
@@ -755,7 +755,7 @@ szybsze zapytania na &quot;żywych&quot; rekordach.</li>
 <li>Prawdziwe (nieodwracalne) usunięcie danych osobowych klienta realizuje
 <code>anonymize_customer()</code> (RODO) – nie <code>DELETE</code>.</li>
 </ul>
-<h3>5.2 Audyt: <code>created_at</code>/<code>updated_at</code> + trigger</h3>
+<h3 id="52-audyt-created_at/updated_at-+-trigger">5.2 Audyt: <code>created_at</code>/<code>updated_at</code> + trigger</h3>
 <p>Wzorzec powtarzany w prawie każdej tabeli:</p>
 <pre><code class="language-sql">created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 updated_at TIMESTAMPTZ,
@@ -770,7 +770,7 @@ ustawiającą <code>NEW.updated_at = NOW()</code>.</p>
 <p>Pełny audyt zmian (kto/co/kiedy, stan przed/po) trafia do <code>audit_log</code> (<code>old_value</code>/<code>new_value JSONB</code>)
 – osobny mechanizm niż <code>updated_at</code>, używany do zdarzeń biznesowych (np. <code>CUSTOMER_ANONYMIZED</code>,
 <code>CAMPAIGN_STARTED</code>), nie do każdego UPDATE.</p>
-<h3>5.3 Wersjonowanie</h3>
+<h3 id="53-wersjonowanie">5.3 Wersjonowanie</h3>
 <ul>
 <li><code>ivr_tree.version INT</code> – inkrementowane automatycznie przez <code>fn_ivr_version_increment()</code>
 <strong>tylko gdy</strong> <code>OLD.definition IS DISTINCT FROM NEW.definition</code> (czyli zmiana metadanych
@@ -778,7 +778,7 @@ bez zmiany drzewa nie podnosi wersji).</li>
 <li><code>V049__add_version_columns.sql</code> – dodaje kolumny optimistic-locking (<code>@Version</code> w JPA)
 do wybranych encji.</li>
 </ul>
-<h3>5.4 JSONB – kluczowe struktury</h3>
+<h3 id="54-jsonb--kluczowe-struktury">5.4 JSONB – kluczowe struktury</h3>
 <table>
 <thead>
 <tr>
@@ -858,7 +858,7 @@ do wybranych encji.</li>
 <td><code>jsonb_typeof = &#39;array&#39;</code></td>
 </tr>
 </tbody></table>
-<h3>5.5 ENUM → VARCHAR + CHECK (V019, V025, V026)</h3>
+<h3 id="55-enum-→-varchar-+-check-v019-v025-v026">5.5 ENUM → VARCHAR + CHECK (V019, V025, V026)</h3>
 <p>Pierwotnie typy domenowe (<code>tenant_status</code>, <code>user_role</code>, <code>contact_channel</code>, <code>campaign_status</code>
 itd.) były natywnymi <code>CREATE TYPE ... AS ENUM</code>. Hibernate 6 binduje wartości enum jako
 <code>VARCHAR</code> (JDBC type 12), co przy natywnym <code>ENUM</code> w Postgresie powoduje błąd
@@ -869,7 +869,7 @@ projekcie powinna być od razu <code>VARCHAR + CHECK</code>, nie <code>CREATE TY
 <p>Skutek praktyczny: dodanie nowej wartości statusu = nowa migracja <code>DROP CONSTRAINT</code> +
 <code>ADD CONSTRAINT</code> z rozszerzoną listą (patrz V030, V046, V053, V056, V060, V073 dla
 <code>contact.status</code> i <code>campaign_contact.status</code>).</p>
-<h3>5.6 Partycjonowanie – trzy strategie w jednym schemacie</h3>
+<h3 id="56-partycjonowanie--trzy-strategie-w-jednym-schemacie">5.6 Partycjonowanie – trzy strategie w jednym schemacie</h3>
 <table>
 <thead>
 <tr>
@@ -898,7 +898,7 @@ projekcie powinna być od razu <code>VARCHAR + CHECK</code>, nie <code>CREATE TY
 <code>create_contact_partition</code>) lub tworzenie partycji &quot;na żądanie&quot; przez aplikację
 (<code>campaign_contact_&lt;uuid&gt;</code>). Wszystkie mają partycję <code>*_default</code> jako fallback.</p>
 <hr>
-<h2>6. Anti-pattern: zakaz przeciążonych kolumn (overloaded columns)</h2>
+<h2 id="6-anti-pattern-zakaz-przeciążonych-kolumn-overloaded-columns">6. Anti-pattern: zakaz przeciążonych kolumn (overloaded columns)</h2>
 <blockquote>
 <p><strong>Zakaz:</strong> nie używaj istniejącej kolumny do przechowywania semantycznie innej wartości
 tylko dlatego, że typ się zgadza.</p>
@@ -920,7 +920,7 @@ każdy nowy developer musi na nowo odkryć &quot;tajne&quot; znaczenie kolumny, 
 modelem kontaktu, <code>V068</code> wyodrębnił je do osobnej tabeli <code>contact_ai_summary</code> – zamiast
 dalej rozszerzać <code>contact</code> o coraz więcej opcjonalnych, rzadko wypełnionych kolumn.</p>
 <hr>
-<h2>7. Jak dodać nową tabelę/kolumnę – krok po kroku</h2>
+<h2 id="7-jak-dodać-nową-tabelę/kolumnę--krok-po-kroku">7. Jak dodać nową tabelę/kolumnę – krok po kroku</h2>
 <ol>
 <li><p><strong>Sprawdź najwyższy istniejący numer migracji:</strong></p>
 <pre><code class="language-bash">ls backend/src/main/resources/db/migration/ | sort -V | tail -1

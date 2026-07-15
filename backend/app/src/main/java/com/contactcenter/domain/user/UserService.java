@@ -351,4 +351,17 @@ public interface UserService {
      * @return Optional z użytkownikiem lub empty jeśli nie istnieje
      */
     Optional<AppUser> findUserById(UUID userId);
+
+    // =========================================================================
+    // AdminMetrics: trendy wzrostu platformy (SUPER_ADMIN)
+    // =========================================================================
+
+    /**
+     * Zlicza nowych użytkowników utworzonych w każdym tygodniu ISO-8601 od podanej daty
+     * granicznej, cross-tenant.
+     *
+     * @param since dolna granica {@code created_at} (włącznie)
+     * @return lista par {@code [week_start, count]}, posortowana rosnąco
+     */
+    List<Object[]> countNewUsersByWeekSince(java.time.Instant since);
 }

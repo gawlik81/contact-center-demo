@@ -1358,6 +1358,133 @@ class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // AdminMetrics: agregacje per tenant dla SUPER_ADMIN (BE metryki platformy)
+  // =========================================================================
+
+  /**
+   * Zlicza aktywne/w toku kontakty tenanta (status QUEUED, ACTIVE lub ON_HOLD).
+   *
+   * <p>Wywoływana per tenant (jawny {@code tenantId}) – ustawia kontekst RLS przed zapytaniem,
+   * bezpieczna do wywołania w pętli po wielu tenantach (wzorzec analogiczny do
+   * {@code TenantPluginInstallationRepository#findAllEnabledByPluginVersionIdForTenant}:
+   * N wywołań, jedno per tenant, zero bypassu RLS).
+   *
+   * <p>Używana przez {@code AdminMetricsService} do wyznaczenia {@code TenantDetailMetrics.activeContacts}
+   * (pojedynczy tenant) oraz {@code AdminMetricsResponse.totalActiveContacts} (suma w pętli po tenantach).
+   *
+   * @param tenantId UUID tenanta
+   * @return liczba aktywnych/w toku kontaktów tenanta
+   */
+  @Transactional(readOnly = true)
+  public long countActiveContactsByTenantId(UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    Number count = (Number) em.createNativeQuery("""
+            SELECT COUNT(*) FROM contact
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND status IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+            """)
+        .setParameter("tenantId", tenantId.toString())
+        .getSingleResult();
+
+    return count.longValue();
+  }
+
+  /**
+   * Agreguje statystyki kontaktów ZAKOŃCZONYCH tenanta dla wskazanego dnia (kalendarzowego,
+   * granice dnia wyznaczone przez {@code java.sql.Date} – tak samo jak {@link #findAgentReportRows}).
+   *
+   * <p>Kryteria zgodne z {@link #buildAgentReportBaseSql()} (status COMPLETED/TRANSFERRED,
+   * {@code duration_seconds IS NOT NULL}) – ta sama definicja "kontaktu zakończonego" co
+   * w raportach agentów (BE-028), dla spójności metryk w całej platformie.
+   *
+   * <p>Wywoływana per tenant (jawny {@code tenantId}) w pętli przez {@code AdminMetricsService}
+   * – N zapytań (N = liczba tenantów), NIE N zapytań per agent. Zero bypassu RLS.
+   *
+   * @param tenantId UUID tenanta
+   * @param date     dzień, dla którego liczona jest agregacja
+   * @return {@code Object[]} z czterema wartościami: {@code [contactsCount(Long), sumHandleTimeSeconds(Number),
+   *         sumWaitTimeSeconds(Number), fcrCount(Long)]} – wszystkie 0 gdy brak kontaktów danego dnia
+   */
+  @Transactional(readOnly = true)
+  public Object[] getDailyContactAggregate(UUID tenantId, java.time.LocalDate date) {
+    setTenantContextInDb(tenantId);
+
+    return (Object[]) em.createNativeQuery("""
+            SELECT
+                COUNT(*)                                                          AS contacts_count,
+                COALESCE(SUM(duration_seconds), 0)                                 AS sum_handle_time,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (assigned_at - queued_at))), 0)    AS sum_wait_time,
+                COALESCE(SUM(CASE
+                    WHEN disposition_code NOT IN ('CALLBACK', 'TRANSFER', 'ESCALATE')
+                    THEN 1 ELSE 0
+                END), 0)                                                           AS fcr_count
+            FROM contact
+            WHERE tenant_id         = CAST(:tenantId AS uuid)
+              AND started_at       >= :dayStart
+              AND started_at       <  :dayEnd
+              AND status           IN ('COMPLETED', 'TRANSFERRED')
+              AND duration_seconds IS NOT NULL
+            """)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("dayStart", java.sql.Date.valueOf(date))
+        .setParameter("dayEnd", java.sql.Date.valueOf(date.plusDays(1)))
+        .getSingleResult();
+  }
+
+  /**
+   * Agreguje liczbę kontaktów ZAKOŃCZONYCH tenanta w podanym zakresie dat (kalendarzowo,
+   * oba krańce {@code fromDate}/{@code toDate} WŁĄCZNIE), pogrupowaną po kanale.
+   *
+   * <p>Używa DOKŁADNIE tej samej definicji "kontaktu" co {@link #getDailyContactAggregate}
+   * (status COMPLETED/TRANSFERRED, {@code duration_seconds IS NOT NULL}) – gdy zakres zawęzi się
+   * do pojedynczego dnia ({@code fromDate == toDate}), suma zwróconych liczników MUSI się zgadzać
+   * z {@code contactsCount} z {@link #getDailyContactAggregate} dla tego samego tenanta/dnia.
+   * To jest kluczowe dla spójności {@code TenantChannelRow.total()} z {@code TenantMetrics.contactsToday}
+   * w odpowiedzi {@code GET /api/admin/metrics/contacts-by-channel} (BE metryki platformy).
+   *
+   * <p>{@code toDate} jest krańcem WŁĄCZNYM zakresu – analogicznie jak {@code date.plusDays(1)}
+   * w {@link #getDailyContactAggregate}, tutaj granica wykluczająca dla SQL jest liczona
+   * wewnętrznie jako {@code toDate.plusDays(1)}, żeby objąć cały ostatni dzień zakresu.
+   *
+   * <p>Wywoływana per tenant (jawny {@code tenantId}) w pętli przez {@code AdminMetricsService}
+   * – N zapytań (N = liczba tenantów), zero bypassu RLS.
+   *
+   * @param tenantId UUID tenanta
+   * @param fromDate pierwszy dzień zakresu (włącznie)
+   * @param toDate   ostatni dzień zakresu (włącznie)
+   * @return lista wierszy {@code [channel(String), count(Number)]} – po jednym wierszu na kanał
+   *         z co najmniej jednym kontaktem w zakresie (kanały bez żadnego kontaktu NIE są
+   *         zwracane – zero-fill dla brakujących kanałów wykonywany po stronie
+   *         {@code AdminMetricsService}, zgodnie z kanoniczną listą kanałów)
+   */
+  @Transactional(readOnly = true)
+  public List<Object[]> getContactCountsByChannelInRange(
+      UUID tenantId, java.time.LocalDate fromDate, java.time.LocalDate toDate) {
+    setTenantContextInDb(tenantId);
+
+    @SuppressWarnings("unchecked")
+    List<Object[]> results = em.createNativeQuery("""
+            SELECT
+                channel,
+                COUNT(*) AS contacts_count
+            FROM contact
+            WHERE tenant_id         = CAST(:tenantId AS uuid)
+              AND started_at       >= :fromDate
+              AND started_at       <  :toDateExclusive
+              AND status           IN ('COMPLETED', 'TRANSFERRED')
+              AND duration_seconds IS NOT NULL
+            GROUP BY channel
+            """)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("fromDate", java.sql.Date.valueOf(fromDate))
+        .setParameter("toDateExclusive", java.sql.Date.valueOf(toDate.plusDays(1)))
+        .getResultList();
+
+    return results;
+  }
+
+  // =========================================================================
   // BE-028: Agregacje raportów agentów
   // =========================================================================
 

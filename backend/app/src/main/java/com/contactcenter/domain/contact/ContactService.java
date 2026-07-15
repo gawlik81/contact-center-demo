@@ -728,4 +728,42 @@ public interface ContactService {
      * @param aiSummary encja podsumowania z uzupełnionymi wszystkimi polami
      */
     void saveAiSummary(ContactAiSummary aiSummary);
+
+    // =========================================================================
+    // AdminMetrics: agregacje per tenant dla SUPER_ADMIN
+    // =========================================================================
+
+    /**
+     * Zlicza aktywne/w toku kontakty tenanta (status QUEUED, ACTIVE lub ON_HOLD).
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba aktywnych/w toku kontaktów tenanta
+     */
+    long countActiveContactsByTenantId(UUID tenantId);
+
+    /**
+     * Agreguje statystyki kontaktów zakończonych tenanta dla wskazanego dnia.
+     *
+     * @param tenantId UUID tenanta
+     * @param date     dzień, dla którego liczona jest agregacja
+     * @return {@code Object[]} {contactsCount, sumHandleTimeSeconds, sumWaitTimeSeconds, fcrCount}
+     */
+    Object[] getDailyContactAggregate(UUID tenantId, java.time.LocalDate date);
+
+    /**
+     * Agreguje liczbę kontaktów zakończonych tenanta w podanym zakresie dat (oba krańce
+     * włącznie), pogrupowaną po kanale.
+     *
+     * <p>Ta sama definicja "kontaktu" co {@link #getDailyContactAggregate} – dla zakresu
+     * zawężonego do jednego dnia ({@code fromDate == toDate}) suma zwróconych liczników zgadza
+     * się z {@code contactsCount} z {@link #getDailyContactAggregate} dla tego samego tenanta/dnia.
+     *
+     * @param tenantId UUID tenanta
+     * @param fromDate pierwszy dzień zakresu (włącznie)
+     * @param toDate   ostatni dzień zakresu (włącznie)
+     * @return lista wierszy {@code [channel(String), count(Number)]} – tylko kanały z
+     *         co najmniej jednym kontaktem w zakresie
+     */
+    List<Object[]> getContactCountsByChannelInRange(
+            UUID tenantId, java.time.LocalDate fromDate, java.time.LocalDate toDate);
 }

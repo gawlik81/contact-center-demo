@@ -104,6 +104,32 @@ class CampaignRepository extends TenantAwareRepository {
     }
 
     /**
+     * Zlicza łączną liczbę kampanii oraz liczbę kampanii w statusie RUNNING dla tenanta,
+     * w jednym zapytaniu (COUNT + FILTER) – unika dwóch osobnych round-tripów do DB.
+     *
+     * <p>Używane przez {@code AdminMetricsService} (SUPER_ADMIN) do budowy metryk wykorzystania
+     * platformy ({@code GET /api/admin/metrics/usage}) – wywoływane per tenant w pętli
+     * (N zapytań = N tenantów, nie N zapytań per kampania).
+     *
+     * @param tenantId UUID tenanta
+     * @return {@code Object[]} {total(Number), running(Number)}
+     */
+    @Transactional(readOnly = true)
+    public Object[] countTotalAndRunningByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        return (Object[]) em.createNativeQuery("""
+                SELECT
+                    COUNT(*)                                         AS total,
+                    COUNT(*) FILTER (WHERE status = 'RUNNING')       AS running
+                FROM campaign
+                WHERE tenant_id = CAST(:tenantId AS uuid)
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .getSingleResult();
+    }
+
+    /**
      * Zlicza kontakty przypisane do kampanii w tabeli {@code campaign_contact}.
      *
      * <p>Używane przy walidacji startu kampanii: kampania bez kontaktów nie może

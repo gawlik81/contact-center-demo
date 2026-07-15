@@ -576,4 +576,10 @@ class CampaignServiceImpl implements CampaignService {
     public List<Campaign> getRunningManualCampaigns(UUID tenantId) {
         return campaignRepository.findRunningManualByTenantId(tenantId);
     }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Object[] countTotalAndRunningByTenantId(UUID tenantId) {
+        return campaignRepository.countTotalAndRunningByTenantId(tenantId);
+    }
 }

@@ -2,123 +2,100 @@
 
 ## Projekt
 
-- [project_contact_center.md](project_contact_center.md) – Stack, struktura Maven, konwencje, klasy konfiguracyjne, profile Spring Boot, Docker Compose
-- [project_async_tenant_context.md](project_async_tenant_context.md) – Serwisy w wątkach RabbitMQ nie mają TenantContext; CrossTenantAspect poprawiony do
-  odróżniania HTTP vs async (2026-03-22)
-- [project_campaign_crud.md](project_campaign_crud.md) – BE-022 Campaign CRUD API: encja, repo, serwis, kontroler, migracja V026 (konwersja ENUM kampanii na
-  VARCHAR)
-- [IVR Architecture](project_ivr_architecture.md) — Architektura silnika IVR: tryby twimlMode vs mock, sesje Redis, tworzenie rekordu contact przy webhook
-  Twilio
-- [Twilio Conference Audio Pattern](project_twilio_conference_pattern.md) — wzorzec konferencji Twilio do zestawiania audio klient-agent z nagrywaniem (
-  BUGFIX-TWILIO-AUDIO-RECORDING)
-- [Voicebot Service BE-014](project_voicebot_be014.md) — mikrousługa Python FastAPI ASR+NLU, IvrNodeType.VOICEBOT, VoicebotClient conditional bean, Docker
-  profile `ai`
-- [Progressive Dialer BE-024](project_be024_progressive_dialer.md) — ProgressiveDialerService @RabbitListener agent.status.changed, Redis guard SET NX, FOR
-  UPDATE SKIP LOCKED, DialerCallbackHandler, ScheduledCallback entity, V031 indeksy
-- [ScheduledCallbackExecutor BE-038](project_be038_scheduled_callback_executor.md) — @Scheduled fixedDelay scheduler oddzwonień, updateStatusIfPending atomowa
-  ochrona double-processing, ręczny TenantContext w wątku schedulera
-- [Inbound Callback Endpoint BE-040](project_be040_inbound_callback.md) — POST /api/contacts/{contactId}/callback w DialerController (ścieżka absolutna),
-  sourceType=INBOUND_CALLBACK, originContactId, logika 403/404 dla agentów
-- [Email Attachments](project_email_attachments.md) — S3 storage, IMAP extraction, agent upload endpoint, SMTP multipart/mixed send
+- [project_contact_center.md](project_contact_center.md) – Stack, struktura Maven, konwencje, profile Spring Boot, Docker Compose
+- [project_async_tenant_context.md](project_async_tenant_context.md) – RabbitMQ wątki bez TenantContext; CrossTenantAspect HTTP vs async
+- [project_campaign_crud.md](project_campaign_crud.md) – BE-022 Campaign CRUD, V026 ENUM→VARCHAR
+- [IVR Architecture](project_ivr_architecture.md) — IVR: twimlMode vs mock, sesje Redis, contact przy webhook Twilio
+- [Twilio Conference Audio Pattern](project_twilio_conference_pattern.md) — Konferencja Twilio audio klient-agent + nagrywanie
+- [Voicebot Service BE-014](project_voicebot_be014.md) — Python FastAPI ASR+NLU, VoicebotClient conditional bean
+- [Progressive Dialer BE-024](project_be024_progressive_dialer.md) — Redis SET NX, FOR UPDATE SKIP LOCKED, ScheduledCallback
+- [ScheduledCallbackExecutor BE-038](project_be038_scheduled_callback_executor.md) — @Scheduled oddzwonienia, ochrona double-processing
+- [Inbound Callback Endpoint BE-040](project_be040_inbound_callback.md) — POST contacts/{id}/callback, sourceType=INBOUND_CALLBACK
+- [Email Attachments](project_email_attachments.md) — S3 storage, IMAP extraction, SMTP multipart/mixed
 
 ## Wzorce/konwencje
 
-- [feedback_self_invocation_transactional.md](feedback_self_invocation_transactional.md) – @Transactional self-invocation: fix przez `@Autowired @Lazy NazwaSerwisu self` + wywołanie `self.metoda()`
-- [feedback_jdbc_set_tenant_context.md](feedback_jdbc_set_tenant_context.md) – JdbcTemplate set_tenant_context: `jdbcTemplate.update("SELECT set_tenant_context(?::uuid)", id)` nie string concat
-- [feedback_tenant_context_http_vs_async.md](feedback_tenant_context_http_vs_async.md) – TenantContext.clear() tylko w ścieżce async (RabbitMQ), NIE w metodach wywoływanych z HTTP
-- [feedback_rabbitmq_queue_bean_vs_binding_annotation.md](feedback_rabbitmq_queue_bean_vs_binding_annotation.md) – Kolejki RabbitMQ jako @Bean w RabbitMQConfig + stała QUEUE_NAME; @RabbitListener(queues = STAŁA)
-- [Testy repozytoriów – styl i podejście](feedback_repository_tests.md) — brak H2, Mockito EntityManager + ReflectionTestUtils; generics pitfall przy thenReturn(List<Object[]>)
+- [feedback_self_invocation_transactional.md](feedback_self_invocation_transactional.md) – @Transactional self-invocation: @Lazy self + self.metoda()
+- [feedback_jdbc_set_tenant_context.md](feedback_jdbc_set_tenant_context.md) – set_tenant_context(?::uuid) przez jdbcTemplate.update, nie string concat
+- [feedback_tenant_context_http_vs_async.md](feedback_tenant_context_http_vs_async.md) – TenantContext.clear() tylko w async (RabbitMQ), nie w HTTP
+- [feedback_rabbitmq_queue_bean_vs_binding_annotation.md](feedback_rabbitmq_queue_bean_vs_binding_annotation.md) – Kolejki jako @Bean+stała QUEUE_NAME
+- [Testy repozytoriów – styl i podejście](feedback_repository_tests.md) — Brak H2; Mockito EntityManager+ReflectionTestUtils; List<Object[]> pitfall
 
 ## Znane pułapki
 
-- [feedback_stomp_mutable_headers.md](feedback_stomp_mutable_headers.md) – ChannelInterceptor.preSend(): `getAccessor()` zwraca immutable; fix:
-  `StompHeaderAccessor.wrap(message)` + `setLeaveMutable(true)` + `MessageBuilder.createMessage()`
-- [feedback_jdbc_batchupdate_param_count_mismatch.md](feedback_jdbc_batchupdate_param_count_mismatch.md) – `jdbcTemplate.batchUpdate(sql, List<Object[]>)`: długość tablicy musi = liczbie `?`; znaleziony i naprawiony bug w `CustomerImportServiceImpl.batchInsertCustomers` (marker row[0] błędnie przekazywany jako parametr)
-- [feedback_hibernate6_null_param_bytea.md](feedback_hibernate6_null_param_bytea.md) – Hibernate 6: JPQL z `:param IS NULL` + LOWER() na tym samym parametrze
-  String → PostgreSQL `lower(bytea) does not exist`; fix: natywny SQL z `CAST(:param AS TEXT)`
-- [feedback_partitioned_table_jpa.md](feedback_partitioned_table_jpa.md) – JPA na tabelach partycjonowanych: `@IdClass` + native INSERT przez
-  `@Modifying @Query(nativeQuery=true)`, odczyt przez JPQL działa normalnie
-- [feedback_mockito_nested_beforeeach.md](feedback_mockito_nested_beforeeach.md) – @BeforeEach zewnętrznej klasy może nie inicjalizować pól w @Nested gdy
-  Surefire uruchamia nested osobno; używaj @MockitoSettings(LENIENT) + przenoś setUp do nested
-- [feedback_mockito_injectmocks_lombok_constructor.md](feedback_mockito_injectmocks_lombok_constructor.md) – Mockito 5 + @RequiredArgsConstructor: pola
-  non-final pomijane w @InjectMocks; fix: ręczne wywołanie settera w @BeforeEach
-- [feedback_jsonb_list_converter.md](feedback_jsonb_list_converter.md) – JSONB List<String>: brak hypersistence-utils → używaj JsonStringListConverter (
-  @Convert), nie @Type(JsonType.class)
-- [feedback_contact_table_no_is_deleted.md](feedback_contact_table_no_is_deleted.md) – Tabela contact (partycjonowana) nie ma is_deleted; aktywne statusy:
-  QUEUED/ACTIVE/ON_HOLD
-- [feedback_jsonb_phone_array_query.md](feedback_jsonb_phone_array_query.md) – customer.phone to JSONB array (nie TEXT[]): używaj
-  `phone @> to_jsonb(CAST(:phone AS text))` z GIN index, nie `ANY()`
-- [feedback_mock_callid_as_contactid.md](feedback_mock_callid_as_contactid.md) – MockTelephonyAdapter tworzy rekord contact w DB PRZED publishIncoming; UUID z
-  DB trafia jako `contactId` do WebSocket payload; `CallEvent.contactId` (UUID) obok `callId` (String); fallback na callId gdy null
-- [feedback_mock_disposition_agent_ownership.md](feedback_mock_disposition_agent_ownership.md) – setDisposition blokuje gdy agent_id=null LUB status=QUEUED;
-  MockCallController defaultuje agentId na TenantContext.getUserId(); MockTelephonyAdapter.hangupCall() aktualizuje status na COMPLETED przez jdbcTemplate (nie
-  EntityManager – brak TenantContext)
-- [feedback_contact_enum_to_varchar.md](feedback_contact_enum_to_varchar.md) – contact.channel/direction/status były ENUM w V007, pominięte przez V019; fix:
-  V025 konwertuje je do VARCHAR+CHECK; wzorzec: DROP widoki+indeksy partial → ALTER TYPE → DROP TYPE → odtwórz
-- [feedback_contact_enum_cast_after_v025.md](feedback_contact_enum_cast_after_v025.md) – Po V025 typy ENUM usunięte; ContactRepository musi używać
-  `CAST(:x AS VARCHAR)` nie `CAST(:x AS contact_channel/status/direction)` – inaczej INSERT/UPDATE rzuca `type does not exist`
-
-- [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: `CallCreator` (nie `Call.Creator`), `Call.UpdateStatus` (nie
-  `CallUpdater.Status`), ambiguous mocks w testach
-- [feedback_twilio_sdk_create_update_overloads.md](feedback_twilio_sdk_create_update_overloads.md) – Po BE-058: `create(TwilioRestClient)` i `update(TwilioRestClient)` to jedyne sygnatury – mock musi używać `any(TwilioRestClient.class)`
-- [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook handler zwraca 204 natychmiast; logika Twilio REST API (Conference.fetcher) w @Async; X-Twilio-Signature walidacja przez RequestValidator; HttpClient jako pole
-- [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
-- [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
-- [feedback_supervisor_metrics_flaky_ivr_test.md](feedback_supervisor_metrics_flaky_ivr_test.md) – SupervisorMetricsServiceTest$KpiCallsInIvrTests jest pre-existing flaky/order-dependent (failuje w batch run, przechodzi w izolacji) – nie traktować jako regresji
-- [feedback_argumentcaptor_cleared_batch_list.md](feedback_argumentcaptor_cleared_batch_list.md) – ArgumentCaptor na liście czyszczonej (`batch.clear()`) zaraz po wywołaniu mocka: `captor.getValue()` po teście widzi pustą listę; fix: kopia obronna w `thenAnswer` w momencie wywołania
+- [feedback_stomp_mutable_headers.md](feedback_stomp_mutable_headers.md) – StompHeaderAccessor.wrap + setLeaveMutable(true)
+- [feedback_jdbc_batchupdate_param_count_mismatch.md](feedback_jdbc_batchupdate_param_count_mismatch.md) – batchUpdate array length = liczbie `?`
+- [feedback_hibernate6_null_param_bytea.md](feedback_hibernate6_null_param_bytea.md) – JPQL :param IS NULL+LOWER() → bytea error; fix CAST(:param AS TEXT)
+- [feedback_partitioned_table_jpa.md](feedback_partitioned_table_jpa.md) – Partycjonowane tabele: @IdClass + native INSERT
+- [feedback_mockito_nested_beforeeach.md](feedback_mockito_nested_beforeeach.md) – @BeforeEach+@Nested: @MockitoSettings(LENIENT), setUp w nested
+- [feedback_mockito_injectmocks_lombok_constructor.md](feedback_mockito_injectmocks_lombok_constructor.md) – Mockito5+@RequiredArgsConstructor: ręczny setter
+- [feedback_jsonb_list_converter.md](feedback_jsonb_list_converter.md) – JSONB List<String>: JsonStringListConverter (@Convert)
+- [feedback_contact_table_no_is_deleted.md](feedback_contact_table_no_is_deleted.md) – contact bez is_deleted; aktywne = QUEUED/ACTIVE/ON_HOLD
+- [feedback_jsonb_phone_array_query.md](feedback_jsonb_phone_array_query.md) – customer.phone JSONB array: `@> to_jsonb(...)`, nie ANY()
+- [feedback_mock_callid_as_contactid.md](feedback_mock_callid_as_contactid.md) – MockTelephonyAdapter: contact w DB przed publishIncoming
+- [feedback_mock_disposition_agent_ownership.md](feedback_mock_disposition_agent_ownership.md) – setDisposition blokuje agent_id=null/QUEUED
+- [feedback_contact_enum_to_varchar.md](feedback_contact_enum_to_varchar.md) – contact ENUM→VARCHAR w V025; wzorzec DROP→ALTER→odtwórz
+- [feedback_contact_enum_cast_after_v025.md](feedback_contact_enum_cast_after_v025.md) – Po V025: CAST(:x AS VARCHAR), nie AS contact_channel
+- [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: CallCreator, Call.UpdateStatus
+- [feedback_twilio_sdk_create_update_overloads.md](feedback_twilio_sdk_create_update_overloads.md) – Po BE-058: create/update(TwilioRestClient) jedyne sygnatury
+- [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook 204 natychmiast, REST API w @Async
+- [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: TTL 10min, single-use
+- [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez HTTP I/O: readOnly→delete→external split
+- [feedback_supervisor_metrics_flaky_ivr_test.md](feedback_supervisor_metrics_flaky_ivr_test.md) – KpiCallsInIvrTests pre-existing flaky, nie regresja
+- [feedback_argumentcaptor_cleared_batch_list.md](feedback_argumentcaptor_cleared_batch_list.md) – ArgumentCaptor+batch.clear(): kopia obronna w thenAnswer
+- [RLS cross-tenant admin aggregation](feedback_rls_cross_tenant_admin_aggregation.md) — Zawsze pętla per-tenant, nigdy `tenant_id = ANY(:ids)`
+- [Micrometer gauge WeakReference pułapka](feedback_micrometer_gauge_weak_reference.md) — W testach trzymaj wartość jako pole instancji
+- [JVM heap/uptime źródło metryk](feedback_jvm_heap_uptime_metrics_source.md) — Czytać przez ManagementFactory, nie Micrometer (G1 per-pula)
+- [Redis cache name = 1 typ DTO](feedback_redis_cache_name_per_type.md) — Nigdy nie współdziel cache name między typami DTO
 
 ## Projekty
 
-- [BE-025 Customer CRUD API](project_be025_customer_api.md) – implementacja Customer CRUD, fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER
-- [BE-026 Customer CSV Import](project_be026_customer_import.md) – async import klientów z CSV, DeduplicationMode SKIP/OVERWRITE, Redis job status, batch
-  JdbcTemplate, wielokrotne phone/email (;); rozszerzenie 2026-07-05: ParsedMapping (multi-column phone/email, named custom_fields, import zgody RODO)
-- [BE-027 Contact API](project_be027_contact_api.md) – CRUD historii kontaktów, tabela partycjonowana, ContactRepository rozszerza istniejący plik (BE-010
-  recording)
-- [BE-019 Routing Engine](project_routing_engine.md) – silnik routingu (skill-based, round-robin, sticky agent), pakiet domain.routing, spy pattern w testach
-- [BE-023 Campaign CSV Import](project_be023_csv_import.md) – async CSV import, JdbcTemplate batch, Redis status QUEUED/PROCESSING/COMPLETED/FAILED_PARTIAL,
-  V027 unique index
-- [BE-013 IVR Engine](project_be013_ivr_engine.md) – silnik IVR, drzewa węzłów JSONB, sesja Redis (ivr:session:), TTS cache (ivr:tts:), fallback do kolejki,
-  TaskScheduler DTMF timeout
-- [BE-015 Email Adapter](project_be015_email_adapter.md) – IMAP polling + SMTP wysyłka, AES-256-GCM hasła, email_routing_rule, schemat z V010, angus-mail
-  dependency
-- [BE-016 Email Templates CRUD API](project_be016_email_templates.md) – CRUD szablonów email, Mustache rendering, TemplateRenderException (HTTP 422), V028
-  migracja, integracja z EmailSendService
-- [BE-021 Wait Time Estimation](project_be021_wait_time.md) – EWT co 30s, WaitTimeEstimationService, QUEUE_WAIT_UPDATE WebSocket, GET /api/queues/{id}/stats
-- [BE-036 Contact API Advanced Filters](project_be036_contact_filters.md) – rozszerzenie GET /api/contacts: queueId, campaignId, remoteAddress (ILIKE), durationMin/Max; ContactFilterParams record, appendFilterConditions pattern
-- [BE-030 ETL Pipeline](project_be030_etl_pipeline.md) – polling CDC PostgreSQL→DW, EtlSyncService @Scheduled, PostgresDwWriter (upsert), alert RabbitMQ cc.events/etl.lag.alert, GET /api/admin/etl/status
-- [BE-030b ClickHouse DW](project_be030b_clickhouse.md) – ClickHouseDwWriter (@Primary gdy etl.dw.type=clickhouse), ClickHouseDataSourceConfig, ReplacingMergeTree deduplikacja, port 8123 HTTP, port 9002 TCP (9000 zajęty przez MinIO)
-- [BE-033 PhoneNumber CRUD API](project_be033_phonenumber_api.md) – CRUD numerów telefonu E.164, PhoneNumber encja, PhoneNumberRepository, PhoneRoutingRuleRepository (stub dla BE-034), soft delete blokowany przez aktywne reguły routingu
-- [BE-017 Social OAuth](project_be017_social_oauth.md) – OAuth flow i szyfrowanie tokenów AES-256-GCM (BYTEA), SocialIntegration encja, callback publiczny w SecurityConfig+TenantFilter, @Scheduled refresh co 1h
-- [BE-018 Social Media Adapter](project_be018_social_adapter.md) – webhook handler FB/IG/WA, SocialMessage encja, adapter stubs, async RabbitMQ (cc.queue.social-incoming), cross-tenant findByPlatformAndPageId
-- [WS Resilience – ASSIGNED Status](project_ws_resilience_assigned_status.md) — Opcja B: status ASSIGNED, ContactAssignmentMonitor, retry Redis, GET /api/agent/me/assigned-contact (V046, 2026-04-22)
-- [BE-048 Manual Callback Endpoint](project_be048_manual_callback.md) — POST /api/callbacks/manual, ManualCallbackController, sourceType=AGENT_MANUAL, walidacja scheduledAt min. 5min, cross-tenant guard via CrossTenantAccessException (403)
-- [BE-043 AgentGroup domain package](project_agent_groups.md) — pakiet domain/agentgroup; encja + repo; BE-044 doda serwis+kontroler
-- [BE-050 AgentBreak REST API](project_agent_breaks.md) — api/agentbreak + domain/agentbreak; serwis+kontroler+DTO+testy; wzorzec właścicielski per-agent
-- [BE-056 TenantTwilioConfig serwis domenowy](project_twilio_config.md) — upsert+masking+decrypted DTO+delete+event; nowy katalog domain/event/
-- [BE-057 TenantTwilioConfig REST API (kontroler)](project_twilio_config_controller.md) — GET/PUT/DELETE/test; 204 przy braku; walidacja Jakarta na DTO; SecurityConfig
-- [BE-059 per-tenant Twilio config](project_be059_per_tenant_twilio.md) — getVoiceToken() z per-tenant fallbackiem; klucze testowe muszą mieć >= 32 znaków
-- [BE-075 Transfer Agents endpoint](project_be075_transfer_agents.md) — GET /api/telephony/transfer/agents; TransferService + TransferAgentQueueRepository (UNION 3 źródeł kolejek); batch query bez N+1
-- [BE-077 Transfer Call endpoint](project_be077_transfer_endpoint.md) — POST /api/telephony/calls/{callId}/transfer w AgentCallController; logika w ContactService.initiateTransfer(); DTO TransferCallRequest
-- [BE-097 Plugin SDK module](project_be097_plugin_sdk.md) — nowy moduł backend/plugin-sdk (EPIC-28), zero zależności Spring/JPA, PluginEntryPoint+PluginContext+DTO record, parent classloader izolacji pluginów
-- [BE-098 PluginValidationService](project_be098_plugin_validation.md) — pipeline walidacji JAR-a (rozmiar/MIME, checksum, JSON Schema, ASM scan); self-referencyjny SHA-256 matematycznie niewykonalny → checksum liczony z wyłączeniem manifestu; ASM blacklist setAccessible/ProcessBuilder/ClassLoader subclass
-- [BE-100 PluginRegistrationService](project_be100_plugin_registration.md) — TenantPluginInstallation (RLS, natywny SQL jak CustomDispositionRepository, NIE JpaRepository); install = przecięcie grantedPermissions ∩ manifest; duplikat unique → DataIntegrityViolationException → 409 (handler już istniał); rollback weryfikuje obie instalacje PRZED UPDATE
-- [BE-101 PluginRuntimeManager/PluginClassLoader (RT-10)](project_be101_plugin_runtime.md) — PlatformApiClassLoader singleton musi delegować loadClass do parenta (nie defineClass własnoręcznie) inaczej ClassCastException przez duplikat tożsamości typu; WeakReference+GC testy z Mockito wymagają clearInvocations(); code review NO-GO naprawiony 2026-06-20 (PluginExecutionContext TCCL fix + temp file cleanup), status ✅
-- [BE-102 ExtensionPointPublisher/PluginInvocationExecutor/CircuitBreakerState](project_be102_extension_point_publisher.md) — dispatch blocking (PRE_CONTACT_CONNECT/MANUAL_ACTION) z timeout+TenantContext+TCCL boundary; fire-and-forget submit-only (RabbitMQ to BE-104); circuit breaker w pamięci próg 5; logowanie placeholder SLF4J do podmiany w BE-105; merge wyników = pierwszy niepusty wygrywa
-- [BE-103 integracja PRE_CONTACT_CONNECT/MANUAL_ACTION w przepływie połączenia](project_be103_pre_contact_connect_integration.md) — punkt integracji CallEventEnricher.onCallEvent (wspólny inbound+outbound/dialer); response-first merge do CallEvent/WebSocketEvent; TenantContext jawny w wątku RabbitMQ; 404 dla obu przypadków ownership (RLS, brak bypassu); timeout vs unsupported rozróżniany przez pomiar czasu w kontrolerze
-- [BE-104 async extension pointy przez RabbitMQ](project_be104_async_extension_points_rabbitmq.md) — POST_CONTACT_END/CUSTOMER_SYNC/DISPOSITION_SET publikowane do cc.queue.plugin-invocation; PluginInvocationConsumer dociąga enabled z DB (registry nie wie o disable()); CircuitBreakerState/PluginInvocationLogger współdzielone blocking+async; PluginInvocationMessage bez installationId
-- [BE-105 PluginInvocationLogService + REST historii](project_be105_invocation_log.md) — @IdClass jak AuditLog dla PK złożonego (id, invokedAt); repo publiczne (konsument w innym pakiecie); PiiRedactor rekurencyjny (ManualActionRequest.parameters() główne ryzyko PII); PluginInvocationLogger placeholder usunięty, DI bezpośredni; 404 dla obu przypadków ownership (kontynuacja BE-103)
-- [BE-106 PluginAdminController/PluginRevokeController](project_be106_plugin_admin_controller.md) — enable/disable/rollback/uninstall + platform REVOKED kill switch; disable=unload-przed-DB-flag; uninstall=fizyczny DELETE (FK SET NULL); revoke cross-tenant przez iterację TenantService.getAllTenants() (zero RLS bypass); revoke zabezpieczony hasRole('ADMIN') tenantowym (known limitation, brak roli systemowej)
-- [BE-099/BE-100 DTO enrichment dla FE-097/FE-098](project_be099_be100_dto_enrichment_fe097.md) — PluginVersionDto+displayName/vendor/permissions; TenantPluginInstallationDto+pluginKey/displayName/version/manualActions/uiPanels; bug: manifestToMap nie zapisywał uiPanels/manualActions do manifestJson; mapToDto dociąga PluginVersion+Plugin, batch findAllById w listInstallations; zasada: rozszerzaj backend zamiast workaroundu na froncie, stosowana 2x z rzędu
-- [PluginAgentController dla FE-100](project_plugin_agent_controller.md) — GET /api/agent/plugins, rola AGENT/SUPERVISOR/ADMIN, filtruje listInstallations() do enabled=true; osobny kontroler od PluginAdminController; zasada "rozszerzaj backend" stosowana 4. raz z rzędu
-- [Jackson convertValue + nieznane pola](feedback_jackson_convertvalue_unknown_properties.md) — ObjectMapper.convertValue(Map, record) RZUCA wyjątek dla pól nieznanych docelowemu typowi (FAIL_ON_UNKNOWN_PROPERTIES=true domyślnie), nie ignoruje ich po cichu
-- [BE-108 szyfrowanie installation_config](project_be108_plugin_installation_config_encryption.md) — EncryptedStringConverter jako bean wołany ręcznie (nie @Convert) w repo natywnego SQL; wrapper {"encrypted":"..."} w jsonb; finding code review: insert() musi też szyfrować, nie tylko update()
-- [Plugin runtime startup reload](project_be_plugin_startup_reload.md) — PluginRuntimeStartupLoader (@EventListener ApplicationReadyEvent, konwencja jak StartupInfoLogger) odbudowuje PluginRegistry po restarcie; findAllEnabledAcrossAllTenants() analogiczne do BE-106 wzorca; fault containment per instalacja + TenantContext set/clear w finally
-- [BE-023 rozszerzenie – import JSON kontaktów kampanii](project_be023_json_import_extension.md) — refaktor CampaignImportServiceImpl (processRow/flushBatch/finalizeJobStatus współdzielone CSV+JSON) potwierdzony neutralny testami PRZED dodaniem JSON; nowy endpoint POST /{id}/contacts/import/json; CampaignImportControllerTest wzorowany na CustomerImportControllerTest (2026-07-12)
-- [EPIC-21 Dialer – retry i callback w kampaniach wychodzących](project_epic21_dialer.md) — Stan BE-062–BE-066, wzorce Redis dialera, markAsDialingForCallback vs markAsDialing
-- [TwilioTelephonyAdapter – transfer AGENT i QUEUE](project_twilio_transfer.md) — Implementacja initiateTransfer dla AGENT (client:agent-UUID) i QUEUE (Conference TwiML redirect)
-- [Attended transfer refactor – Wariant A](project_attended_transfer_refactor.md) — bridgeCalls redirect do nowej konferencji, customerCallSid w CallSession, usunięcie propagateRecordingToTransferChain
-- [EPIC-25 Campaign Assignment BE-079–085](project_epic25_campaign_assignment.md) — queueId→campaignId w initiateCall, CampaignAssignmentRepository, trójpoziomowa kwalifikacja, guard OUTBOUND→QUEUE
-- [EPIC-28 System pluginów](project_epic28_plugin_system.md) — installation_config AES-GCM bez AAD, dziedziczenie configu przy upgrade pluginu (BE-111), struktura plugin/plugin_version/tenant_plugin_installation
-- [DbEgressClient + customer-callresult-db-sync](project_be_db_egress_client.md) — nowa kategoria uprawnień db:egress:<host>:<port> (port obowiązkowy), DriverManager bez poolingu po stronie hosta, przykładowy plugin POST_CONTACT_END/DISPOSITION_SET append-only
-- [Import klientów z JSON (równolegle do CSV)](project_customer_json_import.md) — processRow/ImportCounters współdzielone CSV+JSON, parametryzacja source, POST /api/customers/import/json
-- [AgentBreak scheduler implementation](project_agentbreak_scheduler.md) — AgentBreakActivator: bulk status transitions PLANNED→ACTIVE→COMPLETED, 30s interval
+- [BE-025 Customer CRUD API](project_be025_customer_api.md) – Fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER
+- [BE-026 Customer CSV Import](project_be026_customer_import.md) – DeduplicationMode, Redis job status; +JSON multi-column
+- [BE-027 Contact API](project_be027_contact_api.md) – CRUD historii kontaktów, tabela partycjonowana
+- [BE-019 Routing Engine](project_routing_engine.md) – skill-based/round-robin/sticky, spy pattern w testach
+- [BE-023 Campaign CSV Import](project_be023_csv_import.md) – async, Redis status, V027 unique index
+- [BE-013 IVR Engine](project_be013_ivr_engine.md) – Drzewa JSONB, sesja Redis, TTS cache, DTMF timeout
+- [BE-015 Email Adapter](project_be015_email_adapter.md) – IMAP+SMTP, AES-256-GCM hasła
+- [BE-016 Email Templates CRUD API](project_be016_email_templates.md) – Mustache rendering, TemplateRenderException 422
+- [BE-021 Wait Time Estimation](project_be021_wait_time.md) – EWT co 30s, QUEUE_WAIT_UPDATE WebSocket
+- [BE-036 Contact API Advanced Filters](project_be036_contact_filters.md) – queueId/campaignId/remoteAddress/duration
+- [BE-030 ETL Pipeline](project_be030_etl_pipeline.md) – CDC PostgreSQL→DW, alert cc.events/etl.lag
+- [BE-030b ClickHouse DW](project_be030b_clickhouse.md) – @Primary, ReplacingMergeTree, port 8123/9002
+- [BE-033 PhoneNumber CRUD API](project_be033_phonenumber_api.md) – E.164, soft delete blokowany przez routing rules
+- [BE-017 Social OAuth](project_be017_social_oauth.md) – AES-256-GCM tokeny, @Scheduled refresh 1h
+- [BE-018 Social Media Adapter](project_be018_social_adapter.md) – Webhook FB/IG/WA, async RabbitMQ social-incoming
+- [WS Resilience – ASSIGNED Status](project_ws_resilience_assigned_status.md) — ContactAssignmentMonitor, retry Redis
+- [BE-048 Manual Callback Endpoint](project_be048_manual_callback.md) — sourceType=AGENT_MANUAL, min. 5min
+- [BE-043 AgentGroup domain package](project_agent_groups.md) — domain/agentgroup encja+repo
+- [BE-050 AgentBreak REST API](project_agent_breaks.md) — wzorzec właścicielski per-agent
+- [BE-056 TenantTwilioConfig serwis domenowy](project_twilio_config.md) — upsert+masking+decrypted DTO
+- [BE-057 TenantTwilioConfig REST API (kontroler)](project_twilio_config_controller.md) — GET/PUT/DELETE/test, 204 przy braku
+- [BE-059 per-tenant Twilio config](project_be059_per_tenant_twilio.md) — fallback, klucze testowe >=32 znaki
+- [BE-075 Transfer Agents endpoint](project_be075_transfer_agents.md) — UNION 3 źródeł kolejek, batch bez N+1
+- [BE-077 Transfer Call endpoint](project_be077_transfer_endpoint.md) — ContactService.initiateTransfer
+- [BE-097 Plugin SDK module](project_be097_plugin_sdk.md) — EPIC-28, zero Spring/JPA, parent classloader
+- [BE-098 PluginValidationService](project_be098_plugin_validation.md) — checksum, JSON Schema, ASM blacklist
+- [BE-100 PluginRegistrationService](project_be100_plugin_registration.md) — RLS natywny SQL; install=przecięcie uprawnień
+- [BE-101 PluginRuntimeManager/PluginClassLoader (RT-10)](project_be101_plugin_runtime.md) — delegacja do parenta; WeakReference+GC testy
+- [BE-102 ExtensionPointPublisher/PluginInvocationExecutor/CircuitBreakerState](project_be102_extension_point_publisher.md) — dispatch timeout+TCCL
+- [BE-103 integracja PRE_CONTACT_CONNECT/MANUAL_ACTION](project_be103_pre_contact_connect_integration.md) — CallEventEnricher
+- [BE-104 async extension pointy przez RabbitMQ](project_be104_async_extension_points_rabbitmq.md) — POST_CONTACT_END/CUSTOMER_SYNC
+- [BE-105 PluginInvocationLogService + REST historii](project_be105_invocation_log.md) — @IdClass PK złożony, PiiRedactor
+- [BE-106 PluginAdminController/PluginRevokeController](project_be106_plugin_admin_controller.md) — REVOKED kill switch
+- [BE-099/BE-100 DTO enrichment dla FE-097/FE-098](project_be099_be100_dto_enrichment_fe097.md) — zasada "rozszerzaj backend"
+- [PluginAgentController dla FE-100](project_plugin_agent_controller.md) — GET agent/plugins, filtruje enabled=true
+- [Jackson convertValue + nieznane pola](feedback_jackson_convertvalue_unknown_properties.md) — RZUCA na nieznanych polach
+- [BE-108 szyfrowanie installation_config](project_be108_plugin_installation_config_encryption.md) — insert() też szyfruje, nie tylko update()
+- [Plugin runtime startup reload](project_be_plugin_startup_reload.md) — PluginRuntimeStartupLoader odbudowuje registry
+- [BE-023 rozszerzenie – import JSON kontaktów kampanii](project_be023_json_import_extension.md) — CSV+JSON współdzielone
+- [EPIC-21 Dialer – retry i callback w kampaniach wychodzących](project_epic21_dialer.md) — BE-062–066, markAsDialingForCallback
+- [TwilioTelephonyAdapter – transfer AGENT i QUEUE](project_twilio_transfer.md) — client: vs Conference redirect
+- [Attended transfer refactor – Wariant A](project_attended_transfer_refactor.md) — bridgeCalls redirect, customerCallSid
+- [EPIC-25 Campaign Assignment BE-079–085](project_epic25_campaign_assignment.md) — queueId→campaignId, trójpoziomowa kwalifikacja
+- [EPIC-28 System pluginów](project_epic28_plugin_system.md) — installation_config AES-GCM, dziedziczenie przy upgrade
+- [DbEgressClient + customer-callresult-db-sync](project_be_db_egress_client.md) — db:egress uprawnienia, bez poolingu
+- [Import klientów z JSON (równolegle do CSV)](project_customer_json_import.md) — processRow współdzielone
+- [AgentBreak scheduler implementation](project_agentbreak_scheduler.md) — bulk PLANNED→ACTIVE→COMPLETED co 30s
+- [AdminMetrics – Contacts by Channel matrix](project_admin_metrics_contacts_by_channel.md) — "dzisiaj"=COMPLETED/TRANSFERRED+duration
+- [Semantyka "agent online" i sesji Redis](project_agent_online_redis_session_semantics.md) — session:agent:* przetrwa logout (status=OFFLINE)

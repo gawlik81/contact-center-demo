@@ -591,6 +591,12 @@ class UserServiceImpl implements UserService {
         return appUserRepository.findById(userId);
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public List<Object[]> countNewUsersByWeekSince(java.time.Instant since) {
+        return appUserRepository.countNewUsersByWeekSince(since);
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

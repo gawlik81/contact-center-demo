@@ -31,15 +31,15 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>9. Getting Started – jak zacząć pracę</h1>
-<h2>9.1 Wymagania</h2>
+<h1 id="9-getting-started--jak-zacząć-pracę">9. Getting Started – jak zacząć pracę</h1>
+<h2 id="91-wymagania">9.1 Wymagania</h2>
 <ul>
 <li>Docker + Docker Compose</li>
 <li>Java 21 + Maven (do pracy z backendem poza kontenerem)</li>
 <li>Node.js (LTS) + npm (do pracy z frontendem)</li>
 <li>Dostęp do repozytorium git</li>
 </ul>
-<h2>9.2 Uruchomienie infrastruktury (Postgres, Redis, RabbitMQ, MinIO, ClickHouse, voicebot)</h2>
+<h2 id="92-uruchomienie-infrastruktury-postgres-redis-rabbitmq-minio-clickhouse-voicebot">9.2 Uruchomienie infrastruktury (Postgres, Redis, RabbitMQ, MinIO, ClickHouse, voicebot)</h2>
 <pre><code class="language-bash">docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans
 </code></pre>
 <blockquote>
@@ -50,7 +50,7 @@ hasłami i mogą uszkodzić dane wolumenów.</p>
 <p>Zatrzymanie (zachowuje dane):</p>
 <pre><code class="language-bash">docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml down
 </code></pre>
-<h2>9.3 Backend (uruchamianie lokalnie, poza kontenerem)</h2>
+<h2 id="93-backend-uruchamianie-lokalnie-poza-kontenerem">9.3 Backend (uruchamianie lokalnie, poza kontenerem)</h2>
 <pre><code class="language-bash">cd backend
 mvn package -pl app -DskipTests            # build
 mvn test -pl app                           # wszystkie testy
@@ -64,7 +64,7 @@ cd app &amp;&amp; mvn spring-boot:run -Dspring-boot.run.profiles=dev   # start l
 <li>Healthcheck: <code>http://localhost:8080/actuator/health</code></li>
 <li>Flyway uruchamia migracje automatycznie przy starcie.</li>
 </ul>
-<h2>9.4 Frontend</h2>
+<h2 id="94-frontend">9.4 Frontend</h2>
 <pre><code class="language-bash">cd frontend
 npm install
 npm start          # dev server na :4200, proxy do :8080
@@ -75,14 +75,14 @@ npm run lint:fix
 npm run format        # Prettier (write)
 npm run format:check  # Prettier (dry-run)
 </code></pre>
-<h2>9.5 Voicebot (Python/FastAPI)</h2>
+<h2 id="95-voicebot-python/fastapi">9.5 Voicebot (Python/FastAPI)</h2>
 <pre><code class="language-bash">cd voicebot
 python -m venv .venv &amp;&amp; source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8001
 </code></pre>
 <p>Wymaga działającego Redis i RabbitMQ (z <code>docker compose up -d</code>).</p>
-<h2>9.6 Pierwsze kroki w kodzie – checklist dla nowej osoby</h2>
+<h2 id="96-pierwsze-kroki-w-kodzie--checklist-dla-nowej-osoby">9.6 Pierwsze kroki w kodzie – checklist dla nowej osoby</h2>
 <ol>
 <li>Przeczytaj <a href="01-overview.html"><code>01-overview.md</code></a> i <a href="02-architecture.html"><code>02-architecture.md</code></a> –
 zrozum mapę modułów i ogólny przepływ.</li>
@@ -99,7 +99,7 @@ components, signals, routing per rola.</li>
 zastosowanej migracji Flyway</strong>, zawsze nowy plik <code>Vxxx__opis.sql</code>.</li>
 <li>Przed oznaczeniem zadania jako zakończone – uruchom <code>/verify</code> (lint + format + testy FE i BE).</li>
 </ol>
-<h2>9.7 Konwencje pracy</h2>
+<h2 id="97-konwencje-pracy">9.7 Konwencje pracy</h2>
 <ul>
 <li>Gałęzie: <code>feature/&lt;opis&gt;</code>, <code>fix/&lt;opis&gt;</code>, <code>chore/&lt;opis&gt;</code>.</li>
 <li>Dokumentacja postępu: <code>PROGRESS.md</code>; zadania: <code>TASKS-BACKEND.md</code>, <code>TASKS-FRONTEND.md</code>,
@@ -109,7 +109,7 @@ w kodzie – po angielsku.</li>
 <li>Code review – wyniki trafiają do <code>CR-BACKEND.md</code>, <code>CR-FRONTEND.md</code>, <code>CR-DATABASE.md</code>,
 <code>CR-TELECOM.md</code>.</li>
 </ul>
-<h2>9.8 Najczęstsze pułapki</h2>
+<h2 id="98-najczęstsze-pułapki">9.8 Najczęstsze pułapki</h2>
 <table>
 <thead>
 <tr>

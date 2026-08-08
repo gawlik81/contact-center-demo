@@ -24,6 +24,18 @@ at call time, so it picks up Vitest's mocked timers with no extra setup. Verifie
 in `campaign-import.component.spec.ts` (2026-07-12) for a `startPolling()` flow built on
 `interval(3000).pipe(switchMap(...))`.
 
+**Gotcha: `timer(0, ms)`'s FIRST emission is never synchronous, even with delay 0** — it still goes
+through `setTimeout`, so a component method converted from a plain synchronous `.subscribe()` call to
+`timer(0, ms).pipe(switchMap(...)).subscribe(...)` will NOT have populated its signal by the time
+`fixture.detectChanges()` returns. Every test that asserts on that data must first do
+`vi.useFakeTimers()` + `fixture.detectChanges()` + `await vi.advanceTimersByTimeAsync(0)` — including
+tests that build their own one-off `TestBed.configureTestingModule(...)` instead of using the shared
+`setup()` helper. Hit this converting `admin-metrics-page.component.ts` (2026-07-14) from one-shot
+`loadOverview()/loadUsage()/loadGrowth()/loadEtl()` calls to `timer(0, POLL_MS)`-based auto-polling
+(mirroring the pre-existing `startResourcesPolling()` pattern) — had to rewrite every test in
+`admin-metrics-page.component.spec.ts`, including the custom-mock ones, to flush the initial tick.
+See [[project_fe007_admin_dashboard]] for the unified-polling architecture this produced.
+
 **Testing components with a native `<dialog>` + `ngAfterViewInit` calling `dialog.showModal()`:**
 jsdom (v28, bundled with this project) does NOT implement `HTMLDialogElement.prototype.showModal`
 or `.close` — calling them throws `TypeError: ... is not a function`, which breaks

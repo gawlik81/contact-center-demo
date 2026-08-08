@@ -31,7 +31,7 @@
 <div class="layout">
 <main>
 <div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
-<h1>Tworzenie pluginów (EPIC-28)</h1>
+<h1 id="tworzenie-pluginów-epic-28">Tworzenie pluginów (EPIC-28)</h1>
 <blockquote>
 <p>Dokument onboardingowy dla systemu rozszerzeń (pluginów) per tenant. Opisuje <strong>stan
 faktyczny implementacji</strong> (kod, nie pierwotny plan) — pełny projekt architektoniczny i
@@ -43,7 +43,7 @@ jak napisać, zbudować i wgrać plugin.</p>
 <p>Stan na: <strong>2026-07-05</strong>. Kod jest źródłem prawdy — w razie rozbieżności sprawdź implementację.</p>
 </blockquote>
 <hr>
-<h2>1. Czym jest plugin w tym systemie</h2>
+<h2 id="1-czym-jest-plugin-w-tym-systemie">1. Czym jest plugin w tym systemie</h2>
 <p>Plugin to plik <strong>JAR</strong>, wgrywany przez administratora tenanta z panelu (<code>/supervisor/settings/plugins</code>),
 który rozszerza zachowanie platformy w pięciu, z góry zdefiniowanych <strong>punktach rozszerzeń</strong>
 (extension points) — np. &quot;tuż przed połączeniem agenta z kontaktem&quot; albo &quot;agent kliknął
@@ -65,7 +65,7 @@ warstwowymi, nie pełną sandboksacją (RT-10) — patrz <a href="#9-bezpiecze%C
 <code>plugin-sdk</code>, nigdy encje, repozytoria czy <code>ApplicationContext</code>.</li>
 </ul>
 <hr>
-<h2>2. Moduł <code>plugin-sdk</code> — jedyna zależność deweloperska</h2>
+<h2 id="2-moduł-plugin-sdk--jedyna-zależność-deweloperska">2. Moduł <code>plugin-sdk</code> — jedyna zależność deweloperska</h2>
 <pre><code>backend/plugin-sdk/
   pom.xml
   src/main/java/com/contactcenter/pluginsdk/
@@ -102,7 +102,7 @@ zależnością — w runtime SDK jest dostarczany przez platformę (dedykowany <
 pluginu ma dostęp tylko do pakietu <code>com.contactcenter.pluginsdk.*</code>), więc <strong>nie pakuj
 klas SDK do własnego JAR-a</strong> (<code>scope=provided</code>).</p>
 <hr>
-<h2>3. Kontrakt <code>PluginEntryPoint</code></h2>
+<h2 id="3-kontrakt-pluginentrypoint">3. Kontrakt <code>PluginEntryPoint</code></h2>
 <pre><code class="language-java">public interface PluginEntryPoint {
     void onActivate(PluginContext context);
     void onDeactivate();
@@ -118,7 +118,7 @@ zawsze przez <strong>konstruktor bezargumentowy</strong> (żadnego DI, żadnych 
 manifeście jako <code>entryPointClass</code>. Minimalny plugin musi nadpisać tylko <code>onActivate</code>/<code>onDeactivate</code>
 — resztę można zaimplementować selektywnie, w zależności od tego, które punkty rozszerzeń
 deklarujesz w <code>manifest.extensionPoints</code>.</p>
-<h3>3.1 Pięć punktów rozszerzeń</h3>
+<h3 id="31-pięć-punktów-rozszerzeń">3.1 Pięć punktów rozszerzeń</h3>
 <table>
 <thead>
 <tr>
@@ -174,7 +174,7 @@ core flow platformy. Każde wywołanie jest opakowane timeoutem i <code>catch (T
 na zawsze, host nie próbuje go zabić (<code>Future.cancel(true)</code> jest tylko best-effort interrupt) —
 po prostu przestaje czekać na wynik i kontynuuje.</p>
 <hr>
-<h2>4. <code>PluginContext</code> — jedyny dostęp do platformy</h2>
+<h2 id="4-plugincontext--jedyny-dostęp-do-platformy">4. <code>PluginContext</code> — jedyny dostęp do platformy</h2>
 <pre><code class="language-java">public interface PluginContext {
     CustomerView getCustomer(UUID customerId);
     void updateCustomerFields(UUID customerId, Map&lt;String, Object&gt; customFields);
@@ -240,7 +240,7 @@ zobaczy. <code>getCustomer</code>/<code>getContact</code> zwracają niemutowalne
 <td>Wartości z <code>tenant_plugin_installation.installation_config</code>, deszyfrowane przed podaniem pluginowi</td>
 </tr>
 </tbody></table>
-<h3>4.1 <code>CustomerView</code> / <code>ContactView</code> (pola)</h3>
+<h3 id="41-customerview-/-contactview-pola">4.1 <code>CustomerView</code> / <code>ContactView</code> (pola)</h3>
 <pre><code class="language-java">record CustomerView(UUID customerId, String firstName, String lastName,
                     List&lt;String&gt; emails, List&lt;String&gt; phoneNumbers,
                     Map&lt;String, Object&gt; customFields, Instant createdAt) {}
@@ -253,7 +253,7 @@ record ContactView(UUID contactId, UUID customerId, String channel, String direc
 <code>updateCustomerFields</code> — możesz odczytać własne, wcześniej zapisane dane spod
 <code>customFields.get(&quot;plugins&quot;).get(pluginKey)</code> (struktura mapy, nie typowany obiekt).</p>
 <hr>
-<h2>5. Manifest pluginu — <code>META-INF/plugin-manifest.json</code></h2>
+<h2 id="5-manifest-pluginu--meta-inf/plugin-manifestjson">5. Manifest pluginu — <code>META-INF/plugin-manifest.json</code></h2>
 <p>Każdy JAR <strong>musi</strong> zawierać ten plik. Schema (JSON Schema, walidowana przy uploadzie):
 <code>backend/app/src/main/resources/plugin/plugin-manifest.schema.json</code>.</p>
 <pre><code class="language-json">{
@@ -355,7 +355,7 @@ toolbarze agenta). <code>SUPERVISOR_DASHBOARD</code> jest wspierany przez kompon
 (<code>cc-plugin-panel-host</code>), ale nie jest jeszcze podłączony do żadnej konkretnej strony
 supervisora (brak ticketu mountującego — możliwy follow-up).</p>
 <hr>
-<h2>6. Model uprawnień</h2>
+<h2 id="6-model-uprawnień">6. Model uprawnień</h2>
 <p><code>manifest.permissions</code> musi być podzbiorem zamkniętego zbioru rozpoznawanego przez platformę
 (<code>PluginPermission.EXACT_PERMISSIONS</code> + kategoria <code>http:egress:</code>):</p>
 <pre><code>customer:read
@@ -372,8 +372,8 @@ pełnego zestawu z manifestu; żądanie na wejściu instalacji, które nie jest 
 po prostu odfiltrowane (przecięcie żądanych ∩ zadeklarowanych), bez błędu.</p>
 <p><code>http:egress:&lt;host&gt;</code> jest jednocześnie: (a) allow-listą dla <code>PluginContext.httpClient()</code>, i
 (b) źródłem nagłówka <code>Content-Security-Policy: connect-src</code> dla zasobów UI pluginu
-(<code>/plugin-assets/**</code>) — patrz <a href="#8-integracja-ui-iframe--pluginuisdk">§8</a>.</p>
-<h3>6.1 <code>DbEgressClient</code> — konfiguracja kluczy <code>installation_config</code></h3>
+(<code>/plugin-assets/**</code>) — patrz <a href="#83-integracja-ui--uipanels/manualactions-w-pulpicie-agenta">§8.3</a>.</p>
+<h3 id="61-dbegressclient--konfiguracja-kluczy-installation_config">6.1 <code>DbEgressClient</code> — konfiguracja kluczy <code>installation_config</code></h3>
 <p><code>DbEgressClient</code> pozwala pluginowi wykonać parametryzowany SQL (<code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>) na
 zewnętrznej bazie danych tenanta — bez ujawniania credentiali pluginowi. Działa tak:</p>
 <ol>
@@ -434,7 +434,7 @@ w manifeście — muszą się zgadzać co do znaku. Jeśli JDBC URL używa IP za
 (lub innego portu niż zadeklarowany w manifeście), wywołanie zakończy się <code>SecurityException</code>.</p>
 </blockquote>
 <hr>
-<h2>7. Ograniczenia bytecode (statyczny skan ASM)</h2>
+<h2 id="7-ograniczenia-bytecode-statyczny-skan-asm">7. Ograniczenia bytecode (statyczny skan ASM)</h2>
 <p>Przy uploadzie, <strong>przed jakimkolwiek ładowaniem klasy</strong>, każda klasa w JAR-ze jest skanowana
 statycznie (ASM, bez wykonania kodu). JAR jest odrzucany, jeśli którakolwiek klasa odwołuje się
 do:</p>
@@ -457,7 +457,7 @@ wewnętrznie żadnej z zablokowanych klas (np. wiele bibliotek serializacji/DI u
 <code>setAccessible</code> lub <code>ServiceLoader</code>) — taki JAR zostanie odrzucony przy uploadzie z konkretnym
 komunikatem wskazującym naruszoną klasę.</p>
 <hr>
-<h2>8. Cykl życia pluginu — upload → instalacja → wykonanie</h2>
+<h2 id="8-cykl-życia-pluginu--upload-→-instalacja-→-wykonanie">8. Cykl życia pluginu — upload → instalacja → wykonanie</h2>
 <pre><code>Administrator tenanta (panel /supervisor/settings/plugins)
   │  POST /api/supervisor/plugins  (multipart, pole &quot;file&quot;)
   ▼
@@ -486,13 +486,13 @@ ExtensionPointPublisher.publishXxx → PluginRegistry.lookup(tenantId, extension
   → wywołanie callbacku z §3.1, z timeoutem i circuit breakerem
   → wynik zapisany do plugin_invocation_log (status: SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED)
 </code></pre>
-<h3>8.1 Circuit breaker</h3>
+<h3 id="81-circuit-breaker">8.1 Circuit breaker</h3>
 <p>Każda instalacja ma licznik kolejnych niepowodzeń (<code>TIMED_OUT</code>/<code>FAILED</code>) <strong>w pamięci procesu</strong>,
 wspólny dla ścieżki blocking i async. Po <strong>5 kolejnych błędach</strong> instalacja przechodzi w stan
 <code>health_status=DEGRADED</code> w bazie, a kolejne wywołania są pomijane jako <code>CIRCUIT_OPEN</code> (bez
 próby wywołania pluginu) do pierwszego sukcesu, który resetuje licznik (&quot;closed on first
 success&quot; — brak pełnego half-open state).</p>
-<h3>8.2 REST API — referencja</h3>
+<h3 id="82-rest-api--referencja">8.2 REST API — referencja</h3>
 <table>
 <thead>
 <tr>
@@ -583,7 +583,7 @@ success&quot; — brak pełnego half-open state).</p>
 </tr>
 </tbody></table>
 <hr>
-<h2>8.3 Integracja UI — <code>uiPanels</code>/<code>manualActions</code> w pulpicie agenta</h2>
+<h3 id="83-integracja-ui--uipanels/manualactions-w-pulpicie-agenta">8.3 Integracja UI — <code>uiPanels</code>/<code>manualActions</code> w pulpicie agenta</h3>
 <p>Jeśli manifest deklaruje <code>uiPanels</code> z <code>mountPoint: &quot;AGENT_DESKTOP_SIDE_PANEL&quot;</code>, panel agenta
 montuje zakładkę z komponentem <code>cc-plugin-panel-host</code> (<code>frontend/src/app/shared/components/plugin-panel-host/</code>)
 renderującym <strong>sandboxowany iframe</strong>:</p>
@@ -604,7 +604,7 @@ zakończeniu. W stanie bezczynności panel nie jest renderowany — iframe jest 
 a przy każdym nowym kontakcie montowany od nowa (pełna reinicjalizacja). Projektuj swój
 plugin UI pod kątem tego cyklu: każde otwarcie panelu to świeży start skryptu.</p>
 </blockquote>
-<h3>8.4 <code>PluginUiSdk</code> — komunikacja iframe ↔ host</h3>
+<h3 id="84-pluginuisdk--komunikacja-iframe-↔-host">8.4 <code>PluginUiSdk</code> — komunikacja iframe ↔ host</h3>
 <p>Wstrzyknij w swoim <code>plugin-ui/index.html</code>:</p>
 <pre><code class="language-html">&lt;script src=&quot;/plugin-ui-sdk.js&quot;&gt;&lt;/script&gt;
 </code></pre>
@@ -640,7 +640,7 @@ komentarzu na początku pliku pełną specyfikację formatu wiadomości <code>po
 jeśli chcesz zaimplementować własny SDK w innym języku (np. plugin UI napisany bez <code>&lt;script&gt;</code>,
 w Web Components z innym tooling).</p>
 <hr>
-<h2>9. Bezpieczeństwo i znane ograniczenia</h2>
+<h2 id="9-bezpieczeństwo-i-znane-ograniczenia">9. Bezpieczeństwo i znane ograniczenia</h2>
 <p>Przeczytaj <code>ARCHITECTURE.md</code> §11.3 (model izolacji) i tabelę ryzyk RT-09…RT-14 przed
 podejmowaniem decyzji architektonicznych zależnych od tego systemu. Skrót najważniejszych
 ograniczeń <strong>aktualnie obecnych w kodzie</strong> (nie tylko teoretycznych):</p>
@@ -678,7 +678,7 @@ infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz <code>TASKS-
 środowisku lokalnym) — testy storage są jednostkowe z mockiem <code>S3Client</code>.</li>
 </ul>
 <hr>
-<h2>10. Minimalny przykład end-to-end</h2>
+<h2 id="10-minimalny-przykład-end-to-end">10. Minimalny przykład end-to-end</h2>
 <blockquote>
 <p><strong>Trzy pełne, działające przykłady</strong> (skompilowane, zweryfikowane przez realny
 <code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) w katalogu <code>examples/plugins/</code>:</p>
@@ -758,7 +758,7 @@ public class AcmeCrmPlugin implements PluginEntryPoint {
 zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zawartości <strong>bez</strong> manifestu, dopisz
 <code>META-INF/plugin-manifest.json</code> z tym checksumem jako ostatni krok, i wgraj wynikowy JAR przez
 <code>/supervisor/settings/plugins</code> (UI) lub bezpośrednio <code>POST /api/supervisor/plugins</code>.</p>
-<h3>10.1 Przykład z <code>DbEgressClient</code> — zapis wyniku kontaktu</h3>
+<h3 id="101-przykład-z-dbegressclient--zapis-wyniku-kontaktu">10.1 Przykład z <code>DbEgressClient</code> — zapis wyniku kontaktu</h3>
 <p>Plugin reagujący na zakończenie kontaktu (<code>POST_CONTACT_END</code>) i ustawienie dyspozycji
 (<code>DISPOSITION_SET</code>) zapisujący wynik do zewnętrznej bazy CRM:</p>
 <pre><code class="language-java">public class CrmDbSyncPlugin implements PluginEntryPoint {
@@ -836,7 +836,7 @@ katalogu <code>crm-demo-db/</code>.</li>
 <p>Administrator tenanta musi ustawić w konfiguracji instalacji (<code>installation_config</code>):
 <code>jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm</code>, <code>dbUsername</code>, <code>dbPassword</code>.
 Pełny, działający przykład: <a href="../../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a>.</p>
-<h3>10.2 Wzorzec: uruchamianie URL-a CRM z kontekstem rozmowy</h3>
+<h3 id="102-wzorzec-uruchamianie-url-a-crm-z-kontekstem-rozmowy">10.2 Wzorzec: uruchamianie URL-a CRM z kontekstem rozmowy</h3>
 <p>Najprostszy i bardzo częsty przypadek użycia pluginu UI: agent pracujący na połączeniu klika
 jeden przycisk, a otwiera się karta CRM/helpdesku z profilem bieżącego klienta lub
 rozmowy. Cały flow to trzy kroki:</p>
@@ -889,7 +889,7 @@ formularz dla opcjonalnych pól agenta. Po kliknięciu &quot;Otwórz w CRM&quot;
 <p>Pełny przykład z obsługą <code>agentParams</code> (pól wpisywanych przez agenta) i konfiguracją
 szablonu URL przez UI admina: <a href="../../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a>.</p>
 <hr>
-<h2>11. Powiązane materiały</h2>
+<h2 id="11-powiązane-materiały">11. Powiązane materiały</h2>
 <ul>
 <li><strong><a href="../../plugin/plugin-development-guide.html">Plugin Developer Guide</a></strong> (<a href="../../plugin/plugin-development-guide.html">HTML</a>)
 — kompletna referencja techniczna dla zewnętrznych dostawców pluginów: pełne API SDK,

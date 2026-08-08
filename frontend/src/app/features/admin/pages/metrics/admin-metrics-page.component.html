@@ -1,0 +1,864 @@
+<div class="admin-metrics">
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <div class="admin-metrics__header">
+    <div class="admin-metrics__heading">
+      <h1 class="admin-metrics__title">{{ 'admin.metrics.title' | transloco }}</h1>
+      <p class="admin-metrics__subtitle">{{ 'admin.metrics.subtitle' | transloco }}</p>
+    </div>
+
+    <div class="admin-metrics__actions">
+      <label class="range-select">
+        <span class="range-select__label">{{ 'admin.metrics.rangeLabel' | transloco }}</span>
+        <select
+          class="range-select__control"
+          [attr.aria-label]="'admin.metrics.rangeLabel' | transloco"
+          [value]="selectedRange()"
+          (change)="onRangeChange($any($event.target).value)"
+        >
+          <option value="7">{{ 'admin.metrics.range7d' | transloco }}</option>
+          <option value="30">{{ 'admin.metrics.range30d' | transloco }}</option>
+          <option value="90">{{ 'admin.metrics.range90d' | transloco }}</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        class="btn btn-export"
+        [disabled]="exportingCsv()"
+        (click)="onExportCsv()"
+        [attr.aria-label]="'admin.metrics.exportCsv' | transloco"
+      >
+        <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+          <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+        </svg>
+        {{ (exportingCsv() ? 'admin.metrics.exporting' : 'admin.metrics.exportCsv') | transloco }}
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        role="button"
+        [disabled]="isRefreshing()"
+        (click)="onRefresh()"
+        [attr.aria-label]="'common.refresh' | transloco"
+      >
+        <svg
+          class="btn-icon-svg"
+          [class.btn-icon-svg--spinning]="isRefreshing()"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M17.65 6.35A7.958 7.958 0 0012 4a8 8 0 00-8 8h2a6 6 0 116 6 6 6 0 01-5.65-4H8L4 20l-1-6h2.35A8 8 0 1017.65 6.35z"
+          />
+        </svg>
+        {{ 'common.refresh' | transloco }}
+      </button>
+    </div>
+  </div>
+
+  @if (overview()) {
+    <p class="admin-metrics__timestamp" aria-live="polite">
+      {{ 'admin.metrics.refreshedAt' | transloco }}
+      {{ overview()!.generatedAt | date: 'dd.MM.yyyy HH:mm:ss' }}
+    </p>
+  }
+
+  <!-- ── Section 0: System resources ───────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.resourcesTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.resourcesTitle' | transloco }}</h2>
+    </div>
+
+    @if (resourcesError()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.resourcesError' | transloco }}</p>
+      </div>
+    }
+
+    @if (resourcesLoading()) {
+      <div class="resource-grid" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+          <div class="resource-card resource-card--skeleton">
+            <div class="skeleton-block skeleton-block--label"></div>
+            <div class="skeleton-block skeleton-block--value"></div>
+          </div>
+        }
+      </div>
+    } @else if (resources()) {
+      <div class="resource-grid" role="region" [attr.aria-label]="'admin.metrics.resourcesTitle' | transloco">
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesCpu' | transloco }}</p>
+          <p class="resource-card__value">{{ resources()!.cpuUsagePercent }}%</p>
+          <div
+            class="progress-bar"
+            role="progressbar"
+            [attr.aria-valuenow]="resources()!.cpuUsagePercent"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div
+              class="progress-bar__fill"
+              [class.progress-bar__fill--low]="resourceTier(resources()!.cpuUsagePercent) === 'low'"
+              [class.progress-bar__fill--mid]="resourceTier(resources()!.cpuUsagePercent) === 'mid'"
+              [class.progress-bar__fill--high]="resourceTier(resources()!.cpuUsagePercent) === 'high'"
+              [style.width.%]="resources()!.cpuUsagePercent"
+            ></div>
+          </div>
+        </div>
+
+        @let heapPercent =
+          resources()!.heapMaxBytes ? (resources()!.heapUsedBytes / resources()!.heapMaxBytes) * 100 : 0;
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesHeap' | transloco }}</p>
+          <p class="resource-card__value">
+            {{ formatBytes(resources()!.heapUsedBytes) }} / {{ formatBytes(resources()!.heapMaxBytes) }}
+          </p>
+          <div
+            class="progress-bar"
+            role="progressbar"
+            [attr.aria-valuenow]="heapPercent | number: '1.0-0'"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div
+              class="progress-bar__fill"
+              [class.progress-bar__fill--low]="resourceTier(heapPercent) === 'low'"
+              [class.progress-bar__fill--mid]="resourceTier(heapPercent) === 'mid'"
+              [class.progress-bar__fill--high]="resourceTier(heapPercent) === 'high'"
+              [style.width.%]="heapPercent"
+            ></div>
+          </div>
+        </div>
+
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesThreads' | transloco }}</p>
+          <p class="resource-card__value">{{ resources()!.threadsLive }}</p>
+        </div>
+
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesUptime' | transloco }}</p>
+          <p class="resource-card__value resource-card__value--small">
+            {{ formatUptime(resources()!.uptimeSeconds) }}
+          </p>
+        </div>
+
+        @let dbPoolPercent = resources()!.dbPoolMax ? (resources()!.dbPoolActive / resources()!.dbPoolMax) * 100 : 0;
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesDbPool' | transloco }}</p>
+          <p class="resource-card__value">{{ resources()!.dbPoolActive }} / {{ resources()!.dbPoolMax }}</p>
+          <div
+            class="progress-bar"
+            role="progressbar"
+            [attr.aria-valuenow]="dbPoolPercent | number: '1.0-0'"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div
+              class="progress-bar__fill"
+              [class.progress-bar__fill--low]="resourceTier(dbPoolPercent) === 'low'"
+              [class.progress-bar__fill--mid]="resourceTier(dbPoolPercent) === 'mid'"
+              [class.progress-bar__fill--high]="resourceTier(dbPoolPercent) === 'high'"
+              [style.width.%]="dbPoolPercent"
+            ></div>
+          </div>
+        </div>
+
+        <div class="resource-card">
+          <p class="resource-card__label">{{ 'admin.metrics.resourcesRedis' | transloco }}</p>
+          <p class="resource-card__value resource-card__value--small">
+            <span
+              class="status-dot"
+              [class.status-dot--up]="resources()!.redisStatus === 'UP'"
+              [class.status-dot--down]="resources()!.redisStatus === 'DOWN'"
+              [attr.aria-label]="
+                resources()!.redisStatus === 'UP'
+                  ? ('admin.metrics.statusUp' | transloco)
+                  : ('admin.metrics.statusDown' | transloco)
+              "
+            ></span>
+            {{ resources()!.redisAgentSessions }} {{ 'admin.metrics.resourcesRedisSessions' | transloco }}
+          </p>
+        </div>
+
+        <div class="resource-card resource-card--wide">
+          <p class="resource-card__label">
+            <span
+              class="status-dot"
+              [class.status-dot--up]="resources()!.rabbitStatus === 'UP'"
+              [class.status-dot--down]="resources()!.rabbitStatus === 'DOWN'"
+              [attr.aria-label]="
+                resources()!.rabbitStatus === 'UP'
+                  ? ('admin.metrics.statusUp' | transloco)
+                  : ('admin.metrics.statusDown' | transloco)
+              "
+            ></span>
+            {{ 'admin.metrics.resourcesRabbit' | transloco }}
+          </p>
+          @if (hasQueueDepths()) {
+            <ul class="queue-depth-list">
+              @for (q of resources()!.queueDepths; track q.queueName) {
+                <li class="queue-depth-list__item" [class.queue-depth-list__item--warning]="isDlqWarning(q)">
+                  <span class="queue-depth-list__name">{{ q.queueName }}</span>
+                  <span class="queue-depth-list__count">{{ q.messageCount }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="resource-card__hint">{{ 'admin.metrics.resourcesQueueEmpty' | transloco }}</p>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- ── Section 1: Overview ───────────────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.overviewTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.overviewTitle' | transloco }}</h2>
+    </div>
+
+    @if (overviewError() && !overviewLoading()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.overviewError' | transloco }}</p>
+        <button type="button" class="btn btn-secondary" (click)="onRefresh()">
+          {{ 'admin.metrics.retry' | transloco }}
+        </button>
+      </div>
+    }
+
+    @if (hasAlerts()) {
+      <div class="alert-banner" role="alert" aria-live="assertive">
+        <svg class="alert-banner__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+        </svg>
+        <div class="alert-banner__body">
+          <p class="alert-banner__title">
+            {{ 'admin.metrics.alertsTitle' | transloco }} ({{ overview()!.systemAlerts.length }})
+          </p>
+          <ul class="alert-banner__list">
+            @for (alert of overview()!.systemAlerts; track alert) {
+              <li>{{ alert }}</li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+
+    @if (overviewLoading()) {
+      <div class="kpi-grid" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="kpi-card kpi-card--skeleton">
+            <div class="skeleton-block skeleton-block--label"></div>
+            <div class="skeleton-block skeleton-block--value"></div>
+          </div>
+        }
+      </div>
+    } @else if (overview()) {
+      <div class="kpi-grid" role="region" [attr.aria-label]="'admin.metrics.overviewTitle' | transloco">
+        <div class="kpi-card kpi-card--blue" role="group" aria-labelledby="kpi-active-tenants-label">
+          <div class="kpi-card__content">
+            <p id="kpi-active-tenants-label" class="kpi-card__label">
+              {{ 'admin.metrics.kpiActiveTenants' | transloco }}
+            </p>
+            <p class="kpi-card__value">{{ overview()!.totalActiveTenants }}</p>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--green" role="group" aria-labelledby="kpi-agents-online-label">
+          <div class="kpi-card__content">
+            <p id="kpi-agents-online-label" class="kpi-card__label">
+              {{ 'admin.metrics.kpiAgentsOnline' | transloco }}
+            </p>
+            <p class="kpi-card__value">{{ overview()!.totalAgentsOnline }}</p>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--violet" role="group" aria-labelledby="kpi-active-contacts-label">
+          <div class="kpi-card__content">
+            <p id="kpi-active-contacts-label" class="kpi-card__label">
+              {{ 'admin.metrics.kpiActiveContactsNow' | transloco }}
+            </p>
+            <p class="kpi-card__value">{{ overview()!.totalActiveContacts }}</p>
+          </div>
+        </div>
+
+        <div
+          class="kpi-card"
+          [class.kpi-card--red]="hasAlerts()"
+          [class.kpi-card--gray]="!hasAlerts()"
+          role="group"
+          aria-labelledby="kpi-system-alerts-label"
+        >
+          <div class="kpi-card__content">
+            <p id="kpi-system-alerts-label" class="kpi-card__label">
+              {{ 'admin.metrics.kpiSystemAlerts' | transloco }}
+            </p>
+            <p class="kpi-card__value">{{ overview()!.systemAlerts.length }}</p>
+          </div>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- ── Section 2: Usage today ────────────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.usageTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.usageTitle' | transloco }}</h2>
+    </div>
+
+    @if (usageError() && !usageLoading()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.usageError' | transloco }}</p>
+        <button type="button" class="btn btn-secondary" (click)="onRefresh()">
+          {{ 'admin.metrics.retry' | transloco }}
+        </button>
+      </div>
+    }
+
+    @if (usageLoading()) {
+      <div class="kpi-grid" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="kpi-card kpi-card--skeleton">
+            <div class="skeleton-block skeleton-block--label"></div>
+            <div class="skeleton-block skeleton-block--value"></div>
+          </div>
+        }
+      </div>
+    } @else if (usage()) {
+      <div class="kpi-grid" role="region" [attr.aria-label]="'admin.metrics.usageTitle' | transloco">
+        <div class="kpi-card kpi-card--blue" role="group" aria-labelledby="kpi-contacts-handled-label">
+          <div class="kpi-card__content">
+            <p id="kpi-contacts-handled-label" class="kpi-card__label">
+              {{ 'admin.metrics.usageContactsHandled' | transloco }}
+            </p>
+            <p class="kpi-card__value">{{ usage()!.contactsHandledToday }}</p>
+            @if (usage()!.contactsHandledDeltaPercent !== null) {
+              <p
+                class="kpi-card__delta"
+                [class.kpi-card__delta--up]="usage()!.contactsHandledDeltaPercent! >= 0"
+                [class.kpi-card__delta--down]="usage()!.contactsHandledDeltaPercent! < 0"
+              >
+                {{ usage()!.contactsHandledDeltaPercent! >= 0 ? '+' : '' }}{{ usage()!.contactsHandledDeltaPercent }}%
+                {{ 'admin.metrics.usageDeltaVsYesterday' | transloco }}
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--green" role="group" aria-labelledby="kpi-aht-label">
+          <div class="kpi-card__content">
+            <p id="kpi-aht-label" class="kpi-card__label">{{ 'admin.metrics.usageAvgHandleTime' | transloco }}</p>
+            <p class="kpi-card__value">{{ formatDuration(usage()!.avgHandleTimeSeconds) }}</p>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--amber" role="group" aria-labelledby="kpi-asa-label">
+          <div class="kpi-card__content">
+            <p id="kpi-asa-label" class="kpi-card__label">{{ 'admin.metrics.usageAvgWaitTime' | transloco }}</p>
+            <p class="kpi-card__value">{{ formatDuration(usage()!.avgWaitTimeSeconds) }}</p>
+          </div>
+        </div>
+
+        <div
+          class="kpi-card"
+          [class.kpi-card--green]="fcrTier(usage()!.fcrPercentage) === 'good'"
+          [class.kpi-card--amber]="fcrTier(usage()!.fcrPercentage) === 'warn'"
+          [class.kpi-card--red]="fcrTier(usage()!.fcrPercentage) === 'bad'"
+          role="group"
+          aria-labelledby="kpi-fcr-label"
+        >
+          <div class="kpi-card__content">
+            <p id="kpi-fcr-label" class="kpi-card__label">{{ 'admin.metrics.usageFcr' | transloco }}</p>
+            <p class="kpi-card__value">{{ usage()!.fcrPercentage }}%</p>
+          </div>
+        </div>
+
+        <div class="kpi-card kpi-card--gray" role="group" aria-labelledby="kpi-campaigns-label">
+          <div class="kpi-card__content">
+            <p id="kpi-campaigns-label" class="kpi-card__label">{{ 'admin.metrics.usageCampaigns' | transloco }}</p>
+            <p class="kpi-card__value">
+              {{
+                'admin.metrics.usageCampaignsValue'
+                  | transloco: { running: usage()!.campaignsRunning, total: usage()!.campaignsTotal }
+              }}
+            </p>
+          </div>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- ── Section 3: Growth & adoption ──────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.growthTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.growthTitle' | transloco }}</h2>
+    </div>
+
+    @if (growthError() && !growthLoading()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.growthError' | transloco }}</p>
+        <button type="button" class="btn btn-secondary" (click)="onRefresh()">
+          {{ 'admin.metrics.retry' | transloco }}
+        </button>
+      </div>
+    }
+
+    @if (growthLoading()) {
+      <div class="panel-grid">
+        <div class="panel panel--skeleton">
+          <div class="skeleton-block skeleton-block--heading"></div>
+        </div>
+        <div class="panel panel--skeleton">
+          <div class="skeleton-block skeleton-block--heading"></div>
+        </div>
+      </div>
+    } @else if (growth()) {
+      <div class="panel-grid">
+        <div class="panel">
+          <h3 class="panel__title">{{ 'admin.metrics.growthChartTitle' | transloco }}</h3>
+
+          @if (hasGrowthPoints()) {
+            <div class="growth-chart" role="img" [attr.aria-label]="'admin.metrics.growthChartTitle' | transloco">
+              <div class="growth-chart__grid" aria-hidden="true"></div>
+              <div class="growth-chart__bars">
+                @for (point of growthPoints(); track point.weekStart; let isLast = $last) {
+                  <div class="growth-chart__group" [class.growth-chart__group--current]="isLast">
+                    <div
+                      class="growth-chart__bar-pair"
+                      [attr.aria-label]="point.weekStart + ': ' + point.newTenants + ' / ' + point.newUsers"
+                    >
+                      <div
+                        class="growth-chart__bar growth-chart__bar--tenants"
+                        [style.height.%]="barHeightPercent(point.newTenants)"
+                      ></div>
+                      <div
+                        class="growth-chart__bar growth-chart__bar--users"
+                        [style.height.%]="barHeightPercent(point.newUsers)"
+                      ></div>
+                    </div>
+                    <span class="growth-chart__label">{{ point.weekStart | date: 'dd.MM' }}</span>
+                    @if (isLast) {
+                      <span class="growth-chart__current-badge">{{
+                        'admin.metrics.growthCurrentWeek' | transloco
+                      }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+            <div class="growth-chart__legend">
+              <span class="growth-chart__legend-item">
+                <i class="growth-chart__swatch growth-chart__swatch--tenants" aria-hidden="true"></i>
+                {{ 'admin.metrics.growthLegendTenants' | transloco }}
+              </span>
+              <span class="growth-chart__legend-item">
+                <i class="growth-chart__swatch growth-chart__swatch--users" aria-hidden="true"></i>
+                {{ 'admin.metrics.growthLegendUsers' | transloco }}
+              </span>
+            </div>
+          } @else {
+            <div class="empty-state empty-state--compact" role="status">
+              <p class="empty-state__message">{{ 'admin.metrics.growthChartEmpty' | transloco }}</p>
+            </div>
+          }
+        </div>
+
+        <div class="panel">
+          <h3 class="panel__title">{{ 'admin.metrics.growthPluginsTitle' | transloco }}</h3>
+
+          @if (hasTopPlugins()) {
+            <ul class="plugin-ranking">
+              @for (plugin of topPlugins(); track plugin.pluginName) {
+                <li class="plugin-ranking__item">
+                  <div class="plugin-ranking__row">
+                    <span class="plugin-ranking__name">{{ plugin.pluginName }}</span>
+                    <span class="plugin-ranking__count">{{ plugin.installCount }}</span>
+                  </div>
+                  <div
+                    class="progress-bar"
+                    role="progressbar"
+                    [attr.aria-valuenow]="plugin.installCount"
+                    aria-valuemin="0"
+                    [attr.aria-valuemax]="topPluginMax()"
+                    [attr.aria-label]="plugin.pluginName"
+                  >
+                    <div
+                      class="progress-bar__fill progress-bar__fill--violet"
+                      [style.width.%]="pluginBarPercent(plugin.installCount)"
+                    ></div>
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="empty-state empty-state--compact" role="status">
+              <p class="empty-state__message">{{ 'admin.metrics.growthPluginsEmpty' | transloco }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ── Sub-panel: contacts by tenant and channel — shares the day-range selector above ── -->
+    <div class="section__subheader">
+      <h3 class="section__subtitle">
+        {{ 'admin.metrics.channelMatrixTitle' | transloco }}
+        @if (channelMatrix()) {
+          <span class="section__subtitle-range">
+            ({{ channelMatrix()!.fromDate | date: 'dd.MM' }}–{{ channelMatrix()!.toDate | date: 'dd.MM' }})
+          </span>
+        }
+      </h3>
+    </div>
+
+    @if (channelMatrixError() && !channelMatrixLoading()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.channelMatrixError' | transloco }}</p>
+        <button type="button" class="btn btn-secondary" (click)="onRefresh()">
+          {{ 'admin.metrics.retry' | transloco }}
+        </button>
+      </div>
+    }
+
+    @if (channelMatrixLoading()) {
+      <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton-cell skeleton-cell--wide"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--badge"></div>
+          </div>
+        }
+      </div>
+    } @else if (hasChannelMatrixTenants()) {
+      <div class="table-wrapper" role="region" [attr.aria-label]="'admin.metrics.channelMatrixTitle' | transloco">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'common.name' | transloco }}</th>
+              @for (channel of channelMatrixChannels(); track channel) {
+                <th scope="col">{{ channelLabel(channel) }}</th>
+              }
+              <th scope="col">{{ 'admin.metrics.channelMatrixColTotal' | transloco }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of channelMatrixTenants(); track row.tenantId) {
+              <tr class="data-row">
+                <td class="data-row__name">{{ row.tenantName }}</td>
+                @for (channel of channelMatrixChannels(); track channel) {
+                  <td
+                    class="channel-count"
+                    [class.channel-count--zero]="countFor(row, channel) === 0"
+                    [class.channel-count--nonzero]="countFor(row, channel) > 0"
+                  >
+                    {{ countFor(row, channel) }}
+                  </td>
+                }
+                <td class="channel-count channel-count--total">{{ row.total }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else if (!channelMatrixError()) {
+      <div class="empty-state empty-state--compact" role="status" aria-live="polite">
+        <p class="empty-state__message">{{ 'admin.metrics.channelMatrixEmpty' | transloco }}</p>
+      </div>
+    }
+  </section>
+
+  <!-- ── Section 4: ETL pipeline ────────────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.etlTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.etlTitle' | transloco }}</h2>
+    </div>
+
+    @if (etlError() && !etlLoading()) {
+      <div class="section-error" role="alert">
+        <p>{{ 'admin.metrics.etlError' | transloco }}</p>
+        <button type="button" class="btn btn-secondary" (click)="onRefresh()">
+          {{ 'admin.metrics.retry' | transloco }}
+        </button>
+      </div>
+    }
+
+    @if (etlLoading()) {
+      <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton-cell skeleton-cell--wide"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--badge"></div>
+          </div>
+        }
+      </div>
+    } @else if (hasEtlStatuses()) {
+      <div class="table-wrapper" role="region" [attr.aria-label]="'admin.metrics.etlTitle' | transloco">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'admin.metrics.etlColTable' | transloco }}</th>
+              <th scope="col">{{ 'admin.metrics.etlColLastSync' | transloco }}</th>
+              <th scope="col">{{ 'admin.metrics.etlColStatus' | transloco }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of etlStatuses(); track row.tableName) {
+              <tr class="data-row">
+                <td class="data-row__name">{{ row.tableName }}</td>
+                <td>{{ formatRelativePast(row.lastSyncedAt) }}</td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--active]="etlVisualStatus(row) === 'done'"
+                    [class.status-badge--inactive]="etlVisualStatus(row) === 'idle'"
+                    [class.status-badge--suspended]="
+                      etlVisualStatus(row) === 'warning' || etlVisualStatus(row) === 'running'
+                    "
+                    [class.status-badge--error]="etlVisualStatus(row) === 'error'"
+                  >
+                    @switch (etlVisualStatus(row)) {
+                      @case ('idle') {
+                        {{ 'admin.metrics.etlStatusIdle' | transloco }}
+                      }
+                      @case ('running') {
+                        {{ 'admin.metrics.etlStatusRunning' | transloco }}
+                      }
+                      @case ('done') {
+                        {{ 'admin.metrics.etlStatusDone' | transloco }}
+                      }
+                      @case ('warning') {
+                        {{ 'admin.metrics.etlStatusWarning' | transloco }} ({{ row.lagMinutes }} min)
+                      }
+                      @case ('error') {
+                        {{ 'admin.metrics.etlStatusError' | transloco }}
+                      }
+                    }
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty-state" role="status" aria-live="polite">
+        <p class="empty-state__message">{{ 'admin.metrics.etlEmpty' | transloco }}</p>
+      </div>
+    }
+  </section>
+
+  <!-- ── Section 5: Tenant ranking ──────────────────────────────────────────── -->
+  <section class="section" [attr.aria-label]="'admin.metrics.tenantsRankingTitle' | transloco">
+    <div class="section__header">
+      <h2 class="section__title">{{ 'admin.metrics.tenantsRankingTitle' | transloco }}</h2>
+      @if (hasTenants()) {
+        <span class="section__count">{{ tenants().length }}</span>
+      }
+    </div>
+
+    @if (overviewLoading()) {
+      <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton-cell skeleton-cell--wide"></div>
+            <div class="skeleton-cell skeleton-cell--badge"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+            <div class="skeleton-cell skeleton-cell--narrow"></div>
+          </div>
+        }
+      </div>
+    } @else if (hasTenants()) {
+      <div class="table-wrapper" role="region" [attr.aria-label]="'admin.metrics.tenantsRankingLabel' | transloco">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'common.name' | transloco }}</th>
+              <th scope="col">{{ 'common.status' | transloco }}</th>
+              <th
+                scope="col"
+                [attr.aria-sort]="
+                  isSortActive('agentsOnline') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                "
+              >
+                <button type="button" class="sortable-header" (click)="onSort('agentsOnline')">
+                  {{ 'admin.dashboard.agentsOnline' | transloco }}
+                  <svg
+                    class="sortable-header__icon"
+                    [class.sortable-header__icon--active]="isSortActive('agentsOnline')"
+                    [class.sortable-header__icon--desc]="isSortActive('agentsOnline') && sortDir() === 'desc'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 6l6 8H6z" />
+                  </svg>
+                </button>
+              </th>
+              <th
+                scope="col"
+                [attr.aria-sort]="
+                  isSortActive('contactsToday') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                "
+              >
+                <button type="button" class="sortable-header" (click)="onSort('contactsToday')">
+                  {{ 'admin.metrics.colContactsToday' | transloco }}
+                  <svg
+                    class="sortable-header__icon"
+                    [class.sortable-header__icon--active]="isSortActive('contactsToday')"
+                    [class.sortable-header__icon--desc]="isSortActive('contactsToday') && sortDir() === 'desc'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 6l6 8H6z" />
+                  </svg>
+                </button>
+              </th>
+              <th
+                scope="col"
+                [attr.aria-sort]="
+                  isSortActive('avgHandleTimeSeconds') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                "
+              >
+                <button type="button" class="sortable-header" (click)="onSort('avgHandleTimeSeconds')">
+                  {{ 'admin.metrics.colAvgHandleTime' | transloco }}
+                  <svg
+                    class="sortable-header__icon"
+                    [class.sortable-header__icon--active]="isSortActive('avgHandleTimeSeconds')"
+                    [class.sortable-header__icon--desc]="isSortActive('avgHandleTimeSeconds') && sortDir() === 'desc'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 6l6 8H6z" />
+                  </svg>
+                </button>
+              </th>
+              <th
+                scope="col"
+                [attr.aria-sort]="
+                  isSortActive('fcrPercentage') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                "
+              >
+                <button type="button" class="sortable-header" (click)="onSort('fcrPercentage')">
+                  {{ 'admin.metrics.colFcr' | transloco }}
+                  <svg
+                    class="sortable-header__icon"
+                    [class.sortable-header__icon--active]="isSortActive('fcrPercentage')"
+                    [class.sortable-header__icon--desc]="isSortActive('fcrPercentage') && sortDir() === 'desc'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 6l6 8H6z" />
+                  </svg>
+                </button>
+              </th>
+              <th
+                scope="col"
+                [attr.aria-sort]="
+                  isSortActive('agentLimitUtilizationPercent')
+                    ? sortDir() === 'asc'
+                      ? 'ascending'
+                      : 'descending'
+                    : 'none'
+                "
+              >
+                <button type="button" class="sortable-header" (click)="onSort('agentLimitUtilizationPercent')">
+                  {{ 'admin.metrics.colAgentLimitUtilization' | transloco }}
+                  <svg
+                    class="sortable-header__icon"
+                    [class.sortable-header__icon--active]="isSortActive('agentLimitUtilizationPercent')"
+                    [class.sortable-header__icon--desc]="
+                      isSortActive('agentLimitUtilizationPercent') && sortDir() === 'desc'
+                    "
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 6l6 8H6z" />
+                  </svg>
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (tenant of sortedTenants(); track tenant.id) {
+              <tr class="data-row">
+                <td class="data-row__name">{{ tenant.name }}</td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--active]="tenant.status === 'ACTIVE'"
+                    [class.status-badge--inactive]="tenant.status === 'INACTIVE'"
+                    [class.status-badge--suspended]="tenant.status === 'SUSPENDED'"
+                  >
+                    @switch (tenant.status) {
+                      @case ('ACTIVE') {
+                        {{ 'common.active' | transloco }}
+                      }
+                      @case ('INACTIVE') {
+                        {{ 'common.inactive' | transloco }}
+                      }
+                      @case ('SUSPENDED') {
+                        {{ 'admin.metrics.statusSuspended' | transloco }}
+                      }
+                    }
+                  </span>
+                </td>
+                <td>{{ tenant.agentsOnline }} / {{ tenant.agentsTotal }}</td>
+                <td>{{ tenant.contactsToday }}</td>
+                <td>{{ formatDuration(tenant.avgHandleTimeSeconds) }}</td>
+                <td>
+                  <span
+                    [class.metric-value--good]="fcrTier(tenant.fcrPercentage) === 'good'"
+                    [class.metric-value--warn]="fcrTier(tenant.fcrPercentage) === 'warn'"
+                    [class.metric-value--bad]="fcrTier(tenant.fcrPercentage) === 'bad'"
+                  >
+                    {{ tenant.fcrPercentage }}%
+                  </span>
+                </td>
+                <td class="data-row__progress-cell">
+                  <div
+                    class="progress-bar"
+                    role="progressbar"
+                    [attr.aria-valuenow]="tenant.agentLimitUtilizationPercent"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <div
+                      class="progress-bar__fill"
+                      [class.progress-bar__fill--low]="utilizationTier(tenant.agentLimitUtilizationPercent) === 'low'"
+                      [class.progress-bar__fill--mid]="utilizationTier(tenant.agentLimitUtilizationPercent) === 'mid'"
+                      [class.progress-bar__fill--high]="utilizationTier(tenant.agentLimitUtilizationPercent) === 'high'"
+                      [style.width.%]="tenant.agentLimitUtilizationPercent"
+                    ></div>
+                  </div>
+                  <span class="progress-bar__label">{{ tenant.agentLimitUtilizationPercent }}%</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 21V7l9-4 9 4v14H3zm6-2h2v-4H9v4zm4 0h2v-4h-2v4zm4 0h2v-6h-2v6zm-8-6h2v-2H9v2zm4 0h2v-2h-2v2z" />
+        </svg>
+        <p class="empty-state__message">{{ 'common.no_data' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'admin.metrics.tenantsEmptyHint' | transloco }}</p>
+      </div>
+    }
+  </section>
+</div>

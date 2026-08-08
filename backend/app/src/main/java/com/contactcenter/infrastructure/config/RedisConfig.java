@@ -1,6 +1,9 @@
 package com.contactcenter.infrastructure.config;
 
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
+import com.contactcenter.api.admin.dto.ContactChannelMatrix;
+import com.contactcenter.api.admin.dto.GrowthMetrics;
+import com.contactcenter.api.admin.dto.UsageMetrics;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
@@ -58,6 +61,11 @@ public class RedisConfig {
     public static final Duration TTL_REPORT_CACHE     = Duration.ofMinutes(5);
     /** TTL sesji połączeń Twilio: 24h pokrywa najdłuższe połączenie + 2 min bufor na callbacki. */
     public static final Duration TTL_CALL_SESSION     = Duration.ofHours(24);
+    /**
+     * TTL metryk wzrostu platformy (nowi tenanci/użytkownicy tygodniowo, top pluginy).
+     * Dłuższy niż pozostałe cache metryk admina – dane zmieniają się wolno (agregacje tygodniowe).
+     */
+    public static final Duration TTL_ADMIN_METRICS_GROWTH = Duration.ofMinutes(20);
 
     /**
      * StringRedisTemplate – klucze i wartości serializowane jako String (UTF-8).
@@ -147,10 +155,56 @@ public class RedisConfig {
                                 adminMetricsSerializer))
                 .disableCachingNullValues();
 
+        // Serializatory typowane dla UsageMetrics/GrowthMetrics – ten sam problem @class co przy
+        // AdminMetricsResponse (record = final class, patrz Javadoc poniżej i wyżej).
+        Jackson2JsonRedisSerializer<UsageMetrics> usageMetricsSerializer =
+                new Jackson2JsonRedisSerializer<>(adminMetricsObjectMapper, UsageMetrics.class);
+        RedisCacheConfiguration usageMetricsConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(TTL_REPORT_CACHE)
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                new StringRedisSerializer()))
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                usageMetricsSerializer))
+                .disableCachingNullValues();
+
+        Jackson2JsonRedisSerializer<GrowthMetrics> growthMetricsSerializer =
+                new Jackson2JsonRedisSerializer<>(adminMetricsObjectMapper, GrowthMetrics.class);
+        RedisCacheConfiguration growthMetricsConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(TTL_ADMIN_METRICS_GROWTH)
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                new StringRedisSerializer()))
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                growthMetricsSerializer))
+                .disableCachingNullValues();
+
+        // Serializator typowany dla ContactChannelMatrix – OSOBNY cache name od
+        // ADMIN_METRICS_USAGE/UsageMetrics. Współdzielenie jednego cache name przez dwa różne
+        // typy DTO (z różnymi kluczami "usage"/"channel-breakdown") powodowało
+        // UnrecognizedPropertyException przy odczycie – Jackson2JsonRedisSerializer jest
+        // typowany na konkretną klasę per cache name, nie per klucz w tym cache.
+        Jackson2JsonRedisSerializer<ContactChannelMatrix> channelMatrixSerializer =
+                new Jackson2JsonRedisSerializer<>(adminMetricsObjectMapper, ContactChannelMatrix.class);
+        RedisCacheConfiguration channelMatrixConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(TTL_REPORT_CACHE)
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                new StringRedisSerializer()))
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                channelMatrixSerializer))
+                .disableCachingNullValues();
+
         // Konfiguracje per cache z właściwymi TTL
         Map<String, RedisCacheConfiguration> cacheConfigurations = Map.of(
                 CacheNames.QUEUE_STATS,    defaultConfig.entryTtl(TTL_QUEUE_STATS),
                 CacheNames.ADMIN_METRICS,  adminMetricsConfig,
+                CacheNames.ADMIN_METRICS_USAGE,  usageMetricsConfig,
+                CacheNames.ADMIN_METRICS_GROWTH, growthMetricsConfig,
+                CacheNames.ADMIN_METRICS_CHANNEL_BREAKDOWN, channelMatrixConfig,
                 CacheNames.CLI_LOOKUP,     defaultConfig.entryTtl(TTL_CLI_LOOKUP),
                 CacheNames.REPORT_CACHE,   defaultConfig.entryTtl(TTL_REPORT_CACHE),
                 CacheNames.TTS_AUDIO,      defaultConfig.entryTtl(TTL_TTS_AUDIO)
@@ -207,6 +261,17 @@ public class RedisConfig {
 
         public static final String QUEUE_STATS    = "queue-stats";
         public static final String ADMIN_METRICS  = "admin-metrics";
+        /** Cache dla {@code GET /api/admin/metrics/usage} (TTL 5 min, jak {@link #REPORT_CACHE}). */
+        public static final String ADMIN_METRICS_USAGE  = "admin-metrics-usage";
+        /** Cache dla {@code GET /api/admin/metrics/growth} (TTL 20 min – dane wolno się zmieniają). */
+        public static final String ADMIN_METRICS_GROWTH = "admin-metrics-growth";
+        /**
+         * Cache dla {@code ContactChannelMatrix} (macierz kontaktów per tenant/kanał, TTL 5 min,
+         * jak {@link #REPORT_CACHE}). OSOBNY od {@link #ADMIN_METRICS_USAGE} – każdy cache name
+         * ma dedykowany typowany serializer (patrz {@code redisCacheManager}); dwa różne typy DTO
+         * pod jednym cache name powodują {@code UnrecognizedPropertyException} przy odczycie.
+         */
+        public static final String ADMIN_METRICS_CHANNEL_BREAKDOWN = "admin-metrics-channel-breakdown";
         public static final String CLI_LOOKUP     = "cli-lookup";
         public static final String REPORT_CACHE   = "report-cache";
         public static final String TTS_AUDIO      = "tts-audio";

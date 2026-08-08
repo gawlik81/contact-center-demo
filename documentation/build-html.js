@@ -58,6 +58,27 @@ ${body}
 
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
+// odtwarza konwencję slugów GitHub-flavored markdown (np. "9. Bezpieczeństwo — X" -> "9-bezpieczeństwo--x"),
+// zgodną z kotwicami już ręcznie zapisanymi w spisach treści i odnośnikach [§n] w dokumentacji
+function slugify(text, seen) {
+  const slug = text
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/[`.,;:!?'"()\[\]{}<>—–]/g, '')
+    .replace(/\s/g, '-');
+  const count = seen.get(slug) || 0;
+  seen.set(slug, count + 1);
+  return count === 0 ? slug : `${slug}-${count}`;
+}
+
+function addHeadingIds(html) {
+  const seen = new Map();
+  return html.replace(/<h([1-6])>(.*?)<\/h\1>/gs, (m, level, inner) => {
+    const id = slugify(inner, seen);
+    return `<h${level} id="${id}">${inner}</h${level}>`;
+  });
+}
+
 for (const file of files) {
   const md = fs.readFileSync(path.join(docsDir, file), 'utf-8');
   // przepisz linki .md -> .html (linki relatywne w dokumentacji)
@@ -73,6 +94,8 @@ for (const file of files) {
     const decoded = code.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
     return `<pre class="mermaid">${decoded}</pre>`;
   });
+  // dodaje id do nagłówków, żeby kotwice #rozdział ze spisu treści faktycznie nawigowały
+  body = addHeadingIds(body);
   const titleMatch = md.match(/^#\s+(.+)$/m);
   const title = titleMatch ? titleMatch[1] : file;
   const htmlFile = file.replace(/\.md$/, '.html');

@@ -252,7 +252,7 @@ po prostu odfiltrowane (przecięcie żądanych ∩ zadeklarowanych), bez błędu
 
 `http:egress:<host>` jest jednocześnie: (a) allow-listą dla `PluginContext.httpClient()`, i
 (b) źródłem nagłówka `Content-Security-Policy: connect-src` dla zasobów UI pluginu
-(`/plugin-assets/**`) — patrz [§8](#8-integracja-ui-iframe--pluginuisdk).
+(`/plugin-assets/**`) — patrz [§8.3](#83-integracja-ui--uipanels/manualactions-w-pulpicie-agenta).
 
 ### 6.1 `DbEgressClient` — konfiguracja kluczy `installation_config`
 
@@ -391,7 +391,7 @@ success" — brak pełnego half-open state).
 
 ---
 
-## 8.3 Integracja UI — `uiPanels`/`manualActions` w pulpicie agenta
+### 8.3 Integracja UI — `uiPanels`/`manualActions` w pulpicie agenta
 
 Jeśli manifest deklaruje `uiPanels` z `mountPoint: "AGENT_DESKTOP_SIDE_PANEL"`, panel agenta
 montuje zakładkę z komponentem `cc-plugin-panel-host` (`frontend/src/app/shared/components/plugin-panel-host/`)

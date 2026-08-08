@@ -369,7 +369,7 @@ Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węz
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-022 ✅
-**Blokuje:** FE-016
+**Blokuje:** FE-016, FE-027
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -392,7 +392,7 @@ Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres,
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-24
 **Czeka na BE:** BE-023 ✅
-**Blokuje:** brak
+**Blokuje:** FE-027
 **Odniesienie PRD:** US-08-01, EPIC-08
 
 **Opis:**
@@ -725,7 +725,7 @@ interface PhoneRoutingRule {
 - [x] Brak reguł w pewnych godzinach → badge ostrzegawczy
 - [x] IVR dropdown ładuje drzewa IVR z `/api/ivr-trees`; kolejka dropdown z `/api/queues`
 - [x] Dostępne tylko dla roli SUPERVISOR i ADMIN (roleGuard)
-- [x] Usunięto route `settings/twilio` i sidenav entry „Twilio VoIP" z supervisora; zastąpiono „Numery telefonów"
+- [ ] Usunięto route `settings/twilio` i sidenav entry „Twilio VoIP" z supervisora; zastąpiono „Numery telefonów" — **weryfikacja 2026-08-08: NIE spełnione.** W `supervisor.routes.ts` trasa `settings/twilio` → `TwilioConfigComponent` nadal istnieje, a w `sidenav.component.ts` wpis `nav.settingsTwilioConfig` nadal współistnieje obok nowego `nav.settingsPhoneNumbers`. Stary panel Twilio VoIP nie został usunięty, działa równolegle z nowym (potencjalny konflikt z FE-025, które też jest ✅ i nadal aktywne). Reszta funkcjonalności ticketu w pełni zaimplementowana — status ✅ ogólny pozostaje, ale ten konkretny punkt sprzątania wymaga dokończenia.
 
 ---
 
@@ -2788,9 +2788,10 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 **Typ:** Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-063, BE-064
-**Blokuje:** –
+**Blokuje:** brak
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
 **Opis:**
@@ -2867,9 +2868,10 @@ Odpowiednie kolumny (`attempt_count`, `next_attempt_at`) muszą być dołączone
 **Typ:** Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
-**Zależy od:** –
-**Blokuje:** –
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** brak
+**Blokuje:** brak
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
 **Opis:**
@@ -2932,7 +2934,9 @@ maxAttempts: new FormControl(3, [
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
-**Status:** [ ] Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
 
 **Opis:**
@@ -2968,7 +2972,9 @@ Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady 
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
-**Status:** [ ] Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
 
 **Opis:**
@@ -3017,6 +3023,7 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 **Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-14
+**Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
 
 **Opis:**
@@ -3065,6 +3072,7 @@ Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikacj
 **Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-14
+**Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
 
 **Opis:**
@@ -3192,6 +3200,7 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 **Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-14
+**Blokuje:** brak
 **Epic:** EPIC-23 Historia etapów kontaktu
 
 **Opis:**
@@ -3412,8 +3421,9 @@ Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (tr
 **Typ:** Feature
 **Priorytet:** Must Have
 **Złożoność:** S
-**Zależy od:** BE-077, BE-078
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** BE-075, BE-076, BE-077, BE-078
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
 **Blokuje:** FE-077, FE-078, FE-079, FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
@@ -3488,7 +3498,8 @@ POST /api/telephony/calls/{callId}/bridge/{secondCallId}
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-076
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
 **Blokuje:** FE-078, FE-079
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
@@ -3561,7 +3572,8 @@ protected setTransferTargetType(type: TransferTargetType): void {
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-076, FE-077, BE-075
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
@@ -3667,7 +3679,8 @@ protected selectAgent(agent: TransferAgentItem): void {
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, BE-076
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
@@ -3744,7 +3757,9 @@ protected selectQueue(queue: TransferQueueItem): void {
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** brak
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3802,7 +3817,8 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-079
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -3833,10 +3849,10 @@ Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dr
    - Usuń klucze `supervisor.campaignForm.errors.queueRequired` i `supervisor.campaigns.queue` (jeśli istnieją)
 
 **Kryteria akceptacji:**
-- [ ] Formularz tworzenia kampanii nie zawiera pola kolejki
-- [ ] `POST /api/campaigns` wysyłany bez `queueId`
-- [ ] Formularz edycji kampanii (DRAFT) nie zawiera pola kolejki
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Formularz tworzenia kampanii nie zawiera pola kolejki
+- [x] `POST /api/campaigns` wysyłany bez `queueId`
+- [x] Formularz edycji kampanii (DRAFT) nie zawiera pola kolejki
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -3846,7 +3862,8 @@ Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dr
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-080, BE-084, FE-081
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** FE-083
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -3931,16 +3948,16 @@ export class CampaignAssignmentModalComponent implements OnInit {
 - Po zamknięciu modalu z sukcesem: odświeżenie `assignedAgentsCount` w widoku kampanii
 
 **Kryteria akceptacji:**
-- [ ] Modal ładuje aktualny stan przypisania z `GET /api/campaigns/{id}/assignment`
-- [ ] Toggle "Wszyscy agenci" — włączenie ukrywa sekcje grup/agentów, nie usuwa istniejących przypisań (tylko flaga)
-- [ ] Dodanie grupy: pojawia się w sekcji grup z `memberCount`
-- [ ] Usunięcie grupy: usuwana z lokalnej listy (bez natychmiastowego zapisu — zapis przez "Zapisz")
-- [ ] Dodanie agenta: pojawia się w sekcji agentów bezpośrednich
-- [ ] Usunięcie agenta: usuwany z lokalnej listy
-- [ ] "Zapisz" → `PUT /api/campaigns/{id}/assignment` → success toast + zamknięcie modalu
-- [ ] Ostrzeżenie widoczne gdy `allAgents=false` i obie listy puste
-- [ ] Komponent standalone, bez NgModules
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Modal ładuje aktualny stan przypisania z `GET /api/campaigns/{id}/assignment`
+- [x] Toggle "Wszyscy agenci" — włączenie ukrywa sekcje grup/agentów, nie usuwa istniejących przypisań (tylko flaga)
+- [x] Dodanie grupy: pojawia się w sekcji grup z `memberCount`
+- [x] Usunięcie grupy: usuwana z lokalnej listy (bez natychmiastowego zapisu — zapis przez "Zapisz")
+- [x] Dodanie agenta: pojawia się w sekcji agentów bezpośrednich
+- [x] Usunięcie agenta: usuwany z lokalnej listy
+- [x] "Zapisz" → `PUT /api/campaigns/{id}/assignment` → success toast + zamknięcie modalu
+- [x] Ostrzeżenie widoczne gdy `allAgents=false` i obie listy puste
+- [x] Komponent standalone, bez NgModules
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -3950,7 +3967,9 @@ export class CampaignAssignmentModalComponent implements OnInit {
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-082, BE-080
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
+**Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Opis:**
@@ -3991,10 +4010,10 @@ Stan przypisania agentów powinien być widoczny bez otwierania modalu. `Campaig
    ```
 
 **Kryteria akceptacji:**
-- [ ] Badge z liczbą agentów widoczny na liście kampanii
-- [ ] Badge w kolorze ostrzegawczym gdy `assignedAgentsCount === 0`
-- [ ] Liczba agentów aktualizuje się po zamknięciu modalu przypisania (FE-082)
-- [ ] `npm run lint` przechodzi
+- [x] Badge z liczbą agentów widoczny na liście kampanii
+- [x] Badge w kolorze ostrzegawczym gdy `assignedAgentsCount === 0`
+- [x] Liczba agentów aktualizuje się po zamknięciu modalu przypisania (FE-082)
+- [x] `npm run lint` przechodzi
 
 ---
 
@@ -4004,7 +4023,9 @@ Stan przypisania agentów powinien być widoczny bez otwierania modalu. `Campaig
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-076 (TransferTargetType), FE-077 (panel transferu)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
+**Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Kontekst — zweryfikowany stan:**
@@ -4029,10 +4050,10 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 **Brak zmian w szablonie** — `@for (tab of transferTargetTabs; track tab)` już iteruje po aktualnej wartości; computed signal obsługuje zmianę automatycznie.
 
 **Kryteria akceptacji:**
-- [ ] Dla połączeń `OUTBOUND`: panel transferu zawiera tylko zakładki „Telefon" i „Agent" (brak „Kolejka")
-- [ ] Dla połączeń `INBOUND`: panel transferu zawiera wszystkie trzy zakładki bez zmian
-- [ ] Zmiana nie wpływa na działanie transferu BLIND/ATTENDED na zakładkach PHONE i AGENT
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Dla połączeń `OUTBOUND`: panel transferu zawiera tylko zakładki „Telefon" i „Agent" (brak „Kolejka")
+- [x] Dla połączeń `INBOUND`: panel transferu zawiera wszystkie trzy zakładki bez zmian
+- [x] Zmiana nie wpływa na działanie transferu BLIND/ATTENDED na zakładkach PHONE i AGENT
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -4044,7 +4065,9 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-085, FE-082
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
+**Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Kontekst:**
@@ -5240,3 +5263,268 @@ produkcyjnego flow.
   naprawiony w trakcie implementacji — `Array<T>` → `T[]`, zgodnie z regułą projektu)
 - [x] `npm run build` przechodzi (sukces; warningi bundle-budget identyczne z poprzednimi
   tickietami EPIC-28, niezwiązane z tym plikiem)
+
+---
+
+## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+
+> Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Backend:
+> BE-118 (REST API). Wszystkie strony tego modułu są ADMIN-only (w odróżnieniu od części innych
+> stron ustawień, które dopuszczają też SUPERVISOR) — retencja danych to decyzja na poziomie
+> administratora tenanta, zgodnie z kontraktem BE-118.
+
+### FE-103 – `RetentionService` i modele TypeScript — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-118
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** FE-104, FE-105, FE-106, FE-107, FE-108
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Serwis i modele bazowe dla panelu retencji danych. Brak logiki UI — czysta warstwa danych,
+wzorzec 1:1 z `PluginAdminService`/`plugin.model.ts` (FE-097).
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/settings/pages/data-retention/
+  models/retention.model.ts
+  services/retention.service.ts
+```
+
+**Modele (`retention.model.ts`):**
+```typescript
+export type RetentionDataCategory = 'CONTACT_INTERACTIONS' | 'RECORDINGS' | 'TRANSCRIPTS' | 'CAMPAIGN_DATA';
+export type PurgeTriggerType = 'MANUAL' | 'AUTO';
+export type PurgeStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface RetentionPolicyDto {
+  policyId: string;
+  dataCategory: RetentionDataCategory;
+  retentionMonths: number;
+  autoPurgeEnabled: boolean;
+  updatedAt: string;
+}
+
+export interface RetentionSummaryEntryDto {
+  dataCategory: RetentionDataCategory;
+  eligibleRowCount: number;
+  oldestEligiblePeriod: string | null;
+  newestEligiblePeriod: string | null;
+  computedAt: string | null;
+}
+
+export interface PurgeHistoryEntryDto {
+  purgeId: string;
+  dataCategory: RetentionDataCategory;
+  triggerType: PurgeTriggerType;
+  cutoffDate: string;
+  rowsDeleted: number | null;
+  status: PurgeStatus;
+  startedAt: string;
+  completedAt: string | null;
+}
+```
+
+**`RetentionService`:**
+```typescript
+listPolicies(): Observable<RetentionPolicyDto[]>                                      // GET .../retention/policies
+updatePolicy(category: RetentionDataCategory, retentionMonths: number, autoPurgeEnabled: boolean): Observable<RetentionPolicyDto> // PUT .../policies/{category}
+getSummary(): Observable<RetentionSummaryEntryDto[]>                                   // GET .../retention/summary
+triggerPurge(category: RetentionDataCategory): Observable<{ purgeId: string }>         // POST .../retention/purge
+getPurgeStatus(purgeId: string): Observable<PurgeHistoryEntryDto>                      // GET .../retention/purge/{purgeId}
+getHistory(page: number, size: number): Observable<PagedResponse<PurgeHistoryEntryDto>> // GET .../retention/history
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z kontraktem BE-118 — **uwaga:** BE-118 może zmienić kształt dokładnych pól przy implementacji (analogicznie do FE-097/BE-099 w EPIC-28) — weryfikuj przeciw rzeczywistemu Swagger/DTO backendu, nie tylko przeciw treści tego ticketu
+- [ ] Serwis `providedIn: 'root'`
+- [ ] `getHistory` używa istniejącego `PagedResponse<T>` (wzorzec standardowy projektu, nie nowy typ paginacji)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-104 – Strona „Ustawienia > Retencja danych": tabela konfiguracji polityk
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-103
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** FE-105, FE-106, FE-107
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Nowa strona `features/supervisor/settings/pages/data-retention/data-retention.component.ts`,
+dopięta jako dziecko `SUPERVISOR_ROUTES` → `settings`, rola `ADMIN` (wzorzec `twilio`/`ai-config`).
+Ten ticket dostarcza SZKIELET strony + pierwszą sekcję (tabela polityk); dashboard/historia/akcja
+usuwania dochodzą w kolejnych tickietach jako sekcje tej samej strony (wzorzec EPIC-28: FE-098
+dostarczył stronę, FE-101/102 dołożyły sekcje).
+
+**Sekcja 1 — tabela konfiguracji:** jeden wiersz na kategorię (Interakcje i kontakty / Nagrania
+/ Transkrypcje / Dane kampanii): pole „okres retencji (miesiące)”, przełącznik „usuwaj
+automatycznie po upływie retencji”, przycisk zapisu.
+
+**Routing i nawigacja:**
+```
+frontend/src/app/features/supervisor/supervisor.routes.ts
+  { path: 'data-retention', data: { breadcrumb: 'nav.settingsDataRetention', roles: ['ADMIN'] }, loadComponent: ... }
+
+frontend/src/app/shared/components/sidenav/sidenav.component.ts
+  { label: 'nav.settingsDataRetention', route: '/supervisor/settings/data-retention', ariaLabel: 'nav.settingsDataRetention' }
+```
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/settings/data-retention`, tylko rola `ADMIN` (roleGuard)
+- [ ] Tabela ładuje 4 polityki przy `ngOnInit` (`RetentionService.listPolicies`), skeleton loading podczas ładowania (wzorzec projektu)
+- [ ] Walidacja pola „miesiące retencji” — zakres `[1,120]` po stronie klienta, spójny z backendowym CHECK
+- [ ] Zapis → `updatePolicy`, toast sukcesu/błędu (wzorzec globalny `NotificationService`)
+- [ ] Wpis w `sidenav.component.ts` i routing w `supervisor.routes.ts`, tłumaczenia klucza `nav.settingsDataRetention` w pl/en/de/uk
+- [ ] `npm run lint` i `npm run build` przechodzą
+
+---
+
+### FE-105 – Dashboard „dane do usunięcia": karty per kategoria
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-104
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Sekcja 2 tej samej strony — karty per kategoria: liczba kwalifikujących się rekordów
+(`eligibleRowCount`), najstarszy miesiąc (`oldestEligiblePeriod`), znacznik czasu ostatniego
+przeliczenia (`computedAt`). Domyka wymóg dokumentu projektowego — dashboard czyta wyłącznie z
+cache (`GET .../summary`), nie liczy niczego na żywo.
+
+**Kryteria akceptacji:**
+- [ ] 4 karty (jedna per kategoria), ładowane równolegle z tabelą polityk (`RetentionService.getSummary`, równoległe wywołanie w `ngOnInit`)
+- [ ] `computedAt === null` (jeszcze nie policzone przez `RetentionEvaluationJob`, BE-112) → stan „jeszcze nie przeliczono”, nie „0 do usunięcia” — rozróżnienie widoczne w UI (np. inny tekst/ikona)
+- [ ] `eligibleRowCount === 0` (faktycznie policzone, zero do usunięcia) → stan „brak danych do usunięcia”, wizualnie odróżniony od stanu „jeszcze nie policzono”
+- [ ] `npm run lint`/`npm run build` przechodzą
+
+---
+
+### FE-106 – Akcja „Usuń teraz" z modalem potwierdzenia
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-105
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Sekcja 3 — przycisk „Usuń teraz” per kategoria na karcie dashboardu (FE-105), otwiera modal
+potwierdzenia pokazujący dokładną liczbę i zakres dat (wzorem istniejącego
+`tenant-deactivate-modal`/`GdprAnonymizeModalComponent` — wymóg jawnego potwierdzenia dla akcji
+nieodwracalnej, wzorzec już ustalony w projekcie). Akcja nieodwracalna → wyraźne ostrzeżenie.
+
+**Kryteria akceptacji:**
+- [ ] Modal pokazuje `eligibleRowCount` i zakres dat (`oldestEligiblePeriod`–`newestEligiblePeriod`) z aktualnego stanu karty (FE-105), nie z nowego zapytania
+- [ ] Wymaga jawnego potwierdzenia (wzorzec `GdprAnonymizeModalComponent` — wpisanie frazy lub podwójne potwierdzenie, do ustalenia z istniejącym wzorcem UX projektu) przed wywołaniem `triggerPurge`
+- [ ] Przycisk disabled gdy `eligibleRowCount === 0` (nic do usunięcia)
+- [ ] Po potwierdzeniu: `triggerPurge` → toast „operacja rozpoczęta” (nie „zakończona” — to jest async, `purgeId` wraca natychmiast, wynik dociera później) → odświeżenie dashboardu (FE-105) i historii (FE-107) po zakończeniu (polling `getPurgeStatus(purgeId)` do stanu `COMPLETED`/`FAILED`, wzorzec podobny do pollingu statusu joba w `CampaignImportComponent`)
+- [ ] `npm run lint`/`npm run build` przechodzą
+
+---
+
+### FE-107 – Historia operacji usuwania
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-104
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Sekcja 4 — tabela z `retention_purge_log` (kto/kiedy/ile/status), paginowana, sortowana
+malejąco po dacie. Kolumny: kategoria, typ wyzwolenia (ręczne/auto), liczba usuniętych, status
+(z badge kolorystycznym RUNNING/COMPLETED/FAILED), data rozpoczęcia/zakończenia.
+
+**Kryteria akceptacji:**
+- [ ] Tabela paginowana (`PagedResponse<PurgeHistoryEntryDto>`, wzorzec istniejących list w projekcie)
+- [ ] Badge statusu z kolorem per stan (wzorzec `healthStatus` z FE-098 EPIC-28)
+- [ ] Wiersz ze statusem `FAILED` pokazuje `errorMessage` (tooltip lub rozwinięcie wiersza)
+- [ ] `npm run lint`/`npm run build` przechodzą
+
+---
+
+### FE-108 – Globalny badge powiadomienia „dane do usunięcia" w nawigacji
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have — **domyka wprost RC-02 z `ARCHITECTURE.md` §10.3**
+**Złożoność:** S
+**Zależy od:** FE-103
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-118
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Badge przy pozycji „Ustawienia” w nawigacji panelu supervisora, widoczny gdy
+`sum(eligibleRowCount) > 0` w dowolnej kategorii z `GET .../retention/summary`. Realizuje wymóg
+„administrator powinien mieć informację, że są dane do usunięcia” w sposób trudny do
+przeoczenia, nie tylko schowany w podstronie ustawień. Wzorzec: istniejący badge alertów w
+`SidenavComponent` (FE-007, dashboard admina) — reużyj mechanizm, nie buduj nowego typu badge
+od zera.
+
+**Kryteria akceptacji:**
+- [ ] Badge widoczny na pozycji „Ustawienia” w `sidenav.component.ts` gdy suma `eligibleRowCount` po wszystkich kategoriach > 0
+- [ ] Polling/odświeżanie w rozsądnym interwale (wzorzec innych badge'y/polling w `SidenavComponent`, nie na każde żądanie HTTP) — potwierdź istniejący interwał przed dodaniem nowego, żeby nie dublować mechanizmu pollingu
+- [ ] Badge niewidoczny dla ról innych niż `ADMIN` (retencja to funkcja ADMIN-only, guard analogiczny do `AdminMetricsService` z FE-007, który już ma `if (this.auth.getUserRole() === 'ADMIN')` przed startem pollingu)
+- [ ] `npm run lint`/`npm run build` przechodzą
+
+---
+
+### FE-109 – Usunięcie `recordingRetentionDays` z `tenant-edit-modal` i `tenant.model.ts` (migracja źródła prawdy)
+
+**Typ:** Frontend cleanup / bugfix
+**Priorytet:** Should Have
+**Złożoność:** XS
+**Zależy od:** BE-116
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-116
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+**Uwaga — kierunek przeciwny do dosłownego brzmienia luki opisanej w dokumencie projektowym.**
+Dokument projektowy opisuje `recordingRetentionDays` jako „pole, które model TS zna, ale
+formularz nie ma” i sugeruje literalnie „dodanie brakującego pola do `tenant-edit-modal`”.
+**Zaakceptowana decyzja projektu idzie dalej i zastępuje to inną decyzją:** skoro `RECORDINGS`
+staje się pełnoprawną kategorią w `tenant_retention_policy` zarządzaną przez tenant admina na
+nowej stronie (FE-104), zarządzanie tą samą wartością RÓWNOLEGLE przez SUPER_ADMINA na poziomie
+`tenant.config` tworzyłoby dwa źródła prawdy dla jednej wartości. Właściwym działaniem jest
+więc **NIE dodawanie pola do formularza**, tylko usunięcie go z modelu —
+`tenant.model.ts` i `tenant-edit-modal` przestają znać `recordingRetentionDays` w ogóle.
+
+**Zmiany:**
+```
+frontend/src/app/features/tenants/tenant.model.ts               — usuń pole recordingRetentionDays z interfejsu
+frontend/src/app/features/tenants/tenant-edit-modal/tenant-edit-modal.component.ts — usuń wszelkie referencje (jeśli jakiekolwiek istnieją mimo braku pola w HTML — sprawdź np. w payloadzie PATCH budowanym z getRawValue())
+```
+
+**Sekwencjonowanie:** musi wejść w tej samej fali/PR co BE-116 (backend przestaje
+akceptować/zwracać to pole) — jeśli FE nadal wysyła `recordingRetentionDays` w body `PATCH
+/api/tenants/{id}/config` po tym jak backend je usunie z DTO, ryzyko cichego ignorowania lub
+błędu walidacji zależnie od implementacji BE-116.
+
+**Kryteria akceptacji:**
+- [ ] `recordingRetentionDays` nieobecne w `tenant.model.ts`
+- [ ] `PATCH /api/tenants/{id}/config` wysyłany z `tenant-edit-modal` nie zawiera tego pola w body
+- [ ] Brak referencji do `recordingRetentionDays` w całym `frontend/src/app/features/tenants/` (`grep` czysty)
+- [ ] `npm run lint`/`npm run build`/`npx tsc --noEmit` przechodzą

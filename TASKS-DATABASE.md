@@ -1517,7 +1517,8 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-011 (`campaign`), DB-003 (`app_user`), DB-024 (`agent_group`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** BE-079, BE-080
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -1619,14 +1620,14 @@ CREATE INDEX idx_campaign_agent_member_lookup
 - CASCADE DELETE na obu tabelach: usunięcie kampanii lub agenta/grupy usuwa przypisanie
 
 **Kryteria akceptacji:**
-- [ ] Migracja V062 aplikuje się bez błędów
-- [ ] Kolumna `campaign.all_agents BOOLEAN NOT NULL DEFAULT FALSE` istnieje
-- [ ] Istniejące kampanie mają `all_agents = TRUE` po migracji
-- [ ] Tabela `campaign_agent` z PK `(campaign_id, agent_id)` i indeksami
-- [ ] Tabela `campaign_agent_group` z PK `(campaign_id, group_id)` i indeksami
-- [ ] CASCADE DELETE: usunięcie kampanii usuwa wiersze z obu tabel przypisania
-- [ ] CASCADE DELETE: usunięcie agenta usuwa jego wiersze z `campaign_agent`
-- [ ] CASCADE DELETE: usunięcie grupy usuwa jej wiersze z `campaign_agent_group`
+- [x] Migracja V062 aplikuje się bez błędów
+- [x] Kolumna `campaign.all_agents BOOLEAN NOT NULL DEFAULT FALSE` istnieje
+- [x] Istniejące kampanie mają `all_agents = TRUE` po migracji
+- [x] Tabela `campaign_agent` z PK `(campaign_id, agent_id)` i indeksami
+- [x] Tabela `campaign_agent_group` z PK `(campaign_id, group_id)` i indeksami
+- [x] CASCADE DELETE: usunięcie kampanii usuwa wiersze z obu tabel przypisania
+- [x] CASCADE DELETE: usunięcie agenta usuwa jego wiersze z `campaign_agent`
+- [x] CASCADE DELETE: usunięcie grupy usuwa jej wiersze z `campaign_agent_group`
 
 ---
 
@@ -1636,7 +1637,8 @@ CREATE INDEX idx_campaign_agent_member_lookup
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-011 (`campaign_contact`), DB-006 (`contact`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** BE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -1675,11 +1677,11 @@ COMMENT ON COLUMN contact.campaign_contact_record_id IS
 Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełniany przez dialer (logika w BE-085).
 
 **Kryteria akceptacji:**
-- [ ] Migracja V063 aplikuje się bez błędów na dev i test
-- [ ] Kolumna `contact.campaign_contact_record_id UUID` istnieje i jest nullable
-- [ ] Indeks `idx_contact_campaign_contact_record` widoczny w `pg_indexes` z filtrem `WHERE ... IS NOT NULL`
-- [ ] Istniejące wiersze kontaktów nie są naruszone (NULL backfill)
-- [ ] Tabela `contact` jest partycjonowana — `ADD COLUMN` propaguje na wszystkie partycje automatycznie
+- [x] Migracja V063 aplikuje się bez błędów na dev i test
+- [x] Kolumna `contact.campaign_contact_record_id UUID` istnieje i jest nullable
+- [x] Indeks `idx_contact_campaign_contact_record` widoczny w `pg_indexes` z filtrem `WHERE ... IS NOT NULL`
+- [x] Istniejące wiersze kontaktów nie są naruszone (NULL backfill)
+- [x] Tabela `contact` jest partycjonowana — `ADD COLUMN` propaguje na wszystkie partycje automatycznie
 
 ---
 
@@ -1769,6 +1771,14 @@ COMMENT ON COLUMN tenant_ai_config.azure_endpoint IS
 **Zrealizowane:** 2026-05-24
 **Blokuje:** BE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
+
+> **Uwaga (weryfikacja 2026-08-08):** migracja V065 się zastosowała i ticket jest formalnie
+> ukończony, ale kolumny `ai_summary`/`ai_summary_model`/`ai_summary_generated_at` opisane niżej
+> zostały od tego czasu **usunięte** z `contact` przez późniejszą (nieopisaną w żadnym tickecie)
+> migrację `V068__extract_ai_summary_to_own_table.sql`, która przeniosła te dane do dedykowanej
+> tabeli `contact_ai_summary`. Obecny kod (`AiSummaryServiceImpl`, `ContactAiSummaryRepository`)
+> używa wyłącznie `contact_ai_summary`. DDL poniżej opisuje architekturę, która już nie
+> odzwierciedla stanu bazy — zostawione dla kontekstu historycznego, nie do wdrożenia od nowa.
 
 **Kontekst:**
 Wygenerowane podsumowanie AI musi być trwale powiązane z kontaktem. Przechowujemy: treść podsumowania, nazwę modelu który je wygenerował, czas generowania — do celów audytowych i raportowania. Tabela `contact` jest partycjonowana, `ADD COLUMN` propaguje automatycznie na wszystkie partycje.
@@ -2340,3 +2350,454 @@ COMMENT ON COLUMN plugin_invocation_log.request_payload_redacted IS
 **Odkrycie poboczne (właściwość PostgreSQL, NIE defekt migracji):** `pg_class.relrowsecurity`/`relforcerowsecurity` na partycjach potomnych są zawsze `f`, niezależnie od `ENABLE`/`FORCE ROW LEVEL SECURITY` na rodzicu i niezależnie od kolejności (partycja utworzona przed czy po `ENABLE RLS`) — zweryfikowane na izolowanym przykładzie (`rls_test_parent`/`rls_test_parent_p1`) oraz potwierdzone identyczne zachowanie na już produkcyjnej `contact`/`contact_2026_03`. Skutek: zapytanie **przez tabelę nadrzędną** (`SELECT ... FROM plugin_invocation_log`) poprawnie egzekwuje RLS na każdej partycji (w tym nowo utworzonej), ale zapytanie bezpośrednio po nazwie partycji potomnej (`SELECT ... FROM plugin_invocation_log_2027_01`) **omija RLS rodzica całkowicie** — udokumentowane zachowanie PostgreSQL (RLS policy jest własnością tabeli na której zdefiniowano `CREATE POLICY`, nie dziedziczy się jako wpis `pg_class` na partycje). Zweryfikowano `grep` po `backend/src/main/java/` — aplikacja nigdy nie odpytuje partycji po nazwie (zawsze przez encję JPA mapowaną na tabelę nadrzędną), więc to nie jest ryzyko w obecnym kodzie, ale ogólna zasada do zachowania na przyszłość: **nigdy nie pisać kodu aplikacyjnego/raportowego, który odpytuje `<table>_YYYY_MM` po nazwie bezpośrednio** — zawsze przez tabelę nadrzędną.
 
 **Sposób aplikacji migracji:** artefakty z poprzednich sesji (V074-V076) przetrwały w kontenerze `cc-backend` (`/tmp/flyway-run2/RunFlyway.class` + jary) — wystarczyło `docker cp` nowego `V077__create_plugin_invocation_log.sql` do `cc-backend:/tmp/migrations/` i odpalić ponownie `java -cp ... RunFlyway` (bez rekompilacji).
+
+---
+
+## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+
+> Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Powiązane:
+> `ARCHITECTURE.md` §4.1–4.3, §6.6, §8.6, §10.3 (RC-02); `PRD.md` §6.5 (NFR-RODO03).
+> **Kontekst krytyczny (fundament epiku):** partycje `contact`/`audit_log` kończą się na
+> `2026_05` — od czerwca 2026 dane trafiają do partycji `*_default` (fallback bez wydajnych
+> indeksów partycjonowania, bez szybkiego `DROP PARTITION`). Przyczyna: `cron.schedule(...)`
+> w V014 jest zakomentowany, `pg_cron` nie jest włączony w obrazie `postgres:16-alpine`, i
+> żaden Java `@Scheduled` job tego nie wywołuje jako fallback. DB-052 (V088) + BE-114 naprawiają
+> to jako fundament — bez tego liczenie/usuwanie danych retencji (BE-112/BE-113) operowałoby na
+> błędnych założeniach o strukturze partycji. `audit_log` świadomie POZA zakresem per-tenant
+> retencji tego epiku (log platformowy, retencja 24 mies. ustawiana przez SUPER_ADMIN) — tylko
+> jego rotacja jest naprawiana w DB-052.
+
+### DB-046 – Tabela `tenant_retention_policy`: konfiguracja polityk retencji per tenant — migracja V082
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-002 (tabela `tenant`), DB-003 (tabela `app_user` — `updated_by`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-047, BE-111
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Tabela konfiguracyjna — jeden wiersz per (tenant, kategoria danych). Cztery kategorie:
+`CONTACT_INTERACTIONS`, `RECORDINGS`, `TRANSCRIPTS`, `CAMPAIGN_DATA` (`audit_log` świadomie
+POZA zakresem — patrz nagłówek modułu). Wzorzec RLS identyczny do reszty projektu, ale
+**UWAGA na nazwę GUC**: użyj `app.current_tenant_id` (poprawna nazwa ustawiana przez
+`set_tenant_context()`, zgodnie z `TenantAwareRepository`) — NIE `app.tenant_id`, na który
+omyłkowo trafiły migracje V059/V064/V067/V068 (naprawiane opcjonalnie w DB-054/V090). Ta
+tabela ma być zbudowana od razu poprawnie, bez powtarzania tego błędu.
+
+**DDL migracji (`V082__create_tenant_retention_policy.sql`):**
+```sql
+CREATE TABLE tenant_retention_policy (
+    policy_id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id          UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    data_category      VARCHAR(30) NOT NULL CHECK (data_category IN
+                        ('CONTACT_INTERACTIONS','RECORDINGS','TRANSCRIPTS','CAMPAIGN_DATA')),
+    retention_months   INT NOT NULL CHECK (retention_months BETWEEN 1 AND 120),
+    auto_purge_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_by         UUID REFERENCES app_user(user_id),
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_tenant_retention_policy UNIQUE (tenant_id, data_category)
+);
+
+CREATE INDEX idx_tenant_retention_policy_tenant ON tenant_retention_policy (tenant_id);
+
+ALTER TABLE tenant_retention_policy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_retention_policy FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_retention_policy_isolation ON tenant_retention_policy
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+
+COMMENT ON TABLE tenant_retention_policy IS
+    'Konfiguracja retencji per tenant i kategoria danych. audit_log świadomie POZA zakresem — retencja platformowa, nie tenant-scoped.';
+```
+
+**Backfill dla tenantów już istniejących (ta sama migracja, po `CREATE TABLE`):**
+Wstaw domyślne wiersze dla każdego istniejącego tenanta i każdej z 4 kategorii:
+`CONTACT_INTERACTIONS`=60 mies., `CAMPAIGN_DATA`=60 mies., `RECORDINGS`/`TRANSCRIPTS`=wartość
+odpowiadająca 90 dniom (zaokrąglona do miesięcy — kolumna jest w miesiącach, nie dniach;
+udokumentuj zaokrąglenie w komentarzu SQL, `BE-111`/`BE-116` muszą liczyć w tej samej jednostce
+konsekwentnie).
+
+**⚠️ Uwaga krytyczna dla `RECORDINGS` — nie nadpisuj istniejącej personalizacji tenanta:**
+kolumna `tenant.config->>'recording_retention_days'` **już istnieje i może być ustawiona
+indywidualnie** przez część tenantów (edytowalne dziś przez `PATCH /api/tenants/{id}/config`,
+`TenantServiceImpl` ok. linii 526, domyślnie 90). Backfill dla kategorii `RECORDINGS` **musi
+czytać wartość z `tenant.config->>'recording_retention_days'` per tenant** (fallback do 90 dni
+gdy brak), NIE wstawiać płaskiego domyślnego `3` dla wszystkich — inaczej migracja po cichu
+nadpisze już skonfigurowaną przez klienta retencję nagrań. Przelicz dni na miesiące świadomie
+(np. `CEIL(dni / 30.0)`) i udokumentuj ograniczenie precyzji w komentarzu kolumny, żeby BE-111/
+BE-116 nie musiały zgadywać jednostki.
+
+**Kryteria akceptacji:**
+- [ ] Migracja V082 aplikuje się bez błędów na dev i test
+- [ ] `uq_tenant_retention_policy` — duplikat `(tenant_id, data_category)` odrzucony
+- [ ] CHECK na `data_category` — wartość spoza 4 kategorii odrzucona
+- [ ] `retention_months` — wartości poza `[1,120]` odrzucone
+- [ ] RLS + FORCE RLS z poprawnym GUC `app.current_tenant_id` — zweryfikowane pod `SET ROLE app_user` (NIE pod `ccapp` — `rolbypassrls=true`, patrz notatka z DB-043)
+- [ ] Backfill: każdy istniejący tenant ma dokładnie 4 wiersze (jeden per kategoria) po migracji
+- [ ] Backfill `RECORDINGS`: wartość per tenant odzwierciedla dotychczasowe `tenant.config->>'recording_retention_days'`, nie płaski default — zweryfikowane na tenancie z niestandardową wartością (jeśli istnieje w danych dev/seed) lub testem symulującym taki przypadek
+
+---
+
+### DB-047 – Tabela `tenant_retention_pending_summary`: cache „danych do usunięcia” — migracja V083
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-046 (kategorie muszą być spójne z `tenant_retention_policy`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-112
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Cache zapotrzebowania na usuwanie, żeby dashboard admina (FE-105) czytał gotowy, tani wiersz
+zamiast liczyć `COUNT(*)` na żądanie. Wypełniana przez `RetentionEvaluationJob` (BE-112, upsert).
+PK złożony `(tenant_id, data_category)` — brak osobnego surogatu, to czysty cache 1:1 z kategorią.
+
+**DDL migracji (`V083__create_tenant_retention_pending_summary.sql`):**
+```sql
+CREATE TABLE tenant_retention_pending_summary (
+    tenant_id              UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    data_category          VARCHAR(30) NOT NULL CHECK (data_category IN
+                            ('CONTACT_INTERACTIONS','RECORDINGS','TRANSCRIPTS','CAMPAIGN_DATA')),
+    eligible_row_count     BIGINT NOT NULL DEFAULT 0,
+    oldest_eligible_period DATE,
+    newest_eligible_period DATE,
+    computed_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, data_category)
+);
+
+ALTER TABLE tenant_retention_pending_summary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_retention_pending_summary FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_retention_pending_summary_isolation ON tenant_retention_pending_summary
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+
+COMMENT ON TABLE tenant_retention_pending_summary IS
+    'Cache policzony przez RetentionEvaluationJob (BE-112) — dashboard admina (FE-105) czyta ten wiersz zamiast liczyć COUNT(*) na żywo.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V083 aplikuje się bez błędów
+- [ ] PK złożony `(tenant_id, data_category)` — upsert (`INSERT ... ON CONFLICT DO UPDATE`) możliwy bez dodatkowego unique constraint
+- [ ] RLS + FORCE RLS z `app.current_tenant_id`, zweryfikowane pod `SET ROLE app_user`
+- [ ] Brak wiersza dla tenanta/kategorii = interpretowane przez BE/FE jako „jeszcze nie policzone” (nie jako „zero do usunięcia”) — udokumentowane w komentarzu tabeli
+
+---
+
+### DB-048 – Tabela `retention_purge_log`: audyt operacji usuwania — migracja V084
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-002, DB-003
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-113
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Historia operacji usuwania (manualnych i automatycznych), odrębna od generycznego `audit_log`
+— potrzebne ustrukturyzowane liczby (`rows_deleted`, `status`) do UI historii (FE-107), nie
+tylko tekstowy wpis audytowy. Każda operacja purge zapisuje TU (RUNNING→COMPLETED/FAILED)
+ORAZ w `audit_log` (`entity_type='RETENTION_PURGE'`) dla spójności z istniejącym mechanizmem
+audytu — podwójny zapis to świadoma decyzja, nie duplikacja do wyeliminowania.
+
+**DDL migracji (`V084__create_retention_purge_log.sql`):**
+```sql
+CREATE TABLE retention_purge_log (
+    purge_id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id      UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    data_category  VARCHAR(30) NOT NULL,
+    triggered_by   UUID REFERENCES app_user(user_id),
+    trigger_type   VARCHAR(10) NOT NULL CHECK (trigger_type IN ('MANUAL','AUTO')),
+    cutoff_date    DATE NOT NULL,
+    rows_deleted   BIGINT,
+    status         VARCHAR(15) NOT NULL DEFAULT 'RUNNING'
+                   CHECK (status IN ('RUNNING','COMPLETED','FAILED')),
+    started_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at   TIMESTAMPTZ,
+    error_message  TEXT
+);
+CREATE INDEX idx_retention_purge_log_tenant ON retention_purge_log (tenant_id, started_at DESC);
+
+ALTER TABLE retention_purge_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE retention_purge_log FORCE ROW LEVEL SECURITY;
+CREATE POLICY retention_purge_log_isolation ON retention_purge_log
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V084 aplikuje się bez błędów
+- [ ] CHECK na `trigger_type`/`status` odrzuca wartości spoza enum
+- [ ] `triggered_by` NULL dopuszczalny (auto-purge = system, brak użytkownika)
+- [ ] RLS + FORCE RLS zweryfikowane pod `SET ROLE app_user`
+- [ ] Indeks `(tenant_id, started_at DESC)` pokrywa zapytanie historii (FE-107, sortowanie malejąco po dacie)
+
+---
+
+### DB-049 – Partycjonowanie tabeli `contact_event` (online, bez utraty danych) — migracja V085
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** DB-035 (tabela `contact_event` istnieje, V059)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-052, DB-053, BE-117
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+`contact_event` dziś jest zwykłą (niepartycjonowaną) tabelą powiązaną logicznie z `contact`.
+Staje się RANGE-partycjonowana po `started_at`, wzorcem identycznym do `plugin_invocation_log`
+(V077, najświeższy przykład w repo) — **NIE** wzorcem generycznym z dokumentu projektowego
+wprost (ten pomija RLS/indeksy w opisie kroków — patrz uwaga niżej).
+
+**Wzorzec migracji online (kroki z dokumentu projektowego + dopełnienie tam pominięte):**
+1. `CREATE TABLE contact_event_new (... identyczne kolumny + trigger `fn_contact_event_on_update` ..., CONSTRAINT pk_contact_event_new PRIMARY KEY (event_id, started_at)) PARTITION BY RANGE (started_at);`
+2. Utworzenie partycji dla istniejącego zakresu danych + bieżący/2 kolejne miesiące + partycja `DEFAULT`
+3. `INSERT INTO contact_event_new SELECT * FROM contact_event;` — w transakcji lub batchami przy dużym wolumenie (sprawdź `COUNT(*)` przed decyzją o strategii)
+4. `ALTER TABLE contact_event RENAME TO contact_event_old; ALTER TABLE contact_event_new RENAME TO contact_event;`
+5. **Odtworzenie na nowej tabeli (pominięte w skróconym opisie dokumentu projektowego, ale wymagane — nic nie jest dziedziczone przy `RENAME`):** indeksy (`idx_contact_event_contact`, `idx_contact_event_tenant`), trigger `trg_contact_event_on_update`, RLS (`ENABLE`+`FORCE`+`CREATE POLICY`) i `COMMENT ON`.
+   **Świadoma decyzja:** odtwórz RLS z **tą samą (dziś błędną) nazwą GUC `app.tenant_id`**,
+   identycznie jak w oryginalnej V059 — NIE napraw jej tutaj. Naprawa GUC dla tej tabeli jest
+   wydzielona do DB-054 (V090, opcjonalny bonus-fix dotyczący 4 tabel naraz) — łączenie obu
+   zmian w jednej migracji utrudniłoby ewentualne wycofanie/pominięcie V090.
+6. `DROP TABLE contact_event_old;` po weryfikacji (liczba wierszy się zgadza)
+
+**Konsekwencja dla warstwy Java:** `ContactEvent` (dziś proste `@Id`) przechodzi na `@IdClass`
+z kluczem złożonym `(eventId, startedAt)` — realizowane w BE-117, NIE w tym tickecie (ten
+ticket to czysta migracja SQL).
+
+**Kryteria akceptacji:**
+- [ ] Migracja V085 aplikuje się bez błędów na dev i test, na bazie z istniejącymi danymi `contact_event`
+- [ ] Liczba wierszy w `contact_event` po migracji == liczba wierszy przed migracją (zero utraty danych)
+- [ ] Tabela partycjonowana RANGE po `started_at`; PK złożony `(event_id, started_at)`
+- [ ] Indeksy `idx_contact_event_contact`, `idx_contact_event_tenant` odtworzone na nowej tabeli
+- [ ] Trigger `trg_contact_event_on_update` (obliczanie `duration_seconds`) odtworzony i działający
+- [ ] RLS + FORCE RLS odtworzone (z niezmienioną, dziś błędną nazwą GUC `app.tenant_id` — świadomie, patrz Kontekst)
+- [ ] Partycja `DEFAULT` istnieje od startu
+- [ ] `contact_event_old` usunięta dopiero po jawnej weryfikacji liczby wierszy
+
+---
+
+### DB-050 – Partycjonowanie tabeli `contact_transcription` (online) — migracja V086
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** brak (tabela `contact_transcription` już istnieje od V067, poza zakresem TASKS-DATABASE.md jako osobny ticket historycznie)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-052, DB-053, BE-117
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Ten sam wzorzec online-migracji co DB-049 (patrz tam pełny opis kroków) zastosowany do
+`contact_transcription` (V067). Partycjonowanie po `created_at` (jedyna kolumna czasowa tej
+tabeli). Nowy PK złożony `(transcription_id, created_at)`.
+
+**Specyfika tej tabeli:**
+- Kolumny do zachowania 1:1: `transcription_id, contact_id, tenant_id, content, language, created_at`
+- Indeks do odtworzenia: `idx_contact_transcription_contact (contact_id, tenant_id)` — **UWAGA:** ta kolejność kolumn nie pokrywa efektywnie zapytań retencji `WHERE tenant_id = ? AND created_at < ?`; nowy indeks `(tenant_id, created_at)` dochodzi osobno w DB-053, nie w tym tickecie
+- RLS: odtwórz z **tą samą (błędną) nazwą GUC `app.tenant_id`** — identycznie jak w V067, naprawa wydzielona do DB-054 (świadoma decyzja, patrz DB-049)
+- Brak triggerów/funkcji specyficznych dla tej tabeli (prostsza niż `contact_event`)
+- `contact_transcription` nie ma encji JPA (czysty `JdbcTemplate` — `ContactTranscriptionRepository`) — zmiana warstwy Java to wyłącznie dodanie kolumny partycjonowania (`created_at`) do operacji adresujących wiersz po PK, realizowane w BE-117 razem z pozostałymi dwoma tabelami
+
+**Kryteria akceptacji:**
+- [ ] Migracja V086 aplikuje się bez błędów, zero utraty danych (liczba wierszy przed == po)
+- [ ] Tabela partycjonowana RANGE po `created_at`; PK złożony `(transcription_id, created_at)`
+- [ ] Indeks `idx_contact_transcription_contact` odtworzony
+- [ ] RLS + FORCE RLS odtworzone (GUC `app.tenant_id` niezmieniony, świadomie — patrz DB-054)
+- [ ] Partycja `DEFAULT` istnieje od startu
+- [ ] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+
+---
+
+### DB-051 – Partycjonowanie tabeli `contact_ai_summary` (online) — migracja V087
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** brak (tabela `contact_ai_summary` już istnieje od V068)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-052, DB-053, BE-117
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Ten sam wzorzec online-migracji co DB-049/DB-050, zastosowany do `contact_ai_summary` (V068).
+Partycjonowanie po `generated_at` (**nie** `created_at`, żeby partycja odzwierciedlała moment
+wygenerowania podsumowania przez model AI, spójnie z semantyką kolumny — potwierdź tę decyzję
+z `db-schema-architect` przy implementacji; alternatywa `created_at` też jest broniona, obie
+kolumny istnieją i zwykle są sobie bliskie w czasie). Nowy PK złożony `(ai_summary_id,
+generated_at)` (lub `(ai_summary_id, created_at)`, zależnie od decyzji wyżej — spójna z kolumną
+partycjonowania).
+
+**Specyfika tej tabeli:**
+- Kolumny do zachowania 1:1: `ai_summary_id, contact_id, tenant_id, summary, model, generated_at, created_at`
+- Indeks do odtworzenia: `idx_contact_ai_summary_contact (contact_id, tenant_id)`
+- RLS: odtwórz z tą samą (błędną) nazwą GUC `app.tenant_id` — naprawa w DB-054 (świadomie, jak DB-049/050)
+- Zmiana Java w BE-117 (`@IdClass`)
+
+**Kryteria akceptacji:**
+- [ ] Migracja V087 aplikuje się bez błędów, zero utraty danych
+- [ ] Tabela partycjonowana RANGE po kolumnie ustalonej w implementacji (`generated_at` lub `created_at`, udokumentuj wybór w komentarzu migracji)
+- [ ] PK złożony spójny z kolumną partycjonowania
+- [ ] Indeks `idx_contact_ai_summary_contact` odtworzony
+- [ ] RLS + FORCE RLS odtworzone (GUC niezmieniony, świadomie)
+- [ ] Partycja `DEFAULT` istnieje od startu
+- [ ] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+
+---
+
+### DB-052 – Naprawa rotacji partycji `contact`/`audit_log` + rozszerzenie na nowe tabele partycjonowane (FUNDAMENT) — migracja V088
+
+**Typ:** Schema migration / bugfix
+**Priorytet:** Must Have — **krytyczny, blokujący dla całego epiku**
+**Złożoność:** L
+**Zależy od:** DB-049, DB-050, DB-051 (rozszerza `create_next_month_partitions()` o te 3 nowe tabele partycjonowane — funkcja musi znać ich istnienie)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-112, BE-114, BE-115
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst — dlaczego to jest fundament epiku:** Dzisiejsza data systemowa to 2026-08-08.
+Partycje `contact`/`audit_log` (RANGE po miesiącu, V007/V011 i V004) kończą się na `2026_05`.
+Od czerwca 2026 **wszystkie nowe rekordy trafiają do partycji `*_default`** (fallback bez
+indeksów partycjonowania, bez możliwości szybkiego `DROP PARTITION`). Przyczyna: `cron.schedule(...)`
+w V014 jest zakomentowany, `pg_cron` nie jest nawet włączony w obrazie `postgres:16-alpine`, i
+**żaden Java `@Scheduled` job tego nie wywołuje jako fallback** (naprawiane w BE-114, ale ten
+ticket dostarcza fundament SQL, na którym BE-114 się opiera). Bez tej naprawy `RetentionEvaluationJob`
+(BE-112) liczyłby dane niepoprawnie — partycja `*_default` nie jest objęta logiką „skanuj od
+najstarszej partycji, zatrzymaj się gdy górna granica jest młodsza niż najkrótsza retencja”,
+bo `*_default` nie ma górnej granicy.
+
+**Migracja ma dwie logicznie niezależne części, połączone w jednym pliku zgodnie z planem projektu:**
+
+**Część A — backfill brakujących partycji + przeniesienie danych z `*_default`:**
+```sql
+-- Dotworzenie brakujących partycji miesięcznych dla contact i audit_log:
+-- 2026_06, 2026_07, 2026_08, 2026_09 (bieżący + zapas)
+-- (użyj istniejących funkcji create_contact_partition(year, month) /
+--  create_audit_log_partition(year, month) — sprawdź ich dokładne nazwy/sygnatury
+--  w V007/V004 przed implementacją, nie zgaduj)
+
+-- Przeniesienie wierszy z contact_default do właściwych partycji miesięcznych,
+-- BATCHAMI (nie jedna wielka transakcja — contact może mieć duży wolumen):
+--   INSERT INTO contact SELECT * FROM contact_default
+--     WHERE started_at >= :batch_start AND started_at < :batch_end;
+--   DELETE FROM contact_default WHERE started_at >= :batch_start AND started_at < :batch_end;
+-- Analogicznie dla audit_log_default.
+```
+**Uwaga implementacyjna do potwierdzenia przy wykonaniu:** sprawdź faktyczną liczbę wierszy
+aktualnie leżących w `contact_default`/`audit_log_default` przed pisaniem strategii
+batchowania — jeśli wolumen jest mały (środowisko dev/demo), pojedyncza transakcja może
+wystarczyć; nie buduj niepotrzebnie złożonego mechanizmu batchowania dla garści wierszy testowych.
+
+**Część B — rozszerzenie `create_next_month_partitions()` (V014) o nowe tabele:**
+```sql
+-- CREATE OR REPLACE FUNCTION create_next_month_partitions() — dodaj wywołania
+-- create_contact_event_partition(...), create_contact_transcription_partition(...),
+-- create_contact_ai_summary_partition(...) analogicznie do wzorca zastosowanego
+-- w V077 dla plugin_invocation_log (PERFORM create_plugin_invocation_log_partition(...)
+-- dodane do tej samej zbiorczej funkcji).
+-- Każda z 3 nowych tabel potrzebuje też własnej funkcji create_<table>_partition(year,month)
+-- i drop_old_<table>_partitions(retention_months) — wzorzec 1:1 z audit_log/contact/plugin_invocation_log.
+-- Zarejestruj w scheduled_job (rotate_contact_event_partitions itd., analogicznie do
+-- rotate_plugin_invocation_log_partitions z V077).
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V088 aplikuje się bez błędów
+- [ ] Po migracji: `contact_default`/`audit_log_default` są puste (lub zawierają wyłącznie wiersze spoza obsłużonego zakresu, jeśli takie się znajdą — udokumentuj przypadek)
+- [ ] Partycje `contact_2026_06`..`contact_2026_09` (i analogicznie `audit_log_*`) istnieją i zawierają właściwe dane (weryfikacja `COUNT(*)` per partycja sumuje się do całości)
+- [ ] Zero utraty danych: `SELECT COUNT(*) FROM contact` (i `audit_log`) identyczne przed i po migracji
+- [ ] `create_next_month_partitions()` po `CREATE OR REPLACE` tworzy partycje dla WSZYSTKICH partycjonowanych tabel: `contact`, `audit_log`, `contact_event`, `contact_transcription`, `contact_ai_summary`, `plugin_invocation_log` (istniejąca) — zweryfikowane ręcznym wywołaniem funkcji w transakcji testowej z `ROLLBACK`
+- [ ] Nowe funkcje `create_<table>_partition`/`drop_old_<table>_partitions` dla 3 nowych tabel, wzorzec 1:1 z `plugin_invocation_log` (V077)
+- [ ] Nowe wpisy w `scheduled_job` dla rotacji 3 nowych tabel
+- [ ] **Test regresyjny kluczowy:** po migracji wstaw testowy wiersz `contact` z `started_at` w bieżącym miesiącu i potwierdź, że trafia do partycji miesięcznej, NIE do `contact_default` (`SELECT tableoid::regclass FROM contact WHERE contact_id = ...`)
+
+---
+
+### DB-053 – Indeksy `(tenant_id, kolumna_czasowa)` dla wydajnego purge per-tenant — migracja V089
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-049, DB-050, DB-051 (kolumny partycjonowania muszą istnieć na docelowych tabelach)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-113
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+`RetentionPurgeService` (BE-113) wykonuje `DELETE FROM <tabela> WHERE tenant_id = :tenantId AND
+<kolumna_czasowa> < :cutoff` batchami. Bez indeksu `(tenant_id, kolumna_czasowa)` to byłby
+sekwencyjny skan całej partycji przy każdym batchu. **Audyt istniejących indeksów (wykonany
+podczas dekompozycji — nie zakładaj, sprawdź `\d` przed implementacją):**
+
+| Tabela | Indeks `(tenant_id, czas)` już istnieje? | Akcja |
+|---|---|---|
+| `contact` | ❌ brak (istniejące indeksy tenant-owe są zawężone do zapytań raportowych) | **DODAJ** `idx_contact_tenant_started_at (tenant_id, started_at)` |
+| `contact_event` | ✅ `idx_contact_event_tenant (tenant_id, started_at DESC)` już istnieje (V059) | **POMIŃ** — nic do zrobienia |
+| `contact_transcription` | ❌ istniejący `idx_contact_transcription_contact` ma kolejność `(contact_id, tenant_id)`, bez kolumny czasowej | **DODAJ** `idx_contact_transcription_tenant_created (tenant_id, created_at)` |
+| `contact_ai_summary` | ❌ analogicznie do transcription | **DODAJ** `idx_contact_ai_summary_tenant_<kolumna z DB-051> (tenant_id, <generated_at lub created_at>)` |
+| `campaign_contact_archive` | ❌ istniejący `idx_cca_archived_at` nie jest tenant-scoped | **DODAJ** `idx_cca_tenant_archived_at (tenant_id, archived_at)` |
+
+**DDL migracji (`V089__add_tenant_scoped_retention_indexes.sql`):**
+```sql
+CREATE INDEX idx_contact_tenant_started_at ON contact (tenant_id, started_at);
+CREATE INDEX idx_contact_transcription_tenant_created ON contact_transcription (tenant_id, created_at);
+CREATE INDEX idx_contact_ai_summary_tenant_generated ON contact_ai_summary (tenant_id, generated_at); -- nazwa/kolumna do potwierdzenia zgodnie z DB-051
+CREATE INDEX idx_cca_tenant_archived_at ON campaign_contact_archive (tenant_id, archived_at);
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V089 aplikuje się bez błędów
+- [ ] `contact_event` świadomie pominięta (już ma równoważny indeks) — udokumentowane komentarzem w migracji, żeby przyszły czytelnik nie pomyślał, że to przeoczenie
+- [ ] `EXPLAIN` dla `DELETE FROM contact WHERE tenant_id = ? AND started_at < ?` pokazuje `Index Scan`/`Bitmap Index Scan` na nowym indeksie, nie `Seq Scan`
+- [ ] Analogicznie zweryfikowane dla pozostałych 3 nowych indeksów
+
+---
+
+### DB-054 – [OPCJONALNY, POBOCZNY] Poprawka nazwy GUC RLS `app.tenant_id` → `app.current_tenant_id` — migracja V090
+
+**Typ:** Schema migration / bugfix (bezpieczeństwo, defense-in-depth)
+**Priorytet:** Could Have — **zadanie poboczne/opcjonalne względem głównego epiku, łatwe do wydzielenia lub pominięcia bez wpływu na resztę funkcji retencji**
+**Złożoność:** S
+**Zależy od:** DB-049, DB-050, DB-051 (dotyka tych samych tabel — `contact_transcription`, `contact_ai_summary` — oraz `contact_event`, `tenant_ai_config`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Kontekst:**
+Cztery istniejące migracje (`V059__create_contact_event.sql`, `V064__create_tenant_ai_config.sql`,
+`V067__create_contact_transcription.sql`, `V068__extract_ai_summary_to_own_table.sql`) ustawiają
+politykę RLS z `current_setting('app.tenant_id', TRUE)` zamiast poprawnej `app.current_tenant_id`,
+którą faktycznie ustawia `set_tenant_context()` (wywoływana przez
+`TenantAwareRepository.setTenantContextInDb()`). **Skutek: polityka RLS na tych 4 tabelach nigdy
+się nie dopasowuje** (GUC o tej nazwie nigdy nie jest ustawiany) — w praktyce brak izolacji przez
+RLS na tych tabelach. Warstwa aplikacji (`assertSameTenant(...)` w repozytoriach) wciąż chroni
+przed cross-tenant dostępem, więc to nie jest aktywnie eksploatowalna luka dziś, ale osłabia
+defense-in-depth.
+
+**To zadanie jest EXPLICITE oznaczone jako poboczne względem głównego celu epiku** (partycjonowanie
+i retencja) — nie blokuje żadnego innego ticketu w tym epiku i może zostać zrealizowane osobno,
+w innym momencie, lub pominięte bez wpływu na funkcjonalność retencji. Wydzielone do osobnego
+pliku migracji właśnie po to, żeby dało się je łatwo wyciąć z planu wykonania.
+
+**DDL migracji (`V090__fix_rls_guc_naming_inconsistency.sql`):**
+```sql
+DROP POLICY IF EXISTS contact_event_tenant_isolation ON contact_event;
+CREATE POLICY contact_event_tenant_isolation ON contact_event
+    USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid);
+
+-- analogicznie dla tenant_ai_config (V064), contact_transcription (odtworzona w DB-050),
+-- contact_ai_summary (odtworzona w DB-051) — nazwy polityk do potwierdzenia w momencie
+-- implementacji (te dwie ostatnie przechodzą przez RENAME w DB-050/DB-051, więc nazwa
+-- polityki zależy od tego, jak dokładnie zaimplementowano tam odtworzenie RLS)
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V090 aplikuje się bez błędów
+- [ ] Wszystkie 4 polityki RLS używają `app.current_tenant_id`
+- [ ] Test izolacji pod `SET ROLE app_user` (NIE `ccapp`) na wszystkich 4 tabelach: tenant B nie widzi wierszy tenanta A
+- [ ] `FORCE ROW LEVEL SECURITY` potwierdzone tam, gdzie już było (nie regresja), dodane tam, gdzie brakowało (żadna z 4 oryginalnych migracji nie miała `FORCE` — potwierdź `\d` przed implementacją i rozważ dodanie, to wzmacnia efekt tej poprawki)

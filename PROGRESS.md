@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-06-23 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; **EPIC-28 Per-Tenant Plugin (Extension) System zakończony ✅ w pełni — DB 43/43, BE 104/104, FE 79/79 (FE-097..FE-100 kompletne)** — warstwa DB zamknięta (DB-042..DB-045 zrobione, 43/43), BE-097 (plugin-sdk), BE-098 (Plugin/PluginVersion + walidacja), BE-099 (PluginUploadController + object storage), BE-100 (TenantPluginInstallation + PluginRegistrationService), BE-101 (PluginRuntimeManager/PluginClassLoader/PluginContextImpl, po fixie code review), BE-102 (ExtensionPointPublisher/PluginInvocationExecutor/CircuitBreakerState), BE-103 (integracja PRE_CONTACT_CONNECT/MANUAL_ACTION w przepływie połączenia), BE-104 (async RabbitMQ POST_CONTACT_END/CUSTOMER_SYNC/DISPOSITION_SET, PluginInvocationConsumer), BE-105 (PluginInvocationLogService + REST historii wywołań, redakcja PII przez PiiRedactor), BE-106 (PluginAdminController/PluginRevokeController — enable/disable/rollback/uninstall + platform REVOKED kill switch, known limitation: revoke zabezpieczony rolą tenantową ADMIN, nie systemową), BE-107 (PluginAssetController + PluginAssetExtractionService + manual-action 403 dla disabled/REVOKED — ostatni ticket backendowy EPIC-28) zrobione; FE-097 (`PluginAdminService` + modele TS), FE-098 (strona „Ustawienia > Pluginy”), FE-099 (`cc-plugin-panel-host` iframe sandboxed + `PluginUiSdk` postMessage) i **FE-100 (mount panelu bocznego + toolbar manual-action w `AgentDesktopComponent`, zero regresji layoutu zweryfikowane wzrokowo, zrealizowane i zamknięte 2026-06-23) — ostatni ticket frontendowy EPIC-28** zrobione)
+**Ostatnia aktualizacja:** 2026-08-08 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; **EPIC-28 Per-Tenant Plugin (Extension) System zakończony ✅ w pełni — DB 43/43, BE 104/104, FE 79/79 (FE-097..FE-100 kompletne)** — warstwa DB zamknięta (DB-042..DB-045 zrobione, 43/43), BE-097 (plugin-sdk), BE-098 (Plugin/PluginVersion + walidacja), BE-099 (PluginUploadController + object storage), BE-100 (TenantPluginInstallation + PluginRegistrationService), BE-101 (PluginRuntimeManager/PluginClassLoader/PluginContextImpl, po fixie code review), BE-102 (ExtensionPointPublisher/PluginInvocationExecutor/CircuitBreakerState), BE-103 (integracja PRE_CONTACT_CONNECT/MANUAL_ACTION w przepływie połączenia), BE-104 (async RabbitMQ POST_CONTACT_END/CUSTOMER_SYNC/DISPOSITION_SET, PluginInvocationConsumer), BE-105 (PluginInvocationLogService + REST historii wywołań, redakcja PII przez PiiRedactor), BE-106 (PluginAdminController/PluginRevokeController — enable/disable/rollback/uninstall + platform REVOKED kill switch, known limitation: revoke zabezpieczony rolą tenantową ADMIN, nie systemową), BE-107 (PluginAssetController + PluginAssetExtractionService + manual-action 403 dla disabled/REVOKED — ostatni ticket backendowy EPIC-28) zrobione; FE-097 (`PluginAdminService` + modele TS), FE-098 (strona „Ustawienia > Pluginy”), FE-099 (`cc-plugin-panel-host` iframe sandboxed + `PluginUiSdk` postMessage) i **FE-100 (mount panelu bocznego + toolbar manual-action w `AgentDesktopComponent`, zero regresji layoutu zweryfikowane wzrokowo, zrealizowane i zamknięte 2026-06-23) — ostatni ticket frontendowy EPIC-28** zrobione; **EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów — ZAPLANOWANY 2026-08-08, status: nierozpoczęty.** Projekt zaakceptowany w `DESIGN-data-retention-partitioning.md`, rozpisany na 25 zadań: DB-046..DB-054 (V082-V090, w tym DB-052/V088 = naprawa krytycznej, realnej awarii rotacji partycji `contact`/`audit_log` — dane od czerwca 2026 trafiają do partycji `*_default`), BE-111..BE-119 (RetentionPolicyService, RetentionEvaluationJob, RetentionPurgeService, PartitionMaintenanceJob, PartitionReclaimJob, rozszerzenie RecordingRetentionJob), FE-103..FE-109 (strona „Ustawienia > Retencja danych”, dashboard, badge nawigacji RC-02). DB-054/V090 (poprawka nazwy GUC RLS) oznaczona jako opcjonalny bonus-fix, łatwy do wydzielenia.)
 
 ---
 
@@ -286,10 +286,20 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 39 | 0 | 4 | 43 |
-| Backend (BE) | 92 | 0 | 11 | 103 |
-| Frontend (FE) | 75 | 0 | 4 | 79 |
-| **RAZEM** | **206** | **0** | **19** | **225** |
+| Database (DB) | 39 | 0 | 13 | 52 |
+| Backend (BE) | 92 | 0 | 20 | 112 |
+| Frontend (FE) | 75 | 0 | 11 | 86 |
+| **RAZEM** | **206** | **0** | **44** | **250** |
+
+> **Uwaga o spójności tej tabeli:** liczby powyżej dodają nowe zadania EPIC-29 (poniżej) na
+> bazie liczb zapisanych w tym pliku PRZED tą edycją (39/92/75 ukończone, 4/11/4 nierozpoczęte
+> dla ówczesnego EPIC-28). Nagłówek dokumentu (linia 4) i stan faktyczny w `TASKS-DATABASE.md`/
+> `TASKS-BACKEND.md`/`TASKS-FRONTEND.md` wskazują, że EPIC-28 jest w rzeczywistości w pełni
+> ukończony (włącznie z ticketami BE-108/BE-110/FE-101/FE-102 dodanymi już po pierwotnym
+> zamknięciu epika) — ta tabela nie była od tamtej pory zsynchronizowana (ten sam typ
+> rozbieżności co odnotowany wcześniej przy EPIC-27). Rekonsyliacja tej tabeli z rzeczywistym
+> stanem TASKS-*.md wykracza poza zakres tej edycji (dodanie EPIC-29) — zalecany osobny przebieg
+> `/update-progress`.
 
 ### Nie rozpoczęte wg EPIC
 
@@ -297,8 +307,9 @@
 |------|----|----|-----|-------|
 | EPIC-25 Kampanie — refaktor i transfer | 0 | 0 | 0 | 0 ✅ |
 | EPIC-26 AI-Powered Conversation Summary | 0 | 0 | 0 | 0 ✅ |
-| EPIC-28 Per-Tenant Plugin (Extension) System | 4 | 11 | 4 | 19 🔄 (DB 4/4, BE 10/11, plan: `EPIC-28-PLAN.md`) |
-| **Łącznie** | **4** | **11** | **4** | **19** |
+| EPIC-28 Per-Tenant Plugin (Extension) System | 4 | 11 | 4 | 19 🔄 (liczby nieaktualne — patrz uwaga o spójności wyżej; wg TASKS-*.md epik jest ukończony ✅) |
+| EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 9 | 7 | 25 ⬜ (zaplanowany 2026-08-08, projekt: `DESIGN-data-retention-partitioning.md`, DB-052/V088 = fundament/naprawa krytyczna) |
+| **Łącznie** | **13** | **20** | **11** | **44** |
 
 ---
 

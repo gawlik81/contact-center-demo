@@ -9,9 +9,13 @@ import java.util.UUID;
  * Szczegółowe metryki tenanta – odpowiedź dla endpointu
  * {@code GET /api/admin/metrics/tenants/{id}}.
  *
- * <p>Rozszerza podstawowe metryki o dane systemowe. Na etapie MVP
- * pola {@code cpuUsage} i {@code memoryUsage} są mockami (wartość 0.0)
- * – docelowo pobierane z systemu monitoringu (np. Prometheus/Grafana).
+ * <p>Rozszerza podstawowe metryki o dane operacyjne per tenant.
+ *
+ * <p><strong>Uwaga architektoniczna:</strong> pola {@code cpuUsage}/{@code memoryUsage}
+ * zostały celowo USUNIĘTE z tego DTO (poprzednio MVP mocki 0.0). CPU/RAM to zasób
+ * współdzielonej instancji JVM/procesu backendu – nie da się ich sensownie przypisać
+ * do pojedynczego tenanta. Metryki zasobów systemowych (współdzielone, cross-tenant)
+ * są dostępne przez {@code GET /api/admin/metrics/resources} ({@link SystemResourceMetrics}).
  */
 @Schema(description = "Szczegółowe metryki operacyjne tenanta (per tenant)")
 public record TenantDetailMetrics(
@@ -33,17 +37,9 @@ public record TenantDetailMetrics(
                 example = "25")
         int agentsTotal,
 
-        @Schema(description = "Liczba aktywnych kontaktów (MVP: mock = 0)",
+        @Schema(description = "Liczba aktywnych/w toku kontaktów tenanta (status QUEUED, ACTIVE lub ON_HOLD)",
                 example = "5")
-        int activeContacts,
-
-        @Schema(description = "Zużycie CPU (MVP: mock = 0.0; docelowo z systemu monitoringu)",
-                example = "0.0")
-        double cpuUsage,
-
-        @Schema(description = "Zużycie pamięci RAM (MVP: mock = 0.0; docelowo z systemu monitoringu)",
-                example = "0.0")
-        double memoryUsage
+        int activeContacts
 
 ) {
 }

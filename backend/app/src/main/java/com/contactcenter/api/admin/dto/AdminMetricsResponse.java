@@ -27,6 +27,10 @@ public record AdminMetricsResponse(
         @Schema(description = "Łączna liczba agentów online we wszystkich tenantach", example = "48")
         int totalAgentsOnline,
 
+        @Schema(description = "Łączna liczba aktywnych/w toku kontaktów we wszystkich tenantach "
+                + "(status QUEUED, ACTIVE lub ON_HOLD)", example = "37")
+        int totalActiveContacts,
+
         @Schema(description = "Alerty systemowe (np. tenant SUSPENDED, brak agentów)")
         List<String> systemAlerts,
 

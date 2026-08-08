@@ -188,4 +188,14 @@ public interface CampaignService {
      * @return lista kampanii w statusie RUNNING z dialer_type = 'MANUAL'
      */
     List<Campaign> getRunningManualCampaigns(UUID tenantId);
+
+    /**
+     * Zlicza łączną liczbę kampanii oraz liczbę kampanii RUNNING dla tenanta, w jednym zapytaniu.
+     *
+     * <p>Używane przez {@code AdminMetricsService} (SUPER_ADMIN, {@code GET /api/admin/metrics/usage}).
+     *
+     * @param tenantId UUID tenanta
+     * @return {@code Object[]} {total(Number), running(Number)}
+     */
+    Object[] countTotalAndRunningByTenantId(UUID tenantId);
 }

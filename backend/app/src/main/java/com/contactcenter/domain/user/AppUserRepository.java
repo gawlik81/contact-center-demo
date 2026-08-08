@@ -498,4 +498,31 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
             )
             """, nativeQuery = true)
     boolean existsActiveSuperAdminByEmail(@Param("email") String email);
+
+    // =========================================================================
+    // AdminMetrics: trendy wzrostu platformy (SUPER_ADMIN)
+    // =========================================================================
+
+    /**
+     * Zlicza nowych użytkowników utworzonych w każdym tygodniu ISO-8601 (poniedziałek jako
+     * początek tygodnia, strefa UTC) od podanej daty granicznej, cross-tenant.
+     *
+     * <p><strong>Cross-tenant z konieczności</strong> – spójne z innymi metodami admina w tym
+     * repozytorium ({@link #findAllByDeletedFalse}, {@link #existsByRole}): {@code app_user}
+     * jest jedynym repozytorium tej encji (nie rozszerza {@code TenantAwareRepository}), więc
+     * nie ustawia kontekstu RLS – zapytanie jest już z definicji cross-tenant.
+     *
+     * <p>Używane przez {@code AdminMetricsService} do budowy {@code GET /api/admin/metrics/growth}.
+     *
+     * @param since dolna granica {@code created_at} (włącznie)
+     * @return lista par {@code [week_start(java.sql.Date), count(Number)]}, posortowana rosnąco
+     */
+    @Query(value = """
+            SELECT date_trunc('week', created_at AT TIME ZONE 'UTC')::date AS week_start, COUNT(*) AS cnt
+            FROM   app_user
+            WHERE  created_at >= :since
+            GROUP  BY week_start
+            ORDER  BY week_start
+            """, nativeQuery = true)
+    List<Object[]> countNewUsersByWeekSince(@Param("since") java.time.Instant since);
 }

@@ -83,3 +83,5 @@
 - [ResizableDialogDirective](./project_resizable_dialog_directive.md) – pierwsza directive w projekcie, drag-resize dla `<dialog>`, CSS max-width gotcha, jak testować wizualnie (socat port-forward, dane logowania local-demo)
 - [FE-045 AddBreakModal](./project_fe045_add_break_modal.md) – lokalizacja, wzorzec, znane błędy lint i decyzje implementacyjne dla modala przerw agenta
 - [FE-052 Transloco i18n](./project_fe052_transloco_i18n.md) – wzorce TranslocoService/TranslocoModule, strategia kluczy sidenav, struktura JSON dla auth+nav+role
+- [Admin Metrics page – unified auto-polling (2026-07-14)](./project_admin_metrics_page_unified_polling.md) – wszystkie 4 sekcje przeszły na timer(0,30s), merge(timer,Subject) zamiast osobnych load*() + manualRefresh$/growthRangeChange$, flicker-free loading pattern skopiowany z resources
+- [Admin Metrics – contacts-by-channel matrix (2026-07-15, rozszerzone 2026-07-15)](./project_admin_metrics_channel_matrix.md) – panel przeniesiony z "Wykorzystanie (dziś)" do "Wzrost i adopcja", podłączony do selektora 7/30/90 dni (growthRangeChange$→rangeChange$, getContactChannelMatrix(days)), dynamiczny fromDate/toDate w podtytule

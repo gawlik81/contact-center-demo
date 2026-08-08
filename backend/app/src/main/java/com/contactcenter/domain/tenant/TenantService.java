@@ -187,4 +187,14 @@ public interface TenantService {
      * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy tenant nie istnieje
      */
     void updateTenantConfig(UUID tenantId, Map<String, Object> config);
+
+    /**
+     * Zlicza nowych tenantów utworzonych w każdym tygodniu ISO-8601 od podanej daty granicznej.
+     *
+     * <p>Używane przez {@code AdminMetricsService} do budowy {@code GET /api/admin/metrics/growth}.
+     *
+     * @param since dolna granica {@code created_at} (włącznie)
+     * @return lista par {@code [week_start, count]}, posortowana rosnąco
+     */
+    List<Object[]> countNewTenantsByWeekSince(java.time.Instant since);
 }

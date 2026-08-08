@@ -474,7 +474,13 @@
       "Bash(xargs -I{} sh -c 'echo \"== {} ==\" ; grep -n -i \"telephony\\\\|twilio\" {}')",
       "Bash(awk '/```mermaid/{f=1} f{print NR\": \"$0} /```/{if\\(f && NR>1 && $0==\"```\" && f==1\\){}} ' /home/pawelm/contact-center/documentation/twalio/twilio-integration.md)",
       "Bash(awk '/^```mermaid$/{f=1;next} /^```$/{f=0} f' /home/pawelm/contact-center/documentation/twalio/twilio-integration.md)",
-      "Bash(awk '/^```mermaid$/{f=1;next} /^```$/{f=0} f' /home/pawelm/contact-center/documentation/tech/06-database.md)"
+      "Bash(awk '/^```mermaid$/{f=1;next} /^```$/{f=0} f' /home/pawelm/contact-center/documentation/tech/06-database.md)",
+      "Artifact",
+      "Bash(cp backend/.claude/agent-memory/backend-dev-expert/feedback_jvm_heap_uptime_metrics_source.md .claude/agent-memory/backend-dev-expert/)",
+      "Bash(cp backend/.claude/agent-memory/backend-dev-expert/feedback_micrometer_gauge_weak_reference.md .claude/agent-memory/backend-dev-expert/)",
+      "Bash(cp backend/.claude/agent-memory/backend-dev-expert/feedback_redis_cache_name_per_type.md .claude/agent-memory/backend-dev-expert/)",
+      "Bash(cp backend/.claude/agent-memory/backend-dev-expert/feedback_rls_cross_tenant_admin_aggregation.md .claude/agent-memory/backend-dev-expert/)",
+      "Bash(cp backend/.claude/agent-memory/backend-dev-expert/project_agent_online_redis_session_semantics.md .claude/agent-memory/backend-dev-expert/)"
     ]
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import {
   Observable,
   BehaviorSubject,
@@ -13,7 +13,15 @@ import {
 } from 'rxjs';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { environment } from '../../../../environments/environment';
-import { GlobalMetrics, TenantMetricsDetail } from '../models/admin-metrics.model';
+import {
+  ContactChannelMatrix,
+  EtlTableStatus,
+  GlobalMetrics,
+  GrowthMetrics,
+  SystemResourceMetrics,
+  TenantMetricsDetail,
+  UsageMetrics,
+} from '../models/admin-metrics.model';
 import { AuthService } from '../../../core/services/auth.service';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -21,6 +29,7 @@ const POLL_INTERVAL_MS = 30_000;
 const EMPTY_METRICS: GlobalMetrics = {
   totalActiveTenants: 0,
   totalAgentsOnline: 0,
+  totalActiveContacts: 0,
   systemAlerts: [],
   tenants: [],
   generatedAt: '',
@@ -31,6 +40,7 @@ export class AdminMetricsService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly baseUrl = `${environment.apiUrl}/admin/metrics`;
+  private readonly etlUrl = `${environment.apiUrl}/admin/etl`;
 
   /**
    * Internal state store. Holds the last successfully fetched metrics.
@@ -127,5 +137,56 @@ export class AdminMetricsService {
 
   getTenantMetrics(id: string): Observable<TenantMetricsDetail> {
     return this.http.get<TenantMetricsDetail>(`${this.baseUrl}/tenants/${id}`);
+  }
+
+  /**
+   * One-shot snapshot of the same payload as {@link globalMetrics$}, but bypassing
+   * the shared polling stream entirely. Used by the "Metryki platformy" page, which
+   * fetches this data once on entry plus on manual refresh — NOT every 30s — so it
+   * must not attach itself to (or be throttled/accelerated by) the Dashboard's
+   * continuous polling subscription.
+   */
+  getGlobalMetricsSnapshot(): Observable<GlobalMetrics> {
+    return this.http.get<GlobalMetrics>(this.baseUrl);
+  }
+
+  /** Today's platform-wide usage KPIs (contacts handled, AHT, ASA, FCR, campaigns). */
+  getUsageMetrics(): Observable<UsageMetrics> {
+    return this.http.get<UsageMetrics>(`${this.baseUrl}/usage`);
+  }
+
+  /** Weekly tenant/user growth points plus top installed plugins. */
+  getGrowthMetrics(weeks = 6): Observable<GrowthMetrics> {
+    const params = new HttpParams().set('weeks', weeks.toString());
+    return this.http.get<GrowthMetrics>(`${this.baseUrl}/growth`, { params });
+  }
+
+  /**
+   * Shared-process system resource metrics (CPU, JVM heap, DB pool, Redis, RabbitMQ).
+   * Intended to be polled every 30s by the caller while the metrics page is active —
+   * this method itself is a single request per call, no internal timer.
+   */
+  getResourceMetrics(): Observable<SystemResourceMetrics> {
+    return this.http.get<SystemResourceMetrics>(`${this.baseUrl}/resources`);
+  }
+
+  /** CSV export of the tenant ranking table. */
+  exportTenantsCsv(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/tenants/export`, { responseType: 'blob' });
+  }
+
+  /** ETL pipeline sync status per source table (lag, last sync, row counts). */
+  getEtlStatus(): Observable<EtlTableStatus[]> {
+    return this.http.get<EtlTableStatus[]>(`${this.etlUrl}/status`);
+  }
+
+  /**
+   * Contact counts per tenant, broken down by channel, for the given day range
+   * (5-min cached, same cache as /usage). `days` must be one of 7, 30, 90 — the
+   * backend rejects any other value with 400/422.
+   */
+  getContactChannelMatrix(days: number): Observable<ContactChannelMatrix> {
+    const params = new HttpParams().set('days', days.toString());
+    return this.http.get<ContactChannelMatrix>(`${this.baseUrl}/contacts-by-channel`, { params });
   }
 }

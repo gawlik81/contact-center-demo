@@ -1494,6 +1494,29 @@ class ContactServiceImpl implements ContactService {
     }
 
     // =========================================================================
+    // AdminMetrics: agregacje per tenant dla SUPER_ADMIN
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countActiveContactsByTenantId(UUID tenantId) {
+        return contactRepository.countActiveContactsByTenantId(tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Object[] getDailyContactAggregate(UUID tenantId, java.time.LocalDate date) {
+        return contactRepository.getDailyContactAggregate(tenantId, date);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> getContactCountsByChannelInRange(
+            UUID tenantId, java.time.LocalDate fromDate, java.time.LocalDate toDate) {
+        return contactRepository.getContactCountsByChannelInRange(tenantId, fromDate, toDate);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

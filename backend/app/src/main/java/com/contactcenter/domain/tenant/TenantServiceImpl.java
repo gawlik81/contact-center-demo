@@ -467,6 +467,18 @@ class TenantServiceImpl implements TenantService {
         tenantRepository.save(tenant);
     }
 
+    /**
+     * Zlicza nowych tenantów utworzonych w każdym tygodniu ISO-8601 od podanej daty granicznej.
+     *
+     * @param since dolna granica {@code created_at} (włącznie)
+     * @return lista par {@code [week_start, count]}, posortowana rosnąco
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public List<Object[]> countNewTenantsByWeekSince(Instant since) {
+        return tenantRepository.countNewTenantsByWeekSince(since);
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

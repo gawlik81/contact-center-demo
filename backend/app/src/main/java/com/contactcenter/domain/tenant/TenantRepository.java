@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -174,4 +175,25 @@ interface TenantRepository extends JpaRepository<Tenant, UUID> {
               AND status NOT IN ('STOPPED', 'COMPLETED')
             """, nativeQuery = true)
     long countActiveCampaignsByTenantId(@Param("tenantId") UUID tenantId);
+
+    /**
+     * Zlicza nowych tenantów utworzonych w każdym tygodniu ISO-8601 (poniedziałek jako początek
+     * tygodnia, strefa UTC) od podanej daty granicznej.
+     *
+     * <p>Tabela {@code tenant} jest globalna (nie ma RLS – patrz Javadoc klasy) – zapytanie
+     * jest bezpieczne cross-tenant z definicji.
+     *
+     * <p>Używane przez {@code AdminMetricsService} do budowy {@code GET /api/admin/metrics/growth}.
+     *
+     * @param since dolna granica {@code created_at} (włącznie)
+     * @return lista par {@code [week_start(java.sql.Date), count(Number)]}, posortowana rosnąco
+     */
+    @Query(value = """
+            SELECT date_trunc('week', created_at AT TIME ZONE 'UTC')::date AS week_start, COUNT(*) AS cnt
+            FROM   tenant
+            WHERE  created_at >= :since
+            GROUP  BY week_start
+            ORDER  BY week_start
+            """, nativeQuery = true)
+    List<Object[]> countNewTenantsByWeekSince(@Param("since") Instant since);
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/gawlik81/contact-center-demo/compare/v1.4.0...v1.5.0) (2026-08-08)
+
+
+### Features
+
+* **admin:** dodaj pełną stronę Metryki platformy dla Super Admina ([dfdf74e](https://github.com/gawlik81/contact-center-demo/commit/dfdf74ed6bfab568bcec69e7afa8fb1743d24c69))
+* **admin:** dodaj pełną stronę Metryki platformy dla Super Admina ([7f040a1](https://github.com/gawlik81/contact-center-demo/commit/7f040a1d665f8fc6db58d8aa621eb4529259306c))
+
+
+### Bug Fixes
+
+* napraw nawigację po rozdziałach w dokumentacji HTML ([8f2a15a](https://github.com/gawlik81/contact-center-demo/commit/8f2a15a5775bd1e6a7c72171eca36aa581ff3028))
+
 ## [1.4.0](https://github.com/gawlik81/contact-center-demo/compare/v1.3.0...v1.4.0) (2026-07-13)
 
 

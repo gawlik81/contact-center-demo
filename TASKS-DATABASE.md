@@ -2604,7 +2604,7 @@ jako check przy zapisie), tenant B widzi własny nowy wiersz. Baza po weryfikacj
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** brak (tabela `contact_transcription` już istnieje od V067, poza zakresem TASKS-DATABASE.md jako osobny ticket historycznie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** DB-052, DB-053, BE-117
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2621,12 +2621,33 @@ tabeli). Nowy PK złożony `(transcription_id, created_at)`.
 - `contact_transcription` nie ma encji JPA (czysty `JdbcTemplate` — `ContactTranscriptionRepository`) — zmiana warstwy Java to wyłącznie dodanie kolumny partycjonowania (`created_at`) do operacji adresujących wiersz po PK, realizowane w BE-117 razem z pozostałymi dwoma tabelami
 
 **Kryteria akceptacji:**
-- [ ] Migracja V086 aplikuje się bez błędów, zero utraty danych (liczba wierszy przed == po)
-- [ ] Tabela partycjonowana RANGE po `created_at`; PK złożony `(transcription_id, created_at)`
-- [ ] Indeks `idx_contact_transcription_contact` odtworzony
-- [ ] RLS + FORCE RLS odtworzone (GUC `app.tenant_id` niezmieniony, świadomie — patrz DB-054)
-- [ ] Partycja `DEFAULT` istnieje od startu
-- [ ] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+- [x] Migracja V086 aplikuje się bez błędów, zero utraty danych (liczba wierszy przed == po)
+- [x] Tabela partycjonowana RANGE po `created_at`; PK złożony `(transcription_id, created_at)`
+- [x] Indeks `idx_contact_transcription_contact` odtworzony
+- [x] RLS + FORCE RLS odtworzone (GUC `app.tenant_id` niezmieniony, świadomie — patrz DB-054)
+- [x] Partycja `DEFAULT` istnieje od startu
+- [x] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+
+**Wykonanie (2026-08-09):** Migracja `V086__partition_contact_transcription.sql` zaaplikowana i
+zweryfikowana na dev (`ccapp`/`contact_center`, `cc-postgres`). Liczba wierszy przed = po = **50**
+(weryfikacja programowa blokiem `DO $$ ... RAISE EXCEPTION ...$$` wewnątrz samej migracji — przy
+niezgodności cała migracja robi ROLLBACK). Partycje utworzone: `contact_transcription_2026_05`..
+`contact_transcription_2026_07` (zakres istniejących danych, 2026-05-24..2026-07-29) +
+`contact_transcription_2026_08` (bieżący) + `_2026_09`, `_2026_10` (2 kolejne) +
+`contact_transcription_default`. GUC RLS pozostał **`app.tenant_id`** (NIE naprawiony —
+świadomie, zgodnie z decyzją projektową, naprawa wydzielona do DB-054/V090). `relrowsecurity=t`,
+`relforcerowsecurity=t` (FORCE dodane, dziś tabela tego nie miała). PK odtworzony pod pierwotną
+(auto-generowaną) nazwą `contact_transcription_pkey`, teraz złożony `(transcription_id,
+created_at)`. Indeks `idx_contact_transcription_contact` odtworzony z DOKŁADNIE tą samą kolejnością
+kolumn `(contact_id, tenant_id)` co przed migracją (świadomie nie "ulepszany" — nowy indeks
+`(tenant_id, created_at)` dochodzi osobno w DB-053). Tabela nie miała FK ani triggerów — nic do
+odtworzenia poza indeksem i RLS. Dry-run w transakcji z jawnym `ROLLBACK` wykonany przed
+uruchomieniem przez Flyway. Test manualny pod `SET ROLE app_user` z `SAVEPOINT`/`ROLLBACK TO
+SAVEPOINT`: izolacja RLS (tenant A widzi 50/50 własnych wierszy, tenant B widzi 0), cross-tenant
+INSERT odrzucony przez politykę (`ERROR: new row violates row-level security policy`, mimo braku
+jawnego `WITH CHECK` — dla polityki `ALL` bez `WITH CHECK` Postgres używa `USING` również jako
+check przy zapisie), insert własnego tenanta zaakceptowany i widoczny. Baza po weryfikacji: 50
+wierszy (cała weryfikacja w transakcjach z `ROLLBACK`, baza nietknięta).
 
 ---
 

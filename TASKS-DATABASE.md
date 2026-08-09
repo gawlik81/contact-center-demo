@@ -2657,7 +2657,7 @@ wierszy (cała weryfikacja w transakcjach z `ROLLBACK`, baza nietknięta).
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** brak (tabela `contact_ai_summary` już istnieje od V068)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** DB-052, DB-053, BE-117
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2677,13 +2677,44 @@ partycjonowania).
 - Zmiana Java w BE-117 (`@IdClass`)
 
 **Kryteria akceptacji:**
-- [ ] Migracja V087 aplikuje się bez błędów, zero utraty danych
-- [ ] Tabela partycjonowana RANGE po kolumnie ustalonej w implementacji (`generated_at` lub `created_at`, udokumentuj wybór w komentarzu migracji)
-- [ ] PK złożony spójny z kolumną partycjonowania
-- [ ] Indeks `idx_contact_ai_summary_contact` odtworzony
-- [ ] RLS + FORCE RLS odtworzone (GUC niezmieniony, świadomie)
-- [ ] Partycja `DEFAULT` istnieje od startu
-- [ ] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+- [x] Migracja V087 aplikuje się bez błędów, zero utraty danych
+- [x] Tabela partycjonowana RANGE po kolumnie ustalonej w implementacji (`generated_at` lub `created_at`, udokumentuj wybór w komentarzu migracji)
+- [x] PK złożony spójny z kolumną partycjonowania
+- [x] Indeks `idx_contact_ai_summary_contact` odtworzony
+- [x] RLS + FORCE RLS odtworzone (GUC niezmieniony, świadomie)
+- [x] Partycja `DEFAULT` istnieje od startu
+- [x] Stara tabela usunięta dopiero po weryfikacji liczby wierszy
+
+**Wykonanie (2026-08-09):** Migracja `V087__partition_contact_ai_summary.sql` zaaplikowana i
+zweryfikowana na dev (`ccapp`/`contact_center`, `cc-postgres`). Liczba wierszy przed = po = **57**
+(weryfikacja programowa blokiem `DO $$ ... RAISE EXCEPTION ...$$` wewnątrz samej migracji — przy
+niezgodności cała migracja robi ROLLBACK). **Decyzja o kolumnie partycjonowania: `generated_at`**
+(nie `created_at`) — uzasadnienie: `generated_at` to moment faktycznego wygenerowania treści
+podsumowania przez model AI, biznesowo istotny "wiek" danych analogicznie do `started_at` w
+`contact_event`/`contact`, podczas gdy `created_at` jest wyłącznie technicznym znacznikiem zapisu
+wiersza do bazy. Przyszłe polityki retencji/purge (DB-052/DB-053) mają sens liczone od momentu
+wygenerowania treści, nie od przypadkowego opóźnienia zapisu. Zweryfikowano w dev, że obie kolumny
+są sobie bliskie co do dnia (`MIN/MAX(generated_at)` = 2026-05-24..2026-07-29,
+`MIN/MAX(created_at)` = 2026-05-25..2026-07-29) — wybór nie zmienił liczby/zakresu wymaganych
+partycji, tylko poprawność semantyczną przyszłych zapytań. Pełne uzasadnienie w nagłówku migracji.
+PK złożony `(ai_summary_id, generated_at)`. Partycje utworzone: `contact_ai_summary_2026_05`..
+`contact_ai_summary_2026_07` (zakres istniejących danych wg `generated_at`) + `_2026_08` (bieżący)
++ `_2026_09`, `_2026_10` (2 kolejne) + `contact_ai_summary_default`. GUC RLS pozostał
+**`app.tenant_id`** (NIE naprawiony — świadomie, naprawa wydzielona do DB-054/V090).
+`relrowsecurity=t`, `relforcerowsecurity=t` (FORCE dodane, dziś tabela tego nie miała). PK
+odtworzony pod **nową, konwencyjną nazwą** `pk_contact_ai_summary` (oryginał był autonazwany
+`contact_ai_summary_pkey`, bo V068 użyło inline `PRIMARY KEY` bez `CONSTRAINT` — spójne z jawnym
+nazewnictwem `pk_contact_event` z V085). Indeks `idx_contact_ai_summary_contact` odtworzony z
+DOKŁADNIE tą samą kolejnością kolumn `(contact_id, tenant_id)`. Tabela nie miała FK (potwierdzone
+`pg_constraint` — jedyny constraint to PK) ani triggerów — nic do odtworzenia poza indeksem i RLS.
+Dry-run w transakcji z jawnym `ROLLBACK` wykonany przed uruchomieniem przez Flyway. Test manualny
+pod `SET ROLE app_user` z `SAVEPOINT`/`ROLLBACK TO SAVEPOINT`: izolacja RLS (tenant A widzi własny
+wiersz, tenant B widzi 0 wierszy tenanta A), cross-tenant INSERT odrzucony przez politykę (`ERROR:
+new row violates row-level security policy`, mimo braku jawnego `WITH CHECK`), insert własnego
+tenanta B zaakceptowany i widoczny. Baza po weryfikacji: 57 wierszy (cała weryfikacja w
+transakcjach z `ROLLBACK`, baza nietknięta). Migracja zaaplikowana przez Flyway bezpośrednio po
+V086 (DB-050, równoległy agent) bez konfliktu — historia `flyway_schema_history` potwierdza oba
+wpisy (086, 087) jako `success=t`.
 
 ---
 

@@ -10,7 +10,7 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V086 już istnieją (ostatnia: V086__partition_contact_transcription.sql, 2026-08-09; równolegle inny agent mógł dodać V087__partition_contact_ai_summary.sql tego samego dnia — DB-051, osobny plik/tabela, sprawdź `ls` zamiast zakładać numer). Numery migracji kontynuuj od najwyższego istniejącego +1. Zawsze zweryfikuj `ls backend/src/main/resources/db/migration/` przed napisaniem nowej migracji — nie ufaj tej liczbie bezkrytycznie.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V087 już istnieją (ostatnia: V087__partition_contact_ai_summary.sql, 2026-08-09 — DB-051, zaaplikowana bezpośrednio po V086/DB-050 tego samego dnia przez równoległego agenta, zero konfliktu). Numery migracji kontynuuj od najwyższego istniejącego +1. Zawsze zweryfikuj `ls backend/src/main/resources/db/migration/` przed napisaniem nowej migracji — nie ufaj tej liczbie bezkrytycznie.
 
 **Brak infrastruktury testów Testcontainers/H2 dla migracji SQL w tym repo** (potwierdzone przy DB-046/V082): `application-test.yml` ma `spring.flyway.enabled=false` i `ddl-auto=none`, `ContactCenterApplicationIT` jawnie wyłącza DataSource/Flyway/JPA autoconfigurację ("brak prawdziwej bazy w unit testach", TODO na Testcontainers nieodhaczone). Repozytoria typu `TenantTwilioConfigRepositoryTest` testują logikę Java przez Mockito (mockowany `EntityManager`), NIE prawdziwe RLS/CHECK/UNIQUE na żywej bazie. Ustalony w tym repo wzorzec weryfikacji migracji SQL-only (bez towarzyszącej encji JPA w tym samym tickecie, np. DB-043..046) to WYŁĄCZNIE manualny test przez psql pod `SET ROLE app_user` z `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` per przypadek (zob. [[feedback_rls_testing]]) — żaden plik testu Java nie jest commitowany dla takich tabel (potwierdzone w historii git dla V074-081, brak plików `*Test.java` towarzyszących). Jeśli przyszły ticket poprosi o "test weryfikujący RLS/constrainty" dla tabeli bez encji JPA w zakresie, ten manualny skrypt psql jest właściwym, zgodnym z konwencją repo rozwiązaniem — nie wymuszać sztucznego testu Java/Mockito bez obiektu do mockowania.
 
@@ -118,6 +118,61 @@ Stan migracji po V086 (2026-08-09):
     po PK w Javie, poza zakresem tego ticketu — czysta migracja SQL, tabela nie ma encji JPA).
   - Równolegle inny agent implementował DB-051 (`V087__partition_contact_ai_summary.sql`) tego
     samego dnia — osobny plik, zero konfliktu, nie koordynowano.
+
+Stan migracji po V087 (2026-08-09):
+- V087__partition_contact_ai_summary.sql (DB-051, EPIC-29 — SZÓSTY i OSTATNI ticket
+  partycjonujący z tej trójki (po V085/contact_event/DB-049 i V086/contact_transcription/DB-050),
+  ten sam wzorzec online-swap zastosowany 1:1). `contact_ai_summary` (zwykła tabela od V068, 57
+  wierszy w dev) → RANGE-partycjonowana po **`generated_at`** (NIE `created_at` — jedyna z tej
+  trójki tabel, gdzie ticket explicite delegował wybór kolumny partycjonującej do
+  db-schema-architect), PK złożony `(ai_summary_id, generated_at)`.
+  - **Decyzja `generated_at` vs `created_at` — uzasadnienie zapisane w nagłówku V087 i w
+    TASKS-DATABASE.md:** `generated_at` to moment faktycznego wygenerowania treści podsumowania
+    przez model AI — biznesowo istotny "wiek" danych, analogicznie do `started_at` w
+    `contact_event`/`contact`. `created_at` jest wyłącznie technicznym znacznikiem zapisu wiersza
+    do bazy. Przyszłe polityki retencji/purge (DB-052/DB-053) mają sens liczone od momentu
+    wygenerowania treści, nie od przypadkowego opóźnienia zapisu. W dev obie kolumny są sobie
+    bliskie co do dnia (`MIN/MAX(generated_at)`=2026-05-24..2026-07-29,
+    `MIN/MAX(created_at)`=2026-05-25..2026-07-29) — wybór nie zmienił liczby/zakresu partycji w tej
+    migracji, tylko poprawność semantyczną przyszłych zapytań/purge. Zasada na przyszłość: gdy
+    tabela ma DWIE kolumny czasowe (jedna = moment zdarzenia biznesowego, druga = moment zapisu do
+    bazy), partycjonuj po tej pierwszej — `contact_transcription`/V086 partycjonowało po
+    `created_at` właśnie dlatego, że nie miało odpowiednika `generated_at`.
+  - **Brak FK w ogóle** (potwierdzone zapytaniem do `pg_constraint` przed migracją — jedyny
+    constraint na tabeli to PK) — w odróżnieniu od `contact_event` (miała FK do `tenant`) i
+    identycznie jak `contact_transcription`. Nic do odtworzenia w tym zakresie. Brak też triggerów.
+  - **Nazwa PK ZMIENIONA na konwencyjną `pk_contact_ai_summary`** (świadoma decyzja, w
+    odróżnieniu od V086/`contact_transcription`, gdzie zachowano oryginalną auto-nazwę
+    `contact_transcription_pkey`) — oryginalny PK `contact_ai_summary_pkey` był również
+    auto-nazwany (V068 użyło inline `PRIMARY KEY` bez `CONSTRAINT`), więc oba podejścia (zachować
+    auto-nazwę / nadać jawną konwencyjną nazwę) były technicznie równoważne; wybrano jawną nazwę
+    dla spójności z `pk_contact_event` (V085). **Wniosek na przyszłość:** nazwa PK po online-swapie
+    dla tabel z oryginalnie auto-nazwanym PK to decyzja stylistyczna, nie techniczny wymóg — obie
+    opcje są poprawne, udokumentuj wybór w migracji żeby nie było niespójności bez wyjaśnienia
+    między V086 (`_pkey`) i V087 (`pk_...`) w tym samym repo.
+  - Partycje: `contact_ai_summary_2026_05`..`_2026_07` (zakres danych wg `generated_at`) + `_2026_08`
+    (bieżący) + `_2026_09`, `_2026_10` (2 kolejne) + `contact_ai_summary_default` — te same miesiące
+    co V085/V086, bo aplikowane tego samego dnia.
+  - RLS: GUC pozostał **`app.tenant_id`** (świadomie NIE naprawiony, jak V085/V086), dodano
+    `FORCE ROW LEVEL SECURITY` (`relforcerowsecurity=f`→`t`, jedyne świadome zaostrzenie).
+  - Dry-run w transakcji z jawnym `ROLLBACK` (`docker cp` + `psql -f` z wrapperem
+    `BEGIN;...ROLLBACK;`) wykonany przed prawdziwym uruchomieniem przez Flyway — zero błędów za
+    pierwszym razem.
+  - Test manualny pod `SET ROLE app_user`, `SAVEPOINT`/`ROLLBACK TO SAVEPOINT`: izolacja RLS
+    (tenant A widzi własny testowy wiersz, tenant B widzi 0), cross-tenant INSERT odrzucony (bez
+    jawnego `WITH CHECK`, `USING` użyty też jako check dla polityki `ALL`), insert własnego tenanta
+    B zaakceptowany i widoczny. Cała weryfikacja (setup + testy) w jednej zewnętrznej transakcji z
+    `ROLLBACK` na końcu — potwierdzono `COUNT(*)=57` i zero wyciekłych testowych wierszy po
+    zakończeniu.
+  - Sposób aplikacji: metoda z V085/V086 (`RunFlyway.java` skompilowany lokalnie na hoście, jary z
+    `~/.m2`, IP bridge `cc-postgres` **to samo `172.18.0.11:5432`** co w sesjach V085/V086 — sieć
+    Dockera nie była restartowana między sesjami tego samego dnia). Flyway `DbValidate` przy
+    starcie potwierdził 87 zwalidowanych migracji i "Current version: 086" — czyli V086
+    (równoległy agent, DB-050) był już zaaplikowany w momencie uruchomienia V087, bez żadnej
+    kolizji numeracji ani checksumów.
+  - Blokuje DB-052 (V088, rotacja partycji dla tej i 2 pozostałych tabel), DB-053 (V089, indeksy
+    purge), BE-117 (`ContactAiSummary` → `@IdClass` w Javie, poza zakresem tego ticketu — encja
+    JPA istnieje dziś jako proste `@Id`, zmiana na złożony klucz świadomie odłożona do BE-117).
 
 Stan migracji po V084 (2026-08-09):
 - V084__create_retention_purge_log.sql (DB-048, EPIC-29 — TRZECI ticket implementacyjny epiku, po DB-046/V082 i DB-047/V083): `retention_purge_log`, tabela audytu operacji purge (manualnych/automatycznych) — RUNNING→COMPLETED/FAILED lifecycle, `rows_deleted`/`status` ustrukturyzowane dla UI historii (FE-107). Odrębna od genericznego `audit_log` (podwójny zapis do obu to świadoma decyzja BE-113, poza zakresem tego ticketu).

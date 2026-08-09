@@ -2544,7 +2544,7 @@ CREATE POLICY retention_purge_log_isolation ON retention_purge_log
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** DB-035 (tabela `contact_event` istnieje, V059)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** DB-052, DB-053, BE-117
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2571,14 +2571,30 @@ z kluczem złożonym `(eventId, startedAt)` — realizowane w BE-117, NIE w tym 
 ticket to czysta migracja SQL).
 
 **Kryteria akceptacji:**
-- [ ] Migracja V085 aplikuje się bez błędów na dev i test, na bazie z istniejącymi danymi `contact_event`
-- [ ] Liczba wierszy w `contact_event` po migracji == liczba wierszy przed migracją (zero utraty danych)
-- [ ] Tabela partycjonowana RANGE po `started_at`; PK złożony `(event_id, started_at)`
-- [ ] Indeksy `idx_contact_event_contact`, `idx_contact_event_tenant` odtworzone na nowej tabeli
-- [ ] Trigger `trg_contact_event_on_update` (obliczanie `duration_seconds`) odtworzony i działający
-- [ ] RLS + FORCE RLS odtworzone (z niezmienioną, dziś błędną nazwą GUC `app.tenant_id` — świadomie, patrz Kontekst)
-- [ ] Partycja `DEFAULT` istnieje od startu
-- [ ] `contact_event_old` usunięta dopiero po jawnej weryfikacji liczby wierszy
+- [x] Migracja V085 aplikuje się bez błędów na dev i test, na bazie z istniejącymi danymi `contact_event`
+- [x] Liczba wierszy w `contact_event` po migracji == liczba wierszy przed migracją (zero utraty danych)
+- [x] Tabela partycjonowana RANGE po `started_at`; PK złożony `(event_id, started_at)`
+- [x] Indeksy `idx_contact_event_contact`, `idx_contact_event_tenant` odtworzone na nowej tabeli
+- [x] Trigger `trg_contact_event_on_update` (obliczanie `duration_seconds`) odtworzony i działający
+- [x] RLS + FORCE RLS odtworzone (z niezmienioną, dziś błędną nazwą GUC `app.tenant_id` — świadomie, patrz Kontekst)
+- [x] Partycja `DEFAULT` istnieje od startu
+- [x] `contact_event_old` usunięta dopiero po jawnej weryfikacji liczby wierszy
+
+**Wykonanie (2026-08-09):** Migracja `V085__partition_contact_event.sql` zaaplikowana i zweryfikowana
+na dev (`ccapp`/`contact_center`, `cc-postgres`). Liczba wierszy przed = po = **857** (weryfikacja
+programowa blokiem `DO $$ ... RAISE EXCEPTION ...$$` wewnątrz samej migracji — przy niezgodności
+cała migracja robi ROLLBACK, nic nie trafia do `contact_event_old`/`DROP`). Partycje utworzone:
+`contact_event_2026_05`..`contact_event_2026_08` (zakres istniejących danych, 2026-05-14..2026-08-04)
++ `contact_event_2026_09`, `contact_event_2026_10` (bieżący+2) + `contact_event_default`. GUC RLS
+pozostał **`app.tenant_id`** (NIE naprawiony — świadomie, zgodnie z decyzją projektową, naprawa
+wydzielona do DB-054/V090). `relrowsecurity=t`, `relforcerowsecurity=t` (FORCE dodane, dziś tabela
+tego nie miała). Test manualny pod `SET ROLE app_user` z `SAVEPOINT`/`ROLLBACK TO SAVEPOINT`:
+trigger (`UPDATE ... SET ended_at` → `duration_seconds=90`, poprawnie), `chk_contact_event_stage`
+(BOGUS_STAGE odrzucone), `chk_contact_event_times` (ended_at < started_at odrzucone), izolacja RLS
+(tenant B 0 wierszy tenanta A), cross-tenant INSERT odrzucony przez politykę (mimo braku jawnego
+`WITH CHECK` w `CREATE POLICY` — dla polityki `ALL` bez `WITH CHECK` Postgres używa `USING` również
+jako check przy zapisie), tenant B widzi własny nowy wiersz. Baza po weryfikacji: 857 wierszy
+(cała weryfikacja w transakcji z `ROLLBACK`, baza nietknięta).
 
 ---
 

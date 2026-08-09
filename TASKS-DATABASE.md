@@ -212,7 +212,7 @@ Migracja `V008__create_social.sql`. Tabela `SOCIAL_INTEGRATION` (integration_id,
 **Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
-**Blokuje:** brak
+**Blokuje:** BE-013, BE-014
 **Odniesienie PRD:** US-04-01, EPIC-04
 
 **Opis:**
@@ -279,7 +279,7 @@ Migracja `V011__create_campaign.sql`. Tabela `CAMPAIGN` (campaign_id, tenant_id,
 **Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
-**Blokuje:** DB-011, DB-015, DB-017
+**Blokuje:** DB-006, DB-011, DB-015, DB-017
 **Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-06, EPIC-09
 
 **Opis:**
@@ -1125,7 +1125,7 @@ COMMENT ON COLUMN tenant_twilio_config.api_key_secret IS
 **Zlozonosc:** S
 **Zależy od:** DB-011 (tabela `campaign`), DB-030 (tenant_twilio_config jako źródło domyślnego numeru)
 **Status:** ✅ Ukończone
-**Blokuje:** BE-058
+**Blokuje:** BE-060
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 **Flyway:** V052__add_caller_id_to_campaign.sql
 

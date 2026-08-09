@@ -498,7 +498,9 @@
       "Bash(awk 'NR<=2964 && /^### BE-/{last=$0} END{print last}' TASKS-BACKEND.md)",
       "Bash(awk 'NR<=1150 && /^### FE-/{last=$0} END{print last}' TASKS-FRONTEND.md)",
       "Bash(awk 'NR<=1044 && /^### BE-/{last=$0} END{print last}' TASKS-BACKEND.md)",
-      "Bash(awk 'NR<=1007 && /^### BE-/{last=$0} END{print last}' TASKS-BACKEND.md)"
+      "Bash(awk 'NR<=1007 && /^### BE-/{last=$0} END{print last}' TASKS-BACKEND.md)",
+      "Bash(awk '/^\\\\| DB-/{last=$0} /^## TASKS-BACKEND/{print \"DB last: \" last}' PROGRESS.md)",
+      "Bash(awk '/^\\\\| BE-/{last=$0} /^## TASKS-FRONTEND/{print \"BE last: \" last}' PROGRESS.md)"
     ]
   }
 }

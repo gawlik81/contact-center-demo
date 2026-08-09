@@ -255,7 +255,7 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** BE-009, DB-006
+**Zależy od:** BE-001b (MinIO), BE-009, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Blokuje:** brak
@@ -300,7 +300,7 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** BE-001, BE-003
+**Zależy od:** BE-001, BE-002, BE-003, BE-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Blokuje:** FE-009, FE-021
@@ -355,7 +355,7 @@ Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależy od:** BE-009, DB-009
+**Zależy od:** BE-001b (MinIO), BE-009, DB-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-25
 **Blokuje:** BE-014, FE-014
@@ -1179,6 +1179,7 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 **Zależy od:** BE-009 (TelephonyAdapter), DB-023 (scheduled_callback z source_type), BE-024 (DialerCallbackHandler)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1240,6 +1241,7 @@ Tabela `scheduled_callback` ma metodę `findDueCallbacks()` w repozytorium, ale 
 **Zależy od:** BE-024 (ScheduledCallbackRepository, DialerController), DB-023
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** BE-051, FE-031, FE-044
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1291,6 +1293,7 @@ public record RescheduleCallbackRequest(
 **Zależy od:** BE-009 (Contact model), BE-024 (ScheduledCallbackRepository), DB-023
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** FE-032
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1870,6 +1873,10 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 **Odniesienie PRD:** US-09-02 (historia kontaktów klienta), EPIC-13 (callbacki)
 
+> **Uwaga (weryfikacja 2026-08-09):** brak dedykowanego testu jednostkowego dla
+> `ManualCallbackController` (potwierdzone — brak pliku w `backend/app/src/test`). Funkcjonalność
+> sama w sobie zaimplementowana poprawnie — status ✅ pozostaje, brakuje tylko pokrycia testowego.
+
 **Opis:**
 Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego klienta bez aktywnej rozmowy. Różni się od `BE-040` (inbound callback — wymaga aktywnego kontaktu) i `BE-039` (reschedule istniejącego callbacku). Tu agent samodzielnie inicjuje callback do klienta z zakładki "Klienci" w Agent Desktop.
 
@@ -2081,6 +2088,12 @@ Scheduled component `AgentBreakActivator` wykonujący cykliczne zadanie (np. co 
 **Blokuje:** brak
 **Epic:** EPIC-08 Kampanie Outbound
 **Odniesienie PRD:** EPIC-08
+
+> **Uwaga (weryfikacja 2026-08-09):** brak testu `CampaignWindowActivatorTest` (potwierdzone —
+> brak pliku w `backend/app/src/test`, tylko skompilowana klasa i raport jacoco). Status
+> pozostaje ✅ dla głównej ścieżki (SCHEDULED→RUNNING, RUNNING→COMPLETED), ale przejście
+> RUNNING→SCHEDULED przy wyjściu poza okno harmonogramu oraz pokrycie testowe wymagają
+> dokończenia.
 
 **Opis:**
 Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie o statusie `SCHEDULED` i automatycznie przełączający je do `RUNNING` gdy bieżący czas mieści się w oknie harmonogramu (pola `schedule.start_date`, `schedule.end_date`, `schedule.time_from`, `schedule.time_to`, `schedule.days_of_week`). Obsługuje strefę czasową tenanta. Zaimplementowany w `/domain/service/CampaignWindowActivator.java`.
@@ -2297,7 +2310,7 @@ Warstwa danych dla konfiguracji Twilio per tenant. Trzy elementy:
 **Szacowany rozmiar:** M
 **Zależy od:** BE-055 (encja i repozytorium)
 **Status:** ✅ Ukończone
-**Blokuje:** BE-057
+**Blokuje:** BE-057, BE-058
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2394,7 +2407,7 @@ POST   /api/supervisor/twilio-config/test     → 200 TwilioConnectionTestResult
 **Szacowany rozmiar:** L
 **Zależy od:** BE-055 (TenantTwilioConfig encja), BE-056 (serwis z getDecryptedConfig), DB-030
 **Status:** ✅ Ukończone
-**Blokuje:** BE-059, BE-060
+**Blokuje:** BE-059, BE-060, BE-061
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2493,6 +2506,15 @@ Refaktoryzacja serwisu generującego Access Token dla Twilio Voice JS SDK (front
 **Status:** ✅ Ukończone
 **Blokuje:** FE-067
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+> **Uwaga (weryfikacja 2026-08-09):** `ScheduledCallbackExecutor.resolveCallbackFromNumber(UUID
+> tenantId)` (`backend/app/src/main/java/com/contactcenter/domain/campaign/ScheduledCallbackExecutor.java:271`)
+> rozwiązuje numer wychodzący wyłącznie z `tenantTwilioConfigService.getDecryptedConfig(tenantId)`
+> — nie przyjmuje `campaignId` i nigdy nie sięga po `campaign.getCallerId()`. Dla oddzwonień
+> powiązanych z kampanią (`isCampaignCallback`) `caller_id` kampanii jest więc ignorowany, mimo że
+> `ProgressiveDialerService` (główna ścieżka dialowania) poprawnie go stosuje. Realny gap — status
+> pozostaje ✅, bo główne kryteria akceptacji (dialer progresywny) są spełnione, ale ta ścieżka
+> wymaga dokończenia.
 
 **Opis:**
 Implementacja obsługi pola `caller_id` w kampaniach wychodzących. Zmiany w trzech miejscach:
@@ -6134,8 +6156,14 @@ for (UUID tenantId : contactService.findTenantsWithRecordings()) {
 **Złożoność:** M
 **Zależy od:** DB-049, DB-050, DB-051
 **Status:** ⬜ Nie rozpoczęte
-**Blokuje:** BE-112, BE-113
+**Blokuje:** BE-113
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+> **Uwaga (weryfikacja 2026-08-09):** wcześniej pole `Blokuje` wymieniało też BE-112, ale
+> `BE-112.Zależy od` nigdy nie deklarował BE-117 (asymetria) i BE-112 (liczenie/agregacja
+> partition-aware) operuje na natywnych zapytaniach COUNT per partycja, nie na encjach JPA — nie
+> jest wrażliwy na zmianę `@IdClass`. Tylko BE-113 (silnik usuwania przez encje JPA) faktycznie
+> zależy od tej migracji. Poprawiono na samo BE-113.
 
 **Opis:**
 Po partycjonowaniu (DB-049/050/051) PK tabel `contact_event`/`contact_ai_summary` staje się

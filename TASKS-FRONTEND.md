@@ -1564,6 +1564,15 @@ Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia
 **Zrealizowane:** 2026-04-18
 **Blokuje:** FE-039
 
+> **Uwaga (weryfikacja 2026-08-09):** `QueueAssignmentPanelComponent` zbudowany zgodnie ze
+> specyfikacją, ale grep po repo (poza własnym katalogiem
+> `features/supervisor/pages/queues/queue-assignment-panel/`) nie znajduje żadnego miejsca, które
+> go faktycznie osadza — martwy kod. Rzeczywista funkcja przypisywania agentów do kolejki działa
+> przez inny, nieudokumentowany w TASKS komponent `QueueAgentsModalComponent`
+> (`features/supervisor/pages/queues/queue-agents-modal/`). Status pozostaje ✅, bo funkcjonalność
+> biznesowa istnieje i działa (przez inny komponent) — ale ten konkretny plik jest do usunięcia
+> lub podpięcia.
+
 **Opis:**
 Komponent wbudowany w istniejący formularz konfiguracji kolejki (strona edycji kolejki). Supervisor konfiguruje tryb przypisania agentów bez opuszczania formularza kolejki.
 
@@ -2055,6 +2064,12 @@ Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent 
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
+> **Uwaga (weryfikacja 2026-08-09):** brak plików `.spec.ts` dla `IncomingCallAlertService` i
+> `IncomingCallBannerComponent` (potwierdzone — tylko `.ts`/`.html`/`.scss` w
+> `frontend/src/app/features/agent/services/` i `.../components/incoming-call-banner/`). Status
+> pozostaje ✅, bo logika działa poprawnie w aplikacji, ale brakuje pokrycia testowego wymaganego
+> przez AC.
+
 **Opis:**
 Dwa powiązane kroki: (1) dodanie `<cc-incoming-call-banner />` do szablonu `AgentShellComponent`, który jest persistentny dla wszystkich stron agenta; (2) usunięcie z `AgentDesktopComponent` logiki obsługi `CALL_INCOMING`, która została przeniesiona do `IncomingCallAlertService` w FE-046 — tak by uniknąć podwójnego wywołania.
 
@@ -2128,7 +2143,7 @@ Instalacja i konfiguracja biblioteki **Transloco** (`@jsverse/transloco`). Ustaw
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-28
 **Czeka na BE:** BE-054 (endpoint preferencji użytkownika)
-**Blokuje:** FE-051
+**Blokuje:** FE-051, FE-052
 **Epic:** EPIC-19 Wielojęzyczność
 **Odniesienie PRD:** przekrojowe
 
@@ -2216,7 +2231,7 @@ Uzupełnienie plików `pl.json`, `en.json`, `de.json` o przetłumaczone klucze d
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-29
 **Czeka na BE:** brak
-**Blokuje:** brak
+**Blokuje:** FE-054, FE-055, FE-056, FE-057, FE-058, FE-059, FE-060, FE-061, FE-062, FE-063, FE-064, FE-065
 **Epic:** EPIC-19 Wielojęzyczność
 **Odniesienie PRD:** przekrojowe
 
@@ -2619,7 +2634,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 **Zlozonosc:** M
 **Zależy od:** BE-057 (REST API konfiguracji Twilio)
 **Status:** ✅ Ukończone
-**Blokuje:** brak
+**Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2687,7 +2702,7 @@ Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervi
 **Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-07
-**Blokuje:** brak
+**Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -5194,6 +5209,7 @@ wyświetli klucz literalnie jako fallback, nie psuje builda/lintu — wymaga oso
 **Złożoność:** S
 **Zależy od:** FE-097, FE-098
 **Status:** ✅ Zrobione
+**Blokuje:** brak
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Skąd ten ticket:** odkryte przy realnym testowaniu na żywym backendzie — endpoint

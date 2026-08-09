@@ -2373,7 +2373,7 @@ COMMENT ON COLUMN plugin_invocation_log.request_payload_redacted IS
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-002 (tabela `tenant`), DB-003 (tabela `app_user` — `updated_by`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** DB-047, BE-111
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2431,13 +2431,13 @@ nadpisze już skonfigurowaną przez klienta retencję nagrań. Przelicz dni na m
 BE-116 nie musiały zgadywać jednostki.
 
 **Kryteria akceptacji:**
-- [ ] Migracja V082 aplikuje się bez błędów na dev i test
-- [ ] `uq_tenant_retention_policy` — duplikat `(tenant_id, data_category)` odrzucony
-- [ ] CHECK na `data_category` — wartość spoza 4 kategorii odrzucona
-- [ ] `retention_months` — wartości poza `[1,120]` odrzucone
-- [ ] RLS + FORCE RLS z poprawnym GUC `app.current_tenant_id` — zweryfikowane pod `SET ROLE app_user` (NIE pod `ccapp` — `rolbypassrls=true`, patrz notatka z DB-043)
-- [ ] Backfill: każdy istniejący tenant ma dokładnie 4 wiersze (jeden per kategoria) po migracji
-- [ ] Backfill `RECORDINGS`: wartość per tenant odzwierciedla dotychczasowe `tenant.config->>'recording_retention_days'`, nie płaski default — zweryfikowane na tenancie z niestandardową wartością (jeśli istnieje w danych dev/seed) lub testem symulującym taki przypadek
+- [x] Migracja V082 aplikuje się bez błędów na dev i test
+- [x] `uq_tenant_retention_policy` — duplikat `(tenant_id, data_category)` odrzucony
+- [x] CHECK na `data_category` — wartość spoza 4 kategorii odrzucona
+- [x] `retention_months` — wartości poza `[1,120]` odrzucone
+- [x] RLS + FORCE RLS z poprawnym GUC `app.current_tenant_id` — zweryfikowane pod `SET ROLE app_user` (NIE pod `ccapp` — `rolbypassrls=true`, patrz notatka z DB-043)
+- [x] Backfill: każdy istniejący tenant ma dokładnie 4 wiersze (jeden per kategoria) po migracji
+- [x] Backfill `RECORDINGS`: wartość per tenant odzwierciedla dotychczasowe `tenant.config->>'recording_retention_days'`, nie płaski default — zweryfikowane na tenancie z niestandardową wartością (jeśli istnieje w danych dev/seed) lub testem symulującym taki przypadek
 
 ---
 

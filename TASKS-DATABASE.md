@@ -2724,7 +2724,7 @@ wpisy (086, 087) jako `success=t`.
 **Priorytet:** Must Have — **krytyczny, blokujący dla całego epiku**
 **Złożoność:** L
 **Zależy od:** DB-049, DB-050, DB-051 (rozszerza `create_next_month_partitions()` o te 3 nowe tabele partycjonowane — funkcja musi znać ich istnienie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-112, BE-114, BE-115
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2775,14 +2775,14 @@ wystarczyć; nie buduj niepotrzebnie złożonego mechanizmu batchowania dla gar�
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V088 aplikuje się bez błędów
-- [ ] Po migracji: `contact_default`/`audit_log_default` są puste (lub zawierają wyłącznie wiersze spoza obsłużonego zakresu, jeśli takie się znajdą — udokumentuj przypadek)
-- [ ] Partycje `contact_2026_06`..`contact_2026_09` (i analogicznie `audit_log_*`) istnieją i zawierają właściwe dane (weryfikacja `COUNT(*)` per partycja sumuje się do całości)
-- [ ] Zero utraty danych: `SELECT COUNT(*) FROM contact` (i `audit_log`) identyczne przed i po migracji
-- [ ] `create_next_month_partitions()` po `CREATE OR REPLACE` tworzy partycje dla WSZYSTKICH partycjonowanych tabel: `contact`, `audit_log`, `contact_event`, `contact_transcription`, `contact_ai_summary`, `plugin_invocation_log` (istniejąca) — zweryfikowane ręcznym wywołaniem funkcji w transakcji testowej z `ROLLBACK`
-- [ ] Nowe funkcje `create_<table>_partition`/`drop_old_<table>_partitions` dla 3 nowych tabel, wzorzec 1:1 z `plugin_invocation_log` (V077)
-- [ ] Nowe wpisy w `scheduled_job` dla rotacji 3 nowych tabel
-- [ ] **Test regresyjny kluczowy:** po migracji wstaw testowy wiersz `contact` z `started_at` w bieżącym miesiącu i potwierdź, że trafia do partycji miesięcznej, NIE do `contact_default` (`SELECT tableoid::regclass FROM contact WHERE contact_id = ...`)
+- [x] Migracja V088 aplikuje się bez błędów
+- [x] Po migracji: `contact_default`/`audit_log_default` są puste (lub zawierają wyłącznie wiersze spoza obsłużonego zakresu, jeśli takie się znajdą — udokumentuj przypadek) — w dev oba `*_default` puste (122/287 wierszy przeniesionych, 0 pozostałych spoza zakresu)
+- [x] Partycje `contact_2026_06`..`contact_2026_09` (i analogicznie `audit_log_*`) istnieją i zawierają właściwe dane (weryfikacja `COUNT(*)` per partycja sumuje się do całości)
+- [x] Zero utraty danych: `SELECT COUNT(*) FROM contact` (i `audit_log`) identyczne przed i po migracji (556 / 1215)
+- [x] `create_next_month_partitions()` po `CREATE OR REPLACE` tworzy partycje dla WSZYSTKICH partycjonowanych tabel: `contact`, `audit_log`, `contact_event`, `contact_transcription`, `contact_ai_summary`, `plugin_invocation_log` (istniejąca) — zweryfikowane ręcznym wywołaniem funkcji w transakcji testowej z `ROLLBACK`
+- [x] Nowe funkcje `create_<table>_partition`/`drop_old_<table>_partitions` dla 3 nowych tabel, wzorzec 1:1 z `plugin_invocation_log` (V077)
+- [x] Nowe wpisy w `scheduled_job` dla rotacji 3 nowych tabel
+- [x] **Test regresyjny kluczowy:** po migracji wstaw testowy wiersz `contact` z `started_at` w bieżącym miesiącu i potwierdź, że trafia do partycji miesięcznej, NIE do `contact_default` (`SELECT tableoid::regclass FROM contact WHERE contact_id = ...`) — potwierdzone, nowy wiersz trafia do `contact_2026_08`
 
 ---
 

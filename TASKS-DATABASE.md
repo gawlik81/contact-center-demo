@@ -2447,7 +2447,7 @@ BE-116 nie musiały zgadywać jednostki.
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-046 (kategorie muszą być spójne z `tenant_retention_policy`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-112
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2480,10 +2480,10 @@ COMMENT ON TABLE tenant_retention_pending_summary IS
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V083 aplikuje się bez błędów
-- [ ] PK złożony `(tenant_id, data_category)` — upsert (`INSERT ... ON CONFLICT DO UPDATE`) możliwy bez dodatkowego unique constraint
-- [ ] RLS + FORCE RLS z `app.current_tenant_id`, zweryfikowane pod `SET ROLE app_user`
-- [ ] Brak wiersza dla tenanta/kategorii = interpretowane przez BE/FE jako „jeszcze nie policzone” (nie jako „zero do usunięcia”) — udokumentowane w komentarzu tabeli
+- [x] Migracja V083 aplikuje się bez błędów
+- [x] PK złożony `(tenant_id, data_category)` — upsert (`INSERT ... ON CONFLICT DO UPDATE`) możliwy bez dodatkowego unique constraint
+- [x] RLS + FORCE RLS z `app.current_tenant_id`, zweryfikowane pod `SET ROLE app_user`
+- [x] Brak wiersza dla tenanta/kategorii = interpretowane przez BE/FE jako „jeszcze nie policzone” (nie jako „zero do usunięcia”) — udokumentowane w komentarzu tabeli
 
 ---
 

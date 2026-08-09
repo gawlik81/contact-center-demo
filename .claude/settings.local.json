@@ -504,7 +504,12 @@
       "Bash(docker inspect *)",
       "Read(//home/pawelm/.m2/repository/org/flywaydb/**)",
       "Read(//home/pawelm/.m2/repository/org/postgresql/postgresql/**)",
-      "Read(//home/pawelm/.m2/repository/com/fasterxml/jackson/core/jackson-databind/**)"
+      "Read(//home/pawelm/.m2/repository/com/fasterxml/jackson/core/jackson-databind/**)",
+      "Bash(bash -c \"echo > /dev/tcp/172.18.0.11/5432\")",
+      "Bash(find / -maxdepth 3 -iname \"flyway-run*\")",
+      "Bash(export DB_URL=\"jdbc:postgresql://172.18.0.11:5432/contact_center\")",
+      "Bash(export DB_USERNAME=\"ccapp\")",
+      "Bash(export DB_PASSWORD=\"0Xf6oN10ZjIsT8YJoWA0KZsCCxg=\")"
     ]
   }
 }

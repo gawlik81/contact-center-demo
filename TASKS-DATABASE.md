@@ -2493,7 +2493,7 @@ COMMENT ON TABLE tenant_retention_pending_summary IS
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-002, DB-003
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-113
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2530,11 +2530,11 @@ CREATE POLICY retention_purge_log_isolation ON retention_purge_log
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V084 aplikuje się bez błędów
-- [ ] CHECK na `trigger_type`/`status` odrzuca wartości spoza enum
-- [ ] `triggered_by` NULL dopuszczalny (auto-purge = system, brak użytkownika)
-- [ ] RLS + FORCE RLS zweryfikowane pod `SET ROLE app_user`
-- [ ] Indeks `(tenant_id, started_at DESC)` pokrywa zapytanie historii (FE-107, sortowanie malejąco po dacie)
+- [x] Migracja V084 aplikuje się bez błędów
+- [x] CHECK na `trigger_type`/`status` odrzuca wartości spoza enum
+- [x] `triggered_by` NULL dopuszczalny (auto-purge = system, brak użytkownika)
+- [x] RLS + FORCE RLS zweryfikowane pod `SET ROLE app_user`
+- [x] Indeks `(tenant_id, started_at DESC)` pokrywa zapytanie historii (FE-107, sortowanie malejąco po dacie)
 
 ---
 

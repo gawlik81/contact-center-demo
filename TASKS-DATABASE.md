@@ -2792,7 +2792,7 @@ wystarczyć; nie buduj niepotrzebnie złożonego mechanizmu batchowania dla gar�
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-049, DB-050, DB-051 (kolumny partycjonowania muszą istnieć na docelowych tabelach)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-113
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2819,10 +2819,28 @@ CREATE INDEX idx_cca_tenant_archived_at ON campaign_contact_archive (tenant_id, 
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V089 aplikuje się bez błędów
-- [ ] `contact_event` świadomie pominięta (już ma równoważny indeks) — udokumentowane komentarzem w migracji, żeby przyszły czytelnik nie pomyślał, że to przeoczenie
-- [ ] `EXPLAIN` dla `DELETE FROM contact WHERE tenant_id = ? AND started_at < ?` pokazuje `Index Scan`/`Bitmap Index Scan` na nowym indeksie, nie `Seq Scan`
-- [ ] Analogicznie zweryfikowane dla pozostałych 3 nowych indeksów
+- [x] Migracja V089 aplikuje się bez błędów
+- [x] `contact_event` świadomie pominięta (już ma równoważny indeks) — udokumentowane komentarzem w migracji, żeby przyszły czytelnik nie pomyślał, że to przeoczenie
+- [x] `EXPLAIN` dla `DELETE FROM contact WHERE tenant_id = ? AND started_at < ?` pokazuje `Index Scan`/`Bitmap Index Scan` na nowym indeksie, nie `Seq Scan`
+- [x] Analogicznie zweryfikowane dla pozostałych 3 nowych indeksów
+
+**Notatka z implementacji (2026-08-10):**
+Dev ma za mały wolumen (partycje `contact`/`contact_transcription`/`contact_ai_summary` po 50-360
+wierszy, `campaign_contact_archive` puste), żeby planner naturalnie wybrał Index/Bitmap Scan na
+każdej partycji — dla bardzo małych partycji (≤~100 wierszy, jedna strona danych) Seq Scan jest
+poprawnie tańszy niż dostęp przez indeks, to nie wada indeksu. Zweryfikowano dodatkowo na
+symulowanym wolumenie produkcyjnym (insert + `EXPLAIN ANALYZE` w transakcji z `ROLLBACK`, zero
+wpływu na realne dane — potwierdzone `COUNT(*)` identycznym przed/po: 556/50/57/0):
+- `contact`: przy 2 tenantach i 50% selektywności `tenant_id` Seq Scan pozostawał tańszy (poprawne
+  zachowanie plannera) — przy realistycznej skali SaaS (100 syntetycznych tenantów, ~1%
+  selektywność) partycja `contact_2026_05` (100k wierszy) poprawnie przełączyła się na
+  `Bitmap Index Scan` na `idx_contact_tenant_started_at`.
+- `contact_transcription` i `contact_ai_summary`: przy 100k wierszy/2 tenantach już `Bitmap Heap
+  Scan` + `Bitmap Index Scan` na nowych indeksach.
+- `campaign_contact_archive`: przy 5000 wierszy/2 tenantach `Index Scan` na `idx_cca_tenant_archived_at`
+  (zgodnie z uwagą w tickecie o pustej tabeli w dev).
+
+Pełne wyniki `EXPLAIN (ANALYZE, BUFFERS)` w podsumowaniu sesji implementacyjnej.
 
 ---
 

@@ -514,7 +514,8 @@
       "Bash(echo /home/pawelm/.m2/repository/org/flywaydb/flyway-core/10.20.1/flyway-core-10.20.1.jar:/home/pawelm/.m2/repository/org/flywaydb/flyway-database-postgresql/10.20.1/flyway-database-postgresql-10.20.1.jar:/home/pawelm/.m2/repository/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar:/home/pawelm/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.17.2/jackson-databind-2.17.2.jar:/home/pawelm/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.17.2/jackson-core-2.17.2.jar:/home/pawelm/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.17.2/jackson-annotations-2.17.2.jar)",
       "Bash(netstat -tlnp)",
       "Bash(timeout 3 bash -c 'cat < /dev/null > /dev/tcp/172.18.0.11/5432')",
-      "Bash(MAVEN_OPTS=-Duser.timezone=UTC mvn -o org.flywaydb:flyway-maven-plugin:10.20.1:migrate -Dflyway.url=jdbc:postgresql://172.18.0.11:5432/contact_center -Dflyway.user=ccapp -Dflyway.password=0Xf6oN10ZjIsT8YJoWA0KZsCCxg= -Dflyway.locations=filesystem:/home/pawelm/contact-center/backend/src/main/resources/db/migration -Dflyway.table=flyway_schema_history)"
+      "Bash(MAVEN_OPTS=-Duser.timezone=UTC mvn -o org.flywaydb:flyway-maven-plugin:10.20.1:migrate -Dflyway.url=jdbc:postgresql://172.18.0.11:5432/contact_center -Dflyway.user=ccapp -Dflyway.password=0Xf6oN10ZjIsT8YJoWA0KZsCCxg= -Dflyway.locations=filesystem:/home/pawelm/contact-center/backend/src/main/resources/db/migration -Dflyway.table=flyway_schema_history)",
+      "Bash(MAVEN_OPTS_UNUSED=1 java -Duser.timezone=UTC -cp .:__TRACKED_VAR__ RunFlyway)"
     ]
   }
 }

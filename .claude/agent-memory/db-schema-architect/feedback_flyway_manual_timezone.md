@@ -1,20 +1,27 @@
 ---
 name: feedback_flyway_manual_timezone
-description: Ręczne uruchamianie flyway-maven-plugin z hosta wymaga MAVEN_OPTS="-Duser.timezone=UTC", inaczej ciche przesunięcie granic partycji TIMESTAMPTZ
+description: Ręczne uruchamianie migracji Flyway z hosta (RunFlyway.java) wymaga -Duser.timezone=UTC, inaczej ciche przesunięcie granic partycji TIMESTAMPTZ
 metadata:
   type: feedback
 ---
 
-Przy ręcznym stosowaniu migracji Flyway z hosta przez `org.flywaydb:flyway-maven-plugin:migrate`
-(wzorzec z [[contact_center_project]] — bridge IP `172.18.0.11:5432`, bo `cc-postgres` w tym
-środowisku nie publikuje portu 5432 na hosta), ZAWSZE uruchamiaj z:
+**KOREKTA (2026-08-10, sesja DB-053/V089):** komenda `mvn org.flywaydb:flyway-maven-plugin:migrate`
+pokazana niżej NIE DZIAŁA w tym repo wywołana ad-hoc z CLI — kończy się
+`FlywayException: No database found to handle jdbc:postgresql://...` (plugin nie ma na
+classpath sterownika `postgresql` ani `flyway-database-postgresql`, żaden `pom.xml` w repo nie
+deklaruje `<plugin>` z tymi zależnościami — zweryfikowane grepem). Metoda faktycznie działająca to
+`RunFlyway.java` opisana w [[contact_center_project]] (sekcja DB-053/V089) — mały program Javy
+kompilowany lokalnie z jarami z `~/.m2`, `-Duser.timezone=UTC` przekazywane bezpośrednio do
+`java`, nie przez `MAVEN_OPTS`. Poniższa treść (historyczna) zachowana dla kontekstu diagnozy
+strefy czasowej, ale NIE kopiuj polecenia `mvn flyway-maven-plugin:migrate` 1:1 — użyj
+`RunFlyway.java`.
+
+Przy ręcznym stosowaniu migracji Flyway z hosta (wzorzec z [[contact_center_project]] — bridge IP
+`172.18.0.11:5432`, bo `cc-postgres` w tym środowisku nie publikuje portu 5432 na hosta), ZAWSZE
+uruchamiaj z wymuszoną strefą UTC na poziomie JVM, np.:
 
 ```bash
-MAVEN_OPTS="-Duser.timezone=UTC" mvn -o org.flywaydb:flyway-maven-plugin:10.20.1:migrate \
-  -Dflyway.url="jdbc:postgresql://172.18.0.11:5432/contact_center" \
-  -Dflyway.user=ccapp -Dflyway.password='...' \
-  -Dflyway.locations=filesystem:/home/pawelm/contact-center/backend/src/main/resources/db/migration \
-  -Dflyway.table=flyway_schema_history
+java -Duser.timezone=UTC -cp ".:<jary flyway-core/flyway-database-postgresql/postgresql/jackson>" RunFlyway
 ```
 
 **Why:** Odkryte przy DB-052/V088 (~1h debugowania). PGJDBC domyślnie synchronizuje sesję
@@ -44,6 +51,6 @@ błąd bo mają CHECK na zakres, ale zwykłe dane by tego nie zrobiły — dużo
 migracji, uruchomiony przez `flyway:migrate` (nie przez psql — psql nie odtwarza tego bugu).
 Jeśli zwróci coś innego niż `UTC`, to jest to.
 
-**How to apply:** Przy KAŻDYM przyszłym ręcznym stosowaniu migracji przez `flyway-maven-plugin`
-z hosta w tym repo (nie tylko migracje partycjonujące) — zawsze `MAVEN_OPTS="-Duser.timezone=UTC"`.
-Rozważ dodanie tego jako stały nawyk/alias, nie tylko pamiętać ad-hoc.
+**How to apply:** Przy KAŻDYM przyszłym ręcznym stosowaniu migracji z hosta w tym repo (nie tylko
+migracje partycjonujące), metodą `RunFlyway.java` — zawsze `-Duser.timezone=UTC` na `java`
+uruchamiającym `RunFlyway`. Rozważ dodanie tego jako stały nawyk, nie tylko pamiętać ad-hoc.

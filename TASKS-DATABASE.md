@@ -2850,7 +2850,7 @@ Pełne wyniki `EXPLAIN (ANALYZE, BUFFERS)` w podsumowaniu sesji implementacyjnej
 **Priorytet:** Could Have — **zadanie poboczne/opcjonalne względem głównego epiku, łatwe do wydzielenia lub pominięcia bez wpływu na resztę funkcji retencji**
 **Złożoność:** S
 **Zależy od:** DB-049, DB-050, DB-051 (dotyka tych samych tabel — `contact_transcription`, `contact_ai_summary` — oraz `contact_event`, `tenant_ai_config`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -2883,7 +2883,13 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V090 aplikuje się bez błędów
-- [ ] Wszystkie 4 polityki RLS używają `app.current_tenant_id`
-- [ ] Test izolacji pod `SET ROLE app_user` (NIE `ccapp`) na wszystkich 4 tabelach: tenant B nie widzi wierszy tenanta A
-- [ ] `FORCE ROW LEVEL SECURITY` potwierdzone tam, gdzie już było (nie regresja), dodane tam, gdzie brakowało (żadna z 4 oryginalnych migracji nie miała `FORCE` — potwierdź `\d` przed implementacją i rozważ dodanie, to wzmacnia efekt tej poprawki)
+- [x] Migracja V090 aplikuje się bez błędów
+- [x] Wszystkie 4 polityki RLS używają `app.current_tenant_id`
+- [x] Test izolacji pod `SET ROLE app_user` (NIE `ccapp`) na wszystkich 4 tabelach: tenant B nie widzi wierszy tenanta A
+- [x] `FORCE ROW LEVEL SECURITY` potwierdzone tam, gdzie już było (nie regresja), dodane tam, gdzie brakowało (żadna z 4 oryginalnych migracji nie miała `FORCE` — potwierdź `\d` przed implementacją i rozważ dodanie, to wzmacnia efekt tej poprawki)
+
+**Podsumowanie implementacji (2026-08-10):**
+- `V090__fix_rls_guc_naming_inconsistency.sql` — `DROP POLICY`/`CREATE POLICY` (ta sama nazwa, poprawny GUC `app.current_tenant_id`) na `contact_event_tenant_isolation`, `tenant_ai_config_isolation`, `contact_transcription_isolation`, `contact_ai_summary_isolation`. `ALTER TABLE tenant_ai_config FORCE ROW LEVEL SECURITY` — jedyna z czterech, która go dotąd nie miała (pozostałe trzy miały `FORCE` już od DB-049/050/051, potwierdzone bez regresji).
+- **Decyzja o zakresie:** świadomie BEZ `WITH CHECK` — minimalny, łatwo odwracalny diff zamiast ujednolicania stylu z nowszymi tabelami EPIC-29 (np. `tenant_retention_policy`/DB-046). Uzasadnienie w nagłówku migracji. Ochrona przy zapisie i tak działa — dla polityki `ALL` bez jawnego `WITH CHECK` Postgres używa `USING` również jako check (potwierdzone testem: cross-tenant INSERT odrzucony na wszystkich 4 tabelach).
+- Weryfikacja: dry-run w transakcji z `ROLLBACK` (czysty przebieg), aplikacja przez `RunFlyway.java` (`-Duser.timezone=UTC`), test manualny pod `SET ROLE app_user` + `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` na wszystkich 4 tabelach: izolacja (tenant B 0 wierszy tenanta A), cross-tenant INSERT odrzucony, `tenant_ai_config` dodatkowo test insertu własnego (tenant B, który nie miał dotąd wiersza) — zaakceptowany. Zero wyciekłych wierszy testowych po `ROLLBACK` (potwierdzone `COUNT(*)` po migracji: `tenant_ai_config`=1 czyli tylko oryginalny dev-seed).
+- **EPIC-29, warstwa DB zamknięta: DB-046..054, 9/9 ukończone.**

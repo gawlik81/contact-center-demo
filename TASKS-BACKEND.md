@@ -5868,7 +5868,7 @@ informacji diagnostycznej dla pozostałych statusów.
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-046
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-112, BE-113, BE-115, BE-116, BE-118
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -5911,12 +5911,23 @@ dzisiejszego zasiewania `tenant.config` (linie ~523-527). Cykliczna zależność
 `RecordingServiceImpl`/`TenantServiceImpl` już użytym w projekcie.
 
 **Kryteria akceptacji:**
-- [ ] `listPolicies`/`updatePolicy` respektują multi-tenancy (`TenantAwareRepository`, `assertSameTenant`)
-- [ ] `updatePolicy` na nieistniejącej kategorii dla tenanta → tworzy wiersz (upsert), nie 404 — wszystkie 4 kategorie muszą zawsze istnieć po seedowaniu, ale endpoint ma być odporny na brakujący wiersz
-- [ ] `seedDefaultPolicies` wywoływane z `TenantServiceImpl.createTenant` — nowy tenant ma dokładnie 4 wiersze polityk zaraz po utworzeniu
-- [ ] `retentionMonths` walidacja `[1,120]` na poziomie serwisu (spójna z CHECK w DB)
-- [ ] Testy jednostkowe: seedowanie, update istniejącej polityki, update nieistniejącej (upsert), walidacja granic
-- [ ] `mvn verify -pl app` przechodzi bez regresji
+- [x] `listPolicies`/`updatePolicy` respektują multi-tenancy (`TenantAwareRepository`, `assertSameTenant`)
+- [x] `updatePolicy` na nieistniejącej kategorii dla tenanta → tworzy wiersz (upsert), nie 404 — wszystkie 4 kategorie muszą zawsze istnieć po seedowaniu, ale endpoint ma być odporny na brakujący wiersz
+- [x] `seedDefaultPolicies` wywoływane z `TenantServiceImpl.createTenant` — nowy tenant ma dokładnie 4 wiersze polityk zaraz po utworzeniu
+- [x] `retentionMonths` walidacja `[1,120]` na poziomie serwisu (spójna z CHECK w DB)
+- [x] Testy jednostkowe: seedowanie, update istniejącej polityki, update nieistniejącej (upsert), walidacja granic
+- [x] `mvn verify -pl app` przechodzi bez regresji
+
+**Notatka z implementacji (2026-08-10):** `CreateTenantRequest.limits().recordingRetentionDays()`
+JEST dziś dostępne (trafia do `tenant.config` przez `TenantServiceImpl.buildConfig()`, fallback
+90 dni) — zamiast rozszerzać sygnaturę `seedDefaultPolicies(UUID)` o dodatkowy parametr,
+`RetentionPolicyServiceImpl` czyta tę wartość z już zapisanej encji `Tenant` przez dedykowane
+zapytanie `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays` (bezpośrednio
+z tabeli `tenant`, bez RLS — analogicznie do `TenantRepository.countActiveAgentsByTenantId` i
+podobnych). Dzięki temu `RetentionPolicyServiceImpl` NIE zależy zwrotnie od `TenantService` —
+cykl `tenant`↔`retention`, którego spodziewał się ticket, w praktyce nie wystąpił, więc
+`TenantServiceImpl` wstrzykuje `RetentionPolicyService` zwykłym polem finalnym (bez
+`@Autowired @Lazy`).
 
 ---
 

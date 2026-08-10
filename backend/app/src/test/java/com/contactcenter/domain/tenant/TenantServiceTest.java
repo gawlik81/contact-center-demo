@@ -7,6 +7,7 @@ import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
+import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
@@ -52,6 +53,9 @@ class TenantServiceTest {
     @Mock
     private AdminMetricsService adminMetricsService;
 
+    @Mock
+    private RetentionPolicyService retentionPolicyService;
+
     @InjectMocks
     private TenantServiceImpl tenantService;
 
@@ -74,8 +78,10 @@ class TenantServiceTest {
                 .createdAt(Instant.now())
                 .build();
 
-        // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor),
-        // pomijając pola non-final (adminMetricsService, userService). Ustawiamy ręcznie przez setter.
+        // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor) — pola finalne
+        // (tenantRepository, retentionPolicyService) są wstrzykiwane automatycznie. Pola non-final
+        // (adminMetricsService, userService) są pomijane przez konstruktor — ustawiamy je ręcznie
+        // przez setter, zgodnie ze wzorcem @Autowired @Lazy używanym w TenantServiceImpl.
         tenantService.setAdminMetricsService(adminMetricsService);
         tenantService.setUserService(userService);
     }
@@ -121,6 +127,8 @@ class TenantServiceTest {
             assertThat(response.limits().maxQueues()).isEqualTo(50);
             assertThat(response.limits().maxCampaigns()).isEqualTo(20);
             verify(tenantRepository).save(any(Tenant.class));
+            // BE-111: seedowanie domyślnych polityk retencji wołane zaraz po zapisie tenanta
+            verify(retentionPolicyService).seedDefaultPolicies(response.id());
         }
 
         @Test

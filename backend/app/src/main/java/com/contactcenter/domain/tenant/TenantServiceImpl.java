@@ -9,6 +9,7 @@ import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -46,6 +47,18 @@ import java.util.UUID;
 class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
+
+    /**
+     * Zależność wstrzykiwana zwykłym polem finalnym (bez {@code @Autowired @Lazy}) — mimo że
+     * {@link #createTenant} wywołuje {@link RetentionPolicyService#seedDefaultPolicies}, brak tu
+     * cyklu: {@code RetentionPolicyServiceImpl} (BE-111) NIE zależy zwrotnie od {@code TenantService}
+     * — personalizację domyślnej polityki RECORDINGS czyta bezpośrednio z {@code tenant.config}
+     * przez natywne zapytanie we własnym repozytorium (patrz javadoc
+     * {@code RetentionPolicyServiceImpl}), a nie przez ten serwis. Sprawdzone przy implementacji
+     * BE-111 — w razie dodania w przyszłości prawdziwej zależności zwrotnej, zastosuj wzorzec
+     * {@code @Autowired @Lazy} użyty niżej dla {@link #adminMetricsService} / {@link #userService}.
+     */
+    private final RetentionPolicyService retentionPolicyService;
 
     /**
      * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
@@ -128,6 +141,11 @@ class TenantServiceImpl implements TenantService {
 
         Tenant saved = tenantRepository.save(tenant);
         log.info("[TenantService] Tenant utworzony: id={}, name={}", saved.getId(), saved.getName());
+
+        // BE-111: zasiej domyślne polityki retencji (4 kategorie) — analogicznie do zasiewania
+        // tenant.config wyżej. Wołane PO zapisie, bo seedowanie personalizuje RECORDINGS na
+        // podstawie już zapisanej konfiguracji (recording_retention_days) tego tenanta.
+        retentionPolicyService.seedDefaultPolicies(saved.getId());
 
         return TenantResponse.from(saved);
     }

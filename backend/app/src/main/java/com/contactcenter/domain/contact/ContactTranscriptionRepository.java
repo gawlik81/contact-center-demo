@@ -7,6 +7,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +22,13 @@ import java.util.UUID;
  *
  * <p>Wzorzec multi-tenant: rozszerza {@link TenantAwareRepository} – wywołuje
  * {@code assertSameTenant()} przed zapisem oraz {@code setTenantContextInDb()} przed każdym zapytaniem.
+ *
+ * <p>Tabela nie ma odpowiadającej encji JPA – czysty {@link JdbcTemplate}. Od migracji V086
+ * (DB-050) jest partycjonowana RANGE po {@code created_at} (PK złożony
+ * {@code (transcription_id, created_at)}), więc nie jest reprezentowana przez {@code @IdClass}
+ * (BE-117 dotyczy wyłącznie encji JPA – {@code ContactEvent}/{@code ContactAiSummary}). Repozytorium
+ * nie posiada operacji UPDATE/DELETE adresujących wiersz po PK – tylko {@link #save} (INSERT)
+ * i odczyt po {@code contact_id} – więc kolumna partycjonowania nie musi występować w żadnym WHERE.
  */
 @Slf4j
 @Repository
@@ -39,6 +48,14 @@ class ContactTranscriptionRepository extends TenantAwareRepository {
      * (np. po ponownym przetworzeniu nagrania). Odczyt przez {@link #findContentByContactId}
      * zawsze zwraca najnowszą.
      *
+     * <p><strong>BE-117:</strong> {@code created_at} jest ustawiane jawnie z Javy (zamiast
+     * polegać wyłącznie na {@code DEFAULT NOW()} w bazie), żeby wartość widoczna w encji
+     * po stronie Javy (np. do logowania, korelacji z innymi zdarzeniami tego samego kontaktu)
+     * zawsze zgadzała się co do mikrosekundy z wartością faktycznie zapisaną w partycjonowanej
+     * kolumnie {@code created_at} – istotne przy operacjach wsadowych, gdzie poleganie na
+     * DEFAULT dawałoby każdemu wierszowi nieznaczną, ale realną rozbieżność w stosunku do
+     * czasu wygenerowania rekordu w Javie.
+     *
      * @param contactId UUID kontaktu (musi istnieć w tabeli {@code contact})
      * @param tenantId  UUID tenanta (cross-tenant safety)
      * @param content   pełna transkrypcja rozmowy
@@ -49,14 +66,17 @@ class ContactTranscriptionRepository extends TenantAwareRepository {
         assertSameTenant(tenantId);
         setTenantContextInDb(tenantId);
 
+        Instant createdAt = Instant.now();
+
         jdbcTemplate.update("""
-                INSERT INTO contact_transcription (contact_id, tenant_id, content, language)
-                VALUES (?::uuid, ?::uuid, ?, ?)
+                INSERT INTO contact_transcription (contact_id, tenant_id, content, language, created_at)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?)
                 """,
                 contactId.toString(),
                 tenantId.toString(),
                 content,
-                language);
+                language,
+                Timestamp.from(createdAt));
 
         log.info("[ContactTranscriptionRepo] Zapisano transkrypcję: contactId={}, language={}, length={}",
                 contactId, language, content.length());

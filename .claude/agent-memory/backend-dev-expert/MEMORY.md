@@ -99,3 +99,4 @@
 - [AgentBreak scheduler implementation](project_agentbreak_scheduler.md) — bulk PLANNED→ACTIVE→COMPLETED co 30s
 - [AdminMetrics – Contacts by Channel matrix](project_admin_metrics_contacts_by_channel.md) — "dzisiaj"=COMPLETED/TRANSFERRED+duration
 - [Semantyka "agent online" i sesji Redis](project_agent_online_redis_session_semantics.md) — session:agent:* przetrwa logout (status=OFFLINE)
+- [BE-117 @IdClass dla partycjonowanych encji (EPIC-29)](project_epic29_be117_idclass_partitioned_entities.md) — ContactEvent/ContactAiSummary wzorzec Contact/ContactId, ai_summary partycjonuje po generated_at nie created_at

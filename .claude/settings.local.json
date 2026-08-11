@@ -515,7 +515,8 @@
       "Bash(netstat -tlnp)",
       "Bash(timeout 3 bash -c 'cat < /dev/null > /dev/tcp/172.18.0.11/5432')",
       "Bash(MAVEN_OPTS=-Duser.timezone=UTC mvn -o org.flywaydb:flyway-maven-plugin:10.20.1:migrate -Dflyway.url=jdbc:postgresql://172.18.0.11:5432/contact_center -Dflyway.user=ccapp -Dflyway.password=0Xf6oN10ZjIsT8YJoWA0KZsCCxg= -Dflyway.locations=filesystem:/home/pawelm/contact-center/backend/src/main/resources/db/migration -Dflyway.table=flyway_schema_history)",
-      "Bash(MAVEN_OPTS_UNUSED=1 java -Duser.timezone=UTC -cp .:__TRACKED_VAR__ RunFlyway)"
+      "Bash(MAVEN_OPTS_UNUSED=1 java -Duser.timezone=UTC -cp .:__TRACKED_VAR__ RunFlyway)",
+      "Bash(echo \"MVN EXIT: $?\")"
     ]
   }
 }

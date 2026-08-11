@@ -21,6 +21,13 @@ import java.util.UUID;
  *
  * <p>Wzorzec multi-tenant: rozszerza {@link TenantAwareRepository} – wywołuje
  * {@code assertSameTenant()} przed zapisem oraz {@code setTenantContextInDb()} przed każdym zapytaniem.
+ *
+ * <p><strong>BE-117:</strong> od migracji V087 (DB-051) tabela jest partycjonowana RANGE po
+ * {@code generated_at} (PK złożony {@code (ai_summary_id, generated_at)}, patrz {@link ContactAiSummary}/
+ * {@link ContactAiSummaryId}). {@link #save} to INSERT jawnie ustawiający wszystkie kolumny
+ * (w tym {@code generated_at}) – bez zmian. Repozytorium nie ma metod UPDATE/DELETE
+ * adresujących wiersz po PK; {@link #findLatestByContactId} czyta po {@code contact_id}, więc
+ * kolumna partycjonowania nie musi występować w WHERE.
  */
 @Slf4j
 @Repository

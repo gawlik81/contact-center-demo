@@ -6166,7 +6166,7 @@ for (UUID tenantId : contactService.findTenantsWithRecordings()) {
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-049, DB-050, DB-051
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-113
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6197,10 +6197,21 @@ backend/app/src/main/java/com/contactcenter/domain/contact/
 ```
 
 **Kryteria akceptacji:**
-- [ ] `ContactEvent`/`ContactAiSummary` kompilują się z `@IdClass`, `equals`/`hashCode` na obu polach klucza (Lombok `@EqualsAndHashCode` lub ręcznie w klasie ID)
-- [ ] Wszystkie istniejące zapytania (`findByContactId` itd.) wciąż działają — kolumna partycjonowania NIE musi być podawana przy SELECT po `contact_id`, tylko przy operacjach adresujących wiersz po jego PK (UPDATE/DELETE po samym `id`, jeśli takie istnieją, muszą dodać drugą kolumnę do WHERE)
-- [ ] Testy jednostkowe istniejące dla `ContactEvent`/`ContactAiSummary`/transcription przechodzą bez zmian w oczekiwaniach biznesowych (tylko dostosowanie do nowego PK w warstwie technicznej)
-- [ ] `mvn verify -pl app` przechodzi bez regresji
+- [x] `ContactEvent`/`ContactAiSummary` kompilują się z `@IdClass`, `equals`/`hashCode` na obu polach klucza (Lombok `@EqualsAndHashCode` lub ręcznie w klasie ID)
+- [x] Wszystkie istniejące zapytania (`findByContactId` itd.) wciąż działają — kolumna partycjonowania NIE musi być podawana przy SELECT po `contact_id`, tylko przy operacjach adresujących wiersz po jego PK (UPDATE/DELETE po samym `id`, jeśli takie istnieją, muszą dodać drugą kolumnę do WHERE)
+- [x] Testy jednostkowe istniejące dla `ContactEvent`/`ContactAiSummary`/transcription przechodzą bez zmian w oczekiwaniach biznesowych (tylko dostosowanie do nowego PK w warstwie technicznej)
+- [x] `mvn verify -pl app` przechodzi bez regresji
+
+**Notatka z implementacji (2026-08-10):**
+- `ContactEventRepository.closeLastOpen` (UPDATE) **NIE wymagał** dodania `started_at` do WHERE —
+  identyfikuje wiersz przez kombinację `contact_id`/`tenant_id`/`stage`/`ended_at IS NULL` (nie tylko
+  przez `event_id`), więc jest semantycznie poprawny bez zmian; jedyny koszt to brak partition pruning
+  (akceptowalne przy dzisiejszej liczbie partycji). Udokumentowano decyzję w javadoc metody.
+- `ContactAiSummaryRepository` nie miał żadnych metod UPDATE/DELETE adresujących wiersz po PK — bez zmian
+  poza dodaniem `@IdClass` do encji.
+- `ContactTranscriptionRepository.save` (czysty JdbcTemplate, brak encji JPA) zmieniony: `created_at`
+  ustawiane jawnie z Javy (`Instant.now()` → `Timestamp`) zamiast polegania na `DEFAULT NOW()` w DB.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1596 testów, 0 failures, 0 errors.
 
 ---
 

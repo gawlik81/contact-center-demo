@@ -98,6 +98,18 @@ class ContactEventRepository extends TenantAwareRepository {
      * <p>Po wykonaniu UPDATE wywoływane jest {@code em.flush(); em.clear()} w celu
      * wyczyszczenia L1 cache Hibernate.
      *
+     * <p><strong>BE-117 – analiza czy WHERE wymaga dodania {@code started_at}:</strong>
+     * po partycjonowaniu (V085) PK tabeli to {@code (event_id, started_at)}, więc UPDATE
+     * adresujący wiersz WYŁĄCZNIE po {@code event_id} musiałby doprecyzować partycję przez
+     * {@code started_at}. Ten UPDATE tego nie robi świadomie – zarówno subquery, jak i
+     * zapytanie zewnętrzne identyfikują wiersz przez kombinację {@code contact_id},
+     * {@code tenant_id}, {@code stage} i {@code ended_at IS NULL} (nie tylko {@code event_id}),
+     * więc jest to poprawne semantycznie bez zmian. Jedyny efekt uboczny braku
+     * {@code started_at} w WHERE to brak partition pruning (PostgreSQL przeszuka wszystkie
+     * partycje zamiast jednej) – akceptowalne przy dzisiejszej liczbie partycji
+     * (kilka miesięcy + DEFAULT); ewentualną optymalizację pozostawiono jako osobny temat
+     * wydajnościowy, poza zakresem tego ticketu.
+     *
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      * @param stage     nazwa etapu (np. "IVR", "AGENT")

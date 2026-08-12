@@ -334,35 +334,87 @@ class TenantRetentionPolicyRepositoryTest {
     @DisplayName("findAllByTenantId() / findByTenantIdAndCategory()")
     class FindQueries {
 
+        /**
+         * Reprodukuje DOKŁADNIE kształt danych, jaki JDBC/Hibernate zwraca dla wiersza
+         * {@code List<Object[]>} bez {@code resultClass} — kolumna {@code data_category}
+         * (VARCHAR w bazie) przychodzi jako surowy {@link String}, NIE jako gotowy
+         * {@link RetentionDataCategory}. Regresja BE-119: przed naprawą repozytorium używało
+         * {@code em.createNativeQuery(sql, TenantRetentionPolicy.class)} — na encji z
+         * {@code @Enumerated} + {@code @AllArgsConstructor} Hibernate w tej wersji delegował
+         * hydratację do {@code NativeQueryConstructorTransformer}, który wywoływał konstruktor
+         * POZYCYJNIE z surową wartością JDBC, rzucając {@code ClassCastException} (String ->
+         * RetentionDataCategory) na NIEPUSTYM wyniku. Stary test (na mockowanym
+         * {@code EntityManager} stubowanym do zwrócenia gotowej encji z już poprawnym enumem)
+         * nie mógł tego złapać, bo nigdy nie przechodził przez rzeczywisty mechanizm
+         * hydratacji Hibernate — mock po prostu oddawał to, co mu kazano oddać. Ten test
+         * zwraca surowe {@code Object[]} (String zamiast enuma) i asercjonuje wartość POLA
+         * enumowego po mapowaniu — dokładnie ten krok, którego zabrakło.
+         */
+        private Object[] rawRow(UUID policyId, UUID tenantId, RetentionDataCategory category,
+                                 int months, boolean autoPurge, UUID updatedBy) {
+            Timestamp now = Timestamp.from(Instant.now());
+            return new Object[]{
+                    policyId, tenantId, category.name(), months, autoPurge, updatedBy, now, now
+            };
+        }
+
         @Test
-        @DisplayName("findAllByTenantId ustawia kontekst RLS i zwraca listę z resultClass")
+        @DisplayName("findAllByTenantId ustawia kontekst RLS, mapuje surowe Object[] (data_category jako String) na enum")
         void shouldListAllPoliciesForTenant() {
             stubTenantContextQuery();
 
-            TenantRetentionPolicy policy = TenantRetentionPolicy.builder()
-                    .policyId(POLICY_ID)
-                    .tenantId(TENANT_A)
-                    .dataCategory(RetentionDataCategory.CONTACT_INTERACTIONS)
-                    .retentionMonths(60)
-                    .autoPurgeEnabled(false)
-                    .createdAt(Instant.now())
-                    .updatedAt(Instant.now())
-                    .build();
+            List<Object[]> rawRows = new java.util.ArrayList<>();
+            rawRows.add(rawRow(POLICY_ID, TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    60, false, null));
 
             @SuppressWarnings("unchecked")
             Query listQuery = mock(Query.class);
             when(entityManager.createNativeQuery(
                     argThat(sql -> sql != null && sql.contains("FROM tenant_retention_policy")
-                            && sql.contains("ORDER BY data_category ASC")),
-                    org.mockito.ArgumentMatchers.eq(TenantRetentionPolicy.class)
+                            && sql.contains("ORDER BY data_category ASC")
+                            && !sql.contains("SELECT *")
+                            && sql.contains("policy_id")
+                            && sql.contains("data_category"))
             )).thenReturn(listQuery);
             when(listQuery.setParameter(anyString(), anyString())).thenReturn(listQuery);
-            when(listQuery.getResultList()).thenReturn(List.of(policy));
+            when(listQuery.getResultList()).thenReturn(rawRows);
 
             List<TenantRetentionPolicy> result = repository.findAllByTenantId(TENANT_A);
 
             assertThat(result).hasSize(1);
+            assertThat(result.get(0).getPolicyId()).isEqualTo(POLICY_ID);
             assertThat(result.get(0).getDataCategory()).isEqualTo(RetentionDataCategory.CONTACT_INTERACTIONS);
+            assertThat(result.get(0).getRetentionMonths()).isEqualTo(60);
+            assertThat(result.get(0).isAutoPurgeEnabled()).isFalse();
+
+            // Weryfikuje, że produkcyjny kod NIE wraca do resultClass-owego mapowania
+            // (przywróciłoby to bug ClassCastException opisany powyżej).
+            verify(entityManager, never()).createNativeQuery(anyString(), org.mockito.ArgumentMatchers.eq(TenantRetentionPolicy.class));
+        }
+
+        @Test
+        @DisplayName("findByTenantIdAndCategory mapuje surowe Object[] (data_category jako String) na enum")
+        void shouldReturnPolicyMappedFromRawRow() {
+            stubTenantContextQuery();
+
+            List<Object[]> rawRows = new java.util.ArrayList<>();
+            rawRows.add(rawRow(POLICY_ID, TENANT_A, RetentionDataCategory.RECORDINGS, 3, true, USER_ID));
+
+            Query findQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("LIMIT 1") && !sql.contains("SELECT *"))
+            )).thenReturn(findQuery);
+            when(findQuery.setParameter(anyString(), anyString())).thenReturn(findQuery);
+            when(findQuery.getResultList()).thenReturn(rawRows);
+
+            Optional<TenantRetentionPolicy> result =
+                    repository.findByTenantIdAndCategory(TENANT_A, RetentionDataCategory.RECORDINGS);
+
+            assertThat(result).isPresent();
+            assertThat(result.get().getDataCategory()).isEqualTo(RetentionDataCategory.RECORDINGS);
+            assertThat(result.get().getRetentionMonths()).isEqualTo(3);
+            assertThat(result.get().isAutoPurgeEnabled()).isTrue();
+            assertThat(result.get().getUpdatedBy()).isEqualTo(USER_ID);
         }
 
         @Test
@@ -372,8 +424,7 @@ class TenantRetentionPolicyRepositoryTest {
 
             Query findQuery = mock(Query.class);
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql != null && sql.contains("LIMIT 1")),
-                    org.mockito.ArgumentMatchers.eq(TenantRetentionPolicy.class)
+                    argThat(sql -> sql != null && sql.contains("LIMIT 1"))
             )).thenReturn(findQuery);
             when(findQuery.setParameter(anyString(), anyString())).thenReturn(findQuery);
             when(findQuery.getResultList()).thenReturn(List.of());

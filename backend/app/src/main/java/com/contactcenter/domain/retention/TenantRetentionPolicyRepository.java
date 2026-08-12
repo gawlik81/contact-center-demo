@@ -17,10 +17,18 @@ import java.util.UUID;
  * przez {@code setTenantContextInDb(tenantId)}, a każdy zapis poprzedzony jest
  * {@code assertSameTenant(tenantId)} zgodnie z regułą z CLAUDE.md.
  *
- * <p>Operacje odczytu (SELECT *) mapowane są bezpośrednio na encję przez
- * {@code resultClass} — wzorzec z {@code PhoneNumberRepository}. Operacje zapisu
- * wymagające {@code RETURNING} (upsert) mapowane są ręcznie ({@link #mapRow}) —
- * wzorzec z {@code AgentBreakRepository}.
+ * <p>Wszystkie operacje (odczyt i zapis) mapowane są ręcznie ({@link #mapRow}) z jawnej listy
+ * kolumn na {@code List<Object[]>} — wzorzec z {@code AgentBreakRepository}. CELOWO NIE używamy
+ * {@code em.createNativeQuery(sql, TenantRetentionPolicy.class)} (mapowanie przez
+ * {@code resultClass}): ta encja ma jednocześnie {@code @Enumerated(EnumType.STRING)} i Lombokowy
+ * {@code @AllArgsConstructor}, a Hibernate w tej wersji dla natywnych zapytań z {@code resultClass}
+ * na takiej encji wybiera ścieżkę {@code NativeQueryConstructorTransformer} — wywołuje konstruktor
+ * wszystkoargumentowy POZYCYJNIE z surową wartością JDBC ({@code String} dla kolumny VARCHAR) tam,
+ * gdzie oczekiwany jest typ enum, co rzuca {@code ClassCastException} przy NIEPUSTYM wyniku
+ * (błąd produkcyjny zaobserwowany na {@code GET /api/tenants/{id}/retention/policies} — patrz
+ * historia commitów). Testy jednostkowe z mockowanym {@code EntityManager} tego nie łapały, bo
+ * mock zwraca dokładnie ten obiekt, który mu każemy zwrócić — nigdy nie przechodzi przez
+ * rzeczywisty mechanizm hydratacji Hibernate.
  */
 @Slf4j
 @Repository
@@ -43,15 +51,18 @@ class TenantRetentionPolicyRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         @SuppressWarnings("unchecked")
-        List<TenantRetentionPolicy> results = em.createNativeQuery(
+        List<Object[]> rows = em.createNativeQuery(
                         """
-                        SELECT * FROM tenant_retention_policy
+                        SELECT policy_id, tenant_id, data_category, retention_months,
+                               auto_purge_enabled, updated_by, created_at, updated_at
+                        FROM tenant_retention_policy
                         WHERE tenant_id = CAST(:tenantId AS uuid)
                         ORDER BY data_category ASC
-                        """,
-                        TenantRetentionPolicy.class)
+                        """)
                 .setParameter("tenantId", tenantId.toString())
                 .getResultList();
+
+        List<TenantRetentionPolicy> results = rows.stream().map(this::mapRow).toList();
 
         log.debug("[RetentionPolicyRepo] Lista polityk: tenant={}, znaleziono={}", tenantId, results.size());
         return results;
@@ -70,19 +81,20 @@ class TenantRetentionPolicyRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         @SuppressWarnings("unchecked")
-        List<TenantRetentionPolicy> results = em.createNativeQuery(
+        List<Object[]> rows = em.createNativeQuery(
                         """
-                        SELECT * FROM tenant_retention_policy
+                        SELECT policy_id, tenant_id, data_category, retention_months,
+                               auto_purge_enabled, updated_by, created_at, updated_at
+                        FROM tenant_retention_policy
                         WHERE tenant_id     = CAST(:tenantId AS uuid)
                           AND data_category = :category
                         LIMIT 1
-                        """,
-                        TenantRetentionPolicy.class)
+                        """)
                 .setParameter("tenantId", tenantId.toString())
                 .setParameter("category", category.name())
                 .getResultList();
 
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(mapRow(rows.get(0)));
     }
 
     /**

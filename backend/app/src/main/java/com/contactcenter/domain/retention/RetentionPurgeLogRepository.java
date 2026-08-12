@@ -21,8 +21,14 @@ import java.util.UUID;
  * działa poza wątkiem HTTP, więc nie może polegać na {@code TenantContext} z ThreadLocal ustawionym
  * przez {@code TenantFilter}), a każdy zapis poprzedzony jest {@code assertSameTenant(tenantId)}.
  *
- * <p>Wzorzec identyczny do {@code TenantRetentionPolicyRepository}: odczyt przez {@code resultClass}
- * mapping, zapis przez natywny SQL z {@code EntityManager}.
+ * <p>Wzorzec identyczny do {@code TenantRetentionPolicyRepository}: odczyt jawną listą kolumn +
+ * ręczne mapowanie {@code List<Object[]>} → encja przez {@link #mapRow}, zapis przez natywny SQL
+ * z {@code EntityManager}. CELOWO NIE używamy {@code em.createNativeQuery(sql, RetentionPurgeLog.class)}
+ * (mapowanie przez {@code resultClass}) — ta encja ma {@code @Enumerated(EnumType.STRING)} na
+ * {@code dataCategory} i {@code triggerType} oraz Lombokowy {@code @AllArgsConstructor}; ta sama
+ * kombinacja spowodowała {@code ClassCastException} (Hibernate {@code NativeQueryConstructorTransformer}
+ * wywołujący konstruktor pozycyjnie z surową wartością JDBC) w {@code TenantRetentionPolicyRepository}
+ * — patrz jego javadoc.
  */
 @Slf4j
 @Repository
@@ -166,18 +172,19 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         @SuppressWarnings("unchecked")
-        List<RetentionPurgeLog> results = em.createNativeQuery(
+        List<Object[]> rows = em.createNativeQuery(
                         """
-                        SELECT * FROM retention_purge_log
+                        SELECT purge_id, tenant_id, data_category, triggered_by, trigger_type,
+                               cutoff_date, rows_deleted, status, started_at, completed_at, error_message
+                        FROM retention_purge_log
                         WHERE purge_id  = CAST(:purgeId AS uuid)
                           AND tenant_id = CAST(:tenantId AS uuid)
-                        """,
-                        RetentionPurgeLog.class)
+                        """)
                 .setParameter("purgeId", purgeId.toString())
                 .setParameter("tenantId", tenantId.toString())
                 .getResultList();
 
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(mapRow(rows.get(0)));
     }
 
     /**
@@ -185,8 +192,9 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
      * używane przez {@code RetentionPurgeServiceImpl#getPurgeHistory} (przyszły
      * {@code GET .../history}, BE-118).
      *
-     * <p>Natywny SQL + {@code resultClass} mapping (spójne z resztą tej klasy — zapis też
-     * przez natywny SQL, ta klasa celowo nie miesza JPQL i natywnego SQL). Sortowanie jest
+     * <p>Natywny SQL + ręczne mapowanie {@code Object[]} → encja przez {@link #mapRow} (spójne
+     * z resztą tej klasy — zapis też przez natywny SQL, ta klasa celowo nie miesza JPQL i
+     * natywnego SQL). Sortowanie jest
      * ZAWSZE {@code started_at DESC}, niezależnie od {@code pageable.getSort()} — analogicznie
      * do {@code PluginInvocationLogRepository.findByInstallation} (log chronologiczny operacji,
      * jeden sensowny porządek dla dashboardu admina).
@@ -203,17 +211,20 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         @SuppressWarnings("unchecked")
-        List<RetentionPurgeLog> content = em.createNativeQuery(
+        List<Object[]> rows = em.createNativeQuery(
                         """
-                        SELECT * FROM retention_purge_log
+                        SELECT purge_id, tenant_id, data_category, triggered_by, trigger_type,
+                               cutoff_date, rows_deleted, status, started_at, completed_at, error_message
+                        FROM retention_purge_log
                         WHERE tenant_id = CAST(:tenantId AS uuid)
                         ORDER BY started_at DESC
-                        """,
-                        RetentionPurgeLog.class)
+                        """)
                 .setParameter("tenantId", tenantId.toString())
                 .setFirstResult((int) pageable.getOffset())
                 .setMaxResults(pageable.getPageSize())
                 .getResultList();
+
+        List<RetentionPurgeLog> content = rows.stream().map(this::mapRow).toList();
 
         Number total = (Number) em.createNativeQuery("""
                         SELECT COUNT(*) FROM retention_purge_log
@@ -226,5 +237,46 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
                 tenantId, pageable.getPageNumber(), pageable.getPageSize(), total.longValue());
 
         return new PageImpl<>(content, pageable, total.longValue());
+    }
+
+    // =========================================================================
+    // Metody pomocnicze
+    // =========================================================================
+
+    /**
+     * Mapuje wiersz wynikowy natywnego SELECT na encję {@link RetentionPurgeLog}.
+     *
+     * <p>Kolejność kolumn musi być identyczna z jawną listą w {@code SELECT} w
+     * {@link #findById} i {@link #findAllByTenantId}: purge_id, tenant_id, data_category,
+     * triggered_by, trigger_type, cutoff_date, rows_deleted, status, started_at,
+     * completed_at, error_message.
+     */
+    private RetentionPurgeLog mapRow(Object[] row) {
+        return RetentionPurgeLog.builder()
+                .purgeId(UUID.fromString(row[0].toString()))
+                .tenantId(UUID.fromString(row[1].toString()))
+                .dataCategory(RetentionDataCategory.valueOf(row[2].toString()))
+                .triggeredBy(row[3] != null ? UUID.fromString(row[3].toString()) : null)
+                .triggerType(PurgeTriggerType.valueOf(row[4].toString()))
+                .cutoffDate(toLocalDate(row[5]))
+                .rowsDeleted(row[6] != null ? ((Number) row[6]).longValue() : null)
+                .status(row[7].toString())
+                .startedAt(toInstant(row[8]))
+                .completedAt(row[9] != null ? toInstant(row[9]) : null)
+                .errorMessage(row[10] != null ? row[10].toString() : null)
+                .build();
+    }
+
+    private static LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) return localDate;
+        if (value instanceof java.sql.Date date) return date.toLocalDate();
+        throw new IllegalArgumentException("Cannot convert to LocalDate: " + value.getClass());
+    }
+
+    private static java.time.Instant toInstant(Object value) {
+        if (value instanceof java.time.Instant instant) return instant;
+        if (value instanceof java.sql.Timestamp ts) return ts.toInstant();
+        if (value instanceof java.time.OffsetDateTime odt) return odt.toInstant();
+        throw new IllegalArgumentException("Cannot convert to Instant: " + value.getClass());
     }
 }

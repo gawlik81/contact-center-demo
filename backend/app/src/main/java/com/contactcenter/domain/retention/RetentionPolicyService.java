@@ -58,6 +58,27 @@ public interface RetentionPolicyService {
     int getRetentionMonths(UUID tenantId, RetentionDataCategory category);
 
     /**
+     * Zwraca MINIMALNĄ skonfigurowaną retencję (w miesiącach) dla kategorii danych PO
+     * WSZYSTKICH TENANTACH — zapytanie platformowe, celowo cross-tenant.
+     *
+     * <p>Używane przez {@code RetentionEvaluationJob} (BE-112) do wyznaczenia globalnego progu
+     * zatrzymania skanowania partycji: partycja młodsza niż {@code now - findMinRetentionMonths(category)}
+     * na pewno nie zawiera przeterminowanych danych dla ŻADNEGO tenanta (nawet tego z
+     * najkrótszą skonfigurowaną retencją), więc job może bezpiecznie przerwać skanowanie
+     * starszych partycji dla tej kategorii.
+     *
+     * @param category kategoria danych
+     * @return minimalna retencja w miesiącach spośród wszystkich tenantów mających
+     *         skonfigurowaną politykę dla tej kategorii
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy ŻADEN tenant nie
+     *         ma skonfigurowanej polityki dla tej kategorii (teoretyczne — {@link #seedDefaultPolicies}
+     *         gwarantuje wszystkie 4 kategorie dla każdego tenanta) — wywołujący powinien
+     *         przechwycić ten wyjątek i pominąć kategorię w danym przebiegu (log WARN) zamiast
+     *         przerywać cały job
+     */
+    int findMinRetentionMonths(RetentionDataCategory category);
+
+    /**
      * Zasiewa domyślne polityki retencji dla nowo utworzonego tenanta — dokładnie 4 wiersze,
      * jeden per {@link RetentionDataCategory}. Idempotentne (bezpieczne do wielokrotnego
      * wywołania — nie nadpisuje już istniejących wierszy).

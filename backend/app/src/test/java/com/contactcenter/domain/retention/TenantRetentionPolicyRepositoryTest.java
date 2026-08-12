@@ -281,6 +281,52 @@ class TenantRetentionPolicyRepositoryTest {
     }
 
     // =========================================================================
+    // findMinRetentionMonths
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findMinRetentionMonths()")
+    class FindMinRetentionMonths {
+
+        @Test
+        @DisplayName("wykonuje SELECT MIN(retention_months) filtrowany po kategorii, bez set_tenant_context (cross-tenant celowo)")
+        void queriesMinAcrossAllTenants_withoutTenantContext() {
+            Query minQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("SELECT MIN(retention_months)")
+                            && sql.contains("FROM tenant_retention_policy")
+                            && sql.contains("WHERE data_category = :category"))
+            )).thenReturn(minQuery);
+            when(minQuery.setParameter(anyString(), anyString())).thenReturn(minQuery);
+            when(minQuery.getResultList()).thenReturn(List.<Number>of(3));
+
+            Optional<Integer> result = repository.findMinRetentionMonths(RetentionDataCategory.TRANSCRIPTS);
+
+            assertThat(result).contains(3);
+            verify(minQuery).setParameter("category", "TRANSCRIPTS");
+            verify(entityManager, never()).createNativeQuery(contains("set_tenant_context"));
+        }
+
+        @Test
+        @DisplayName("MIN() nad pustym zbiorem zwraca jeden wiersz z NULL -> Optional.empty()")
+        void minOverEmptySet_returnsEmpty() {
+            Query minQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("SELECT MIN(retention_months)"))
+            )).thenReturn(minQuery);
+            when(minQuery.setParameter(anyString(), anyString())).thenReturn(minQuery);
+            // SELECT MIN(...) sans wiersza pasującego zwraca [null], NIE pustą listę.
+            List<Number> rowsWithNull = new java.util.ArrayList<>();
+            rowsWithNull.add(null);
+            when(minQuery.getResultList()).thenReturn(rowsWithNull);
+
+            Optional<Integer> result = repository.findMinRetentionMonths(RetentionDataCategory.CAMPAIGN_DATA);
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // =========================================================================
     // findAllByTenantId / findByTenantIdAndCategory
     // =========================================================================
 

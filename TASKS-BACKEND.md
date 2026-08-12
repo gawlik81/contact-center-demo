@@ -5937,7 +5937,7 @@ cykl `tenant`↔`retention`, którego spodziewał się ticket, w praktyce nie wy
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-111, DB-047, DB-052
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-118
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -5972,14 +5972,26 @@ backend/app/src/main/java/com/contactcenter/
    category, TriggerType.AUTO)` (BE-113) od razu po policzeniu
 
 **Kryteria akceptacji:**
-- [ ] Job partition-aware — zweryfikowane testem, że NIE wykonuje `SELECT COUNT(*) FROM contact` (całej tabeli), tylko iteruje partycje
-- [ ] **Test scenariusza granic miesięcy** (wymagany przez §11 pkt 5 dokumentu projektowego): partycja z danymi dokładnie na granicy cutoff (ostatni dzień miesiąca vs pierwszy dzień następnego) liczona poprawnie — brak off-by-one
-- [ ] Upsert do `tenant_retention_pending_summary` idempotentny (kolejne uruchomienia nadpisują, nie duplikują)
-- [ ] `auto_purge_enabled=TRUE` → `RetentionPurgeService` wywołane po policzeniu dla tej kategorii/tenanta; `auto_purge_enabled=FALSE` → tylko zapis do summary, bez purge
-- [ ] Job ustawia kontekst DB per tenant ręcznie w pętli (scheduler bez kontekstu HTTP, wzorzec `RecordingRetentionJob`/`SupervisorMetricsService`)
-- [ ] Błąd przy jednym tenancie/kategorii nie przerywa przetwarzania pozostałych (log ERROR + kontynuacja, wzorzec `RecordingRetentionJob`)
-- [ ] Testy jednostkowe ≥6 scenariuszy (partycja pusta, partycja z danymi wielu tenantów, granica miesiąca, auto-purge trigger, brak auto-purge, błąd pojedynczego tenanta nie przerywa reszty)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Job partition-aware — zweryfikowane testem, że NIE wykonuje `SELECT COUNT(*) FROM contact` (całej tabeli), tylko iteruje partycje
+- [x] **Test scenariusza granic miesięcy** (wymagany przez §11 pkt 5 dokumentu projektowego): partycja z danymi dokładnie na granicy cutoff (ostatni dzień miesiąca vs pierwszy dzień następnego) liczona poprawnie — brak off-by-one
+- [x] Upsert do `tenant_retention_pending_summary` idempotentny (kolejne uruchomienia nadpisują, nie duplikują)
+- [x] `auto_purge_enabled=TRUE` → `RetentionPurgeService` wywołane po policzeniu dla tej kategorii/tenanta; `auto_purge_enabled=FALSE` → tylko zapis do summary, bez purge
+- [x] Job ustawia kontekst DB per tenant ręcznie w pętli (scheduler bez kontekstu HTTP, wzorzec `RecordingRetentionJob`/`SupervisorMetricsService`)
+- [x] Błąd przy jednym tenancie/kategorii nie przerywa przetwarzania pozostałych (log ERROR + kontynuacja, wzorzec `RecordingRetentionJob`)
+- [x] Testy jednostkowe ≥6 scenariuszy (partycja pusta, partycja z danymi wielu tenantów, granica miesiąca, auto-purge trigger, brak auto-purge, błąd pojedynczego tenanta nie przerywa reszty) — dodatkowo: reset do zera, CAMPAIGN_DATA liczony ale purge NIE wywołany
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-12):**
+- **Rozbieżności odkryte względem opisu ticketu (rozstrzygnięte przed implementacją, kontekst zweryfikowany na żywej `cc-postgres`):**
+  - `CAMPAIGN_DATA` (`campaign_contact_archive`, V015) **NIE jest partycjonowana** — algorytm w opisie ticketu ("dla każdej kategorii × jej tabel ... pobierz listę partycji") się do niej nie stosuje. Policzona osobno, bezpośrednim zapytaniem `SELECT COUNT(*), MIN(archived_at), MAX(archived_at) FROM campaign_contact_archive WHERE tenant_id=:t AND archived_at < :cutoff` (per-tenant, wykorzystuje indeks `idx_cca_tenant_archived_at` z DB-053/V089) przez nowe `CampaignArchiveRetentionRepository`, NIE przez `PartitionScanner`. Wynik zapisywany do summary tak samo jak pozostałe kategorie (w tym `oldest`/`newest_eligible_period` z MIN/MAX), ale `RetentionPurgeService.purge()` **celowo nigdy nie wywoływane** dla tej kategorii — rzuciłoby `UnsupportedOperationException` (BE-113 obsługuje wyłącznie CONTACT_INTERACTIONS/TRANSCRIPTS, integracja z `purge_campaign_contact_archive` to zakres przyszłego BE-119). Zalogowane `log.info` gdy `auto_purge_enabled=true` i `eligibleRowCount>0` dla CAMPAIGN_DATA — jawna informacja, nie błąd.
+  - `RECORDINGS` jest **całkowicie poza zakresem** tego jobu (zero liczenia, zero wiersza w summary) — potwierdzone nagłówkiem modułu `domain.retention` już udokumentowanym w `RetentionPurgeService.java`, obsługiwana wyłącznie przez `RecordingRetentionJob` (BE-116, nieukończony).
+  - `RetentionPolicyService` nie miało metody do minimalnej retencji cross-tenant (potrzebnej do wyznaczenia globalnego progu skanowania) — dodano `findMinRetentionMonths(RetentionDataCategory)` do interfejsu (rzuca `ResourceNotFoundException` gdy żaden tenant nie ma polityki dla kategorii; `RetentionEvaluationJob` łapie ten wyjątek per kategoria i pomija ją w danym przebiegu z `log.warn`, zamiast przerywać cały job) oraz `TenantRetentionPolicyRepository.findMinRetentionMonths` (natywny `SELECT MIN(retention_months) ... WHERE data_category=:category`, celowo bez `set_tenant_context`/`assertSameTenant` — cross-tenant po zamierzeniu, ten sam precedens co `findConfiguredRecordingRetentionDays`; uwaga: `MIN()` nad pustym zbiorem zwraca jeden wiersz z `NULL`, nie pustą listę — repozytorium to jawnie rozróżnia).
+- **Rozszerzenie poza listę plików z ticketu** (konieczne, analogicznie do BE-113): `TenantRetentionPendingSummaryRepository` (upsert do cache `tenant_retention_pending_summary`, `extends TenantAwareRepository`, `ON CONFLICT (tenant_id, data_category) DO UPDATE`) oraz `CampaignArchiveRetentionRepository` (liczenie CAMPAIGN_DATA, patrz wyżej) — oba niewymienione wprost w ticketcie, ale niezbędne bo repozytoria w tym projekcie są `package-private`.
+- **`PartitionScannerImpl`:** parsowanie nazwy partycji → granica czasowa **w SQL** (`substring(tablename FROM 'tabela_([0-9]{4}_[0-9]{2})')` + `to_date(..., 'YYYY_MM')`), identyczny wzorzec do funkcji rotacji `drop_old_contact_event_partitions`/`drop_old_contact_transcription_partitions`/`drop_old_contact_ai_summary_partitions` (V088, DB-052) — celowo NIE `pg_get_expr(relpartbound, ...)` (niespójność formatu literału między wersjami). Zweryfikowano manualnie na żywej `cc-postgres` (bind-parametry przez `PREPARE`/`EXECUTE`, symulacja JDBC) przed napisaniem testów — zapytanie `listPartitions` i `countRowsByTenant` (`FROM ONLY <partycja> GROUP BY tenant_id`) działają poprawnie. Ustalono też empirycznie, że rola DB `ccapp` ma `BYPASSRLS` + superuser (stąd `PartitionScannerImpl` celowo NIE rozszerza `TenantAwareRepository` — zapytanie jest cross-tenant z założenia, potrzebuje widzieć wszystkich tenantów w partycji na raz).
+- **Test granicy miesiąca:** `PartitionScanner.PartitionInfo.rangeEnd()` porównywane przez `!isAfter(cutoffDate)` (czyli `<=`, nie `<`) — zarówno dla globalnego progu zatrzymania skanowania, jak i dla indywidualnego cutoffu tenanta — brak off-by-one potwierdzony dedykowanym testem (`MonthBoundary` w `RetentionEvaluationJobTest`).
+- **Testy:** `RetentionEvaluationJobTest` — 20 scenariuszy (≥6 wymaganych + reset do zera + CAMPAIGN_DATA bez purge), zorganizowane w `@Nested` klasy (partition-aware scanning, granica miesiąca, partycja pusta, wielu tenantów w jednej partycji, auto-purge trigger, brak auto-purge, izolacja błędów, reset do zera, idempotentność, CAMPAIGN_DATA, RECORDINGS poza zakresem). Dodatkowo testy repozytoriów: `PartitionScannerImplTest` (10), `TenantRetentionPendingSummaryRepositoryTest` (3), `CampaignArchiveRetentionRepositoryTest` (3), oraz rozszerzone `RetentionPolicyServiceImplTest`/`TenantRetentionPolicyRepositoryTest` o `findMinRetentionMonths` (2+2). Pułapka odkryta przy pisaniu testów: `ArgumentMatchers.any()` użyty na pozycji parametru **prymitywnego** `long eligibleRowCount` w `upsert(...)` rzuca `NullPointerException` przy odbindowywaniu (`any()` zwraca `null`) — poprawione na `anyLong()`, ten sam mechanizm co ostrzeżenie we własnej dokumentacji Mockito.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1662 testy, 0 failures, 0 errors (1622 przed BE-112 wg notatki BE-113 + 40 nowych).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, niezwiązane z tym ticketem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
 
 ---
 

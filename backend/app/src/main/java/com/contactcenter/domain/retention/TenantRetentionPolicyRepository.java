@@ -118,6 +118,42 @@ class TenantRetentionPolicyRepository extends TenantAwareRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0).intValue());
     }
 
+    /**
+     * Zwraca minimalną skonfigurowaną retencję (w miesiącach) dla kategorii danych PO
+     * WSZYSTKICH TENANTACH — używane przez {@link RetentionPolicyServiceImpl#findMinRetentionMonths}
+     * (BE-112, {@code RetentionEvaluationJob}) do wyznaczenia globalnego progu zatrzymania
+     * skanowania partycji.
+     *
+     * <p>ŚWIADOMIE bez {@code set_tenant_context}/{@code assertSameTenant} — to zapytanie
+     * platformowe, cross-tenant PO ZAMIERZENIU (ten sam precedens co
+     * {@link #findConfiguredRecordingRetentionDays}, patrz jego javadoc).
+     *
+     * <p>{@code MIN(retention_months)} nad pustym zbiorem zwraca pojedynczy wiersz z wartością
+     * {@code NULL} (nie pusty wynik) — stąd jawne sprawdzenie {@code rows.get(0) == null}
+     * poniżej, obok sprawdzenia {@code rows.isEmpty()}.
+     *
+     * @param category kategoria danych
+     * @return Optional z minimalną retencją w miesiącach, lub empty gdy żaden tenant nie ma
+     *         skonfigurowanej polityki dla tej kategorii (teoretycznie nieosiągalne po
+     *         {@code seedDefaultPolicies} — patrz jego javadoc)
+     */
+    @Transactional(readOnly = true)
+    public Optional<Integer> findMinRetentionMonths(RetentionDataCategory category) {
+        @SuppressWarnings("unchecked")
+        List<Number> rows = em.createNativeQuery(
+                        """
+                        SELECT MIN(retention_months) FROM tenant_retention_policy
+                        WHERE data_category = :category
+                        """)
+                .setParameter("category", category.name())
+                .getResultList();
+
+        if (rows.isEmpty() || rows.get(0) == null) {
+            return Optional.empty();
+        }
+        return Optional.of(rows.get(0).intValue());
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

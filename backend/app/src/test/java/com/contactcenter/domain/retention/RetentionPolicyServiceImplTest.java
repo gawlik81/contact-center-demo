@@ -183,6 +183,37 @@ class RetentionPolicyServiceImplTest {
     }
 
     // =========================================================================
+    // findMinRetentionMonths
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findMinRetentionMonths()")
+    class FindMinRetentionMonths {
+
+        @Test
+        @DisplayName("zwraca minimalną retencję po wszystkich tenantach dla kategorii")
+        void shouldReturnMinRetentionMonthsAcrossAllTenants() {
+            when(repository.findMinRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS))
+                    .thenReturn(Optional.of(3));
+
+            int result = service.findMinRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS);
+
+            assertThat(result).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("rzuca ResourceNotFoundException gdy żaden tenant nie ma polityki dla kategorii")
+        void shouldThrowWhenNoTenantHasPolicyForCategory() {
+            when(repository.findMinRetentionMonths(RetentionDataCategory.TRANSCRIPTS))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.findMinRetentionMonths(RetentionDataCategory.TRANSCRIPTS))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("TRANSCRIPTS");
+        }
+    }
+
+    // =========================================================================
     // seedDefaultPolicies
     // =========================================================================
 

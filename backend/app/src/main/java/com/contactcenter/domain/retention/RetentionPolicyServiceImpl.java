@@ -62,6 +62,15 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
                         "Brak polityki retencji: tenant=" + tenantId + ", kategoria=" + category));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public int findMinRetentionMonths(RetentionDataCategory category) {
+        return repository.findMinRetentionMonths(category)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Brak jakiejkolwiek polityki retencji dla kategorii: " + category
+                                + " (żaden tenant nie ma skonfigurowanej polityki)"));
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

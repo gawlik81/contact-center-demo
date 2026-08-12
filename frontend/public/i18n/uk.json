@@ -182,6 +182,7 @@
     "settingsAiConfig": "Налаштування ШІ",
     "settingsDispositionSets": "Набори диспозицій",
     "settingsPlugins": "Плагіни",
+    "settingsDataRetention": "Зберігання даних",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт клієнтів",
@@ -2313,6 +2314,31 @@
           "HEALTHY": "Працює нормально",
           "DEGRADED": "Деградований",
           "DISABLED_BY_ADMIN": "Вимкнено адміністратором"
+        }
+      },
+      "dataRetention": {
+        "pageTitle": "Зберігання даних",
+        "pageSubtitle": "Налаштуйте, як довго зберігається кожна категорія даних про контакти та чи слід видаляти їх автоматично після завершення терміну зберігання.",
+        "policiesTitle": "Політики зберігання",
+        "categoryLabel": "Категорія даних",
+        "retentionMonthsLabel": "Термін зберігання (місяців)",
+        "retentionMonthsAria": "Термін зберігання в місяцях для категорії {{ category }}",
+        "autoPurgeLabel": "Автоматичне видалення",
+        "autoPurgeAria": "Перемкнути автоматичне видалення для категорії {{ category }}",
+        "autoPurgeOn": "Увімкнено",
+        "autoPurgeOff": "Вимкнено",
+        "saveButton": "Зберегти",
+        "saveButtonAria": "Зберегти політику зберігання для категорії {{ category }}",
+        "validationRangeError": "Введіть ціле число від 1 до 120.",
+        "successSave": "Політику зберігання збережено.",
+        "errorSave": "Не вдалося зберегти політику зберігання.",
+        "errorLoad": "Не вдалося завантажити політики зберігання.",
+        "retry": "Спробувати ще раз",
+        "category": {
+          "CONTACT_INTERACTIONS": "Взаємодії з контактами",
+          "RECORDINGS": "Записи розмов",
+          "TRANSCRIPTS": "Транскрипти розмов",
+          "CAMPAIGN_DATA": "Дані кампаній"
         }
       }
     },

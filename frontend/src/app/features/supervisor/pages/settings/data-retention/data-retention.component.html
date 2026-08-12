@@ -1,0 +1,115 @@
+<div class="dr-page">
+  <header class="dr-header">
+    <div class="dr-header__title">
+      <h1>{{ 'supervisor.settings.dataRetention.pageTitle' | transloco }}</h1>
+    </div>
+    <p class="dr-header__subtitle">{{ 'supervisor.settings.dataRetention.pageSubtitle' | transloco }}</p>
+  </header>
+
+  <!-- ============ Sekcja 1: tabela konfiguracji polityk ============ -->
+  <section class="dr-section">
+    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.policiesTitle' | transloco }}</h2>
+
+    @if (loading()) {
+      <div class="dr-skeleton-wrapper">
+        @for (item of [1, 2, 3, 4]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (loadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.errorLoad' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadPolicies()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else {
+      <div class="dr-table-wrap">
+        <table class="dr-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.categoryLabel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.retentionMonthsLabel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.autoPurgeLabel' | transloco }}</th>
+              <th scope="col">
+                <span class="dr-sr-only">{{ 'supervisor.settings.dataRetention.saveButton' | transloco }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.category) {
+              <tr>
+                <td class="dr-table__category">{{ categoryLabel(row.category) }}</td>
+                <td>
+                  <div class="dr-field">
+                    <input
+                      type="number"
+                      class="dr-input"
+                      [class.dr-input--invalid]="!isRowValid(row)"
+                      min="1"
+                      max="120"
+                      step="1"
+                      [value]="row.retentionMonthsInput"
+                      [disabled]="isPending(row.category)"
+                      [attr.aria-invalid]="!isRowValid(row)"
+                      [attr.aria-label]="
+                        'supervisor.settings.dataRetention.retentionMonthsAria'
+                          | transloco: { category: categoryLabel(row.category) }
+                      "
+                      (input)="updateRetentionMonthsInput(row.category, $any($event.target).value)"
+                    />
+                    @if (!isRowValid(row)) {
+                      <p class="dr-field__error">
+                        {{ 'supervisor.settings.dataRetention.validationRangeError' | transloco }}
+                      </p>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <label class="dr-toggle">
+                    <input
+                      type="checkbox"
+                      [checked]="row.autoPurgeEnabled"
+                      [disabled]="isPending(row.category)"
+                      (change)="toggleAutoPurge(row.category)"
+                      [attr.aria-label]="
+                        'supervisor.settings.dataRetention.autoPurgeAria'
+                          | transloco: { category: categoryLabel(row.category) }
+                      "
+                    />
+                    <span class="dr-toggle__track" aria-hidden="true"></span>
+                    <span class="dr-toggle__label">
+                      {{
+                        (row.autoPurgeEnabled
+                          ? 'supervisor.settings.dataRetention.autoPurgeOn'
+                          : 'supervisor.settings.dataRetention.autoPurgeOff'
+                        ) | transloco
+                      }}
+                    </span>
+                  </label>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="dr-btn dr-btn--primary dr-btn--sm"
+                    [disabled]="!isRowValid(row) || isPending(row.category)"
+                    (click)="savePolicy(row)"
+                    [attr.aria-label]="
+                      'supervisor.settings.dataRetention.saveButtonAria'
+                        | transloco: { category: categoryLabel(row.category) }
+                    "
+                  >
+                    @if (isPending(row.category)) {
+                      <span class="dr-spinner" aria-hidden="true"></span>
+                    }
+                    {{ 'supervisor.settings.dataRetention.saveButton' | transloco }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

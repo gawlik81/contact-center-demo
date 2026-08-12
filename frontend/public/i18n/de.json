@@ -188,7 +188,8 @@
     "settingsTwilioConfig": "Twilio-Integration",
     "settingsAiConfig": "KI-Konfiguration",
     "settingsDispositionSets": "Dispositions-Sets",
-    "settingsPlugins": "Plugins"
+    "settingsPlugins": "Plugins",
+    "settingsDataRetention": "Datenaufbewahrung"
   },
   "role": {
     "superAdmin": "Hauptadministrator",
@@ -2313,6 +2314,31 @@
           "HEALTHY": "Gesund",
           "DEGRADED": "Beeinträchtigt",
           "DISABLED_BY_ADMIN": "Vom Administrator deaktiviert"
+        }
+      },
+      "dataRetention": {
+        "pageTitle": "Datenaufbewahrung",
+        "pageSubtitle": "Legen Sie fest, wie lange die einzelnen Kategorien von Kontaktdaten aufbewahrt werden und ob sie nach Ablauf der Aufbewahrungsfrist automatisch gelöscht werden sollen.",
+        "policiesTitle": "Aufbewahrungsrichtlinien",
+        "categoryLabel": "Datenkategorie",
+        "retentionMonthsLabel": "Aufbewahrungsdauer (Monate)",
+        "retentionMonthsAria": "Aufbewahrungsdauer in Monaten für Kategorie {{ category }}",
+        "autoPurgeLabel": "Automatisch löschen",
+        "autoPurgeAria": "Automatisches Löschen für Kategorie {{ category }} umschalten",
+        "autoPurgeOn": "Aktiviert",
+        "autoPurgeOff": "Deaktiviert",
+        "saveButton": "Speichern",
+        "saveButtonAria": "Aufbewahrungsrichtlinie für Kategorie {{ category }} speichern",
+        "validationRangeError": "Geben Sie eine ganze Zahl zwischen 1 und 120 ein.",
+        "successSave": "Aufbewahrungsrichtlinie gespeichert.",
+        "errorSave": "Die Aufbewahrungsrichtlinie konnte nicht gespeichert werden.",
+        "errorLoad": "Aufbewahrungsrichtlinien konnten nicht geladen werden.",
+        "retry": "Erneut versuchen",
+        "category": {
+          "CONTACT_INTERACTIONS": "Kontaktinteraktionen",
+          "RECORDINGS": "Gesprächsaufzeichnungen",
+          "TRANSCRIPTS": "Gesprächstranskripte",
+          "CAMPAIGN_DATA": "Kampagnendaten"
         }
       }
     },

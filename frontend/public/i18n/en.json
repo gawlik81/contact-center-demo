@@ -188,7 +188,8 @@
     "settingsTwilioConfig": "Twilio Integration",
     "settingsAiConfig": "AI Configuration",
     "settingsDispositionSets": "Disposition Sets",
-    "settingsPlugins": "Plugins"
+    "settingsPlugins": "Plugins",
+    "settingsDataRetention": "Data Retention"
   },
   "role": {
     "superAdmin": "Super Admin",
@@ -2317,6 +2318,31 @@
           "HEALTHY": "Healthy",
           "DEGRADED": "Degraded",
           "DISABLED_BY_ADMIN": "Disabled by admin"
+        }
+      },
+      "dataRetention": {
+        "pageTitle": "Data retention",
+        "pageSubtitle": "Configure how long each category of contact data is kept and whether it should be purged automatically once the retention period elapses.",
+        "policiesTitle": "Retention policies",
+        "categoryLabel": "Data category",
+        "retentionMonthsLabel": "Retention period (months)",
+        "retentionMonthsAria": "Retention period in months for category {{ category }}",
+        "autoPurgeLabel": "Auto-purge",
+        "autoPurgeAria": "Toggle auto-purge for category {{ category }}",
+        "autoPurgeOn": "Enabled",
+        "autoPurgeOff": "Disabled",
+        "saveButton": "Save",
+        "saveButtonAria": "Save retention policy for category {{ category }}",
+        "validationRangeError": "Enter a whole number between 1 and 120.",
+        "successSave": "Retention policy saved.",
+        "errorSave": "Failed to save the retention policy.",
+        "errorLoad": "Failed to load retention policies.",
+        "retry": "Retry",
+        "category": {
+          "CONTACT_INTERACTIONS": "Contact interactions",
+          "RECORDINGS": "Call recordings",
+          "TRANSCRIPTS": "Call transcripts",
+          "CAMPAIGN_DATA": "Campaign data"
         }
       }
     },

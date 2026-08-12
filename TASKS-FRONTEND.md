@@ -5407,7 +5407,7 @@ frontend/src/app/features/supervisor/services/retention.service.ts
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-103
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** FE-105, FE-106, FE-107
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5433,12 +5433,73 @@ frontend/src/app/shared/components/sidenav/sidenav.component.ts
 ```
 
 **Kryteria akceptacji:**
-- [ ] Strona dostępna pod `/supervisor/settings/data-retention`, tylko rola `ADMIN` (roleGuard)
-- [ ] Tabela ładuje 4 polityki przy `ngOnInit` (`RetentionService.listPolicies`), skeleton loading podczas ładowania (wzorzec projektu)
-- [ ] Walidacja pola „miesiące retencji” — zakres `[1,120]` po stronie klienta, spójny z backendowym CHECK
-- [ ] Zapis → `updatePolicy`, toast sukcesu/błędu (wzorzec globalny `NotificationService`)
-- [ ] Wpis w `sidenav.component.ts` i routing w `supervisor.routes.ts`, tłumaczenia klucza `nav.settingsDataRetention` w pl/en/de/uk
-- [ ] `npm run lint` i `npm run build` przechodzą
+- [x] Strona dostępna pod `/supervisor/settings/data-retention`, tylko rola `ADMIN` (roleGuard)
+- [x] Tabela ładuje 4 polityki przy `ngOnInit` (`RetentionService.listPolicies`), skeleton loading podczas ładowania (wzorzec projektu)
+- [x] Walidacja pola „miesiące retencji” — zakres `[1,120]` po stronie klienta, spójny z backendowym CHECK
+- [x] Zapis → `updatePolicy`, toast sukcesu/błędu (wzorzec globalny `NotificationService`)
+- [x] Wpis w `sidenav.component.ts` i routing w `supervisor.routes.ts`, tłumaczenia klucza `nav.settingsDataRetention` w pl/en/de/uk
+- [x] `npm run lint` i `npm run build` przechodzą
+
+**Notatki z implementacji:**
+- **Lokalizacja odbiegająca od treści ticketu** — ticket proponował
+  `features/supervisor/settings/pages/data-retention/data-retention.component.ts`. Ta struktura
+  nie istniała w kodzie (FE-103 już umieściła `models/`/`services/` bezpośrednio pod
+  `features/supervisor/`, nie pod `settings/`). Użyto rzeczywistej konwencji zweryfikowanej w
+  kodzie: `features/supervisor/pages/settings/data-retention/` (kolejność „pages/settings”), płasko
+  `.ts`/`.html`/`.scss` bez podfolderów — analogicznie do `pages/settings/plugins/`.
+- **Wzorzec stylu** — 1:1 z `PluginsPageComponent` (`pages/settings/plugins/`): `OnPush`,
+  `signal()`/`computed()` bez `ReactiveFormsModule`, `NotificationService` + `TranslocoService`,
+  `takeUntilDestroyed(this.destroyRef)`, skeleton loading (`dr-skeleton-*`, przeniesiony wzorzec
+  `pp-skeleton-*`), toggle (`dr-toggle`, przeniesiony wzorzec `pp-toggle`) i per-wiersz stan
+  zapisu przez `Set<RetentionDataCategory>` (analogicznie do `pendingActionIds`/`isPending`/
+  `setPending` z plugins).
+- **Model stanu wiersza tabeli** — `PolicyRowState.retentionMonthsInput` trzymane jako `string`
+  (nie `number`), żeby dało się reprezentować stan „puste pole”/„wpisano nieprawidłową wartość”
+  bez sztucznego `NaN` w bindingu `[value]` inputa. Walidacja (`isRowValid`) sprawdza
+  `Number.isInteger` + zakres `[1,120]` po `trim()`; przycisk zapisu i sam input są `disabled`
+  odpowiednio przy nieprawidłowej wartości / trwającym zapisie.
+- **Defensywny fallback brakującej kategorii** — `RetentionService.listPolicies()` może w teorii
+  (dokumentacja FE-103: „maks. 4”) zwrócić mniej niż 4 polityki, mimo że w praktyce backend
+  seeduje wszystkie 4 per tenant. Komponent zawsze renderuje dokładnie 4 wiersze w stałej
+  kolejności (`CONTACT_INTERACTIONS`, `RECORDINGS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`), a dla
+  brakującej kategorii używa domyślnych wartości (`retentionMonths: 12`, `autoPurgeEnabled: false`)
+  — bezpieczne, bo `updatePolicy` to upsert po stronie backendu (nie wymaga istniejącego
+  `policyId`).
+- **Ikona sidenav** — brak gotowej ikony „retencja/usuwanie” w istniejącym zestawie SVG, dodano
+  nową ścieżkę w stylu Material (kosz na śmieci) spójną wizualnie z resztą tablicy.
+- Wynik (`/verify`, pełny zestaw FE+BE): `npm run lint` — 0 błędów (10 pre-istniejących
+  warningów `no-console` w niepowiązanych plikach, identycznie jak w FE-103). `npm run
+  format:check` — pierwszy przebieg wykrył niesformatowany `data-retention.component.ts`
+  (wieloliniowy import), naprawione przez `prettier --write`, drugi przebieg czysty. `npm test`
+  — 205/205 testów przechodzi (bez nowych testów jednostkowych dla tego komponentu — ticket ich
+  nie wymagał, logika komponentu jest cienką warstwą nad już przetestowanym `RetentionService`
+  z FE-103). `npm run build` — sukces, te same pre-istniejące warningi bundle-budget co w
+  poprzednich tickietach EPIC-28/29, niezwiązane z nowymi plikami (potwierdzone: nowy chunk
+  `data-retention.component` obecny w wyjściu builda). Backend: `mvn verify -pl app` — BUILD
+  SUCCESS, 1700/1700 testów (dotyczy niezmienionego backendu, uruchomione zgodnie z wymogiem
+  skilla `/verify`).
+- **Smoke-test w przeglądarce — NIE wykonany interaktywnie.** Uruchomiono `ng serve` lokalnie
+  (proxy do działającego stosu docker-compose przez nginx na porcie 80) i zweryfikowano, że dev
+  server buduje się bez błędów i serwuje bundle zawierający nowy komponent. Nie udało się jednak
+  dokończyć faktycznego testu w przeglądarce (nawigacja/wypełnienie/zapis) — narzędzie
+  `claude-in-chrome` zgłosiło, że do konta podłączonych jest kilka przeglądarek Chrome i wymaga
+  interaktywnego wyboru użytkownika (`AskUserQuestion`), które to narzędzie nie jest dostępne w
+  tym kontekście wykonania. Rekomendacja: przed merge wykonać ręczny smoke-test (login jako
+  ADMIN → `/supervisor/settings/data-retention` → edycja + zapis jednej polityki) albo ponowić
+  automatyczny test w sesji z dostępem do wyboru przeglądarki.
+
+**Utworzone/zmienione pliki:**
+```
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.ts     (nowy)
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.html   (nowy)
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.scss   (nowy)
+frontend/src/app/features/supervisor/supervisor.routes.ts                                          (zmieniony — nowy wpis routingu)
+frontend/src/app/shared/components/sidenav/sidenav.component.ts                                    (zmieniony — nowy wpis nawigacji)
+frontend/public/i18n/pl.json                                                                        (zmieniony — nav.settingsDataRetention + supervisor.settings.dataRetention)
+frontend/public/i18n/en.json                                                                        (zmieniony — jw.)
+frontend/public/i18n/de.json                                                                        (zmieniony — jw.)
+frontend/public/i18n/uk.json                                                                        (zmieniony — jw.)
+```
 
 ---
 

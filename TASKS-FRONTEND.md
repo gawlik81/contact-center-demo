@@ -5295,7 +5295,7 @@ produkcyjnego flow.
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-118
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** FE-104, FE-105, FE-106, FE-107, FE-108
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5356,10 +5356,48 @@ getHistory(page: number, size: number): Observable<PagedResponse<PurgeHistoryEnt
 ```
 
 **Kryteria akceptacji:**
-- [ ] Modele zgodne z kontraktem BE-118 — **uwaga:** BE-118 może zmienić kształt dokładnych pól przy implementacji (analogicznie do FE-097/BE-099 w EPIC-28) — weryfikuj przeciw rzeczywistemu Swagger/DTO backendu, nie tylko przeciw treści tego ticketu
-- [ ] Serwis `providedIn: 'root'`
-- [ ] `getHistory` używa istniejącego `PagedResponse<T>` (wzorzec standardowy projektu, nie nowy typ paginacji)
-- [ ] `npm run lint` przechodzi
+- [x] Modele zgodne z kontraktem BE-118 — **uwaga:** BE-118 może zmienić kształt dokładnych pól przy implementacji (analogicznie do FE-097/BE-099 w EPIC-28) — weryfikuj przeciw rzeczywistemu Swagger/DTO backendu, nie tylko przeciw treści tego ticketu
+- [x] Serwis `providedIn: 'root'`
+- [x] `getHistory` używa istniejącego `PagedResponse<T>` (wzorzec standardowy projektu, nie nowy typ paginacji)
+- [x] `npm run lint` przechodzi
+- [x] `npm run build` przechodzi (nie wymagane formalnie przez ticket, ale standardowa praktyka projektu przy każdym FE tickecie EPIC-29)
+
+**Notatka z implementacji (2026-08-12):** Treść ticketu miała nieaktualny/przybliżony szkic —
+zweryfikowano bezpośrednio w kodzie backendu (`RetentionController.java` + `domain/retention/dto/`,
+BE-111/112/113/118 już scommitowane) i odstąpiono od kilku punktów ticketu:
+- **Lokalizacja plików** — ticket proponował
+  `features/supervisor/settings/pages/data-retention/{models,services}/...`, ale ta struktura nie
+  istnieje nigdzie indziej w projekcie. Użyto rzeczywistej, konsekwentnie stosowanej konwencji:
+  modele/serwisy współdzielone modułu `supervisor` centralnie w `features/supervisor/models/` i
+  `features/supervisor/services/` (obok już istniejących `campaign.model.ts`,
+  `twilio-config.service.ts` itd.) — komponent strony (płasko w `pages/settings/data-retention/`)
+  dochodzi w FE-104.
+- **Kształt DTO** — `RetentionPolicyDto` ma dodatkowo `tenantId`, `updatedBy`, `createdAt` (ticket
+  ich nie przewidywał). `RetentionSummaryDto` ma jawne pole `computed: boolean` zamiast
+  domniemywania stanu z `computedAt === null` — backend jest tu jawniejszy, żeby odróżnić
+  „jeszcze nie policzone przez `RetentionEvaluationJob`” od „policzono, zero do usunięcia”.
+  Backend NIE ma osobnych `PurgeStatusDto`/`PurgeHistoryEntryDto` — jeden `PurgeResultDto` służy
+  zarówno `GET .../purge/{purgeId}`, jak i każdemu elementowi `GET .../history` (w TS: jeden
+  interfejs `PurgeResultDto` + alias `PurgeHistoryEntryDto` dla czytelności w miejscach
+  wołających `getHistory`). `triggerPurge` zwraca `PurgeAcceptedResponse` (`{ purgeId: string }`,
+  202 Accepted).
+- **`updatePolicy` wysyła `dataCategory` w body** — backend waliduje zgodność z `{category}` ze
+  ścieżki i zwraca 422 przy niezgodności; pominięcie pola w request body byłoby błędem.
+- **Sygnatura tenantId (decyzja A):** `RetentionService` czyta `tenantId` wewnętrznie z
+  `AuthService.currentTenantId()` w każdej metodzie (zero-arg sygnatury zgodne z treścią
+  ticketu), zamiast przyjmować go jako parametr wołającego (wzorzec `TwilioConfigService`, tam
+  jawnie oznaczony jako „legacy”). Każda metoda broni się przed `tenantId === null` (rzuca
+  czytelny błąd) — panel jest ADMIN-only w kontekście tenanta (`roleGuard`), więc to ścieżka
+  defensywna, nie oczekiwana w praktyce.
+- Wynik: `npm run lint` — 0 błędów (10 pre-istniejących warningów `no-console` w niepowiązanych
+  plikach). `npm run build` — sukces, warningi bundle-budget identyczne z poprzednimi tickietami
+  EPIC-28, niezwiązane z tymi plikami.
+
+**Utworzone pliki:**
+```
+frontend/src/app/features/supervisor/models/retention.model.ts
+frontend/src/app/features/supervisor/services/retention.service.ts
+```
 
 ---
 

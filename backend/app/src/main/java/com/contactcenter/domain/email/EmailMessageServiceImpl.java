@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,5 +45,11 @@ class EmailMessageServiceImpl implements EmailMessageService {
     @Transactional(readOnly = true)
     public Page<EmailMessage> findAll(Pageable pageable) {
         return emailMessageRepository.findAll(pageable);
+    }
+
+    @Override
+    @Transactional
+    public int detachContactReferences(UUID tenantId, List<UUID> contactIds) {
+        return emailMessageRepository.detachContactReferences(tenantId, contactIds);
     }
 }

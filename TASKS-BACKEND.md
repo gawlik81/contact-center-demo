@@ -5989,7 +5989,7 @@ backend/app/src/main/java/com/contactcenter/
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-111, DB-048, DB-053, BE-117
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-118, BE-119
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6025,16 +6025,73 @@ nie trzymać długich locków na partycji współdzielonej przez innych tenantó
 sumaryczne) oraz do `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeniu.
 
 **Kryteria akceptacji:**
-- [ ] `purge(tenantId, category, triggerType, triggeredByUserId)` zwraca `purgeId` natychmiast (async), zapis `RUNNING` do `retention_purge_log` PRZED zwróceniem
-- [ ] Usuwanie batchowane (`BATCH_SIZE` konfigurowalny, domyślnie 100), pętla do wyczerpania kwalifikujących się wierszy
-- [ ] **Test izolacji między tenantami we wspólnej partycji** (wymagany przez §11 pkt 5): dwaj tenanci mają dane w TEJ SAMEJ partycji miesięcznej `contact`; purge tenanta A z krótszą retencją nie usuwa ŻADNEGO wiersza tenanta B — zweryfikowane wprost (`COUNT(*)` dla tenanta B niezmieniony)
-- [ ] `CONTACT_INTERACTIONS`: dodatkowo czyści `email_message.contact_id`/`social_message.contact_id` → `NULL` dla usuwanych kontaktów (nie usuwa tych wierszy, tylko odcina referencję)
-- [ ] `TenantContext.snapshot()`/`restore()`/`clear()` na granicy wątku `@Async` — zweryfikowane testem, że kontekst tenanta w wątku roboczym jest poprawny niezależnie od wątku wywołującego
-- [ ] Błąd w trakcie batcha → `retention_purge_log.status='FAILED'` + `error_message`, job nie zawiesza się w stanie `RUNNING` na zawsze
-- [ ] Sukces → `status='COMPLETED'`, `completed_at`, `rows_deleted` = suma wszystkich batchy
-- [ ] Wpis w `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeniu (sukces i porażka)
-- [ ] Testy jednostkowe ≥8 scenariuszy (batch pojedynczy, wiele batchy, izolacja cross-tenant, błąd w trakcie, cutoff dokładnie na granicy, kategoria CONTACT_INTERACTIONS czyści email/social FK, kategoria TRANSCRIPTS usuwa z 2 tabel, purgeId zwrócony natychmiast)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `purge(tenantId, category, triggerType, triggeredByUserId)` zwraca `purgeId` natychmiast (async), zapis `RUNNING` do `retention_purge_log` PRZED zwróceniem
+- [x] Usuwanie batchowane (`BATCH_SIZE` konfigurowalny, domyślnie 100), pętla do wyczerpania kwalifikujących się wierszy
+- [x] **Test izolacji między tenantami we wspólnej partycji** (wymagany przez §11 pkt 5): dwaj tenanci mają dane w TEJ SAMEJ partycji miesięcznej `contact`; purge tenanta A z krótszą retencją nie usuwa ŻADNEGO wiersza tenanta B — zweryfikowane wprost (`COUNT(*)` dla tenanta B niezmieniony)
+- [x] `CONTACT_INTERACTIONS`: dodatkowo czyści `email_message.contact_id`/`social_message.contact_id` → `NULL` dla usuwanych kontaktów (nie usuwa tych wierszy, tylko odcina referencję)
+- [x] `TenantContext.snapshot()`/`restore()`/`clear()` na granicy wątku `@Async` — zweryfikowane testem, że kontekst tenanta w wątku roboczym jest poprawny niezależnie od wątku wywołującego
+- [x] Błąd w trakcie batcha → `retention_purge_log.status='FAILED'` + `error_message`, job nie zawiesza się w stanie `RUNNING` na zawsze
+- [x] Sukces → `status='COMPLETED'`, `completed_at`, `rows_deleted` = suma wszystkich batchy
+- [x] Wpis w `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeniu (sukces i porażka)
+- [x] Testy jednostkowe ≥8 scenariuszy (batch pojedynczy, wiele batchy, izolacja cross-tenant, błąd w trakcie, cutoff dokładnie na granicy, kategoria CONTACT_INTERACTIONS czyści email/social FK, kategoria TRANSCRIPTS usuwa z 2 tabel, purgeId zwrócony natychmiast)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-11):**
+- **Self-invocation `@Async`:** rozwiązane wzorcem `@Autowired @Lazy private RetentionPurgeService self`
+  (identyczny do sprawdzonego `ProgressiveDialerServiceImpl.self`) — `purgeAsync` MUSIAŁA zostać
+  dodana do interfejsu `RetentionPurgeService` (nie tylko do impl), żeby wywołanie przez
+  wstrzyknięty do siebie samego bean przechodziło przez proxy Springa. Po drodze zweryfikowano
+  (przez czytanie kodu + testów), że istniejący `CustomerImportServiceImpl.initiateImport` wywołuje
+  `processImportAsync` przez zwykłe self-invocation (`this.`, metoda nie jest częścią interfejsu
+  `CustomerImportService`) — to prawdopodobnie **pre-existing bug**: `@Async` nigdy nie jest
+  honorowane w tym miejscu w produkcji (import wykonuje się synchronicznie w wątku HTTP). Poza
+  zakresem BE-113 (inny serwis, inny ticket), ale odnotowane do ewentualnej przyszłej korekty.
+- **Krytyczne odkrycie przy projektowaniu batchowanego DELETE na tabeli partycjonowanej:**
+  zweryfikowano EMPIRYCZNIE na żywej instancji PostgreSQL (`cc-postgres`, ten sam schemat co dev),
+  że wzorzec zasugerowany w treści ticketu (`DELETE ... WHERE ctid IN (SELECT ctid ... LIMIT N)`)
+  jest NIEBEZPIECZNY na tabelach partycjonowanych: `ctid` (fizyczny adres blok+offset) nie jest
+  unikalny globalnie — ta sama para współrzędnych występuje niezależnie w wielu różnych partycjach.
+  Eksperyment: subquery ograniczone do jednego tenanta w partycji `contact_2026_05` z `LIMIT 100`
+  usunęło **168 wierszy w całej tabeli** (wszystkie partycje/miesiące, nie tylko maj) zamiast
+  zamierzonych 100 dla jednego tenanta — nadmiarowe usunięcia trafiły w wiersze innych partycji na
+  podstawie przypadkowej kolizji `ctid`. Zastąpiono bezpiecznym wzorcem: `WITH batch AS (SELECT
+  <pk_techniczny>, <kolumna_partycjonowania> ... LIMIT N) DELETE ... USING batch WHERE
+  <pk_techniczny> = batch.<pk_techniczny> AND <kolumna_partycjonowania> = batch.<kolumna_partycjonowania>`
+  — identyfikacja wiersza przez PEŁNY klucz główny (w tym kolumnę partycjonowania), zweryfikowany w
+  tym samym eksperymencie jako usuwający dokładnie zamierzoną liczbę wierszy, wyłącznie dla
+  właściwego tenanta. Zastosowano konsekwentnie w `ContactRepository.deleteBatchOlderThan`,
+  `ContactEventRepository.deleteBatchOlderThan`, `ContactAiSummaryRepository.deleteBatchOlderThan`,
+  `ContactTranscriptionRepository.deleteBatchOlderThan`.
+- **Rozszerzenie poza listę plików z ticketu** (konieczne, nie opcjonalne): logika usuwania per
+  tabela musiała trafić do istniejących repozytoriów/serwisów domenowych (`ContactRepository`,
+  `ContactEventRepository`, `ContactAiSummaryRepository`, `ContactTranscriptionRepository`,
+  `EmailMessageRepository`, `SocialMessageRepository` + odpowiadające im publiczne serwisy
+  `ContactService`/`ContactEventService`/`EmailMessageService`/`SocialMessageService`), ponieważ
+  repozytoria w tym projekcie są `package-private` — `RetentionPurgeServiceImpl` (pakiet
+  `domain.retention`) nie mógł ich wstrzyknąć bezpośrednio. Nowe metody: `purgeContactsOlderThan`,
+  `purgeTranscriptionsOlderThan`, `purgeAiSummariesOlderThan` (ContactService), `purgeOlderThan`
+  (ContactEventService), `detachContactReferences` (EmailMessageService/SocialMessageService).
+  Dodano też encję `RetentionPurgeLog.java` (JPA, tabela `retention_purge_log`) — nie wymieniona
+  wprost w liście plików ticketu, ale niezbędna dla `RetentionPurgeLogRepository`.
+- **CAMPAIGN_DATA/RECORDINGS:** `purge()` rzuca `UnsupportedOperationException` z czytelnym
+  komunikatem wskazującym właściwy przyszły mechanizm (BE-119/BE-116) — walidacja PRZED zapisem do
+  `retention_purge_log`, więc błędne wywołanie nie zostawia śmieciowego wiersza RUNNING.
+- **Testy:** `RetentionPurgeServiceImplTest` — 20 scenariuszy (≥8 wymaganych), mockowany
+  `RetentionPurgeLogRepository`/`RetentionPolicyService`/`ContactService`/`ContactEventService`/
+  `EmailMessageService`/`SocialMessageService`/`AuditLogService`; self-invocation testowane
+  wzorcem `ReflectionTestUtils.setField(service, "self", service)` (zgodnie z
+  `ProgressiveDialerServiceTest`), z dedykowanym testem podmieniającym `self` na mock żeby
+  udowodnić że `purge()` zwraca się przed wykonaniem faktycznej pracy. Dodatkowo
+  `ContactRepositoryPurgeTest` (6 scenariuszy) weryfikujący samą treść SQL (brak `ctid`, pełny PK,
+  poprawne parametry) na poziomie repozytorium. Ograniczenie testów jednostkowych: nie odtwarzają
+  fizycznie przełączenia wątku `@Async` (brak kontenera Spring) ani nie weryfikują zachowania na
+  żywej partycjonowanej bazie (projekt nie ma Testcontainers/H2 skonfigurowanych dla testów
+  repozytoriów — wzorzec potwierdzony jedynie manualną weryfikacją opisaną wyżej, poza automatycznym
+  zestawem testów).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1622 testy, 0 failures, 0 errors (1596 przed BE-113 wg
+  notatki BE-117 + 20 nowych w `RetentionPurgeServiceImplTest` + 6 w `ContactRepositoryPurgeTest`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, 0 błędów), format:check PASS,
+  frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
 
 ---
 

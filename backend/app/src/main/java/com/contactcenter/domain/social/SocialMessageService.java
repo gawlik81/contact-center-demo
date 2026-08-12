@@ -68,4 +68,15 @@ public interface SocialMessageService {
      * @return lista wiadomości posortowanych po {@code sentAt DESC}
      */
     List<SocialMessage> getRecentMessagesForContact(UUID contactId, UUID tenantId);
+
+    /**
+     * Zeruje {@code contact_id} dla wiadomości wskazujących na usuwane kontakty (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS). Nie usuwa wierszy {@code social_message}, tylko
+     * odcina referencję (kolumna nullable od V028).
+     *
+     * @param tenantId   UUID tenanta
+     * @param contactIds lista UUID usuniętych kontaktów – pusta lista jest no-opem
+     * @return liczba zaktualizowanych wierszy
+     */
+    int detachContactReferences(UUID tenantId, List<UUID> contactIds);
 }

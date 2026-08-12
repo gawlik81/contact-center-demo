@@ -183,4 +183,15 @@ public interface ContactEventService {
      * @return lista zdarzeń posortowana po started_at ASC (pusta przy błędzie)
      */
     List<ContactEvent> getHistory(UUID contactId, UUID tenantId);
+
+    /**
+     * Usuwa batch zdarzeń kontaktu tenanta starszych niż {@code cutoff} (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS).
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są zdarzenia z {@code started_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    int purgeOlderThan(UUID tenantId, Instant cutoff, int batchSize);
 }

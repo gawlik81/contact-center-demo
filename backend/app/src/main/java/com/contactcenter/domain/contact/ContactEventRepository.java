@@ -156,6 +156,50 @@ class ContactEventRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Usuwa batch zdarzeń kontaktu tenanta starszych niż {@code cutoff} (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS).
+     *
+     * <p>Identyfikuje wiersze do usunięcia przez pełny klucz główny {@code (event_id, started_at)}
+     * – NIE przez fizyczny {@code ctid} (patrz szczegółowe uzasadnienie w
+     * {@code ContactRepository#deleteBatchOlderThan}: {@code ctid} nie jest unikalny globalnie na
+     * tabeli partycjonowanej i może dopasować/usunąć niepowiązane wiersze innych tenantów w innych
+     * partycjach). {@code started_at} jest kolumną partycjonowania (V085/DB-049), więc PostgreSQL
+     * poprawnie kieruje DELETE do właściwej partycji dla każdego wiersza.
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są zdarzenia z {@code started_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu (rozmiar {@code LIMIT})
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    @Transactional
+    public int deleteBatchOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        setTenantContextInDb(tenantId);
+
+        int deleted = em.createNativeQuery("""
+                WITH batch AS (
+                    SELECT event_id, started_at FROM contact_event
+                    WHERE tenant_id = CAST(:tenantId AS uuid) AND started_at < :cutoff
+                    ORDER BY started_at
+                    LIMIT :batchSize
+                )
+                DELETE FROM contact_event c
+                USING batch b
+                WHERE c.event_id = b.event_id AND c.started_at = b.started_at
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .setParameter("batchSize", batchSize)
+                .executeUpdate();
+
+        log.info("[ContactEventRepo] Purge batch: tenant={}, cutoff={}, usunięto={}", tenantId, cutoff, deleted);
+        return deleted;
+    }
+
+    // =========================================================================
     // Odczyt – historia kontaktu
     // =========================================================================
 

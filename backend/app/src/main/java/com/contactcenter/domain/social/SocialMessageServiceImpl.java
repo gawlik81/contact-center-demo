@@ -194,6 +194,16 @@ class SocialMessageServiceImpl implements SocialMessageService {
     }
 
     // =========================================================================
+    // BE-113: Retencja – odcięcie referencji (EPIC-29)
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public int detachContactReferences(UUID tenantId, List<UUID> contactIds) {
+        return socialMessageRepository.detachContactReferences(tenantId, contactIds);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

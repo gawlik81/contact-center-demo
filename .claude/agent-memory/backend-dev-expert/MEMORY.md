@@ -100,3 +100,5 @@
 - [AdminMetrics – Contacts by Channel matrix](project_admin_metrics_contacts_by_channel.md) — "dzisiaj"=COMPLETED/TRANSFERRED+duration
 - [Semantyka "agent online" i sesji Redis](project_agent_online_redis_session_semantics.md) — session:agent:* przetrwa logout (status=OFFLINE)
 - [BE-117 @IdClass dla partycjonowanych encji (EPIC-29)](project_epic29_be117_idclass_partitioned_entities.md) — ContactEvent/ContactAiSummary wzorzec Contact/ContactId, ai_summary partycjonuje po generated_at nie created_at
+- [BE-113 RetentionPurgeService (EPIC-29)](project_epic29_be113_retention_purge_service.md) — silnik usuwania async, self-injection, encapsulation pass do ContactService/ContactEventService/EmailMessageService/SocialMessageService
+- [ctid NIEBEZPIECZNE na tabelach partycjonowanych](feedback_partitioned_table_ctid_delete_pitfall.md) — DELETE...WHERE ctid IN (...) usuwa wiersze z innych partycji/tenantów; bezpieczny wzorzec: pełny PK (id+partition_col)

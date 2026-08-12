@@ -730,6 +730,51 @@ public interface ContactService {
     void saveAiSummary(ContactAiSummary aiSummary);
 
     // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Usuwa batch kontaktów tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+     * kategoria CONTACT_INTERACTIONS).
+     *
+     * <p>Bezpieczne dla tabel partycjonowanych współdzielonych przez wielu tenantów: identyfikuje
+     * wiersze do usunięcia przez pełny klucz główny {@code (contact_id, started_at)}, nie przez
+     * fizyczny {@code ctid} (patrz uzasadnienie w {@code ContactRepository#deleteBatchOlderThan}).
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są kontakty z {@code started_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu
+     * @return lista UUID usuniętych kontaktów (do dalszego czyszczenia FK w email_message/social_message)
+     *         – pusta gdy brak kwalifikujących się wierszy
+     */
+    List<UUID> purgeContactsOlderThan(UUID tenantId, Instant cutoff, int batchSize);
+
+    /**
+     * Usuwa batch transkrypcji tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+     * kategoria TRANSCRIPTS).
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są transkrypcje z {@code created_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    int purgeTranscriptionsOlderThan(UUID tenantId, Instant cutoff, int batchSize);
+
+    /**
+     * Usuwa batch podsumowań AI tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+     * kategoria TRANSCRIPTS).
+     *
+     * <p>UWAGA: kolumna partycjonowania jest {@code generated_at}, nie {@code created_at}
+     * (V087/DB-051, BE-117) — {@code cutoff} jest porównywany z {@code generated_at}.
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są podsumowania z {@code generated_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    int purgeAiSummariesOlderThan(UUID tenantId, Instant cutoff, int batchSize);
+
+    // =========================================================================
     // AdminMetrics: agregacje per tenant dla SUPER_ADMIN
     // =========================================================================
 

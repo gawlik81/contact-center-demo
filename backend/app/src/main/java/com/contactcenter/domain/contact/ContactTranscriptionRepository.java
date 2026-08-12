@@ -117,4 +117,45 @@ class ContactTranscriptionRepository extends TenantAwareRepository {
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
+
+    // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Usuwa batch transkrypcji tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+     * kategoria TRANSCRIPTS).
+     *
+     * <p>Identyfikuje wiersze do usunięcia przez pełny klucz główny {@code (transcription_id,
+     * created_at)} – NIE przez fizyczny {@code ctid} (patrz szczegółowe uzasadnienie w
+     * {@code ContactRepository#deleteBatchOlderThan}: {@code ctid} nie jest unikalny globalnie na
+     * tabeli partycjonowanej). {@code created_at} jest kolumną partycjonowania (V086/DB-050).
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są transkrypcje z {@code created_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu (rozmiar {@code LIMIT})
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    @Transactional
+    public int deleteBatchOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        setTenantContextInDb(tenantId);
+
+        int deleted = jdbcTemplate.update("""
+                WITH batch AS (
+                    SELECT transcription_id, created_at FROM contact_transcription
+                    WHERE tenant_id = ?::uuid AND created_at < ?
+                    ORDER BY created_at
+                    LIMIT ?
+                )
+                DELETE FROM contact_transcription c
+                USING batch b
+                WHERE c.transcription_id = b.transcription_id AND c.created_at = b.created_at
+                """,
+                tenantId.toString(),
+                Timestamp.from(cutoff),
+                batchSize);
+
+        log.info("[ContactTranscriptionRepo] Purge batch: tenant={}, cutoff={}, usunięto={}", tenantId, cutoff, deleted);
+        return deleted;
+    }
 }

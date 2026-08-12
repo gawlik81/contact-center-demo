@@ -1494,6 +1494,25 @@ class ContactServiceImpl implements ContactService {
     }
 
     // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    @Override
+    public List<UUID> purgeContactsOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        return contactRepository.deleteBatchOlderThan(tenantId, cutoff, batchSize);
+    }
+
+    @Override
+    public int purgeTranscriptionsOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        return contactTranscriptionRepository.deleteBatchOlderThan(tenantId, cutoff, batchSize);
+    }
+
+    @Override
+    public int purgeAiSummariesOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        return contactAiSummaryRepository.deleteBatchOlderThan(tenantId, cutoff, batchSize);
+    }
+
+    // =========================================================================
     // AdminMetrics: agregacje per tenant dla SUPER_ADMIN
     // =========================================================================
 

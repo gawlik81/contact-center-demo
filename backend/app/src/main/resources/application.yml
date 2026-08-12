@@ -327,6 +327,15 @@ etl:
     fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:60000}
 
 # =============================================================================
+# Retencja danych – silnik usuwania (EPIC-29, BE-113)
+# =============================================================================
+retention:
+  purge:
+    # Liczba wierszy usuwanych w jednym batchu na tabelę (LIMIT w zapytaniu DELETE) –
+    # ogranicza czas trzymania blokad na partycji współdzielonej przez innych tenantów.
+    batch-size: ${RETENTION_PURGE_BATCH_SIZE:100}
+
+# =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)
 # Obsługuje zarówno AWS S3 jak i MinIO (path-style access)
 # =============================================================================

@@ -14,9 +14,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -119,6 +123,66 @@ class TenantRetentionPendingSummaryRepositoryTest {
                     .isInstanceOf(CrossTenantAccessException.class);
 
             verify(entityManager, never()).createNativeQuery(contains("INSERT INTO tenant_retention_pending_summary"));
+        }
+    }
+
+    @Nested
+    @DisplayName("findAllByTenantId() (BE-118)")
+    class FindAllByTenantId {
+
+        @Test
+        @DisplayName("mapuje wiersze SELECT na PendingSummaryRow, w tym null oldest/newest")
+        void mapsRowsIncludingNullPeriods() {
+            stubTenantContextQuery();
+            Query selectQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("SELECT data_category")
+                            && sql.contains("FROM tenant_retention_pending_summary"))
+            )).thenReturn(selectQuery);
+            when(selectQuery.setParameter(anyString(), anyString())).thenReturn(selectQuery);
+
+            Object[] rowWithPeriods = {
+                    "CONTACT_INTERACTIONS", 42L,
+                    java.sql.Date.valueOf(LocalDate.of(2020, 1, 1)),
+                    java.sql.Date.valueOf(LocalDate.of(2020, 6, 1)),
+                    Timestamp.from(Instant.parse("2026-01-01T00:00:00Z"))
+            };
+            Object[] rowWithoutPeriods = {
+                    "TRANSCRIPTS", 0L, null, null,
+                    Timestamp.from(Instant.parse("2026-01-02T00:00:00Z"))
+            };
+            when(selectQuery.getResultList()).thenReturn(List.of(rowWithPeriods, rowWithoutPeriods));
+
+            List<TenantRetentionPendingSummaryRepository.PendingSummaryRow> result =
+                    repository.findAllByTenantId(TENANT_A);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).dataCategory()).isEqualTo(RetentionDataCategory.CONTACT_INTERACTIONS);
+            assertThat(result.get(0).eligibleRowCount()).isEqualTo(42L);
+            assertThat(result.get(0).oldestEligiblePeriod()).isEqualTo(LocalDate.of(2020, 1, 1));
+            assertThat(result.get(0).newestEligiblePeriod()).isEqualTo(LocalDate.of(2020, 6, 1));
+
+            assertThat(result.get(1).dataCategory()).isEqualTo(RetentionDataCategory.TRANSCRIPTS);
+            assertThat(result.get(1).eligibleRowCount()).isZero();
+            assertThat(result.get(1).oldestEligiblePeriod()).isNull();
+            assertThat(result.get(1).newestEligiblePeriod()).isNull();
+        }
+
+        @Test
+        @DisplayName("cache pusty dla tenanta -> zwraca listę pustą (nie null, nie wyjątek)")
+        void emptyCache_returnsEmptyList() {
+            stubTenantContextQuery();
+            Query selectQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("FROM tenant_retention_pending_summary"))
+            )).thenReturn(selectQuery);
+            when(selectQuery.setParameter(anyString(), anyString())).thenReturn(selectQuery);
+            when(selectQuery.getResultList()).thenReturn(List.of());
+
+            List<TenantRetentionPendingSummaryRepository.PendingSummaryRow> result =
+                    repository.findAllByTenantId(TENANT_A);
+
+            assertThat(result).isEmpty();
         }
     }
 }

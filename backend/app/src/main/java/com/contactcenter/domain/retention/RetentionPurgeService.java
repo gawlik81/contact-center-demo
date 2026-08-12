@@ -1,8 +1,13 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.retention.dto.PurgeResultDto;
+import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
 import com.contactcenter.security.TenantContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -66,4 +71,49 @@ public interface RetentionPurgeService {
      */
     void purgeAsync(UUID purgeId, UUID tenantId, RetentionDataCategory category,
                      LocalDate cutoffDate, UUID triggeredByUserId, TenantContext.Snapshot snapshot);
+
+    // =========================================================================
+    // Odczyt (BE-118 — RetentionController)
+    // =========================================================================
+
+    /**
+     * Zwraca status jednej operacji purge (RUNNING/COMPLETED/FAILED) — przyszły
+     * {@code GET /api/tenants/{tenantId}/retention/purge/{purgeId}} (BE-118).
+     *
+     * <p><strong>404 vs 403:</strong> ta metoda zakłada, że {@code tenantId} to już własny
+     * tenant wywołującego (weryfikacja "{tenantId} z URL == JWT tenant" → 403 żyje w
+     * {@code RetentionController}, PRZED wywołaniem tej metody). Jeśli {@code purgeId} istnieje,
+     * ale należy do INNEGO tenanta niż {@code tenantId} (zgadywanie UUID), zwracamy 404
+     * (nie 403) — {@link RetentionPurgeLogRepository#findById} filtruje po {@code tenant_id}
+     * w SQL i po prostu nie znajduje wiersza, nieodróżnialnie od "purgeId nigdy nie istniał".
+     *
+     * @param tenantId UUID tenanta (już zweryfikowany jako własny przez kontroler)
+     * @param purgeId  UUID operacji purge
+     * @return DTO statusu operacji
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy purgeId nie
+     *         istnieje lub należy do innego tenanta
+     */
+    PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId);
+
+    /**
+     * Paginowana historia operacji purge tenanta, sortowana malejąco po {@code started_at} —
+     * przyszły {@code GET /api/tenants/{tenantId}/retention/history} (BE-118).
+     *
+     * @param tenantId UUID tenanta (już zweryfikowany jako własny przez kontroler)
+     * @param pageable parametry paginacji (page, size); sort ignorowany — zawsze started_at DESC
+     * @return strona wyników zmapowana na {@link PurgeResultDto}
+     */
+    Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable);
+
+    /**
+     * Dashboard „ile danych kwalifikuje się do usunięcia" — zwraca ZAWSZE dokładnie 4 wpisy,
+     * jeden per {@link RetentionDataCategory}, z jawnym flagowaniem kategorii jeszcze
+     * niepoliczonych przez {@code RetentionEvaluationJob} (BE-112) — przyszły
+     * {@code GET /api/tenants/{tenantId}/retention/summary} (BE-118). Patrz Javadoc
+     * {@link RetentionSummaryDto} po pełne uzasadnienie kontraktu.
+     *
+     * @param tenantId UUID tenanta (już zweryfikowany jako własny przez kontroler)
+     * @return dokładnie 4 wpisy, po jednym per {@link RetentionDataCategory}
+     */
+    List<RetentionSummaryDto> getPendingSummary(UUID tenantId);
 }

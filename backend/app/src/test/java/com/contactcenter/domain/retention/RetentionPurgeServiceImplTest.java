@@ -5,6 +5,9 @@ import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.retention.dto.PurgeResultDto;
+import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
 import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -22,12 +25,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -95,6 +103,9 @@ class RetentionPurgeServiceImplTest {
 
     @Mock
     private AuditLogService auditLogService;
+
+    @Mock
+    private TenantRetentionPendingSummaryRepository summaryRepository;
 
     @InjectMocks
     private RetentionPurgeServiceImpl service;
@@ -556,6 +567,185 @@ class RetentionPurgeServiceImplTest {
             service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
 
             verify(contactService).purgeContactsOlderThan(eq(TENANT_A), any(), eq(100));
+        }
+    }
+
+    // =========================================================================
+    // getPurgeStatus (BE-118)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getPurgeStatus (BE-118)")
+    class GetPurgeStatus {
+
+        @Test
+        @DisplayName("purgeId istnieje dla tenanta -> zwraca PurgeResultDto zmapowane z encji")
+        void found_returnsMappedDto() {
+            UUID purgeId = UUID.randomUUID();
+            RetentionPurgeLog log = RetentionPurgeLog.builder()
+                    .purgeId(purgeId)
+                    .tenantId(TENANT_A)
+                    .dataCategory(RetentionDataCategory.TRANSCRIPTS)
+                    .triggerType(PurgeTriggerType.MANUAL)
+                    .triggeredBy(USER_ID)
+                    .cutoffDate(LocalDate.of(2026, 1, 1))
+                    .rowsDeleted(42L)
+                    .status(RetentionPurgeLog.STATUS_COMPLETED)
+                    .startedAt(Instant.now())
+                    .completedAt(Instant.now())
+                    .build();
+            when(purgeLogRepository.findById(purgeId, TENANT_A)).thenReturn(Optional.of(log));
+
+            PurgeResultDto result = service.getPurgeStatus(TENANT_A, purgeId);
+
+            assertThat(result.purgeId()).isEqualTo(purgeId);
+            assertThat(result.tenantId()).isEqualTo(TENANT_A);
+            assertThat(result.status()).isEqualTo(RetentionPurgeLog.STATUS_COMPLETED);
+            assertThat(result.rowsDeleted()).isEqualTo(42L);
+        }
+
+        @Test
+        @DisplayName("purgeId nie istnieje lub należy do innego tenanta -> ResourceNotFoundException (404)")
+        void notFoundOrOtherTenant_throwsResourceNotFoundException() {
+            UUID purgeId = UUID.randomUUID();
+            when(purgeLogRepository.findById(purgeId, TENANT_A)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getPurgeStatus(TENANT_A, purgeId))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("purgeId innego tenanta (TENANT_B) -> repozytorium filtruje po tenant_id, zwraca 404 dla TENANT_A")
+        void purgeIdOfOtherTenant_isInvisibleToRequestingTenant() {
+            UUID purgeIdOwnedByTenantB = UUID.randomUUID();
+            // findById(purgeId, tenantId) filtruje po OBU kolumnach w SQL — dla TENANT_A zwraca empty,
+            // mimo że wiersz istnieje (należy do TENANT_B).
+            when(purgeLogRepository.findById(purgeIdOwnedByTenantB, TENANT_A)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getPurgeStatus(TENANT_A, purgeIdOwnedByTenantB))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    // =========================================================================
+    // getPurgeHistory (BE-118)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getPurgeHistory (BE-118)")
+    class GetPurgeHistory {
+
+        @Test
+        @DisplayName("deleguje do repozytorium i mapuje stronę encji na stronę PurgeResultDto")
+        void delegatesToRepositoryAndMapsPage() {
+            RetentionPurgeLog log = RetentionPurgeLog.builder()
+                    .purgeId(UUID.randomUUID())
+                    .tenantId(TENANT_A)
+                    .dataCategory(RetentionDataCategory.CONTACT_INTERACTIONS)
+                    .triggerType(PurgeTriggerType.AUTO)
+                    .cutoffDate(LocalDate.of(2026, 1, 1))
+                    .rowsDeleted(10L)
+                    .status(RetentionPurgeLog.STATUS_COMPLETED)
+                    .startedAt(Instant.now())
+                    .completedAt(Instant.now())
+                    .build();
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<RetentionPurgeLog> entityPage = new PageImpl<>(List.of(log), pageable, 1);
+            when(purgeLogRepository.findAllByTenantId(TENANT_A, pageable)).thenReturn(entityPage);
+
+            Page<PurgeResultDto> result = service.getPurgeHistory(TENANT_A, pageable);
+
+            assertThat(result.getTotalElements()).isEqualTo(1);
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent().get(0).purgeId()).isEqualTo(log.getPurgeId());
+        }
+
+        @Test
+        @DisplayName("brak historii -> strona pusta, nie rzuca")
+        void emptyHistory_returnsEmptyPage() {
+            Pageable pageable = PageRequest.of(0, 20);
+            when(purgeLogRepository.findAllByTenantId(TENANT_A, pageable))
+                    .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+            Page<PurgeResultDto> result = service.getPurgeHistory(TENANT_A, pageable);
+
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isZero();
+        }
+    }
+
+    // =========================================================================
+    // getPendingSummary (BE-118)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getPendingSummary (BE-118)")
+    class GetPendingSummary {
+
+        @Test
+        @DisplayName("cache pusty -> zwraca 4 wpisy, wszystkie computed=false")
+        void emptyCache_returnsFourEntriesAllNotComputed() {
+            when(summaryRepository.findAllByTenantId(TENANT_A)).thenReturn(List.of());
+
+            List<RetentionSummaryDto> result = service.getPendingSummary(TENANT_A);
+
+            assertThat(result).hasSize(RetentionDataCategory.values().length);
+            assertThat(result).allSatisfy(dto -> {
+                assertThat(dto.computed()).isFalse();
+                assertThat(dto.eligibleRowCount()).isZero();
+                assertThat(dto.oldestEligiblePeriod()).isNull();
+                assertThat(dto.newestEligiblePeriod()).isNull();
+                assertThat(dto.computedAt()).isNull();
+            });
+        }
+
+        @Test
+        @DisplayName("cache z 1 kategorią (typowo RECORDINGS brakuje) -> 4 wpisy, 1 computed=true + 3 computed=false")
+        void partialCache_mixesComputedAndNotComputed() {
+            Instant computedAt = Instant.now();
+            TenantRetentionPendingSummaryRepository.PendingSummaryRow row =
+                    new TenantRetentionPendingSummaryRepository.PendingSummaryRow(
+                            RetentionDataCategory.CONTACT_INTERACTIONS, 123L,
+                            LocalDate.of(2020, 1, 1), LocalDate.of(2020, 6, 1), computedAt);
+            when(summaryRepository.findAllByTenantId(TENANT_A)).thenReturn(List.of(row));
+
+            List<RetentionSummaryDto> result = service.getPendingSummary(TENANT_A);
+
+            assertThat(result).hasSize(4);
+
+            RetentionSummaryDto contactInteractions = result.stream()
+                    .filter(dto -> dto.dataCategory() == RetentionDataCategory.CONTACT_INTERACTIONS)
+                    .findFirst().orElseThrow();
+            assertThat(contactInteractions.computed()).isTrue();
+            assertThat(contactInteractions.eligibleRowCount()).isEqualTo(123L);
+            assertThat(contactInteractions.oldestEligiblePeriod()).isEqualTo(LocalDate.of(2020, 1, 1));
+            assertThat(contactInteractions.newestEligiblePeriod()).isEqualTo(LocalDate.of(2020, 6, 1));
+            assertThat(contactInteractions.computedAt()).isEqualTo(computedAt);
+
+            RetentionSummaryDto recordings = result.stream()
+                    .filter(dto -> dto.dataCategory() == RetentionDataCategory.RECORDINGS)
+                    .findFirst().orElseThrow();
+            assertThat(recordings.computed()).isFalse();
+            assertThat(recordings.eligibleRowCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("cache z eligibleRowCount=0 ale computed -> odróżnialne od 'jeszcze nie policzone' (computed=true)")
+        void computedZero_isDistinguishableFromNotComputed() {
+            Instant computedAt = Instant.now();
+            TenantRetentionPendingSummaryRepository.PendingSummaryRow row =
+                    new TenantRetentionPendingSummaryRepository.PendingSummaryRow(
+                            RetentionDataCategory.TRANSCRIPTS, 0L, null, null, computedAt);
+            when(summaryRepository.findAllByTenantId(TENANT_A)).thenReturn(List.of(row));
+
+            List<RetentionSummaryDto> result = service.getPendingSummary(TENANT_A);
+
+            RetentionSummaryDto transcripts = result.stream()
+                    .filter(dto -> dto.dataCategory() == RetentionDataCategory.TRANSCRIPTS)
+                    .findFirst().orElseThrow();
+            assertThat(transcripts.computed()).isTrue();
+            assertThat(transcripts.eligibleRowCount()).isZero();
+            assertThat(transcripts.computedAt()).isEqualTo(computedAt);
         }
     }
 }

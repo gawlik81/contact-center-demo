@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -75,4 +77,91 @@ class TenantRetentionPendingSummaryRepository extends TenantAwareRepository {
         log.debug("[RetentionPendingSummaryRepo] Upsert: tenant={}, category={}, eligibleRowCount={}, oldest={}, newest={}",
                 tenantId, category, eligibleRowCount, oldestEligiblePeriod, newestEligiblePeriod);
     }
+
+    // =========================================================================
+    // Odczyt (BE-118 — dashboard GET .../retention/summary)
+    // =========================================================================
+
+    /**
+     * Pobiera wszystkie wiersze cache dla tenanta (maks. 4 — jedna per kategoria).
+     *
+     * <p>Może zwrócić MNIEJ niż 4 wiersze — brak wiersza dla danej kategorii oznacza "jeszcze
+     * nie policzone przez {@link RetentionEvaluationJob}" (patrz {@code COMMENT ON TABLE
+     * tenant_retention_pending_summary} w V083), NIE "zero do usunięcia". Synteza pełnej listy
+     * 4 kategorii (z jawnym flagowaniem brakujących jako {@code computed=false}) żyje w
+     * {@link RetentionPurgeServiceImpl#getPendingSummary} — to repozytorium zwraca surowe dane
+     * cache bez interpretacji.
+     *
+     * <p>Brak {@code assertSameTenant} — to metoda odczytu (wzorzec identyczny do
+     * {@code TenantRetentionPolicyRepository.findAllByTenantId}/{@code
+     * RetentionPurgeLogRepository.findById}: tylko zapisy w repozytoriach tego pakietu
+     * weryfikują {@code assertSameTenant}, odczyty polegają na {@code set_tenant_context}
+     * (RLS) i na tym, że wywołujący serwis/kontroler już zweryfikował {@code tenantId}).
+     *
+     * @param tenantId UUID tenanta
+     * @return surowe wiersze cache, posortowane po {@code data_category} ASC (może być puste
+     *         lub mieć mniej niż 4 elementy)
+     */
+    @Transactional(readOnly = true)
+    List<PendingSummaryRow> findAllByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                        SELECT data_category, eligible_row_count, oldest_eligible_period,
+                               newest_eligible_period, computed_at
+                        FROM tenant_retention_pending_summary
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                        ORDER BY data_category ASC
+                        """)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        List<PendingSummaryRow> result = rows.stream().map(this::mapRow).toList();
+
+        log.debug("[RetentionPendingSummaryRepo] Odczyt: tenant={}, wierszy w cache={}", tenantId, result.size());
+        return result;
+    }
+
+    private PendingSummaryRow mapRow(Object[] row) {
+        return new PendingSummaryRow(
+                RetentionDataCategory.valueOf(row[0].toString()),
+                ((Number) row[1]).longValue(),
+                row[2] != null ? toLocalDate(row[2]) : null,
+                row[3] != null ? toLocalDate(row[3]) : null,
+                toInstant(row[4])
+        );
+    }
+
+    private static LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) return localDate;
+        if (value instanceof java.sql.Date sqlDate) return sqlDate.toLocalDate();
+        if (value instanceof java.sql.Timestamp ts) return ts.toLocalDateTime().toLocalDate();
+        throw new IllegalArgumentException("Cannot convert to LocalDate: " + value.getClass());
+    }
+
+    private static Instant toInstant(Object value) {
+        if (value instanceof Instant instant) return instant;
+        if (value instanceof java.sql.Timestamp ts) return ts.toInstant();
+        if (value instanceof java.time.OffsetDateTime odt) return odt.toInstant();
+        throw new IllegalArgumentException("Cannot convert to Instant: " + value.getClass());
+    }
+
+    /**
+     * Surowy wiersz cache {@code tenant_retention_pending_summary} dla jednej pary
+     * (tenant, kategoria) — mapowanie 1:1 z kolumnami tabeli, bez interpretacji "brak wiersza".
+     *
+     * @param dataCategory         kategoria danych
+     * @param eligibleRowCount     liczba rekordów kwalifikujących się do usunięcia wg ostatniego przebiegu jobu
+     * @param oldestEligiblePeriod najstarszy miesiąc objęty wynikiem (null gdy eligibleRowCount=0)
+     * @param newestEligiblePeriod najnowszy miesiąc objęty wynikiem (null gdy eligibleRowCount=0)
+     * @param computedAt           znacznik czasu ostatniego przebiegu jobu dla tej pary
+     */
+    record PendingSummaryRow(
+            RetentionDataCategory dataCategory,
+            long eligibleRowCount,
+            LocalDate oldestEligiblePeriod,
+            LocalDate newestEligiblePeriod,
+            Instant computedAt
+    ) {}
 }

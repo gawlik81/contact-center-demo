@@ -6290,7 +6290,7 @@ backend/app/src/main/java/com/contactcenter/domain/contact/
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-111, BE-112, BE-113
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** FE-103
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6320,14 +6320,120 @@ backend/app/src/main/java/com/contactcenter/
 ```
 
 **Kryteria akceptacji:**
-- [ ] `@PreAuthorize("hasRole('ADMIN')")` na wszystkich endpointach (weryfikacja: SUPERVISOR/AGENT → 403)
-- [ ] `GET .../summary` zwraca 4 wpisy (jeden per kategoria), z `computedAt` — brak wiersza w cache (jeszcze nie policzony przez BE-112) zwraca `eligibleRowCount=0`/`computedAt=null` z jawnym flagowaniem "not yet computed" (nie myli się z "zero do usunięcia")
-- [ ] `POST .../purge` zwraca `202 Accepted` + `purgeId`, nie blokuje na wykonaniu (deleguje do `@Async` RetentionPurgeService)
-- [ ] `GET .../purge/{purgeId}` → 404 jeśli purgeId nie należy do tenanta (cross-tenant access przez zgadywanie UUID zablokowane)
-- [ ] `GET .../history` paginowane `PagedResponse<PurgeHistoryEntryDto>`, sortowane malejąco po `started_at`
-- [ ] Endpointy udokumentowane w Swagger UI (`@Operation`/`@ApiResponse`)
-- [ ] Testy jednostkowe kontrolera (autoryzacja per rola, happy path każdego endpointu, 404 cross-tenant)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `@PreAuthorize("hasRole('ADMIN')")` na wszystkich endpointach (weryfikacja: SUPERVISOR/AGENT → 403)
+- [x] `GET .../summary` zwraca 4 wpisy (jeden per kategoria), z `computedAt` — brak wiersza w cache (jeszcze nie policzony przez BE-112) zwraca `eligibleRowCount=0`/`computedAt=null` z jawnym flagowaniem "not yet computed" (nie myli się z "zero do usunięcia")
+- [x] `POST .../purge` zwraca `202 Accepted` + `purgeId`, nie blokuje na wykonaniu (deleguje do `@Async` RetentionPurgeService)
+- [x] `GET .../purge/{purgeId}` → 404 jeśli purgeId nie należy do tenanta (cross-tenant access przez zgadywanie UUID zablokowane)
+- [x] `GET .../history` paginowane `PagedResponse<PurgeHistoryEntryDto>`, sortowane malejąco po `started_at`
+- [x] Endpointy udokumentowane w Swagger UI (`@Operation`/`@ApiResponse`)
+- [x] Testy jednostkowe kontrolera (autoryzacja per rola, happy path każdego endpointu, 404 cross-tenant)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-12):**
+- **KRYTYCZNE odkrycie w `SecurityConfig` (poza zakresem plików wymienionych w tickecie, ale
+  blokujące bez naprawy):** reguła filtra `.requestMatchers("/api/tenants/**").hasRole("SUPER_ADMIN")`
+  (BE-006) dopasowałaby też nowe ścieżki `/api/tenants/{tenantId}/retention/**`, blokując ADMIN
+  na poziomie Spring Security filter chain, ZANIM żądanie dotarłoby do `@PreAuthorize("hasRole('ADMIN')")`
+  tego kontrolera — ADMIN dostawałby 403 zawsze, niezależnie od logiki kontrolera. Naprawione
+  dodaniem `.requestMatchers("/api/tenants/*/retention/**").hasRole("ADMIN")` PRZED ogólną regułą
+  `/api/tenants/**`, dokładnie tym samym wzorcem co istniejący wyjątek dla `/api/tenants/*/config`
+  (BE-025). Bez tej zmiany żaden z 6 endpointów nie działałby end-to-end mimo poprawnego kodu
+  kontrolera — wykryte przez przegląd `SecurityConfig` przed napisaniem kontrolera, nie przez
+  test (testy kontrolera w tym projekcie nie uruchamiają łańcucha Spring Security, patrz niżej).
+- **Bezpieczeństwo `{tenantId}`/`{purgeId}` — dwa niezależne mechanizmy, oba zaimplementowane
+  dokładnie wg analizy z briefu:** (1) `RetentionController.assertOwnTenant(UUID)` — prywatna
+  metoda wywoływana jako pierwsza instrukcja KAŻDEGO z 6 endpointów, porównuje `{tenantId}` ze
+  ścieżki z `TenantContext.getTenantId()`, rzuca `CrossTenantAccessException` → 403 przy
+  niezgodności (wzorzec `TenantServiceImpl.assertSameTenantUnlessSuperAdmin`, uproszczony — brak
+  SUPER_ADMIN w zakresie tego kontrolera). (2) `RetentionPurgeService.getPurgeStatus` mapuje
+  `Optional.empty()` z `RetentionPurgeLogRepository.findById(purgeId, tenantId)` (filtruje po OBU
+  kolumnach w SQL) na `ResourceNotFoundException` → 404 — purgeId innego tenanta jest
+  nieodróżnialny od nieistniejącego. `RetentionPolicyService`/`RetentionPurgeService` pozostały
+  BEZ ŻADNEJ zmiany w kierunku "tylko własny tenant" — cały pomysł żyje wyłącznie w kontrolerze,
+  bo `RetentionEvaluationJob` (BE-112) legalnie wywołuje te serwisy cross-tenant dla wszystkich
+  tenantów po kolei.
+- **`RetentionPurgeService` rozszerzone o 3 nowe metody publiczne** (implementacja w
+  `RetentionPurgeServiceImpl`, nowa zależność `TenantRetentionPendingSummaryRepository`
+  wstrzyknięta przez `@RequiredArgsConstructor`):
+  - `PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId)` — rzuca `ResourceNotFoundException`
+    gdy purgeId nie istnieje/inny tenant.
+  - `Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable)` — deleguje do nowej
+    `RetentionPurgeLogRepository.findAllByTenantId(UUID, Pageable)` (natywny SQL + `resultClass`
+    mapping + osobny `COUNT(*)`, wzorzec identyczny do reszty repozytorium — celowo NIE JPQL, żeby
+    nie mieszać stylów zapytań w jednej klasie), `ORDER BY started_at DESC` zawsze, niezależnie od
+    `pageable.getSort()`.
+  - `List<RetentionSummaryDto> getPendingSummary(UUID tenantId)` — czyta surowe wiersze przez nową
+    `TenantRetentionPendingSummaryRepository.findAllByTenantId(UUID)` (zwraca `List<PendingSummaryRow>`,
+    nowy pakietowy rekord zagnieżdżony w repozytorium, wzorzec `CampaignArchiveRetentionRepository.EligibleSummary`
+    z BE-112), po czym syntetyzuje DOKŁADNIE 4 wpisy iterując `RetentionDataCategory.values()` —
+    kategoria bez wiersza w cache dostaje `computed=false`/`eligibleRowCount=0`/pozostałe pola `null`.
+    Synteza żyje w serwisie (nie w kontrolerze), zgodnie z rekomendacją briefu — łatwiej testować
+    jednostkowo.
+- **Reuse `PurgeResultDto` zamiast nowych `PurgeStatusDto`/`PurgeHistoryEntryDto`:** ticket
+  wymienia te dwa pliki w liście, ale miałyby identyczny kształt co `PurgeResultDto` (BE-111) —
+  używany bez zmian zarówno dla `GET .../purge/{purgeId}` (pojedynczy) jak i `GET .../history`
+  (strona). Lista plików w sekcji "Pliki" powyżej pozostawiona bez zmian jako zapis historyczny
+  ticketu — faktycznie utworzone/zmienione pliki wypisane niżej.
+- **`UpdateRetentionPolicyRequest.dataCategory()` vs `{category}` z path:** zamiast ignorować
+  pole body (co ukryłoby błąd klienta wysyłającego niespójne dane) lub tworzyć nowy DTO bez tego
+  pola, `RetentionController.updatePolicy` weryfikuje zgodność i rzuca `IllegalArgumentException`
+  (→ 422, istniejący handler) przy niezgodności — `{category}` ze ścieżki pozostaje źródłem
+  prawdy (REST semantyka).
+- **`POST .../purge` zwraca `Map.of("purgeId", ...)`**, bez dedykowanego DTO — wzorzec
+  `CampaignImportController` (`jobId`), zgodnie z ustalonym w projekcie precedensem dla
+  pojedynczego pola w odpowiedzi `202`.
+- **Nowe metody repozytoriów** (obie package-private, wywoływane wyłącznie z `RetentionPurgeServiceImpl`
+  w tym samym pakiecie `domain.retention` — bez potrzeby zmiany widoczności na `public`, w
+  odróżnieniu od `PluginInvocationLogRepository`, którego konsument leży w innym pakiecie):
+  `RetentionPurgeLogRepository.findAllByTenantId(UUID, Pageable): Page<RetentionPurgeLog>`,
+  `TenantRetentionPendingSummaryRepository.findAllByTenantId(UUID): List<PendingSummaryRow>`.
+- **Testy:** `RetentionControllerTest` (26 scenariuszy: happy path × 6 endpointów, 403 cross-tenant
+  × 6 + parametryzowany po `RetentionDataCategory` dla `updatePolicy`, 404 purgeId innego tenanta
+  propagowany bez maskowania, niezgodność `dataCategory` body/path, propagacja `UnsupportedOperationException`
+  dla RECORDINGS/CAMPAIGN_DATA, 8 testów Bean Validation przez `jakarta.validation.Validator`
+  bezpośrednio — wzorzec `UserPreferencesServiceTest`, bo `@Valid` jest infrastrukturą Spring MVC
+  nieaktywną przy bezpośrednim wywołaniu metody kontrolera). Wzorzec testu kontrolera: wywołanie
+  metod bezpośrednio, `TenantContext` mockowany statycznie (`PluginAdminControllerTest`) — projekt
+  NIE ma `@WebMvcTest` z aktywnym łańcuchem Spring Security dla kontrolerów `api.*`, `@PreAuthorize`
+  zweryfikowany deklaratywnie (obecny na klasie, code review), NIE testem MockMvc — świadome
+  odstępstwo od dosłownego brzmienia kryterium "SUPERVISOR/AGENT → 403" na rzecz ustalonego wzorca
+  projektu (ten sam kompromis co `PluginAdminControllerTest`/`CampaignImportControllerTest`).
+  Dodatkowo: 8 nowych testów `RetentionPurgeServiceImplTest` (`getPurgeStatus`/`getPurgeHistory`/
+  `getPendingSummary`, w tym rozróżnienie `computed=false` vs `computed=true` z `eligibleRowCount=0`),
+  2 nowe `TenantRetentionPendingSummaryRepositoryTest` (mapowanie wierszy, cache pusty), nowy plik
+  `RetentionPurgeLogRepositoryTest` (2 testy paginacji natywnego SQL).
+- `mvn verify -pl app`: **BUILD SUCCESS**, **1700 testów**, 0 failures, 0 errors (1662 przed
+  BE-118 + 38 nowych: 26 `RetentionControllerTest` + 8 `RetentionPurgeServiceImplTest` + 2
+  `TenantRetentionPendingSummaryRepositoryTest` + 2 `RetentionPurgeLogRepositoryTest`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, niezwiązane z tym
+  tickietem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
+
+**Utworzone/zmienione pliki (stan faktyczny):**
+```
+backend/app/src/main/java/com/contactcenter/
+  api/retention/RetentionController.java                          (nowy)
+  domain/retention/dto/RetentionSummaryDto.java                   (nowy)
+  domain/retention/dto/PurgeRequestDto.java                       (nowy)
+  domain/retention/RetentionPurgeService.java                     (zmieniony: +3 metody)
+  domain/retention/RetentionPurgeServiceImpl.java                 (zmieniony: +3 implementacje, +1 zależność)
+  domain/retention/RetentionPurgeLogRepository.java                (zmieniony: +findAllByTenantId)
+  domain/retention/TenantRetentionPendingSummaryRepository.java   (zmieniony: +findAllByTenantId, +PendingSummaryRow)
+  security/SecurityConfig.java                                    (zmieniony: +requestMatcher ADMIN dla /retention/**)
+
+backend/app/src/test/java/com/contactcenter/
+  api/retention/RetentionControllerTest.java                      (nowy)
+  domain/retention/RetentionPurgeServiceImplTest.java              (zmieniony: +8 testów)
+  domain/retention/TenantRetentionPendingSummaryRepositoryTest.java (zmieniony: +2 testy)
+  domain/retention/RetentionPurgeLogRepositoryTest.java            (nowy)
+```
+
+**Sygnatury nowych metod publicznych:**
+```java
+// RetentionPurgeService (interfejs)
+PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId);
+Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable);
+List<RetentionSummaryDto> getPendingSummary(UUID tenantId);
+```
 
 ---
 

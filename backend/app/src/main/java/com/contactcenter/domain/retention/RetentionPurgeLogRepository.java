@@ -2,6 +2,9 @@ package com.contactcenter.domain.retention;
 
 import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -175,5 +178,53 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
                 .getResultList();
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
+     * Paginowana historia operacji purge tenanta, sortowana malejąco po {@code started_at} —
+     * używane przez {@code RetentionPurgeServiceImpl#getPurgeHistory} (przyszły
+     * {@code GET .../history}, BE-118).
+     *
+     * <p>Natywny SQL + {@code resultClass} mapping (spójne z resztą tej klasy — zapis też
+     * przez natywny SQL, ta klasa celowo nie miesza JPQL i natywnego SQL). Sortowanie jest
+     * ZAWSZE {@code started_at DESC}, niezależnie od {@code pageable.getSort()} — analogicznie
+     * do {@code PluginInvocationLogRepository.findByInstallation} (log chronologiczny operacji,
+     * jeden sensowny porządek dla dashboardu admina).
+     *
+     * <p>Brak {@code assertSameTenant} — metoda odczytu, ten sam precedens co {@link #findById}
+     * (tylko zapisy w tej klasie weryfikują {@code assertSameTenant}).
+     *
+     * @param tenantId UUID tenanta
+     * @param pageable parametry paginacji (page, size); {@code pageable.getSort()} ignorowany
+     * @return strona wyników z pełnymi metadanymi paginacji
+     */
+    @Transactional(readOnly = true)
+    public Page<RetentionPurgeLog> findAllByTenantId(UUID tenantId, Pageable pageable) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<RetentionPurgeLog> content = em.createNativeQuery(
+                        """
+                        SELECT * FROM retention_purge_log
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                        ORDER BY started_at DESC
+                        """,
+                        RetentionPurgeLog.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setFirstResult((int) pageable.getOffset())
+                .setMaxResults(pageable.getPageSize())
+                .getResultList();
+
+        Number total = (Number) em.createNativeQuery("""
+                        SELECT COUNT(*) FROM retention_purge_log
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                        """)
+                .setParameter("tenantId", tenantId.toString())
+                .getSingleResult();
+
+        log.debug("[RetentionPurgeLogRepo] Historia: tenant={}, page={}, size={}, total={}",
+                tenantId, pageable.getPageNumber(), pageable.getPageSize(), total.longValue());
+
+        return new PageImpl<>(content, pageable, total.longValue());
     }
 }

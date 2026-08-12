@@ -5,6 +5,9 @@ import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.retention.dto.PurgeResultDto;
+import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
 import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -12,14 +15,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Implementacja {@link RetentionPurgeService} — silnik usuwania Poziom 1 (per-tenant, batchowany)
@@ -61,6 +70,7 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     private final EmailMessageService emailMessageService;
     private final SocialMessageService socialMessageService;
     private final AuditLogService auditLogService;
+    private final TenantRetentionPendingSummaryRepository summaryRepository;
 
     @Value("${retention.purge.batch-size:100}")
     private int batchSize;
@@ -198,6 +208,52 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
         } while (summariesDeletedInBatch == effectiveBatchSize);
 
         return totalDeleted;
+    }
+
+    // =========================================================================
+    // Odczyt (BE-118 — RetentionController)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId) {
+        return purgeLogRepository.findById(purgeId, tenantId)
+                .map(PurgeResultDto::from)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Operacja purge nie istnieje: purgeId=" + purgeId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable) {
+        return purgeLogRepository.findAllByTenantId(tenantId, pageable).map(PurgeResultDto::from);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RetentionSummaryDto> getPendingSummary(UUID tenantId) {
+        Map<RetentionDataCategory, TenantRetentionPendingSummaryRepository.PendingSummaryRow> byCategory =
+                summaryRepository.findAllByTenantId(tenantId).stream()
+                        .collect(Collectors.toMap(
+                                TenantRetentionPendingSummaryRepository.PendingSummaryRow::dataCategory,
+                                row -> row));
+
+        // ZAWSZE 4 wpisy (jeden per RetentionDataCategory), nie tylko te obecne w cache —
+        // kryterium akceptacji BE-118, patrz Javadoc RetentionSummaryDto.
+        return Arrays.stream(RetentionDataCategory.values())
+                .map(category -> toSummaryDto(category, byCategory.get(category)))
+                .toList();
+    }
+
+    private RetentionSummaryDto toSummaryDto(RetentionDataCategory category,
+            TenantRetentionPendingSummaryRepository.PendingSummaryRow row) {
+        if (row == null) {
+            // Brak wiersza w cache = "jeszcze nie policzone przez RetentionEvaluationJob",
+            // NIE "zero do usunięcia" — computed=false odróżnia te dwa stany.
+            return new RetentionSummaryDto(category, 0L, null, null, null, false);
+        }
+        return new RetentionSummaryDto(category, row.eligibleRowCount(), row.oldestEligiblePeriod(),
+                row.newestEligiblePeriod(), row.computedAt(), true);
     }
 
     // =========================================================================

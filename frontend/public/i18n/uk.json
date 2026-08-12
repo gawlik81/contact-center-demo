@@ -2334,6 +2334,13 @@
         "errorSave": "Не вдалося зберегти політику зберігання.",
         "errorLoad": "Не вдалося завантажити політики зберігання.",
         "retry": "Спробувати ще раз",
+        "summaryTitle": "Дані, що підлягають видаленню",
+        "summaryNotComputed": "Ще не обчислено",
+        "summaryZeroEligible": "Немає даних для видалення",
+        "summaryEligibleCount": "{{ count }} записів підлягають видаленню",
+        "summaryOldestPeriod": "Найстаріший період, що підлягає видаленню",
+        "summaryComputedAt": "Востаннє обчислено",
+        "errorLoadSummary": "Не вдалося завантажити зведення даних, що підлягають видаленню.",
         "category": {
           "CONTACT_INTERACTIONS": "Взаємодії з контактами",
           "RECORDINGS": "Записи розмов",

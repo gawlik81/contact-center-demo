@@ -112,4 +112,96 @@
       </div>
     }
   </section>
+
+  <!-- ============ Sekcja 2: dashboard "dane kwalifikujące się do usunięcia" ============ -->
+  <section class="dr-section">
+    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.summaryTitle' | transloco }}</h2>
+
+    @if (summaryLoading()) {
+      <div class="dr-skeleton-wrapper dr-summary-grid">
+        @for (item of [1, 2, 3, 4]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (summaryLoadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.errorLoadSummary' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadSummary()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else {
+      <div class="dr-summary-grid">
+        @for (entry of summaries(); track entry.dataCategory) {
+          <div
+            class="dr-summary-card"
+            [class.dr-summary-card--pending]="!entry.computed"
+            [class.dr-summary-card--zero]="entry.computed && entry.eligibleRowCount === 0"
+            [class.dr-summary-card--eligible]="entry.computed && entry.eligibleRowCount > 0"
+          >
+            <div class="dr-summary-card__header">
+              <span class="dr-summary-card__icon" aria-hidden="true">
+                @if (!entry.computed) {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5l-4-4V4h8v3.5l-4 4z"
+                    />
+                  </svg>
+                } @else if (entry.eligibleRowCount === 0) {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                    />
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                }
+              </span>
+              <h3 class="dr-summary-card__category">{{ categoryLabel(entry.dataCategory) }}</h3>
+            </div>
+
+            @if (!entry.computed) {
+              <p class="dr-summary-card__status">
+                {{ 'supervisor.settings.dataRetention.summaryNotComputed' | transloco }}
+              </p>
+            } @else if (entry.eligibleRowCount === 0) {
+              <p class="dr-summary-card__status">
+                {{ 'supervisor.settings.dataRetention.summaryZeroEligible' | transloco }}
+              </p>
+            } @else {
+              <p class="dr-summary-card__count">
+                {{
+                  'supervisor.settings.dataRetention.summaryEligibleCount'
+                    | transloco: { count: entry.eligibleRowCount }
+                }}
+              </p>
+              @if (entry.oldestEligiblePeriod) {
+                <p class="dr-summary-card__meta">
+                  <span class="dr-summary-card__meta-label">
+                    {{ 'supervisor.settings.dataRetention.summaryOldestPeriod' | transloco }}
+                  </span>
+                  <span class="dr-summary-card__meta-value">
+                    {{ entry.oldestEligiblePeriod | date: 'MM.yyyy' }}
+                  </span>
+                </p>
+              }
+            }
+
+            @if (entry.computed && entry.computedAt) {
+              <p class="dr-summary-card__timestamp">
+                <span class="dr-summary-card__meta-label">
+                  {{ 'supervisor.settings.dataRetention.summaryComputedAt' | transloco }}
+                </span>
+                <span class="dr-summary-card__meta-value">
+                  {{ entry.computedAt | date: 'dd.MM.yyyy HH:mm' }}
+                </span>
+              </p>
+            }
+          </div>
+        }
+      </div>
+    }
+  </section>
 </div>

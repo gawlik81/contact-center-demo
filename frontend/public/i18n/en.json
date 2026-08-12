@@ -2338,6 +2338,13 @@
         "errorSave": "Failed to save the retention policy.",
         "errorLoad": "Failed to load retention policies.",
         "retry": "Retry",
+        "summaryTitle": "Data eligible for deletion",
+        "summaryNotComputed": "Not yet computed",
+        "summaryZeroEligible": "No data to delete",
+        "summaryEligibleCount": "{{ count }} records eligible for deletion",
+        "summaryOldestPeriod": "Oldest eligible period",
+        "summaryComputedAt": "Last computed",
+        "errorLoadSummary": "Failed to load the deletion summary.",
         "category": {
           "CONTACT_INTERACTIONS": "Contact interactions",
           "RECORDINGS": "Call recordings",

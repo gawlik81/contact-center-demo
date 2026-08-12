@@ -5509,7 +5509,7 @@ frontend/public/i18n/uk.json                                                    
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-104
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5521,10 +5521,64 @@ przeliczenia (`computedAt`). Domyka wymóg dokumentu projektowego — dashboard 
 cache (`GET .../summary`), nie liczy niczego na żywo.
 
 **Kryteria akceptacji:**
-- [ ] 4 karty (jedna per kategoria), ładowane równolegle z tabelą polityk (`RetentionService.getSummary`, równoległe wywołanie w `ngOnInit`)
-- [ ] `computedAt === null` (jeszcze nie policzone przez `RetentionEvaluationJob`, BE-112) → stan „jeszcze nie przeliczono”, nie „0 do usunięcia” — rozróżnienie widoczne w UI (np. inny tekst/ikona)
-- [ ] `eligibleRowCount === 0` (faktycznie policzone, zero do usunięcia) → stan „brak danych do usunięcia”, wizualnie odróżniony od stanu „jeszcze nie policzono”
-- [ ] `npm run lint`/`npm run build` przechodzą
+- [x] 4 karty (jedna per kategoria), ładowane równolegle z tabelą polityk (`RetentionService.getSummary`, równoległe wywołanie w `ngOnInit`)
+- [x] `computedAt === null` (jeszcze nie policzone przez `RetentionEvaluationJob`, BE-112) → stan „jeszcze nie przeliczono”, nie „0 do usunięcia” — rozróżnienie widoczne w UI (np. inny tekst/ikona)
+- [x] `eligibleRowCount === 0` (faktycznie policzone, zero do usunięcia) → stan „brak danych do usunięcia”, wizualnie odróżniony od stanu „jeszcze nie policzono”
+- [x] `npm run lint`/`npm run build` przechodzą
+
+**Notatki z implementacji (2026-08-12):**
+- **Kontrakt DTO odbiegający od treści ticketu** — ticket sugerował rozróżnianie stanów przez
+  `computedAt === null`. Rzeczywisty `RetentionSummaryDto` (zweryfikowany przeciw FE-103/kodowi
+  backendu) ma jawne pole `computed: boolean`, udokumentowane właśnie do tego celu — użyto go
+  wprost zamiast wnioskować stan z `computedAt` (oba sygnały są równoważne w praktyce, ale
+  `computed` jest czytelniejszym, udokumentowanym kontraktem).
+- **Trzy stany kart** zaimplementowane jako `dr-summary-card--pending` / `--zero` / `--eligible`
+  (kolor obwódki + ikona + tło ikony, wszystkie inne: neutralny/`--text-2` dla „jeszcze nie
+  przeliczono”, `--success` dla „sprawdzone, zero do usunięcia”, `--warning` dla „są dane do
+  usunięcia”) — trzy różne inline SVG (klepsydra / check / kosz), różny tekst z i18n per stan.
+- **Ładowanie równoległe** — `ngOnInit()` woła `loadPolicies()` i `loadSummary()` jako dwa
+  niezależne wywołania (żadne nie czeka na drugie), z osobnymi sygnałami `summaryLoading`/
+  `summaryLoadError` (odrębnymi od `loading`/`loadError` Sekcji 1) — wzorzec 1:1 z
+  `PluginsPageComponent.ngOnInit()` (`loadInstallations()` + `loadCatalog()`).
+- **Defensywny fallback brakującej kategorii** — `loadSummary()` reorderuje odpowiedź przez
+  `CATEGORY_ORDER` (reużyta stała z Sekcji 1, nie zduplikowana) i dla ewentualnej brakującej
+  kategorii wstawia wpis z `computed: false` (stan „jeszcze nie przeliczono”) zamiast pomijać
+  kartę — analogicznie do fallbacku `rows()` w Sekcji 1 z FE-104.
+- **Format daty — odstępstwo od sugestii ticketu.** Ticket proponował `'LLLL yyyy'` (pełna nazwa
+  miesiąca) lub `'MM.yyyy'` dla `oldestEligiblePeriod`. Zweryfikowano, że aplikacja NIE
+  rejestruje `LOCALE_ID`/`registerLocaleData` nigdzie (`grep -rn LOCALE_ID src/` — brak wyników)
+  — Angularowy `DatePipe` używa więc zawsze domyślnego locale `en-US`, niezależnie od języka
+  wybranego w Transloco. Nazwa miesiąca przez `'LLLL yyyy'` byłaby zawsze po angielsku obok
+  przetłumaczonego UI (pl/de/uk) — niespójne. Wybrano `'MM.yyyy'` (numeryczny, locale-niezależny)
+  dla `oldestEligiblePeriod`; `computedAt` używa `'dd.MM.yyyy HH:mm'` zgodnie z ticketem (ten
+  format jest już czysto numeryczny, więc problem nie dotyczy).
+- **Unikanie zagnieżdżonych pipe'ów w interpolacji** — `summaryComputedAt`/`summaryOldestPeriod`
+  to same etykiety (bez interpolacji) w i18n, wartość daty renderowana osobnym `<span>` przez
+  `| date`, zamiast wstrzykiwać wynik `DatePipe` jako parametr do `| transloco: {...}` (zagnieżdżone
+  pipe'y wewnątrz literału obiektu w wyrażeniu Angulara są zawodne/nieobsługiwane).
+- Wynik `/verify` (pełny zestaw FE+BE): `npm run lint` — 0 błędów (10 pre-istniejących warningów
+  `no-console`, niezwiązanych z tymi plikami, identycznie jak FE-103/FE-104). `npm run
+  format:check` — czysty (pierwszy przebieg wykrył niesformatowany nowy blok w `.html`,
+  naprawiony przez `prettier --write`). `npm test` — 205/205 testów przechodzi (bez nowych testów
+  jednostkowych — ticket ich nie wymagał, logika jest cienką warstwą nad już przetestowanym
+  `RetentionService`). `npm run build` — sukces; te same pre-istniejące warningi bundle-budget co
+  w poprzednich tickietach EPIC-28/29 (dotyczą innych, niepowiązanych komponentów), nowy lazy
+  chunk `data-retention-component` (19.52 kB) obecny w wyjściu builda, bez własnego przekroczenia
+  budżetu. Backend: `mvn verify -pl app` — BUILD SUCCESS, 1703/1703 testów (backend niezmieniony w
+  tym tickiecie, uruchomione zgodnie z wymogiem skilla `/verify`).
+- **Smoke-test w przeglądarce — NIE wykonany** (brak w zakresie zlecenia — użytkownik zapowiedział
+  własną weryfikację end-to-end przed commitem, jak przy FE-104).
+
+**Zmienione pliki:**
+```
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.ts     (zmieniony — Sekcja 2: sygnały summaryLoading/summaryLoadError/summaries, loadSummary(), ngOnInit równoległy)
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.html   (zmieniony — nowa <section> z 4 kartami dashboardu)
+frontend/src/app/features/supervisor/pages/settings/data-retention/data-retention.component.scss   (zmieniony — dr-summary-grid/dr-summary-card i warianty stanu)
+frontend/public/i18n/pl.json                                                                        (zmieniony — 7 nowych kluczy w supervisor.settings.dataRetention)
+frontend/public/i18n/en.json                                                                        (zmieniony — jw.)
+frontend/public/i18n/de.json                                                                        (zmieniony — jw.)
+frontend/public/i18n/uk.json                                                                        (zmieniony — jw.)
+```
 
 ---
 

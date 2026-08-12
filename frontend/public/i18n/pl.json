@@ -2338,6 +2338,13 @@
         "errorSave": "Nie udało się zapisać polityki retencji.",
         "errorLoad": "Nie udało się załadować polityk retencji.",
         "retry": "Spróbuj ponownie",
+        "summaryTitle": "Dane kwalifikujące się do usunięcia",
+        "summaryNotComputed": "Jeszcze nie przeliczono",
+        "summaryZeroEligible": "Brak danych do usunięcia",
+        "summaryEligibleCount": "{{ count }} rekordów kwalifikuje się do usunięcia",
+        "summaryOldestPeriod": "Najstarszy kwalifikujący się okres",
+        "summaryComputedAt": "Ostatnio przeliczono",
+        "errorLoadSummary": "Nie udało się załadować danych kwalifikujących się do usunięcia.",
         "category": {
           "CONTACT_INTERACTIONS": "Interakcje z kontaktami",
           "RECORDINGS": "Nagrania rozmów",

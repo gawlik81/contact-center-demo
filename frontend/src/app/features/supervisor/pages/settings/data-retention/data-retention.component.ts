@@ -1,4 +1,5 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,7 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { RetentionService } from '../../../services/retention.service';
-import { RetentionDataCategory } from '../../../models/retention.model';
+import { RetentionDataCategory, RetentionSummaryDto } from '../../../models/retention.model';
 
 /** Zgodne z CHECK constraint `tenant_retention_policy.retention_months` (V082, DB-046). */
 const MIN_RETENTION_MONTHS = 1;
@@ -39,17 +40,19 @@ interface PolicyRowState {
 }
 
 /**
- * Strona „Ustawienia > Retencja danych" (EPIC-29, FE-104). Szkielet strony + Sekcja 1: tabela
- * konfiguracji 4 polityk retencji (jeden wiersz per {@link RetentionDataCategory}). Kolejne
- * sekcje (dashboard „ile do usunięcia", historia purge, przycisk „usuń teraz") dochodzą w
- * FE-105/106/107 jako kolejne `<section>` tej samej strony — wzorzec z EPIC-28 (FE-098 → FE-101/102).
+ * Strona „Ustawienia > Retencja danych" (EPIC-29, FE-104/FE-105). Sekcja 1: tabela konfiguracji
+ * 4 polityk retencji (jeden wiersz per {@link RetentionDataCategory}). Sekcja 2 (FE-105):
+ * dashboard „dane kwalifikujące się do usunięcia" — 4 karty czytające WYŁĄCZNIE z cache
+ * (`GET .../summary`, wypełniany przez `RetentionEvaluationJob`, BE-112), bez liczenia niczego
+ * na żywo. Kolejne sekcje (historia purge, przycisk „usuń teraz") dochodzą w FE-106/107 jako
+ * kolejne `<section>` tej samej strony — wzorzec z EPIC-28 (FE-098 → FE-101/102).
  *
  * Tylko rola ADMIN — wymuszone przez `roleGuard` w routingu, nie w tym komponencie.
  */
 @Component({
   selector: 'app-data-retention',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule],
+  imports: [TranslocoModule, DatePipe],
   templateUrl: './data-retention.component.html',
   styleUrl: './data-retention.component.scss',
 })
@@ -68,8 +71,58 @@ export class DataRetentionComponent implements OnInit {
   /** Per-wiersz stan zapisu (Set kategorii aktualnie zapisywanych), analogicznie do `pendingActionIds` w PluginsPageComponent. */
   readonly pendingCategories = signal<Set<RetentionDataCategory>>(new Set());
 
+  // ---- Sekcja 2: dashboard "dane kwalifikujące się do usunięcia" (FE-105) ----
+  //
+  // Czyta WYŁĄCZNIE z cache (`GET .../summary`, tabela `tenant_retention_pending_summary`
+  // wypełniana przez `RetentionEvaluationJob`, BE-112) — zero liczenia na żywo, zgodnie z
+  // wymogiem dokumentu projektowego. Stan ładowania/błędu ODDZIELNY od Sekcji 1 (`summaryLoading`/
+  // `summaryLoadError` zamiast `loading`/`loadError`) — obie sekcje muszą móc ładować się i
+  // failować niezależnie, patrz `ngOnInit`.
+
+  readonly summaryLoading = signal(true);
+  readonly summaryLoadError = signal(false);
+  readonly summaries = signal<RetentionSummaryDto[]>([]);
+
   ngOnInit(): void {
+    // Wywołania NIEZALEŻNE i RÓWNOLEGŁE — żadne nie czeka na drugie (wzorzec
+    // PluginsPageComponent.ngOnInit: loadInstallations() + loadCatalog()).
     this.loadPolicies();
+    this.loadSummary();
+  }
+
+  loadSummary(): void {
+    this.summaryLoading.set(true);
+    this.summaryLoadError.set(false);
+    this.retentionService
+      .getSummary()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (summaries) => {
+          const byCategory = new Map(summaries.map((s) => [s.dataCategory, s]));
+          // Defensywny fallback brakującej kategorii — analogiczny do rows() w Sekcji 1.
+          // Backend dokumentuje "ZAWSZE dokładnie 4 wpisy", ale gdyby jednak zwrócił mniej,
+          // brakująca kategoria renderuje się w stanie "jeszcze nie przeliczono" (computed: false)
+          // zamiast znikać z dashboardu.
+          this.summaries.set(
+            CATEGORY_ORDER.map(
+              (category) =>
+                byCategory.get(category) ?? {
+                  dataCategory: category,
+                  eligibleRowCount: 0,
+                  oldestEligiblePeriod: null,
+                  newestEligiblePeriod: null,
+                  computedAt: null,
+                  computed: false,
+                },
+            ),
+          );
+          this.summaryLoading.set(false);
+        },
+        error: () => {
+          this.summaryLoadError.set(true);
+          this.summaryLoading.set(false);
+        },
+      });
   }
 
   loadPolicies(): void {

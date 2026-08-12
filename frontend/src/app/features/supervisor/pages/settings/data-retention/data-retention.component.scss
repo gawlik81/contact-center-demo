@@ -291,6 +291,116 @@
   }
 }
 
+// ---- Summary dashboard (Sekcja 2, FE-105) ----
+
+.dr-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.dr-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-1);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  border-left: 3px solid var(--border-1);
+
+  // Stan 1: computed === false — "jeszcze nie przeliczono" (nieznane/oczekujące).
+  &--pending {
+    border-left-color: var(--text-2);
+
+    .dr-summary-card__icon {
+      color: var(--text-2);
+      background: var(--bg-subtle);
+    }
+  }
+
+  // Stan 2: computed === true, eligibleRowCount === 0 — "sprawdzone i czyste".
+  &--zero {
+    border-left-color: var(--success);
+
+    .dr-summary-card__icon {
+      color: var(--success-text);
+      background: var(--success-soft);
+    }
+  }
+
+  // Stan 3: computed === true, eligibleRowCount > 0 — dane czekają na usunięcie.
+  &--eligible {
+    border-left-color: var(--warning);
+
+    .dr-summary-card__icon {
+      color: var(--warning-text);
+      background: var(--warning-soft);
+    }
+  }
+}
+
+.dr-summary-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.dr-summary-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+
+  svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+}
+
+.dr-summary-card__category {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.dr-summary-card__status {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+
+.dr-summary-card__count {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.dr-summary-card__meta,
+.dr-summary-card__timestamp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.dr-summary-card__meta-label {
+  color: var(--text-2);
+}
+
+.dr-summary-card__meta-value {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
 // ---- Spinner ----
 
 .dr-spinner {

@@ -2334,6 +2334,13 @@
         "errorSave": "Die Aufbewahrungsrichtlinie konnte nicht gespeichert werden.",
         "errorLoad": "Aufbewahrungsrichtlinien konnten nicht geladen werden.",
         "retry": "Erneut versuchen",
+        "summaryTitle": "Zur Löschung vorgesehene Daten",
+        "summaryNotComputed": "Noch nicht berechnet",
+        "summaryZeroEligible": "Keine Daten zum Löschen",
+        "summaryEligibleCount": "{{ count }} Datensätze zur Löschung vorgesehen",
+        "summaryOldestPeriod": "Ältester betroffener Zeitraum",
+        "summaryComputedAt": "Zuletzt berechnet",
+        "errorLoadSummary": "Die Löschübersicht konnte nicht geladen werden.",
         "category": {
           "CONTACT_INTERACTIONS": "Kontaktinteraktionen",
           "RECORDINGS": "Gesprächsaufzeichnungen",

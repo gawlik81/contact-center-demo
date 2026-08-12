@@ -2341,6 +2341,23 @@
         "summaryOldestPeriod": "Ältester betroffener Zeitraum",
         "summaryComputedAt": "Zuletzt berechnet",
         "errorLoadSummary": "Die Löschübersicht konnte nicht geladen werden.",
+        "purgeButton": "Jetzt löschen",
+        "purgeButtonAria": "Jetzt Daten der Kategorie {{ category }} löschen",
+        "purgeUnsupportedHint": "Diese Kategorie wird von der manuellen Löschung noch nicht unterstützt.",
+        "purgeStarted": "Die Datenlöschung für Kategorie {{ category }} wurde gestartet.",
+        "purgeSuccess": "Löschung abgeschlossen — {{ count }} Datensätze gelöscht.",
+        "purgeError": "Datenlöschung fehlgeschlagen: {{ message }}",
+        "purgeErrorGeneric": "Datenlöschung fehlgeschlagen.",
+        "purgeModal": {
+          "title": "Datenlöschung bestätigen",
+          "warning": "Diese Aktion ist unumkehrbar — gelöschte Daten können nicht wiederhergestellt werden.",
+          "message": "Sie sind dabei, {{ count }} Datensätze der Kategorie {{ category }} dauerhaft zu löschen.",
+          "rangeLabel": "Von der Löschung betroffener Zeitraum",
+          "confirmLabel": "Geben Sie zur Bestätigung ein",
+          "confirmHint": "Geben Sie genau ein: USUŃ",
+          "confirmButton": "Daten löschen",
+          "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen"
+        },
         "category": {
           "CONTACT_INTERACTIONS": "Kontaktinteraktionen",
           "RECORDINGS": "Gesprächsaufzeichnungen",

@@ -2345,6 +2345,23 @@
         "summaryOldestPeriod": "Najstarszy kwalifikujący się okres",
         "summaryComputedAt": "Ostatnio przeliczono",
         "errorLoadSummary": "Nie udało się załadować danych kwalifikujących się do usunięcia.",
+        "purgeButton": "Usuń teraz",
+        "purgeButtonAria": "Usuń teraz dane kategorii {{ category }}",
+        "purgeUnsupportedHint": "Ta kategoria nie jest jeszcze obsługiwana przez ręczne usuwanie danych.",
+        "purgeStarted": "Usuwanie danych kategorii {{ category }} zostało rozpoczęte.",
+        "purgeSuccess": "Usuwanie zakończone — usunięto {{ count }} rekordów.",
+        "purgeError": "Usuwanie danych zakończyło się błędem: {{ message }}",
+        "purgeErrorGeneric": "Usuwanie danych zakończyło się błędem.",
+        "purgeModal": {
+          "title": "Potwierdź usunięcie danych",
+          "warning": "Ta operacja jest nieodwracalna — usuniętych danych nie da się przywrócić.",
+          "message": "Za chwilę trwale usuniesz {{ count }} rekordów z kategorii {{ category }}.",
+          "rangeLabel": "Zakres okresów objętych usunięciem",
+          "confirmLabel": "Aby potwierdzić, wpisz",
+          "confirmHint": "Wpisz dokładnie: USUŃ",
+          "confirmButton": "Usuń dane",
+          "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}"
+        },
         "category": {
           "CONTACT_INTERACTIONS": "Interakcje z kontaktami",
           "RECORDINGS": "Nagrania rozmów",

@@ -5588,7 +5588,7 @@ frontend/public/i18n/uk.json                                                    
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-105
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5600,11 +5600,63 @@ potwierdzenia pokazujący dokładną liczbę i zakres dat (wzorem istniejącego
 nieodwracalnej, wzorzec już ustalony w projekcie). Akcja nieodwracalna → wyraźne ostrzeżenie.
 
 **Kryteria akceptacji:**
-- [ ] Modal pokazuje `eligibleRowCount` i zakres dat (`oldestEligiblePeriod`–`newestEligiblePeriod`) z aktualnego stanu karty (FE-105), nie z nowego zapytania
-- [ ] Wymaga jawnego potwierdzenia (wzorzec `GdprAnonymizeModalComponent` — wpisanie frazy lub podwójne potwierdzenie, do ustalenia z istniejącym wzorcem UX projektu) przed wywołaniem `triggerPurge`
-- [ ] Przycisk disabled gdy `eligibleRowCount === 0` (nic do usunięcia)
-- [ ] Po potwierdzeniu: `triggerPurge` → toast „operacja rozpoczęta” (nie „zakończona” — to jest async, `purgeId` wraca natychmiast, wynik dociera później) → odświeżenie dashboardu (FE-105) i historii (FE-107) po zakończeniu (polling `getPurgeStatus(purgeId)` do stanu `COMPLETED`/`FAILED`, wzorzec podobny do pollingu statusu joba w `CampaignImportComponent`)
-- [ ] `npm run lint`/`npm run build` przechodzą
+- [x] Modal pokazuje `eligibleRowCount` i zakres dat (`oldestEligiblePeriod`–`newestEligiblePeriod`) z aktualnego stanu karty (FE-105), nie z nowego zapytania
+- [x] Wymaga jawnego potwierdzenia (wzorzec `GdprAnonymizeModalComponent` — wpisanie frazy lub podwójne potwierdzenie, do ustalenia z istniejącym wzorcem UX projektu) przed wywołaniem `triggerPurge`
+- [x] Przycisk disabled gdy `eligibleRowCount === 0` (nic do usunięcia)
+- [x] Po potwierdzeniu: `triggerPurge` → toast „operacja rozpoczęta” (nie „zakończona” — to jest async, `purgeId` wraca natychmiast, wynik dociera później) → odświeżenie dashboardu (FE-105) i historii (FE-107) po zakończeniu (polling `getPurgeStatus(purgeId)` do stanu `COMPLETED`/`FAILED`, wzorzec podobny do pollingu statusu joba w `CampaignImportComponent`)
+- [x] `npm run lint`/`npm run build` przechodzą
+
+**Notatki z implementacji (2026-08-12):**
+- **Lokalizacja** — dopisano do istniejącego `pages/settings/data-retention/data-retention.component.{ts,html,scss}`
+  (Sekcja 2, wewnątrz pętli `@for` po kartach), zamiast nowej strony/sekcji — zgodnie z treścią
+  ticketu. Nowy, osobny, czysto prezentacyjny komponent:
+  `pages/settings/data-retention/purge-confirm-modal/purge-confirm-modal.component.{ts,html,scss}`
+  (selector `app-purge-confirm-modal`).
+- **Wzorzec modala** — połączenie dwóch istniejących wzorców, zgodnie z sugestią ticketu:
+  struktura czysto prezentacyjna (`input.required<PurgeConfirmTarget>()`, `output<void>()`
+  `confirmed`/`cancelled`, `<dialog>` + `ngAfterViewInit()` → `showModal()`,
+  `(document:keydown.escape)` w `host`) z `TenantDeactivateModalComponent`, połączona z wymogiem
+  wpisanej frazy potwierdzającej z `GdprAnonymizeModalComponent`. W odróżnieniu od GDPR modala,
+  `PurgeConfirmModalComponent` NIE wstrzykuje żadnego serwisu i NIE ma własnego stanu
+  `isLoading` — cała logika wywołania `triggerPurge` + pollingu żyje w rodzicu
+  (`DataRetentionComponent`), modal tylko pyta i emituje `confirmed`.
+- **Fraza potwierdzająca: `USUŃ`** — krótka, wielkimi literami, analogiczna do `ANONIMIZUJ` z GDPR
+  modala. Hardkodowana w kodzie (nie tłumaczona per-locale), identycznie jak `ANONIMIZUJ` w
+  `GdprAnonymizeModalComponent` — sprawdzana dosłownie niezależnie od języka UI. **Uwaga:**
+  zauważono przy okazji, że `en.json` dla GDPR modala ma błąd (`confirmHint` mówi „Type exactly:
+  ANONIMIZUJ” zamiast `ANONYMIZE`, mimo że nieużywany klucz `confirmMismatch` ma poprawną wersję)
+  — w tym tickecie treść `confirmHint` we WSZYSTKICH 4 locale świadomie zawiera dosłownie „USUŃ”
+  (zgodnie z tym, co faktycznie sprawdza kod), żeby nie powtórzyć tej niespójności.
+- **RECORDINGS/CAMPAIGN_DATA nieobsługiwane przez backend purge** — `RetentionPurgeServiceImpl`
+  rzuca `UnsupportedOperationException` (HTTP 501) dla tych 2 kategorii (BE-116/BE-119 jeszcze
+  nieukończone, zweryfikowano bezpośrednio w kodzie backendu). Wybrano **disabled z tooltipem**
+  (`[title]` = `purgeUnsupportedHint`, wzorzec `[title]="'...' | transloco"` już używany w
+  `user-list.component.html`), nie ukrycie przycisku — użytkownik widzi kartę i stan
+  `eligibleRowCount` (o ile `computed`), ale przycisk jest zablokowany zanim wywoła akcję
+  gwarantowanie kończącą się błędem.
+- **Zatrzymanie pollingu** — w odróżnieniu od wzorca źródłowego (`CampaignImportComponent.
+  startPolling`, który polega WYŁĄCZNIE na `takeUntilDestroyed` i nie zatrzymuje `interval()` po
+  stanie terminalnym), `DataRetentionComponent.startPurgePolling` trzyma `Map<RetentionDataCategory,
+  Subscription>` i jawnie woła `subscription.unsubscribe()` w momencie `COMPLETED`/`FAILED` —
+  wielokrotne równoległe purge (różne kategorie naraz) są obsłużone niezależnie, każda ze swoją
+  subskrypcją.
+- **Disabled przycisku „Usuń teraz”** (`isPurgeDisabled`) — `!entry.computed` LUB
+  `eligibleRowCount === 0` LUB kategoria nieobsługiwana LUB `purgingCategories()` już zawiera tę
+  kategorię (spinner analogiczny do `dr-spinner` z Sekcji 1).
+- **i18n** — 4 pliki (`pl/en/de/uk.json`), nowe klucze pod `supervisor.settings.dataRetention`
+  (`purgeButton*`, `purgeStarted/Success/Error*`) i zagnieżdżony obiekt `purgeModal.*` (analogicznie
+  do istniejącego zagnieżdżonego `category`). Zweryfikowano skryptem, że KAŻDY nowy klucz użyty w
+  szablonach ma odpowiednik w KAŻDYM z 4 plików (zero brakujących, w przeciwieństwie do luki
+  znalezionej przy FE-104).
+- **Wynik weryfikacji** (`/verify`, pełny zestaw FE+BE): `npm run lint` — 0 błędów (10
+  pre-istniejących warningów `no-console`, identycznie jak FE-104/105). `npm run format:check` —
+  pierwszy przebieg wykrył niesformatowane 2 nowe pliki `.html` (wieloliniowe `[attr.aria-label]`),
+  naprawione przez `prettier --write`, drugi przebieg czysty. `npm test` — 205/205 testów
+  przechodzi (bez nowych testów jednostkowych — ticket ich nie wymagał, logika komponentu jest
+  cienką warstwą nad już przetestowanym `RetentionService`, wzorzec identyczny jak FE-105). `npm
+  run build` — sukces, te same pre-istniejące warningi bundle-budget co w poprzednich tickietach,
+  niezwiązane z nowymi plikami. Backend: `mvn verify -pl app` — BUILD SUCCESS, 1703/1703 testów
+  (backend niezmieniony przez ten ticket, uruchomiony zgodnie z wymogiem `/verify`).
 
 ---
 

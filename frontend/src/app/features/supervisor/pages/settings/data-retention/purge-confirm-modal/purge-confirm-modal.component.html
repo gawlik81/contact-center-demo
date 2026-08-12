@@ -1,0 +1,84 @@
+<dialog #dialogEl class="purge-dialog" aria-labelledby="purge-title" aria-describedby="purge-desc">
+  <div class="purge-dialog__content" role="document">
+    <div class="purge-dialog__header">
+      <svg
+        class="purge-dialog__warning-icon"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        width="28"
+        height="28"
+      >
+        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+      </svg>
+      <h2 id="purge-title" class="purge-dialog__title">
+        {{ 'supervisor.settings.dataRetention.purgeModal.title' | transloco }}
+      </h2>
+    </div>
+
+    <div class="purge-dialog__body">
+      <p id="purge-desc" class="purge-dialog__message">
+        {{
+          'supervisor.settings.dataRetention.purgeModal.message'
+            | transloco: { count: target().eligibleRowCount, category: target().categoryLabel }
+        }}
+      </p>
+      <p class="purge-dialog__warning">
+        {{ 'supervisor.settings.dataRetention.purgeModal.warning' | transloco }}
+      </p>
+
+      @if (target().oldestEligiblePeriod && target().newestEligiblePeriod) {
+        <div class="purge-dialog__range">
+          <span class="purge-dialog__range-label">
+            {{ 'supervisor.settings.dataRetention.purgeModal.rangeLabel' | transloco }}
+          </span>
+          <span class="purge-dialog__range-value">
+            {{ target().oldestEligiblePeriod | date: 'MM.yyyy' }} –
+            {{ target().newestEligiblePeriod | date: 'MM.yyyy' }}
+          </span>
+        </div>
+      }
+
+      <div class="purge-dialog__confirm-field">
+        <label for="purge-confirm-input" class="purge-dialog__confirm-label">
+          {{ 'supervisor.settings.dataRetention.purgeModal.confirmLabel' | transloco }}
+          <strong>USUŃ</strong>:
+        </label>
+        <input
+          id="purge-confirm-input"
+          type="text"
+          class="purge-dialog__confirm-input"
+          [ngModel]="confirmText()"
+          (ngModelChange)="confirmText.set($event)"
+          autocomplete="off"
+          spellcheck="false"
+          aria-required="true"
+          [attr.aria-invalid]="confirmText().length > 0 && !isConfirmEnabled()"
+        />
+        @if (confirmText().length > 0 && !isConfirmEnabled()) {
+          <p class="purge-dialog__confirm-hint" role="alert" aria-live="polite">
+            {{ 'supervisor.settings.dataRetention.purgeModal.confirmHint' | transloco }}
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="purge-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>
+        {{ 'common.cancel' | transloco }}
+      </button>
+      <button
+        class="btn btn-purge"
+        type="button"
+        (click)="onConfirm()"
+        [disabled]="!isConfirmEnabled()"
+        [attr.aria-label]="
+          'supervisor.settings.dataRetention.purgeModal.confirmButtonAria'
+            | transloco: { category: target().categoryLabel }
+        "
+      >
+        {{ 'supervisor.settings.dataRetention.purgeModal.confirmButton' | transloco }}
+      </button>
+    </div>
+  </div>
+</dialog>

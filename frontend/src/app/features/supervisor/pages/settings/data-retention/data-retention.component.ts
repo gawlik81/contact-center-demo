@@ -9,9 +9,14 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription, catchError, interval, of, switchMap } from 'rxjs';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { RetentionService } from '../../../services/retention.service';
 import { RetentionDataCategory, RetentionSummaryDto } from '../../../models/retention.model';
+import {
+  PurgeConfirmModalComponent,
+  PurgeConfirmTarget,
+} from './purge-confirm-modal/purge-confirm-modal.component';
 
 /** Zgodne z CHECK constraint `tenant_retention_policy.retention_months` (V082, DB-046). */
 const MIN_RETENTION_MONTHS = 1;
@@ -32,6 +37,22 @@ const CATEGORY_ORDER: RetentionDataCategory[] = [
   'CAMPAIGN_DATA',
 ];
 
+/**
+ * `RetentionPurgeService.purge()` (backend) rzuca `UnsupportedOperationException` (HTTP 501) dla
+ * tych dwóch kategorii — obsługa to przyszłe BE-116 (RECORDINGS → `RecordingRetentionJob`) i
+ * BE-119 (CAMPAIGN_DATA → `purge_campaign_contact_archive`), jeszcze nieukończone. Przycisk „Usuń
+ * teraz" jest dla nich disabled (z tooltipem wyjaśniającym), nie ukryty — użytkownik widzi kartę i
+ * `eligibleRowCount` (o ile `computed`), ale nie może wywołać akcji gwarantowanie kończącej się
+ * błędem.
+ */
+const UNSUPPORTED_PURGE_CATEGORIES: ReadonlySet<RetentionDataCategory> = new Set([
+  'RECORDINGS',
+  'CAMPAIGN_DATA',
+]);
+
+/** Interwał odpytywania statusu purge — 1:1 z `POLLING_INTERVAL_MS` w `CampaignImportComponent`. */
+const PURGE_POLLING_INTERVAL_MS = 3_000;
+
 interface PolicyRowState {
   category: RetentionDataCategory;
   /** Trzymane jako string (nie number) żeby dało się reprezentować stan "puste"/nieprawidłowe pole. */
@@ -40,19 +61,22 @@ interface PolicyRowState {
 }
 
 /**
- * Strona „Ustawienia > Retencja danych" (EPIC-29, FE-104/FE-105). Sekcja 1: tabela konfiguracji
- * 4 polityk retencji (jeden wiersz per {@link RetentionDataCategory}). Sekcja 2 (FE-105):
- * dashboard „dane kwalifikujące się do usunięcia" — 4 karty czytające WYŁĄCZNIE z cache
+ * Strona „Ustawienia > Retencja danych" (EPIC-29, FE-104/FE-105/FE-106). Sekcja 1: tabela
+ * konfiguracji 4 polityk retencji (jeden wiersz per {@link RetentionDataCategory}). Sekcja 2
+ * (FE-105): dashboard „dane kwalifikujące się do usunięcia" — 4 karty czytające WYŁĄCZNIE z cache
  * (`GET .../summary`, wypełniany przez `RetentionEvaluationJob`, BE-112), bez liczenia niczego
- * na żywo. Kolejne sekcje (historia purge, przycisk „usuń teraz") dochodzą w FE-106/107 jako
- * kolejne `<section>` tej samej strony — wzorzec z EPIC-28 (FE-098 → FE-101/102).
+ * na żywo. Przycisk „Usuń teraz" na kartach Sekcji 2 (FE-106) otwiera
+ * {@link PurgeConfirmModalComponent} z migawką danych karty, po potwierdzeniu wywołuje
+ * `RetentionService.triggerPurge` (async, 202) i odpytuje `getPurgeStatus` do stanu terminalnego —
+ * patrz `triggerPurgeForCategory`/`startPurgePolling` niżej. Sekcja historii purge dochodzi w
+ * FE-107 jako kolejny `<section>` tej samej strony — wzorzec z EPIC-28 (FE-098 → FE-101/102).
  *
  * Tylko rola ADMIN — wymuszone przez `roleGuard` w routingu, nie w tym komponencie.
  */
 @Component({
   selector: 'app-data-retention',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, DatePipe],
+  imports: [TranslocoModule, DatePipe, PurgeConfirmModalComponent],
   templateUrl: './data-retention.component.html',
   styleUrl: './data-retention.component.scss',
 })
@@ -82,6 +106,25 @@ export class DataRetentionComponent implements OnInit {
   readonly summaryLoading = signal(true);
   readonly summaryLoadError = signal(false);
   readonly summaries = signal<RetentionSummaryDto[]>([]);
+
+  // ---- Akcja "Usuń teraz" (FE-106) ----
+  //
+  // Modal potwierdzenia jest CZYSTO PREZENTACYJNY (wzorzec TenantDeactivateModalComponent) —
+  // cała logika wywołania triggerPurge + pollingu żyje TU, w rodzicu, nie w modalu.
+
+  /** Migawka danych karty przekazana do modala; null gdy modal zamknięty. */
+  readonly purgeModalTarget = signal<PurgeConfirmTarget | null>(null);
+
+  /** Kategorie z aktualnie trwającym purge — analogiczne do `pendingCategories` z Sekcji 1. */
+  readonly purgingCategories = signal<Set<RetentionDataCategory>>(new Set());
+
+  /**
+   * Subskrypcje pollingu per kategoria — pozwala zatrzymać jawnie po `COMPLETED`/`FAILED` zamiast
+   * polegać wyłącznie na `takeUntilDestroyed` (ulepszenie względem `CampaignImportComponent.
+   * startPolling`, który nie zatrzymuje `interval()` po stanie terminalnym i dla długo otwartej
+   * strony leci w nieskończoność mimo zakończonego joba).
+   */
+  private readonly purgeSubscriptions = new Map<RetentionDataCategory, Subscription>();
 
   ngOnInit(): void {
     // Wywołania NIEZALEŻNE i RÓWNOLEGŁE — żadne nie czeka na drugie (wzorzec
@@ -233,5 +276,138 @@ export class DataRetentionComponent implements OnInit {
           );
         },
       });
+  }
+
+  // ---- Akcja "Usuń teraz" (FE-106) ----
+
+  /** RECORDINGS/CAMPAIGN_DATA: backend rzuca 501, patrz {@link UNSUPPORTED_PURGE_CATEGORIES}. */
+  isPurgeUnsupported(category: RetentionDataCategory): boolean {
+    return UNSUPPORTED_PURGE_CATEGORIES.has(category);
+  }
+
+  isPurging(category: RetentionDataCategory): boolean {
+    return this.purgingCategories().has(category);
+  }
+
+  /** Disabled gdy: nic nie wiadomo, nic do usunięcia, kategoria nieobsługiwana, albo purge już trwa. */
+  isPurgeDisabled(entry: RetentionSummaryDto): boolean {
+    return (
+      !entry.computed ||
+      entry.eligibleRowCount === 0 ||
+      this.isPurgeUnsupported(entry.dataCategory) ||
+      this.isPurging(entry.dataCategory)
+    );
+  }
+
+  private setPurging(category: RetentionDataCategory, purging: boolean): void {
+    this.purgingCategories.update((set) => {
+      const next = new Set(set);
+      if (purging) next.add(category);
+      else next.delete(category);
+      return next;
+    });
+  }
+
+  /**
+   * Otwiera modal potwierdzenia z migawką AKTUALNEGO stanu karty (`entry` pochodzi z `summaries()`
+   * już wczytanego przez FE-105) — celowo NIE odpytujemy `getSummary()` ponownie tutaj, kryterium
+   * akceptacji FE-106 tego wprost wymaga.
+   */
+  openPurgeModal(entry: RetentionSummaryDto): void {
+    if (this.isPurgeDisabled(entry)) return;
+    this.purgeModalTarget.set({
+      category: entry.dataCategory,
+      categoryLabel: this.categoryLabel(entry.dataCategory),
+      eligibleRowCount: entry.eligibleRowCount,
+      oldestEligiblePeriod: entry.oldestEligiblePeriod,
+      newestEligiblePeriod: entry.newestEligiblePeriod,
+    });
+  }
+
+  closePurgeModal(): void {
+    this.purgeModalTarget.set(null);
+  }
+
+  /** `(confirmed)` z modala — modal sam NIE woła serwisu, cała logika żyje tutaj (patrz komentarz klasy). */
+  onPurgeConfirmed(): void {
+    const target = this.purgeModalTarget();
+    if (!target) return;
+    this.closePurgeModal();
+    this.triggerPurgeForCategory(target.category, target.categoryLabel);
+  }
+
+  private triggerPurgeForCategory(category: RetentionDataCategory, categoryLabel: string): void {
+    this.setPurging(category, true);
+    this.retentionService
+      .triggerPurge(category)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ purgeId }) => {
+          // Toast "operacja rozpoczęta" — WYRAŹNIE nie "zakończona": triggerPurge zwraca purgeId
+          // natychmiast (202 Accepted), wynik dociera później przez polling startPurgePolling().
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dataRetention.purgeStarted', {
+              category: categoryLabel,
+            }),
+          );
+          this.startPurgePolling(category, purgeId);
+        },
+        error: () => {
+          this.setPurging(category, false);
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dataRetention.purgeErrorGeneric'),
+          );
+        },
+      });
+  }
+
+  /**
+   * Odpytuje `getPurgeStatus(purgeId)` co {@link PURGE_POLLING_INTERVAL_MS} do stanu `COMPLETED`/
+   * `FAILED`. UWAGA — w odróżnieniu od `CampaignImportComponent.startPolling` (wzorzec źródłowy),
+   * `interval()` jest tu zatrzymywany JAWNIE (`subscription.unsubscribe()`) w momencie osiągnięcia
+   * stanu terminalnego, a nie tylko przy zniszczeniu komponentu — inaczej dla długo otwartej
+   * strony zbędne zapytania leciałyby w nieskończoność mimo że purge już dawno się skończył.
+   */
+  private startPurgePolling(category: RetentionDataCategory, purgeId: string): void {
+    // Defensywnie zamknij ewentualną poprzednią subskrypcję dla tej kategorii — nie powinno się
+    // zdarzyć (przycisk jest disabled przez isPurging()), ale unikamy dwóch równoległych pollingów.
+    this.purgeSubscriptions.get(category)?.unsubscribe();
+
+    const subscription = interval(PURGE_POLLING_INTERVAL_MS)
+      .pipe(
+        switchMap(() =>
+          this.retentionService.getPurgeStatus(purgeId).pipe(catchError(() => of(null))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        if (!result || result.status === 'RUNNING') return;
+
+        this.purgeSubscriptions.get(category)?.unsubscribe();
+        this.purgeSubscriptions.delete(category);
+        this.setPurging(category, false);
+
+        if (result.status === 'COMPLETED') {
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dataRetention.purgeSuccess', {
+              count: result.rowsDeleted ?? 0,
+            }),
+          );
+          // Odśwież dashboard Sekcji 2 — pokaże zaktualizowany/zerowy eligibleRowCount.
+          // FE-107 dołoży tu analogiczne odświeżenie sekcji historii purge (jeszcze nieistniejącej
+          // na tej stronie — poza zakresem FE-106).
+          this.loadSummary();
+        } else {
+          this.notifications.error(
+            result.errorMessage
+              ? this.transloco.translate('supervisor.settings.dataRetention.purgeError', {
+                  message: result.errorMessage,
+                })
+              : this.transloco.translate('supervisor.settings.dataRetention.purgeErrorGeneric'),
+          );
+        }
+      });
+
+    this.purgeSubscriptions.set(category, subscription);
   }
 }

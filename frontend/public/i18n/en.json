@@ -2345,6 +2345,23 @@
         "summaryOldestPeriod": "Oldest eligible period",
         "summaryComputedAt": "Last computed",
         "errorLoadSummary": "Failed to load the deletion summary.",
+        "purgeButton": "Delete now",
+        "purgeButtonAria": "Delete now data for category {{ category }}",
+        "purgeUnsupportedHint": "This category is not yet supported by manual deletion.",
+        "purgeStarted": "Data deletion for category {{ category }} has started.",
+        "purgeSuccess": "Deletion completed — {{ count }} records deleted.",
+        "purgeError": "Data deletion failed: {{ message }}",
+        "purgeErrorGeneric": "Data deletion failed.",
+        "purgeModal": {
+          "title": "Confirm data deletion",
+          "warning": "This action is irreversible — deleted data cannot be restored.",
+          "message": "You are about to permanently delete {{ count }} records from category {{ category }}.",
+          "rangeLabel": "Period range covered by the deletion",
+          "confirmLabel": "To confirm, type",
+          "confirmHint": "Type exactly: USUŃ",
+          "confirmButton": "Delete data",
+          "confirmButtonAria": "Confirm data deletion for category {{ category }}"
+        },
         "category": {
           "CONTACT_INTERACTIONS": "Contact interactions",
           "RECORDINGS": "Call recordings",

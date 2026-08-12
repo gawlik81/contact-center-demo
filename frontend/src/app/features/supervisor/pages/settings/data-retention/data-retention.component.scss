@@ -82,6 +82,16 @@
     }
   }
 
+  &--danger {
+    background: transparent;
+    color: var(--danger-text);
+    border-color: var(--danger);
+
+    &:not(:disabled):hover {
+      background: var(--danger-soft);
+    }
+  }
+
   &--sm {
     padding: 0.3rem 0.6rem;
     font-size: 0.8125rem;
@@ -399,6 +409,14 @@
 .dr-summary-card__meta-value {
   color: var(--text-1);
   font-weight: 500;
+}
+
+.dr-summary-card__actions {
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-1);
+  display: flex;
+  justify-content: flex-end;
 }
 
 // ---- Spinner ----

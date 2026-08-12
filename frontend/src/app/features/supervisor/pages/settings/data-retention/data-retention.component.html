@@ -199,9 +199,36 @@
                 </span>
               </p>
             }
+
+            <div class="dr-summary-card__actions">
+              <button
+                type="button"
+                class="dr-btn dr-btn--danger dr-btn--sm"
+                [disabled]="isPurgeDisabled(entry)"
+                (click)="openPurgeModal(entry)"
+                [attr.aria-label]="
+                  'supervisor.settings.dataRetention.purgeButtonAria'
+                    | transloco: { category: categoryLabel(entry.dataCategory) }
+                "
+                [title]="
+                  isPurgeUnsupported(entry.dataCategory)
+                    ? ('supervisor.settings.dataRetention.purgeUnsupportedHint' | transloco)
+                    : ''
+                "
+              >
+                @if (isPurging(entry.dataCategory)) {
+                  <span class="dr-spinner" aria-hidden="true"></span>
+                }
+                {{ 'supervisor.settings.dataRetention.purgeButton' | transloco }}
+              </button>
+            </div>
           </div>
         }
       </div>
     }
   </section>
+
+  @if (purgeModalTarget(); as target) {
+    <app-purge-confirm-modal [target]="target" (confirmed)="onPurgeConfirmed()" (cancelled)="closePurgeModal()" />
+  }
 </div>

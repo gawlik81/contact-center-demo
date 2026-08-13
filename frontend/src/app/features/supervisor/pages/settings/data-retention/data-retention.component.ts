@@ -12,7 +12,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, catchError, interval, of, switchMap } from 'rxjs';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { RetentionService } from '../../../services/retention.service';
-import { RetentionDataCategory, RetentionSummaryDto } from '../../../models/retention.model';
+import { PagedResponse } from '../../../../../core/models/paged-response.model';
+import {
+  PurgeHistoryEntryDto,
+  PurgeStatus,
+  PurgeTriggerType,
+  RetentionDataCategory,
+  RetentionSummaryDto,
+} from '../../../models/retention.model';
 import {
   PurgeConfirmModalComponent,
   PurgeConfirmTarget,
@@ -68,8 +75,10 @@ interface PolicyRowState {
  * na żywo. Przycisk „Usuń teraz" na kartach Sekcji 2 (FE-106) otwiera
  * {@link PurgeConfirmModalComponent} z migawką danych karty, po potwierdzeniu wywołuje
  * `RetentionService.triggerPurge` (async, 202) i odpytuje `getPurgeStatus` do stanu terminalnego —
- * patrz `triggerPurgeForCategory`/`startPurgePolling` niżej. Sekcja historii purge dochodzi w
- * FE-107 jako kolejny `<section>` tej samej strony — wzorzec z EPIC-28 (FE-098 → FE-101/102).
+ * patrz `triggerPurgeForCategory`/`startPurgePolling` niżej. Sekcja 4 (FE-107): tabela historii
+ * purge (`GET .../history`, paginowana, ZAWSZE sortowana malejąco po `startedAt` po stronie
+ * backendu — brak kontrolki sortowania w UI) — kolejny `<section>` tej samej strony, wzorzec z
+ * EPIC-28 (FE-098 → FE-101/102).
  *
  * Tylko rola ADMIN — wymuszone przez `roleGuard` w routingu, nie w tym komponencie.
  */
@@ -126,11 +135,28 @@ export class DataRetentionComponent implements OnInit {
    */
   private readonly purgeSubscriptions = new Map<RetentionDataCategory, Subscription>();
 
+  // ---- Sekcja 4: historia operacji usuwania (FE-107) ----
+  //
+  // Paginacja — ten sam MECHANIZM co UserListComponent (sygnały + onPrevPage/onNextPage +
+  // firstItemIndex/lastItemIndex), ale nazwane z prefiksem `history*` żeby nie kolidować ze
+  // stanem pozostałych sekcji tej strony. `historyPageSize` mniejszy niż w UserListComponent
+  // (10 zamiast 20) — to log operacji, nie lista encji biznesowych; 10 wierszy wystarcza żeby
+  // strona nie robiła się nieporęcznie długa przy rzadkich, ale kumulujących się w czasie wpisach.
+
+  readonly historyLoading = signal(true);
+  readonly historyLoadError = signal(false);
+  readonly historyEntries = signal<PurgeHistoryEntryDto[]>([]);
+  readonly historyTotalElements = signal(0);
+  readonly historyTotalPages = signal(0);
+  readonly historyCurrentPage = signal(0);
+  readonly historyPageSize = 10;
+
   ngOnInit(): void {
     // Wywołania NIEZALEŻNE i RÓWNOLEGŁE — żadne nie czeka na drugie (wzorzec
     // PluginsPageComponent.ngOnInit: loadInstallations() + loadCatalog()).
     this.loadPolicies();
     this.loadSummary();
+    this.loadHistory();
   }
 
   loadSummary(): void {
@@ -394,8 +420,6 @@ export class DataRetentionComponent implements OnInit {
             }),
           );
           // Odśwież dashboard Sekcji 2 — pokaże zaktualizowany/zerowy eligibleRowCount.
-          // FE-107 dołoży tu analogiczne odświeżenie sekcji historii purge (jeszcze nieistniejącej
-          // na tej stronie — poza zakresem FE-106).
           this.loadSummary();
         } else {
           this.notifications.error(
@@ -406,8 +430,89 @@ export class DataRetentionComponent implements OnInit {
               : this.transloco.translate('supervisor.settings.dataRetention.purgeErrorGeneric'),
           );
         }
+
+        // FE-107: odśwież historię niezależnie od wyniku (COMPLETED i FAILED to oba stany
+        // terminalne widoczne w tabeli Sekcji 4) — reset do strony 0, żeby najnowszy wpis
+        // (backend sortuje malejąco po startedAt) był od razu widoczny bez ręcznej nawigacji.
+        this.historyCurrentPage.set(0);
+        this.loadHistory();
       });
 
     this.purgeSubscriptions.set(category, subscription);
+  }
+
+  // ---- Sekcja 4: historia operacji usuwania (FE-107) ----
+
+  loadHistory(): void {
+    this.historyLoading.set(true);
+    this.historyLoadError.set(false);
+    this.retentionService
+      .getHistory(this.historyCurrentPage(), this.historyPageSize)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response: PagedResponse<PurgeHistoryEntryDto>) => {
+          this.historyEntries.set(response.content);
+          this.historyTotalElements.set(response.totalElements);
+          this.historyTotalPages.set(response.totalPages);
+          this.historyLoading.set(false);
+        },
+        error: () => {
+          this.historyLoadError.set(true);
+          this.historyLoading.set(false);
+        },
+      });
+  }
+
+  onHistoryPrevPage(): void {
+    if (this.historyCurrentPage() > 0) {
+      this.historyCurrentPage.update((p) => p - 1);
+      this.loadHistory();
+    }
+  }
+
+  onHistoryNextPage(): void {
+    if (this.historyCurrentPage() + 1 < this.historyTotalPages()) {
+      this.historyCurrentPage.update((p) => p + 1);
+      this.loadHistory();
+    }
+  }
+
+  readonly firstHistoryItemIndex = (): number =>
+    this.historyCurrentPage() * this.historyPageSize + 1;
+
+  readonly lastHistoryItemIndex = (): number =>
+    Math.min((this.historyCurrentPage() + 1) * this.historyPageSize, this.historyTotalElements());
+
+  triggerTypeLabel(trigger: PurgeTriggerType): string {
+    switch (trigger) {
+      case 'MANUAL':
+        return this.transloco.translate('supervisor.settings.dataRetention.history.triggerManual');
+      case 'AUTO':
+        return this.transloco.translate('supervisor.settings.dataRetention.history.triggerAuto');
+    }
+  }
+
+  historyStatusLabel(status: PurgeStatus): string {
+    switch (status) {
+      case 'RUNNING':
+        return this.transloco.translate('supervisor.settings.dataRetention.history.statusRunning');
+      case 'COMPLETED':
+        return this.transloco.translate(
+          'supervisor.settings.dataRetention.history.statusCompleted',
+        );
+      case 'FAILED':
+        return this.transloco.translate('supervisor.settings.dataRetention.history.statusFailed');
+    }
+  }
+
+  historyStatusBadgeClass(status: PurgeStatus): string {
+    switch (status) {
+      case 'RUNNING':
+        return 'dr-badge dr-badge--running';
+      case 'COMPLETED':
+        return 'dr-badge dr-badge--completed';
+      case 'FAILED':
+        return 'dr-badge dr-badge--failed';
+    }
   }
 }

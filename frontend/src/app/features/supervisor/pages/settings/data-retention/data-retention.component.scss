@@ -419,6 +419,128 @@
   justify-content: flex-end;
 }
 
+// ---- Badge (Sekcja 4 — historia purge, FE-107) ----
+//
+// Mirrors `pp-badge` pattern from plugins-page.component.scss (FE-098 healthBadgeClass), z
+// prefiksem `dr-` dla spójności z resztą tej strony. Trzy stany kolorystycznie odróżnialne od
+// siebie i od stanów Sekcji 2 (`dr-summary-card--*`): RUNNING dostaje `--accent-soft`/`--accent-
+// text` (niebieski, "w toku") zamiast `--warning-soft` — w projekcie brak dedykowanej zmiennej
+// "info", a użycie `--success-soft` kolidowałoby wizualnie ze stanem COMPLETED (oba wyglądałyby
+// identycznie zielone, co przeczy wymogowi ticketu "badge z kolorem PER stan").
+
+.dr-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &--running {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--completed {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--failed {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+}
+
+/**
+ * Ikonka błędu obok badge FAILED — mirrors `.reset-badge` pattern z user-list.component.scss
+ * ([title] + [attr.aria-label] razem, bo samo [title] nie jest dostępne dla czytników ekranu ani
+ * dotyku). `tabindex="0"` w szablonie pozwala dotrzeć do niej z klawiatury.
+ */
+.dr-badge__error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 0.375rem;
+  border-radius: 50%;
+  background: var(--danger-text);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+// ---- Pagination (Sekcja 4 — mechanizm z UserListComponent, klasy z prefiksem dr-) ----
+
+.dr-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  &__info {
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__pages {
+    font-size: 0.875rem;
+    color: var(--text-2);
+    white-space: nowrap;
+    min-width: 100px;
+    text-align: center;
+  }
+}
+
+// ---- Empty state (Sekcja 4) ----
+
+.dr-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1rem;
+  text-align: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+
+  &__icon {
+    width: 40px;
+    height: 40px;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  &__message {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-1);
+    margin: 0 0 0.25rem;
+  }
+
+  &__hint {
+    font-size: 0.875rem;
+    color: var(--text-2);
+    margin: 0;
+  }
+}
+
 // ---- Spinner ----
 
 .dr-spinner {

@@ -2363,6 +2363,27 @@
           "RECORDINGS": "Записи розмов",
           "TRANSCRIPTS": "Транскрипти розмов",
           "CAMPAIGN_DATA": "Дані кампаній"
+        },
+        "history": {
+          "title": "Історія видалень",
+          "errorLoad": "Не вдалося завантажити історію видалень.",
+          "columnCategory": "Категорія",
+          "columnTrigger": "Тип запуску",
+          "columnRowsDeleted": "Видалено записів",
+          "columnStatus": "Статус",
+          "columnStartedAt": "Розпочато",
+          "columnCompletedAt": "Завершено",
+          "triggerManual": "Вручну",
+          "triggerAuto": "Автоматично",
+          "statusRunning": "Виконується",
+          "statusCompleted": "Завершено",
+          "statusFailed": "Помилка",
+          "errorTooltipAria": "Деталі помилки",
+          "emptyText": "Історія видалень поки відсутня.",
+          "emptyHint": "Виконані операції видалення даних з'являться тут.",
+          "paginationLabel": "Навігація сторінками історії видалень",
+          "showing": "Показано",
+          "ofEntries": "операцій"
         }
       }
     },

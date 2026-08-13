@@ -228,6 +228,124 @@
     }
   </section>
 
+  <!-- ============ Sekcja 4: historia operacji usuwania (FE-107) ============ -->
+  <section class="dr-section">
+    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.history.title' | transloco }}</h2>
+
+    @if (historyLoading()) {
+      <div class="dr-skeleton-wrapper">
+        @for (item of [1, 2, 3]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (historyLoadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.history.errorLoad' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadHistory()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else if (historyEntries().length > 0) {
+      <div class="dr-table-wrap">
+        <table class="dr-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCategory' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnTrigger' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnRowsDeleted' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStatus' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStartedAt' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCompletedAt' | transloco }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of historyEntries(); track entry.purgeId) {
+              <tr>
+                <td class="dr-table__category">{{ categoryLabel(entry.dataCategory) }}</td>
+                <td>{{ triggerTypeLabel(entry.triggerType) }}</td>
+                <td>{{ entry.rowsDeleted ?? '—' }}</td>
+                <td>
+                  <span [class]="historyStatusBadgeClass(entry.status)">
+                    {{ historyStatusLabel(entry.status) }}
+                  </span>
+                  @if (entry.status === 'FAILED' && entry.errorMessage) {
+                    <span
+                      class="dr-badge__error-icon"
+                      tabindex="0"
+                      [title]="entry.errorMessage"
+                      [attr.aria-label]="
+                        ('supervisor.settings.dataRetention.history.errorTooltipAria' | transloco) +
+                        ': ' +
+                        entry.errorMessage
+                      "
+                      >!</span
+                    >
+                  }
+                </td>
+                <td>{{ entry.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                <td>{{ entry.completedAt ? (entry.completedAt | date: 'dd.MM.yyyy HH:mm') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <nav
+        class="dr-pagination"
+        [attr.aria-label]="'supervisor.settings.dataRetention.history.paginationLabel' | transloco"
+      >
+        <span class="dr-pagination__info" aria-live="polite">
+          @if (historyTotalElements() > 0) {
+            {{ 'supervisor.settings.dataRetention.history.showing' | transloco }}
+            {{ firstHistoryItemIndex() }}&ndash;{{ lastHistoryItemIndex() }} {{ 'common.of' | transloco }}
+            {{ historyTotalElements() }}
+            {{ 'supervisor.settings.dataRetention.history.ofEntries' | transloco }}
+          }
+        </span>
+        <div class="dr-pagination__controls">
+          <button
+            type="button"
+            class="dr-btn dr-btn--ghost dr-btn--sm"
+            (click)="onHistoryPrevPage()"
+            [disabled]="historyCurrentPage() === 0"
+            [attr.aria-label]="'common.previous' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            {{ 'common.previous' | transloco }}
+          </button>
+          <span class="dr-pagination__pages" aria-current="page">
+            {{ 'common.page' | transloco }} {{ historyCurrentPage() + 1 }} {{ 'common.of' | transloco }}
+            {{ historyTotalPages() }}
+          </span>
+          <button
+            type="button"
+            class="dr-btn dr-btn--ghost dr-btn--sm"
+            (click)="onHistoryNextPage()"
+            [disabled]="historyCurrentPage() + 1 >= historyTotalPages()"
+            [attr.aria-label]="'common.next' | transloco"
+          >
+            {{ 'common.next' | transloco }}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <div class="dr-empty-state" role="status" aria-live="polite">
+        <svg class="dr-empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M9 3v1H4v2h1v13c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"
+          />
+        </svg>
+        <p class="dr-empty-state__message">{{ 'supervisor.settings.dataRetention.history.emptyText' | transloco }}</p>
+        <p class="dr-empty-state__hint">{{ 'supervisor.settings.dataRetention.history.emptyHint' | transloco }}</p>
+      </div>
+    }
+  </section>
+
   @if (purgeModalTarget(); as target) {
     <app-purge-confirm-modal [target]="target" (confirmed)="onPurgeConfirmed()" (cancelled)="closePurgeModal()" />
   }

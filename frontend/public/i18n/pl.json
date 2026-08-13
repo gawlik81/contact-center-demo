@@ -2367,6 +2367,27 @@
           "RECORDINGS": "Nagrania rozmów",
           "TRANSCRIPTS": "Transkrypcje rozmów",
           "CAMPAIGN_DATA": "Dane kampanii"
+        },
+        "history": {
+          "title": "Historia operacji usuwania",
+          "errorLoad": "Nie udało się załadować historii operacji usuwania.",
+          "columnCategory": "Kategoria",
+          "columnTrigger": "Wyzwolenie",
+          "columnRowsDeleted": "Usunięto rekordów",
+          "columnStatus": "Status",
+          "columnStartedAt": "Rozpoczęto",
+          "columnCompletedAt": "Zakończono",
+          "triggerManual": "Ręczne",
+          "triggerAuto": "Automatyczne",
+          "statusRunning": "W toku",
+          "statusCompleted": "Zakończono",
+          "statusFailed": "Błąd",
+          "errorTooltipAria": "Treść błędu",
+          "emptyText": "Brak historii operacji usuwania.",
+          "emptyHint": "Wykonane operacje usuwania danych pojawią się tutaj.",
+          "paginationLabel": "Nawigacja stron historii usuwania",
+          "showing": "Wyświetlanie",
+          "ofEntries": "operacji"
         }
       }
     },

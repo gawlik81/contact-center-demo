@@ -2363,6 +2363,27 @@
           "RECORDINGS": "Gesprächsaufzeichnungen",
           "TRANSCRIPTS": "Gesprächstranskripte",
           "CAMPAIGN_DATA": "Kampagnendaten"
+        },
+        "history": {
+          "title": "Löschverlauf",
+          "errorLoad": "Der Löschverlauf konnte nicht geladen werden.",
+          "columnCategory": "Kategorie",
+          "columnTrigger": "Auslöser",
+          "columnRowsDeleted": "Gelöschte Datensätze",
+          "columnStatus": "Status",
+          "columnStartedAt": "Gestartet",
+          "columnCompletedAt": "Abgeschlossen",
+          "triggerManual": "Manuell",
+          "triggerAuto": "Automatisch",
+          "statusRunning": "Läuft",
+          "statusCompleted": "Abgeschlossen",
+          "statusFailed": "Fehlgeschlagen",
+          "errorTooltipAria": "Fehlerdetails",
+          "emptyText": "Noch kein Löschverlauf vorhanden.",
+          "emptyHint": "Abgeschlossene Datenlöschvorgänge werden hier angezeigt.",
+          "paginationLabel": "Seitennavigation des Löschverlaufs",
+          "showing": "Anzeige",
+          "ofEntries": "Einträge"
         }
       }
     },

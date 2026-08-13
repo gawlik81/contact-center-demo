@@ -2367,6 +2367,27 @@
           "RECORDINGS": "Call recordings",
           "TRANSCRIPTS": "Call transcripts",
           "CAMPAIGN_DATA": "Campaign data"
+        },
+        "history": {
+          "title": "Deletion history",
+          "errorLoad": "Failed to load the deletion history.",
+          "columnCategory": "Category",
+          "columnTrigger": "Trigger",
+          "columnRowsDeleted": "Rows deleted",
+          "columnStatus": "Status",
+          "columnStartedAt": "Started",
+          "columnCompletedAt": "Completed",
+          "triggerManual": "Manual",
+          "triggerAuto": "Automatic",
+          "statusRunning": "Running",
+          "statusCompleted": "Completed",
+          "statusFailed": "Failed",
+          "errorTooltipAria": "Error details",
+          "emptyText": "No deletion history yet.",
+          "emptyHint": "Completed data deletion operations will appear here.",
+          "paginationLabel": "Deletion history pagination",
+          "showing": "Showing",
+          "ofEntries": "entries"
         }
       }
     },

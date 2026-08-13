@@ -5666,7 +5666,7 @@ nieodwracalnej, wzorzec już ustalony w projekcie). Akcja nieodwracalna → wyra
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-104
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5677,10 +5677,48 @@ malejąco po dacie. Kolumny: kategoria, typ wyzwolenia (ręczne/auto), liczba us
 (z badge kolorystycznym RUNNING/COMPLETED/FAILED), data rozpoczęcia/zakończenia.
 
 **Kryteria akceptacji:**
-- [ ] Tabela paginowana (`PagedResponse<PurgeHistoryEntryDto>`, wzorzec istniejących list w projekcie)
-- [ ] Badge statusu z kolorem per stan (wzorzec `healthStatus` z FE-098 EPIC-28)
-- [ ] Wiersz ze statusem `FAILED` pokazuje `errorMessage` (tooltip lub rozwinięcie wiersza)
-- [ ] `npm run lint`/`npm run build` przechodzą
+- [x] Tabela paginowana (`PagedResponse<PurgeHistoryEntryDto>`, wzorzec istniejących list w projekcie)
+- [x] Badge statusu z kolorem per stan (wzorzec `healthStatus` z FE-098 EPIC-28)
+- [x] Wiersz ze statusem `FAILED` pokazuje `errorMessage` (tooltip lub rozwinięcie wiersza)
+- [x] `npm run lint`/`npm run build` przechodzą
+
+**Notatki z implementacji (2026-08-13):**
+- **Lokalizacja** — dopisano jako Sekcja 4 do istniejącego
+  `pages/settings/data-retention/data-retention.component.{ts,html,scss}`, bez nowych plików
+  komponentów (ticket nie wymagał wydzielenia, plik nie zrobił się nieczytelny) i bez zmian w
+  routingu/`sidenav.component.ts` — zgodnie z ustalonym wzorcem EPIC-28/EPIC-29 (jedna strona,
+  kolejne tickety dokładają sekcje). Serwis (`RetentionService.getHistory`) i modele
+  (`PurgeHistoryEntryDto`/`PurgeTriggerType`/`PurgeStatus`) już istniały z FE-103 — brak zmian w
+  warstwie danych.
+- **Paginacja** — ten sam MECHANIZM co `UserListComponent` (sygnały `historyLoading`/
+  `historyEntries`/`historyTotalElements`/`historyTotalPages`/`historyCurrentPage` + metody
+  `onHistoryPrevPage`/`onHistoryNextPage` + helpery `firstHistoryItemIndex`/
+  `lastHistoryItemIndex`), ale ze skeleton/empty state w istniejącym stylu `dr-*` tej strony
+  (`dr-skeleton-card`, nowe `dr-empty-state`, nowe `dr-pagination`) zamiast dosłownego
+  importu klas `user-list` (`skeleton-row`/`empty-state`/`pagination`). `historyPageSize = 10`
+  (mniej niż `pageSize = 20` w `UserListComponent`) — to log operacji, nie lista encji
+  biznesowych.
+- **Badge statusu** — trzy stany kolorystycznie odróżnialne: `RUNNING` → `--accent-soft`/
+  `--accent-text` (niebieski), `COMPLETED` → `--success-soft`/`--success-text` (zielony),
+  `FAILED` → `--danger-soft`/`--danger-text` (czerwony). Odstępstwo od sugestii ticketu
+  („`--warning-soft` dla w toku, jeśli brak info") — w projekcie nie ma dedykowanej zmiennej
+  „info", a użycie `--success-soft` dla `RUNNING` kolidowałoby wizualnie z `COMPLETED` (oba
+  wyglądałyby identycznie zielone), co przeczy wymogowi „badge z kolorem PER stan". `--accent-*`
+  już istnieje w palecie i ma semantykę neutralno-aktywną, więc pasuje do „w toku" lepiej niż
+  `--warning-*` (które sugeruje problem, a `RUNNING` nim nie jest).
+- **`errorMessage` na wierszu `FAILED`** — bez mechanizmu rozwijania wiersza (nadmiarowe dla
+  pojedynczego stringa). Ikonka `dr-badge__error-icon` obok badge z `[title]` +
+  `[attr.aria-label]` razem — mirrors dokładnie `.reset-badge` z `user-list.component.html`
+  (nie tylko `[title]` na przycisku „Usuń teraz" z Sekcji 3, bo samo `title` jest niedostępne
+  dla czytników ekranu/dotyku). `tabindex="0"` dla dostępu z klawiatury.
+- **Odświeżanie po zakończeniu purge** — `startPurgePolling` (Sekcja 3, FE-106) woła teraz
+  `historyCurrentPage.set(0)` + `loadHistory()` po każdym stanie terminalnym (`COMPLETED` i
+  `FAILED`), nie tylko po `COMPLETED` — oba tworzą/aktualizują wiersz w `retention_purge_log`
+  widoczny w tabeli Sekcji 4. Reset do strony 0 pokazuje najnowszy wpis od razu (backend zawsze
+  sortuje malejąco po `startedAt`).
+- **Kolumny „Rozpoczęto"/„Zakończono"** — `DatePipe` z formatem `'dd.MM.yyyy HH:mm'`, identycznie
+  jak `computedAt` w Sekcji 2. `completedAt`/`rowsDeleted` renderują „—" gdy `null` (status
+  `RUNNING`).
 
 ---
 

@@ -4,6 +4,7 @@ import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.PurgeTriggerType;
 import com.contactcenter.domain.retention.RetentionDataCategory;
+import com.contactcenter.domain.retention.RetentionEvaluationService;
 import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.retention.RetentionPurgeService;
 import com.contactcenter.domain.retention.TenantRetentionPolicy;
@@ -63,8 +64,9 @@ import static org.mockito.Mockito.when;
  *
  * <p><strong>Co jest tu pokryte:</strong>
  * <ul>
- *   <li>Happy path wszystkich 6 endpointów — delegacja do właściwej metody serwisu z
- *       poprawnymi argumentami, poprawny status HTTP i body odpowiedzi.</li>
+ *   <li>Happy path wszystkich 7 endpointów (w tym {@code POST .../recompute}, rozszerzenie
+ *       BE-112/BE-118 — ręczne przeliczenie na żądanie administratora) — delegacja do właściwej
+ *       metody serwisu z poprawnymi argumentami, poprawny status HTTP i body odpowiedzi.</li>
  *   <li>403 cross-tenant: {@code {tenantId}} ze ścieżki != {@code TenantContext.getTenantId()}
  *       → {@link CrossTenantAccessException}, rzucona PRZED jakąkolwiek interakcją z serwisem
  *       (weryfikowane przez {@code verifyNoInteractions}) — to jest zwykła logika Javy w
@@ -97,12 +99,15 @@ class RetentionControllerTest {
     @Mock
     private RetentionPurgeService retentionPurgeService;
 
+    @Mock
+    private RetentionEvaluationService retentionEvaluationService;
+
     private RetentionController controller;
     private MockedStatic<TenantContext> tenantContextMock;
 
     @BeforeEach
     void setUp() {
-        controller = new RetentionController(retentionPolicyService, retentionPurgeService);
+        controller = new RetentionController(retentionPolicyService, retentionPurgeService, retentionEvaluationService);
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_A);
         tenantContextMock.when(TenantContext::getUserId).thenReturn(USER_ID);
@@ -240,6 +245,40 @@ class RetentionControllerTest {
                     .isInstanceOf(CrossTenantAccessException.class);
 
             verifyNoInteractions(retentionPurgeService);
+        }
+    }
+
+    // =========================================================================
+    // POST .../recompute
+    // =========================================================================
+
+    @Nested
+    @DisplayName("POST .../recompute")
+    class Recompute {
+
+        @Test
+        @DisplayName("happy path: deleguje do RetentionEvaluationService.runForTenant, zwraca body serwisu bez zmian")
+        void happyPath_delegatesToService() {
+            List<RetentionSummaryDto> summary = List.of(
+                    new RetentionSummaryDto(RetentionDataCategory.CONTACT_INTERACTIONS, 10L,
+                            LocalDate.of(2020, 1, 1), LocalDate.of(2020, 2, 1), Instant.now(), true),
+                    new RetentionSummaryDto(RetentionDataCategory.RECORDINGS, 0L, null, null, null, false));
+            when(retentionEvaluationService.runForTenant(TENANT_A)).thenReturn(summary);
+
+            ResponseEntity<List<RetentionSummaryDto>> response = controller.recompute(TENANT_A);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isEqualTo(summary);
+            verify(retentionEvaluationService).runForTenant(TENANT_A);
+        }
+
+        @Test
+        @DisplayName("403: {tenantId} niezgodny -> CrossTenantAccessException, brak wywołania serwisu")
+        void crossTenant_throwsBeforeServiceCall() {
+            assertThatThrownBy(() -> controller.recompute(TENANT_B))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verifyNoInteractions(retentionEvaluationService);
         }
     }
 

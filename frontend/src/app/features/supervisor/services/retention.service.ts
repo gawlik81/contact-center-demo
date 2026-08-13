@@ -161,6 +161,18 @@ export class RetentionService {
   }
 
   /**
+   * POST .../retention/recompute — ręczne przeliczenie WSZYSTKICH 4 kategorii na żądanie, bez
+   * auto-purge. Zwraca ten sam kształt co {@link getSummary} (świeże wartości, zapisane od razu do
+   * cache) — pozwala odświeżyć dashboard Sekcji 2 bez czekania na nocny `RetentionEvaluationJob`
+   * (BE-112), np. zaraz po zmianie polityki retencji. `RECORDINGS` pozostaje `computed === false`
+   * także po przeliczeniu — poza zakresem tego endpointu (patrz {@link RetentionSummaryDto}).
+   */
+  recomputeSummary(): Observable<RetentionSummaryDto[]> {
+    const tenantId = this.requireTenantId();
+    return this.http.post<RetentionSummaryDto[]>(`${this.buildBaseUrl(tenantId)}/recompute`, {});
+  }
+
+  /**
    * POST .../retention/purge — inicjuje asynchroniczne usuwanie danych dla kategorii. Zwraca
    * `purgeId` NATYCHMIAST (202 Accepted), bez czekania na zakończenie — status operacji odpytuj
    * przez {@link getPurgeStatus}.

@@ -6035,6 +6035,75 @@ wystarczyłoby. Wzorzec skopiowany z `SocialIntegrationServiceImpl#refreshToken`
   wyczyszczenie kontekstu po sukcesie i po błędzie).
 - `mvn verify -pl app`: **BUILD SUCCESS**, 1767 testów, 0 failures, 0 errors.
 
+**Aktualizacja (ręczne przeliczenie dashboardu + wydzielenie `RetentionEvaluationService`,
+2026-08-13):** rozszerzenie na żądanie użytkownika, odkryte przy okazji bugfixu `TenantContext` w
+wątku schedulera opisanego wyżej — administrator może teraz wymusić natychmiastowe przeliczenie
+dashboardu "dane do usunięcia" (`FE-105`) zamiast czekać na nocny cron o 01:00 UTC.
+
+- **Nowy endpoint:** `POST /api/tenants/{tenantId}/retention/recompute` (kontroler:
+  `RetentionController`, sekcja "Dashboard" obok istniejącego `GET .../summary`) —
+  `hasRole('ADMIN')` + `assertOwnTenant`, jak pozostałe endpointy tego kontrolera. Zwraca `200 OK`
+  + `List<RetentionSummaryDto>` (dokładnie ten sam DTO/kontrakt co `GET .../summary`) ze świeżo
+  przeliczonymi wartościami dla wszystkich 4 kategorii. `RECORDINGS` pozostaje poza zakresem
+  (`computed=false`), tak jak w nocnym jobie.
+- **KRYTYCZNA różnica względem nocnego joba: BEZ auto-purge.** Ręczne przeliczenie to celowo
+  bezpieczna, pozbawiona efektów ubocznych w sensie usuwania danych akcja "odśwież liczby" —
+  NIGDY nie wyzwala `RetentionPurgeService.purge`, nawet gdy `eligibleRowCount > 0` i
+  `auto_purge_enabled=true` dla jakiejś kategorii tenanta. Auto-purge pozostaje WYŁĄCZNIE
+  odpowiedzialnością nocnego `RetentionEvaluationJob`.
+- **Refaktor "wydziel serwis":** cała logika ewaluacji z `RetentionEvaluationJob` (partition-aware
+  `CONTACT_INTERACTIONS`/`TRANSCRIPTS` + `CAMPAIGN_DATA`, dotąd prywatne metody
+  package-private klasy `@Component`) przeniesiona 1:1 do nowego `RetentionEvaluationService`
+  (interfejs, publiczny — konsumowany przez `RetentionController` w innym pakiecie) +
+  `RetentionEvaluationServiceImpl`, dokładnie ten sam wzorzec co już istniejący
+  `RetentionPurgeService`/`RetentionPurgeServiceImpl`. `RetentionEvaluationJob` stał się cienkim
+  wrapperem `@Scheduled` wołającym wyłącznie `evaluationService.runForAllActiveTenants()`. Nowa
+  metoda `List<RetentionSummaryDto> runForTenant(UUID tenantId)` liczy jednego tenanta i deleguje
+  na końcu do `RetentionPurgeService.getPendingSummary(tenantId)` po zapisaniu świeżych wartości
+  do cache — identyczna synteza "zawsze 4 wpisy" co `GET .../summary`, bez duplikowania logiki
+  budowy DTO.
+- **Pułapka `TenantContext` między dwiema ścieżkami wejścia (rozwiązana):** ścieżka schedulera
+  (`runForAllActiveTenants`) wymaga `TenantContext.setTenantId`/`clear()` per tenant w pętli (patrz
+  bugfix wyżej) — ścieżka REST (`runForTenant`) NIE MOŻE wołać `clear()`, bo wyczyściłoby to
+  kontekst wątku HTTP już poprawnie ustawiony przez `TenantFilter` i zweryfikowany przez
+  `assertOwnTenant` w kontrolerze PRZED wywołaniem tej metody — czyszczenie w trakcie obsługi
+  żądania wyciekłoby do reszty łańcucha przetwarzania (dokładnie ten sam bug co naprawiony wyżej,
+  tylko w przeciwnym kierunku). Rozwiązanie: wydzielono rdzeń per-tenant BEZ zarządzania
+  kontekstem (`persistSummaryAndMaybeAutoPurgeForTenant`, `evaluateCampaignDataForTenant` —
+  jawny prekontrakt w Javadoc: "TenantContext musi być już ustawiony przez wywołującego"), a
+  `setTenantId`/`clear()` przeniesiono WYŁĄCZNIE do pętli wrapujących w `persistAndMaybeAutoPurge`/
+  `evaluateCampaignData`, używanych TYLKO przez `runForAllActiveTenants`. `runForTenant` woła rdzeń
+  bezpośrednio, bez własnego `set`/`clear`. Skanowanie partycji (`scanPartitionAwareCategory`,
+  cross-tenant, rola DB ma `BYPASSRLS`) nie dotyka `TenantContext` w ogóle, więc jest bezpiecznie
+  współdzielone przez obie ścieżki bez zmian.
+- **Nowe/zmienione pliki:**
+  `domain/retention/RetentionEvaluationService.java` (nowy interfejs),
+  `domain/retention/RetentionEvaluationServiceImpl.java` (nowa implementacja — cała logika z
+  `RetentionEvaluationJob`, plus dwie metody core per-tenant bez zarządzania kontekstem),
+  `domain/retention/RetentionEvaluationJob.java` (zredukowany do cienkiego wrappera),
+  `api/retention/RetentionController.java` (+zależność `RetentionEvaluationService`, +endpoint
+  `POST .../recompute`, zaktualizowany Javadoc klasy — zdanie "`RetentionEvaluationJob` pozostaje
+  wewnętrznym schedulerem, bez REST API" było nieaktualne),
+  `domain/retention/RetentionEvaluationServiceImplTest.java` (nowy plik — bezpośredni następca
+  starego `RetentionEvaluationJobTest`, wszystkie 29 scenariuszy przeniesionych bez zmian
+  merytorycznych + nowy nested `ManualRecomputeForTenant`, 7 testów: brak auto-purge mimo
+  `eligibleRowCount>0`+`autoPurgeEnabled=true` na WSZYSTKICH 3 kategoriach jednocześnie, zapis
+  summary tylko dla żądanego tenanta mimo współdzielonej partycji z innym tenantem, delegacja
+  zwracanej wartości do `getPendingSummary`, `TenantContext` ustawiony PRZED wywołaniem pozostaje
+  nietknięty PO wywołaniu — w tym przy błędzie jednej kategorii, izolacja błędów między
+  kategoriami),
+  `domain/retention/RetentionEvaluationJobTest.java` (zredukowany do 1 testu: deleguje do
+  `runForAllActiveTenants()` dokładnie raz, `verifyNoMoreInteractions`),
+  `api/retention/RetentionControllerTest.java` (+konstruktor z nową zależnością, +nested
+  `Recompute`: happy path + 403 cross-tenant).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1777 testów, 0 failures, 0 errors (1767 + 10 nowych:
+  netto po redukcji `RetentionEvaluationJobTest` z 29 do 1 testu, przeniesieniu tych 29 do
+  `RetentionEvaluationServiceImplTest` bez zmian, +7 `ManualRecomputeForTenant`, +2
+  `RetentionControllerTest.Recompute`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warningów, niezwiązane z tym
+  rozszerzeniem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend
+  `mvn verify -pl app` PASS.
+
 ---
 
 ### BE-113 – `RetentionPurgeService`: silnik usuwania Poziom 1 (per-tenant, batchowany) dla CONTACT_INTERACTIONS i TRANSCRIPTS

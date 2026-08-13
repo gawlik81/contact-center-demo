@@ -37,6 +37,21 @@
     font-weight: 600;
     color: var(--text-1);
   }
+
+  // Nagłówek z akcją obok tytułu (Sekcja 2 — przycisk "Przelicz teraz"). Sekcja 1 nie ma akcji
+  // przy tytule, więc `&__title` powyżej zachowuje własny `margin-bottom` dla przypadków bez
+  // tego kontenera; tutaj zerujemy go i przenosimy odstęp na sam kontener.
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+
+    .dr-section__title {
+      margin-bottom: 0;
+    }
+  }
 }
 
 // ---- Buttons (mirrors pp-btn pattern from plugins-page) ----

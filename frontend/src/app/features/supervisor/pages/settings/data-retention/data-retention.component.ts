@@ -116,6 +116,16 @@ export class DataRetentionComponent implements OnInit {
   readonly summaryLoadError = signal(false);
   readonly summaries = signal<RetentionSummaryDto[]>([]);
 
+  /**
+   * Ręczne przeliczenie dashboardu na żądanie (rozszerzenie na życzenie użytkownika, poza
+   * kolejnością ticketów EPIC-29) — `POST .../retention/recompute` przelicza WSZYSTKIE 4
+   * kategorie synchronicznie i zwraca świeże wartości w tym samym kształcie co `getSummary()`,
+   * więc `next` nadpisuje `summaries()` bezpośrednio z odpowiedzi zamiast wołać `loadSummary()`
+   * ponownie (oszczędza round-trip). Nie wpływa na politykę `autoPurgeEnabled` ani nie wyzwala
+   * purge — bezpieczne do pokazania zawsze.
+   */
+  readonly recomputing = signal(false);
+
   // ---- Akcja "Usuń teraz" (FE-106) ----
   //
   // Modal potwierdzenia jest CZYSTO PREZENTACYJNY (wzorzec TenantDeactivateModalComponent) —
@@ -190,6 +200,31 @@ export class DataRetentionComponent implements OnInit {
         error: () => {
           this.summaryLoadError.set(true);
           this.summaryLoading.set(false);
+        },
+      });
+  }
+
+  /** Guard przed podwójnym kliknięciem — analogiczny wzorzec do `savePolicy`/`triggerPurgeForCategory`. */
+  recomputeSummary(): void {
+    if (this.recomputing()) return;
+
+    this.recomputing.set(true);
+    this.retentionService
+      .recomputeSummary()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.summaries.set(result);
+          this.recomputing.set(false);
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dataRetention.recomputeSuccess'),
+          );
+        },
+        error: () => {
+          this.recomputing.set(false);
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dataRetention.recomputeError'),
+          );
         },
       });
   }

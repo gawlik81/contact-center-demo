@@ -4,6 +4,7 @@ import com.contactcenter.api.PagedResponse;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.retention.PurgeTriggerType;
 import com.contactcenter.domain.retention.RetentionDataCategory;
+import com.contactcenter.domain.retention.RetentionEvaluationService;
 import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.retention.RetentionPurgeService;
 import com.contactcenter.domain.retention.TenantRetentionPolicy;
@@ -47,8 +48,11 @@ import java.util.UUID;
  * „ile do usunięcia", ręczne uruchomienie purge, status i historia operacji.
  *
  * <p>Konsumuje serwisy już ukończone w tym epiku: {@link RetentionPolicyService} (BE-111),
- * {@link RetentionPurgeService} (BE-113 + odczyty dodane w tym tickecie). {@code
- * RetentionEvaluationJob} (BE-112) pozostaje wewnętrznym schedulerem, bez REST API.
+ * {@link RetentionPurgeService} (BE-113 + odczyty dodane w tym tickecie), {@link
+ * RetentionEvaluationService} (BE-112, wydzielony z {@code RetentionEvaluationJob} przy okazji
+ * rozszerzenia poniżej). {@code RetentionEvaluationJob} sam pozostaje wewnętrznym schedulerem
+ * bez REST API — jego logika (a nie on sam) jest od tej zmiany dostępna również przez REST, patrz
+ * endpoint {@code POST .../recompute} niżej.
  *
  * <h2>Bezpieczeństwo: dwa NIEZALEŻNE mechanizmy dla {@code {tenantId}}/{@code {purgeId}}</h2>
  *
@@ -109,6 +113,7 @@ public class RetentionController {
 
     private final RetentionPolicyService retentionPolicyService;
     private final RetentionPurgeService retentionPurgeService;
+    private final RetentionEvaluationService retentionEvaluationService;
 
     // =========================================================================
     // Polityki retencji (BE-111)
@@ -197,6 +202,30 @@ public class RetentionController {
         assertOwnTenant(tenantId);
 
         return ResponseEntity.ok(retentionPurgeService.getPendingSummary(tenantId));
+    }
+
+    @PostMapping("/recompute")
+    @Operation(
+            summary = "Ręczne przeliczenie dashboardu 'dane do usunięcia'",
+            description = "Uruchamia tę samą logikę ewaluacji co nocny RetentionEvaluationJob, ale "
+                    + "TYLKO dla tego tenanta i BEZ wyzwalania auto-purge (bezpieczna akcja odświeżenia "
+                    + "liczb, nie usuwa danych nawet gdy auto_purge_enabled=true dla którejś kategorii).",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Świeżo przeliczone 4 wpisy summary"),
+                    @ApiResponse(responseCode = "401", description = "Brak lub nieprawidłowy token JWT"),
+                    @ApiResponse(responseCode = "403", description = "Brak roli ADMIN lub {tenantId} != własny tenant")
+            }
+    )
+    public ResponseEntity<List<RetentionSummaryDto>> recompute(
+            @Parameter(description = "UUID tenanta (musi być zgodny z tenantem z JWT)")
+            @PathVariable UUID tenantId
+    ) {
+        assertOwnTenant(tenantId);
+
+        log.info("[RetentionController] Ręczne przeliczenie dashboardu retencji zainicjowane: tenant={}, user={}",
+                tenantId, TenantContext.getUserId());
+
+        return ResponseEntity.ok(retentionEvaluationService.runForTenant(tenantId));
     }
 
     // =========================================================================

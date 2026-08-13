@@ -115,7 +115,21 @@
 
   <!-- ============ Sekcja 2: dashboard "dane kwalifikujące się do usunięcia" ============ -->
   <section class="dr-section">
-    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.summaryTitle' | transloco }}</h2>
+    <div class="dr-section__header">
+      <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.summaryTitle' | transloco }}</h2>
+      <button
+        type="button"
+        class="dr-btn dr-btn--ghost dr-btn--sm"
+        [disabled]="recomputing() || summaryLoading()"
+        (click)="recomputeSummary()"
+        [attr.aria-label]="'supervisor.settings.dataRetention.recomputeButtonAria' | transloco"
+      >
+        @if (recomputing()) {
+          <span class="dr-spinner" aria-hidden="true"></span>
+        }
+        {{ 'supervisor.settings.dataRetention.recomputeButton' | transloco }}
+      </button>
+    </div>
 
     @if (summaryLoading()) {
       <div class="dr-skeleton-wrapper dr-summary-grid">

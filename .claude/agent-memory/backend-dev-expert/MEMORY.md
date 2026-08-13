@@ -102,3 +102,5 @@
 - [BE-117 @IdClass dla partycjonowanych encji (EPIC-29)](project_epic29_be117_idclass_partitioned_entities.md) — ContactEvent/ContactAiSummary wzorzec Contact/ContactId, ai_summary partycjonuje po generated_at nie created_at
 - [BE-113 RetentionPurgeService (EPIC-29)](project_epic29_be113_retention_purge_service.md) — silnik usuwania async, self-injection, encapsulation pass do ContactService/ContactEventService/EmailMessageService/SocialMessageService
 - [ctid NIEBEZPIECZNE na tabelach partycjonowanych](feedback_partitioned_table_ctid_delete_pitfall.md) — DELETE...WHERE ctid IN (...) usuwa wiersze z innych partycji/tenantów; bezpieczny wzorzec: pełny PK (id+partition_col)
+- [@Scheduled job + TenantContext ThreadLocal](feedback_scheduled_job_tenantcontext_missing.md) — pętla per-tenant MUSI setTenantId/clear per iterację; mockowane testy tego nie łapią (bug BE-112/BE-116, EPIC-29)
+- [Dual entry point (scheduler + REST) — TenantContext prekontrakt](feedback_dual_entry_point_tenantcontext_precontract.md) — rdzeń per-tenant bez set/clear; clear() zabronione na ścieżce REST (BE-112/BE-118 recompute)

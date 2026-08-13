@@ -4,6 +4,7 @@
 
 - [RouterLinkActive.isActive zawodne przy OnPush](./feedback_routerlinkactive_onpush.md) – używaj Router events + toSignal zamiast rla.isActive jako parametru
   metody
+- [Brak narzędzi angular-mcp w tym środowisku](./feedback_no_angular_mcp_tools.md) – persona każe używać angular-mcp, ale nie jest zarejestrowane; używaj Read/Edit/Write/Bash bezpośrednio
 
 ## Project memories
 
@@ -85,3 +86,6 @@
 - [FE-052 Transloco i18n](./project_fe052_transloco_i18n.md) – wzorce TranslocoService/TranslocoModule, strategia kluczy sidenav, struktura JSON dla auth+nav+role
 - [Admin Metrics page – unified auto-polling (2026-07-14)](./project_admin_metrics_page_unified_polling.md) – wszystkie 4 sekcje przeszły na timer(0,30s), merge(timer,Subject) zamiast osobnych load*() + manualRefresh$/growthRangeChange$, flicker-free loading pattern skopiowany z resources
 - [Admin Metrics – contacts-by-channel matrix (2026-07-15, rozszerzone 2026-07-15)](./project_admin_metrics_channel_matrix.md) – panel przeniesiony z "Wykorzystanie (dziś)" do "Wzrost i adopcja", podłączony do selektora 7/30/90 dni (growthRangeChange$→rangeChange$, getContactChannelMatrix(days)), dynamiczny fromDate/toDate w podtytule
+- [EPIC-29 strona retencji danych (FE-103..FE-107)](./project_epic29_data_retention.md) – jedna strona per epic, sekcje dr-*, tokeny kolorów statusów, wymóg lockstep i18n w 4 plikach
+- [FE-108 globalny badge "dane do usunięcia"](./project_fe108_retention_badge.md) – RetentionService.pendingDeletionCategoryCount$, gate rolą ADMIN bez gate URL-em (badge globalny), 2 odstępstwa od treści ticketu
+- [Architektura retencji per-tenant (EPIC-29 kompletny, FE-109)](./project_tenant_retention_architecture.md) – tenant_retention_policy jedynym źródłem prawdy dla retencji nagrań; nigdy nie dodawaj z powrotem pól retencji do features/tenants/ (SUPER_ADMIN)

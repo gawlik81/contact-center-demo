@@ -5728,7 +5728,7 @@ malejąco po dacie. Kolumny: kategoria, typ wyzwolenia (ręczne/auto), liczba us
 **Priorytet:** Must Have — **domyka wprost RC-02 z `ARCHITECTURE.md` §10.3**
 **Złożoność:** S
 **Zależy od:** FE-103
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5742,10 +5742,50 @@ przeoczenia, nie tylko schowany w podstronie ustawień. Wzorzec: istniejący bad
 od zera.
 
 **Kryteria akceptacji:**
-- [ ] Badge widoczny na pozycji „Ustawienia” w `sidenav.component.ts` gdy suma `eligibleRowCount` po wszystkich kategoriach > 0
-- [ ] Polling/odświeżanie w rozsądnym interwale (wzorzec innych badge'y/polling w `SidenavComponent`, nie na każde żądanie HTTP) — potwierdź istniejący interwał przed dodaniem nowego, żeby nie dublować mechanizmu pollingu
-- [ ] Badge niewidoczny dla ról innych niż `ADMIN` (retencja to funkcja ADMIN-only, guard analogiczny do `AdminMetricsService` z FE-007, który już ma `if (this.auth.getUserRole() === 'ADMIN')` przed startem pollingu)
-- [ ] `npm run lint`/`npm run build` przechodzą
+- [x] Badge widoczny na pozycji „Ustawienia” w `sidenav.component.ts` gdy suma `eligibleRowCount` po wszystkich kategoriach > 0
+- [x] Polling/odświeżanie w rozsądnym interwale (wzorzec innych badge'y/polling w `SidenavComponent`, nie na każde żądanie HTTP) — potwierdź istniejący interwał przed dodaniem nowego, żeby nie dublować mechanizmu pollingu
+- [x] Badge niewidoczny dla ról innych niż `ADMIN` (retencja to funkcja ADMIN-only, guard analogiczny do `AdminMetricsService` z FE-007, który już ma `if (this.auth.getUserRole() === 'ADMIN')` przed startem pollingu)
+- [x] `npm run lint`/`npm run build` przechodzą
+
+**Notatki z implementacji (2026-08-13):**
+- **Odstępstwo 1 — brak pozycji „Ustawienia”.** `sidenav.component.ts` nie ma pozycji nawigacji
+  o etykiecie „Ustawienia”; klucz i18n `nav.settings` istnieje w `public/i18n/*.json`, ale nie
+  jest podpięty do żadnego `NavItem` (relikt). Podstrona retencji (FE-104,
+  `/supervisor/settings/data-retention`) jest dzieckiem sekcji `nav.configuration`
+  („Konfiguracja”, route `/supervisor/settings`) — to właśnie tę pozycję trzeba oznaczyć, więc
+  badge podpięto pod nią, nie pod nieistniejącym „Ustawienia”.
+- **Odstępstwo 2 — brak bramkowania URL-em.** Wzorzec `showAlertBadge` z FE-007 gejtuje badge
+  TAKŻE aktualnym URL-em (widoczny tylko na `/admin/dashboard`). Nowy `showRetentionBadge`
+  celowo NIE powtarza tego warunku — ticket wprost nazywa się „Globalny badge”, więc admin ma go
+  widzieć niezależnie od tego, na której stronie aktualnie jest, nie tylko po wejściu w
+  ustawienia retencji.
+- **Lokalizacja logiki pollingu — opcja (a).** Nowy strumień `pendingDeletionCategoryCount$`
+  dodano bezpośrednio do `RetentionService` (już `providedIn: 'root'`, już właściciel
+  `getSummary()`), a nie jako osobny serwis analogiczny do `AdminMetricsService`. Jeden serwis =
+  jedna domena danych; nie było powodu dokładać drugiej klasy dla jednego pochodnego strumienia.
+  Wzorzec bramkowania skopiowany 1:1 z `AdminMetricsService._poll$`
+  (`toObservable(role) + switchMap + timer(0, 30_000) + shareReplay({ refCount: true })`), z
+  interwałem `BADGE_POLL_INTERVAL_MS = 30_000` — dokładnie ten sam co `AdminMetricsService`
+  (potwierdzone przed implementacją, brak drugiej konwencji pollingu w projekcie). Dodatkowo
+  bramkowane obecnością `currentTenantId()` (nie tylko rolą) — `RetentionService.getSummary()`
+  rzuca SYNCHRONICZNIE, gdy `currentTenantId()` jest `null` (przez prywatną
+  `requireTenantId()`); każdy tick timera sprawdza tenantId ponownie tuż przed wywołaniem
+  `getSummary()`, żeby wyścig (tenant znika między tickami) nie przerwał subskrypcji.
+- **Licznik zamiast kropki.** Badge pokazuje liczbę kategorii (0–4) z `eligibleRowCount > 0`, nie
+  samą sumę wierszy (mogłaby być duża i nieczytelna jako „99+”) ani gołą kropkę. Reużyto
+  dokładnie klasy `sidenav__alert-badge` (bez zmian w SCSS) — ten sam wygląd wizualny co badge z
+  FE-007, umieszczony w nagłówku sekcji „Konfiguracja” (poza blokiem `@if` rozwijania podmenu),
+  więc widoczny niezależnie od stanu rozwinięcia sekcji.
+- **Znane ograniczenie (poza zakresem).** Suma liczona dosłownie z `eligibleRowCount` zgodnie z
+  kryterium akceptacji — `RECORDINGS` ma dziś zawsze `computed === false` i
+  `eligibleRowCount === 0` (dopóki BE-116 nieukończone), więc badge może nie odzwierciedlać
+  realnych danych do usunięcia w tej kategorii; to znane, zaakceptowane ograniczenie modelu
+  danych, nie naprawiane tutaj.
+- **i18n.** Nowy klucz `nav.retentionPendingBadge` (z parametrem `{{ count }}`) dodany do
+  wszystkich 4 plików (`pl`/`en`/`de`/`uk`), zgodność zestawu kluczy zweryfikowana programowo.
+- **Zmienione/nowe pliki:** `frontend/src/app/features/supervisor/services/retention.service.ts`
+  (nowy strumień), `frontend/src/app/shared/components/sidenav/sidenav.component.ts`,
+  `sidenav.component.html` (bez zmian w `.scss`), `frontend/public/i18n/{pl,en,de,uk}.json`.
 
 ---
 

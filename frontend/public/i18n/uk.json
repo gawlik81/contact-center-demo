@@ -183,6 +183,7 @@
     "settingsDispositionSets": "Набори диспозицій",
     "settingsPlugins": "Плагіни",
     "settingsDataRetention": "Зберігання даних",
+    "retentionPendingBadge": "{{ count }} категорій даних очікують на видалення",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт клієнтів",

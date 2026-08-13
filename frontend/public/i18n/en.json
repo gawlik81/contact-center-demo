@@ -189,7 +189,8 @@
     "settingsAiConfig": "AI Configuration",
     "settingsDispositionSets": "Disposition Sets",
     "settingsPlugins": "Plugins",
-    "settingsDataRetention": "Data Retention"
+    "settingsDataRetention": "Data Retention",
+    "retentionPendingBadge": "{{ count }} data categories pending deletion"
   },
   "role": {
     "superAdmin": "Super Admin",

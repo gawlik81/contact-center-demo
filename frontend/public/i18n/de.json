@@ -189,7 +189,8 @@
     "settingsAiConfig": "KI-Konfiguration",
     "settingsDispositionSets": "Dispositions-Sets",
     "settingsPlugins": "Plugins",
-    "settingsDataRetention": "Datenaufbewahrung"
+    "settingsDataRetention": "Datenaufbewahrung",
+    "retentionPendingBadge": "{{ count }} Datenkategorien warten auf Löschung"
   },
   "role": {
     "superAdmin": "Hauptadministrator",

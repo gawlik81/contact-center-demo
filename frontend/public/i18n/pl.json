@@ -189,7 +189,8 @@
     "settingsAiConfig": "Konfiguracja AI",
     "settingsDispositionSets": "Zestawy dyspozycji",
     "settingsPlugins": "Pluginy",
-    "settingsDataRetention": "Retencja danych"
+    "settingsDataRetention": "Retencja danych",
+    "retentionPendingBadge": "{{ count }} kategorii danych oczekuje na usunięcie"
   },
   "role": {
     "superAdmin": "Administrator Główny",

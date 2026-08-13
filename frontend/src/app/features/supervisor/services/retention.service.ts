@@ -1,6 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  combineLatest,
+  map,
+  shareReplay,
+  switchMap,
+  timer,
+} from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../../core/services/auth.service';
 import { PagedResponse } from '../../../core/models/paged-response.model';
@@ -13,6 +23,13 @@ import {
   RetentionSummaryDto,
   UpdateRetentionPolicyRequest,
 } from '../models/retention.model';
+
+/**
+ * Interwał odpytywania dla {@link RetentionService.pendingDeletionCategoryCount$} (FE-108) —
+ * CELOWO ten sam interwał co `AdminMetricsService.POLL_INTERVAL_MS` (FE-007), żeby nie
+ * wprowadzać drugiej konwencji pollingu w projekcie.
+ */
+const BADGE_POLL_INTERVAL_MS = 30_000;
 
 /**
  * Warstwa danych panelu „Ustawienia > Retencja danych" (EPIC-29, FE-103). Czysta warstwa
@@ -56,6 +73,53 @@ export class RetentionService {
     }
     return tenantId;
   }
+
+  /**
+   * Reaktywny strumień: liczba kategorii retencji (0–4) z `eligibleRowCount > 0` wg
+   * najnowszego `GET .../retention/summary`. Zasila globalny badge „dane do usunięcia" w
+   * `SidenavComponent` (FE-108) — jeden serwis = jedna domena danych, ten sam serwis co
+   * dashboard Sekcji 2 (FE-105), więc logika sumowania mieszka tu, a nie w osobnym serwisie.
+   *
+   * Bramkowanie ROLĄ I tenantem jest reaktywne (nie jednorazowy `getUserRole()`) — mirrors
+   * dokładnie `AdminMetricsService._poll$` (FE-007): `toObservable(currentRole)` + `switchMap`
+   * + `timer(0, BADGE_POLL_INTERVAL_MS)` + `shareReplay({ refCount: true })`. Retencja jest
+   * funkcją ADMIN TENANTA (nie SUPER_ADMIN globalnego), więc bramkujemy DODATKOWO obecnością
+   * `currentTenantId()` — `getSummary()` (przez `requireTenantId()`) rzuca SYNCHRONICZNIE gdy
+   * tenantId jest `null`, więc każdy tick timera sprawdza tenantId ponownie tuż przed
+   * wywołaniem `getSummary()`, zamiast polegać wyłącznie na bramce z chwili startu timera
+   * (unika wyścigu, gdyby tenantId zniknął między tickami).
+   *
+   * UWAGA (znane ograniczenie, poza zakresem FE-108): dopóki BE-116 nie jest ukończone,
+   * `RECORDINGS` ma zawsze `computed === false` i `eligibleRowCount === 0` w odpowiedzi
+   * backendu — sumujemy `eligibleRowCount` dosłownie zgodnie z kryterium akceptacji FE-108,
+   * bez próby odróżniania „jeszcze nie policzone" od „policzono, zero do usunięcia" tutaj.
+   */
+  readonly pendingDeletionCategoryCount$: Observable<number> = combineLatest([
+    toObservable(this.authService.currentRole),
+    toObservable(this.authService.currentTenantId),
+  ]).pipe(
+    switchMap(([role, tenantId]) => {
+      if (role !== 'ADMIN' || !tenantId) {
+        // Nie-ADMIN lub brak kontekstu tenanta – nic nie emitujemy. Ewentualny działający
+        // timer z poprzedniej sesji ADMIN jest automatycznie zatrzymywany przez switchMap.
+        return EMPTY;
+      }
+      return timer(0, BADGE_POLL_INTERVAL_MS).pipe(
+        switchMap(() => {
+          if (!this.authService.currentTenantId()) {
+            // Kontekst tenanta zniknął między tickami (np. wylogowanie w toku) – pomiń ten
+            // cykl zamiast wołać getSummary(), która rzuciłaby synchronicznie.
+            return EMPTY;
+          }
+          return this.getSummary().pipe(
+            map((summary) => summary.filter((s) => s.eligibleRowCount > 0).length),
+            catchError(() => EMPTY),
+          );
+        }),
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
 
   /** GET .../retention/policies — lista polityk retencji tenanta (maks. 4, jedna per kategoria). */
   listPolicies(): Observable<RetentionPolicyDto[]> {

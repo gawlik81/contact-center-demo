@@ -19,6 +19,7 @@ import { TranslocoModule } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
 import { AdminMetricsService } from '../../../features/admin/services/admin-metrics.service';
+import { RetentionService } from '../../../features/supervisor/services/retention.service';
 
 export interface NavItem {
   label: string;
@@ -255,6 +256,15 @@ const AGENT_NAV: NavItem[] = [
 /** Route that owns the alert badge – must be an exact string match against router.url */
 const ALERT_BADGE_ROUTE = '/admin/dashboard';
 
+/**
+ * Nav item that owns the "data pending deletion" badge (FE-108). This is the actual
+ * "Konfiguracja" (`nav.configuration`) section route – the ticket's "pozycja Ustawienia" does
+ * not exist as a distinct nav item (see `nav.settings` in i18n, an unused/orphaned key). The
+ * retention sub-page (`/supervisor/settings/data-retention`, FE-104) lives inside this section,
+ * so this is the item the admin actually needs to notice.
+ */
+const RETENTION_BADGE_ROUTE = '/supervisor/settings';
+
 /** localStorage key for the collapsed state */
 const COLLAPSED_STORAGE_KEY = 'cc_sidenav_collapsed';
 
@@ -268,9 +278,13 @@ const COLLAPSED_STORAGE_KEY = 'cc_sidenav_collapsed';
 export class SidenavComponent implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly metricsService = inject(AdminMetricsService);
+  private readonly retentionService = inject(RetentionService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
+
+  /** Exposed for the template – avoids duplicating the route string in the `@if` guard */
+  protected readonly retentionBadgeRoute = RETENTION_BADGE_ROUTE;
 
   /** Controls visibility on mobile/tablet */
   readonly isOpen = input<boolean>(false);
@@ -326,6 +340,21 @@ export class SidenavComponent implements OnInit {
     () => this.isSuperAdmin() && this.alertCount() > 0 && this.currentUrl() === ALERT_BADGE_ROUTE,
   );
 
+  /** Number of retention categories (0-4) with data eligible for deletion – badge on "Konfiguracja" (FE-108) */
+  readonly pendingDeletionCount = signal(0);
+
+  /** True when the current user is a tenant ADMIN (retention is an ADMIN-only feature, not SUPER_ADMIN) */
+  readonly isAdmin = computed(() => this.auth.currentRole() === 'ADMIN');
+
+  /**
+   * Computed signal: true when the ADMIN has at least one retention category with data
+   * eligible for deletion. Deliberately NOT gated by current URL (unlike {@link showAlertBadge})
+   * — this badge is GLOBAL by design (ticket name: "Globalny badge"), the admin must notice it
+   * regardless of which page they're currently on, not only when already viewing the retention
+   * settings page.
+   */
+  readonly showRetentionBadge = computed(() => this.isAdmin() && this.pendingDeletionCount() > 0);
+
   /**
    * Auto-expands any nav section whose child route matches the current URL.
    */
@@ -361,12 +390,17 @@ export class SidenavComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    if (this.auth.currentRole() !== 'SUPER_ADMIN') {
-      return;
+    if (this.auth.currentRole() === 'SUPER_ADMIN') {
+      this.metricsService.alertCount$
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((count) => this.alertCount.set(count));
     }
-    this.metricsService.alertCount$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((count) => this.alertCount.set(count));
+
+    if (this.auth.currentRole() === 'ADMIN') {
+      this.retentionService.pendingDeletionCategoryCount$
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((count) => this.pendingDeletionCount.set(count));
+    }
   }
 
   /** Toggle between expanded and collapsed (icon-only) modes */
@@ -378,6 +412,14 @@ export class SidenavComponent implements OnInit {
   alertBadgeLabel(): string {
     const count = this.alertCount();
     return count > 99 ? '99+' : String(count);
+  }
+
+  /**
+   * Retention badge label – count of categories with data pending deletion (max 4, no 99+ cap
+   * needed unlike {@link alertBadgeLabel} since `RetentionDataCategory` only has 4 members).
+   */
+  retentionBadgeLabel(): string {
+    return String(this.pendingDeletionCount());
   }
 
   onOverlayClick(): void {

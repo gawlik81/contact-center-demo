@@ -215,8 +215,8 @@ public class RetentionController {
                     @ApiResponse(responseCode = "401", description = "Brak lub nieprawidłowy token JWT"),
                     @ApiResponse(responseCode = "403", description = "Brak roli ADMIN lub {tenantId} != własny tenant"),
                     @ApiResponse(responseCode = "422", description = "Błąd walidacji (brak dataCategory)"),
-                    @ApiResponse(responseCode = "501", description = "Kategoria RECORDINGS/CAMPAIGN_DATA — "
-                            + "nieobsługiwana przez RetentionPurgeService (BE-116/BE-119)")
+                    @ApiResponse(responseCode = "501", description = "Kategoria RECORDINGS — "
+                            + "nieobsługiwana przez RetentionPurgeService, patrz RecordingRetentionJob (BE-116)")
             }
     )
     public ResponseEntity<Map<String, String>> purge(

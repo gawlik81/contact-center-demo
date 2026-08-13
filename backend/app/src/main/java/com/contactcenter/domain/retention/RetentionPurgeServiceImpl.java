@@ -31,8 +31,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Implementacja {@link RetentionPurgeService} — silnik usuwania Poziom 1 (per-tenant, batchowany)
- * dla kategorii {@code CONTACT_INTERACTIONS} i {@code TRANSCRIPTS} (EPIC-29, BE-113).
+ * Implementacja {@link RetentionPurgeService} — silnik usuwania per-tenant dla kategorii
+ * {@code CONTACT_INTERACTIONS} i {@code TRANSCRIPTS} (batchowane, EPIC-29, BE-113) oraz
+ * {@code CAMPAIGN_DATA} (pojedynczy DELETE przez funkcję SQL, BE-119).
  *
  * <p><strong>Wzorzec asynchroniczny + self-invocation:</strong> {@link #purge} zapisuje stan
  * {@code RUNNING} do {@code retention_purge_log} (transakcja własna repozytorium — {@link #purge}
@@ -71,6 +72,7 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     private final SocialMessageService socialMessageService;
     private final AuditLogService auditLogService;
     private final TenantRetentionPendingSummaryRepository summaryRepository;
+    private final CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
 
     @Value("${retention.purge.batch-size:100}")
     private int batchSize;
@@ -129,9 +131,10 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
             long rowsDeleted = switch (category) {
                 case CONTACT_INTERACTIONS -> purgeContactInteractions(tenantId, cutoff);
                 case TRANSCRIPTS -> purgeTranscripts(tenantId, cutoff);
-                // Nieosiągalne w praktyce – validateSupportedCategory już odrzuciła te wartości
+                case CAMPAIGN_DATA -> purgeCampaignData(tenantId, cutoff);
+                // Nieosiągalne w praktyce – validateSupportedCategory już odrzuciła tę wartość
                 // w purge(), zanim purgeAsync w ogóle wystartował. Zabezpieczenie defensywne.
-                case RECORDINGS, CAMPAIGN_DATA -> throw new UnsupportedOperationException(
+                case RECORDINGS -> throw new UnsupportedOperationException(
                         "Kategoria " + category + " nie jest obsługiwana przez RetentionPurgeService");
             };
 
@@ -210,6 +213,26 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
         return totalDeleted;
     }
 
+    /**
+     * Usuwa dane kategorii CAMPAIGN_DATA: {@code campaign_contact_archive} (BE-119).
+     *
+     * <p><strong>Dlaczego delegacja do funkcji SQL zamiast batchowania po stronie Javy</strong>
+     * (jak {@link #purgeContactInteractions} / {@link #purgeTranscripts}): {@code campaign_contact_archive}
+     * NIE jest partycjonowana i NIE ma włączonego RLS (w odróżnieniu od większości tabel domenowych)
+     * — patrz javadoc {@link CampaignArchiveRetentionRepository}. Indeks
+     * {@code idx_cca_tenant_archived_at} (V089) czyni jeden natywny DELETE efektywnym nawet dla
+     * dużych wolumenów, więc batchowanie po stronie Javy nie daje tu dodatkowej korzyści, jedynie
+     * zwiększa liczbę round-tripów do bazy.
+     *
+     * <p>Delegacja do {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} (V091) —
+     * funkcja filtruje po {@code tenant_id} PRZED DELETE, co jest jedynym mechanizmem izolacji
+     * tenantów dla tej tabeli (brak RLS jako drugiej warstwy ochrony, w przeciwieństwie do
+     * większości pozostałych operacji purge w tym serwisie).
+     */
+    private long purgeCampaignData(UUID tenantId, Instant cutoff) {
+        return campaignArchiveRetentionRepository.purgeEligible(tenantId, cutoff);
+    }
+
     // =========================================================================
     // Odczyt (BE-118 — RetentionController)
     // =========================================================================
@@ -269,11 +292,13 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     }
 
     private void validateSupportedCategory(RetentionDataCategory category) {
-        if (category != RetentionDataCategory.CONTACT_INTERACTIONS && category != RetentionDataCategory.TRANSCRIPTS) {
+        if (category != RetentionDataCategory.CONTACT_INTERACTIONS
+                && category != RetentionDataCategory.TRANSCRIPTS
+                && category != RetentionDataCategory.CAMPAIGN_DATA) {
             throw new UnsupportedOperationException(
-                    "RetentionPurgeService (BE-113) obsługuje wyłącznie CONTACT_INTERACTIONS i TRANSCRIPTS. "
-                            + "Kategoria " + category + " nie jest obsługiwana: RECORDINGS → RecordingRetentionJob "
-                            + "(BE-116), CAMPAIGN_DATA → purge_campaign_contact_archive (BE-119).");
+                    "RetentionPurgeService (BE-113/BE-119) obsługuje CONTACT_INTERACTIONS, TRANSCRIPTS "
+                            + "i CAMPAIGN_DATA. Kategoria " + category + " nie jest obsługiwana: "
+                            + "RECORDINGS → RecordingRetentionJob (BE-116).");
         }
     }
 

@@ -107,6 +107,9 @@ class RetentionPurgeServiceImplTest {
     @Mock
     private TenantRetentionPendingSummaryRepository summaryRepository;
 
+    @Mock
+    private CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
+
     @InjectMocks
     private RetentionPurgeServiceImpl service;
 
@@ -426,28 +429,97 @@ class RetentionPurgeServiceImplTest {
 
             // self jest zamockowany (no-op) – żadna faktyczna praca usuwania się nie odbyła
             // w ramach wywołania purge(), co dowodzi że cały ciężar leży w purgeAsync, nie w purge()
-            verifyNoInteractions(contactService, contactEventService, emailMessageService, socialMessageService);
+            verifyNoInteractions(contactService, contactEventService, emailMessageService, socialMessageService,
+                    campaignArchiveRetentionRepository);
             verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
         }
     }
 
     // =========================================================================
-    // Kategorie poza zakresem BE-113
+    // Kategorie poza zakresem
     // =========================================================================
 
     @Nested
-    @DisplayName("Kategorie poza zakresem (RECORDINGS, CAMPAIGN_DATA)")
+    @DisplayName("Kategorie poza zakresem (RECORDINGS)")
     class UnsupportedCategories {
 
         @ParameterizedTest(name = "kategoria {0} rzuca UnsupportedOperationException")
-        @EnumSource(value = RetentionDataCategory.class, names = {"RECORDINGS", "CAMPAIGN_DATA"})
-        @DisplayName("RECORDINGS i CAMPAIGN_DATA odrzucane przed zapisem RUNNING")
+        @EnumSource(value = RetentionDataCategory.class, names = {"RECORDINGS"})
+        @DisplayName("RECORDINGS odrzucana przed zapisem RUNNING")
         void unsupportedCategory_throwsBeforeAnyPersistence(RetentionDataCategory category) {
             assertThatThrownBy(() -> service.purge(TENANT_A, category, PurgeTriggerType.MANUAL, USER_ID))
                     .isInstanceOf(UnsupportedOperationException.class)
                     .hasMessageContaining(category.name());
 
             verifyNoInteractions(purgeLogRepository, retentionPolicyService);
+        }
+    }
+
+    // =========================================================================
+    // CAMPAIGN_DATA – delegacja do purge_campaign_contact_archive (BE-119)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("CAMPAIGN_DATA – delegacja do purge_campaign_contact_archive (BE-119)")
+    class CampaignDataPurge {
+
+        @Test
+        @DisplayName("wynik purgeEligible zapisywany jako rowsDeleted w markCompleted, inne zależności nietknięte")
+        void purgeCampaignData_delegatesToRepositoryAndRecordsResult() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(17L);
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(campaignArchiveRetentionRepository).purgeEligible(eq(TENANT_A), any());
+            verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(17L));
+            verifyNoInteractions(contactService, contactEventService, emailMessageService, socialMessageService);
+        }
+
+        @Test
+        @DisplayName("cutoff przekazywany do purgeEligible to ten sam Instant co dla pozostałych kategorii – bez konwersji lat")
+        void cutoff_passedDirectlyAsInstant_noYearConversion() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(0L);
+
+            LocalDate expectedCutoffDate = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
+            Instant expectedCutoffInstant = expectedCutoffDate.atStartOfDay(ZoneOffset.UTC).toInstant();
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            ArgumentCaptor<Instant> cutoffCaptor = ArgumentCaptor.forClass(Instant.class);
+            verify(campaignArchiveRetentionRepository).purgeEligible(eq(TENANT_A), cutoffCaptor.capture());
+            assertThat(cutoffCaptor.getValue()).isEqualTo(expectedCutoffInstant);
+        }
+
+        @Test
+        @DisplayName("izolacja cross-tenant: purge dla TENANT_A nigdy nie wywołuje repozytorium z TENANT_B")
+        void purgeForTenantA_neverTouchesTenantB() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(3L);
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(campaignArchiveRetentionRepository, never()).purgeEligible(eq(TENANT_B), any());
+            verify(campaignArchiveRetentionRepository).purgeEligible(eq(TENANT_A), any());
+            verify(purgeLogRepository, never()).markCompleted(any(), eq(TENANT_B), anyLong());
+        }
+
+        @Test
+        @DisplayName("wyjątek z repozytorium -> status FAILED, markCompleted nigdy nie wywołane")
+        void repositoryThrows_marksFailed() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenThrow(new RuntimeException("DB connection lost"));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(purgeLogRepository).markFailed(any(), eq(TENANT_A), eq("DB connection lost"), eq(0L));
+            verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
         }
     }
 

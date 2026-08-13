@@ -5993,6 +5993,13 @@ backend/app/src/main/java/com/contactcenter/
 - `mvn verify -pl app`: **BUILD SUCCESS**, 1662 testy, 0 failures, 0 errors (1622 przed BE-112 wg notatki BE-113 + 40 nowych).
 - `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, niezwiązane z tym ticketem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
 
+**Aktualizacja (BE-119, 2026-08-13):** od integracji `CAMPAIGN_DATA` z `RetentionPurgeService`
+(`purge_campaign_contact_archive`, patrz BE-119 niżej), `evaluateCampaignData` w
+`RetentionEvaluationJob` już NIE pomija wywołania `RetentionPurgeService.purge()` dla tej
+kategorii — auto-purge wyzwalany identycznie jak dla `CONTACT_INTERACTIONS`/`TRANSCRIPTS`, przez
+wspólny `maybeTriggerAutoPurge`. Powyższy opis „celowo nigdy nie wywoływane” dotyczy stanu sprzed
+BE-119, pozostawiony jako zapis historyczny decyzji podjętej w tamtym momencie.
+
 ---
 
 ### BE-113 – `RetentionPurgeService`: silnik usuwania Poziom 1 (per-tenant, batchowany) dla CONTACT_INTERACTIONS i TRANSCRIPTS
@@ -6556,7 +6563,7 @@ List<RetentionSummaryDto> getPendingSummary(UUID tenantId);
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-113
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-08-13)
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6584,9 +6591,62 @@ tego ticketu — nie blokuje reszty epiku, bo `CAMPAIGN_DATA` to jedna z 4 kateg
 działają niezależnie od tej decyzji.
 
 **Kryteria akceptacji:**
-- [ ] `RetentionPurgeService` obsługuje `CAMPAIGN_DATA` jako osobną gałąź delegującą do
+- [x] `RetentionPurgeService` obsługuje `CAMPAIGN_DATA` jako osobną gałąź delegującą do
   zmodyfikowanej funkcji SQL (Opcja A) lub wywołania z minimalną retencją (Opcja B) — zgodnie z
   decyzją podjętą przy implementacji, udokumentowaną w komentarzu kodu
-- [ ] Wynik wywołania (liczba usuniętych wierszy) zapisany do `retention_purge_log` identycznie jak pozostałe kategorie
-- [ ] Test jednostkowy: purge `CAMPAIGN_DATA` dla tenanta A nie wpływa (Opcja A) lub wpływ jest udokumentowany i świadomy (Opcja B) na dane tenanta B
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Wynik wywołania (liczba usuniętych wierszy) zapisany do `retention_purge_log` identycznie jak pozostałe kategorie
+- [x] Test jednostkowy: purge `CAMPAIGN_DATA` dla tenanta A nie wpływa (Opcja A) lub wpływ jest udokumentowany i świadomy (Opcja B) na dane tenanta B
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **Decyzja: Opcja A** (izolacja per-tenant w samej funkcji SQL), zgodnie z rekomendacją z
+  dekompozycji — spójna z resztą epiku (BE-112/BE-113 realizują prawdziwą per-tenant retencję dla
+  pozostałych 3 kategorii; Opcja B cichcem złamałaby tę obietnicę tylko dla `CAMPAIGN_DATA`, co
+  byłoby mylące dla administratora patrzącego na UI sugerujące pełną kontrolę per-tenant). Dodatkowe
+  uzasadnienie znalezione podczas implementacji: `campaign_contact_archive` (V015) jest jedyną z
+  czterech tabel objętych retencją, która **nie ma włączonego Row Level Security** (w odróżnieniu od
+  `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` — patrz V012/V090) — klauzula
+  `WHERE tenant_id = ...` wewnątrz funkcji SQL jest więc JEDYNYM mechanizmem izolacji tenantów dla tej
+  operacji, nie tylko dodatkową warstwą ponad RLS jak dla pozostałych kategorii. To czyni Opcję B
+  (globalny DELETE bez filtra tenant_id) wyraźnie bardziej ryzykowną niż w innych kontekstach RLS-owych
+  tego projektu.
+- **Nowa sygnatura SQL (migracja `V091__purge_campaign_contact_archive_per_tenant.sql`):**
+  `purge_campaign_contact_archive(p_tenant_id UUID, p_cutoff_date TIMESTAMPTZ) RETURNS INT`.
+  Stara sygnatura `purge_campaign_contact_archive(p_retention_years INT DEFAULT 5)` z V015 jest
+  jawnie usunięta (`DROP FUNCTION IF EXISTS ... (INT)`), NIE pozostawiona jako przeciążenie — pozostawienie
+  jej działającej równolegle byłoby niebezpiecznym reliktem (ręczne wywołanie starej wersji po tej
+  migracji usunęłoby dane wszystkich tenantów naraz).
+- **Cutoff jako `TIMESTAMPTZ`, nie lata:** `RetentionPurgeServiceImpl#purgeAsync` wylicza
+  `Instant cutoff` jednolicie dla WSZYSTKICH kategorii (na podstawie `retentionMonths` z
+  `tenant_retention_policy`) PRZED dyspatchem do metody per-kategoria. Przekazanie tego samego
+  `Instant` wprost do funkcji SQL (zamiast przeliczania `retentionMonths` → lata w drugą stronę)
+  jest spójniejsze z wzorcem już ustalonym dla `CONTACT_INTERACTIONS`/`TRANSCRIPTS` i unika
+  stratnej konwersji miesiące↔lata.
+- **Efekt uboczny odkryty i naprawiony:** `RetentionEvaluationJob#evaluateCampaignData` (BE-112)
+  miał wbudowany celowy „bookmark” — jawnie POMIJAŁ wywołanie `RetentionPurgeService.purge()` dla
+  CAMPAIGN_DATA nawet przy `auto_purge_enabled=true`, z komentarzem odsyłającym wprost do tego
+  ticketu. Po tej integracji ten warunek byłby martwym kodem (funkcjonalnie: przełącznik auto-purge
+  dla CAMPAIGN_DATA w UI nic by nie robił) — zamieniono na wywołanie tego samego wspólnego
+  `maybeTriggerAutoPurge`, którego już używają CONTACT_INTERACTIONS/TRANSCRIPTS. Zaktualizowano też
+  odpowiadający test w `RetentionEvaluationJobTest` (`neverCallsPurgeEvenWhenAutoPurgeEnabled...`
+  → `callsPurgeWhenAutoPurgeEnabledAndDataEligible` + nowy test na `autoPurgeEnabled=false`).
+- **Nowe/zmienione pliki:**
+  `backend/src/main/resources/db/migration/V091__purge_campaign_contact_archive_per_tenant.sql` (nowa migracja),
+  `domain/retention/CampaignArchiveRetentionRepository.java` (+metoda `purgeEligible`),
+  `domain/retention/RetentionPurgeService.java` (Javadoc: CAMPAIGN_DATA już nie „poza zakresem”),
+  `domain/retention/RetentionPurgeServiceImpl.java` (+pole `campaignArchiveRetentionRepository`,
+  +gałąź `switch`, +metoda `purgeCampaignData`, `validateSupportedCategory` już nie odrzuca CAMPAIGN_DATA),
+  `domain/retention/RetentionEvaluationJob.java` (`evaluateCampaignData` już nie pomija auto-purge,
+  patrz wyżej), `domain/retention/RetentionPurgeServiceImplTest.java` (+nested `CampaignDataPurge`,
+  `UnsupportedCategories` zawężone do samego RECORDINGS), `domain/retention/CampaignArchiveRetentionRepositoryTest.java`
+  (+nested `PurgeEligible`), `domain/retention/RetentionEvaluationJobTest.java` (zaktualizowany
+  scenariusz CAMPAIGN_DATA auto-purge), `domain/retention/CampaignContactArchivePurgeTenantIsolationTest.java`
+  (NOWY plik — test integracyjny Testcontainers weryfikujący realną izolację cross-tenant na
+  prawdziwym Postgresie, uzasadnienie w Javadoc klasy: mockowany `EntityManager` potwierdziłby
+  jedynie że repozytorium WYSŁAŁO zapytanie, nie że baza faktycznie odfiltrowała wiersze — dokładnie
+  taka luka była już źródłem realnego błędu w tym module),
+  `api/retention/RetentionController.java` (Swagger doc 501 zawężony do samego RECORDINGS).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1713 testów, 0 failures, 0 errors (`mvn clean verify`,
+  sekwencyjnie — uwaga: równoległe uruchomienie dwóch `mvn` na tym samym module w trakcie
+  implementacji dało fałszywe `NoClassDefFoundError` niepowiązanych klas, przez kolizję zapisu do
+  `target/`; po czystym, pojedynczym `mvn clean verify` build jest zielony).

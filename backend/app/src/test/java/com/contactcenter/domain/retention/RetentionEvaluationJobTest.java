@@ -535,8 +535,8 @@ class RetentionEvaluationJobTest {
         }
 
         @Test
-        @DisplayName("eligibleRowCount>0 i autoPurgeEnabled=true -> purge() mimo to NIE jest wywołane (BE-119 poza zakresem)")
-        void neverCallsPurgeEvenWhenAutoPurgeEnabledAndDataEligible() {
+        @DisplayName("eligibleRowCount>0 i autoPurgeEnabled=true -> purge() wywołane jako AUTO (BE-119)")
+        void callsPurgeWhenAutoPurgeEnabledAndDataEligible() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
             when(campaignArchiveRetentionRepository.countEligible(eq(TENANT_A), any()))
@@ -544,6 +544,23 @@ class RetentionEvaluationJobTest {
                             50, LocalDate.of(2020, 1, 1), LocalDate.of(2020, 3, 1)));
             when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
                     policy(RetentionDataCategory.CAMPAIGN_DATA, 60, true)));
+
+            job.runEvaluationJob();
+
+            verify(retentionPurgeService).purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA,
+                    PurgeTriggerType.AUTO, null);
+        }
+
+        @Test
+        @DisplayName("eligibleRowCount>0 ale autoPurgeEnabled=false -> purge() NIE jest wywołane")
+        void doesNotCallPurgeWhenAutoPurgeDisabled() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.countEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.EligibleSummary(
+                            50, LocalDate.of(2020, 1, 1), LocalDate.of(2020, 3, 1)));
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CAMPAIGN_DATA, 60, false)));
 
             job.runEvaluationJob();
 

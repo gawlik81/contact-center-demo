@@ -1,5 +1,6 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -20,23 +21,27 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Testy jednostkowe dla {@link CampaignArchiveRetentionRepository} (EPIC-29, BE-112) —
- * liczenie {@code campaign_contact_archive} (kategoria CAMPAIGN_DATA, tabela NIE partycjonowana).
+ * Testy jednostkowe dla {@link CampaignArchiveRetentionRepository} — liczenie (EPIC-29, BE-112)
+ * i usuwanie (BE-119) {@code campaign_contact_archive} (kategoria CAMPAIGN_DATA, tabela NIE
+ * partycjonowana).
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("CampaignArchiveRetentionRepository – liczenie CAMPAIGN_DATA (BE-112)")
+@DisplayName("CampaignArchiveRetentionRepository – liczenie i usuwanie CAMPAIGN_DATA (BE-112/BE-119)")
 class CampaignArchiveRetentionRepositoryTest {
 
     private static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Mock
     private EntityManager entityManager;
@@ -127,6 +132,57 @@ class CampaignArchiveRetentionRepositoryTest {
             repository.countEligible(TENANT_A, Instant.now());
 
             verify(entityManager).createNativeQuery(contains("set_tenant_context"));
+        }
+    }
+
+    @Nested
+    @DisplayName("purgeEligible() (BE-119)")
+    class PurgeEligible {
+
+        @Test
+        @DisplayName("wywołuje purge_campaign_contact_archive(tenantId, cutoff), zwraca liczbę usuniętych wierszy")
+        void delegatesToSqlFunction_returnsDeletedCount() {
+            stubTenantContextQuery();
+            Query purgeQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null
+                            && sql.contains("purge_campaign_contact_archive")
+                            && sql.contains("CAST(:tenantId AS uuid)"))
+            )).thenReturn(purgeQuery);
+            when(purgeQuery.setParameter(anyString(), any())).thenReturn(purgeQuery);
+            Instant cutoff = Instant.parse("2026-01-01T00:00:00Z");
+            when(purgeQuery.getSingleResult()).thenReturn(7);
+
+            long result = repository.purgeEligible(TENANT_A, cutoff);
+
+            verify(purgeQuery).setParameter("tenantId", TENANT_A.toString());
+            verify(purgeQuery).setParameter("cutoff", cutoff);
+            assertThat(result).isEqualTo(7L);
+        }
+
+        @Test
+        @DisplayName("ustawia kontekst RLS przed zapytaniem purge")
+        void setsTenantContextBeforeQuery() {
+            Query rlsQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(contains("set_tenant_context"))).thenReturn(rlsQuery);
+            when(rlsQuery.setParameter(anyString(), anyString())).thenReturn(rlsQuery);
+            Query purgeQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(contains("purge_campaign_contact_archive"))).thenReturn(purgeQuery);
+            when(purgeQuery.setParameter(anyString(), any())).thenReturn(purgeQuery);
+            when(purgeQuery.getSingleResult()).thenReturn(0);
+
+            repository.purgeEligible(TENANT_A, Instant.now());
+
+            verify(entityManager).createNativeQuery(contains("set_tenant_context"));
+        }
+
+        @Test
+        @DisplayName("cross-tenant: purgeEligible(TENANT_B) gdy kontekst = TENANT_A -> CrossTenantAccessException, brak zapytań do DB")
+        void crossTenantMismatch_throwsBeforeAnyQuery() {
+            assertThatThrownBy(() -> repository.purgeEligible(TENANT_B, Instant.now()))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verifyNoInteractions(entityManager);
         }
     }
 }

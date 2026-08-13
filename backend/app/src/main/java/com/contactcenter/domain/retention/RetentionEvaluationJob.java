@@ -31,9 +31,9 @@ import java.util.UUID;
  *   <li>{@code CAMPAIGN_DATA} ({@code campaign_contact_archive}) — tabela NIE jest
  *       partycjonowana, więc {@link PartitionScanner} się do niej nie stosuje. Liczona
  *       bezpośrednim zapytaniem przez {@link CampaignArchiveRetentionRepository}. Wynik jest
- *       zapisywany do summary (dashboard admina, FE-105), ale {@link RetentionPurgeService#purge}
- *       NIGDY nie jest dla niej wywoływane — rzuciłoby {@link UnsupportedOperationException}
- *       (integracja z {@code purge_campaign_contact_archive} to zakres przyszłego BE-119).</li>
+ *       zapisywany do summary (dashboard admina, FE-105) i — od integracji z
+ *       {@code purge_campaign_contact_archive} (BE-119) — auto-purge jest dla niej wyzwalany
+ *       przez ten sam {@link #maybeTriggerAutoPurge} co pozostałe kategorie.</li>
  *   <li>{@code RECORDINGS} jest CAŁKOWICIE poza zakresem tego jobu (żadnego liczenia, żadnego
  *       wiersza w summary) — obsługiwana wyłącznie przez {@code RecordingRetentionJob} (BE-116).</li>
  * </ul>
@@ -252,15 +252,10 @@ class RetentionEvaluationJob {
                 summaryRepository.upsert(tenantId, RetentionDataCategory.CAMPAIGN_DATA, summary.rowCount(),
                         summary.oldestArchivedDate(), summary.newestArchivedDate());
 
-                if (summary.rowCount() > 0 && isAutoPurgeEnabled(tenantId, RetentionDataCategory.CAMPAIGN_DATA)) {
-                    // CELOWO nie wołamy retentionPurgeService.purge() — rzuciłoby
-                    // UnsupportedOperationException (RetentionPurgeServiceImpl obsługuje wyłącznie
-                    // CONTACT_INTERACTIONS/TRANSCRIPTS). Integracja z purge_campaign_contact_archive
-                    // to zakres przyszłego BE-119 — logujemy jawnie, to NIE jest błąd.
-                    log.info("[RetentionEvaluationJob] CAMPAIGN_DATA: auto-purge pominięty (integracja z "
-                                    + "purge_campaign_contact_archive w BE-119) — tenant={}, eligibleRowCount={}",
-                            tenantId, summary.rowCount());
-                }
+                // Od BE-119, RetentionPurgeServiceImpl obsługuje CAMPAIGN_DATA (delegacja do
+                // purge_campaign_contact_archive) — auto-purge wyzwalany identycznie jak dla
+                // CONTACT_INTERACTIONS/TRANSCRIPTS, przez ten sam wspólny maybeTriggerAutoPurge.
+                maybeTriggerAutoPurge(tenantId, RetentionDataCategory.CAMPAIGN_DATA, summary.rowCount());
             } catch (Exception e) {
                 log.error("[RetentionEvaluationJob] Błąd liczenia CAMPAIGN_DATA dla tenanta={}: {}",
                         tenantId, e.getMessage(), e);

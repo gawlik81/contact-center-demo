@@ -13,8 +13,9 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
- * Liczy rekordy {@code campaign_contact_archive} kwalifikujące się do usunięcia dla kategorii
- * {@code CAMPAIGN_DATA} (EPIC-29, BE-112).
+ * Liczy ({@link #countEligible}, BE-112) i usuwa ({@link #purgeEligible}, BE-119) rekordy
+ * {@code campaign_contact_archive} kwalifikujące się wg polityki retencji kategorii
+ * {@code CAMPAIGN_DATA} (EPIC-29).
  *
  * <p><strong>Dlaczego to NIE jest {@link PartitionScanner}:</strong> {@code campaign_contact_archive}
  * (V015) NIE jest tabelą partycjonowaną — jest to zwykła tabela z indeksem
@@ -79,6 +80,49 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
             return ts.toInstant().atZone(ZoneOffset.UTC).toLocalDate();
         }
         throw new IllegalStateException("Nie można przekonwertować na LocalDate: " + value.getClass());
+    }
+
+    // =========================================================================
+    // Usuwanie (BE-119)
+    // =========================================================================
+
+    /**
+     * Usuwa rekordy tenanta starsze niż {@code cutoff} — deleguje do funkcji SQL
+     * {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} (V091, BE-119).
+     *
+     * <p><strong>Dlaczego jedno wywołanie SQL, nie batchowanie jak CONTACT_INTERACTIONS/
+     * TRANSCRIPTS</strong> ({@code RetentionPurgeServiceImpl}): {@code campaign_contact_archive}
+     * NIE jest partycjonowana, a indeks {@code idx_cca_tenant_archived_at} (V089, DB-053) jest
+     * zaprojektowany dokładnie pod ten wzorzec {@code WHERE tenant_id = ? AND archived_at < ?} —
+     * pojedynczy DELETE jest tu efektywny nawet dla dużych wolumenów, bez potrzeby batchowania
+     * po stronie Javy.
+     *
+     * <p><strong>Dlaczego {@code p_cutoff_date} jako {@code TIMESTAMPTZ}, nie lata:</strong>
+     * {@code RetentionPurgeServiceImpl#purgeAsync} wylicza {@code Instant cutoff} jednolicie dla
+     * WSZYSTKICH kategorii przed dyspatchem do metody per-kategoria — przekazanie go tu wprost
+     * unika stratnej konwersji {@code retentionMonths} (z {@code tenant_retention_policy}) na
+     * lata w dwie strony, którą wymagałaby stara sygnatura funkcji SQL sprzed V091.
+     *
+     * @param tenantId UUID tenanta
+     * @param cutoff   granica czasowa — rekordy z {@code archived_at < cutoff} są usuwane
+     * @return liczba usuniętych wierszy
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional
+    long purgeEligible(UUID tenantId, Instant cutoff) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        Number deleted = (Number) em.createNativeQuery(
+                        "SELECT purge_campaign_contact_archive(CAST(:tenantId AS uuid), :cutoff)")
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .getSingleResult();
+
+        long rowsDeleted = deleted.longValue();
+        log.info("[CampaignArchiveRetentionRepo] Purge: tenant={}, cutoff={}, usunięto={}",
+                tenantId, cutoff, rowsDeleted);
+        return rowsDeleted;
     }
 
     /**

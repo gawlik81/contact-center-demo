@@ -11,21 +11,20 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Silnik usuwania Poziom 1 (per-tenant, batchowany) dla kategorii {@code CONTACT_INTERACTIONS}
- * i {@code TRANSCRIPTS} (EPIC-29, BE-113).
+ * Silnik usuwania per-tenant dla kategorii {@code CONTACT_INTERACTIONS}, {@code TRANSCRIPTS}
+ * (batchowane, EPIC-29, BE-113) i {@code CAMPAIGN_DATA} (pojedynczy DELETE przez funkcję SQL
+ * {@code purge_campaign_contact_archive}, BE-119).
  *
  * <p>Usuwanie odbywa się na poziomie wiersza, per tenant, niezależnie od innych tenantów
- * współdzielących tę samą partycję miesięczną — patrz uzasadnienie techniczne w
+ * współdzielących tę samą partycję miesięczną / tabelę — patrz uzasadnienie techniczne w
  * {@link RetentionPurgeServiceImpl}.
  *
  * <p><strong>Poza zakresem tego serwisu:</strong>
  * <ul>
  *   <li>{@code RECORDINGS} — obsługiwane przez {@code RecordingRetentionJob} (BE-116):
  *       zerowanie kolumny {@code recording_url} + usunięcie obiektu S3, nie DELETE wiersza {@code contact}.</li>
- *   <li>{@code CAMPAIGN_DATA} — przyszła integracja z funkcją SQL
- *       {@code purge_campaign_contact_archive} (BE-119).</li>
  * </ul>
- * Wywołanie {@link #purge} dla tych dwóch kategorii rzuca {@link UnsupportedOperationException}.
+ * Wywołanie {@link #purge} dla tej kategorii rzuca {@link UnsupportedOperationException}.
  *
  * <p>Wywoływane ręcznie (przyszły {@code POST /purge}, BE-118) lub automatycznie (przyszły
  * auto-purge scheduler, BE-112).
@@ -41,11 +40,11 @@ public interface RetentionPurgeService {
      * można odpytać później przez {@code purgeId} (przyszły {@code GET .../purge/{purgeId}}, BE-118).
      *
      * @param tenantId          UUID tenanta
-     * @param category          kategoria danych — wyłącznie {@code CONTACT_INTERACTIONS} lub {@code TRANSCRIPTS}
+     * @param category          kategoria danych — {@code CONTACT_INTERACTIONS}, {@code TRANSCRIPTS} lub {@code CAMPAIGN_DATA}
      * @param triggerType       MANUAL (ręczne wywołanie przez administratora) lub AUTO (scheduler)
      * @param triggeredByUserId UUID użytkownika wywołującego — wymagane dla MANUAL, {@code null} dla AUTO
      * @return UUID operacji purge — do dalszego odpytywania statusu
-     * @throws UnsupportedOperationException gdy {@code category} to {@code RECORDINGS} lub {@code CAMPAIGN_DATA}
+     * @throws UnsupportedOperationException gdy {@code category} to {@code RECORDINGS}
      * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy brak skonfigurowanej
      *         polityki retencji dla tenanta/kategorii (nie powinno się zdarzyć po BE-111 seedingu)
      */

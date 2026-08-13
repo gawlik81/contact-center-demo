@@ -327,6 +327,52 @@ class TenantRetentionPolicyRepositoryTest {
     }
 
     // =========================================================================
+    // findMaxRetentionMonths
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findMaxRetentionMonths()")
+    class FindMaxRetentionMonths {
+
+        @Test
+        @DisplayName("wykonuje SELECT MAX(retention_months) filtrowany po kategorii, bez set_tenant_context (cross-tenant celowo)")
+        void queriesMaxAcrossAllTenants_withoutTenantContext() {
+            Query maxQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("SELECT MAX(retention_months)")
+                            && sql.contains("FROM tenant_retention_policy")
+                            && sql.contains("WHERE data_category = :category"))
+            )).thenReturn(maxQuery);
+            when(maxQuery.setParameter(anyString(), anyString())).thenReturn(maxQuery);
+            when(maxQuery.getResultList()).thenReturn(List.<Number>of(60));
+
+            Optional<Integer> result = repository.findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS);
+
+            assertThat(result).contains(60);
+            verify(maxQuery).setParameter("category", "CONTACT_INTERACTIONS");
+            verify(entityManager, never()).createNativeQuery(contains("set_tenant_context"));
+        }
+
+        @Test
+        @DisplayName("MAX() nad pustym zbiorem zwraca jeden wiersz z NULL -> Optional.empty()")
+        void maxOverEmptySet_returnsEmpty() {
+            Query maxQuery = org.mockito.Mockito.mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("SELECT MAX(retention_months)"))
+            )).thenReturn(maxQuery);
+            when(maxQuery.setParameter(anyString(), anyString())).thenReturn(maxQuery);
+            // SELECT MAX(...) sans wiersza pasującego zwraca [null], NIE pustą listę.
+            List<Number> rowsWithNull = new java.util.ArrayList<>();
+            rowsWithNull.add(null);
+            when(maxQuery.getResultList()).thenReturn(rowsWithNull);
+
+            Optional<Integer> result = repository.findMaxRetentionMonths(RetentionDataCategory.CAMPAIGN_DATA);
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // =========================================================================
     // findAllByTenantId / findByTenantIdAndCategory
     // =========================================================================
 

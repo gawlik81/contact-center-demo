@@ -71,6 +71,15 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
                                 + " (żaden tenant nie ma skonfigurowanej polityki)"));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public int findMaxRetentionMonths(RetentionDataCategory category) {
+        return repository.findMaxRetentionMonths(category)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Brak jakiejkolwiek polityki retencji dla kategorii: " + category
+                                + " (żaden tenant nie ma skonfigurowanej polityki)"));
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

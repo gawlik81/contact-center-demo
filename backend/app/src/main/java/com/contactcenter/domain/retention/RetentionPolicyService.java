@@ -79,6 +79,27 @@ public interface RetentionPolicyService {
     int findMinRetentionMonths(RetentionDataCategory category);
 
     /**
+     * Zwraca MAKSYMALNĄ skonfigurowaną retencję (w miesiącach) dla kategorii danych PO
+     * WSZYSTKICH TENANTACH — zapytanie platformowe, celowo cross-tenant.
+     *
+     * <p>Używane przez {@code PartitionReclaimJob} (BE-115) do wyznaczenia globalnego,
+     * zachowawczego progu fizycznego usuwania partycji ({@code DROP TABLE}): partycja starsza
+     * niż {@code now - findMaxRetentionMonths(category)} jest na pewno za stara dla KAŻDEGO
+     * tenanta (nawet tego z najdłuższą skonfigurowaną retencją), więc jej fizyczne usunięcie
+     * nigdy nie naruszy retencji żadnego tenanta. Lustrzane odbicie {@link #findMinRetentionMonths}.
+     *
+     * @param category kategoria danych
+     * @return maksymalna retencja w miesiącach spośród wszystkich tenantów mających
+     *         skonfigurowaną politykę dla tej kategorii
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy ŻADEN tenant nie
+     *         ma skonfigurowanej polityki dla tej kategorii (teoretyczne — {@link #seedDefaultPolicies}
+     *         gwarantuje wszystkie 4 kategorie dla każdego tenanta) — wywołujący powinien
+     *         przechwycić ten wyjątek i pominąć kategorię w danym przebiegu (log WARN) zamiast
+     *         przerywać cały job
+     */
+    int findMaxRetentionMonths(RetentionDataCategory category);
+
+    /**
      * Zasiewa domyślne polityki retencji dla nowo utworzonego tenanta — dokładnie 4 wiersze,
      * jeden per {@link RetentionDataCategory}. Idempotentne (bezpieczne do wielokrotnego
      * wywołania — nie nadpisuje już istniejących wierszy).

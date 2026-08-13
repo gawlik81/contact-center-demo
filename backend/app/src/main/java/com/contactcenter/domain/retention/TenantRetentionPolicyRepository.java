@@ -166,6 +166,44 @@ class TenantRetentionPolicyRepository extends TenantAwareRepository {
         return Optional.of(rows.get(0).intValue());
     }
 
+    /**
+     * Zwraca maksymalną skonfigurowaną retencję (w miesiącach) dla kategorii danych PO
+     * WSZYSTKICH TENANTACH — używane przez {@link RetentionPolicyServiceImpl#findMaxRetentionMonths}
+     * (BE-115, {@code PartitionReclaimJob}) do wyznaczenia globalnego, zachowawczego progu
+     * fizycznego usuwania partycji ({@code DROP TABLE}): partycja starsza niż
+     * {@code now - findMaxRetentionMonths(category)} jest na pewno za stara dla KAŻDEGO tenanta
+     * (nawet tego z najdłuższą skonfigurowaną retencją), więc jej fizyczne usunięcie nigdy nie
+     * naruszy retencji żadnego tenanta.
+     *
+     * <p>Lustrzane odbicie {@link #findMinRetentionMonths} — ta sama semantyka cross-tenant
+     * (patrz jego javadoc), ten sam wzorzec obsługi pustego zbioru.
+     *
+     * <p>{@code MAX(retention_months)} nad pustym zbiorem zwraca pojedynczy wiersz z wartością
+     * {@code NULL} (nie pusty wynik) — stąd jawne sprawdzenie {@code rows.get(0) == null}
+     * poniżej, obok sprawdzenia {@code rows.isEmpty()}.
+     *
+     * @param category kategoria danych
+     * @return Optional z maksymalną retencją w miesiącach, lub empty gdy żaden tenant nie ma
+     *         skonfigurowanej polityki dla tej kategorii (teoretycznie nieosiągalne po
+     *         {@code seedDefaultPolicies} — patrz jego javadoc)
+     */
+    @Transactional(readOnly = true)
+    public Optional<Integer> findMaxRetentionMonths(RetentionDataCategory category) {
+        @SuppressWarnings("unchecked")
+        List<Number> rows = em.createNativeQuery(
+                        """
+                        SELECT MAX(retention_months) FROM tenant_retention_policy
+                        WHERE data_category = :category
+                        """)
+                .setParameter("category", category.name())
+                .getResultList();
+
+        if (rows.isEmpty() || rows.get(0) == null) {
+            return Optional.empty();
+        }
+        return Optional.of(rows.get(0).intValue());
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

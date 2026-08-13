@@ -121,6 +121,22 @@ class PartitionScannerImpl implements PartitionScanner {
     }
 
     // =========================================================================
+    // Fizyczne usuwanie partycji (BE-115, Poziom 2)
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public void dropPartition(String partitionTableName) {
+        assertSafeIdentifier(partitionTableName);
+
+        // Nazwa partycji nie może być parametrem bindowanym (to identyfikator SQL, nie wartość) —
+        // konkatenacja jest bezpieczna po assertSafeIdentifier (patrz javadoc klasy).
+        em.createNativeQuery("DROP TABLE IF EXISTS \"" + partitionTableName + "\"").executeUpdate();
+
+        log.info("[PartitionScanner] Usunięto partycję (DROP TABLE): {}", partitionTableName);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

@@ -214,6 +214,37 @@ class RetentionPolicyServiceImplTest {
     }
 
     // =========================================================================
+    // findMaxRetentionMonths
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findMaxRetentionMonths()")
+    class FindMaxRetentionMonths {
+
+        @Test
+        @DisplayName("zwraca maksymalną retencję po wszystkich tenantach dla kategorii")
+        void shouldReturnMaxRetentionMonthsAcrossAllTenants() {
+            when(repository.findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS))
+                    .thenReturn(Optional.of(120));
+
+            int result = service.findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS);
+
+            assertThat(result).isEqualTo(120);
+        }
+
+        @Test
+        @DisplayName("rzuca ResourceNotFoundException gdy żaden tenant nie ma polityki dla kategorii")
+        void shouldThrowWhenNoTenantHasPolicyForCategory() {
+            when(repository.findMaxRetentionMonths(RetentionDataCategory.TRANSCRIPTS))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.findMaxRetentionMonths(RetentionDataCategory.TRANSCRIPTS))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("TRANSCRIPTS");
+        }
+    }
+
+    // =========================================================================
     // seedDefaultPolicies
     // =========================================================================
 

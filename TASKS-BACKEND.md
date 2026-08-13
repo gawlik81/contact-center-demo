@@ -6113,7 +6113,7 @@ sumaryczne) oraz do `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeni
 **Priorytet:** Must Have — **krytyczny, ta sama waga co DB-052**
 **Złożoność:** M
 **Zależy od:** DB-052
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak bezpośrednio (ale bez tego ticketu błąd rotacji partycji wróci już w kolejnym miesiącu — DB-052 naprawia stan dzisiejszy, ten ticket zapobiega powtórce)
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6139,12 +6139,64 @@ public void ensureFuturePartitions() {
 ```
 
 **Kryteria akceptacji:**
-- [ ] Job wywołuje `create_next_month_partitions()` codziennie o 00:30 UTC (konfigurowalny cron, wzorzec `${property:default}`)
-- [ ] Idempotentny — dwukrotne uruchomienie tego samego dnia nie tworzy duplikatów/błędów (funkcja SQL ma `IF NOT EXISTS`)
-- [ ] Log INFO z podsumowaniem (ile partycji utworzono, dla których tabel) po każdym uruchomieniu
-- [ ] Błąd SQL nie crashuje aplikacji — log ERROR, job kontynuuje przy następnym uruchomieniu
-- [ ] **Test regresyjny kluczowy:** test integracyjny/jednostkowy potwierdzający, że po ręcznym wywołaniu `ensureFuturePartitions()` partycja na „bieżący miesiąc + 3” istnieje dla wszystkich 6 partycjonowanych tabel
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Job wywołuje `create_next_month_partitions()` codziennie o 00:30 UTC (konfigurowalny cron, wzorzec `${property:default}`)
+- [x] Idempotentny — dwukrotne uruchomienie tego samego dnia nie tworzy duplikatów/błędów (funkcja SQL ma `IF NOT EXISTS`)
+- [x] Log INFO z podsumowaniem (ile partycji utworzono, dla których tabel) po każdym uruchomieniu
+- [x] Błąd SQL nie crashuje aplikacji — log ERROR, job kontynuuje przy następnym uruchomieniu
+- [x] **Test regresyjny kluczowy:** test integracyjny/jednostkowy potwierdzający, że po ręcznym wywołaniu `ensureFuturePartitions()` partycja na „bieżący miesiąc + 3” istnieje dla wszystkich 6 partycjonowanych tabel
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **Rozbieżność w treści ticketu, wykryta i rozwiązana świadomie:** przykładowy kod w ticketcie
+  sugerował, że `ensureFuturePartitions()` ma jedynie wołać zbiorczą funkcję SQL
+  `create_next_month_partitions()`. Odczytanie treści tej funkcji w V088 (linie 622-648) pokazało,
+  że tworzy ona partycję WYŁĄCZNIE na miesiąc `teraz + 1` dla wszystkich 6 tabel na raz — nigdy
+  `+2`/`+3`. Zweryfikowano to dodatkowo EMPIRYCZNIE na żywej instancji `cc-postgres` (transakcja
+  z `ROLLBACK`, bez trwałych zmian): stan na dziś (2026-08-13) to `plugin_invocation_log` z
+  partycjami tylko do bieżącego miesiąca, `contact`/`audit_log` do `+1`, `contact_event`/
+  `contact_transcription`/`contact_ai_summary` do `+2` — ŻADNA tabela nie miała jeszcze partycji na
+  `+3`. Wywoływanie WYŁĄCZNIE `create_next_month_partitions()` (nawet codziennie) nigdy nie
+  zbudowałoby bufora `+3` wymaganego przez kluczowe kryterium testu regresyjnego w tym samym
+  tickecie — sprzeczność między przykładowym kodem/AC#1 (dosłowna nazwa funkcji) a kluczowym testem
+  (`+3`). Rozwiązanie: `ensureFuturePartitions()` woła `create_next_month_partitions()` DOKŁADNIE
+  RAZ na uruchomienie (honoruje dosłowne brzmienie AC#1 + zachowuje wpis bookkeeping w
+  `cron_log`/`scheduled_job` zgodny z konwencją V014/V077/V088), a NIEZALEŻNIE OD TEGO buduje
+  samodzielnie bufor `MONTHS_AHEAD=3` miesięcy dla wszystkich 6 tabel, wywołując bezpośrednio
+  niskopoziomowe funkcje `create_<tabela>_partition(rok, miesiąc)` w pętli po ofsetach `1..3`
+  (`PartitionMaintenanceRepository.createTablePartition`). Obie ścieżki są idempotentne
+  (`IF NOT EXISTS` w SQL), więc częściowe pokrycie się `+1` między nimi nie generuje błędu/duplikatu.
+  Efekt uboczny (pozytywny): bufor 3-miesięczny jest bardziej odporny na przestój aplikacji
+  (deploy/incydent) niż poleganie wyłącznie na codziennym `+1`.
+- **Wywołanie funkcji `RETURNS VOID` z Javy:** zweryfikowane empirycznie na `cc-postgres`
+  (`BEGIN; SELECT create_next_month_partitions(); ROLLBACK;`) — zwraca dokładnie 1 wiersz, 1
+  kolumnę typu `void` (pusta wartość), którą pgjdbc mapuje na `null` bez wyjątku;
+  `EntityManager.getSingleResult()` działa poprawnie, potwierdzone też testami jednostkowymi
+  (`PartitionMaintenanceRepositoryTest`).
+- **Nowe pliki poza listą z ticketu:** `PartitionMaintenanceRepository.java` (analogiczny do
+  `PartitionScannerImpl` — `@Repository`, package-private, `EntityManager` natywne zapytania,
+  `assertSafeIdentifier` przed konkatenacją nazwy tabeli w SQL) — niezbędny, bo `PartitionMaintenanceJob`
+  nie może wywołać `EntityManager` bezpośrednio bez własnego repozytorium warstwy (repozytoria w
+  projekcie są `package-private`, ten sam wzorzec co dodatkowe repozytoria z BE-112/BE-113).
+- **Log podsumowania:** wzorowany na wskazówce z ticketu — `PartitionScanner.listPartitions()` per
+  tabela PRZED i PO wywołaniach SQL, diff nazw partycji logowany na poziomie INFO (`Utworzono N
+  nowych partycji: <tabela>=[nazwy] ...` albo jawny komunikat "brak nowych" gdy wszystko już
+  istniało).
+- **Odporność na błędy:** trzy niezależne warstwy try/catch (błąd `create_next_month_partitions()`,
+  błąd pojedynczej pary tabela/miesiąc w pętli bufora, błąd `PartitionScanner` przy snapshotach) —
+  żadna pojedyncza usterka SQL nie przerywa pozostałych 17 wywołań ani nie crashuje `@Scheduled`
+  metody, wzorzec identyczny do `RetentionEvaluationJob` ("błąd przy jednej kategorii/tenancie nie
+  przerywa reszty").
+- **Testy:** bez H2/Testcontainers dla warstwy repozytorium (konwencja projektu, zob.
+  `PartitionScannerImplTest`) — `PartitionMaintenanceRepositoryTest`
+  (mockowany `EntityManager`, weryfikacja dosłownego SQL + parametrów + bezpiecznika identyfikatora,
+  9 scenariuszy) i `PartitionMaintenanceJobTest` (mockowane `PartitionMaintenanceRepository`/
+  `PartitionScanner`, `@InjectMocks`, 8 scenariuszy) — kluczowy test regresyjny
+  `buildsThreeMonthBufferForAllSixPartitionedTables()` przechwytuje wszystkie wywołania
+  `createTablePartition(...)` przez `ArgumentCaptor` i potwierdza, że dla KAŻDEJ z 6 tabel zbiór
+  żądanych `(rok, miesiąc)` to dokładnie `{teraz+1, teraz+2, teraz+3}`, w tym jawne
+  `assertThat(...).contains(currentMonth.plusMonths(3))`.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1716 testów, 0 failures, 0 errors (stan bazowy w tym
+  worktree + 13 nowych testów BE-114; po scaleniu z BE-115 łączna liczba testów będzie wyższa).
 
 ---
 
@@ -6154,7 +6206,7 @@ public void ensureFuturePartitions() {
 **Priorytet:** Should Have
 **Złożoność:** M
 **Zależy od:** BE-111, DB-052
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6174,13 +6226,59 @@ backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob
 ```
 
 **Kryteria akceptacji:**
-- [ ] Job liczy `MAX(retention_months)` per kategoria spośród wszystkich tenantów (`RetentionPolicyService`) — próg globalny, nie per-tenant
-- [ ] `DROP TABLE` wykonywany TYLKO dla partycji, których górna granica < (teraz − max_retention_months)
-- [ ] **Test wymagany przez §11 pkt 5:** `PartitionReclaimJob` NIE usuwa partycji zawierającej choćby jeden wiersz należący do tenanta, którego retencja jeszcze nie minęła — zweryfikowane wprost (partycja z mieszanymi danymi tenantów o różnych retencjach, job musi policzyć próg po NAJDŁUŻSZEJ, nie najkrótszej)
-- [ ] Partycja `DEFAULT` nigdy nie jest kandydatem do `DROP` (zawsze pomijana)
-- [ ] Log INFO z listą usuniętych partycji po każdym uruchomieniu; log WARN jeśli partycja kandydująca do usunięcia wciąż ma wiersze (niespójność z Poziomem 1 — nie powinno się zdarzyć, ale nie blokuj joba, tylko ostrzeż)
-- [ ] Testy jednostkowe ≥5 scenariuszy (partycja bezpiecznie pusta do usunięcia, partycja z żywymi danymi NIE usunięta, próg liczony po max nie min, partycja DEFAULT pomijana, wiele tabel przetwarzanych niezależnie)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Job liczy `MAX(retention_months)` per kategoria spośród wszystkich tenantów (`RetentionPolicyService`) — próg globalny, nie per-tenant
+- [x] `DROP TABLE` wykonywany TYLKO dla partycji, których górna granica < (teraz − max_retention_months)
+- [x] **Test wymagany przez §11 pkt 5:** `PartitionReclaimJob` NIE usuwa partycji zawierającej choćby jeden wiersz należący do tenanta, którego retencja jeszcze nie minęła — zweryfikowane wprost (partycja z mieszanymi danymi tenantów o różnych retencjach, job musi policzyć próg po NAJDŁUŻSZEJ, nie najkrótszej)
+- [x] Partycja `DEFAULT` nigdy nie jest kandydatem do `DROP` (zawsze pomijana)
+- [x] Log INFO z listą usuniętych partycji po każdym uruchomieniu; log WARN jeśli partycja kandydująca do usunięcia wciąż ma wiersze (niespójność z Poziomem 1 — nie powinno się zdarzyć, ale nie blokuj joba, tylko ostrzeż)
+- [x] Testy jednostkowe ≥5 scenariuszy (partycja bezpiecznie pusta do usunięcia, partycja z żywymi danymi NIE usunięta, próg liczony po max nie min, partycja DEFAULT pomijana, wiele tabel przetwarzanych niezależnie)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **`findMaxRetentionMonths`** dodane jako lustrzane odbicie już istniejącego `findMinRetentionMonths`
+  (BE-112) w trzech warstwach: `TenantRetentionPolicyRepository` (natywne `SELECT MAX(retention_months)
+  FROM tenant_retention_policy WHERE data_category = :category`, ta sama obsługa pustego zbioru —
+  `MAX()` nad pustym zbiorem zwraca jeden wiersz z `NULL`, nie pustą listę), `RetentionPolicyService`
+  (interfejs) i `RetentionPolicyServiceImpl` (rzuca `ResourceNotFoundException` przy braku polityki,
+  identyczna semantyka co `findMinRetentionMonths`).
+- **`PartitionScanner.dropPartition(String)`** — celowo dodane do istniejącego interfejsu/impl
+  (`PartitionScannerImpl`) zamiast wstrzykiwać `EntityManager` bezpośrednio do `PartitionReclaimJob`
+  (odstępstwo od dosłownego brzmienia researchu w zleceniu, które sugerowało
+  `EntityManager.createNativeQuery` wprost w jobie). Uzasadnienie: `PartitionScannerImpl` jest już
+  JEDYNYM miejscem w kodzie z dostępem do `pg_catalog`/DDL partycji i bezpiecznikiem
+  `assertSafeIdentifier` — dodanie tam `dropPartition` (z tym samym bezpiecznikiem) utrzymuje tę
+  odpowiedzialność w jednym miejscu i pozwala testować `PartitionReclaimJob` w 100% przez mockowanie
+  `PartitionScanner`/`RetentionPolicyService` (zgodnie z poleceniem w zleceniu), bez potrzeby
+  mockowania `EntityManager`/`Query` w teście joba. `DROP TABLE IF EXISTS "<partycja>"` wykonywane
+  przez `em.createNativeQuery(...).executeUpdate()` wewnątrz `PartitionScannerImpl.dropPartition`.
+- **Próg = ściśle `<` (nie `<=`)**: `PartitionReclaimJob` kwalifikuje partycję do `DROP` tylko gdy
+  `partition.rangeEnd().isBefore(globalCutoffDate)` — celowo bardziej zachowawcze niż próg
+  "eligible for purge" w `RetentionEvaluationJob` (który dopuszcza `rangeEnd <= tenantCutoffDate`),
+  zgodnie z nieodwracalnym charakterem `DROP TABLE` (Poziom 2) w przeciwieństwie do usuwania
+  wierszy (Poziom 1).
+- **Dodatkowy bezpiecznik przed DDL**: poza `assertSafeIdentifier` w `PartitionScannerImpl`,
+  `PartitionReclaimJob` sam sprawdza, czy nazwa partycji zwrócona przez `listPartitions` pasuje do
+  wzorca `<tabela>_YYYY_MM` (regex) — obronnie, na wypadek nieoczekiwanego wpisu (np. gdyby
+  `PartitionScanner` kiedyś przestał wykluczać `<tabela>_default`). Zweryfikowane testem
+  `PartitionReclaimJobTest$DefaultPartitionNeverDropped`.
+- **Pętla po 4 kombinacjach (tabela, kategoria)** — `contact`/`contact_event` →
+  `CONTACT_INTERACTIONS`, `contact_transcription`/`contact_ai_summary` → `TRANSCRIPTS` (identyczne
+  mapowanie co `RetentionPurgeServiceImpl`/`RetentionEvaluationJob`), każda tabela przetwarzana
+  niezależnie we własnym `try/catch` (wzorzec `RecordingRetentionJob.processRetentionForTenant`) —
+  `findMaxRetentionMonths` jest więc wołane 2× per kategoria (raz na tabelę), nie 1× — świadoma
+  konsekwencja niezależności per-tabela, nie duplikacja błędu.
+- **Cron:** `retention.partition-reclaim-cron` (domyślnie `0 0 3 * * SUN`, niedziela 3:00 UTC) —
+  nowa sekcja w `application.yml` obok istniejącego `retention.evaluation-cron`.
+- **Testy:** `PartitionReclaimJobTest` (8 testów w 6 nested klasach, pokrywają wszystkie 5 wymaganych
+  scenariuszy z AC + 1 dodatkowy: partycja bezpiecznie pusta usunięta, partycja młodsza niż globalny
+  próg NIE usunięta, próg liczony po MAX a nie MIN (2 warianty), partycja `_default` nigdy nie
+  kandyduje nawet gdy defensywnie zwrócona przez mock, wiele tabel przetwarzanych niezależnie (błąd
+  RuntimeException w jednej tabeli + brak polityki dla jednej kategorii — oba warianty), DROP mimo
+  WARN o niespójności z Poziomem 1). Dodatkowo: `TenantRetentionPolicyRepositoryTest$FindMaxRetentionMonths`
+  (2), `RetentionPolicyServiceImplTest$FindMaxRetentionMonths` (2), `PartitionScannerImplTest$DropPartition`
+  (2) — łącznie 14 nowych testów.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1717 testów, 0 failures, 0 errors (1703 przed BE-115 wg
+  arytmetyki: 1717 − 14 nowych).
 
 ---
 

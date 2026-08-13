@@ -230,4 +230,35 @@ class PartitionScannerImplTest {
             verify(entityManager, never()).createNativeQuery(anyString());
         }
     }
+
+    // =========================================================================
+    // dropPartition
+    // =========================================================================
+
+    @Nested
+    @DisplayName("dropPartition()")
+    class DropPartition {
+
+        @Test
+        @DisplayName("wykonuje DROP TABLE IF EXISTS na nazwanej partycji")
+        void executesDropTableIfExists() {
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("DROP TABLE IF EXISTS \"contact_2020_01\""))
+            )).thenReturn(mockQuery);
+            when(mockQuery.executeUpdate()).thenReturn(1);
+
+            scanner.dropPartition("contact_2020_01");
+
+            verify(mockQuery).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("nazwa partycji spoza bezpiecznego wzorca identyfikatora -> IllegalArgumentException, brak DDL")
+        void unsafePartitionName_throwsBeforeExecutingDdl() {
+            assertThatThrownBy(() -> scanner.dropPartition("contact_2020_01\"; DROP TABLE tenant; --"))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verify(entityManager, never()).createNativeQuery(anyString());
+        }
+    }
 }

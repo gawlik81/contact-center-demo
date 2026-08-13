@@ -50,6 +50,19 @@ public interface PartitionScanner {
     List<TenantRowCount> countRowsByTenant(String partitionTableName);
 
     /**
+     * Fizycznie usuwa partycję ({@code DROP TABLE IF EXISTS <partycja>}) — nieodwracalna
+     * operacja odzyskiwania miejsca na dysku (EPIC-29, BE-115, Poziom 2), w odróżnieniu od
+     * usuwania wierszy przez {@code RetentionPurgeService} (Poziom 1).
+     *
+     * @param partitionTableName dokładna nazwa partycji, pochodząca WYŁĄCZNIE z wyniku
+     *                            {@link #listPartitions} — wywołujący ({@code PartitionReclaimJob})
+     *                            jest odpowiedzialny za wcześniejsze wyznaczenie, że partycja
+     *                            faktycznie kwalifikuje się do usunięcia (próg retencji);
+     *                            ta metoda sama w sobie nie sprawdza żadnego progu czasowego.
+     */
+    void dropPartition(String partitionTableName);
+
+    /**
      * Metadane pojedynczej partycji miesięcznej.
      *
      * @param partitionName dokładna nazwa tabeli partycji w PostgreSQL

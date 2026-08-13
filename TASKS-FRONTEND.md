@@ -5795,7 +5795,7 @@ od zera.
 **Priorytet:** Should Have
 **Złożoność:** XS
 **Zależy od:** BE-116
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Czeka na BE:** BE-116
 **Blokuje:** brak
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
@@ -5823,7 +5823,19 @@ akceptować/zwracać to pole) — jeśli FE nadal wysyła `recordingRetentionDay
 błędu walidacji zależnie od implementacji BE-116.
 
 **Kryteria akceptacji:**
-- [ ] `recordingRetentionDays` nieobecne w `tenant.model.ts`
-- [ ] `PATCH /api/tenants/{id}/config` wysyłany z `tenant-edit-modal` nie zawiera tego pola w body
-- [ ] Brak referencji do `recordingRetentionDays` w całym `frontend/src/app/features/tenants/` (`grep` czysty)
-- [ ] `npm run lint`/`npm run build`/`npx tsc --noEmit` przechodzą
+- [x] `recordingRetentionDays` nieobecne w `tenant.model.ts`
+- [x] `PATCH /api/tenants/{id}` wysyłany z `tenant-edit-modal` nie zawiera tego pola w body
+- [x] Brak referencji do `recordingRetentionDays` w całym `frontend/src/app/features/tenants/` (`grep` czysty)
+- [x] `npm run lint`/`npm run build`/`npx tsc --noEmit` przechodzą
+
+**Notatka z implementacji:**
+Dwie korekty względem treści ticketu: (1) pole w kodzie nazywa się `recording_retention_days`
+(snake_case, dopasowane do JSON-a z BE), nie `recordingRetentionDays`; (2) właściwy endpoint to
+`PATCH /api/tenants/{id}` — `/config` to osobny endpoint wyłącznie dla konfiguracji Twilio.
+Kryterium #2 było już spełnione PRZED tym ticketem: `tenant-edit-modal.component.ts` i
+`tenant-add-modal.component.ts` budują payload `limits` ręcznie pole po polu i nigdy nie
+odwoływały się do tego pola; `UpdateTenantRequest.limits` też już go nie miał. Zakres realnej
+zmiany: usunięcie 3 martwych deklaracji pola z `tenant.model.ts` (`TenantConfig`, `TenantLimits`,
+`CreateTenantRequest.limits`) — zero zmian w komponentach/szablonach. Usunięcie nieopcjonalnego
+`TenantLimits.recording_retention_days` nie ujawniło żadnych błędów kompilacji (nic go nigdzie
+nie konstruowało literalnie).

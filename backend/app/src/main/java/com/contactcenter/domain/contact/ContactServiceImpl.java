@@ -243,7 +243,13 @@ class ContactServiceImpl implements ContactService {
                 .toList();
 
         if (agentIds.isEmpty()) {
-            return Map.of();
+            // UWAGA: Collections.emptyMap() (a nie Map.of()) – wynikowa mapa jest odpytywana
+            // przez agentNames.get(c.getAgentId()) w listContacts()/getCustomerHistory(), gdzie
+            // c.getAgentId() jest typowo null (kontakty w kolejce/bez przypisania). Map.of()
+            // zwraca niemutowalną mapę, której get() rzuca NPE dla klucza null
+            // (java.util.ImmutableCollections.MapN#get wywołuje Objects.requireNonNull).
+            // Collections.emptyMap() (backed by HashMap semantics) po prostu zwraca null.
+            return Collections.emptyMap();
         }
 
         Map<UUID, String> result = new HashMap<>();

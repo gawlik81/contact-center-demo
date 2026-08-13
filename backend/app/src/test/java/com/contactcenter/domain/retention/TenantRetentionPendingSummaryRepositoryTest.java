@@ -124,6 +124,28 @@ class TenantRetentionPendingSummaryRepositoryTest {
 
             verify(entityManager, never()).createNativeQuery(contains("INSERT INTO tenant_retention_pending_summary"));
         }
+
+        /**
+         * Test regresyjny — bug wykryty przy ręcznym uruchomieniu {@code RetentionEvaluationJob}
+         * na żywym kontenerze (EPIC-29, BE-112). Wątek {@code @Scheduled} nie przechodzi przez
+         * {@code TenantFilter} (brak JWT), więc bez jawnego {@code TenantContext.setTenantId()}
+         * w pętli per-tenant tego jobu (patrz jego javadoc) ten upsert rzucał
+         * {@link IllegalStateException} — job "kończył się sukcesem" w logach, ale NIGDY nie
+         * zapisywał wyniku do {@code tenant_retention_pending_summary}.
+         */
+        @Test
+        @DisplayName("bez TenantContext (symulacja wątku schedulera PRZED naprawą BE-112) rzuca IllegalStateException, brak zapytania do DB")
+        void withoutTenantContext_throwsIllegalStateException_neverTouchesDb() {
+            TenantContext.clear();
+            assertThat(TenantContext.isSet()).isFalse();
+
+            assertThatThrownBy(() -> repository.upsert(
+                    TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, 1L, null, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("TenantContext");
+
+            verify(entityManager, never()).createNativeQuery(contains("INSERT INTO tenant_retention_pending_summary"));
+        }
     }
 
     @Nested

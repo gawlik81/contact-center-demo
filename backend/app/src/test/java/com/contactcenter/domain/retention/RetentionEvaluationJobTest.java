@@ -3,6 +3,8 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.security.TenantContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +19,7 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -81,6 +85,14 @@ class RetentionEvaluationJobTest {
         when(campaignArchiveRetentionRepository.countEligible(any(), any()))
                 .thenReturn(new CampaignArchiveRetentionRepository.EligibleSummary(0, null, null));
         when(tenantService.getActiveTenants()).thenReturn(List.of(buildTenant(TENANT_A)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Wątek testowy jest reużywany między metodami testowymi w tej klasie (analogicznie do
+        // wątku puli schedulera w produkcji) – TenantContext MUSI zostać wyczyszczony dla izolacji,
+        // szczególnie istotne odkąd job realnie ustawia TenantContext (regresja BE-112).
+        TenantContext.clear();
     }
 
     private static Tenant buildTenant(UUID id) {
@@ -600,6 +612,176 @@ class RetentionEvaluationJobTest {
             verify(summaryRepository, never()).upsert(any(), eq(RetentionDataCategory.RECORDINGS),
                     anyLong(), any(), any());
             verify(retentionPolicyService, never()).getRetentionMonths(any(), eq(RetentionDataCategory.RECORDINGS));
+        }
+    }
+
+    // =========================================================================
+    // Regresja: TenantContext w wątku schedulera (bug wykryty przy ręcznym uruchomieniu joba)
+    // =========================================================================
+
+    /**
+     * Kolaboratorzy joba ({@code summaryRepository}, {@code campaignArchiveRetentionRepository},
+     * {@code retentionPurgeService}) są tu mockami, więc te testy NIE weryfikują, że
+     * {@code TenantAwareRepository#assertSameTenant} rzeczywiście przechodzi (to pokrywają
+     * {@code TenantRetentionPendingSummaryRepositoryTest}/{@code RetentionPurgeLogRepositoryTest},
+     * które używają prawdziwych repozytoriów). Weryfikują za to własną odpowiedzialność JOBA: że
+     * {@link TenantContext} (klasa statyczna, NIGDY nie mockowana w tych testach) jest faktycznie
+     * ustawiany na poprawny {@code tenantId} PRZED każdym wywołaniem serwisu wymagającego
+     * kontekstu, jest izolowany między tenantami w OBU pętlach ({@code persistAndMaybeAutoPurge},
+     * {@code evaluateCampaignData}), i czyszczony po każdej iteracji niezależnie od wyniku.
+     */
+    @Nested
+    @DisplayName("TenantContext – wątek schedulera (regresja BE-112)")
+    class TenantContextRegression {
+
+        @Test
+        @DisplayName("wątek testowy startuje bez kontekstu (dokładnie jak wątek @Scheduled)")
+        void threadStartsWithoutContext() {
+            assertThat(TenantContext.isSet()).isFalse();
+        }
+
+        @Test
+        @DisplayName("persistAndMaybeAutoPurge: TenantContext jest ustawiony na tenantId W MOMENCIE wywołania summaryRepository.upsert")
+        void contextIsSetDuringSummaryUpsert() {
+            List<UUID> observed = new ArrayList<>();
+            doAnswer(invocation -> {
+                observed.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    anyLong(), any(), any());
+
+            job.runEvaluationJob();
+
+            assertThat(observed).containsExactly(TENANT_A);
+        }
+
+        @Test
+        @DisplayName("kontekst NIE wycieka między tenantami w persistAndMaybeAutoPurge – każdy widzi WYŁĄCZNIE własny tenantId")
+        void contextIsIsolatedBetweenTenants_persistAndMaybeAutoPurge() {
+            when(tenantService.getActiveTenants())
+                    .thenReturn(List.of(buildTenant(TENANT_A), buildTenant(TENANT_B)));
+
+            List<UUID> observedA = new ArrayList<>();
+            List<UUID> observedB = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedA.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    anyLong(), any(), any());
+            doAnswer(invocation -> {
+                observedB.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(summaryRepository).upsert(eq(TENANT_B), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    anyLong(), any(), any());
+
+            job.runEvaluationJob();
+
+            assertThat(observedA).containsExactly(TENANT_A);
+            assertThat(observedB).containsExactly(TENANT_B);
+        }
+
+        @Test
+        @DisplayName("evaluateCampaignData: TenantContext jest ustawiony na tenantId W MOMENCIE wywołania countEligible/upsert")
+        void contextIsSetDuringCampaignDataEvaluation() {
+            List<UUID> observedDuringCount = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedDuringCount.add(TenantContext.getTenantIdOrNull());
+                return new CampaignArchiveRetentionRepository.EligibleSummary(0, null, null);
+            }).when(campaignArchiveRetentionRepository).countEligible(eq(TENANT_A), any());
+
+            List<UUID> observedDuringUpsert = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedDuringUpsert.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CAMPAIGN_DATA),
+                    anyLong(), any(), any());
+
+            job.runEvaluationJob();
+
+            assertThat(observedDuringCount).containsExactly(TENANT_A);
+            assertThat(observedDuringUpsert).containsExactly(TENANT_A);
+        }
+
+        @Test
+        @DisplayName("kontekst NIE wycieka między tenantami w evaluateCampaignData")
+        void contextIsIsolatedBetweenTenants_evaluateCampaignData() {
+            when(tenantService.getActiveTenants())
+                    .thenReturn(List.of(buildTenant(TENANT_A), buildTenant(TENANT_B)));
+
+            List<UUID> observedA = new ArrayList<>();
+            List<UUID> observedB = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedA.add(TenantContext.getTenantIdOrNull());
+                return new CampaignArchiveRetentionRepository.EligibleSummary(0, null, null);
+            }).when(campaignArchiveRetentionRepository).countEligible(eq(TENANT_A), any());
+            doAnswer(invocation -> {
+                observedB.add(TenantContext.getTenantIdOrNull());
+                return new CampaignArchiveRetentionRepository.EligibleSummary(0, null, null);
+            }).when(campaignArchiveRetentionRepository).countEligible(eq(TENANT_B), any());
+
+            job.runEvaluationJob();
+
+            assertThat(observedA).containsExactly(TENANT_A);
+            assertThat(observedB).containsExactly(TENANT_B);
+        }
+
+        /**
+         * Dowód pośredni na naprawę dormant ścieżki auto-purge (opisanej w javadoc klasy
+         * {@link RetentionEvaluationJob}): {@code RetentionPurgeService} jest tu mockiem, więc ten
+         * test NIE wykonuje prawdziwego {@code RetentionPurgeServiceImpl#purge} (co obejmowałoby
+         * prawdziwe {@code purgeLogRepository.insertRunning} + {@code TenantContext.snapshot()}/
+         * {@code @Async purgeAsync}) — udowadnia jednak KLUCZOWY PREKONDYCJONALNY fakt: w momencie
+         * wywołania {@code retentionPurgeService.purge(...)} przez joba, {@link TenantContext} jest
+         * już ustawiony na poprawny {@code tenantId}. To jest dokładnie to, czego potrzebuje
+         * prawdziwy {@code RetentionPurgeServiceImpl#purge} (jego {@code insertRunning} woła
+         * {@code assertSameTenant}, a {@code TenantContext.snapshot()} kopiuje ten kontekst do
+         * propagacji async). Pełna weryfikacja end-to-end (włącznie z {@code purgeAsync} i
+         * faktycznym zapisem do {@code retention_purge_log}) wymaga włączenia
+         * {@code auto_purge_enabled=true} na tenancie testowym w lokalnym demo — zbyt krucha/
+         * kompleksowa do sensownego zamockowania na poziomie tego testu jednostkowego.
+         */
+        @Test
+        @DisplayName("dormant auto-purge: TenantContext jest ustawiony na tenantId W MOMENCIE wywołania RetentionPurgeService.purge")
+        void contextIsSetDuringAutoPurgeTrigger() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            PartitionScanner.PartitionInfo partition = partitionEndingAt("contact_2020_06", today.minusMonths(65));
+            when(partitionScanner.listPartitions("contact")).thenReturn(List.of(partition));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 8)));
+
+            List<UUID> observed = new ArrayList<>();
+            doAnswer(invocation -> {
+                observed.add(TenantContext.getTenantIdOrNull());
+                return UUID.randomUUID();
+            }).when(retentionPurgeService).purge(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(PurgeTriggerType.AUTO), any());
+
+            job.runEvaluationJob();
+
+            assertThat(observed).containsExactly(TENANT_A);
+        }
+
+        @Test
+        @DisplayName("kontekst jest wyczyszczony PO zakończeniu jobu – brak wycieku do kolejnego przebiegu/schedulera")
+        void contextIsClearedAfterJobCompletes() {
+            job.runEvaluationJob();
+
+            assertThat(TenantContext.isSet()).isFalse();
+        }
+
+        @Test
+        @DisplayName("kontekst jest wyczyszczony nawet gdy zapis summary rzuca wyjątek (finally)")
+        void contextIsClearedEvenWhenSummaryUpsertThrows() {
+            org.mockito.Mockito.doThrow(new RuntimeException("DB down"))
+                    .when(summaryRepository)
+                    .upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS), anyLong(), any(), any());
+
+            job.runEvaluationJob();
+
+            assertThat(TenantContext.isSet()).isFalse();
         }
     }
 }

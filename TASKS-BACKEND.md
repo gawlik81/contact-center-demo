@@ -6000,6 +6000,41 @@ kategorii — auto-purge wyzwalany identycznie jak dla `CONTACT_INTERACTIONS`/`T
 wspólny `maybeTriggerAutoPurge`. Powyższy opis „celowo nigdy nie wywoływane” dotyczy stanu sprzed
 BE-119, pozostawiony jako zapis historyczny decyzji podjętej w tamtym momencie.
 
+**Aktualizacja (bugfix TenantContext w wątku schedulera, 2026-08-13):** przy tej samej sesji
+weryfikacyjnej co bugfix w BE-116 (patrz jego notatka po pełny opis mechanizmu) wykryto identyczny
+problem w OBU pętlach per-tenant tego jobu: `persistAndMaybeAutoPurge` (wywołuje
+`summaryRepository.upsert` → `assertSameTenant`) i `evaluateCampaignData` (wywołuje
+`campaignArchiveRetentionRepository.countEligible`/`summaryRepository.upsert`, oraz pośrednio,
+przez `maybeTriggerAutoPurge`, `RetentionPurgeLogRepository#insertRunning`). Wątek `@Scheduled`
+nigdy nie przechodzi przez `TenantFilter`, więc `TenantContext` (ThreadLocal) nigdy nie był
+ustawiony — `assertSameTenant` zawsze rzucał `IllegalStateException`, złapaną przez istniejący
+`try/catch` per-tenant. Efekt: job nigdy realnie nie zapisywał wyniku do
+`tenant_retention_pending_summary` (dashboard admina FE-105 zawsze pokazywałby "jeszcze nie
+policzone" zamiast realnej liczby) ani nie wyzwalał auto-purge (nieodkryte live, bo
+`auto_purge_enabled=false` u wszystkich tenantów w momencie weryfikacji — dormant ścieżka).
+**Naprawa:** `TenantContext.setTenantId(tenantId)` na początku KAŻDEJ iteracji obu pętli,
+`TenantContext.clear()` w `finally` obejmującym całe ciało iteracji. Ustawienie kontekstu PRZED
+wywołaniem `maybeTriggerAutoPurge` jest kluczowe dla dormant ścieżki: `RetentionPurgeService#purge`
+woła `TenantContext.snapshot()` do propagacji kontekstu do `@Async purgeAsync` — bez tej naprawy
+snapshot zawsze byłby pusty, więc naprawienie samego `insertRunning` (patrz niżej) nie
+wystarczyłoby. Wzorzec skopiowany z `SocialIntegrationServiceImpl#refreshToken`.
+- **Nowe testy regresyjne** (mockowane repozytoria w istniejących testach tego jobu nigdy nie
+  mogły wykryć tego buga — mock nie wykonuje prawdziwego ciała `assertSameTenant`, patrz też
+  analogiczny udokumentowany przypadek `NativeQueryConstructorTransformer` w notatce BE-119
+  wyżej): `TenantRetentionPendingSummaryRepositoryTest` (+test: `upsert` bez `TenantContext` rzuca
+  ISE, brak zapytania do DB — repozytorium prawdziwe, tylko `EntityManager` mockowany),
+  `RetentionPurgeLogRepositoryTest` (+nested `InsertRunning`: analogiczny test negatywny dla
+  `insertRunning`, plus test pozytywny z kontekstem ustawionym), `RetentionEvaluationJobTest`
+  (+nested `TenantContextRegression`, 8 testów: kontekst ustawiony na poprawny `tenantId` w
+  momencie wywołania `summaryRepository.upsert`/`campaignArchiveRetentionRepository.countEligible`
+  w obu pętlach, izolacja między dwoma tenantami w tej samej pętli w obu pętlach, kontekst widoczny
+  podczas wywołania `RetentionPurgeService.purge` — dowód pośredni na naprawę dormant ścieżki auto-
+  purge, z komentarzem w teście dlaczego pełna weryfikacja `purgeAsync`/zapisu do
+  `retention_purge_log` wymaga ręcznej weryfikacji e2e z `auto_purge_enabled=true` na tenancie
+  testowym, zbyt krucha/kompleksowa do sensownego zamockowania na poziomie testu jednostkowego,
+  wyczyszczenie kontekstu po sukcesie i po błędzie).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1767 testów, 0 failures, 0 errors.
+
 ---
 
 ### BE-113 – `RetentionPurgeService`: silnik usuwania Poziom 1 (per-tenant, batchowany) dla CONTACT_INTERACTIONS i TRANSCRIPTS
@@ -6346,6 +6381,38 @@ for (UUID tenantId : contactService.findTenantsWithRecordings()) {
   - Testy: `TenantServiceTest` (config w `setUp()`, konstruktory `TenantResourceLimitsDto`, asercja `recordingRetentionDays()`, nowy test `shouldNotWriteRecordingRetentionDaysToConfig`), `AdminMetricsServiceImplTest.buildDefaultConfig()`, `RetentionPolicyServiceImplTest` (`SeedDefaultPolicies` przepisane na mock `S3Properties` zamiast `repository.findConfiguredRecordingRetentionDays`; nowy `@Nested GetRetentionDays`), `TenantRetentionPolicyRepositoryTest` (usunięty cały `@Nested FindConfiguredRecordingRetentionDays`).
 - **Nowe testy:** `RecordingRetentionJobTest` (nowy plik, `domain.recording` — brak istniejącego wcześniej mimo że ticket i notatka BE-112 zakładały jego istnienie) — regresja AC (dwaj tenanci, różne `retentionMonths`, oddzielny cutoff per tenant, `ArgumentCaptor<Instant>`), test usuwania nagrań niezależnie per tenant, test odporności na `ResourceNotFoundException` dla jednego tenanta (job kontynuuje dla pozostałych). `TenantResourceLimitsDtoTest` (nowy plik, `api.tenant.dto`) — bezpośredni test Jacksona (nie MockMvc — zgodnie z udokumentowanym wzorcem projektu z `RetentionControllerTest`: kontrolery `api.*` NIE mają `@WebMvcTest` z aktywnym security chain, testowanie infrastruktury Spring MVC/Jackson robione bezpośrednio na mechanizmie, nie przez pełny stack).
 - `mvn verify -pl app`: **BUILD SUCCESS**, 1711 testów, 0 failures, 0 errors.
+
+**Aktualizacja (bugfix TenantContext w wątku schedulera, 2026-08-13):** przy ręcznej weryfikacji
+EPIC-29 na żywym kontenerze (uruchomienie jobu poza testami jednostkowymi) wykryto, że
+`processRetentionForTenant` NIGDY nie ustawiał `TenantContext` (ThreadLocal) przed wywołaniem
+`contactService.clearRecordingUrl(...)` → `ContactRepository#clearRecordingUrl` →
+`TenantAwareRepository#assertSameTenant`, które BEZWARUNKOWO czyta `TenantContext.getTenantId()`.
+Wątek `@Scheduled` nigdy nie przechodzi przez `TenantFilter` (brak JWT), więc to wywołanie zawsze
+rzucało `IllegalStateException`, złapaną przez istniejący `try/catch` per-tenant — job "kończył się
+sukcesem" w logach (`Usunięto: 0, Błędy: N`), ale w rzeczywistości: plik nagrania BYŁ poprawnie
+usuwany z S3 (ta operacja nie dotyka `TenantContext`), lecz `contact.recording_url` w DB NIGDY nie
+było czyszczone. Efekt w produkcji: ten sam kontakt wracałby jako "wygasły" przy KAŻDYM kolejnym
+przebiegu jobu, próbując bezskutecznie usunąć już nieistniejący plik z S3, w nieskończoność, bez
+żadnej widoczności poza rosnącym licznikiem błędów w logu. **Naprawa:**
+`TenantContext.setTenantId(tenantId)` na początku ciała `processRetentionForTenant`,
+`TenantContext.clear()` w `finally` obejmującym całą metodę (ochrona przed wyciekiem kontekstu
+między tenantami przy reużyciu wątku puli schedulera między kolejnymi tenantami/przebiegami).
+Wzorzec skopiowany z `SocialIntegrationServiceImpl#refreshToken`. Ten sam bug (identyczny
+mechanizm, dwie osobne pętle) naprawiony równolegle w `RetentionEvaluationJob` — patrz aktualizacja
+w notatce BE-112 wyżej po pełny opis tamtej naprawy; oba buga odkryte i naprawione w tej samej
+sesji weryfikacyjnej.
+- **Nowe testy regresyjne** (mockowany `ContactService` w istniejących testach tego jobu nigdy nie
+  mógł wykryć tego buga — mock nie wykonuje prawdziwego ciała `assertSameTenant`/`TenantContext`,
+  analogicznie do udokumentowanego wcześniej przypadku `NativeQueryConstructorTransformer`):
+  `ContactRepositoryClearRecordingUrlTest` (NOWY plik, `domain.contact` — prawdziwe
+  `ContactRepository`, mockowany tylko `JdbcTemplate`/`EntityManager`; potwierdza, że
+  `clearRecordingUrl` bez `TenantContext` rzuca ISE i NIE dotyka DB przez `jdbcTemplate`, a z
+  ustawionym kontekstem poprawnie wykonuje `UPDATE ... SET recording_url = NULL`), plus test
+  cross-tenant obronny), `RecordingRetentionJobTest` (+nested `TenantContextRegression`, 5 testów:
+  kontekst ustawiony na poprawny `tenantId` w momencie wywołania `clearRecordingUrl`, izolacja
+  między dwoma tenantami przetwarzanymi w tej samej pętli, wyczyszczenie kontekstu po sukcesie i
+  po błędzie przetwarzania tenanta).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1767 testów, 0 failures, 0 errors.
 
 ---
 

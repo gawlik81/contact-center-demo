@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -237,6 +238,56 @@ class RetentionPurgeLogRepositoryTest {
             Optional<RetentionPurgeLog> result = repository.findById(UUID.randomUUID(), TENANT_A);
 
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("insertRunning() – wymaganie TenantContext (regresja EPIC-29)")
+    class InsertRunning {
+
+        /**
+         * Test regresyjny — bug wykryty przy analizie ścieżki dormant auto-purge
+         * {@code RetentionEvaluationJob#maybeTriggerAutoPurge -> RetentionPurgeService#purge}
+         * (EPIC-29, BE-112/BE-113). {@code insertRunning} woła {@code assertSameTenant}, które
+         * BEZWARUNKOWO czyta {@code TenantContext.getTenantId()}. Wywoływana z wątku
+         * {@code @Scheduled} (przez {@code RetentionEvaluationJob}), gdzie kontekst nie jest
+         * ustawiany automatycznie (brak {@code TenantFilter}) — bez jawnego
+         * {@code TenantContext.setTenantId()} w pętli per-tenant jobu (patrz jego javadoc) ten
+         * zapis rzucał {@link IllegalStateException} PRZED zapisaniem stanu {@code RUNNING} do
+         * {@code retention_purge_log}, więc auto-purge nigdy realnie nie startował.
+         */
+        @Test
+        @DisplayName("bez TenantContext (symulacja wątku schedulera PRZED naprawą) rzuca IllegalStateException, brak zapisu do DB")
+        void withoutTenantContext_throwsIllegalStateException_neverTouchesDb() {
+            TenantContext.clear();
+            assertThat(TenantContext.isSet()).isFalse();
+
+            assertThatThrownBy(() -> repository.insertRunning(
+                    UUID.randomUUID(), TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    PurgeTriggerType.AUTO, null, LocalDate.now()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("TenantContext");
+
+            verify(entityManager, never()).createNativeQuery(contains("INSERT INTO retention_purge_log"));
+        }
+
+        @Test
+        @DisplayName("z TenantContext ustawionym na tenantId (naprawiony job) zapisuje wiersz RUNNING")
+        void withTenantContextSet_insertsRunningRow() {
+            stubTenantContextQuery();
+            Query insertQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(contains("INSERT INTO retention_purge_log")))
+                    .thenReturn(insertQuery);
+            when(insertQuery.setParameter(anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(insertQuery);
+            when(insertQuery.executeUpdate()).thenReturn(1);
+
+            UUID purgeId = UUID.randomUUID();
+            repository.insertRunning(purgeId, TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    PurgeTriggerType.AUTO, null, LocalDate.now());
+
+            verify(insertQuery).setParameter("purgeId", purgeId.toString());
+            verify(insertQuery).setParameter("tenantId", TENANT_A.toString());
+            verify(insertQuery).executeUpdate();
         }
     }
 }

@@ -5,6 +5,8 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.RetentionDataCategory;
 import com.contactcenter.domain.retention.RetentionPolicyService;
+import com.contactcenter.security.TenantContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,6 +21,7 @@ import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +30,7 @@ import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +73,14 @@ class RecordingRetentionJobTest {
     @BeforeEach
     void setUp() {
         when(contactService.findExpiredRecordings(any(), any(), anyInt())).thenReturn(List.of());
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Wątek testowy jest reużywany między metodami testowymi w tej klasie (analogicznie do
+        // wątku puli schedulera w produkcji) – TenantContext MUSI zostać wyczyszczony dla izolacji,
+        // szczególnie istotne odkąd job realnie ustawia TenantContext (regresja BE-116).
+        TenantContext.clear();
     }
 
     // =========================================================================
@@ -175,6 +187,109 @@ class RecordingRetentionJobTest {
             // tenant z poprawną polityką – przetworzony normalnie mimo błędu poprzedniego tenanta
             verify(recordingService).deleteFromS3("recordings/long.mp3");
             verify(contactService).clearRecordingUrl(CONTACT_LONG, TENANT_LONG_RETENTION);
+        }
+    }
+
+    // =========================================================================
+    // Regresja: TenantContext w wątku schedulera (bug wykryty przy ręcznym uruchomieniu joba)
+    // =========================================================================
+
+    /**
+     * {@code contactService} jest tu mockiem, więc te testy NIE weryfikują, że
+     * {@code TenantAwareRepository#assertSameTenant} rzeczywiście przechodzi (to pokrywa
+     * {@code ContactRepositoryClearRecordingUrlTest}, który używa prawdziwego repozytorium).
+     * Weryfikują za to własną odpowiedzialność JOBA: że {@link TenantContext} (klasa statyczna,
+     * NIGDY nie mockowana w tych testach) jest faktycznie ustawiany na poprawny {@code tenantId}
+     * PRZED każdym wywołaniem serwisu wymagającego kontekstu, i czyszczony po każdej iteracji —
+     * niezależnie od tego, czy przetwarzanie tenanta się powiodło, czy rzuciło wyjątek.
+     */
+    @Nested
+    @DisplayName("TenantContext – wątek schedulera (regresja BE-116)")
+    class TenantContextRegression {
+
+        @Test
+        @DisplayName("wątek testowy startuje bez kontekstu (dokładnie jak wątek @Scheduled)")
+        void threadStartsWithoutContext() {
+            assertThat(TenantContext.isSet()).isFalse();
+        }
+
+        @Test
+        @DisplayName("TenantContext jest ustawiony na tenantId W MOMENCIE wywołania clearRecordingUrl")
+        void contextIsSetToTenantId_whenClearingRecordingUrl() {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(30);
+            ContactRecordingEntry expired = new ContactRecordingEntry(CONTACT_SHORT, "recordings/short.mp3");
+            when(contactService.findExpiredRecordings(eq(TENANT_SHORT_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(expired));
+
+            List<UUID> observedContextDuringClear = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedContextDuringClear.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(contactService).clearRecordingUrl(eq(CONTACT_SHORT), eq(TENANT_SHORT_RETENTION));
+
+            job.runRetentionJob();
+
+            assertThat(observedContextDuringClear).containsExactly(TENANT_SHORT_RETENTION);
+        }
+
+        @Test
+        @DisplayName("kontekst NIE wycieka między tenantami – każdy widzi WYŁĄCZNIE własny tenantId, nigdy poprzedniego")
+        void contextIsIsolatedBetweenTenants() {
+            when(contactService.findTenantsWithRecordings())
+                    .thenReturn(List.of(TENANT_SHORT_RETENTION, TENANT_LONG_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(30);
+            when(retentionPolicyService.getRetentionDays(TENANT_LONG_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(360);
+
+            ContactRecordingEntry expiredForShort = new ContactRecordingEntry(CONTACT_SHORT, "recordings/short.mp3");
+            ContactRecordingEntry expiredForLong = new ContactRecordingEntry(CONTACT_LONG, "recordings/long.mp3");
+            when(contactService.findExpiredRecordings(eq(TENANT_SHORT_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(expiredForShort));
+            when(contactService.findExpiredRecordings(eq(TENANT_LONG_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(expiredForLong));
+
+            List<UUID> observedForShort = new ArrayList<>();
+            List<UUID> observedForLong = new ArrayList<>();
+            doAnswer(invocation -> {
+                observedForShort.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(contactService).clearRecordingUrl(eq(CONTACT_SHORT), eq(TENANT_SHORT_RETENTION));
+            doAnswer(invocation -> {
+                observedForLong.add(TenantContext.getTenantIdOrNull());
+                return null;
+            }).when(contactService).clearRecordingUrl(eq(CONTACT_LONG), eq(TENANT_LONG_RETENTION));
+
+            job.runRetentionJob();
+
+            assertThat(observedForShort).containsExactly(TENANT_SHORT_RETENTION);
+            assertThat(observedForLong).containsExactly(TENANT_LONG_RETENTION);
+        }
+
+        @Test
+        @DisplayName("kontekst jest wyczyszczony PO zakończeniu jobu – brak wycieku do kolejnego przebiegu/schedulera")
+        void contextIsClearedAfterJobCompletes() {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_LONG_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_LONG_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(360);
+
+            job.runRetentionJob();
+
+            assertThat(TenantContext.isSet()).isFalse();
+        }
+
+        @Test
+        @DisplayName("kontekst jest wyczyszczony nawet gdy przetwarzanie tenanta rzuca wyjątek (finally)")
+        void contextIsClearedEvenWhenTenantProcessingThrows() {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenThrow(new RuntimeException("boom - simulated failure mid-processing"));
+
+            job.runRetentionJob();
+
+            assertThat(TenantContext.isSet()).isFalse();
         }
     }
 }

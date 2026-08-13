@@ -3,6 +3,7 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -75,9 +76,26 @@ import java.util.UUID;
  * rzuca {@link ResourceNotFoundException}) powoduje pominięcie TEJ kategorii w danym przebiegu
  * (log WARN), nie przerywa reszty jobu.
  *
- * <p><strong>Kontekst DB:</strong> job działa poza wątkiem HTTP (scheduler), więc kontekst RLS
- * jest ustawiany jawnie per tenant wewnątrz repozytoriów ({@code setTenantContextInDb(tenantId)}),
- * nigdy przez {@code TenantContext} z ThreadLocal.
+ * <p><strong>Kontekst DB (RLS):</strong> job działa poza wątkiem HTTP (scheduler), więc kontekst
+ * RLS w PostgreSQL jest ustawiany jawnie per tenant wewnątrz repozytoriów
+ * ({@code setTenantContextInDb(tenantId)}) — nigdy przez odczyt {@code TenantContext} z ThreadLocal
+ * do TEGO celu.
+ *
+ * <p><strong>{@link TenantContext} ThreadLocal (naprawiony bug, wykryty przy ręcznym uruchomieniu
+ * joba — BE-112/EPIC-29):</strong> mimo powyższego, część repozytoriów wywoływanych przez ten job
+ * ({@code TenantRetentionPendingSummaryRepository#upsert}, {@code RetentionPurgeLogRepository#insertRunning}
+ * wywoływane pośrednio przez {@code maybeTriggerAutoPurge}) używa {@code assertSameTenant}
+ * — dodatkowej, defensywnej warstwy bezpieczeństwa NIEZALEŻNEJ od RLS — która BEZWARUNKOWO czyta
+ * {@code TenantContext.getTenantId()} z ThreadLocal. Wątek schedulera nigdy nie przechodzi przez
+ * {@code TenantFilter}, więc bez jawnego ustawienia kontekstu te wywołania rzucały
+ * {@link IllegalStateException}, złapane przez istniejący {@code try/catch} per-tenant — job
+ * "kończył się sukcesem" w logach, ale nigdy nie zapisywał wyniku do
+ * {@code tenant_retention_pending_summary} ani nie wyzwalał auto-purge. Naprawa: na początku ciała
+ * KAŻDEJ pętli per-tenant ({@link #persistAndMaybeAutoPurge}, {@link #evaluateCampaignData}) wołamy
+ * {@code TenantContext.setTenantId(tenantId)}, a w {@code finally} obejmującym całe ciało iteracji —
+ * {@code TenantContext.clear()} (wątek puli schedulera jest reużywany, więc brak clear() groziłby
+ * wyciekiem kontekstu do kolejnego tenanta/przebiegu). Wzorzec analogiczny do
+ * {@code SocialIntegrationServiceImpl#refreshToken}.
  */
 @Slf4j
 @Component
@@ -212,12 +230,23 @@ class RetentionEvaluationJob {
      * Zapisuje wynik do {@code tenant_retention_pending_summary} dla KAŻDEGO aktywnego tenanta
      * (reset do zera dla tych nieobecnych w {@code accumulators}) i wyzwala auto-purge tam,
      * gdzie polityka na to pozwala. Błąd jednego tenanta nie przerywa pozostałych.
+     *
+     * <p>{@code TenantContext} jest ustawiany jawnie na początku KAŻDEJ iteracji i czyszczony
+     * w {@code finally} — patrz javadoc klasy, sekcja "TenantContext ThreadLocal". Ustawienie
+     * PRZED wywołaniem {@link #maybeTriggerAutoPurge} jest kluczowe: {@code RetentionPurgeService#purge}
+     * woła {@code TenantContext.snapshot()} do propagacji kontekstu do {@code @Async purgeAsync} —
+     * bez jawnego ustawienia tutaj snapshot byłby pusty.
      */
     private void persistAndMaybeAutoPurge(RetentionDataCategory category, List<Tenant> activeTenants,
                                            Map<UUID, TenantAccumulator> accumulators) {
         for (Tenant tenant : activeTenants) {
             UUID tenantId = tenant.getId();
             try {
+                // Wątek schedulera nie ma TenantContext (brak JWT/TenantFilter) – ustawiamy
+                // jawnie dla tej iteracji, wymagane przez assertSameTenant w summaryRepository.upsert
+                // oraz (pośrednio, przez maybeTriggerAutoPurge) w RetentionPurgeLogRepository.insertRunning.
+                TenantContext.setTenantId(tenantId);
+
                 TenantAccumulator acc = accumulators.get(tenantId);
                 long eligibleRowCount = acc != null ? acc.eligibleRowCount : 0L;
                 LocalDate oldest = acc != null ? acc.oldestPeriod : null;
@@ -229,6 +258,10 @@ class RetentionEvaluationJob {
             } catch (Exception e) {
                 log.error("[RetentionEvaluationJob] Błąd zapisu summary/auto-purge dla tenanta={}, kategoria={}: {}",
                         tenantId, category, e.getMessage(), e);
+            } finally {
+                // Wyczyść kontekst po każdej iteracji – wątek puli schedulera jest reużywany
+                // między tenantami w obrębie tej pętli oraz między kolejnymi przebiegami jobu.
+                TenantContext.clear();
             }
         }
     }
@@ -241,6 +274,10 @@ class RetentionEvaluationJob {
         for (Tenant tenant : activeTenants) {
             UUID tenantId = tenant.getId();
             try {
+                // Wątek schedulera nie ma TenantContext (brak JWT/TenantFilter) – ustawiamy
+                // jawnie dla tej iteracji, patrz javadoc klasy, sekcja "TenantContext ThreadLocal".
+                TenantContext.setTenantId(tenantId);
+
                 int retentionMonths = retentionPolicyService.getRetentionMonths(
                         tenantId, RetentionDataCategory.CAMPAIGN_DATA);
                 LocalDate cutoffDate = LocalDate.now(ZoneOffset.UTC).minusMonths(retentionMonths);
@@ -259,6 +296,10 @@ class RetentionEvaluationJob {
             } catch (Exception e) {
                 log.error("[RetentionEvaluationJob] Błąd liczenia CAMPAIGN_DATA dla tenanta={}: {}",
                         tenantId, e.getMessage(), e);
+            } finally {
+                // Wyczyść kontekst po każdej iteracji – wątek puli schedulera jest reużywany
+                // między tenantami w obrębie tej pętli oraz między kolejnymi przebiegami jobu.
+                TenantContext.clear();
             }
         }
     }

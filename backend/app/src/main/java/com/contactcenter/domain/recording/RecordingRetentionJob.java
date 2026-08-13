@@ -4,6 +4,7 @@ import com.contactcenter.domain.contact.ContactRecordingEntry;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.retention.RetentionDataCategory;
 import com.contactcenter.domain.retention.RetentionPolicyService;
+import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -124,6 +125,19 @@ class RecordingRetentionJob {
      * seedowaniu/backfillu V082) jest łapany przez istniejący blok {@code catch} poniżej i
      * powoduje pominięcie TEGO tenanta w danym przebiegu, bez przerywania całego jobu.
      *
+     * <p><strong>TenantContext (naprawiony bug, wykryty przy ręcznym uruchomieniu joba —
+     * BE-116/EPIC-29):</strong> wątek {@code @Scheduled} nie przechodzi przez {@code TenantFilter},
+     * więc {@link TenantContext} (ThreadLocal) NIE jest ustawiony. {@code contactService.clearRecordingUrl}
+     * woła docelowo {@code TenantAwareRepository#assertSameTenant}, które BEZWARUNKOWO czyta
+     * {@code TenantContext.getTenantId()} — bez jawnego ustawienia kontekstu tutaj rzucało
+     * {@link IllegalStateException} złapany przez {@code catch} poniżej, więc {@code recording_url}
+     * NIGDY nie było czyszczone w DB (job "kończył się sukcesem" w logach, realnie nic nie robiąc).
+     * Ustawiamy kontekst jawnie dla tej iteracji i czyścimy w {@code finally}, analogicznie do
+     * {@code SocialIntegrationServiceImpl#refreshToken} — wzorzec ustandaryzowany dla schedulerów
+     * w tym repo. {@code findTenantsWithRecordings()} (wywoływane PRZED pętlą w {@link #runRetentionJob()})
+     * celowo NIE mieści się w tym zakresie – ta metoda ma własny guard wymagający BRAKU aktywnego
+     * kontekstu (zapytanie cross-tenant po zamierzeniu).
+     *
      * @param tenantId UUID tenanta
      * @return tablica [liczbaUsuniętych, liczbaBlędów]
      */
@@ -134,6 +148,11 @@ class RecordingRetentionJob {
         log.debug("[RetentionJob] Przetwarzam tenant: {}", tenantId);
 
         try {
+            // Wątek schedulera nie ma TenantContext (brak JWT/TenantFilter) – ustawiamy jawnie
+            // dla tej iteracji, czyścimy w finally poniżej (wątek puli jest reużywany między
+            // przebiegami jobu, więc brak clear() groziłby wyciekiem kontekstu między tenantami).
+            TenantContext.setTenantId(tenantId);
+
             int retentionDays = retentionPolicyService.getRetentionDays(tenantId, RetentionDataCategory.RECORDINGS);
             Instant cutoffTimestamp = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
 
@@ -159,6 +178,10 @@ class RecordingRetentionJob {
         } catch (Exception e) {
             log.error("[RetentionJob] Błąd przetwarzania tenanta {}: {}", tenantId, e.getMessage(), e);
             errors++;
+        } finally {
+            // Wyczyść kontekst po każdej iteracji – wątek schedulera jest reużywany między
+            // tenantami w obrębie tego samego przebiegu jobu ORAZ między kolejnymi przebiegami.
+            TenantContext.clear();
         }
 
         return new int[]{ deleted, errors };

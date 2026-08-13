@@ -1093,7 +1093,6 @@ class AdminMetricsServiceImplTest {
         config.put("max_agents", 100);
         config.put("max_queues", 50);
         config.put("max_campaigns", 20);
-        config.put("recording_retention_days", 90);
         config.put("timezone", "Europe/Warsaw");
         return config;
     }

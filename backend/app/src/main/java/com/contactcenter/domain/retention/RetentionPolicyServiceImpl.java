@@ -1,6 +1,7 @@
 package com.contactcenter.domain.retention;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.infrastructure.config.S3Properties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,14 +15,20 @@ import java.util.UUID;
  *
  * <p><strong>Uwaga o zależnościach cyklicznych:</strong> ta klasa NIE zależy od
  * {@code TenantService} (mimo że {@code TenantServiceImpl.createTenant} zależy od niej,
- * wołając {@link #seedDefaultPolicies}). Personalizacja domyślnej polityki {@code RECORDINGS}
- * (patrz {@link #resolveRecordingsRetentionMonths}) czyta {@code tenant.config} bezpośrednio
- * przez natywne zapytanie w {@link TenantRetentionPolicyRepository#findConfiguredRecordingRetentionDays}
- * zamiast przez serwis tenanta — analogicznie do {@code TenantRepository.countActiveAgentsByTenantId}
- * i podobnych metod, które już dziś odpytują tabele spoza własnej domeny bezpośrednio przez SQL.
- * Dzięki temu {@code TenantServiceImpl} wstrzykuje {@link RetentionPolicyService} jako zwykłe
- * pole finalne (bez {@code @Autowired @Lazy}) — cykl {@code tenant} ↔ {@code retention},
- * którego spodziewał się ticket BE-111, w praktyce nie występuje.
+ * wołając {@link #seedDefaultPolicies}). Dzięki temu {@code TenantServiceImpl} wstrzykuje
+ * {@link RetentionPolicyService} jako zwykłe pole finalne (bez {@code @Autowired @Lazy}) —
+ * cykl {@code tenant} ↔ {@code retention}, którego spodziewał się ticket BE-111, w praktyce
+ * nie występuje.
+ *
+ * <p><strong>Domyślna wartość RECORDINGS przy seedowaniu (BE-116):</strong> do BE-116 domyślna
+ * polityka {@code RECORDINGS} nowego tenanta była personalizowana z {@code tenant.config->>
+ * 'recording_retention_days'} (odczyt przez natywne zapytanie w repozytorium). Od BE-116 ten
+ * klucz JSONB NIE ISTNIEJE już w {@code tenant.config} (usunięty jako jedyne źródło prawdy —
+ * zastąpiony przez {@code tenant_retention_policy}), więc personalizacja per-tenant przy
+ * TWORZENIU tenanta przestała być możliwa. {@link #resolveRecordingsRetentionMonths} używa
+ * teraz wprost {@link S3Properties#getRetentionDays()} — globalnej platformowej wartości
+ * domyślnej (fallback/seed, jawnie dozwolony do pozostania w kodzie przez ticket BE-116) —
+ * bez odpytywania tabeli {@code tenant}.
  */
 @Slf4j
 @Service
@@ -31,17 +38,17 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
     private static final int MIN_RETENTION_MONTHS = 1;
     private static final int MAX_RETENTION_MONTHS = 120;
 
+    /** Konwersja miesiące → dni — patrz javadoc {@link RetentionPolicyService#getRetentionDays}. */
+    private static final int DAYS_PER_MONTH = 30;
+
     // Wartości domyślne zgodne z backfillem migracji V082 (DB-046).
     private static final int DEFAULT_CONTACT_INTERACTIONS_MONTHS = 60;
     private static final int DEFAULT_CAMPAIGN_DATA_MONTHS = 60;
     // CEIL(90 dni / 30.0) — platformowy default transkrypcji, brak personalizacji per-tenant dziś.
     private static final int DEFAULT_TRANSCRIPTS_MONTHS = 3;
-    // Fallback RECORDINGS gdy odczyt tenant.config zawiedzie (patrz resolveRecordingsRetentionMonths) —
-    // w normalnym przepływie (seedDefaultPolicies wołane zaraz po tenantRepository.save()) nieużywany,
-    // bo tenant zawsze już istnieje w bazie w tym momencie.
-    private static final int FALLBACK_RECORDINGS_MONTHS = 3;
 
     private final TenantRetentionPolicyRepository repository;
+    private final S3Properties s3Properties;
 
     // =========================================================================
     // Odczyt
@@ -60,6 +67,12 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
                 .map(TenantRetentionPolicy::getRetentionMonths)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Brak polityki retencji: tenant=" + tenantId + ", kategoria=" + category));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int getRetentionDays(UUID tenantId, RetentionDataCategory category) {
+        return getRetentionMonths(tenantId, category) * DAYS_PER_MONTH;
     }
 
     @Override
@@ -112,7 +125,7 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
         repository.insertIfMissing(tenantId, RetentionDataCategory.TRANSCRIPTS,
                 DEFAULT_TRANSCRIPTS_MONTHS, false);
         repository.insertIfMissing(tenantId, RetentionDataCategory.RECORDINGS,
-                resolveRecordingsRetentionMonths(tenantId), false);
+                resolveRecordingsRetentionMonths(), false);
 
         log.info("[RetentionPolicyService] Zasiano domyślne polityki retencji (4 kategorie): tenant={}", tenantId);
     }
@@ -124,31 +137,24 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
     /**
      * Wyznacza domyślną retencję RECORDINGS w miesiącach dla nowego tenanta.
      *
-     * <p>{@code CreateTenantRequest.limits().recordingRetentionDays()} JEST dziś dostępne w
-     * {@code TenantServiceImpl.createTenant} — trafia do {@code tenant.config} przez
-     * {@code buildConfig()} (z fallbackiem 90 dni gdy nie podano), zanim wywoływane jest
-     * {@link #seedDefaultPolicies}. Zamiast rozszerzać interfejs serwisu o dodatkowy parametr
-     * (co złamałoby sygnaturę {@code seedDefaultPolicies(UUID)} z ticketu), odczytujemy tę
-     * wartość z już zapisanej encji {@code Tenant} — patrz javadoc klasy oraz
-     * {@link TenantRetentionPolicyRepository#findConfiguredRecordingRetentionDays}.
+     * <p><strong>Zmiana BE-116:</strong> do BE-116 ta metoda personalizowała wynik z
+     * {@code tenant.config->>'recording_retention_days'} (klucz JSONB ustawiany wcześniej przez
+     * {@code TenantServiceImpl.buildConfig()} z wartości {@code CreateTenantRequest.limits()
+     * .recordingRetentionDays()}). BE-116 usunął ten klucz z {@code tenant.config} (jedyne
+     * źródło prawdy = {@code tenant_retention_policy}), więc personalizacja per-tenant przy
+     * TWORZENIU tenanta nie jest już możliwa — parametr {@code recordingRetentionDays} zniknął
+     * z {@code TenantResourceLimitsDto}. Metoda używa teraz wprost globalnej platformowej
+     * wartości domyślnej {@link S3Properties#getRetentionDays()} (jawnie dozwolony fallback,
+     * patrz ticket BE-116), tym samym przeliczeniem dni → miesiące co backfill V082:
+     * {@code GREATEST(1, LEAST(120, CEIL(dni / 30.0)))}. Brak zależności od bazy — nie ma już
+     * żadnego przypadku "tenant nie znaleziony" (poprzedni fallback {@code FALLBACK_RECORDINGS_MONTHS}
+     * i parametr {@code tenantId} stały się zbędne i zostały usunięte).
      *
-     * <p>Przeliczenie dni → miesiące identyczne jak w backfillu V082:
-     * {@code GREATEST(1, LEAST(120, CEIL(dni / 30.0)))}.
-     *
-     * @param tenantId UUID tenanta (musi już istnieć w tabeli {@code tenant})
      * @return retencja RECORDINGS w miesiącach, w zakresie [1,120]
      */
-    private int resolveRecordingsRetentionMonths(UUID tenantId) {
-        return repository.findConfiguredRecordingRetentionDays(tenantId)
-                .map(days -> clamp((int) Math.ceil(days / 30.0)))
-                .orElseGet(() -> {
-                    // Defensywnie — nie powinno wystąpić, bo seedDefaultPolicies jest wołane
-                    // zaraz po tenantRepository.save() w TenantServiceImpl.createTenant, więc
-                    // tenant zawsze już istnieje w tym momencie transakcji.
-                    log.warn("[RetentionPolicyService] Nie znaleziono tenanta {} przy seedowaniu RECORDINGS "
-                            + "— fallback {} mies.", tenantId, FALLBACK_RECORDINGS_MONTHS);
-                    return FALLBACK_RECORDINGS_MONTHS;
-                });
+    private int resolveRecordingsRetentionMonths() {
+        int days = s3Properties.getRetentionDays();
+        return clamp((int) Math.ceil(days / 30.0));
     }
 
     private int clamp(int months) {

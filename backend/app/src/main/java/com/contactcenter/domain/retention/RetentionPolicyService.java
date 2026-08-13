@@ -10,9 +10,10 @@ import java.util.UUID;
  * wiersz konfiguracji per tenant — zapewnia to {@link #seedDefaultPolicies} (wołane przy
  * tworzeniu tenanta) oraz backfill migracji V082 (dla tenantów istniejących przed BE-111).
  *
- * <p>Konsumenci: {@code TenantServiceImpl.createTenant} (seedowanie), przyszły REST
- * kontroler BE-118 (CRUD), oraz przyszłe {@code RetentionEvaluationJob}/{@code RetentionPurgeService}
- * (BE-112/BE-113) i {@code RecordingRetentionJob} (BE-116) — przez {@link #getRetentionMonths}.
+ * <p>Konsumenci: {@code TenantServiceImpl.createTenant} (seedowanie), {@code RetentionController}
+ * (BE-118, CRUD), {@code RetentionEvaluationJob}/{@code RetentionPurgeService} (BE-112/BE-113)
+ * — przez {@link #getRetentionMonths} — oraz {@code RecordingRetentionJob} (BE-116) — przez
+ * {@link #getRetentionDays}.
  */
 public interface RetentionPolicyService {
 
@@ -56,6 +57,33 @@ public interface RetentionPolicyService {
      *         seedowaniu/backfillu — sygnalizuje lukę w danych)
      */
     int getRetentionMonths(UUID tenantId, RetentionDataCategory category);
+
+    /**
+     * Zwraca skonfigurowaną retencję (w DNIACH) dla kategorii danych tenanta.
+     *
+     * <p>Konwersja miesiące → dni: {@code retentionMonths * 30}. Kolumna
+     * {@code tenant_retention_policy.retention_months} przechowuje wyłącznie miesiące (CHECK
+     * BETWEEN 1 AND 120, V082) — to jedyne źródło prawdy. Mnożnik {@code * 30} (a nie np.
+     * {@code * 30.44} czy uwzględnianie faktycznej liczby dni w danym miesiącu) jest CELOWO
+     * najprostszą wierną odwrotnością konwersji dni → miesiące już użytej w backfillu V082
+     * ({@code CEIL(dni / 30.0)}, patrz {@link RetentionPolicyServiceImpl}) — spójność z
+     * istniejącym precedensem w projekcie, nie precyzja kalendarzowa. Różnica rzędu 1–2 dni na
+     * 30-dniowy miesiąc jest nieistotna dla polityki retencji wyrażanej i konfigurowanej w
+     * miesiącach (administrator ustawia "6 miesięcy", nie "182 dni").
+     *
+     * <p>Główny konsument: {@code RecordingRetentionJob} (BE-116) — wyznacza granicę czasową
+     * ({@code Instant.now().minus(dni, ChronoUnit.DAYS)}) osobno dla KAŻDEGO tenanta wewnątrz
+     * pętli po tenantach (nie jeden globalny cutoff przed pętlą, jak przed BE-116).
+     *
+     * @param tenantId UUID tenanta
+     * @param category kategoria danych
+     * @return retencja w dniach ({@code retentionMonths * 30})
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy brak
+     *         skonfigurowanej polityki dla tej kombinacji (nie powinno się zdarzyć po
+     *         seedowaniu/backfillu — sygnalizuje lukę w danych; wywołujący powinien złapać ten
+     *         wyjątek per-tenant i pominąć tenanta w danym przebiegu zamiast przerywać cały job)
+     */
+    int getRetentionDays(UUID tenantId, RetentionDataCategory category);
 
     /**
      * Zwraca MINIMALNĄ skonfigurowaną retencję (w miesiącach) dla kategorii danych PO

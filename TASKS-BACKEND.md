@@ -6288,7 +6288,7 @@ backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-111
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** FE-109
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
@@ -6319,11 +6319,26 @@ for (UUID tenantId : contactService.findTenantsWithRecordings()) {
 - Backfill istniejących wartości do `tenant_retention_policy` już obsłużony w DB-046 (V082) — ten ticket TYLKO usuwa stare źródło po stronie Javy, nie duplikuje backfillu
 
 **Kryteria akceptacji:**
-- [ ] `RecordingRetentionJob` czyta retencję per tenant z `RetentionPolicyService`, nie z `S3Properties.retentionDays` (pole `S3Properties.retentionDays` może zostać jako fallback/domyślna wartość seedowania w DB-046, ale przestaje być odczytywane w runtime joba)
-- [ ] `recording_retention_days` usunięty z odczytu/zapisu w `TenantServiceImpl`/`TenantController`
-- [ ] Test regresyjny: dwaj tenanci z różnymi wartościami `RECORDINGS.retentionMonths` — job usuwa nagrania każdego zgodnie z JEGO własną retencją, nie globalną
-- [ ] Test: `PATCH /api/tenants/{id}/config` z polem `recordingRetentionDays` w body → pole ignorowane (lub 400, do ustalenia przy implementacji), nie powoduje 500
-- [ ] `mvn verify -pl app` przechodzi bez regresji istniejących testów `RecordingRetentionJobTest`/`TenantServiceTest`
+- [x] `RecordingRetentionJob` czyta retencję per tenant z `RetentionPolicyService`, nie z `S3Properties.retentionDays` (pole `S3Properties.retentionDays` może zostać jako fallback/domyślna wartość seedowania w DB-046, ale przestaje być odczytywane w runtime joba)
+- [x] `recording_retention_days` usunięty z odczytu/zapisu w `TenantServiceImpl`/`TenantController`
+- [x] Test regresyjny: dwaj tenanci z różnymi wartościami `RECORDINGS.retentionMonths` — job usuwa nagrania każdego zgodnie z JEGO własną retencją, nie globalną
+- [x] Test: **`PATCH /api/tenants/{id}`** (korekta — nie `/config`, patrz notatka niżej) z polem `recordingRetentionDays` w body → pole ignorowane, nie powoduje 500
+- [x] `mvn verify -pl app` przechodzi bez regresji istniejących testów `RecordingRetentionJobTest`/`TenantServiceTest`
+
+**Notatka z implementacji (2026-08-13):**
+- **Konwersja miesiące → dni w nowej `RetentionPolicyService.getRetentionDays(tenantId, category)`:** `retentionMonths * 30` (stała `DAYS_PER_MONTH`), NIE `* 30.44` ani uwzględnianie faktycznej liczby dni w danym miesiącu kalendarzowym. Uzasadnienie udokumentowane w javadoc metody: to najprostsza wierna odwrotność konwersji dni → miesiące już użytej w backfillu V082 (`CEIL(dni / 30.0)`) — spójność z istniejącym precedensem w projekcie, nie precyzja kalendarzowa; różnica rzędu 1–2 dni na 30-dniowy miesiąc jest nieistotna dla polityki retencji **konfigurowanej i wyrażanej w miesiącach** (administrator ustawia "6 miesięcy", nie "182 dni").
+- **Korekta endpointu (istotna rozbieżność względem treści ticketu):** `recordingRetentionDays` NIGDY nie był częścią `PATCH /api/tenants/{id}/config` — ten endpoint (`TenantController.updateTwilioConfig`) obsługuje wyłącznie `TenantTwilioConfigRequest` (numer telefonu/webhook URL Twilio), zero związku z `TenantResourceLimitsDto`. Właściwy endpoint to **`PATCH /api/tenants/{id}`** (`TenantController.updateTenant`, `UpdateTenantRequest.limits()` zagnieżdżający `TenantResourceLimitsDto`) — tam faktycznie żyło (i zostało przetestowane) pole.
+- **Zachowanie Jacksona ze zweryfikowane (nie zgadywane):** projekt NIE MA globalnego `spring.jackson.deserialization.fail-on-unknown-properties=false` ani dedykowanego `ObjectMapper` beana dla warstwy REST (jedyny customowy `ObjectMapper` to ten w `RedisConfig`, niezwiązany z HTTP). Domyślny Jackson (`FAIL_ON_UNKNOWN_PROPERTIES=true`) rzuciłby `UnrecognizedPropertyException` dla nieznanego pola — a ponieważ `GlobalExceptionHandler` NIE MA dedykowanego `@ExceptionHandler(HttpMessageNotReadableException.class)`, wyjątek trafiłby do generycznego `@ExceptionHandler(Exception.class)` → **HTTP 500** (dokładnie to, czego zabrania AC). Zweryfikowane empirycznie testem Jacksona bezpośrednio na DTO (`TenantResourceLimitsDtoTest`, `new ObjectMapper()` bez customowej konfiguracji — reprezentuje realne ustawienia projektu). **Decyzja: pole jest CICHO IGNOROWANE** (nie 400) — dodano `@JsonIgnoreProperties(ignoreUnknown = true)` na `TenantResourceLimitsDto` (analogicznie do istniejącego wzorca w `ImportJobStatus`/`CallSession`/`IvrNode`), żeby ułatwić zgodność wsteczną klientom wysyłającym to pole podczas okresu przejściowego (przed wdrożeniem FE-109).
+- **Wszyscy znalezieni konsumenci `recordingRetentionDays`/`recording_retention_days` (zmodyfikowani/usunięci):**
+  - `TenantServiceImpl.buildConfig()`/`mergeConfig()` — usunięto zapis klucza do `config` (obie gałęzie `buildConfig`, `null`-check w `mergeConfig`).
+  - `TenantResourceLimitsDto` — usunięto pole `recordingRetentionDays` + z `defaults()`, dodano `@JsonIgnoreProperties(ignoreUnknown = true)`.
+  - `TenantResponse.from()` — usunięto odczyt `extractInt(config, "recording_retention_days", 90)` przy budowaniu `limits`; martwa metoda pomocnicza `extractInt` również usunięta (brak innych wywołań).
+  - `Tenant.defaultConfig()` — usunięto klucz (czwarty konsument, nieujęty wprost w treści ticketu, znaleziony przez grep) + zaktualizowano javadoc pola `config`.
+  - `RetentionPolicyServiceImpl.resolveRecordingsRetentionMonths()` — **punkt styku z BE-111**: metoda personalizowała domyślną politykę `RECORDINGS` nowego tenanta czytając `tenant.config->>'recording_retention_days'` przez `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays(tenantId)`. Po usunięciu klucza z `tenant.config` ta personalizacja stała się niemożliwa (i zapytanie zawsze zwracałoby COALESCE-owy fallback) — metoda przepisana na wprost `S3Properties.getRetentionDays()` (jawnie dozwolony fallback wg treści ticketu), parametr `tenantId` i teraz-zbędny `FALLBACK_RECORDINGS_MONTHS` usunięte z sygnatury/klasy.
+  - `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays(UUID)` — metoda usunięta całkowicie (dead code po powyższej zmianie; zapytanie o klucz JSONB, który nigdy więcej nie zostanie ustawiony). Referencje w javadoc `findMinRetentionMonths`/`PartitionScannerImpl` (precedens cross-tenant) zaktualizowane, żeby nie wskazywały na usuniętą metodę.
+  - Testy: `TenantServiceTest` (config w `setUp()`, konstruktory `TenantResourceLimitsDto`, asercja `recordingRetentionDays()`, nowy test `shouldNotWriteRecordingRetentionDaysToConfig`), `AdminMetricsServiceImplTest.buildDefaultConfig()`, `RetentionPolicyServiceImplTest` (`SeedDefaultPolicies` przepisane na mock `S3Properties` zamiast `repository.findConfiguredRecordingRetentionDays`; nowy `@Nested GetRetentionDays`), `TenantRetentionPolicyRepositoryTest` (usunięty cały `@Nested FindConfiguredRecordingRetentionDays`).
+- **Nowe testy:** `RecordingRetentionJobTest` (nowy plik, `domain.recording` — brak istniejącego wcześniej mimo że ticket i notatka BE-112 zakładały jego istnienie) — regresja AC (dwaj tenanci, różne `retentionMonths`, oddzielny cutoff per tenant, `ArgumentCaptor<Instant>`), test usuwania nagrań niezależnie per tenant, test odporności na `ResourceNotFoundException` dla jednego tenanta (job kontynuuje dla pozostałych). `TenantResourceLimitsDtoTest` (nowy plik, `api.tenant.dto`) — bezpośredni test Jacksona (nie MockMvc — zgodnie z udokumentowanym wzorcem projektu z `RetentionControllerTest`: kontrolery `api.*` NIE mają `@WebMvcTest` z aktywnym security chain, testowanie infrastruktury Spring MVC/Jackson robione bezpośrednio na mechanizmie, nie przez pełny stack).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1711 testów, 0 failures, 0 errors.
 
 ---
 

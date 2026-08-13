@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>EntityManager jest mockowany (brak H2 w zależnościach — wzorzec z
  * {@code AgentBreakRepositoryTest}). Skupione na metodach zawierających logikę
- * krytyczną (upsert z ON CONFLICT, izolacja multi-tenant, odczyt tenant.config).
+ * krytyczną (upsert z ON CONFLICT, izolacja multi-tenant, minimalna retencja cross-tenant).
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TenantRetentionPolicyRepository – CRUD polityk retencji i izolacja multi-tenant")
@@ -222,61 +222,6 @@ class TenantRetentionPolicyRepositoryTest {
                     .isInstanceOf(CrossTenantAccessException.class);
 
             verify(entityManager, never()).createNativeQuery(contains("INSERT INTO tenant_retention_policy"));
-        }
-    }
-
-    // =========================================================================
-    // findConfiguredRecordingRetentionDays
-    // =========================================================================
-
-    @Nested
-    @DisplayName("findConfiguredRecordingRetentionDays()")
-    class FindConfiguredRecordingRetentionDays {
-
-        @Test
-        @DisplayName("zwraca wartość z tenant.config (COALESCE z fallbackiem 90)")
-        void shouldReturnConfiguredValue() {
-            Query configQuery = mock(Query.class);
-            when(entityManager.createNativeQuery(
-                    argThat(sql -> sql != null && sql.contains("recording_retention_days")
-                            && sql.contains("COALESCE") && sql.contains("FROM tenant"))
-            )).thenReturn(configQuery);
-            when(configQuery.setParameter(anyString(), anyString())).thenReturn(configQuery);
-            when(configQuery.getResultList()).thenReturn(List.<Number>of(45));
-
-            Optional<Integer> result = repository.findConfiguredRecordingRetentionDays(TENANT_A);
-
-            assertThat(result).contains(45);
-        }
-
-        @Test
-        @DisplayName("zwraca empty gdy tenant nie istnieje")
-        void shouldReturnEmptyWhenTenantMissing() {
-            Query configQuery = mock(Query.class);
-            when(entityManager.createNativeQuery(
-                    argThat(sql -> sql != null && sql.contains("FROM tenant"))
-            )).thenReturn(configQuery);
-            when(configQuery.setParameter(anyString(), anyString())).thenReturn(configQuery);
-            when(configQuery.getResultList()).thenReturn(List.of());
-
-            Optional<Integer> result = repository.findConfiguredRecordingRetentionDays(TENANT_A);
-
-            assertThat(result).isEmpty();
-        }
-
-        @Test
-        @DisplayName("nie wymaga set_tenant_context — tabela tenant nie jest objęta RLS per-tenant")
-        void shouldNotRequireTenantContext() {
-            Query configQuery = mock(Query.class);
-            when(entityManager.createNativeQuery(
-                    argThat(sql -> sql != null && sql.contains("FROM tenant"))
-            )).thenReturn(configQuery);
-            when(configQuery.setParameter(anyString(), anyString())).thenReturn(configQuery);
-            when(configQuery.getResultList()).thenReturn(List.<Number>of(90));
-
-            repository.findConfiguredRecordingRetentionDays(TENANT_A);
-
-            verify(entityManager, never()).createNativeQuery(contains("set_tenant_context"));
         }
     }
 

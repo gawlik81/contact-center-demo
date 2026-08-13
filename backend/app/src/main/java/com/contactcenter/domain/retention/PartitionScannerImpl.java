@@ -22,7 +22,6 @@ import java.util.regex.Pattern;
  * obecnych w danej partycji (żeby {@link RetentionEvaluationJob} mógł policzyć wynik dla
  * każdego z nich w jednym przebiegu partycji, zamiast N osobnych skanów tej samej partycji —
  * jednego per tenant). Ten sam precedens cross-tenant "po zamierzeniu" co
- * {@code TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays} i
  * {@code TenantRetentionPolicyRepository.findMinRetentionMonths}.
  *
  * <p><strong>Wzorzec parsowania nazwy partycji → granica czasowa:</strong> identyczny do

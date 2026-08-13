@@ -1,6 +1,7 @@
 package com.contactcenter.domain.retention;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.infrastructure.config.S3Properties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,9 @@ class RetentionPolicyServiceImplTest {
 
     @Mock
     private TenantRetentionPolicyRepository repository;
+
+    @Mock
+    private S3Properties s3Properties;
 
     @InjectMocks
     private RetentionPolicyServiceImpl service;
@@ -183,6 +187,53 @@ class RetentionPolicyServiceImplTest {
     }
 
     // =========================================================================
+    // getRetentionDays
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getRetentionDays()")
+    class GetRetentionDays {
+
+        @Test
+        @DisplayName("konwertuje retentionMonths na dni (miesiące * 30)")
+        void shouldConvertRetentionMonthsToDays() {
+            when(repository.findByTenantIdAndCategory(TENANT_ID, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(Optional.of(buildPolicy(RetentionDataCategory.RECORDINGS, 3, false)));
+
+            int result = service.getRetentionDays(TENANT_ID, RetentionDataCategory.RECORDINGS);
+
+            assertThat(result).isEqualTo(90); // 3 miesiące * 30 = 90 dni
+        }
+
+        @Test
+        @DisplayName("dwaj tenanci z różnymi wartościami RECORDINGS.retentionMonths -> różne cutoff w dniach")
+        void shouldReturnDifferentDaysForDifferentTenants() {
+            UUID tenantShortRetention = UUID.fromString("33333333-3333-3333-3333-333333333333");
+            UUID tenantLongRetention = UUID.fromString("44444444-4444-4444-4444-444444444444");
+
+            when(repository.findByTenantIdAndCategory(tenantShortRetention, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(Optional.of(buildPolicy(RetentionDataCategory.RECORDINGS, 1, false)));
+            when(repository.findByTenantIdAndCategory(tenantLongRetention, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(Optional.of(buildPolicy(RetentionDataCategory.RECORDINGS, 12, false)));
+
+            assertThat(service.getRetentionDays(tenantShortRetention, RetentionDataCategory.RECORDINGS))
+                    .isEqualTo(30);
+            assertThat(service.getRetentionDays(tenantLongRetention, RetentionDataCategory.RECORDINGS))
+                    .isEqualTo(360);
+        }
+
+        @Test
+        @DisplayName("rzuca ResourceNotFoundException gdy brak polityki (propagacja z getRetentionMonths)")
+        void shouldPropagateResourceNotFoundException() {
+            when(repository.findByTenantIdAndCategory(TENANT_ID, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getRetentionDays(TENANT_ID, RetentionDataCategory.RECORDINGS))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    // =========================================================================
     // findMinRetentionMonths
     // =========================================================================
 
@@ -253,10 +304,10 @@ class RetentionPolicyServiceImplTest {
     class SeedDefaultPolicies {
 
         @Test
-        @DisplayName("zasiewa dokładnie 4 kategorie z domyślnymi wartościami (RECORDINGS wg config tenanta)")
+        @DisplayName("zasiewa dokładnie 4 kategorie z domyślnymi wartościami (RECORDINGS wg S3Properties, BE-116)")
         void shouldSeedAllFourCategoriesWithDefaults() {
-            // recording_retention_days=90 (domyślny fallback) -> CEIL(90/30.0) = 3 miesiące
-            when(repository.findConfiguredRecordingRetentionDays(TENANT_ID)).thenReturn(Optional.of(90));
+            // S3Properties.retentionDays=90 (domyślny fallback platformowy) -> CEIL(90/30.0) = 3 miesiące
+            when(s3Properties.getRetentionDays()).thenReturn(90);
 
             service.seedDefaultPolicies(TENANT_ID);
 
@@ -268,21 +319,23 @@ class RetentionPolicyServiceImplTest {
         }
 
         @Test
-        @DisplayName("personalizuje RECORDINGS z tenant.config (np. 45 dni -> 2 miesiące, zaokrąglenie w górę)")
-        void shouldPersonalizeRecordingsFromTenantConfig() {
-            when(repository.findConfiguredRecordingRetentionDays(TENANT_ID)).thenReturn(Optional.of(45));
+        @DisplayName("BE-116: wyznacza RECORDINGS z S3Properties.getRetentionDays() (np. 45 dni -> 2 miesiące, zaokrąglenie w górę)")
+        void shouldDeriveRecordingsFromS3PropertiesGlobalDefault() {
+            when(s3Properties.getRetentionDays()).thenReturn(45);
 
             service.seedDefaultPolicies(TENANT_ID);
 
             // CEIL(45/30.0) = 2
             verify(repository).insertIfMissing(TENANT_ID, RetentionDataCategory.RECORDINGS, 2, false);
+            // BE-116: personalizacja per-tenant z tenant.config nie istnieje już — odczyt bazy pominięty
+            verify(repository, never()).findByTenantIdAndCategory(any(), any());
         }
 
         @Test
-        @DisplayName("koryguje personalizowaną wartość RECORDINGS do górnej granicy 120 miesięcy")
+        @DisplayName("koryguje wartość RECORDINGS wyznaczoną z S3Properties do górnej granicy 120 miesięcy")
         void shouldClampRecordingsMonthsToUpperBound() {
             // 4000 dni -> CEIL(4000/30.0) = 134 > 120 -> przycięte do 120
-            when(repository.findConfiguredRecordingRetentionDays(TENANT_ID)).thenReturn(Optional.of(4000));
+            when(s3Properties.getRetentionDays()).thenReturn(4000);
 
             service.seedDefaultPolicies(TENANT_ID);
 
@@ -290,19 +343,20 @@ class RetentionPolicyServiceImplTest {
         }
 
         @Test
-        @DisplayName("fallback 3 miesiące dla RECORDINGS gdy tenant nie znaleziony (defensywnie)")
-        void shouldFallbackWhenTenantConfigUnavailable() {
-            when(repository.findConfiguredRecordingRetentionDays(TENANT_ID)).thenReturn(Optional.empty());
+        @DisplayName("koryguje wartość RECORDINGS wyznaczoną z S3Properties do dolnej granicy 1 miesiąca")
+        void shouldClampRecordingsMonthsToLowerBound() {
+            // 0 dni -> CEIL(0/30.0) = 0 < 1 -> przycięte do 1
+            when(s3Properties.getRetentionDays()).thenReturn(0);
 
             service.seedDefaultPolicies(TENANT_ID);
 
-            verify(repository).insertIfMissing(TENANT_ID, RetentionDataCategory.RECORDINGS, 3, false);
+            verify(repository).insertIfMissing(TENANT_ID, RetentionDataCategory.RECORDINGS, 1, false);
         }
 
         @Test
         @DisplayName("jest idempotentne z punktu widzenia serwisu — zawsze wywołuje insertIfMissing (nie upsert)")
         void shouldUseInsertIfMissingNotUpsert() {
-            when(repository.findConfiguredRecordingRetentionDays(TENANT_ID)).thenReturn(Optional.of(90));
+            when(s3Properties.getRetentionDays()).thenReturn(90);
 
             service.seedDefaultPolicies(TENANT_ID);
 

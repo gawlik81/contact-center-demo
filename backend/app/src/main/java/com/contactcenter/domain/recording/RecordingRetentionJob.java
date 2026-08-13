@@ -2,7 +2,8 @@ package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactRecordingEntry;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.infrastructure.config.S3Properties;
+import com.contactcenter.domain.retention.RetentionDataCategory;
+import com.contactcenter.domain.retention.RetentionPolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,20 +15,35 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Cron job usuwający nagrania starsze niż konfigurowana liczba dni (domyślnie 90).
+ * Cron job usuwający nagrania starsze niż retencja skonfigurowana PER TENANT (EPIC-29, BE-116).
  *
  * <p>Uruchamiany codziennie o 02:00 UTC (godzina mała aktywności).
  *
  * <p><strong>Algorytm retencji:</strong>
  * <ol>
  *   <li>Pobierz listę wszystkich tenantów posiadających nagrania ({@code recording_url IS NOT NULL})</li>
- *   <li>Dla każdego tenanta – pobierz listę kontaktów z nagraniami starszymi niż N dni</li>
+ *   <li>Dla każdego tenanta – odczytaj JEGO WŁASNĄ retencję ({@link RetentionPolicyService#getRetentionDays}
+ *       dla kategorii {@link RetentionDataCategory#RECORDINGS}) i wyznacz granicę czasową</li>
+ *   <li>Pobierz listę kontaktów tego tenanta z nagraniami starszymi niż wyznaczona granica</li>
  *   <li>Dla każdego kontaktu: usuń plik z S3, następnie wyczyść {@code recording_url} w DB</li>
  *   <li>Przetwarzaj w batchiach po 100 rekordów (zapobiega przeciążeniu pamięci i S3)</li>
  * </ol>
  *
+ * <p><strong>Per-tenant retencja (BE-116):</strong> przed BE-116 job liczył JEDEN globalny
+ * {@code cutoffTimestamp} przed pętlą po tenantach, na podstawie {@code S3Properties.retentionDays}
+ * (ta sama wartość dla wszystkich tenantów). Od BE-116 granica czasowa jest liczona ODDZIELNIE
+ * dla każdego tenanta, wewnątrz pętli, na podstawie jego własnej polityki retencji w
+ * {@code tenant_retention_policy} (kategoria {@code RECORDINGS}) — jedyne źródło prawdy, patrz
+ * {@link RetentionPolicyService}. {@code S3Properties.retentionDays} pozostaje w kodzie wyłącznie
+ * jako fallback używany przy SEEDOWANIU domyślnej polityki nowego tenanta
+ * ({@code RetentionPolicyServiceImpl.resolveRecordingsRetentionMonths}) — NIE jest już czytane
+ * w runtime tego jobu.
+ *
  * <p><strong>Odporność na błędy:</strong>
- * Błąd przy usuwaniu jednego pliku nie zatrzymuje przetwarzania pozostałych.
+ * Błąd przy usuwaniu jednego pliku nie zatrzymuje przetwarzania pozostałych. Brak skonfigurowanej
+ * polityki retencji dla tenanta (nie powinno wystąpić po seedowaniu/backfillu V082, ale job broni
+ * się defensywnie) powoduje pominięcie TEGO tenanta w danym przebiegu (log ERROR + kontynuacja),
+ * bez przerywania całego jobu — ten sam wzorzec try/catch per-tenant co dotychczas.
  * Job loguje podsumowanie po zakończeniu.
  *
  * <p><strong>Idempotentność:</strong>
@@ -44,7 +60,7 @@ class RecordingRetentionJob {
 
     private final RecordingService recordingService;
     private final ContactService contactService;
-    private final S3Properties s3Properties;
+    private final RetentionPolicyService retentionPolicyService;
 
     // =========================================================================
     // Scheduled job
@@ -68,9 +84,7 @@ class RecordingRetentionJob {
      */
     @Scheduled(cron = "${s3.retention-cron:0 0 2 * * *}", zone = "UTC")
     public void runRetentionJob() {
-        log.info("[RetentionJob] Start retencji nagrań. Retencja: {} dni", s3Properties.getRetentionDays());
-
-        Instant cutoffTimestamp = Instant.now().minus(s3Properties.getRetentionDays(), ChronoUnit.DAYS);
+        log.info("[RetentionJob] Start retencji nagrań (per-tenant, BE-116).");
 
         int totalDeleted = 0;
         int totalErrors  = 0;
@@ -80,9 +94,10 @@ class RecordingRetentionJob {
             List<UUID> tenants = contactService.findTenantsWithRecordings();
             log.info("[RetentionJob] Znaleziono {} tenantów z nagraniami do sprawdzenia", tenants.size());
 
-            // Krok 2: przetwarzaj każdy tenant osobno
+            // Krok 2: przetwarzaj każdy tenant osobno – granica czasowa liczona INDYWIDUALNIE,
+            // na podstawie jego własnej polityki retencji RECORDINGS (nie globalnej wartości).
             for (UUID tenantId : tenants) {
-                int[] counts = processRetentionForTenant(tenantId, cutoffTimestamp);
+                int[] counts = processRetentionForTenant(tenantId);
                 totalDeleted += counts[0];
                 totalErrors  += counts[1];
             }
@@ -102,17 +117,29 @@ class RecordingRetentionJob {
     /**
      * Przetwarza retencję nagrań dla jednego tenanta.
      *
-     * @param tenantId        UUID tenanta
-     * @param cutoffTimestamp granica czasowa – nagrania starsze niż ten timestamp zostaną usunięte
+     * <p>Granica czasowa jest liczona TUTAJ, indywidualnie dla tego tenanta, na podstawie jego
+     * własnej polityki retencji ({@link RetentionPolicyService#getRetentionDays} dla kategorii
+     * {@link RetentionDataCategory#RECORDINGS}) — nie przed pętlą, jak przed BE-116. Błąd
+     * odczytu polityki (np. brak skonfigurowanej polityki dla tenanta – nie powinno wystąpić po
+     * seedowaniu/backfillu V082) jest łapany przez istniejący blok {@code catch} poniżej i
+     * powoduje pominięcie TEGO tenanta w danym przebiegu, bez przerywania całego jobu.
+     *
+     * @param tenantId UUID tenanta
      * @return tablica [liczbaUsuniętych, liczbaBlędów]
      */
-    private int[] processRetentionForTenant(UUID tenantId, Instant cutoffTimestamp) {
+    private int[] processRetentionForTenant(UUID tenantId) {
         int deleted = 0;
         int errors  = 0;
 
         log.debug("[RetentionJob] Przetwarzam tenant: {}", tenantId);
 
         try {
+            int retentionDays = retentionPolicyService.getRetentionDays(tenantId, RetentionDataCategory.RECORDINGS);
+            Instant cutoffTimestamp = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+
+            log.debug("[RetentionJob] Tenant {}: retencja RECORDINGS = {} dni, cutoff = {}",
+                    tenantId, retentionDays, cutoffTimestamp);
+
             List<ContactRecordingEntry> expired = contactService.findExpiredRecordings(
                     tenantId, cutoffTimestamp, BATCH_SIZE
             );

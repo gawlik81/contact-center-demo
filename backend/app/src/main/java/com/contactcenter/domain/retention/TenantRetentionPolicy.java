@@ -24,9 +24,13 @@ import java.util.UUID;
  *
  * <p>Retencja przechowywana WYŁĄCZNIE w miesiącach ({@code retention_months},
  * CHECK BETWEEN 1 AND 120) — kategorie skonfigurowane dziś gdzie indziej w dniach
- * (np. RECORDINGS przez {@code tenant.config->>'recording_retention_days'}) są
+ * (np. RECORDINGS domyślnie wg {@code S3Properties.retentionDays}, patrz
+ * {@link RetentionPolicyServiceImpl#resolveRecordingsRetentionMonths}, od BE-116) są
  * przeliczane na miesiące przez {@code CEIL(dni / 30.0)}, zarówno w backfillu V082
- * jak i w {@link RetentionPolicyServiceImpl#seedDefaultPolicies}.
+ * jak i w {@link RetentionPolicyServiceImpl#seedDefaultPolicies}. Odwrotna konwersja
+ * (miesiące → dni, {@code retentionMonths * 30}) dostępna przez
+ * {@link RetentionPolicyService#getRetentionDays}, główny konsument:
+ * {@code RecordingRetentionJob} (BE-116).
  *
  * <p>Izolacja multi-tenant przez PostgreSQL RLS (FORCE ROW LEVEL SECURITY,
  * GUC {@code app.current_tenant_id}). Zapis i odczyt wyłącznie przez natywny SQL

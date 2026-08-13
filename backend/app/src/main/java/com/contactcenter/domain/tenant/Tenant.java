@@ -49,7 +49,11 @@ public class Tenant {
     /**
      * Konfiguracja per-tenant jako JSONB.
      * Wymagane klucze: max_agents, max_queues, max_campaigns.
-     * Opcjonalne: recording_retention_days, timezone.
+     * Opcjonalne: timezone.
+     *
+     * <p><strong>BE-116:</strong> {@code recording_retention_days} NIE jest już częścią tej
+     * konfiguracji — jedynym źródłem prawdy dla retencji nagrań jest
+     * {@code tenant_retention_policy} (kategoria {@code RECORDINGS}).
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "jsonb")
@@ -163,7 +167,6 @@ public class Tenant {
         defaults.put("max_agents", 100);
         defaults.put("max_queues", 50);
         defaults.put("max_campaigns", 20);
-        defaults.put("recording_retention_days", 90);
         defaults.put("timezone", "Europe/Warsaw");
         return defaults;
     }

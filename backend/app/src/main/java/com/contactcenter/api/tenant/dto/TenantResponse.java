@@ -55,7 +55,6 @@ public record TenantResponse(
                 tenant.getMaxAgents(),
                 tenant.getMaxQueues(),
                 tenant.getMaxCampaigns(),
-                extractInt(tenant.getConfig(), "recording_retention_days", 90),
                 extractString(tenant.getConfig(), "timezone", "Europe/Warsaw")
         );
 
@@ -68,21 +67,6 @@ public record TenantResponse(
                 tenant.getCreatedAt(),
                 tenant.getUpdatedAt()
         );
-    }
-
-    private static Integer extractInt(Map<String, Object> config, String key, int defaultValue) {
-        if (config == null || !config.containsKey(key)) {
-            return defaultValue;
-        }
-        Object val = config.get(key);
-        if (val instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(val));
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
     }
 
     private static String extractString(Map<String, Object> config, String key, String defaultValue) {

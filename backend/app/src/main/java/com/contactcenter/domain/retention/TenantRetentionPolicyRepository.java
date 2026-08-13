@@ -98,47 +98,13 @@ class TenantRetentionPolicyRepository extends TenantAwareRepository {
     }
 
     /**
-     * Odczytuje skonfigurowaną per-tenant liczbę dni retencji nagrań z {@code tenant.config}
-     * (JSONB, klucz {@code recording_retention_days}).
-     *
-     * <p>Używane wyłącznie przez {@link RetentionPolicyServiceImpl#seedDefaultPolicies} do
-     * personalizacji domyślnej polityki {@code RECORDINGS} — odzwierciedla dokładnie ten sam
-     * fallback (90 dni), co {@code TenantServiceImpl.buildConfig()} i backfill V082.
-     *
-     * <p>Tabela {@code tenant} NIE jest objęta RLS per-tenant (sama JEST tenantami — patrz
-     * Javadoc klasy {@code Tenant}), więc odczyt nie wymaga {@code set_tenant_context} i nie
-     * stanowi naruszenia izolacji. Zapytanie celowo zostaje w pakiecie {@code domain.retention}
-     * zamiast wprowadzać zależność serwisową do {@code domain.tenant} (patrz javadoc
-     * {@link RetentionPolicyServiceImpl#seedDefaultPolicies} — brak cyklu).
-     *
-     * @param tenantId UUID tenanta
-     * @return liczba dni z konfiguracji (z fallbackiem 90 gdy klucz nie ustawiony),
-     *         lub empty gdy tenant o podanym ID nie istnieje
-     */
-    @Transactional(readOnly = true)
-    public Optional<Integer> findConfiguredRecordingRetentionDays(UUID tenantId) {
-        @SuppressWarnings("unchecked")
-        List<Number> rows = em.createNativeQuery(
-                        """
-                        SELECT COALESCE((config->>'recording_retention_days')::int, 90)
-                        FROM tenant
-                        WHERE tenant_id = CAST(:tenantId AS uuid)
-                        """)
-                .setParameter("tenantId", tenantId.toString())
-                .getResultList();
-
-        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0).intValue());
-    }
-
-    /**
      * Zwraca minimalną skonfigurowaną retencję (w miesiącach) dla kategorii danych PO
      * WSZYSTKICH TENANTACH — używane przez {@link RetentionPolicyServiceImpl#findMinRetentionMonths}
      * (BE-112, {@code RetentionEvaluationJob}) do wyznaczenia globalnego progu zatrzymania
      * skanowania partycji.
      *
      * <p>ŚWIADOMIE bez {@code set_tenant_context}/{@code assertSameTenant} — to zapytanie
-     * platformowe, cross-tenant PO ZAMIERZENIU (ten sam precedens co
-     * {@link #findConfiguredRecordingRetentionDays}, patrz jego javadoc).
+     * platformowe, cross-tenant PO ZAMIERZENIU (analogicznie do {@code PartitionScannerImpl}).
      *
      * <p>{@code MIN(retention_months)} nad pustym zbiorem zwraca pojedynczy wiersz z wartością
      * {@code NULL} (nie pusty wynik) — stąd jawne sprawdzenie {@code rows.get(0) == null}

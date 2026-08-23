@@ -161,6 +161,12 @@ public class SecurityConfig {
                 // Musi być przed ogólną regułą /api/tenants/** (Spring Security dopasowuje po kolei)
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tenants/*/config").hasAnyRole("SUPER_ADMIN", "ADMIN", "SUPERVISOR")
                 .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/tenants/*/config").hasAnyRole("SUPER_ADMIN", "ADMIN", "SUPERVISOR")
+                // Retencja danych per-tenant (polityki/purge/historia) – ADMIN własnego tenanta
+                // (BE-118, EPIC-29). {tenantId} z ścieżki jest jawnie weryfikowane przeciw
+                // TenantContext.getTenantId() w RetentionController (403 przy niezgodności) –
+                // ta reguła tylko dopuszcza rolę ADMIN do filtra, nie zastępuje tej weryfikacji.
+                // Musi być przed ogólną regułą /api/tenants/** (Spring Security dopasowuje po kolei)
+                .requestMatchers("/api/tenants/*/retention/**").hasRole("ADMIN")
                 // Tenant management – tylko SUPER_ADMIN (BE-006, refaktor ról)
                 .requestMatchers("/api/tenants/**").hasRole("SUPER_ADMIN")
                 // Lista numerów Twilio – wyjątek od reguły "Twilio config = techniczne ADMIN-only":

@@ -513,6 +513,41 @@ class ContactServiceTest {
                                                     isNull(), isNull(), eq(queueIdStr), eq(campaignIdStr), isNull(),
                                                     eq(durationMin), isNull());
         }
+
+        // =====================================================================
+        // Regresja: NPE gdy żaden kontakt na stronie nie ma przypisanego agenta
+        // (produkcyjny 500 – resolveAgentNamesForContacts zwracał Map.of(), a
+        // Map.of().get(null) rzuca NullPointerException; HashMap/Collections.emptyMap
+        // zwracają po prostu null)
+        // =====================================================================
+
+        @Test
+        @DisplayName("BUGFIX: nie rzuca NPE gdy żaden kontakt na liście nie ma przypisanego agenta (np. QUEUED)")
+        void listContacts_allContactsWithoutAgent_doesNotThrowAndAgentNameIsNull() {
+            // given – kontakty w kolejce, jeszcze bez przypisania agenta
+            ContactFilterParams params = basicParams(0, 20);
+            Contact queuedContact = buildContact(CONTACT_ID, "QUEUED");
+            queuedContact.setAgentId(null);
+            List<Contact> contacts = List.of(queuedContact);
+            when(contactRepository.findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), eq(0), eq(20)))
+                    .thenReturn(contacts);
+            when(contactRepository.countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull()))
+                    .thenReturn(1L);
+
+            // when – przed poprawką rzucało NullPointerException na agentNames.get(null)
+            PagedResponse<ContactResponse> result = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() ->
+                    contactService.listContacts(params, TENANT_ID, AGENT_ID, false));
+
+            // then
+            assertThat(result.content()).hasSize(1);
+            assertThat(result.content().get(0).agentId()).isNull();
+            assertThat(result.content().get(0).agentName()).isNull();
+            verifyNoInteractions(userService);
+        }
     }
 
     // =========================================================================
@@ -768,6 +803,31 @@ class ContactServiceTest {
 
             // then
             verify(contactRepository).findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 100);
+        }
+
+        @Test
+        @DisplayName("BUGFIX: nie rzuca NPE gdy żaden kontakt w historii klienta nie ma przypisanego agenta")
+        void getCustomerHistory_allContactsWithoutAgent_doesNotThrowAndAgentNameIsNull() {
+            // given – kontakty zakończone bez przypisania agenta (np. porzucone w kolejce/IVR)
+            Contact abandoned = buildContact(CONTACT_ID, "ABANDONED");
+            abandoned.setAgentId(null);
+            Contact notReached = buildContact(UUID.randomUUID(), "NOT_REACHED");
+            notReached.setAgentId(null);
+            List<Contact> contacts = List.of(abandoned, notReached);
+            when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 10)).thenReturn(contacts);
+            when(contactRepository.countByCustomerId(CUSTOMER_ID, TENANT_ID)).thenReturn(2L);
+
+            // when – przed poprawką rzucało NullPointerException na agentNames.get(null)
+            PagedResponse<ContactResponse> result = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() ->
+                    contactService.getCustomerHistory(CUSTOMER_ID, TENANT_ID, 0, 10));
+
+            // then
+            assertThat(result.content()).hasSize(2);
+            assertThat(result.content()).allSatisfy(c -> {
+                assertThat(c.agentId()).isNull();
+                assertThat(c.agentName()).isNull();
+            });
+            verifyNoInteractions(userService);
         }
     }
 

@@ -21,9 +21,15 @@ import java.util.UUID;
  *
  * <p>Pole {@code metadata} przechowywane jako JSONB – zawiera dane specyficzne dla etapu
  * (np. agent_id, queue_name, transfer_type).
+ *
+ * <p>Od migracji V085 (DB-049) tabela jest partycjonowana RANGE po {@code started_at}
+ * (miesięcznie), co wymaga – analogicznie do {@link Contact}/{@link ContactId} –
+ * klucza złożonego {@code (event_id, started_at)} obsługiwanego przez {@link ContactEventId}.
+ * PostgreSQL wymaga, żeby kolumna partycjonowania wchodziła w PRIMARY KEY.
  */
 @Entity
 @Table(name = "contact_event")
+@IdClass(ContactEventId.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,7 +51,11 @@ public class ContactEvent {
     @Column(name = "stage", nullable = false, length = 20)
     private String stage;
 
-    /** Czas rozpoczęcia etapu. */
+    /**
+     * Czas rozpoczęcia etapu – kolumna partycjonowania, NOT NULL.
+     * Jest częścią klucza głównego {@link ContactEventId}.
+     */
+    @Id
     @Column(name = "started_at", nullable = false)
     private Instant startedAt;
 

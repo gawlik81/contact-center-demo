@@ -37,6 +37,14 @@
               <path [attr.d]="item.svgPath" />
             </svg>
             <span class="sidenav__label">{{ item.label | transloco }}</span>
+
+            @if (item.route === retentionBadgeRoute && showRetentionBadge()) {
+              <span
+                class="sidenav__alert-badge"
+                [attr.aria-label]="'nav.retentionPendingBadge' | transloco: { count: pendingDeletionCount() }"
+                >{{ retentionBadgeLabel() }}</span
+              >
+            }
             <svg
               class="sidenav__chevron"
               [class.sidenav__chevron--open]="isSectionExpanded(item.route) || isChildActive(item)"

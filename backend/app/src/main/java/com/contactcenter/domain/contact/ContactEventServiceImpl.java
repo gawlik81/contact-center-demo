@@ -355,6 +355,15 @@ class ContactEventServiceImpl implements ContactEventService {
     }
 
     // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    @Override
+    public int purgeOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        return repository.deleteBatchOlderThan(tenantId, cutoff, batchSize);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

@@ -1,0 +1,15 @@
+---
+name: feedback_scheduled_job_tenantcontext_missing
+description: Nowy @Scheduled job z pętlą per-tenant musi jawnie ustawiać/czyścić TenantContext w KAŻDEJ iteracji
+type: feedback
+---
+
+Każda metoda `@Scheduled` (cron job na wątku schedulera, bez `TenantFilter`/JWT), która w pętli per-tenant woła metodę repozytorium dziedziczącą `TenantAwareRepository` — w szczególności cokolwiek używające `assertSameTenant(...)` lub bezargumentowego `setTenantContextInDb()` (nie mylić z jawnym `setTenantContextInDb(UUID)`) — MUSI na początku ciała pętli wywołać `TenantContext.setTenantId(tenantId)` i wyczyścić `TenantContext.clear()` w `finally` obejmującym CAŁE ciało tej iteracji (wątek puli schedulera jest reużywany między tenantami i między przebiegami).
+
+**Why:** Realny bug znaleziony i naprawiony w EPIC-29 (2026-08-13, `RecordingRetentionJob`/BE-116 i `RetentionEvaluationJob`/BE-112) — obie klasy wołały repozytoria wymagające `TenantContext.getTenantId()` (przez `assertSameTenant`) bez jego ustawienia. Bug był NIEWIDOCZNY w logach: metoda rzucała `IllegalStateException`, złapaną przez istniejący `try/catch` per-tenant, więc job "kończył się sukcesem" (0 błędów lub rosnący licznik błędów bez kontekstu), ale realnie nic nie robił (`RetentionEvaluationJob`) albo robił połowiczną, szkodliwą pracę — S3 delete się wykonywał (nie dotyka `TenantContext`), ale DB update nigdy (`RecordingRetentionJob`), więc ten sam rekord wracał jako "wygasły" w nieskończoność. Wykryty dopiero przy RĘCZNYM uruchomieniu joba na żywym kontenerze, nie przez testy jednostkowe — mockowane repozytoria (`@Mock ContactService`/`@Mock XxxRepository`) nigdy nie wykonują prawdziwego ciała `assertSameTenant`, więc nie mogą złapać braku kontekstu.
+
+**How to apply:**
+- Przy REVIEW lub pisaniu nowego `@Scheduled` joba z pętlą per-tenant: sprawdź KAŻDĄ wywoływaną metodę repozytorium pod kątem `assertSameTenant`/bezargumentowego `setTenantContextInDb()` w jej ciele (nie tylko sygnaturę — to nie jest widoczne z zewnątrz).
+- Wzorzec do skopiowania (najprostszy, już działający w repo): `SocialIntegrationServiceImpl#refreshToken` — `TenantContext.setTenantId(tenantId)` na początku `try`, `TenantContext.clear()` w `finally`.
+- Test regresyjny na poziomie repozytorium: użyj PRAWDZIWEJ klasy repozytorium (dziedziczącej `TenantAwareRepository`) z mockowanym `EntityManager`/`JdbcTemplate` (wzorzec `CrossTenantAccessTest`/`TenantRetentionPolicyRepositoryTest`) — wywołaj metodę BEZ `TenantContext.setTenantId()` i zweryfikuj `IllegalStateException`. Mock całego repozytorium/serwisu tego nie wykryje.
+- Test regresyjny na poziomie joba: mockuj kolaboratorów, ale w `doAnswer` przechwytuj `TenantContext.getTenantIdOrNull()` w momencie wywołania (NIE `getTenantId()` — rzuciłby ISE złapane przez `try/catch` joba i zamaskowałoby to asercję) i porównaj z oczekiwanym `tenantId`; dodatkowo test dwóch tenantów w jednej pętli na wyciek kontekstu między iteracjami, oraz test że kontekst jest `isSet()==false` po zakończeniu joba (`@AfterEach TenantContext.clear()` obowiązkowe dla izolacji testów).

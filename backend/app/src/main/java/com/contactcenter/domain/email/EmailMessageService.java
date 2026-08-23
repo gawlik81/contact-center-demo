@@ -3,6 +3,7 @@ package com.contactcenter.domain.email;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,4 +60,15 @@ public interface EmailMessageService {
      * @return strona wiadomości posortowanych po {@code created_at DESC}
      */
     Page<EmailMessage> findAll(Pageable pageable);
+
+    /**
+     * Zeruje {@code contact_id} dla wiadomości wskazujących na usuwane kontakty (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS). Nie usuwa wierszy {@code email_message}, tylko
+     * odcina referencję (kolumna nullable od V028).
+     *
+     * @param tenantId   UUID tenanta
+     * @param contactIds lista UUID usuniętych kontaktów – pusta lista jest no-opem
+     * @return liczba zaktualizowanych wierszy
+     */
+    int detachContactReferences(UUID tenantId, List<UUID> contactIds);
 }

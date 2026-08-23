@@ -7,6 +7,7 @@ import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
+import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
@@ -52,6 +53,9 @@ class TenantServiceTest {
     @Mock
     private AdminMetricsService adminMetricsService;
 
+    @Mock
+    private RetentionPolicyService retentionPolicyService;
+
     @InjectMocks
     private TenantServiceImpl tenantService;
 
@@ -63,7 +67,6 @@ class TenantServiceTest {
         config.put("max_agents", 100);
         config.put("max_queues", 50);
         config.put("max_campaigns", 20);
-        config.put("recording_retention_days", 90);
         config.put("timezone", "Europe/Warsaw");
 
         activeTenant = Tenant.builder()
@@ -74,8 +77,10 @@ class TenantServiceTest {
                 .createdAt(Instant.now())
                 .build();
 
-        // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor),
-        // pomijając pola non-final (adminMetricsService, userService). Ustawiamy ręcznie przez setter.
+        // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor) — pola finalne
+        // (tenantRepository, retentionPolicyService) są wstrzykiwane automatycznie. Pola non-final
+        // (adminMetricsService, userService) są pomijane przez konstruktor — ustawiamy je ręcznie
+        // przez setter, zgodnie ze wzorcem @Autowired @Lazy używanym w TenantServiceImpl.
         tenantService.setAdminMetricsService(adminMetricsService);
         tenantService.setUserService(userService);
     }
@@ -121,13 +126,15 @@ class TenantServiceTest {
             assertThat(response.limits().maxQueues()).isEqualTo(50);
             assertThat(response.limits().maxCampaigns()).isEqualTo(20);
             verify(tenantRepository).save(any(Tenant.class));
+            // BE-111: seedowanie domyślnych polityk retencji wołane zaraz po zapisie tenanta
+            verify(retentionPolicyService).seedDefaultPolicies(response.id());
         }
 
         @Test
         @DisplayName("powinien utworzyć tenanta z podanymi limitami")
         void shouldCreateTenantWithCustomLimits() {
             // given
-            TenantResourceLimitsDto limits = new TenantResourceLimitsDto(50, 25, 10, 30, "Europe/London");
+            TenantResourceLimitsDto limits = new TenantResourceLimitsDto(50, 25, 10, "Europe/London");
             CreateTenantRequest request = new CreateTenantRequest("Custom Tenant", limits);
             when(tenantRepository.existsByNameIgnoreCase("Custom Tenant")).thenReturn(false);
             when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
@@ -149,8 +156,33 @@ class TenantServiceTest {
             assertThat(response.limits().maxAgents()).isEqualTo(50);
             assertThat(response.limits().maxQueues()).isEqualTo(25);
             assertThat(response.limits().maxCampaigns()).isEqualTo(10);
-            assertThat(response.limits().recordingRetentionDays()).isEqualTo(30);
             assertThat(response.limits().timezone()).isEqualTo("Europe/London");
+        }
+
+        @Test
+        @DisplayName("BE-116: nie zapisuje recording_retention_days do config (usunięte źródło prawdy)")
+        void shouldNotWriteRecordingRetentionDaysToConfig() {
+            // given
+            CreateTenantRequest request = new CreateTenantRequest("No Recording Field Tenant", null);
+            when(tenantRepository.existsByNameIgnoreCase("No Recording Field Tenant")).thenReturn(false);
+            when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
+                Tenant t = inv.getArgument(0);
+                t = Tenant.builder()
+                        .id(UUID.randomUUID())
+                        .name(t.getName())
+                        .status(t.getStatus())
+                        .config(t.getConfig())
+                        .createdAt(t.getCreatedAt())
+                        .build();
+                return t;
+            });
+
+            // when
+            TenantResponse response = tenantService.createTenant(request);
+
+            // then – jedyne źródło prawdy dla retencji nagrań to tenant_retention_policy (RetentionPolicyService)
+            assertThat(response.config()).doesNotContainKey("recording_retention_days");
+            verify(retentionPolicyService).seedDefaultPolicies(response.id());
         }
 
         @Test
@@ -406,7 +438,7 @@ class TenantServiceTest {
         @DisplayName("powinien zaktualizować limity zasobów")
         void shouldUpdateResourceLimits() {
             // given
-            TenantResourceLimitsDto newLimits = new TenantResourceLimitsDto(200, 100, 40, null, null);
+            TenantResourceLimitsDto newLimits = new TenantResourceLimitsDto(200, 100, 40, null);
             UpdateTenantRequest request = new UpdateTenantRequest(null, null, newLimits);
             when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
             when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -418,6 +450,8 @@ class TenantServiceTest {
             assertThat(response.limits().maxAgents()).isEqualTo(200);
             assertThat(response.limits().maxQueues()).isEqualTo(100);
             assertThat(response.limits().maxCampaigns()).isEqualTo(40);
+            // BE-116: recording_retention_days nie jest już częścią config JSONB tenanta
+            assertThat(response.config()).doesNotContainKey("recording_retention_days");
         }
     }
 

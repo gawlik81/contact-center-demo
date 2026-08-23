@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,13 @@ import java.util.UUID;
  *
  * <p>Wzorzec multi-tenant: rozszerza {@link TenantAwareRepository} – wywołuje
  * {@code assertSameTenant()} przed zapisem oraz {@code setTenantContextInDb()} przed każdym zapytaniem.
+ *
+ * <p><strong>BE-117:</strong> od migracji V087 (DB-051) tabela jest partycjonowana RANGE po
+ * {@code generated_at} (PK złożony {@code (ai_summary_id, generated_at)}, patrz {@link ContactAiSummary}/
+ * {@link ContactAiSummaryId}). {@link #save} to INSERT jawnie ustawiający wszystkie kolumny
+ * (w tym {@code generated_at}) – bez zmian. Repozytorium nie ma metod UPDATE/DELETE
+ * adresujących wiersz po PK; {@link #findLatestByContactId} czyta po {@code contact_id}, więc
+ * kolumna partycjonowania nie musi występować w WHERE.
  */
 @Slf4j
 @Repository
@@ -105,5 +113,47 @@ class ContactAiSummaryRepository extends TenantAwareRepository {
                 contactId, !results.isEmpty());
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    // =========================================================================
+    // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Usuwa batch podsumowań AI tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+     * kategoria TRANSCRIPTS).
+     *
+     * <p>Identyfikuje wiersze do usunięcia przez pełny klucz główny {@code (ai_summary_id,
+     * generated_at)} – NIE przez fizyczny {@code ctid} (patrz szczegółowe uzasadnienie w
+     * {@code ContactRepository#deleteBatchOlderThan}: {@code ctid} nie jest unikalny globalnie na
+     * tabeli partycjonowanej). {@code generated_at} jest kolumną partycjonowania (V087/DB-051,
+     * BE-117) — UWAGA: nie {@code created_at}.
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – usuwane są podsumowania z {@code generated_at < cutoff}
+     * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu (rozmiar {@code LIMIT})
+     * @return liczba usuniętych wierszy (0 = brak kwalifikujących się wierszy)
+     */
+    @Transactional
+    public int deleteBatchOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+        setTenantContextInDb(tenantId);
+
+        int deleted = jdbcTemplate.update("""
+                WITH batch AS (
+                    SELECT ai_summary_id, generated_at FROM contact_ai_summary
+                    WHERE tenant_id = ?::uuid AND generated_at < ?
+                    ORDER BY generated_at
+                    LIMIT ?
+                )
+                DELETE FROM contact_ai_summary c
+                USING batch b
+                WHERE c.ai_summary_id = b.ai_summary_id AND c.generated_at = b.generated_at
+                """,
+                tenantId.toString(),
+                Timestamp.from(cutoff),
+                batchSize);
+
+        log.info("[ContactAiSummaryRepo] Purge batch: tenant={}, cutoff={}, usunięto={}", tenantId, cutoff, deleted);
+        return deleted;
     }
 }

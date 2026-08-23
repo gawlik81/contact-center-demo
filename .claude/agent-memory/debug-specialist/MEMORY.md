@@ -31,3 +31,4 @@
 - [Twilio Device register race przy natychmiastowym routingu](pattern_twilio_device_register_race_on_instant_routing.md) — agent dostaje przydział oczekującego kontaktu zaraz po AVAILABLE, zanim Device.register() się skończy; klient słyszy hold music mimo CALL_ANSWERED/ACTIVE
 - [Adapter telefonii w Docker local-demo — Twilio zamiast Mock](project_adapter_selection_docker.md) — profil prod + domyślne telephony.provider=twilio aktywuje Twilio adapter zamiast Mock; naprawa przez TELEPHONY_PROVIDER=mock w .env.local-demo
 - [Plugin runtime config freshness](plugin_runtime_config_freshness.md) — PATCH configu pluginu jest od razu świeży w MANUAL_ACTION/PRE_CONTACT_CONNECT, bez disable/enable
+- [Audyt @Scheduled jobów vs TenantContext (EPIC-29 retention/recording)](pattern_scheduled_job_tenantcontext_missing.md) — RetentionEvaluationJob i RecordingRetentionJob bez setTenantId na wątku schedulera; 3 istniejące poprawne wzorce w repo do skopiowania

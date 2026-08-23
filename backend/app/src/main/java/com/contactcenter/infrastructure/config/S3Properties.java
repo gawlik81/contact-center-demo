@@ -59,8 +59,14 @@ public class S3Properties {
     private String region = "us-east-1";
 
     /**
-     * Domyślna liczba dni retencji nagrań (90 dni zgodnie z wymaganiami).
-     * Nadpisywalna per tenant przez JSONB config w tabeli TENANT.
+     * Domyślna, globalna liczba dni retencji nagrań (90 dni zgodnie z wymaganiami).
+     *
+     * <p><strong>BE-116:</strong> od EPIC-29 retencja nagrań jest per-tenant, skonfigurowana w
+     * {@code tenant_retention_policy} (kategoria {@code RECORDINGS}, jedyne źródło prawdy w
+     * runtime — patrz {@code RecordingRetentionJob}/{@code RetentionPolicyService}). To pole
+     * NIE JEST już czytane przez {@code RecordingRetentionJob} — pozostaje wyłącznie jako
+     * globalna wartość domyślna użyta przy SEEDOWANIU nowej polityki tenanta (patrz
+     * {@code RetentionPolicyServiceImpl.resolveRecordingsRetentionMonths}).
      */
     private int retentionDays = 90;
 

@@ -556,6 +556,64 @@ class ContactRepository extends TenantAwareRepository {
     return updated;
   }
 
+  // =========================================================================
+  // BE-113: Retencja – usuwanie batchowane (EPIC-29)
+  // =========================================================================
+
+  /**
+   * Usuwa batch kontaktów tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –
+   * kategoria CONTACT_INTERACTIONS).
+   *
+   * <p><strong>Dlaczego nie {@code ctid IN (SELECT ctid ...)}:</strong> na tabeli partycjonowanej
+   * fizyczny identyfikator {@code ctid} (blok, offset) NIE jest unikalny globalnie – ta sama para
+   * współrzędnych może wystąpić jednocześnie w wielu różnych partycjach. Zweryfikowano empirycznie
+   * na tym schemacie: {@code DELETE ... WHERE ctid IN (subquery ograniczone do jednego tenanta i
+   * jednej partycji, LIMIT 100)} usunęło rekordy z INNYCH partycji (różne miesiące) należące do
+   * INNEGO tenanta – identyczna liczba ({@code ctid}) trafiona losowo w innej partycji. Zamiast
+   * tego zapytanie identyfikuje wiersze do usunięcia przez pełny klucz główny
+   * {@code (contact_id, started_at)} – {@code started_at} jest kolumną partycjonowania, więc
+   * PostgreSQL poprawnie kieruje DELETE do właściwej partycji dla każdego wiersza z osobna.
+   *
+   * <p>Zwraca listę usuniętych {@code contactId} – potrzebną wywołującemu do dalszego czyszczenia
+   * referencji bez fizycznego FK ({@code email_message.contact_id}/{@code social_message.contact_id}
+   * → NULL, patrz {@code EmailMessageService#detachContactReferences}/{@code SocialMessageService}).
+   *
+   * @param tenantId  UUID tenanta
+   * @param cutoff    granica czasowa – usuwane są kontakty z {@code started_at < cutoff}
+   * @param batchSize maksymalna liczba wierszy usuwanych w jednym wywołaniu (rozmiar {@code LIMIT})
+   * @return lista UUID usuniętych kontaktów – pusta gdy brak kwalifikujących się wierszy
+   */
+  @Transactional
+  public List<UUID> deleteBatchOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    @SuppressWarnings("unchecked")
+    List<Object> results = em.createNativeQuery("""
+            WITH batch AS (
+                SELECT contact_id, started_at FROM contact
+                WHERE tenant_id = CAST(:tenantId AS uuid) AND started_at < :cutoff
+                ORDER BY started_at
+                LIMIT :batchSize
+            )
+            DELETE FROM contact c
+            USING batch b
+            WHERE c.contact_id = b.contact_id AND c.started_at = b.started_at
+            RETURNING c.contact_id
+            """)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("cutoff", cutoff)
+        .setParameter("batchSize", batchSize)
+        .getResultList();
+
+    List<UUID> deletedIds = results.stream()
+        .map(row -> row instanceof UUID uuid ? uuid : UUID.fromString(row.toString()))
+        .toList();
+
+    log.info("[ContactRepo] Purge batch: tenant={}, cutoff={}, usunięto={}", tenantId, cutoff, deletedIds.size());
+    return deletedIds;
+  }
+
   /**
    * Assigns an agent to a contact that was created without one (e.g. inbound Twilio call).
    *

@@ -1,0 +1,366 @@
+<div class="dr-page">
+  <header class="dr-header">
+    <div class="dr-header__title">
+      <h1>{{ 'supervisor.settings.dataRetention.pageTitle' | transloco }}</h1>
+    </div>
+    <p class="dr-header__subtitle">{{ 'supervisor.settings.dataRetention.pageSubtitle' | transloco }}</p>
+  </header>
+
+  <!-- ============ Sekcja 1: tabela konfiguracji polityk ============ -->
+  <section class="dr-section">
+    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.policiesTitle' | transloco }}</h2>
+
+    @if (loading()) {
+      <div class="dr-skeleton-wrapper">
+        @for (item of [1, 2, 3, 4]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (loadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.errorLoad' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadPolicies()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else {
+      <div class="dr-table-wrap">
+        <table class="dr-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.categoryLabel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.retentionMonthsLabel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.autoPurgeLabel' | transloco }}</th>
+              <th scope="col">
+                <span class="dr-sr-only">{{ 'supervisor.settings.dataRetention.saveButton' | transloco }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.category) {
+              <tr>
+                <td class="dr-table__category">{{ categoryLabel(row.category) }}</td>
+                <td>
+                  <div class="dr-field">
+                    <input
+                      type="number"
+                      class="dr-input"
+                      [class.dr-input--invalid]="!isRowValid(row)"
+                      min="1"
+                      max="120"
+                      step="1"
+                      [value]="row.retentionMonthsInput"
+                      [disabled]="isPending(row.category)"
+                      [attr.aria-invalid]="!isRowValid(row)"
+                      [attr.aria-label]="
+                        'supervisor.settings.dataRetention.retentionMonthsAria'
+                          | transloco: { category: categoryLabel(row.category) }
+                      "
+                      (input)="updateRetentionMonthsInput(row.category, $any($event.target).value)"
+                    />
+                    @if (!isRowValid(row)) {
+                      <p class="dr-field__error">
+                        {{ 'supervisor.settings.dataRetention.validationRangeError' | transloco }}
+                      </p>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <label class="dr-toggle">
+                    <input
+                      type="checkbox"
+                      [checked]="row.autoPurgeEnabled"
+                      [disabled]="isPending(row.category)"
+                      (change)="toggleAutoPurge(row.category)"
+                      [attr.aria-label]="
+                        'supervisor.settings.dataRetention.autoPurgeAria'
+                          | transloco: { category: categoryLabel(row.category) }
+                      "
+                    />
+                    <span class="dr-toggle__track" aria-hidden="true"></span>
+                    <span class="dr-toggle__label">
+                      {{
+                        (row.autoPurgeEnabled
+                          ? 'supervisor.settings.dataRetention.autoPurgeOn'
+                          : 'supervisor.settings.dataRetention.autoPurgeOff'
+                        ) | transloco
+                      }}
+                    </span>
+                  </label>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="dr-btn dr-btn--primary dr-btn--sm"
+                    [disabled]="!isRowValid(row) || isPending(row.category)"
+                    (click)="savePolicy(row)"
+                    [attr.aria-label]="
+                      'supervisor.settings.dataRetention.saveButtonAria'
+                        | transloco: { category: categoryLabel(row.category) }
+                    "
+                  >
+                    @if (isPending(row.category)) {
+                      <span class="dr-spinner" aria-hidden="true"></span>
+                    }
+                    {{ 'supervisor.settings.dataRetention.saveButton' | transloco }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <!-- ============ Sekcja 2: dashboard "dane kwalifikujące się do usunięcia" ============ -->
+  <section class="dr-section">
+    <div class="dr-section__header">
+      <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.summaryTitle' | transloco }}</h2>
+      <button
+        type="button"
+        class="dr-btn dr-btn--ghost dr-btn--sm"
+        [disabled]="recomputing() || summaryLoading()"
+        (click)="recomputeSummary()"
+        [attr.aria-label]="'supervisor.settings.dataRetention.recomputeButtonAria' | transloco"
+      >
+        @if (recomputing()) {
+          <span class="dr-spinner" aria-hidden="true"></span>
+        }
+        {{ 'supervisor.settings.dataRetention.recomputeButton' | transloco }}
+      </button>
+    </div>
+
+    @if (summaryLoading()) {
+      <div class="dr-skeleton-wrapper dr-summary-grid">
+        @for (item of [1, 2, 3, 4]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (summaryLoadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.errorLoadSummary' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadSummary()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else {
+      <div class="dr-summary-grid">
+        @for (entry of summaries(); track entry.dataCategory) {
+          <div
+            class="dr-summary-card"
+            [class.dr-summary-card--pending]="!entry.computed"
+            [class.dr-summary-card--zero]="entry.computed && entry.eligibleRowCount === 0"
+            [class.dr-summary-card--eligible]="entry.computed && entry.eligibleRowCount > 0"
+          >
+            <div class="dr-summary-card__header">
+              <span class="dr-summary-card__icon" aria-hidden="true">
+                @if (!entry.computed) {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5l-4-4V4h8v3.5l-4 4z"
+                    />
+                  </svg>
+                } @else if (entry.eligibleRowCount === 0) {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                    />
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                }
+              </span>
+              <h3 class="dr-summary-card__category">{{ categoryLabel(entry.dataCategory) }}</h3>
+            </div>
+
+            @if (!entry.computed) {
+              <p class="dr-summary-card__status">
+                {{ 'supervisor.settings.dataRetention.summaryNotComputed' | transloco }}
+              </p>
+            } @else if (entry.eligibleRowCount === 0) {
+              <p class="dr-summary-card__status">
+                {{ 'supervisor.settings.dataRetention.summaryZeroEligible' | transloco }}
+              </p>
+            } @else {
+              <p class="dr-summary-card__count">
+                {{
+                  'supervisor.settings.dataRetention.summaryEligibleCount'
+                    | transloco: { count: entry.eligibleRowCount }
+                }}
+              </p>
+              @if (entry.oldestEligiblePeriod) {
+                <p class="dr-summary-card__meta">
+                  <span class="dr-summary-card__meta-label">
+                    {{ 'supervisor.settings.dataRetention.summaryOldestPeriod' | transloco }}
+                  </span>
+                  <span class="dr-summary-card__meta-value">
+                    {{ entry.oldestEligiblePeriod | date: 'MM.yyyy' }}
+                  </span>
+                </p>
+              }
+            }
+
+            @if (entry.computed && entry.computedAt) {
+              <p class="dr-summary-card__timestamp">
+                <span class="dr-summary-card__meta-label">
+                  {{ 'supervisor.settings.dataRetention.summaryComputedAt' | transloco }}
+                </span>
+                <span class="dr-summary-card__meta-value">
+                  {{ entry.computedAt | date: 'dd.MM.yyyy HH:mm' }}
+                </span>
+              </p>
+            }
+
+            <div class="dr-summary-card__actions">
+              <button
+                type="button"
+                class="dr-btn dr-btn--danger dr-btn--sm"
+                [disabled]="isPurgeDisabled(entry)"
+                (click)="openPurgeModal(entry)"
+                [attr.aria-label]="
+                  'supervisor.settings.dataRetention.purgeButtonAria'
+                    | transloco: { category: categoryLabel(entry.dataCategory) }
+                "
+                [title]="
+                  isPurgeUnsupported(entry.dataCategory)
+                    ? ('supervisor.settings.dataRetention.purgeUnsupportedHint' | transloco)
+                    : ''
+                "
+              >
+                @if (isPurging(entry.dataCategory)) {
+                  <span class="dr-spinner" aria-hidden="true"></span>
+                }
+                {{ 'supervisor.settings.dataRetention.purgeButton' | transloco }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ============ Sekcja 4: historia operacji usuwania (FE-107) ============ -->
+  <section class="dr-section">
+    <h2 class="dr-section__title">{{ 'supervisor.settings.dataRetention.history.title' | transloco }}</h2>
+
+    @if (historyLoading()) {
+      <div class="dr-skeleton-wrapper">
+        @for (item of [1, 2, 3]; track item) {
+          <div class="dr-skeleton-card"></div>
+        }
+      </div>
+    } @else if (historyLoadError()) {
+      <div class="dr-alert dr-alert--error">
+        {{ 'supervisor.settings.dataRetention.history.errorLoad' | transloco }}
+        <button type="button" class="dr-btn dr-btn--ghost dr-btn--sm" (click)="loadHistory()">
+          {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+        </button>
+      </div>
+    } @else if (historyEntries().length > 0) {
+      <div class="dr-table-wrap">
+        <table class="dr-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCategory' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnTrigger' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnRowsDeleted' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStatus' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStartedAt' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCompletedAt' | transloco }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of historyEntries(); track entry.purgeId) {
+              <tr>
+                <td class="dr-table__category">{{ categoryLabel(entry.dataCategory) }}</td>
+                <td>{{ triggerTypeLabel(entry.triggerType) }}</td>
+                <td>{{ entry.rowsDeleted ?? '—' }}</td>
+                <td>
+                  <span [class]="historyStatusBadgeClass(entry.status)">
+                    {{ historyStatusLabel(entry.status) }}
+                  </span>
+                  @if (entry.status === 'FAILED' && entry.errorMessage) {
+                    <span
+                      class="dr-badge__error-icon"
+                      tabindex="0"
+                      [title]="entry.errorMessage"
+                      [attr.aria-label]="
+                        ('supervisor.settings.dataRetention.history.errorTooltipAria' | transloco) +
+                        ': ' +
+                        entry.errorMessage
+                      "
+                      >!</span
+                    >
+                  }
+                </td>
+                <td>{{ entry.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                <td>{{ entry.completedAt ? (entry.completedAt | date: 'dd.MM.yyyy HH:mm') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <nav
+        class="dr-pagination"
+        [attr.aria-label]="'supervisor.settings.dataRetention.history.paginationLabel' | transloco"
+      >
+        <span class="dr-pagination__info" aria-live="polite">
+          @if (historyTotalElements() > 0) {
+            {{ 'supervisor.settings.dataRetention.history.showing' | transloco }}
+            {{ firstHistoryItemIndex() }}&ndash;{{ lastHistoryItemIndex() }} {{ 'common.of' | transloco }}
+            {{ historyTotalElements() }}
+            {{ 'supervisor.settings.dataRetention.history.ofEntries' | transloco }}
+          }
+        </span>
+        <div class="dr-pagination__controls">
+          <button
+            type="button"
+            class="dr-btn dr-btn--ghost dr-btn--sm"
+            (click)="onHistoryPrevPage()"
+            [disabled]="historyCurrentPage() === 0"
+            [attr.aria-label]="'common.previous' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            {{ 'common.previous' | transloco }}
+          </button>
+          <span class="dr-pagination__pages" aria-current="page">
+            {{ 'common.page' | transloco }} {{ historyCurrentPage() + 1 }} {{ 'common.of' | transloco }}
+            {{ historyTotalPages() }}
+          </span>
+          <button
+            type="button"
+            class="dr-btn dr-btn--ghost dr-btn--sm"
+            (click)="onHistoryNextPage()"
+            [disabled]="historyCurrentPage() + 1 >= historyTotalPages()"
+            [attr.aria-label]="'common.next' | transloco"
+          >
+            {{ 'common.next' | transloco }}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <div class="dr-empty-state" role="status" aria-live="polite">
+        <svg class="dr-empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M9 3v1H4v2h1v13c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"
+          />
+        </svg>
+        <p class="dr-empty-state__message">{{ 'supervisor.settings.dataRetention.history.emptyText' | transloco }}</p>
+        <p class="dr-empty-state__hint">{{ 'supervisor.settings.dataRetention.history.emptyHint' | transloco }}</p>
+      </div>
+    }
+  </section>
+
+  @if (purgeModalTarget(); as target) {
+    <app-purge-confirm-modal [target]="target" (confirmed)="onPurgeConfirmed()" (cancelled)="closePurgeModal()" />
+  }
+</div>

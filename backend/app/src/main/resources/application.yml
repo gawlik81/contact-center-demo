@@ -327,6 +327,27 @@ etl:
     fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:60000}
 
 # =============================================================================
+# Retencja danych – silnik usuwania (EPIC-29, BE-113) + job liczący dane do usunięcia (BE-112)
+# =============================================================================
+retention:
+  purge:
+    # Liczba wierszy usuwanych w jednym batchu na tabelę (LIMIT w zapytaniu DELETE) –
+    # ogranicza czas trzymania blokad na partycji współdzielonej przez innych tenantów.
+    batch-size: ${RETENTION_PURGE_BATCH_SIZE:100}
+  # Wyrażenie cron dla RetentionEvaluationJob (domyślnie: codziennie o 01:00 UTC, przed
+  # RecordingRetentionJob o 02:00 UTC).
+  evaluation-cron: ${RETENTION_EVALUATION_CRON:0 0 1 * * *}
+  # Wyrażenie cron dla PartitionMaintenanceJob (BE-114) - fallback Java @Scheduled zastępujący
+  # nieaktywny pg_cron (niedostępny w obrazie postgres:16-alpine), wywołuje codziennie
+  # create_next_month_partitions() (DB-052/V088) + dobudowuje bufor 3 miesięcy per tabela.
+  # Domyślnie 00:30 UTC, przed RetentionEvaluationJob (01:00 UTC).
+  partition-maintenance-cron: ${RETENTION_PARTITION_MAINTENANCE_CRON:0 30 0 * * *}
+  # Wyrażenie cron dla PartitionReclaimJob (BE-115, Poziom 2 – fizyczne DROP TABLE partycji;
+  # domyślnie: co niedzielę o 03:00 UTC — poza godzinami szczytu, po PartitionMaintenanceJob
+  # (00:30 UTC, BE-114) i pozostałych jobach retencji).
+  partition-reclaim-cron: ${RETENTION_PARTITION_RECLAIM_CRON:0 0 3 * * SUN}
+
+# =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)
 # Obsługuje zarówno AWS S3 jak i MinIO (path-style access)
 # =============================================================================

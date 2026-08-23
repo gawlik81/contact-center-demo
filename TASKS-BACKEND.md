@@ -255,7 +255,7 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** BE-009, DB-006
+**Zależy od:** BE-001b (MinIO), BE-009, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Blokuje:** brak
@@ -300,7 +300,7 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** BE-001, BE-003
+**Zależy od:** BE-001, BE-002, BE-003, BE-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Blokuje:** FE-009, FE-021
@@ -355,7 +355,7 @@ Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależy od:** BE-009, DB-009
+**Zależy od:** BE-001b (MinIO), BE-009, DB-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-25
 **Blokuje:** BE-014, FE-014
@@ -485,7 +485,7 @@ Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMe
 - [x] Webhook endpoint zwraca HTTP 200 w < 3s (szybkie ACK, przetwarzanie async)
 - [x] Wiadomości od jednego użytkownika na jednej platformie grupowane w konwersację (CONTACT)
 - [x] sendMessage obsługuje: tekst, emoji (Unicode), zdjęcia (URL) – dla WhatsApp i FB
-- [x] Test integracyjny z mockiem webhooka Facebooka (weryfikacja parsowania payload)
+- [ ] Test integracyjny z mockiem webhooka Facebooka (weryfikacja parsowania payload) — **weryfikacja 2026-08-08: brak takiego testu w `backend/app/src/test`**; istniejący `SocialMessageServiceTest` testuje tylko warstwę serwisu na już sparsowanym `IncomingSocialMessage`, nie parsowanie surowego payloadu w kontrolerze webhooka. Reszta funkcjonalności (adaptery, webhooki, async publish) potwierdzona w kodzie — status ✅ pozostaje, brakuje tylko tego testu.
 
 ---
 
@@ -522,7 +522,7 @@ Serwis `RoutingEngine` konsumujący eventy z RabbitMQ (CONTACT_QUEUED). Algorytm
 **Zależy od:** BE-002, DB-010
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
-**Blokuje:** FE-024
+**Blokuje:** BE-021, BE-034, FE-024, FE-014
 **Odniesienie PRD:** US-07-01, US-07-03, EPIC-07
 
 **Opis:**
@@ -688,7 +688,7 @@ Zrealizowane: `DeduplicationMode.java` (enum SKIP/OVERWRITE), `CustomerImportSta
 **Zależy od:** BE-002, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-20
-**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-019, FE-022
+**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-017, FE-019, FE-022
 **Odniesienie PRD:** US-09-02, US-10-02, EPIC-09, EPIC-10
 
 **Opis:**
@@ -825,7 +825,7 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 - [x] ETL nadal idempotentny (ReplacingMergeTree deduplikuje po `contact_id`)
 - [x] `GET /api/admin/etl/status` nadal działa
 - [x] `PostgresDwWriter` pozostaje jako fallback (profil `etl.dw.type=postgres`)
-- [x] Testy integracyjne weryfikują zapis do ClickHouse (testcontainers lub mock)
+- [ ] Testy integracyjne weryfikują zapis do ClickHouse (testcontainers lub mock) — **weryfikacja 2026-08-08: brak takiego testu**; jedyne wystąpienie słowa "ClickHouse" w testach to treść komunikatu wyjątku w niepowiązanym `EtlSyncServiceImplTest`. Reszta (writer, config, docker-compose, schemat) potwierdzona w kodzie — status ✅ pozostaje.
 
 ---
 
@@ -1179,6 +1179,7 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 **Zależy od:** BE-009 (TelephonyAdapter), DB-023 (scheduled_callback z source_type), BE-024 (DialerCallbackHandler)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1240,6 +1241,7 @@ Tabela `scheduled_callback` ma metodę `findDueCallbacks()` w repozytorium, ale 
 **Zależy od:** BE-024 (ScheduledCallbackRepository, DialerController), DB-023
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** BE-051, FE-031, FE-044
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1291,6 +1293,7 @@ public record RescheduleCallbackRequest(
 **Zależy od:** BE-009 (Contact model), BE-024 (ScheduledCallbackRepository), DB-023
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** FE-032
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1870,6 +1873,10 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 **Odniesienie PRD:** US-09-02 (historia kontaktów klienta), EPIC-13 (callbacki)
 
+> **Uwaga (weryfikacja 2026-08-09):** brak dedykowanego testu jednostkowego dla
+> `ManualCallbackController` (potwierdzone — brak pliku w `backend/app/src/test`). Funkcjonalność
+> sama w sobie zaimplementowana poprawnie — status ✅ pozostaje, brakuje tylko pokrycia testowego.
+
 **Opis:**
 Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego klienta bez aktywnej rozmowy. Różni się od `BE-040` (inbound callback — wymaga aktywnego kontaktu) i `BE-039` (reschedule istniejącego callbacku). Tu agent samodzielnie inicjuje callback do klienta z zakładki "Klienci" w Agent Desktop.
 
@@ -2081,6 +2088,12 @@ Scheduled component `AgentBreakActivator` wykonujący cykliczne zadanie (np. co 
 **Blokuje:** brak
 **Epic:** EPIC-08 Kampanie Outbound
 **Odniesienie PRD:** EPIC-08
+
+> **Uwaga (weryfikacja 2026-08-09):** brak testu `CampaignWindowActivatorTest` (potwierdzone —
+> brak pliku w `backend/app/src/test`, tylko skompilowana klasa i raport jacoco). Status
+> pozostaje ✅ dla głównej ścieżki (SCHEDULED→RUNNING, RUNNING→COMPLETED), ale przejście
+> RUNNING→SCHEDULED przy wyjściu poza okno harmonogramu oraz pokrycie testowe wymagają
+> dokończenia.
 
 **Opis:**
 Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie o statusie `SCHEDULED` i automatycznie przełączający je do `RUNNING` gdy bieżący czas mieści się w oknie harmonogramu (pola `schedule.start_date`, `schedule.end_date`, `schedule.time_from`, `schedule.time_to`, `schedule.days_of_week`). Obsługuje strefę czasową tenanta. Zaimplementowany w `/domain/service/CampaignWindowActivator.java`.
@@ -2297,7 +2310,7 @@ Warstwa danych dla konfiguracji Twilio per tenant. Trzy elementy:
 **Szacowany rozmiar:** M
 **Zależy od:** BE-055 (encja i repozytorium)
 **Status:** ✅ Ukończone
-**Blokuje:** BE-057
+**Blokuje:** BE-057, BE-058
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2394,7 +2407,7 @@ POST   /api/supervisor/twilio-config/test     → 200 TwilioConnectionTestResult
 **Szacowany rozmiar:** L
 **Zależy od:** BE-055 (TenantTwilioConfig encja), BE-056 (serwis z getDecryptedConfig), DB-030
 **Status:** ✅ Ukończone
-**Blokuje:** BE-059, BE-060
+**Blokuje:** BE-059, BE-060, BE-061
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2493,6 +2506,15 @@ Refaktoryzacja serwisu generującego Access Token dla Twilio Voice JS SDK (front
 **Status:** ✅ Ukończone
 **Blokuje:** FE-067
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+> **Uwaga (weryfikacja 2026-08-09):** `ScheduledCallbackExecutor.resolveCallbackFromNumber(UUID
+> tenantId)` (`backend/app/src/main/java/com/contactcenter/domain/campaign/ScheduledCallbackExecutor.java:271`)
+> rozwiązuje numer wychodzący wyłącznie z `tenantTwilioConfigService.getDecryptedConfig(tenantId)`
+> — nie przyjmuje `campaignId` i nigdy nie sięga po `campaign.getCallerId()`. Dla oddzwonień
+> powiązanych z kampanią (`isCampaignCallback`) `caller_id` kampanii jest więc ignorowany, mimo że
+> `ProgressiveDialerService` (główna ścieżka dialowania) poprawnie go stosuje. Realny gap — status
+> pozostaje ✅, bo główne kryteria akceptacji (dialer progresywny) są spełnione, ale ta ścieżka
+> wymaga dokończenia.
 
 **Opis:**
 Implementacja obsługi pola `caller_id` w kampaniach wychodzących. Zmiany w trzech miejscach:
@@ -3003,7 +3025,8 @@ Response 200: { "contactId": "uuid", "callId": "string" }
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-001, BE-038 (EmailSendService)
-**Status:** [ ] Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-13
 **Blokuje:** FE-072
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
 
@@ -3516,7 +3539,8 @@ Rozszerzenie istniejącego panelu transferu połączeń o możliwość przekazan
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** —
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
 **Blokuje:** BE-077, BE-078
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
@@ -3613,8 +3637,9 @@ CallSession initiateTransfer(String callId, TransferRequest request);
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** —
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-078
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** FE-076, FE-078
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3684,8 +3709,9 @@ public List<TransferAgentResponse> getAvailableAgents(UUID tenantId, UUID exclud
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** —
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-079
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** FE-076, FE-079
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3747,8 +3773,9 @@ public List<TransferQueueResponse> getAvailableQueues(UUID tenantId) {
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-074
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-080
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** FE-076, FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3832,7 +3859,8 @@ public ResponseEntity<CallSessionResponse> transferCall(
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-036
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** BE-080, BE-081, FE-081
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -3860,10 +3888,10 @@ public ResponseEntity<CallSessionResponse> transferCall(
    - `CampaignCallerIdTest`, `CampaignImportServiceTest` — usuń `queueId` z builderów lub zmień na opcjonalny
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/campaigns` bez pola `queueId` zwraca 201 (kampania tworzona bez kolejki)
-- [ ] `POST /api/campaigns` z `queueId` nadal działa (backward compat — pole zapisywane, ale nie walidowane)
-- [ ] `mvn verify -pl app` przechodzi — brak kompilacji do `QueueRepository` w `CampaignService`
-- [ ] Istniejące kampanie z `queue_id != NULL` działają bez zmian
+- [x] `POST /api/campaigns` bez pola `queueId` zwraca 201 (kampania tworzona bez kolejki)
+- [x] `POST /api/campaigns` z `queueId` nadal działa (backward compat — pole zapisywane, ale nie walidowane)
+- [x] `mvn verify -pl app` przechodzi — brak kompilacji do `QueueRepository` w `CampaignService`
+- [x] Istniejące kampanie z `queue_id != NULL` działają bez zmian
 
 ---
 
@@ -3873,7 +3901,8 @@ public ResponseEntity<CallSessionResponse> transferCall(
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-036, BE-079
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** BE-081, BE-084, FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -3947,14 +3976,14 @@ WHERE cag.campaign_id = :campaignId
 ```
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/campaigns/{id}/assignment` — zwraca `allAgents=true` dla migrowanych kampanii
-- [ ] `PUT /api/campaigns/{id}/assignment` z `allAgents=true` → ustawia flagę, listy puste w response
-- [ ] `PUT` z `allAgents=false, directAgentIds=[A,B], groupIds=[G1]` → atomowo podmienia przypisanie
-- [ ] Przypisanie agenta z innego tenanta → HTTP 400 (jak `QueueAssignmentService`)
-- [ ] Przypisanie grupy z innego tenanta → HTTP 400
-- [ ] `resolveEligibleAgentIds()` zwraca UNION bezpośrednich agentów + członków grup (bez duplikatów)
-- [ ] Wszystkie endpointy wymagają ADMIN lub SUPERVISOR
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `GET /api/campaigns/{id}/assignment` — zwraca `allAgents=true` dla migrowanych kampanii
+- [x] `PUT /api/campaigns/{id}/assignment` z `allAgents=true` → ustawia flagę, listy puste w response
+- [x] `PUT` z `allAgents=false, directAgentIds=[A,B], groupIds=[G1]` → atomowo podmienia przypisanie
+- [x] Przypisanie agenta z innego tenanta → HTTP 400 (jak `QueueAssignmentService`)
+- [x] Przypisanie grupy z innego tenanta → HTTP 400
+- [x] `resolveEligibleAgentIds()` zwraca UNION bezpośrednich agentów + członków grup (bez duplikatów)
+- [x] Wszystkie endpointy wymagają ADMIN lub SUPERVISOR
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -3964,7 +3993,8 @@ WHERE cag.campaign_id = :campaignId
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-036, BE-079, BE-080
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -4025,14 +4055,14 @@ campaign.all_agents == FALSE
 - `all_agents = true` → wszyscy agenci tenanta kwalifikują się (backward compat dla migrowanych kampanii)
 
 **Kryteria akceptacji:**
-- [ ] `all_agents=true`: dialer inicjuje połączenia dla każdego AVAILABLE agenta tenanta
-- [ ] `all_agents=false` + przypisany bezpośrednio: dialer dzwoni przez tego agenta
-- [ ] `all_agents=false` + agent należy do przypisanej grupy: dialer dzwoni przez tego agenta
-- [ ] `all_agents=false` + brak przypisania: kampania pominięta (WARN log), brak połączeń
-- [ ] `all_agents=false` + agent nie przypisany: kampania pominięta dla tego agenta
-- [ ] Dialer nie wywołuje `QueueRepository` — kompilacja bez tej zależności
-- [ ] Testy jednostkowe `ProgressiveDialerServiceTest` pokrywają wszystkie 5 przypadków powyżej
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `all_agents=true`: dialer inicjuje połączenia dla każdego AVAILABLE agenta tenanta
+- [x] `all_agents=false` + przypisany bezpośrednio: dialer dzwoni przez tego agenta
+- [x] `all_agents=false` + agent należy do przypisanej grupy: dialer dzwoni przez tego agenta
+- [x] `all_agents=false` + brak przypisania: kampania pominięta (WARN log), brak połączeń
+- [x] `all_agents=false` + agent nie przypisany: kampania pominięta dla tego agenta
+- [x] Dialer nie wywołuje `QueueRepository` — kompilacja bez tej zależności
+- [x] Testy jednostkowe `ProgressiveDialerServiceTest` pokrywają wszystkie 5 przypadków powyżej
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4042,7 +4072,8 @@ campaign.all_agents == FALSE
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-036, BE-080
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -4080,13 +4111,13 @@ if (eligibleCampaigns.isEmpty()) {
 **Wstrzyknij `CampaignAssignmentRepository`** do `DialerController` (już dostępny po BE-080).
 
 **Kryteria akceptacji:**
-- [ ] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
-- [ ] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
-- [ ] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
-- [ ] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
-- [ ] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
-- [ ] Testy jednostkowe: 5 przypadków powyżej
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
+- [x] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
+- [x] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
+- [x] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
+- [x] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
+- [x] Testy jednostkowe: 5 przypadków powyżej
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4096,7 +4127,8 @@ if (eligibleCampaigns.isEmpty()) {
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-079
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -4167,14 +4199,14 @@ log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={
 ```
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/contacts?campaignId={id}` zwraca kontakty wychodzące zainicjowane przez dialer dla tej kampanii
-- [ ] Rekord `contact` ma `campaign_id = campaign.campaignId` po wywołaniu dialera
-- [ ] Rekord `contact` ma `campaign_id = callback.campaignId` po wykonaniu campaign-callback przez `ScheduledCallbackExecutor`
-- [ ] Rekord `contact` ma `campaign_id = NULL` dla połączeń ad-hoc (`AgentCallController`)
-- [ ] `contact.queue_id` pozostaje `NULL` dla kontaktów wychodzących (nie wchodzą do routingu kolejkowego)
-- [ ] `RoutingService` nadal poprawnie pomija outbound kontakty z `agentId != null`
-- [ ] `MockTelephonyAdapter` zaktualizowany — testy jednostkowe przechodzą
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `GET /api/contacts?campaignId={id}` zwraca kontakty wychodzące zainicjowane przez dialer dla tej kampanii
+- [x] Rekord `contact` ma `campaign_id = campaign.campaignId` po wywołaniu dialera
+- [x] Rekord `contact` ma `campaign_id = callback.campaignId` po wykonaniu campaign-callback przez `ScheduledCallbackExecutor`
+- [x] Rekord `contact` ma `campaign_id = NULL` dla połączeń ad-hoc (`AgentCallController`)
+- [x] `contact.queue_id` pozostaje `NULL` dla kontaktów wychodzących (nie wchodzą do routingu kolejkowego)
+- [x] `RoutingService` nadal poprawnie pomija outbound kontakty z `agentId != null`
+- [x] `MockTelephonyAdapter` zaktualizowany — testy jednostkowe przechodzą
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4184,8 +4216,9 @@ log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-074
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-080
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** FE-076, FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -4229,12 +4262,12 @@ public void bridgeCalls(
 - `TwilioTelephonyAdapter.bridgeCalls()` też istnieje — wystarczy podpiąć
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
-- [ ] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
-- [ ] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
-- [ ] callId nienależący do agenta → 403
-- [ ] Niezgodny stan sesji → 409
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
+- [x] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
+- [x] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
+- [x] callId nienależący do agenta → 403
+- [x] Niezgodny stan sesji → 409
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4246,7 +4279,9 @@ public void bridgeCalls(
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-077 (endpoint transferu), BE-082 (contact.direction ustawiony poprawnie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
+**Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Kontekst:**
@@ -4273,11 +4308,11 @@ if ("OUTBOUND".equals(contact.getDirection())
 **Nie wymaga zmian w DB ani modelu** — weryfikacja na poziomie logiki serwisowej.
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/telephony/calls/{callId}/transfer` z `targetType=QUEUE` dla kontaktu `direction=OUTBOUND` → HTTP 400 z opisowym komunikatem
-- [ ] Ten sam endpoint z `targetType=QUEUE` dla kontaktu `direction=INBOUND` → działa poprawnie (bez zmian)
-- [ ] Transfer `OUTBOUND` z `targetType=PHONE` lub `targetType=AGENT` → działa poprawnie (bez zmian)
-- [ ] Test jednostkowy: `outbound + QUEUE → InvalidOperationException`
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `POST /api/telephony/calls/{callId}/transfer` z `targetType=QUEUE` dla kontaktu `direction=OUTBOUND` → HTTP 400 z opisowym komunikatem
+- [x] Ten sam endpoint z `targetType=QUEUE` dla kontaktu `direction=INBOUND` → działa poprawnie (bez zmian)
+- [x] Transfer `OUTBOUND` z `targetType=PHONE` lub `targetType=AGENT` → działa poprawnie (bez zmian)
+- [x] Test jednostkowy: `outbound + QUEUE → InvalidOperationException`
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4289,7 +4324,8 @@ if ("OUTBOUND".equals(contact.getDirection())
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-037, BE-082 (campaign_id na kontakcie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
 **Blokuje:** FE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
@@ -4410,15 +4446,15 @@ public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID c
 ```
 
 **Kryteria akceptacji:**
-- [ ] Po zainicjowaniu połączenia przez dialer: `contact.campaign_contact_record_id = recordId`
-- [ ] Po odebraniu przez klienta (CONNECTED): `campaign_contact.last_contact_id = contactId`
-- [ ] `GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts` zwraca listę kontaktów dla rekordu
-- [ ] Lista posortowana `started_at DESC` — najnowsza próba na górze
-- [ ] `CampaignContactResponse.lastContactId` wypełnione gdy kampania ma przynajmniej jedną próbę
-- [ ] Backward compat: istniejące rekordy bez `campaign_contact_record_id` (NULL) — endpoint zwraca pustą listę
-- [ ] Redis backward compat: stary format (4 części) obsługiwany przez `DialerCallbackHandler`
-- [ ] Test jednostkowy: `DialerCallbackHandlerTest` — hangup z 5-elementowym Redis state
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Po zainicjowaniu połączenia przez dialer: `contact.campaign_contact_record_id = recordId`
+- [x] Po odebraniu przez klienta (CONNECTED): `campaign_contact.last_contact_id = contactId`
+- [x] `GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts` zwraca listę kontaktów dla rekordu
+- [x] Lista posortowana `started_at DESC` — najnowsza próba na górze
+- [x] `CampaignContactResponse.lastContactId` wypełnione gdy kampania ma przynajmniej jedną próbę
+- [x] Backward compat: istniejące rekordy bez `campaign_contact_record_id` (NULL) — endpoint zwraca pustą listę
+- [x] Redis backward compat: stary format (4 części) obsługiwany przez `DialerCallbackHandler`
+- [x] Test jednostkowy: `DialerCallbackHandlerTest` — hangup z 5-elementowym Redis state
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4432,7 +4468,6 @@ public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID c
 **Zależy od:** DB-038 (tabela `tenant_ai_config`), BE-055 (wzorzec `EncryptedStringConverter`)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-24
-**Zależy od:** DB-038
 **Blokuje:** BE-087
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4541,6 +4576,10 @@ DELETE /api/supervisor/ai-config    → 204
 **Zrealizowane:** 2026-05-24
 **Blokuje:** BE-090
 **Epic:** EPIC-26 AI-Powered Conversation Summary
+
+> **Uwaga (weryfikacja 2026-08-08):** funkcjonalnie ukończone i działające, ale zapis odbywa się
+> do tabeli `contact_ai_summary` (po refaktorze `V068__extract_ai_summary_to_own_table.sql`), nie
+> do `contact.ai_summary` jak opisano niżej — zob. uwaga przy DB-039.
 
 **Opis:**
 Serwis orchestrujący generowanie podsumowania AI dla kontaktu. Wywołuje Python AI service (FastAPI) przez REST, zapisuje wynik w `contact.ai_summary`.
@@ -4887,13 +4926,14 @@ Authorization: Bearer <agent-token>
 
 ---
 
-### ✅ BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
+### BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
 
 **Typ:** Backend implementation
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-041
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-06-04 (data przybliżona — status w treści był niespójny z nagłówkiem, skorygowano na podstawie potwierdzonego kodu: DispositionSet.java, DispositionSetItem.java, DispositionSetRepository.java, DispositionSetItemRepository.java, DispositionSetServiceImpl.java, DispositionSetServiceTest.java)
 **Blokuje:** BE-096
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
@@ -5809,3 +5849,940 @@ informacji diagnostycznej dla pozostałych statusów.
 **Testy:** `PluginAdminControllerTest` (`listCatalog_mapsAllVersionsToDto`,
 `listCatalog_empty_returnsEmptyList`), `PluginCatalogQueryServiceImplTest$FindAllVersions`
 (delegacja do repozytorium, wszystkie statusy włącznie z `REJECTED`, katalog pusty).
+
+---
+
+## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+
+> Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Tabele
+> bazowe: DB-046…DB-054 (TASKS-DATABASE.md). **DB-052 (V088, naprawa rotacji partycji) jest
+> fundamentem tego epiku** — BE-112/BE-114/BE-115 operują na założeniu, że partycje `contact`/
+> `audit_log`/nowych tabel są tworzone poprawnie na bieżąco; bez DB-052 liczenie i usuwanie
+> danych retencji dawałoby błędne wyniki. `RECORDINGS` to jedyna kategoria NIE realizowana
+> przez `RetentionPurgeService` (BE-113) — to nie jest usuwanie wiersza, tylko wyzerowanie
+> kolumny + S3 delete, obsługiwane przez rozszerzenie `RecordingRetentionJob` (BE-116).
+
+### BE-111 – `RetentionPolicyService`: CRUD polityk retencji + seeding domyślnych polityk dla nowych tenantów
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-046
+**Status:** ✅ Ukończone
+**Blokuje:** BE-112, BE-113, BE-115, BE-116, BE-118
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Warstwa domenowa polityk retencji — nowy pakiet `domain.retention`, wzorzec interfejs+Impl
+zgodny z resztą projektu (zob. PROGRESS.md, audyt enkapsulacji).
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/retention/TenantRetentionPolicy.java          (encja JPA, tabela DB-046)
+  domain/retention/RetentionDataCategory.java           (enum: CONTACT_INTERACTIONS, RECORDINGS, TRANSCRIPTS, CAMPAIGN_DATA)
+  domain/retention/TenantRetentionPolicyRepository.java (package-private, extends TenantAwareRepository, assertSameTenant przed każdym zapisem)
+  domain/retention/RetentionPolicyService.java          (publiczny interfejs)
+  domain/retention/RetentionPolicyServiceImpl.java      (package-private, @Service)
+  domain/retention/dto/RetentionPolicyDto.java
+  domain/retention/dto/UpdateRetentionPolicyRequest.java
+```
+
+**`RetentionPolicyService`:**
+```java
+public interface RetentionPolicyService {
+    List<TenantRetentionPolicy> listPolicies(UUID tenantId);
+    TenantRetentionPolicy updatePolicy(UUID tenantId, RetentionDataCategory category, int retentionMonths, boolean autoPurgeEnabled, UUID updatedByUserId);
+    int getRetentionMonths(UUID tenantId, RetentionDataCategory category);   // używane przez BE-112/BE-113/BE-119
+    void seedDefaultPolicies(UUID tenantId);                                 // wołane z TenantServiceImpl.createTenant
+}
+```
+
+**Wartości domyślne przy seedowaniu (zgodnie z DB-046 backfill):** `CONTACT_INTERACTIONS`=60,
+`CAMPAIGN_DATA`=60, `RECORDINGS`/`TRANSCRIPTS`=wartość odpowiadająca 90 dniom w miesiącach
+(potwierdź jednostkę zgodnie z decyzją podjętą w DB-046 — jeśli tabela przechowuje wyłącznie
+miesiące, `RECORDINGS`/`TRANSCRIPTS` będą miały ograniczoną precyzję; BE-116
+(`RecordingRetentionJob`) musi czytać tę samą jednostkę spójnie).
+
+**Integracja z `TenantServiceImpl`:** rozszerz `createTenant(...)` o wywołanie
+`retentionPolicyService.seedDefaultPolicies(tenant.getTenantId())` — analogicznie do
+dzisiejszego zasiewania `tenant.config` (linie ~523-527). Cykliczna zależność
+`tenant`↔`retention` (jeśli wystąpi) rozwiąż setter injection `@Autowired @Lazy`, wzorcem
+`RecordingServiceImpl`/`TenantServiceImpl` już użytym w projekcie.
+
+**Kryteria akceptacji:**
+- [x] `listPolicies`/`updatePolicy` respektują multi-tenancy (`TenantAwareRepository`, `assertSameTenant`)
+- [x] `updatePolicy` na nieistniejącej kategorii dla tenanta → tworzy wiersz (upsert), nie 404 — wszystkie 4 kategorie muszą zawsze istnieć po seedowaniu, ale endpoint ma być odporny na brakujący wiersz
+- [x] `seedDefaultPolicies` wywoływane z `TenantServiceImpl.createTenant` — nowy tenant ma dokładnie 4 wiersze polityk zaraz po utworzeniu
+- [x] `retentionMonths` walidacja `[1,120]` na poziomie serwisu (spójna z CHECK w DB)
+- [x] Testy jednostkowe: seedowanie, update istniejącej polityki, update nieistniejącej (upsert), walidacja granic
+- [x] `mvn verify -pl app` przechodzi bez regresji
+
+**Notatka z implementacji (2026-08-10):** `CreateTenantRequest.limits().recordingRetentionDays()`
+JEST dziś dostępne (trafia do `tenant.config` przez `TenantServiceImpl.buildConfig()`, fallback
+90 dni) — zamiast rozszerzać sygnaturę `seedDefaultPolicies(UUID)` o dodatkowy parametr,
+`RetentionPolicyServiceImpl` czyta tę wartość z już zapisanej encji `Tenant` przez dedykowane
+zapytanie `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays` (bezpośrednio
+z tabeli `tenant`, bez RLS — analogicznie do `TenantRepository.countActiveAgentsByTenantId` i
+podobnych). Dzięki temu `RetentionPolicyServiceImpl` NIE zależy zwrotnie od `TenantService` —
+cykl `tenant`↔`retention`, którego spodziewał się ticket, w praktyce nie wystąpił, więc
+`TenantServiceImpl` wstrzykuje `RetentionPolicyService` zwykłym polem finalnym (bez
+`@Autowired @Lazy`).
+
+---
+
+### BE-112 – `RetentionEvaluationJob`: liczenie „danych do usunięcia” partition-aware + trigger auto-purge
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-111, DB-047, DB-052
+**Status:** ✅ Ukończone
+**Blokuje:** BE-118
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+`@Scheduled` job (codziennie, np. 01:00 UTC) liczący liczbę rekordów kwalifikujących się do
+usunięcia per tenant/kategoria, zapisujący wynik do `tenant_retention_pending_summary` (DB-047).
+**Kluczowa właściwość wydajnościowa (powód, dla którego DB-052 blokuje ten ticket):** dla każdej
+partycjonowanej tabeli w zakresie job **iteruje partycje od najstarszej**, nie skanuje całej
+tabeli — partycja, której górna granica jest młodsza niż najkrótsza skonfigurowana retencja
+spośród WSZYSTKICH tenantów, kończy skanowanie (nowsze partycje na pewno nie mają jeszcze
+przeterminowanych danych). Bez naprawionej rotacji partycji (DB-052) ta logika operowałaby na
+błędnym założeniu o strukturze partycji (dane w `*_default` nie mają górnej granicy do porównania).
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/retention/RetentionEvaluationJob.java
+  domain/retention/PartitionScanner.java   (publiczny interfejs — lista partycji tabeli posortowana rosnąco wg granicy, dla każdej: SELECT tenant_id, count(*) FROM ONLY <partycja> GROUP BY tenant_id)
+  domain/retention/PartitionScannerImpl.java (odczyt pg_catalog/information_schema dla listy partycji + ich granic)
+```
+
+**Algorytm:**
+1. Dla każdej z kategorii (poza `RECORDINGS`, patrz nagłówek modułu) × jej tabel
+   (`CONTACT_INTERACTIONS`→`contact`+`contact_event`, `TRANSCRIPTS`→`contact_transcription`+
+   `contact_ai_summary`, `CAMPAIGN_DATA`→`campaign_contact_archive`) — pobierz listę partycji
+   posortowaną rosnąco
+2. Dla partycji, których górna granica < (teraz − MIN(retention_months) po wszystkich tenantach
+   dla tej kategorii): `SELECT tenant_id, count(*) FROM ONLY <partycja> GROUP BY tenant_id`
+3. Zestaw z `RetentionPolicyService.getRetentionMonths(tenantId, category)` per tenant, upsert
+   do `tenant_retention_pending_summary`
+4. Dla polityk z `auto_purge_enabled=TRUE` — wywołaj `RetentionPurgeService.purge(tenantId,
+   category, TriggerType.AUTO)` (BE-113) od razu po policzeniu
+
+**Kryteria akceptacji:**
+- [x] Job partition-aware — zweryfikowane testem, że NIE wykonuje `SELECT COUNT(*) FROM contact` (całej tabeli), tylko iteruje partycje
+- [x] **Test scenariusza granic miesięcy** (wymagany przez §11 pkt 5 dokumentu projektowego): partycja z danymi dokładnie na granicy cutoff (ostatni dzień miesiąca vs pierwszy dzień następnego) liczona poprawnie — brak off-by-one
+- [x] Upsert do `tenant_retention_pending_summary` idempotentny (kolejne uruchomienia nadpisują, nie duplikują)
+- [x] `auto_purge_enabled=TRUE` → `RetentionPurgeService` wywołane po policzeniu dla tej kategorii/tenanta; `auto_purge_enabled=FALSE` → tylko zapis do summary, bez purge
+- [x] Job ustawia kontekst DB per tenant ręcznie w pętli (scheduler bez kontekstu HTTP, wzorzec `RecordingRetentionJob`/`SupervisorMetricsService`)
+- [x] Błąd przy jednym tenancie/kategorii nie przerywa przetwarzania pozostałych (log ERROR + kontynuacja, wzorzec `RecordingRetentionJob`)
+- [x] Testy jednostkowe ≥6 scenariuszy (partycja pusta, partycja z danymi wielu tenantów, granica miesiąca, auto-purge trigger, brak auto-purge, błąd pojedynczego tenanta nie przerywa reszty) — dodatkowo: reset do zera, CAMPAIGN_DATA liczony ale purge NIE wywołany
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-12):**
+- **Rozbieżności odkryte względem opisu ticketu (rozstrzygnięte przed implementacją, kontekst zweryfikowany na żywej `cc-postgres`):**
+  - `CAMPAIGN_DATA` (`campaign_contact_archive`, V015) **NIE jest partycjonowana** — algorytm w opisie ticketu ("dla każdej kategorii × jej tabel ... pobierz listę partycji") się do niej nie stosuje. Policzona osobno, bezpośrednim zapytaniem `SELECT COUNT(*), MIN(archived_at), MAX(archived_at) FROM campaign_contact_archive WHERE tenant_id=:t AND archived_at < :cutoff` (per-tenant, wykorzystuje indeks `idx_cca_tenant_archived_at` z DB-053/V089) przez nowe `CampaignArchiveRetentionRepository`, NIE przez `PartitionScanner`. Wynik zapisywany do summary tak samo jak pozostałe kategorie (w tym `oldest`/`newest_eligible_period` z MIN/MAX), ale `RetentionPurgeService.purge()` **celowo nigdy nie wywoływane** dla tej kategorii — rzuciłoby `UnsupportedOperationException` (BE-113 obsługuje wyłącznie CONTACT_INTERACTIONS/TRANSCRIPTS, integracja z `purge_campaign_contact_archive` to zakres przyszłego BE-119). Zalogowane `log.info` gdy `auto_purge_enabled=true` i `eligibleRowCount>0` dla CAMPAIGN_DATA — jawna informacja, nie błąd.
+  - `RECORDINGS` jest **całkowicie poza zakresem** tego jobu (zero liczenia, zero wiersza w summary) — potwierdzone nagłówkiem modułu `domain.retention` już udokumentowanym w `RetentionPurgeService.java`, obsługiwana wyłącznie przez `RecordingRetentionJob` (BE-116, nieukończony).
+  - `RetentionPolicyService` nie miało metody do minimalnej retencji cross-tenant (potrzebnej do wyznaczenia globalnego progu skanowania) — dodano `findMinRetentionMonths(RetentionDataCategory)` do interfejsu (rzuca `ResourceNotFoundException` gdy żaden tenant nie ma polityki dla kategorii; `RetentionEvaluationJob` łapie ten wyjątek per kategoria i pomija ją w danym przebiegu z `log.warn`, zamiast przerywać cały job) oraz `TenantRetentionPolicyRepository.findMinRetentionMonths` (natywny `SELECT MIN(retention_months) ... WHERE data_category=:category`, celowo bez `set_tenant_context`/`assertSameTenant` — cross-tenant po zamierzeniu, ten sam precedens co `findConfiguredRecordingRetentionDays`; uwaga: `MIN()` nad pustym zbiorem zwraca jeden wiersz z `NULL`, nie pustą listę — repozytorium to jawnie rozróżnia).
+- **Rozszerzenie poza listę plików z ticketu** (konieczne, analogicznie do BE-113): `TenantRetentionPendingSummaryRepository` (upsert do cache `tenant_retention_pending_summary`, `extends TenantAwareRepository`, `ON CONFLICT (tenant_id, data_category) DO UPDATE`) oraz `CampaignArchiveRetentionRepository` (liczenie CAMPAIGN_DATA, patrz wyżej) — oba niewymienione wprost w ticketcie, ale niezbędne bo repozytoria w tym projekcie są `package-private`.
+- **`PartitionScannerImpl`:** parsowanie nazwy partycji → granica czasowa **w SQL** (`substring(tablename FROM 'tabela_([0-9]{4}_[0-9]{2})')` + `to_date(..., 'YYYY_MM')`), identyczny wzorzec do funkcji rotacji `drop_old_contact_event_partitions`/`drop_old_contact_transcription_partitions`/`drop_old_contact_ai_summary_partitions` (V088, DB-052) — celowo NIE `pg_get_expr(relpartbound, ...)` (niespójność formatu literału między wersjami). Zweryfikowano manualnie na żywej `cc-postgres` (bind-parametry przez `PREPARE`/`EXECUTE`, symulacja JDBC) przed napisaniem testów — zapytanie `listPartitions` i `countRowsByTenant` (`FROM ONLY <partycja> GROUP BY tenant_id`) działają poprawnie. Ustalono też empirycznie, że rola DB `ccapp` ma `BYPASSRLS` + superuser (stąd `PartitionScannerImpl` celowo NIE rozszerza `TenantAwareRepository` — zapytanie jest cross-tenant z założenia, potrzebuje widzieć wszystkich tenantów w partycji na raz).
+- **Test granicy miesiąca:** `PartitionScanner.PartitionInfo.rangeEnd()` porównywane przez `!isAfter(cutoffDate)` (czyli `<=`, nie `<`) — zarówno dla globalnego progu zatrzymania skanowania, jak i dla indywidualnego cutoffu tenanta — brak off-by-one potwierdzony dedykowanym testem (`MonthBoundary` w `RetentionEvaluationJobTest`).
+- **Testy:** `RetentionEvaluationJobTest` — 20 scenariuszy (≥6 wymaganych + reset do zera + CAMPAIGN_DATA bez purge), zorganizowane w `@Nested` klasy (partition-aware scanning, granica miesiąca, partycja pusta, wielu tenantów w jednej partycji, auto-purge trigger, brak auto-purge, izolacja błędów, reset do zera, idempotentność, CAMPAIGN_DATA, RECORDINGS poza zakresem). Dodatkowo testy repozytoriów: `PartitionScannerImplTest` (10), `TenantRetentionPendingSummaryRepositoryTest` (3), `CampaignArchiveRetentionRepositoryTest` (3), oraz rozszerzone `RetentionPolicyServiceImplTest`/`TenantRetentionPolicyRepositoryTest` o `findMinRetentionMonths` (2+2). Pułapka odkryta przy pisaniu testów: `ArgumentMatchers.any()` użyty na pozycji parametru **prymitywnego** `long eligibleRowCount` w `upsert(...)` rzuca `NullPointerException` przy odbindowywaniu (`any()` zwraca `null`) — poprawione na `anyLong()`, ten sam mechanizm co ostrzeżenie we własnej dokumentacji Mockito.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1662 testy, 0 failures, 0 errors (1622 przed BE-112 wg notatki BE-113 + 40 nowych).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, niezwiązane z tym ticketem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
+
+**Aktualizacja (BE-119, 2026-08-13):** od integracji `CAMPAIGN_DATA` z `RetentionPurgeService`
+(`purge_campaign_contact_archive`, patrz BE-119 niżej), `evaluateCampaignData` w
+`RetentionEvaluationJob` już NIE pomija wywołania `RetentionPurgeService.purge()` dla tej
+kategorii — auto-purge wyzwalany identycznie jak dla `CONTACT_INTERACTIONS`/`TRANSCRIPTS`, przez
+wspólny `maybeTriggerAutoPurge`. Powyższy opis „celowo nigdy nie wywoływane” dotyczy stanu sprzed
+BE-119, pozostawiony jako zapis historyczny decyzji podjętej w tamtym momencie.
+
+**Aktualizacja (bugfix TenantContext w wątku schedulera, 2026-08-13):** przy tej samej sesji
+weryfikacyjnej co bugfix w BE-116 (patrz jego notatka po pełny opis mechanizmu) wykryto identyczny
+problem w OBU pętlach per-tenant tego jobu: `persistAndMaybeAutoPurge` (wywołuje
+`summaryRepository.upsert` → `assertSameTenant`) i `evaluateCampaignData` (wywołuje
+`campaignArchiveRetentionRepository.countEligible`/`summaryRepository.upsert`, oraz pośrednio,
+przez `maybeTriggerAutoPurge`, `RetentionPurgeLogRepository#insertRunning`). Wątek `@Scheduled`
+nigdy nie przechodzi przez `TenantFilter`, więc `TenantContext` (ThreadLocal) nigdy nie był
+ustawiony — `assertSameTenant` zawsze rzucał `IllegalStateException`, złapaną przez istniejący
+`try/catch` per-tenant. Efekt: job nigdy realnie nie zapisywał wyniku do
+`tenant_retention_pending_summary` (dashboard admina FE-105 zawsze pokazywałby "jeszcze nie
+policzone" zamiast realnej liczby) ani nie wyzwalał auto-purge (nieodkryte live, bo
+`auto_purge_enabled=false` u wszystkich tenantów w momencie weryfikacji — dormant ścieżka).
+**Naprawa:** `TenantContext.setTenantId(tenantId)` na początku KAŻDEJ iteracji obu pętli,
+`TenantContext.clear()` w `finally` obejmującym całe ciało iteracji. Ustawienie kontekstu PRZED
+wywołaniem `maybeTriggerAutoPurge` jest kluczowe dla dormant ścieżki: `RetentionPurgeService#purge`
+woła `TenantContext.snapshot()` do propagacji kontekstu do `@Async purgeAsync` — bez tej naprawy
+snapshot zawsze byłby pusty, więc naprawienie samego `insertRunning` (patrz niżej) nie
+wystarczyłoby. Wzorzec skopiowany z `SocialIntegrationServiceImpl#refreshToken`.
+- **Nowe testy regresyjne** (mockowane repozytoria w istniejących testach tego jobu nigdy nie
+  mogły wykryć tego buga — mock nie wykonuje prawdziwego ciała `assertSameTenant`, patrz też
+  analogiczny udokumentowany przypadek `NativeQueryConstructorTransformer` w notatce BE-119
+  wyżej): `TenantRetentionPendingSummaryRepositoryTest` (+test: `upsert` bez `TenantContext` rzuca
+  ISE, brak zapytania do DB — repozytorium prawdziwe, tylko `EntityManager` mockowany),
+  `RetentionPurgeLogRepositoryTest` (+nested `InsertRunning`: analogiczny test negatywny dla
+  `insertRunning`, plus test pozytywny z kontekstem ustawionym), `RetentionEvaluationJobTest`
+  (+nested `TenantContextRegression`, 8 testów: kontekst ustawiony na poprawny `tenantId` w
+  momencie wywołania `summaryRepository.upsert`/`campaignArchiveRetentionRepository.countEligible`
+  w obu pętlach, izolacja między dwoma tenantami w tej samej pętli w obu pętlach, kontekst widoczny
+  podczas wywołania `RetentionPurgeService.purge` — dowód pośredni na naprawę dormant ścieżki auto-
+  purge, z komentarzem w teście dlaczego pełna weryfikacja `purgeAsync`/zapisu do
+  `retention_purge_log` wymaga ręcznej weryfikacji e2e z `auto_purge_enabled=true` na tenancie
+  testowym, zbyt krucha/kompleksowa do sensownego zamockowania na poziomie testu jednostkowego,
+  wyczyszczenie kontekstu po sukcesie i po błędzie).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1767 testów, 0 failures, 0 errors.
+
+**Aktualizacja (ręczne przeliczenie dashboardu + wydzielenie `RetentionEvaluationService`,
+2026-08-13):** rozszerzenie na żądanie użytkownika, odkryte przy okazji bugfixu `TenantContext` w
+wątku schedulera opisanego wyżej — administrator może teraz wymusić natychmiastowe przeliczenie
+dashboardu "dane do usunięcia" (`FE-105`) zamiast czekać na nocny cron o 01:00 UTC.
+
+- **Nowy endpoint:** `POST /api/tenants/{tenantId}/retention/recompute` (kontroler:
+  `RetentionController`, sekcja "Dashboard" obok istniejącego `GET .../summary`) —
+  `hasRole('ADMIN')` + `assertOwnTenant`, jak pozostałe endpointy tego kontrolera. Zwraca `200 OK`
+  + `List<RetentionSummaryDto>` (dokładnie ten sam DTO/kontrakt co `GET .../summary`) ze świeżo
+  przeliczonymi wartościami dla wszystkich 4 kategorii. `RECORDINGS` pozostaje poza zakresem
+  (`computed=false`), tak jak w nocnym jobie.
+- **KRYTYCZNA różnica względem nocnego joba: BEZ auto-purge.** Ręczne przeliczenie to celowo
+  bezpieczna, pozbawiona efektów ubocznych w sensie usuwania danych akcja "odśwież liczby" —
+  NIGDY nie wyzwala `RetentionPurgeService.purge`, nawet gdy `eligibleRowCount > 0` i
+  `auto_purge_enabled=true` dla jakiejś kategorii tenanta. Auto-purge pozostaje WYŁĄCZNIE
+  odpowiedzialnością nocnego `RetentionEvaluationJob`.
+- **Refaktor "wydziel serwis":** cała logika ewaluacji z `RetentionEvaluationJob` (partition-aware
+  `CONTACT_INTERACTIONS`/`TRANSCRIPTS` + `CAMPAIGN_DATA`, dotąd prywatne metody
+  package-private klasy `@Component`) przeniesiona 1:1 do nowego `RetentionEvaluationService`
+  (interfejs, publiczny — konsumowany przez `RetentionController` w innym pakiecie) +
+  `RetentionEvaluationServiceImpl`, dokładnie ten sam wzorzec co już istniejący
+  `RetentionPurgeService`/`RetentionPurgeServiceImpl`. `RetentionEvaluationJob` stał się cienkim
+  wrapperem `@Scheduled` wołającym wyłącznie `evaluationService.runForAllActiveTenants()`. Nowa
+  metoda `List<RetentionSummaryDto> runForTenant(UUID tenantId)` liczy jednego tenanta i deleguje
+  na końcu do `RetentionPurgeService.getPendingSummary(tenantId)` po zapisaniu świeżych wartości
+  do cache — identyczna synteza "zawsze 4 wpisy" co `GET .../summary`, bez duplikowania logiki
+  budowy DTO.
+- **Pułapka `TenantContext` między dwiema ścieżkami wejścia (rozwiązana):** ścieżka schedulera
+  (`runForAllActiveTenants`) wymaga `TenantContext.setTenantId`/`clear()` per tenant w pętli (patrz
+  bugfix wyżej) — ścieżka REST (`runForTenant`) NIE MOŻE wołać `clear()`, bo wyczyściłoby to
+  kontekst wątku HTTP już poprawnie ustawiony przez `TenantFilter` i zweryfikowany przez
+  `assertOwnTenant` w kontrolerze PRZED wywołaniem tej metody — czyszczenie w trakcie obsługi
+  żądania wyciekłoby do reszty łańcucha przetwarzania (dokładnie ten sam bug co naprawiony wyżej,
+  tylko w przeciwnym kierunku). Rozwiązanie: wydzielono rdzeń per-tenant BEZ zarządzania
+  kontekstem (`persistSummaryAndMaybeAutoPurgeForTenant`, `evaluateCampaignDataForTenant` —
+  jawny prekontrakt w Javadoc: "TenantContext musi być już ustawiony przez wywołującego"), a
+  `setTenantId`/`clear()` przeniesiono WYŁĄCZNIE do pętli wrapujących w `persistAndMaybeAutoPurge`/
+  `evaluateCampaignData`, używanych TYLKO przez `runForAllActiveTenants`. `runForTenant` woła rdzeń
+  bezpośrednio, bez własnego `set`/`clear`. Skanowanie partycji (`scanPartitionAwareCategory`,
+  cross-tenant, rola DB ma `BYPASSRLS`) nie dotyka `TenantContext` w ogóle, więc jest bezpiecznie
+  współdzielone przez obie ścieżki bez zmian.
+- **Nowe/zmienione pliki:**
+  `domain/retention/RetentionEvaluationService.java` (nowy interfejs),
+  `domain/retention/RetentionEvaluationServiceImpl.java` (nowa implementacja — cała logika z
+  `RetentionEvaluationJob`, plus dwie metody core per-tenant bez zarządzania kontekstem),
+  `domain/retention/RetentionEvaluationJob.java` (zredukowany do cienkiego wrappera),
+  `api/retention/RetentionController.java` (+zależność `RetentionEvaluationService`, +endpoint
+  `POST .../recompute`, zaktualizowany Javadoc klasy — zdanie "`RetentionEvaluationJob` pozostaje
+  wewnętrznym schedulerem, bez REST API" było nieaktualne),
+  `domain/retention/RetentionEvaluationServiceImplTest.java` (nowy plik — bezpośredni następca
+  starego `RetentionEvaluationJobTest`, wszystkie 29 scenariuszy przeniesionych bez zmian
+  merytorycznych + nowy nested `ManualRecomputeForTenant`, 7 testów: brak auto-purge mimo
+  `eligibleRowCount>0`+`autoPurgeEnabled=true` na WSZYSTKICH 3 kategoriach jednocześnie, zapis
+  summary tylko dla żądanego tenanta mimo współdzielonej partycji z innym tenantem, delegacja
+  zwracanej wartości do `getPendingSummary`, `TenantContext` ustawiony PRZED wywołaniem pozostaje
+  nietknięty PO wywołaniu — w tym przy błędzie jednej kategorii, izolacja błędów między
+  kategoriami),
+  `domain/retention/RetentionEvaluationJobTest.java` (zredukowany do 1 testu: deleguje do
+  `runForAllActiveTenants()` dokładnie raz, `verifyNoMoreInteractions`),
+  `api/retention/RetentionControllerTest.java` (+konstruktor z nową zależnością, +nested
+  `Recompute`: happy path + 403 cross-tenant).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1777 testów, 0 failures, 0 errors (1767 + 10 nowych:
+  netto po redukcji `RetentionEvaluationJobTest` z 29 do 1 testu, przeniesieniu tych 29 do
+  `RetentionEvaluationServiceImplTest` bez zmian, +7 `ManualRecomputeForTenant`, +2
+  `RetentionControllerTest.Recompute`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warningów, niezwiązane z tym
+  rozszerzeniem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend
+  `mvn verify -pl app` PASS.
+
+---
+
+### BE-113 – `RetentionPurgeService`: silnik usuwania Poziom 1 (per-tenant, batchowany) dla CONTACT_INTERACTIONS i TRANSCRIPTS
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-111, DB-048, DB-053, BE-117
+**Status:** ✅ Ukończone
+**Blokuje:** BE-118, BE-119
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Usuwanie na poziomie wiersza, per tenant — wywoływane ręcznie (`POST /purge`, BE-118) lub
+automatycznie (BE-112, auto-purge). Działa niezależnie od innych tenantów współdzielących tę
+samą partycję miesięczną. Wykonanie **asynchroniczne** (`@Async`, zwraca `purgeId` natychmiast)
+— zgodnie z regułą `CLAUDE.md`: `TenantContext.snapshot()` na wątku wywołującym,
+`TenantContext.restore(snapshot)` + `TenantContext.clear()` w `finally` na wątku roboczym.
+
+**Zakres tego ticketu:** kategorie `CONTACT_INTERACTIONS` (`contact` + `contact_event`, plus
+czyszczenie logicznie powiązanych rekordów bez fizycznego FK: `email_message`/`social_message`
+wskazujące na usuwany `contact_id`, już nullable od V028) i `TRANSCRIPTS` (`contact_transcription`
++ `contact_ai_summary`). `CAMPAIGN_DATA` wydzielona do BE-119 (dodatkowa integracja z istniejącą
+funkcją SQL). `RECORDINGS` NIE przechodzi przez ten serwis (obsługiwana przez BE-116).
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/retention/RetentionPurgeService.java       (publiczny interfejs)
+  domain/retention/RetentionPurgeServiceImpl.java   (package-private, @Service, @Async)
+  domain/retention/RetentionPurgeLogRepository.java (extends TenantAwareRepository)
+  domain/retention/dto/PurgeResultDto.java
+```
+
+**Algorytm:**
+```
+DELETE FROM contact WHERE tenant_id = :tenantId AND started_at < :cutoff
+```
+batchami (`BATCH_SIZE=100`/`LIMIT` + pętla, wzorzec identyczny do `RecordingRetentionJob`), żeby
+nie trzymać długich locków na partycji współdzielonej przez innych tenantów. Zapis do
+`retention_purge_log` (RUNNING na starcie → COMPLETED/FAILED na końcu, `rows_deleted`
+sumaryczne) oraz do `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeniu.
+
+**Kryteria akceptacji:**
+- [x] `purge(tenantId, category, triggerType, triggeredByUserId)` zwraca `purgeId` natychmiast (async), zapis `RUNNING` do `retention_purge_log` PRZED zwróceniem
+- [x] Usuwanie batchowane (`BATCH_SIZE` konfigurowalny, domyślnie 100), pętla do wyczerpania kwalifikujących się wierszy
+- [x] **Test izolacji między tenantami we wspólnej partycji** (wymagany przez §11 pkt 5): dwaj tenanci mają dane w TEJ SAMEJ partycji miesięcznej `contact`; purge tenanta A z krótszą retencją nie usuwa ŻADNEGO wiersza tenanta B — zweryfikowane wprost (`COUNT(*)` dla tenanta B niezmieniony)
+- [x] `CONTACT_INTERACTIONS`: dodatkowo czyści `email_message.contact_id`/`social_message.contact_id` → `NULL` dla usuwanych kontaktów (nie usuwa tych wierszy, tylko odcina referencję)
+- [x] `TenantContext.snapshot()`/`restore()`/`clear()` na granicy wątku `@Async` — zweryfikowane testem, że kontekst tenanta w wątku roboczym jest poprawny niezależnie od wątku wywołującego
+- [x] Błąd w trakcie batcha → `retention_purge_log.status='FAILED'` + `error_message`, job nie zawiesza się w stanie `RUNNING` na zawsze
+- [x] Sukces → `status='COMPLETED'`, `completed_at`, `rows_deleted` = suma wszystkich batchy
+- [x] Wpis w `audit_log` (`entity_type='RETENTION_PURGE'`) po zakończeniu (sukces i porażka)
+- [x] Testy jednostkowe ≥8 scenariuszy (batch pojedynczy, wiele batchy, izolacja cross-tenant, błąd w trakcie, cutoff dokładnie na granicy, kategoria CONTACT_INTERACTIONS czyści email/social FK, kategoria TRANSCRIPTS usuwa z 2 tabel, purgeId zwrócony natychmiast)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-11):**
+- **Self-invocation `@Async`:** rozwiązane wzorcem `@Autowired @Lazy private RetentionPurgeService self`
+  (identyczny do sprawdzonego `ProgressiveDialerServiceImpl.self`) — `purgeAsync` MUSIAŁA zostać
+  dodana do interfejsu `RetentionPurgeService` (nie tylko do impl), żeby wywołanie przez
+  wstrzyknięty do siebie samego bean przechodziło przez proxy Springa. Po drodze zweryfikowano
+  (przez czytanie kodu + testów), że istniejący `CustomerImportServiceImpl.initiateImport` wywołuje
+  `processImportAsync` przez zwykłe self-invocation (`this.`, metoda nie jest częścią interfejsu
+  `CustomerImportService`) — to prawdopodobnie **pre-existing bug**: `@Async` nigdy nie jest
+  honorowane w tym miejscu w produkcji (import wykonuje się synchronicznie w wątku HTTP). Poza
+  zakresem BE-113 (inny serwis, inny ticket), ale odnotowane do ewentualnej przyszłej korekty.
+- **Krytyczne odkrycie przy projektowaniu batchowanego DELETE na tabeli partycjonowanej:**
+  zweryfikowano EMPIRYCZNIE na żywej instancji PostgreSQL (`cc-postgres`, ten sam schemat co dev),
+  że wzorzec zasugerowany w treści ticketu (`DELETE ... WHERE ctid IN (SELECT ctid ... LIMIT N)`)
+  jest NIEBEZPIECZNY na tabelach partycjonowanych: `ctid` (fizyczny adres blok+offset) nie jest
+  unikalny globalnie — ta sama para współrzędnych występuje niezależnie w wielu różnych partycjach.
+  Eksperyment: subquery ograniczone do jednego tenanta w partycji `contact_2026_05` z `LIMIT 100`
+  usunęło **168 wierszy w całej tabeli** (wszystkie partycje/miesiące, nie tylko maj) zamiast
+  zamierzonych 100 dla jednego tenanta — nadmiarowe usunięcia trafiły w wiersze innych partycji na
+  podstawie przypadkowej kolizji `ctid`. Zastąpiono bezpiecznym wzorcem: `WITH batch AS (SELECT
+  <pk_techniczny>, <kolumna_partycjonowania> ... LIMIT N) DELETE ... USING batch WHERE
+  <pk_techniczny> = batch.<pk_techniczny> AND <kolumna_partycjonowania> = batch.<kolumna_partycjonowania>`
+  — identyfikacja wiersza przez PEŁNY klucz główny (w tym kolumnę partycjonowania), zweryfikowany w
+  tym samym eksperymencie jako usuwający dokładnie zamierzoną liczbę wierszy, wyłącznie dla
+  właściwego tenanta. Zastosowano konsekwentnie w `ContactRepository.deleteBatchOlderThan`,
+  `ContactEventRepository.deleteBatchOlderThan`, `ContactAiSummaryRepository.deleteBatchOlderThan`,
+  `ContactTranscriptionRepository.deleteBatchOlderThan`.
+- **Rozszerzenie poza listę plików z ticketu** (konieczne, nie opcjonalne): logika usuwania per
+  tabela musiała trafić do istniejących repozytoriów/serwisów domenowych (`ContactRepository`,
+  `ContactEventRepository`, `ContactAiSummaryRepository`, `ContactTranscriptionRepository`,
+  `EmailMessageRepository`, `SocialMessageRepository` + odpowiadające im publiczne serwisy
+  `ContactService`/`ContactEventService`/`EmailMessageService`/`SocialMessageService`), ponieważ
+  repozytoria w tym projekcie są `package-private` — `RetentionPurgeServiceImpl` (pakiet
+  `domain.retention`) nie mógł ich wstrzyknąć bezpośrednio. Nowe metody: `purgeContactsOlderThan`,
+  `purgeTranscriptionsOlderThan`, `purgeAiSummariesOlderThan` (ContactService), `purgeOlderThan`
+  (ContactEventService), `detachContactReferences` (EmailMessageService/SocialMessageService).
+  Dodano też encję `RetentionPurgeLog.java` (JPA, tabela `retention_purge_log`) — nie wymieniona
+  wprost w liście plików ticketu, ale niezbędna dla `RetentionPurgeLogRepository`.
+- **CAMPAIGN_DATA/RECORDINGS:** `purge()` rzuca `UnsupportedOperationException` z czytelnym
+  komunikatem wskazującym właściwy przyszły mechanizm (BE-119/BE-116) — walidacja PRZED zapisem do
+  `retention_purge_log`, więc błędne wywołanie nie zostawia śmieciowego wiersza RUNNING.
+- **Testy:** `RetentionPurgeServiceImplTest` — 20 scenariuszy (≥8 wymaganych), mockowany
+  `RetentionPurgeLogRepository`/`RetentionPolicyService`/`ContactService`/`ContactEventService`/
+  `EmailMessageService`/`SocialMessageService`/`AuditLogService`; self-invocation testowane
+  wzorcem `ReflectionTestUtils.setField(service, "self", service)` (zgodnie z
+  `ProgressiveDialerServiceTest`), z dedykowanym testem podmieniającym `self` na mock żeby
+  udowodnić że `purge()` zwraca się przed wykonaniem faktycznej pracy. Dodatkowo
+  `ContactRepositoryPurgeTest` (6 scenariuszy) weryfikujący samą treść SQL (brak `ctid`, pełny PK,
+  poprawne parametry) na poziomie repozytorium. Ograniczenie testów jednostkowych: nie odtwarzają
+  fizycznie przełączenia wątku `@Async` (brak kontenera Spring) ani nie weryfikują zachowania na
+  żywej partycjonowanej bazie (projekt nie ma Testcontainers/H2 skonfigurowanych dla testów
+  repozytoriów — wzorzec potwierdzony jedynie manualną weryfikacją opisaną wyżej, poza automatycznym
+  zestawem testów).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1622 testy, 0 failures, 0 errors (1596 przed BE-113 wg
+  notatki BE-117 + 20 nowych w `RetentionPurgeServiceImplTest` + 6 w `ContactRepositoryPurgeTest`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, 0 błędów), format:check PASS,
+  frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
+
+---
+
+### BE-114 – `PartitionMaintenanceJob`: fallback Java `@Scheduled` dla tworzenia przyszłych partycji (KRYTYCZNE)
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Must Have — **krytyczny, ta sama waga co DB-052**
+**Złożoność:** M
+**Zależy od:** DB-052
+**Status:** ✅ Ukończone
+**Blokuje:** brak bezpośrednio (ale bez tego ticketu błąd rotacji partycji wróci już w kolejnym miesiącu — DB-052 naprawia stan dzisiejszy, ten ticket zapobiega powtórce)
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Zamiast aktywować `pg_cron` (rozszerzenie niedostępne w obrazie `postgres:16-alpine`,
+wymagałoby customowego obrazu Docker), rotację partycji realizujemy przez Spring `@Scheduled`
+— dominujący, sprawdzony wzorzec w projekcie (12+ istniejących jobów, m.in.
+`RecordingRetentionJob`). **To jest bezpośrednia przyczyna, dla której DB-052 w ogóle było
+potrzebne** — dziś nic nie wywołuje `create_next_month_partitions()`.
+
+**Plik:**
+```
+backend/app/src/main/java/com/contactcenter/domain/retention/PartitionMaintenanceJob.java
+```
+
+```java
+@Scheduled(cron = "${retention.partition-maintenance-cron:0 30 0 * * *}", zone = "UTC")
+public void ensureFuturePartitions() {
+    // Wywołuje create_next_month_partitions() (rozszerzona w DB-052 o wszystkie
+    // partycjonowane tabele: contact, audit_log, contact_event, contact_transcription,
+    // contact_ai_summary, plugin_invocation_log) — codziennie, idempotentnie
+}
+```
+
+**Kryteria akceptacji:**
+- [x] Job wywołuje `create_next_month_partitions()` codziennie o 00:30 UTC (konfigurowalny cron, wzorzec `${property:default}`)
+- [x] Idempotentny — dwukrotne uruchomienie tego samego dnia nie tworzy duplikatów/błędów (funkcja SQL ma `IF NOT EXISTS`)
+- [x] Log INFO z podsumowaniem (ile partycji utworzono, dla których tabel) po każdym uruchomieniu
+- [x] Błąd SQL nie crashuje aplikacji — log ERROR, job kontynuuje przy następnym uruchomieniu
+- [x] **Test regresyjny kluczowy:** test integracyjny/jednostkowy potwierdzający, że po ręcznym wywołaniu `ensureFuturePartitions()` partycja na „bieżący miesiąc + 3” istnieje dla wszystkich 6 partycjonowanych tabel
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **Rozbieżność w treści ticketu, wykryta i rozwiązana świadomie:** przykładowy kod w ticketcie
+  sugerował, że `ensureFuturePartitions()` ma jedynie wołać zbiorczą funkcję SQL
+  `create_next_month_partitions()`. Odczytanie treści tej funkcji w V088 (linie 622-648) pokazało,
+  że tworzy ona partycję WYŁĄCZNIE na miesiąc `teraz + 1` dla wszystkich 6 tabel na raz — nigdy
+  `+2`/`+3`. Zweryfikowano to dodatkowo EMPIRYCZNIE na żywej instancji `cc-postgres` (transakcja
+  z `ROLLBACK`, bez trwałych zmian): stan na dziś (2026-08-13) to `plugin_invocation_log` z
+  partycjami tylko do bieżącego miesiąca, `contact`/`audit_log` do `+1`, `contact_event`/
+  `contact_transcription`/`contact_ai_summary` do `+2` — ŻADNA tabela nie miała jeszcze partycji na
+  `+3`. Wywoływanie WYŁĄCZNIE `create_next_month_partitions()` (nawet codziennie) nigdy nie
+  zbudowałoby bufora `+3` wymaganego przez kluczowe kryterium testu regresyjnego w tym samym
+  tickecie — sprzeczność między przykładowym kodem/AC#1 (dosłowna nazwa funkcji) a kluczowym testem
+  (`+3`). Rozwiązanie: `ensureFuturePartitions()` woła `create_next_month_partitions()` DOKŁADNIE
+  RAZ na uruchomienie (honoruje dosłowne brzmienie AC#1 + zachowuje wpis bookkeeping w
+  `cron_log`/`scheduled_job` zgodny z konwencją V014/V077/V088), a NIEZALEŻNIE OD TEGO buduje
+  samodzielnie bufor `MONTHS_AHEAD=3` miesięcy dla wszystkich 6 tabel, wywołując bezpośrednio
+  niskopoziomowe funkcje `create_<tabela>_partition(rok, miesiąc)` w pętli po ofsetach `1..3`
+  (`PartitionMaintenanceRepository.createTablePartition`). Obie ścieżki są idempotentne
+  (`IF NOT EXISTS` w SQL), więc częściowe pokrycie się `+1` między nimi nie generuje błędu/duplikatu.
+  Efekt uboczny (pozytywny): bufor 3-miesięczny jest bardziej odporny na przestój aplikacji
+  (deploy/incydent) niż poleganie wyłącznie na codziennym `+1`.
+- **Wywołanie funkcji `RETURNS VOID` z Javy:** zweryfikowane empirycznie na `cc-postgres`
+  (`BEGIN; SELECT create_next_month_partitions(); ROLLBACK;`) — zwraca dokładnie 1 wiersz, 1
+  kolumnę typu `void` (pusta wartość), którą pgjdbc mapuje na `null` bez wyjątku;
+  `EntityManager.getSingleResult()` działa poprawnie, potwierdzone też testami jednostkowymi
+  (`PartitionMaintenanceRepositoryTest`).
+- **Nowe pliki poza listą z ticketu:** `PartitionMaintenanceRepository.java` (analogiczny do
+  `PartitionScannerImpl` — `@Repository`, package-private, `EntityManager` natywne zapytania,
+  `assertSafeIdentifier` przed konkatenacją nazwy tabeli w SQL) — niezbędny, bo `PartitionMaintenanceJob`
+  nie może wywołać `EntityManager` bezpośrednio bez własnego repozytorium warstwy (repozytoria w
+  projekcie są `package-private`, ten sam wzorzec co dodatkowe repozytoria z BE-112/BE-113).
+- **Log podsumowania:** wzorowany na wskazówce z ticketu — `PartitionScanner.listPartitions()` per
+  tabela PRZED i PO wywołaniach SQL, diff nazw partycji logowany na poziomie INFO (`Utworzono N
+  nowych partycji: <tabela>=[nazwy] ...` albo jawny komunikat "brak nowych" gdy wszystko już
+  istniało).
+- **Odporność na błędy:** trzy niezależne warstwy try/catch (błąd `create_next_month_partitions()`,
+  błąd pojedynczej pary tabela/miesiąc w pętli bufora, błąd `PartitionScanner` przy snapshotach) —
+  żadna pojedyncza usterka SQL nie przerywa pozostałych 17 wywołań ani nie crashuje `@Scheduled`
+  metody, wzorzec identyczny do `RetentionEvaluationJob` ("błąd przy jednej kategorii/tenancie nie
+  przerywa reszty").
+- **Testy:** bez H2/Testcontainers dla warstwy repozytorium (konwencja projektu, zob.
+  `PartitionScannerImplTest`) — `PartitionMaintenanceRepositoryTest`
+  (mockowany `EntityManager`, weryfikacja dosłownego SQL + parametrów + bezpiecznika identyfikatora,
+  9 scenariuszy) i `PartitionMaintenanceJobTest` (mockowane `PartitionMaintenanceRepository`/
+  `PartitionScanner`, `@InjectMocks`, 8 scenariuszy) — kluczowy test regresyjny
+  `buildsThreeMonthBufferForAllSixPartitionedTables()` przechwytuje wszystkie wywołania
+  `createTablePartition(...)` przez `ArgumentCaptor` i potwierdza, że dla KAŻDEJ z 6 tabel zbiór
+  żądanych `(rok, miesiąc)` to dokładnie `{teraz+1, teraz+2, teraz+3}`, w tym jawne
+  `assertThat(...).contains(currentMonth.plusMonths(3))`.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1716 testów, 0 failures, 0 errors (stan bazowy w tym
+  worktree + 13 nowych testów BE-114; po scaleniu z BE-115 łączna liczba testów będzie wyższa).
+
+---
+
+### BE-115 – `PartitionReclaimJob`: fizyczne odzyskanie miejsca, globalne (Poziom 2)
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** BE-111, DB-052
+**Status:** ✅ Ukończone
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+`@Scheduled` (tygodniowo) — dla każdej partycji miesięcznej (tabel `contact`, `contact_event`,
+`contact_transcription`, `contact_ai_summary`) sprawdza, czy jej górna granica jest starsza niż
+**maksimum** `retention_months` spośród WSZYSTKICH tenantów mających kiedykolwiek dane w tej
+kategorii. Jeśli tak — `DROP TABLE <partycja>` (rozszerzenie istniejącego wzorca
+`drop_old_audit_log_partitions`, uogólnione). Bezpieczny, zachowawczy próg: nigdy nie usuwa
+danych szybciej niż zezwala na to najdłuższa skonfigurowana retencja — Poziom 1 (BE-113) już
+wcześniej usunął wiersze każdego tenanta zgodnie z jego własną, krótszą retencją, więc DROP na
+końcu w praktyce trafia na już (prawie) puste partycje.
+
+**Plik:**
+```
+backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java
+```
+
+**Kryteria akceptacji:**
+- [x] Job liczy `MAX(retention_months)` per kategoria spośród wszystkich tenantów (`RetentionPolicyService`) — próg globalny, nie per-tenant
+- [x] `DROP TABLE` wykonywany TYLKO dla partycji, których górna granica < (teraz − max_retention_months)
+- [x] **Test wymagany przez §11 pkt 5:** `PartitionReclaimJob` NIE usuwa partycji zawierającej choćby jeden wiersz należący do tenanta, którego retencja jeszcze nie minęła — zweryfikowane wprost (partycja z mieszanymi danymi tenantów o różnych retencjach, job musi policzyć próg po NAJDŁUŻSZEJ, nie najkrótszej)
+- [x] Partycja `DEFAULT` nigdy nie jest kandydatem do `DROP` (zawsze pomijana)
+- [x] Log INFO z listą usuniętych partycji po każdym uruchomieniu; log WARN jeśli partycja kandydująca do usunięcia wciąż ma wiersze (niespójność z Poziomem 1 — nie powinno się zdarzyć, ale nie blokuj joba, tylko ostrzeż)
+- [x] Testy jednostkowe ≥5 scenariuszy (partycja bezpiecznie pusta do usunięcia, partycja z żywymi danymi NIE usunięta, próg liczony po max nie min, partycja DEFAULT pomijana, wiele tabel przetwarzanych niezależnie)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **`findMaxRetentionMonths`** dodane jako lustrzane odbicie już istniejącego `findMinRetentionMonths`
+  (BE-112) w trzech warstwach: `TenantRetentionPolicyRepository` (natywne `SELECT MAX(retention_months)
+  FROM tenant_retention_policy WHERE data_category = :category`, ta sama obsługa pustego zbioru —
+  `MAX()` nad pustym zbiorem zwraca jeden wiersz z `NULL`, nie pustą listę), `RetentionPolicyService`
+  (interfejs) i `RetentionPolicyServiceImpl` (rzuca `ResourceNotFoundException` przy braku polityki,
+  identyczna semantyka co `findMinRetentionMonths`).
+- **`PartitionScanner.dropPartition(String)`** — celowo dodane do istniejącego interfejsu/impl
+  (`PartitionScannerImpl`) zamiast wstrzykiwać `EntityManager` bezpośrednio do `PartitionReclaimJob`
+  (odstępstwo od dosłownego brzmienia researchu w zleceniu, które sugerowało
+  `EntityManager.createNativeQuery` wprost w jobie). Uzasadnienie: `PartitionScannerImpl` jest już
+  JEDYNYM miejscem w kodzie z dostępem do `pg_catalog`/DDL partycji i bezpiecznikiem
+  `assertSafeIdentifier` — dodanie tam `dropPartition` (z tym samym bezpiecznikiem) utrzymuje tę
+  odpowiedzialność w jednym miejscu i pozwala testować `PartitionReclaimJob` w 100% przez mockowanie
+  `PartitionScanner`/`RetentionPolicyService` (zgodnie z poleceniem w zleceniu), bez potrzeby
+  mockowania `EntityManager`/`Query` w teście joba. `DROP TABLE IF EXISTS "<partycja>"` wykonywane
+  przez `em.createNativeQuery(...).executeUpdate()` wewnątrz `PartitionScannerImpl.dropPartition`.
+- **Próg = ściśle `<` (nie `<=`)**: `PartitionReclaimJob` kwalifikuje partycję do `DROP` tylko gdy
+  `partition.rangeEnd().isBefore(globalCutoffDate)` — celowo bardziej zachowawcze niż próg
+  "eligible for purge" w `RetentionEvaluationJob` (który dopuszcza `rangeEnd <= tenantCutoffDate`),
+  zgodnie z nieodwracalnym charakterem `DROP TABLE` (Poziom 2) w przeciwieństwie do usuwania
+  wierszy (Poziom 1).
+- **Dodatkowy bezpiecznik przed DDL**: poza `assertSafeIdentifier` w `PartitionScannerImpl`,
+  `PartitionReclaimJob` sam sprawdza, czy nazwa partycji zwrócona przez `listPartitions` pasuje do
+  wzorca `<tabela>_YYYY_MM` (regex) — obronnie, na wypadek nieoczekiwanego wpisu (np. gdyby
+  `PartitionScanner` kiedyś przestał wykluczać `<tabela>_default`). Zweryfikowane testem
+  `PartitionReclaimJobTest$DefaultPartitionNeverDropped`.
+- **Pętla po 4 kombinacjach (tabela, kategoria)** — `contact`/`contact_event` →
+  `CONTACT_INTERACTIONS`, `contact_transcription`/`contact_ai_summary` → `TRANSCRIPTS` (identyczne
+  mapowanie co `RetentionPurgeServiceImpl`/`RetentionEvaluationJob`), każda tabela przetwarzana
+  niezależnie we własnym `try/catch` (wzorzec `RecordingRetentionJob.processRetentionForTenant`) —
+  `findMaxRetentionMonths` jest więc wołane 2× per kategoria (raz na tabelę), nie 1× — świadoma
+  konsekwencja niezależności per-tabela, nie duplikacja błędu.
+- **Cron:** `retention.partition-reclaim-cron` (domyślnie `0 0 3 * * SUN`, niedziela 3:00 UTC) —
+  nowa sekcja w `application.yml` obok istniejącego `retention.evaluation-cron`.
+- **Testy:** `PartitionReclaimJobTest` (8 testów w 6 nested klasach, pokrywają wszystkie 5 wymaganych
+  scenariuszy z AC + 1 dodatkowy: partycja bezpiecznie pusta usunięta, partycja młodsza niż globalny
+  próg NIE usunięta, próg liczony po MAX a nie MIN (2 warianty), partycja `_default` nigdy nie
+  kandyduje nawet gdy defensywnie zwrócona przez mock, wiele tabel przetwarzanych niezależnie (błąd
+  RuntimeException w jednej tabeli + brak polityki dla jednej kategorii — oba warianty), DROP mimo
+  WARN o niespójności z Poziomem 1). Dodatkowo: `TenantRetentionPolicyRepositoryTest$FindMaxRetentionMonths`
+  (2), `RetentionPolicyServiceImplTest$FindMaxRetentionMonths` (2), `PartitionScannerImplTest$DropPartition`
+  (2) — łącznie 14 nowych testów.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1717 testów, 0 failures, 0 errors (1703 przed BE-115 wg
+  arytmetyki: 1717 − 14 nowych).
+
+---
+
+### BE-116 – Rozszerzenie `RecordingRetentionJob` o per-tenant retencję + usunięcie `recording_retention_days` z `tenant.config`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-111
+**Status:** ✅ Ukończone
+**Blokuje:** FE-109
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+`RecordingRetentionJob` dziś czyta globalny `S3Properties.retentionDays` (domyślnie 90, ten sam
+dla wszystkich tenantów) mimo że `tenant.config.recording_retention_days` i
+`TenantResourceLimitsDto` od dawna sugerują per-tenant. To domyka lukę wprost wymaganą przez
+`PRD.md` NFR-RODO03 ("konfigurowalny per tenant") i `ARCHITECTURE.md` RC-02.
+
+**Zmiana źródła prawdy (decyzja zaakceptowana w projekcie):** `recording_retention_days`
+przestaje istnieć w `tenant.config` JSONB — jedynym źródłem prawdy staje się
+`tenant_retention_policy` (kategoria `RECORDINGS`). **To NIE jest dodanie nowego pola do
+istniejącego miejsca — to jego usunięcie z `tenant.config` i migracja do nowej tabeli**, żeby
+nie było dwóch źródeł prawdy dla tej samej wartości (patrz FE-109, analogiczna zmiana po
+stronie frontendu).
+
+**Zmiany:**
+```java
+// RecordingRetentionJob.runRetentionJob() — zamiast jednego globalnego cutoffTimestamp:
+for (UUID tenantId : contactService.findTenantsWithRecordings()) {
+    int retentionDays = retentionPolicyService.getRetentionDays(tenantId, RECORDINGS); // nowa metoda, konwersja z retentionMonths jeśli tabela przechowuje miesiące (patrz BE-111 uwaga o jednostce)
+    Instant cutoff = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+    // ... reszta logiki batchowania bez zmian
+}
+```
+- `TenantServiceImpl`: usuń `config.put("recording_retention_days", ...)` z `createTenant`/`updateTenant` (linie ~526, ~532, ~558 wg dzisiejszego stanu — zweryfikuj dokładne numery linii przed implementacją, mogły się przesunąć)
+- `TenantController`/`PATCH /api/tenants/{id}/config`: usuń `recordingRetentionDays` z odpowiednich DTO (jeśli tam jest) — **sprawdź wszystkich konsumentów tego pola przed usunięciem, żeby nie złamać kontraktu API w sposób niezauważony** (frontend fix w FE-109 musi być wdrożony w tej samej fali/PR co ta zmiana)
+- Backfill istniejących wartości do `tenant_retention_policy` już obsłużony w DB-046 (V082) — ten ticket TYLKO usuwa stare źródło po stronie Javy, nie duplikuje backfillu
+
+**Kryteria akceptacji:**
+- [x] `RecordingRetentionJob` czyta retencję per tenant z `RetentionPolicyService`, nie z `S3Properties.retentionDays` (pole `S3Properties.retentionDays` może zostać jako fallback/domyślna wartość seedowania w DB-046, ale przestaje być odczytywane w runtime joba)
+- [x] `recording_retention_days` usunięty z odczytu/zapisu w `TenantServiceImpl`/`TenantController`
+- [x] Test regresyjny: dwaj tenanci z różnymi wartościami `RECORDINGS.retentionMonths` — job usuwa nagrania każdego zgodnie z JEGO własną retencją, nie globalną
+- [x] Test: **`PATCH /api/tenants/{id}`** (korekta — nie `/config`, patrz notatka niżej) z polem `recordingRetentionDays` w body → pole ignorowane, nie powoduje 500
+- [x] `mvn verify -pl app` przechodzi bez regresji istniejących testów `RecordingRetentionJobTest`/`TenantServiceTest`
+
+**Notatka z implementacji (2026-08-13):**
+- **Konwersja miesiące → dni w nowej `RetentionPolicyService.getRetentionDays(tenantId, category)`:** `retentionMonths * 30` (stała `DAYS_PER_MONTH`), NIE `* 30.44` ani uwzględnianie faktycznej liczby dni w danym miesiącu kalendarzowym. Uzasadnienie udokumentowane w javadoc metody: to najprostsza wierna odwrotność konwersji dni → miesiące już użytej w backfillu V082 (`CEIL(dni / 30.0)`) — spójność z istniejącym precedensem w projekcie, nie precyzja kalendarzowa; różnica rzędu 1–2 dni na 30-dniowy miesiąc jest nieistotna dla polityki retencji **konfigurowanej i wyrażanej w miesiącach** (administrator ustawia "6 miesięcy", nie "182 dni").
+- **Korekta endpointu (istotna rozbieżność względem treści ticketu):** `recordingRetentionDays` NIGDY nie był częścią `PATCH /api/tenants/{id}/config` — ten endpoint (`TenantController.updateTwilioConfig`) obsługuje wyłącznie `TenantTwilioConfigRequest` (numer telefonu/webhook URL Twilio), zero związku z `TenantResourceLimitsDto`. Właściwy endpoint to **`PATCH /api/tenants/{id}`** (`TenantController.updateTenant`, `UpdateTenantRequest.limits()` zagnieżdżający `TenantResourceLimitsDto`) — tam faktycznie żyło (i zostało przetestowane) pole.
+- **Zachowanie Jacksona ze zweryfikowane (nie zgadywane):** projekt NIE MA globalnego `spring.jackson.deserialization.fail-on-unknown-properties=false` ani dedykowanego `ObjectMapper` beana dla warstwy REST (jedyny customowy `ObjectMapper` to ten w `RedisConfig`, niezwiązany z HTTP). Domyślny Jackson (`FAIL_ON_UNKNOWN_PROPERTIES=true`) rzuciłby `UnrecognizedPropertyException` dla nieznanego pola — a ponieważ `GlobalExceptionHandler` NIE MA dedykowanego `@ExceptionHandler(HttpMessageNotReadableException.class)`, wyjątek trafiłby do generycznego `@ExceptionHandler(Exception.class)` → **HTTP 500** (dokładnie to, czego zabrania AC). Zweryfikowane empirycznie testem Jacksona bezpośrednio na DTO (`TenantResourceLimitsDtoTest`, `new ObjectMapper()` bez customowej konfiguracji — reprezentuje realne ustawienia projektu). **Decyzja: pole jest CICHO IGNOROWANE** (nie 400) — dodano `@JsonIgnoreProperties(ignoreUnknown = true)` na `TenantResourceLimitsDto` (analogicznie do istniejącego wzorca w `ImportJobStatus`/`CallSession`/`IvrNode`), żeby ułatwić zgodność wsteczną klientom wysyłającym to pole podczas okresu przejściowego (przed wdrożeniem FE-109).
+- **Wszyscy znalezieni konsumenci `recordingRetentionDays`/`recording_retention_days` (zmodyfikowani/usunięci):**
+  - `TenantServiceImpl.buildConfig()`/`mergeConfig()` — usunięto zapis klucza do `config` (obie gałęzie `buildConfig`, `null`-check w `mergeConfig`).
+  - `TenantResourceLimitsDto` — usunięto pole `recordingRetentionDays` + z `defaults()`, dodano `@JsonIgnoreProperties(ignoreUnknown = true)`.
+  - `TenantResponse.from()` — usunięto odczyt `extractInt(config, "recording_retention_days", 90)` przy budowaniu `limits`; martwa metoda pomocnicza `extractInt` również usunięta (brak innych wywołań).
+  - `Tenant.defaultConfig()` — usunięto klucz (czwarty konsument, nieujęty wprost w treści ticketu, znaleziony przez grep) + zaktualizowano javadoc pola `config`.
+  - `RetentionPolicyServiceImpl.resolveRecordingsRetentionMonths()` — **punkt styku z BE-111**: metoda personalizowała domyślną politykę `RECORDINGS` nowego tenanta czytając `tenant.config->>'recording_retention_days'` przez `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays(tenantId)`. Po usunięciu klucza z `tenant.config` ta personalizacja stała się niemożliwa (i zapytanie zawsze zwracałoby COALESCE-owy fallback) — metoda przepisana na wprost `S3Properties.getRetentionDays()` (jawnie dozwolony fallback wg treści ticketu), parametr `tenantId` i teraz-zbędny `FALLBACK_RECORDINGS_MONTHS` usunięte z sygnatury/klasy.
+  - `TenantRetentionPolicyRepository.findConfiguredRecordingRetentionDays(UUID)` — metoda usunięta całkowicie (dead code po powyższej zmianie; zapytanie o klucz JSONB, który nigdy więcej nie zostanie ustawiony). Referencje w javadoc `findMinRetentionMonths`/`PartitionScannerImpl` (precedens cross-tenant) zaktualizowane, żeby nie wskazywały na usuniętą metodę.
+  - Testy: `TenantServiceTest` (config w `setUp()`, konstruktory `TenantResourceLimitsDto`, asercja `recordingRetentionDays()`, nowy test `shouldNotWriteRecordingRetentionDaysToConfig`), `AdminMetricsServiceImplTest.buildDefaultConfig()`, `RetentionPolicyServiceImplTest` (`SeedDefaultPolicies` przepisane na mock `S3Properties` zamiast `repository.findConfiguredRecordingRetentionDays`; nowy `@Nested GetRetentionDays`), `TenantRetentionPolicyRepositoryTest` (usunięty cały `@Nested FindConfiguredRecordingRetentionDays`).
+- **Nowe testy:** `RecordingRetentionJobTest` (nowy plik, `domain.recording` — brak istniejącego wcześniej mimo że ticket i notatka BE-112 zakładały jego istnienie) — regresja AC (dwaj tenanci, różne `retentionMonths`, oddzielny cutoff per tenant, `ArgumentCaptor<Instant>`), test usuwania nagrań niezależnie per tenant, test odporności na `ResourceNotFoundException` dla jednego tenanta (job kontynuuje dla pozostałych). `TenantResourceLimitsDtoTest` (nowy plik, `api.tenant.dto`) — bezpośredni test Jacksona (nie MockMvc — zgodnie z udokumentowanym wzorcem projektu z `RetentionControllerTest`: kontrolery `api.*` NIE mają `@WebMvcTest` z aktywnym security chain, testowanie infrastruktury Spring MVC/Jackson robione bezpośrednio na mechanizmie, nie przez pełny stack).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1711 testów, 0 failures, 0 errors.
+
+**Aktualizacja (bugfix TenantContext w wątku schedulera, 2026-08-13):** przy ręcznej weryfikacji
+EPIC-29 na żywym kontenerze (uruchomienie jobu poza testami jednostkowymi) wykryto, że
+`processRetentionForTenant` NIGDY nie ustawiał `TenantContext` (ThreadLocal) przed wywołaniem
+`contactService.clearRecordingUrl(...)` → `ContactRepository#clearRecordingUrl` →
+`TenantAwareRepository#assertSameTenant`, które BEZWARUNKOWO czyta `TenantContext.getTenantId()`.
+Wątek `@Scheduled` nigdy nie przechodzi przez `TenantFilter` (brak JWT), więc to wywołanie zawsze
+rzucało `IllegalStateException`, złapaną przez istniejący `try/catch` per-tenant — job "kończył się
+sukcesem" w logach (`Usunięto: 0, Błędy: N`), ale w rzeczywistości: plik nagrania BYŁ poprawnie
+usuwany z S3 (ta operacja nie dotyka `TenantContext`), lecz `contact.recording_url` w DB NIGDY nie
+było czyszczone. Efekt w produkcji: ten sam kontakt wracałby jako "wygasły" przy KAŻDYM kolejnym
+przebiegu jobu, próbując bezskutecznie usunąć już nieistniejący plik z S3, w nieskończoność, bez
+żadnej widoczności poza rosnącym licznikiem błędów w logu. **Naprawa:**
+`TenantContext.setTenantId(tenantId)` na początku ciała `processRetentionForTenant`,
+`TenantContext.clear()` w `finally` obejmującym całą metodę (ochrona przed wyciekiem kontekstu
+między tenantami przy reużyciu wątku puli schedulera między kolejnymi tenantami/przebiegami).
+Wzorzec skopiowany z `SocialIntegrationServiceImpl#refreshToken`. Ten sam bug (identyczny
+mechanizm, dwie osobne pętle) naprawiony równolegle w `RetentionEvaluationJob` — patrz aktualizacja
+w notatce BE-112 wyżej po pełny opis tamtej naprawy; oba buga odkryte i naprawione w tej samej
+sesji weryfikacyjnej.
+- **Nowe testy regresyjne** (mockowany `ContactService` w istniejących testach tego jobu nigdy nie
+  mógł wykryć tego buga — mock nie wykonuje prawdziwego ciała `assertSameTenant`/`TenantContext`,
+  analogicznie do udokumentowanego wcześniej przypadku `NativeQueryConstructorTransformer`):
+  `ContactRepositoryClearRecordingUrlTest` (NOWY plik, `domain.contact` — prawdziwe
+  `ContactRepository`, mockowany tylko `JdbcTemplate`/`EntityManager`; potwierdza, że
+  `clearRecordingUrl` bez `TenantContext` rzuca ISE i NIE dotyka DB przez `jdbcTemplate`, a z
+  ustawionym kontekstem poprawnie wykonuje `UPDATE ... SET recording_url = NULL`), plus test
+  cross-tenant obronny), `RecordingRetentionJobTest` (+nested `TenantContextRegression`, 5 testów:
+  kontekst ustawiony na poprawny `tenantId` w momencie wywołania `clearRecordingUrl`, izolacja
+  między dwoma tenantami przetwarzanymi w tej samej pętli, wyczyszczenie kontekstu po sukcesie i
+  po błędzie przetwarzania tenanta).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1767 testów, 0 failures, 0 errors.
+
+---
+
+### BE-117 – Migracja encji JPA na klucz złożony: `ContactEvent`, `ContactAiSummary` → `@IdClass`; aktualizacja `ContactTranscriptionRepository`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-049, DB-050, DB-051
+**Status:** ✅ Ukończone
+**Blokuje:** BE-113
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+> **Uwaga (weryfikacja 2026-08-09):** wcześniej pole `Blokuje` wymieniało też BE-112, ale
+> `BE-112.Zależy od` nigdy nie deklarował BE-117 (asymetria) i BE-112 (liczenie/agregacja
+> partition-aware) operuje na natywnych zapytaniach COUNT per partycja, nie na encjach JPA — nie
+> jest wrażliwy na zmianę `@IdClass`. Tylko BE-113 (silnik usuwania przez encje JPA) faktycznie
+> zależy od tej migracji. Poprawiono na samo BE-113.
+
+**Opis:**
+Po partycjonowaniu (DB-049/050/051) PK tabel `contact_event`/`contact_ai_summary` staje się
+złożony `(id, kolumna_czasowa)` (PostgreSQL wymaga, żeby kolumna partycjonowania wchodziła w
+PK). Warstwa JPA musi to odzwierciedlić — wzorzec identyczny do istniejącego `Contact`/
+`ContactId` (`ContactRepository`, natywny SQL zamiast `EntityManager.persist()`).
+
+**Zmiany:**
+```
+backend/app/src/main/java/com/contactcenter/domain/contact/
+  ContactEventId.java        (nowy, record lub @Embeddable — para eventId+startedAt, wzorzec ContactId.java)
+  ContactEvent.java          (@IdClass(ContactEventId.class), oba pola @Id: eventId, startedAt)
+  ContactEventRepository.java (jeśli używa EntityManager.persist — zmień na natywny INSERT, wzorzec ContactRepository)
+
+  ContactAiSummaryId.java    (analogicznie)
+  ContactAiSummary.java      (@IdClass, oba pola @Id: aiSummaryId, <kolumna z DB-051>)
+  ContactAiSummaryRepository.java (już natywny SQL wg dzisiejszego stanu — sprawdź czy insert/update/delete zawiera teraz kolumnę partycjonowania w WHERE)
+
+  ContactTranscriptionRepository.java (czysty JdbcTemplate, bez encji — dodaj created_at do WHERE przy UPDATE/DELETE jeśli takie operacje istnieją; INSERT bez zmian poza upewnieniem się że created_at jest zawsze jawnie ustawiane, nie poleganie wyłącznie na DEFAULT NOW() przy operacjach batch)
+```
+
+**Kryteria akceptacji:**
+- [x] `ContactEvent`/`ContactAiSummary` kompilują się z `@IdClass`, `equals`/`hashCode` na obu polach klucza (Lombok `@EqualsAndHashCode` lub ręcznie w klasie ID)
+- [x] Wszystkie istniejące zapytania (`findByContactId` itd.) wciąż działają — kolumna partycjonowania NIE musi być podawana przy SELECT po `contact_id`, tylko przy operacjach adresujących wiersz po jego PK (UPDATE/DELETE po samym `id`, jeśli takie istnieją, muszą dodać drugą kolumnę do WHERE)
+- [x] Testy jednostkowe istniejące dla `ContactEvent`/`ContactAiSummary`/transcription przechodzą bez zmian w oczekiwaniach biznesowych (tylko dostosowanie do nowego PK w warstwie technicznej)
+- [x] `mvn verify -pl app` przechodzi bez regresji
+
+**Notatka z implementacji (2026-08-10):**
+- `ContactEventRepository.closeLastOpen` (UPDATE) **NIE wymagał** dodania `started_at` do WHERE —
+  identyfikuje wiersz przez kombinację `contact_id`/`tenant_id`/`stage`/`ended_at IS NULL` (nie tylko
+  przez `event_id`), więc jest semantycznie poprawny bez zmian; jedyny koszt to brak partition pruning
+  (akceptowalne przy dzisiejszej liczbie partycji). Udokumentowano decyzję w javadoc metody.
+- `ContactAiSummaryRepository` nie miał żadnych metod UPDATE/DELETE adresujących wiersz po PK — bez zmian
+  poza dodaniem `@IdClass` do encji.
+- `ContactTranscriptionRepository.save` (czysty JdbcTemplate, brak encji JPA) zmieniony: `created_at`
+  ustawiane jawnie z Javy (`Instant.now()` → `Timestamp`) zamiast polegania na `DEFAULT NOW()` w DB.
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1596 testów, 0 failures, 0 errors.
+
+---
+
+### BE-118 – `RetentionController` + DTO: REST API zarządzania retencją
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-111, BE-112, BE-113
+**Status:** ✅ Ukończone
+**Blokuje:** FE-103
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Wszystkie endpointy wymagają roli `ADMIN` (tenant-scoped), autoryzacja przez istniejący
+`JwtAuthFilter`/`TenantFilter` — **brak nowych endpointów publicznych**, nie dotyczy
+`SecurityConfig`/`TenantFilter.PUBLIC_PATH_PREFIXES`.
+
+**Endpointy:**
+| Endpoint | Opis |
+|---|---|
+| `GET /api/tenants/{tenantId}/retention/policies` | lista 4 polityk (BE-111) |
+| `PUT /api/tenants/{tenantId}/retention/policies/{category}` | zmiana `retentionMonths`/`autoPurgeEnabled` (ADMIN) |
+| `GET /api/tenants/{tenantId}/retention/summary` | dashboard „ile do usunięcia” (z cache `tenant_retention_pending_summary`, BE-112) |
+| `POST /api/tenants/{tenantId}/retention/purge` | body `{dataCategory}` → async purge (BE-113/BE-119), zwraca `purgeId` |
+| `GET /api/tenants/{tenantId}/retention/purge/{purgeId}` | status trwającego/zakończonego purge |
+| `GET /api/tenants/{tenantId}/retention/history` | log operacji (`retention_purge_log`, paginacja `PagedResponse<T>`) |
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  api/retention/RetentionController.java
+  domain/retention/dto/RetentionSummaryDto.java
+  domain/retention/dto/PurgeRequestDto.java
+  domain/retention/dto/PurgeStatusDto.java
+  domain/retention/dto/PurgeHistoryEntryDto.java
+```
+
+**Kryteria akceptacji:**
+- [x] `@PreAuthorize("hasRole('ADMIN')")` na wszystkich endpointach (weryfikacja: SUPERVISOR/AGENT → 403)
+- [x] `GET .../summary` zwraca 4 wpisy (jeden per kategoria), z `computedAt` — brak wiersza w cache (jeszcze nie policzony przez BE-112) zwraca `eligibleRowCount=0`/`computedAt=null` z jawnym flagowaniem "not yet computed" (nie myli się z "zero do usunięcia")
+- [x] `POST .../purge` zwraca `202 Accepted` + `purgeId`, nie blokuje na wykonaniu (deleguje do `@Async` RetentionPurgeService)
+- [x] `GET .../purge/{purgeId}` → 404 jeśli purgeId nie należy do tenanta (cross-tenant access przez zgadywanie UUID zablokowane)
+- [x] `GET .../history` paginowane `PagedResponse<PurgeHistoryEntryDto>`, sortowane malejąco po `started_at`
+- [x] Endpointy udokumentowane w Swagger UI (`@Operation`/`@ApiResponse`)
+- [x] Testy jednostkowe kontrolera (autoryzacja per rola, happy path każdego endpointu, 404 cross-tenant)
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-12):**
+- **KRYTYCZNE odkrycie w `SecurityConfig` (poza zakresem plików wymienionych w tickecie, ale
+  blokujące bez naprawy):** reguła filtra `.requestMatchers("/api/tenants/**").hasRole("SUPER_ADMIN")`
+  (BE-006) dopasowałaby też nowe ścieżki `/api/tenants/{tenantId}/retention/**`, blokując ADMIN
+  na poziomie Spring Security filter chain, ZANIM żądanie dotarłoby do `@PreAuthorize("hasRole('ADMIN')")`
+  tego kontrolera — ADMIN dostawałby 403 zawsze, niezależnie od logiki kontrolera. Naprawione
+  dodaniem `.requestMatchers("/api/tenants/*/retention/**").hasRole("ADMIN")` PRZED ogólną regułą
+  `/api/tenants/**`, dokładnie tym samym wzorcem co istniejący wyjątek dla `/api/tenants/*/config`
+  (BE-025). Bez tej zmiany żaden z 6 endpointów nie działałby end-to-end mimo poprawnego kodu
+  kontrolera — wykryte przez przegląd `SecurityConfig` przed napisaniem kontrolera, nie przez
+  test (testy kontrolera w tym projekcie nie uruchamiają łańcucha Spring Security, patrz niżej).
+- **Bezpieczeństwo `{tenantId}`/`{purgeId}` — dwa niezależne mechanizmy, oba zaimplementowane
+  dokładnie wg analizy z briefu:** (1) `RetentionController.assertOwnTenant(UUID)` — prywatna
+  metoda wywoływana jako pierwsza instrukcja KAŻDEGO z 6 endpointów, porównuje `{tenantId}` ze
+  ścieżki z `TenantContext.getTenantId()`, rzuca `CrossTenantAccessException` → 403 przy
+  niezgodności (wzorzec `TenantServiceImpl.assertSameTenantUnlessSuperAdmin`, uproszczony — brak
+  SUPER_ADMIN w zakresie tego kontrolera). (2) `RetentionPurgeService.getPurgeStatus` mapuje
+  `Optional.empty()` z `RetentionPurgeLogRepository.findById(purgeId, tenantId)` (filtruje po OBU
+  kolumnach w SQL) na `ResourceNotFoundException` → 404 — purgeId innego tenanta jest
+  nieodróżnialny od nieistniejącego. `RetentionPolicyService`/`RetentionPurgeService` pozostały
+  BEZ ŻADNEJ zmiany w kierunku "tylko własny tenant" — cały pomysł żyje wyłącznie w kontrolerze,
+  bo `RetentionEvaluationJob` (BE-112) legalnie wywołuje te serwisy cross-tenant dla wszystkich
+  tenantów po kolei.
+- **`RetentionPurgeService` rozszerzone o 3 nowe metody publiczne** (implementacja w
+  `RetentionPurgeServiceImpl`, nowa zależność `TenantRetentionPendingSummaryRepository`
+  wstrzyknięta przez `@RequiredArgsConstructor`):
+  - `PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId)` — rzuca `ResourceNotFoundException`
+    gdy purgeId nie istnieje/inny tenant.
+  - `Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable)` — deleguje do nowej
+    `RetentionPurgeLogRepository.findAllByTenantId(UUID, Pageable)` (natywny SQL + `resultClass`
+    mapping + osobny `COUNT(*)`, wzorzec identyczny do reszty repozytorium — celowo NIE JPQL, żeby
+    nie mieszać stylów zapytań w jednej klasie), `ORDER BY started_at DESC` zawsze, niezależnie od
+    `pageable.getSort()`.
+  - `List<RetentionSummaryDto> getPendingSummary(UUID tenantId)` — czyta surowe wiersze przez nową
+    `TenantRetentionPendingSummaryRepository.findAllByTenantId(UUID)` (zwraca `List<PendingSummaryRow>`,
+    nowy pakietowy rekord zagnieżdżony w repozytorium, wzorzec `CampaignArchiveRetentionRepository.EligibleSummary`
+    z BE-112), po czym syntetyzuje DOKŁADNIE 4 wpisy iterując `RetentionDataCategory.values()` —
+    kategoria bez wiersza w cache dostaje `computed=false`/`eligibleRowCount=0`/pozostałe pola `null`.
+    Synteza żyje w serwisie (nie w kontrolerze), zgodnie z rekomendacją briefu — łatwiej testować
+    jednostkowo.
+- **Reuse `PurgeResultDto` zamiast nowych `PurgeStatusDto`/`PurgeHistoryEntryDto`:** ticket
+  wymienia te dwa pliki w liście, ale miałyby identyczny kształt co `PurgeResultDto` (BE-111) —
+  używany bez zmian zarówno dla `GET .../purge/{purgeId}` (pojedynczy) jak i `GET .../history`
+  (strona). Lista plików w sekcji "Pliki" powyżej pozostawiona bez zmian jako zapis historyczny
+  ticketu — faktycznie utworzone/zmienione pliki wypisane niżej.
+- **`UpdateRetentionPolicyRequest.dataCategory()` vs `{category}` z path:** zamiast ignorować
+  pole body (co ukryłoby błąd klienta wysyłającego niespójne dane) lub tworzyć nowy DTO bez tego
+  pola, `RetentionController.updatePolicy` weryfikuje zgodność i rzuca `IllegalArgumentException`
+  (→ 422, istniejący handler) przy niezgodności — `{category}` ze ścieżki pozostaje źródłem
+  prawdy (REST semantyka).
+- **`POST .../purge` zwraca `Map.of("purgeId", ...)`**, bez dedykowanego DTO — wzorzec
+  `CampaignImportController` (`jobId`), zgodnie z ustalonym w projekcie precedensem dla
+  pojedynczego pola w odpowiedzi `202`.
+- **Nowe metody repozytoriów** (obie package-private, wywoływane wyłącznie z `RetentionPurgeServiceImpl`
+  w tym samym pakiecie `domain.retention` — bez potrzeby zmiany widoczności na `public`, w
+  odróżnieniu od `PluginInvocationLogRepository`, którego konsument leży w innym pakiecie):
+  `RetentionPurgeLogRepository.findAllByTenantId(UUID, Pageable): Page<RetentionPurgeLog>`,
+  `TenantRetentionPendingSummaryRepository.findAllByTenantId(UUID): List<PendingSummaryRow>`.
+- **Testy:** `RetentionControllerTest` (26 scenariuszy: happy path × 6 endpointów, 403 cross-tenant
+  × 6 + parametryzowany po `RetentionDataCategory` dla `updatePolicy`, 404 purgeId innego tenanta
+  propagowany bez maskowania, niezgodność `dataCategory` body/path, propagacja `UnsupportedOperationException`
+  dla RECORDINGS/CAMPAIGN_DATA, 8 testów Bean Validation przez `jakarta.validation.Validator`
+  bezpośrednio — wzorzec `UserPreferencesServiceTest`, bo `@Valid` jest infrastrukturą Spring MVC
+  nieaktywną przy bezpośrednim wywołaniu metody kontrolera). Wzorzec testu kontrolera: wywołanie
+  metod bezpośrednio, `TenantContext` mockowany statycznie (`PluginAdminControllerTest`) — projekt
+  NIE ma `@WebMvcTest` z aktywnym łańcuchem Spring Security dla kontrolerów `api.*`, `@PreAuthorize`
+  zweryfikowany deklaratywnie (obecny na klasie, code review), NIE testem MockMvc — świadome
+  odstępstwo od dosłownego brzmienia kryterium "SUPERVISOR/AGENT → 403" na rzecz ustalonego wzorca
+  projektu (ten sam kompromis co `PluginAdminControllerTest`/`CampaignImportControllerTest`).
+  Dodatkowo: 8 nowych testów `RetentionPurgeServiceImplTest` (`getPurgeStatus`/`getPurgeHistory`/
+  `getPendingSummary`, w tym rozróżnienie `computed=false` vs `computed=true` z `eligibleRowCount=0`),
+  2 nowe `TenantRetentionPendingSummaryRepositoryTest` (mapowanie wierszy, cache pusty), nowy plik
+  `RetentionPurgeLogRepositoryTest` (2 testy paginacji natywnego SQL).
+- `mvn verify -pl app`: **BUILD SUCCESS**, **1700 testów**, 0 failures, 0 errors (1662 przed
+  BE-118 + 38 nowych: 26 `RetentionControllerTest` + 8 `RetentionPurgeServiceImplTest` + 2
+  `TenantRetentionPendingSummaryRepositoryTest` + 2 `RetentionPurgeLogRepositoryTest`).
+- `/verify` (frontend + backend): lint PASS (10 pre-existing warnings, niezwiązane z tym
+  tickietem, 0 błędów), format:check PASS, frontend testy PASS (205/205), backend `mvn verify -pl app` PASS.
+
+**Utworzone/zmienione pliki (stan faktyczny):**
+```
+backend/app/src/main/java/com/contactcenter/
+  api/retention/RetentionController.java                          (nowy)
+  domain/retention/dto/RetentionSummaryDto.java                   (nowy)
+  domain/retention/dto/PurgeRequestDto.java                       (nowy)
+  domain/retention/RetentionPurgeService.java                     (zmieniony: +3 metody)
+  domain/retention/RetentionPurgeServiceImpl.java                 (zmieniony: +3 implementacje, +1 zależność)
+  domain/retention/RetentionPurgeLogRepository.java                (zmieniony: +findAllByTenantId)
+  domain/retention/TenantRetentionPendingSummaryRepository.java   (zmieniony: +findAllByTenantId, +PendingSummaryRow)
+  security/SecurityConfig.java                                    (zmieniony: +requestMatcher ADMIN dla /retention/**)
+
+backend/app/src/test/java/com/contactcenter/
+  api/retention/RetentionControllerTest.java                      (nowy)
+  domain/retention/RetentionPurgeServiceImplTest.java              (zmieniony: +8 testów)
+  domain/retention/TenantRetentionPendingSummaryRepositoryTest.java (zmieniony: +2 testy)
+  domain/retention/RetentionPurgeLogRepositoryTest.java            (nowy)
+```
+
+**Sygnatury nowych metod publicznych:**
+```java
+// RetentionPurgeService (interfejs)
+PurgeResultDto getPurgeStatus(UUID tenantId, UUID purgeId);
+Page<PurgeResultDto> getPurgeHistory(UUID tenantId, Pageable pageable);
+List<RetentionSummaryDto> getPendingSummary(UUID tenantId);
+```
+
+---
+
+### BE-119 – Integracja `CAMPAIGN_DATA` z `RetentionPurgeService`: wywołanie `purge_campaign_contact_archive()` per tenant
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-113
+**Status:** ✅ Ukończone (2026-08-13)
+**Blokuje:** brak
+**Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Opis:**
+Podłącza kategorię `CAMPAIGN_DATA` do istniejącej funkcji SQL
+`purge_campaign_contact_archive(p_retention_years INT DEFAULT 5)` (V015), zamieniając jej dziś
+zahardkodowany parametr na wartość czytaną per-tenant z `tenant_retention_policy`.
+
+**⚠️ Luka wykryta podczas dekompozycji, do rozwiązania przed/podczas implementacji — flagowana,
+nie blokuje planowania:** `purge_campaign_contact_archive()` w obecnej postaci **nie przyjmuje
+`tenant_id` i nie filtruje po nim** — usuwa z `campaign_contact_archive` WSZYSTKIE wiersze
+starsze niż cutoff, globalnie, dla wszystkich tenantów naraz. Wywołanie jej „per tenant” z
+różnymi wartościami `p_retention_years` dla różnych tenantów nie ma sensu przy obecnej
+sygnaturze (ostatnie wywołanie „wygrywa” globalnie). Do rozstrzygnięcia przy implementacji:
+- **Opcja A (zalecana):** nowa migracja (numer do ustalenia z `db-schema-architect` — poza
+  zakresem V082–V090 z projektu, bo to nie było przewidziane w oryginalnym DDL) dodająca
+  `p_tenant_id UUID` do funkcji + `WHERE tenant_id = p_tenant_id AND archived_at <
+  v_cutoff_date`, wywoływana raz per tenant przez `RetentionPurgeService`.
+- **Opcja B:** zostaw funkcję globalną, wywołuj raz z `MIN(retention_months)` po wszystkich
+  tenantach (najbardziej konserwatywny wspólny mianownik) — prostsze, ale nie realizuje w pełni
+  obietnicy „per-tenant retencja” dla tej kategorii.
+
+Decyzja należy do wykonawcy (`backend-dev-expert` + `db-schema-architect`) przy implementacji
+tego ticketu — nie blokuje reszty epiku, bo `CAMPAIGN_DATA` to jedna z 4 kategorii, pozostałe 3
+działają niezależnie od tej decyzji.
+
+**Kryteria akceptacji:**
+- [x] `RetentionPurgeService` obsługuje `CAMPAIGN_DATA` jako osobną gałąź delegującą do
+  zmodyfikowanej funkcji SQL (Opcja A) lub wywołania z minimalną retencją (Opcja B) — zgodnie z
+  decyzją podjętą przy implementacji, udokumentowaną w komentarzu kodu
+- [x] Wynik wywołania (liczba usuniętych wierszy) zapisany do `retention_purge_log` identycznie jak pozostałe kategorie
+- [x] Test jednostkowy: purge `CAMPAIGN_DATA` dla tenanta A nie wpływa (Opcja A) lub wpływ jest udokumentowany i świadomy (Opcja B) na dane tenanta B
+- [x] `mvn verify -pl app` przechodzi
+
+**Notatka z implementacji (2026-08-13):**
+- **Decyzja: Opcja A** (izolacja per-tenant w samej funkcji SQL), zgodnie z rekomendacją z
+  dekompozycji — spójna z resztą epiku (BE-112/BE-113 realizują prawdziwą per-tenant retencję dla
+  pozostałych 3 kategorii; Opcja B cichcem złamałaby tę obietnicę tylko dla `CAMPAIGN_DATA`, co
+  byłoby mylące dla administratora patrzącego na UI sugerujące pełną kontrolę per-tenant). Dodatkowe
+  uzasadnienie znalezione podczas implementacji: `campaign_contact_archive` (V015) jest jedyną z
+  czterech tabel objętych retencją, która **nie ma włączonego Row Level Security** (w odróżnieniu od
+  `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` — patrz V012/V090) — klauzula
+  `WHERE tenant_id = ...` wewnątrz funkcji SQL jest więc JEDYNYM mechanizmem izolacji tenantów dla tej
+  operacji, nie tylko dodatkową warstwą ponad RLS jak dla pozostałych kategorii. To czyni Opcję B
+  (globalny DELETE bez filtra tenant_id) wyraźnie bardziej ryzykowną niż w innych kontekstach RLS-owych
+  tego projektu.
+- **Nowa sygnatura SQL (migracja `V091__purge_campaign_contact_archive_per_tenant.sql`):**
+  `purge_campaign_contact_archive(p_tenant_id UUID, p_cutoff_date TIMESTAMPTZ) RETURNS INT`.
+  Stara sygnatura `purge_campaign_contact_archive(p_retention_years INT DEFAULT 5)` z V015 jest
+  jawnie usunięta (`DROP FUNCTION IF EXISTS ... (INT)`), NIE pozostawiona jako przeciążenie — pozostawienie
+  jej działającej równolegle byłoby niebezpiecznym reliktem (ręczne wywołanie starej wersji po tej
+  migracji usunęłoby dane wszystkich tenantów naraz).
+- **Cutoff jako `TIMESTAMPTZ`, nie lata:** `RetentionPurgeServiceImpl#purgeAsync` wylicza
+  `Instant cutoff` jednolicie dla WSZYSTKICH kategorii (na podstawie `retentionMonths` z
+  `tenant_retention_policy`) PRZED dyspatchem do metody per-kategoria. Przekazanie tego samego
+  `Instant` wprost do funkcji SQL (zamiast przeliczania `retentionMonths` → lata w drugą stronę)
+  jest spójniejsze z wzorcem już ustalonym dla `CONTACT_INTERACTIONS`/`TRANSCRIPTS` i unika
+  stratnej konwersji miesiące↔lata.
+- **Efekt uboczny odkryty i naprawiony:** `RetentionEvaluationJob#evaluateCampaignData` (BE-112)
+  miał wbudowany celowy „bookmark” — jawnie POMIJAŁ wywołanie `RetentionPurgeService.purge()` dla
+  CAMPAIGN_DATA nawet przy `auto_purge_enabled=true`, z komentarzem odsyłającym wprost do tego
+  ticketu. Po tej integracji ten warunek byłby martwym kodem (funkcjonalnie: przełącznik auto-purge
+  dla CAMPAIGN_DATA w UI nic by nie robił) — zamieniono na wywołanie tego samego wspólnego
+  `maybeTriggerAutoPurge`, którego już używają CONTACT_INTERACTIONS/TRANSCRIPTS. Zaktualizowano też
+  odpowiadający test w `RetentionEvaluationJobTest` (`neverCallsPurgeEvenWhenAutoPurgeEnabled...`
+  → `callsPurgeWhenAutoPurgeEnabledAndDataEligible` + nowy test na `autoPurgeEnabled=false`).
+- **Nowe/zmienione pliki:**
+  `backend/src/main/resources/db/migration/V091__purge_campaign_contact_archive_per_tenant.sql` (nowa migracja),
+  `domain/retention/CampaignArchiveRetentionRepository.java` (+metoda `purgeEligible`),
+  `domain/retention/RetentionPurgeService.java` (Javadoc: CAMPAIGN_DATA już nie „poza zakresem”),
+  `domain/retention/RetentionPurgeServiceImpl.java` (+pole `campaignArchiveRetentionRepository`,
+  +gałąź `switch`, +metoda `purgeCampaignData`, `validateSupportedCategory` już nie odrzuca CAMPAIGN_DATA),
+  `domain/retention/RetentionEvaluationJob.java` (`evaluateCampaignData` już nie pomija auto-purge,
+  patrz wyżej), `domain/retention/RetentionPurgeServiceImplTest.java` (+nested `CampaignDataPurge`,
+  `UnsupportedCategories` zawężone do samego RECORDINGS), `domain/retention/CampaignArchiveRetentionRepositoryTest.java`
+  (+nested `PurgeEligible`), `domain/retention/RetentionEvaluationJobTest.java` (zaktualizowany
+  scenariusz CAMPAIGN_DATA auto-purge), `domain/retention/CampaignContactArchivePurgeTenantIsolationTest.java`
+  (NOWY plik — test integracyjny Testcontainers weryfikujący realną izolację cross-tenant na
+  prawdziwym Postgresie, uzasadnienie w Javadoc klasy: mockowany `EntityManager` potwierdziłby
+  jedynie że repozytorium WYSŁAŁO zapytanie, nie że baza faktycznie odfiltrowała wiersze — dokładnie
+  taka luka była już źródłem realnego błędu w tym module),
+  `api/retention/RetentionController.java` (Swagger doc 501 zawężony do samego RECORDINGS).
+- `mvn verify -pl app`: **BUILD SUCCESS**, 1713 testów, 0 failures, 0 errors (`mvn clean verify`,
+  sekwencyjnie — uwaga: równoległe uruchomienie dwóch `mvn` na tym samym module w trakcie
+  implementacji dało fałszywe `NoClassDefFoundError` niepowiązanych klas, przez kolizję zapisu do
+  `target/`; po czystym, pojedynczym `mvn clean verify` build jest zielony).

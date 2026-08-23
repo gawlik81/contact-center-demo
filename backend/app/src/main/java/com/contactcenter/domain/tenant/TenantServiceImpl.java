@@ -9,6 +9,7 @@ import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -46,6 +47,19 @@ import java.util.UUID;
 class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
+
+    /**
+     * Zależność wstrzykiwana zwykłym polem finalnym (bez {@code @Autowired @Lazy}) — mimo że
+     * {@link #createTenant} wywołuje {@link RetentionPolicyService#seedDefaultPolicies}, brak tu
+     * cyklu: {@code RetentionPolicyServiceImpl} (BE-111) NIE zależy zwrotnie od {@code TenantService}
+     * — domyślna wartość seedowana dla RECORDINGS pochodzi od BE-116 z globalnego
+     * {@code S3Properties.getRetentionDays()} (patrz javadoc {@code RetentionPolicyServiceImpl}),
+     * a nie z konfiguracji tego konkretnego tenanta ani przez ten serwis. Sprawdzone przy
+     * implementacji BE-111 — w razie dodania w przyszłości prawdziwej zależności zwrotnej,
+     * zastosuj wzorzec {@code @Autowired @Lazy} użyty niżej dla {@link #adminMetricsService} /
+     * {@link #userService}.
+     */
+    private final RetentionPolicyService retentionPolicyService;
 
     /**
      * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
@@ -128,6 +142,12 @@ class TenantServiceImpl implements TenantService {
 
         Tenant saved = tenantRepository.save(tenant);
         log.info("[TenantService] Tenant utworzony: id={}, name={}", saved.getId(), saved.getName());
+
+        // BE-111: zasiej domyślne polityki retencji (4 kategorie) — analogicznie do zasiewania
+        // tenant.config wyżej. Wołane PO zapisie tenanta (kolejność zachowana dla spójności
+        // historycznej, choć od BE-116 seedowanie RECORDINGS nie czyta już config tego tenanta —
+        // patrz javadoc RetentionPolicyServiceImpl).
+        retentionPolicyService.seedDefaultPolicies(saved.getId());
 
         return TenantResponse.from(saved);
     }
@@ -515,6 +535,10 @@ class TenantServiceImpl implements TenantService {
     /**
      * Buduje mapę config JSONB z DTO limitów.
      * Jeśli limits jest null, zwraca domyślne wartości.
+     *
+     * <p><strong>BE-116:</strong> {@code recording_retention_days} NIE jest już zapisywany tutaj —
+     * jedynym źródłem prawdy dla retencji nagrań jest {@code tenant_retention_policy} (kategoria
+     * {@code RECORDINGS}, zarządzana przez {@link RetentionPolicyService}).
      */
     private Map<String, Object> buildConfig(TenantResourceLimitsDto limits) {
         Map<String, Object> config = new HashMap<>();
@@ -523,14 +547,11 @@ class TenantServiceImpl implements TenantService {
             config.put("max_agents", 100);
             config.put("max_queues", 50);
             config.put("max_campaigns", 20);
-            config.put("recording_retention_days", 90);
             config.put("timezone", "Europe/Warsaw");
         } else {
             config.put("max_agents", limits.maxAgents() != null ? limits.maxAgents() : 100);
             config.put("max_queues", limits.maxQueues() != null ? limits.maxQueues() : 50);
             config.put("max_campaigns", limits.maxCampaigns() != null ? limits.maxCampaigns() : 20);
-            config.put("recording_retention_days",
-                    limits.recordingRetentionDays() != null ? limits.recordingRetentionDays() : 90);
             config.put("timezone",
                     StringUtils.hasText(limits.timezone()) ? limits.timezone() : "Europe/Warsaw");
         }
@@ -541,6 +562,10 @@ class TenantServiceImpl implements TenantService {
     /**
      * Scala aktualną konfigurację z nowymi wartościami z DTO.
      * Nadpisuje tylko pola, które są podane (nie-null) w DTO.
+     *
+     * <p><strong>BE-116:</strong> {@code recording_retention_days} NIE jest już obsługiwany tutaj —
+     * retencja nagrań jest aktualizowana wyłącznie przez dedykowany endpoint polityk retencji
+     * ({@code RetentionController}, BE-118), nie przez {@code PATCH /api/tenants/{id}}.
      */
     private Map<String, Object> mergeConfig(Map<String, Object> existing, TenantResourceLimitsDto updates) {
         Map<String, Object> config = existing != null ? new HashMap<>(existing) : new HashMap<>();
@@ -553,9 +578,6 @@ class TenantServiceImpl implements TenantService {
         }
         if (updates.maxCampaigns() != null) {
             config.put("max_campaigns", updates.maxCampaigns());
-        }
-        if (updates.recordingRetentionDays() != null) {
-            config.put("recording_retention_days", updates.recordingRetentionDays());
         }
         if (StringUtils.hasText(updates.timezone())) {
             config.put("timezone", updates.timezone());

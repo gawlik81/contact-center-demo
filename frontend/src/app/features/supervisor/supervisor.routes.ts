@@ -167,6 +167,15 @@ export const SUPERVISOR_ROUTES: Routes = [
                 (m) => m.PluginsPageComponent,
               ),
           },
+          {
+            path: 'data-retention',
+            data: { breadcrumb: 'nav.settingsDataRetention', roles: ['ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/settings/data-retention/data-retention.component').then(
+                (m) => m.DataRetentionComponent,
+              ),
+          },
         ],
       },
       {

@@ -56,6 +56,44 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-113: Retencja – odcięcie referencji (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Zeruje {@code contact_id} dla wiadomości wskazujących na usuwane kontakty (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS).
+     *
+     * <p>Kolumna {@code contact_id} jest nullable od V028 (przychodzące wiadomości zapisywane
+     * przed przypisaniem do kontaktu przez routing). Metoda TYLKO odcina referencję (bulk UPDATE) –
+     * NIE usuwa wierszy {@code email_message}, zgodnie z zakresem BE-113.
+     *
+     * <p>Bulk JPQL UPDATE (nie {@code em.merge}) – omija walidację {@code nullable=false} na
+     * poziomie encji {@link EmailMessage#getContactId()} (adnotacja JPA dotyczy generowania DDL,
+     * nie ma zastosowania do zapytań masowych).
+     *
+     * @param tenantId   UUID tenanta (RLS + cross-tenant safety)
+     * @param contactIds lista UUID usuniętych kontaktów – pusta lista jest no-opem
+     * @return liczba zaktualizowanych wierszy
+     */
+    public int detachContactReferences(UUID tenantId, List<UUID> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return 0;
+        }
+        setTenantContextInDb(tenantId);
+
+        int updated = em.createQuery(
+                        "UPDATE EmailMessage m SET m.contactId = NULL " +
+                        "WHERE m.tenantId = :tenantId AND m.contactId IN :contactIds")
+                .setParameter("tenantId", tenantId)
+                .setParameter("contactIds", contactIds)
+                .executeUpdate();
+
+        log.info("[EmailMessageRepo] Odcięto contact_id: tenant={}, kontaktów={}, wiadomości={}",
+                tenantId, contactIds.size(), updated);
+        return updated;
+    }
+
+    // =========================================================================
     // Odczyt
     // =========================================================================
 

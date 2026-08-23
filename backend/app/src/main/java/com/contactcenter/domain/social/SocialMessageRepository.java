@@ -43,6 +43,43 @@ class SocialMessageRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-113: Retencja – odcięcie referencji (EPIC-29)
+    // =========================================================================
+
+    /**
+     * Zeruje {@code contact_id} dla wiadomości wskazujących na usuwane kontakty (retencja EPIC-29,
+     * BE-113 – kategoria CONTACT_INTERACTIONS).
+     *
+     * <p>Kolumna {@code contact_id} jest nullable od V028. Metoda TYLKO odcina referencję (bulk
+     * UPDATE) – NIE usuwa wierszy {@code social_message}, zgodnie z zakresem BE-113.
+     *
+     * <p>Bulk JPQL UPDATE (nie {@code em.merge}) – omija walidację {@code nullable=false} na
+     * poziomie encji {@link SocialMessage#getContactId()} (adnotacja JPA dotyczy generowania DDL;
+     * kolumna w bazie jest faktycznie nullable od V028).
+     *
+     * @param tenantId   UUID tenanta (RLS + cross-tenant safety)
+     * @param contactIds lista UUID usuniętych kontaktów – pusta lista jest no-opem
+     * @return liczba zaktualizowanych wierszy
+     */
+    public int detachContactReferences(UUID tenantId, List<UUID> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return 0;
+        }
+        setTenantContextInDb(tenantId);
+
+        int updated = em.createQuery(
+                        "UPDATE SocialMessage m SET m.contactId = NULL " +
+                        "WHERE m.tenantId = :tenantId AND m.contactId IN :contactIds")
+                .setParameter("tenantId", tenantId)
+                .setParameter("contactIds", contactIds)
+                .executeUpdate();
+
+        log.info("[SocialMessageRepo] Odcięto contact_id: tenant={}, kontaktów={}, wiadomości={}",
+                tenantId, contactIds.size(), updated);
+        return updated;
+    }
+
+    // =========================================================================
     // Odczyt
     // =========================================================================
 

@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.6.0](https://github.com/gawlik81/contact-center-demo/compare/v1.5.0...v1.6.0) (2026-08-23)
+
+
+### Features
+
+* **backend:** dodaj PartitionMaintenanceJob i PartitionReclaimJob (BE-114, BE-115) ([24de535](https://github.com/gawlik81/contact-center-demo/commit/24de53536d91d792447b4cd3e32fdde59c72969c))
+* **backend:** dodaj RetentionController, REST API zarządzania retencją (BE-118) ([1a1af52](https://github.com/gawlik81/contact-center-demo/commit/1a1af520477595304dce6857c48d1a762935e59a))
+* **backend:** dodaj RetentionEvaluationJob, liczenie danych do usunięcia (BE-112) ([a3888ec](https://github.com/gawlik81/contact-center-demo/commit/a3888ec5458ac4b59b73be6b3366640699684085))
+* **backend:** dodaj RetentionPolicyService, CRUD polityk retencji per tenant (BE-111) ([80d82ce](https://github.com/gawlik81/contact-center-demo/commit/80d82ce61f131b486831564d83e27335d5cfea01))
+* **backend:** dodaj RetentionPurgeService, silnik usuwania per-tenant (BE-113) ([a80a07e](https://github.com/gawlik81/contact-center-demo/commit/a80a07ee8714433634073147e640c17e269899f5))
+* **backend:** integracja CAMPAIGN_DATA z RetentionPurgeService (BE-119) ([fb327f3](https://github.com/gawlik81/contact-center-demo/commit/fb327f3af2a1f6f0450cd82799da3d447a1aaae0))
+* **backend:** migruj ContactEvent/ContactAiSummary na klucz złożony @IdClass (BE-117) ([acaed59](https://github.com/gawlik81/contact-center-demo/commit/acaed59b53a19bbb6d158b291b83e27dc9af258b))
+* **backend:** per-tenant retencja nagrań, usuń recording_retention_days z tenant.config (BE-116) ([0f86268](https://github.com/gawlik81/contact-center-demo/commit/0f86268732a0fc4029046e7480c6900eb42f2ce6))
+* **db:** dodaj indeksy (tenant_id, kolumna_czasowa) pod purge per-tenant (DB-053, V089) ([c5efbda](https://github.com/gawlik81/contact-center-demo/commit/c5efbda4eaa4a867964dbd397ce390c8dc62f9fc))
+* **db:** dodaj tabelę audytu retention_purge_log (DB-048, V084) ([5b55a10](https://github.com/gawlik81/contact-center-demo/commit/5b55a103c36d64fe9b0c31ae29e6b2ea6f5a7342))
+* **db:** dodaj tabelę cache tenant_retention_pending_summary (DB-047, V083) ([fe7ff8e](https://github.com/gawlik81/contact-center-demo/commit/fe7ff8e003a524938b6f70ebd4361fa7731848d7))
+* **db:** dodaj tabelę tenant_retention_policy retencji danych (DB-046, V082) ([573befe](https://github.com/gawlik81/contact-center-demo/commit/573befe4e12892ff347f1d9ebf85d9a47af539e5))
+* **db:** partycjonuj contact_ai_summary po generated_at, online, zero utraty danych (DB-051, V087) ([c506ced](https://github.com/gawlik81/contact-center-demo/commit/c506ced939fcea1f66befb4eda41a72fa7db340a))
+* **db:** partycjonuj contact_event po started_at, online, zero utraty danych (DB-049, V085) ([3455411](https://github.com/gawlik81/contact-center-demo/commit/34554110e4c481b1f5c6986aed26fe67b8c3453f))
+* **db:** partycjonuj contact_transcription po created_at, online, zero utraty danych (DB-050, V086) ([13e2feb](https://github.com/gawlik81/contact-center-demo/commit/13e2febf55eac39d477e8869d8a05b4d3e32407f))
+* dodaj ręczne przeliczenie dashboardu "dane do usunięcia" ([28b6ac5](https://github.com/gawlik81/contact-center-demo/commit/28b6ac5a3767e21ac68c321d2b4597ea810431ac))
+* **frontend:** dodaj akcję "Usuń teraz" z modalem potwierdzenia (FE-106) ([bc224f2](https://github.com/gawlik81/contact-center-demo/commit/bc224f22c6c2f9909ca82c3c5d4e3de760b56b9b))
+* **frontend:** dodaj dashboard "dane do usunięcia" (FE-105) ([2cfef89](https://github.com/gawlik81/contact-center-demo/commit/2cfef89b84451f0589424e43e2d3bd16791d7b9e))
+* **frontend:** dodaj globalny badge "dane do usunięcia" w nawigacji (FE-108) ([a77b0b6](https://github.com/gawlik81/contact-center-demo/commit/a77b0b655008d9e04e5d70d7f815cf051c870567))
+* **frontend:** dodaj historię operacji usuwania do panelu retencji (FE-107) ([7a70955](https://github.com/gawlik81/contact-center-demo/commit/7a709550b9c8e647f1ed8b3544724653ab97b2fc))
+* **frontend:** dodaj RetentionService i modele TS dla panelu retencji (FE-103) ([3d2ecad](https://github.com/gawlik81/contact-center-demo/commit/3d2ecad0f27a115feb5c77fcb9d1b7e901650358))
+* **frontend:** dodaj stronę Ustawienia &gt; Retencja danych (FE-104) ([1bb92af](https://github.com/gawlik81/contact-center-demo/commit/1bb92af610de4c711fbc80f9be764bae7ce1eafe))
+
+
+### Bug Fixes
+
+* **backend:** napraw ClassCastException w odczycie polityk/historii retencji ([2978f30](https://github.com/gawlik81/contact-center-demo/commit/2978f305d48dba75bd774f4363a2e7a7e89dd3d4))
+* **backend:** napraw NPE w listContacts/getCustomerHistory dla kontaktów bez agenta ([f1e8ecb](https://github.com/gawlik81/contact-center-demo/commit/f1e8ecb3cf5d4c61d2d435e045380e22764a182a))
+* **backend:** ustaw TenantContext w wątku schedulera dla jobów retencji ([67a03af](https://github.com/gawlik81/contact-center-demo/commit/67a03af6871dab584451e5945375fbcf8e9daa8f))
+* **db:** napraw nazwę GUC RLS na 4 tabelach, app.tenant_id -&gt; app.current_tenant_id (DB-054, V090) ([13968d1](https://github.com/gawlik81/contact-center-demo/commit/13968d103bb2b5274ef4c71bd91f12b93b616740))
+* **db:** napraw rotację partycji contact/audit_log, dodaj 3 nowe tabele (DB-052, V088) ([12cb1b5](https://github.com/gawlik81/contact-center-demo/commit/12cb1b58fa8498b1ad076af5b75b898bcb140edb))
+
 ## [1.5.0](https://github.com/gawlik81/contact-center-demo/compare/v1.4.0...v1.5.0) (2026-08-08)
 
 

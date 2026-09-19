@@ -19,3 +19,10 @@ export interface OAuthInitiateResponse {
   authorizationUrl: string;
   state: string;
 }
+
+export interface WhatsAppConnectRequest {
+  phoneNumberId: string;
+  accessToken: string;
+  displayName: string;
+  businessAccountId?: string;
+}

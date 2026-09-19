@@ -1396,3 +1396,46 @@ _Brak naruszeń._ Wszystkie zmienione/nowe komponenty pozostają standalone (bez
 ### Summary
 
 **Ocena: 4.5/5 ⭐** — czysty, minimalny, w pełni spójny z backendem i planem refaktor. Jedyna uwaga to drobna kosmetyczna niespójność etykiety (breadcrumb `/admin` wciąż mówi „Admin” zamiast „Administrator Główny”) — nieblokująca, ale warta poprawki przy najbliższej okazji.
+
+---
+
+## Review: social-integrations.component.{ts,html,scss}, social-integration.model.ts, social-integration.service.ts, i18n {pl,en,de,uk}.json — WhatsApp manual connect — 2026-08-29
+
+Przejrzane pliki:
+- `features/integrations/pages/social-integrations/social-integrations.component.ts` / `.html` / `.scss`
+- `features/integrations/models/social-integration.model.ts` (`WhatsAppConnectRequest`)
+- `features/integrations/services/social-integration.service.ts` (`connectWhatsApp()`)
+- `public/i18n/{pl,en,de,uk}.json`
+- Kontekst pomocniczy (niezmieniony w tym diffie, ale istotny dla oceny): `core/interceptors/error-handler.interceptor.ts`
+
+### 🐛 Bugs / Critical Issues
+
+- **Podwójny toast błędu przy nieudanym podłączeniu WhatsApp.** `errorHandlerInterceptor` (`error-handler.interceptor.ts:19-31`) reaguje globalnie na KAŻDY `HttpErrorResponse`, chyba że request niesie `SKIP_ERROR_TOAST` w `HttpContext` — żądanie z `connectWhatsApp()` (`social-integration.service.ts:33-35`) tego kontekstu nie ustawia. Jednocześnie `submitWhatsappConnect()` (`social-integrations.component.ts:203-231`) ma własny `catchError`, który też pokazuje toast (`integrations.social.errorConnect`). Efekt: przy błędzie (np. backendowy 502 z `WhatsAppApiException`, patrz CR-BACKEND.md) administrator zobaczy DWA komunikaty naraz — ogólny z interceptora (`common.errorServer` dla >=500) i specyficzny z komponentu. To nie jest regresja wprowadzona tym PR-em — dokładnie ten sam wzorzec (własny `catchError` + brak `SKIP_ERROR_TOAST`) istnieje już w `connectPlatform()` i `confirmDisconnect()` w tym samym pliku (kod sprzed tego diffu) — ale skoro dotyka to nowego, wyeksponowanego flow z wrażliwymi danymi, warto to poprawić tu i przy okazji w obu istniejących miejscach: dodać `{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }` do wywołań HTTP, dla których komponent i tak pokazuje własny, bardziej szczegółowy komunikat.
+
+### ⚠️ Security Concerns
+
+- **Pole access tokenu renderowane jako zwykłe `<textarea>` (plaintext, bez maskowania) — `social-integrations.component.html:249-261`.** Wklejony permanentny token Meta (który w praktyce daje pełne uprawnienia do wysyłki wiadomości z danego numeru WhatsApp Business) jest przez cały czas widoczny na ekranie w postaci czystego tekstu. `autocomplete="off"` i `spellcheck="false"` są dobrymi, obecnymi już zabezpieczeniami (ograniczają zapamiętywanie przez przeglądarkę/słownik), ale nie chronią przed odczytaniem tokenu z ekranu (shoulder-surfing, współdzielenie ekranu podczas screen-share, automatyczne zrzuty ekranu w narzędziach supportowych). Sugestia: rozważyć wzorzec „reveal/hide” znany z pól haseł (domyślnie zamaskowane, przycisk „pokaż” do jawnego odsłonięcia) — biorąc pod uwagę, że to jedyne miejsce w aplikacji, gdzie tak długożyjący, wysoko uprzywilejowany sekret jest wpisywany ręcznie przez człowieka. Nie blokujące, ale warte rozważenia przy tak wrażliwych danych.
+- Brak walidacji formatu/długości `accessToken`/`phoneNumberId` po stronie klienta (tylko `.trim().length > 0` w `whatsappFormValid`, `social-integrations.component.ts:99-104`) — niski priorytet, odpowiada brakowi `@Size` po stronie backendu (patrz CR-BACKEND.md), ale klient mógłby odciąć oczywiście błędne (np. jednoznakowe) wartości wcześniej, dając szybszy feedback niż round-trip do serwera.
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak naruszeń._ Komponent pozostaje standalone (bez NgModule), cały nowy stan formularza oparty o `signal()`/`computed()` (`connectingWhatsapp`, `whatsappFormValid` itd.) zgodnie z CLAUDE.md, `OnPush` zachowany, wszystkie nowe subskrypcje HTTP mają `takeUntilDestroyed(this.destroyRef)` (`social-integrations.component.ts:223`), selektor komponentu poprawnie z prefiksem `app-`. Formularz zbudowany na natywnym `<dialog>` + prostych sygnałach zamiast Reactive Forms — spójne z resztą pliku (disconnect dialog już wcześniej używał tego samego wzorca), więc nie jest to niespójność wprowadzona tym PR-em.
+
+### 🔧 Improvements & Suggestions
+
+- **Brak własnego pliku testowego dla komponentu.** `social-integrations.component.spec.ts` nie istnieje ani przed, ani po tym PR — więc żadna z 205 „przechodzących” testów frontendowych nie pokrywa nowej logiki (`whatsappFormValid`, `submitWhatsappConnect`, obsługa błędu/sukcesu, reset stanu przy `openWhatsappConnectDialog`). Biorąc pod uwagę, że to pierwszy w aplikacji formularz przyjmujący ręcznie długożyjący sekret dostawcy zewnętrznego, warto dodać chociaż podstawowy zestaw testów (walidacja wymaganych pól, wywołanie `connectWhatsApp` z poprawnie przyciętymi wartościami, zachowanie przy błędzie/sukcesie).
+- **Brak potwierdzenia poprawności integracji po zapisaniu.** `loadIntegrations()` wywołane po sukcesie (`social-integrations.component.ts:229`) pokaże `webhookStatus` zwrócony przez backend — a backend obecnie zawsze ustawia `'ACTIVE'` przy zapisie (`SocialIntegrationServiceImpl.saveIntegration()`, linia 76), niezależnie od tego, czy podany token/numer faktycznie działają (patrz też sugestia w CR-BACKEND.md o pre-flight weryfikacji Graph API). Skutek po stronie UI: administrator zobaczy zieloną plakietkę „Aktywny” nawet dla nieprawidłowo wklejonych danych, dopóki agent nie spróbuje faktycznie wysłać wiadomości. To głównie konsekwencja braku walidacji po stronie backendu, ale warto o tym wiedzieć przy ocenie UX całego flow.
+- Dialog `#whatsappConnectDialogRef` nie ma handlera na natywne zamknięcie klawiszem Escape (`(cancel)`/`(close)`) — `closeWhatsappConnectDialog()` z guardem `if (this.connectingWhatsapp()) return;` jest wywoływany tylko z przycisku „Anuluj”, więc Escape ominie ten guard. W praktyce nie prowadzi to do trwałego zablokowania UI (subskrypcja HTTP kończy się niezależnie od stanu dialogu i ostatecznie ustawia `connectingWhatsapp` z powrotem na `false`), ale warto rozważyć `(cancel)="$event.preventDefault()"` na dialogu, żeby zachować spójność z resztą logiki zamykania podczas trwającego żądania.
+
+### ✅ Positive Observations
+
+- **Formularz poprawnie zapobiega podwójnej wysyłce** — przycisk submit i pola input/textarea mają `[disabled]="connectingWhatsapp()"`, a `submitWhatsappConnect()` dodatkowo sprawdza `this.connectingWhatsapp()` przed wysłaniem.
+- **Link do Meta Business Suite poprawnie zabezpieczony** — `target="_blank"` z `rel="noopener noreferrer"` (`social-integrations.component.html:211-216`), standardowa i poprawna ochrona przed tabnabbingiem.
+- **Dostępność formularza przemyślana**: każde pole ma powiązany `<label for=...>`, `aria-required="true"`, `[attr.aria-invalid]` dynamicznie ustawiane po nieudanej próbie submitu, komunikaty błędów z `role="alert"`, textarea tokenu ma `aria-describedby` wskazujące na podpowiedź o poufności danych. To wyraźnie lepszy poziom a11y niż wymagane minimum.
+- **`WhatsAppConnectRequest` przesyłany wyłącznie w ciele żądania POST** (`social-integration.service.ts:33-35`), nigdy jako query param — token nie ma szans trafić do access logów serwera czy historii przeglądarki przez URL.
+- **i18n kompletne i spójne w 4 językach** — żaden z nowych kluczy (`whatsappConnectDialogTitle`, `phoneNumberIdLabel`, `accessTokenHint` itd.) nie został pominięty w żadnym z plików `pl/en/de/uk.json`, a treść `accessTokenHint` we wszystkich językach świadomie ostrzega użytkownika przed udostępnianiem tokenu.
+- **Reset stanu formularza przy każdym otwarciu dialogu** (`openWhatsappConnectDialog()`) zapobiega przypadkowemu pozostawieniu poprzednio wpisanego tokenu w polu przy ponownym otwarciu dla innej platformy/próby.
+
+### Summary
+
+**Ocena: 3.5/5 ⭐** — Solidna, dostępna (a11y) implementacja formularza, poprawnie zintegrowana z istniejącymi wzorcami sygnałowymi i bez nowych naruszeń architektonicznych. Największe zastrzeżenia to brak testów dla nowej, bezpieczeństwo-wrażliwej logiki oraz UX pola tokenu (plaintext textarea) i podwójny toast błędu — żadne z nich nie jest blokujące samo w sobie, ale w połączeniu z brakiem pre-flight walidacji po stronie backendu (patrz CR-BACKEND.md) obniżają pewność, że administrator dowie się o błędnie wklejonych danych we właściwym momencie.

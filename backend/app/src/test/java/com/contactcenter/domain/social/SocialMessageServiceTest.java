@@ -251,6 +251,46 @@ class SocialMessageServiceTest {
     }
 
     // =========================================================================
+    // Test 4b: sendMessage → błąd adaptera – naprawa granicy transakcyjnej (code review 2026-08-29)
+    // =========================================================================
+
+    @Test
+    @DisplayName("sendMessage → adapter rzuca wyjątek -> wyjątek propaguje się do wywołującego, "
+            + "wiadomość OUTBOUND NIE jest zapisywana (zachowanie biznesowe sprzed refaktoryzacji "
+            + "granicy transakcyjnej: wywołanie adaptera jest teraz POZA transakcją, ale zapis "
+            + "nadal następuje tylko po udanej wysyłce)")
+    void sendMessage_adapterThrows_propagatesExceptionWithoutSavingOutboundMessage() {
+        // Given
+        Contact contact = Contact.builder()
+                .contactId(CONTACT_ID)
+                .tenantId(TENANT_ID)
+                .channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE")
+                .remoteAddress(SENDER_ID)
+                .startedAt(Instant.now())
+                .build();
+
+        SocialIntegration integration = buildIntegration();
+        SocialMediaAdapter adapter = mock(SocialMediaAdapter.class);
+        RuntimeException graphApiFailure = new RuntimeException("WhatsApp Cloud API zwróciło błąd HTTP 500");
+
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(socialIntegrationRepository.findByTenantIdAndPlatform(TENANT_ID, SocialPlatform.FACEBOOK))
+                .thenReturn(List.of(integration));
+        when(adapterRegistry.getAdapter(SocialPlatform.FACEBOOK)).thenReturn(adapter);
+        doThrow(graphApiFailure).when(adapter).sendMessage(any(), any(), any(), any());
+
+        TenantContext.setTenantId(TENANT_ID);
+
+        // When / Then – wyjątek adaptera musi się propagować bez opakowania
+        assertThatThrownBy(() -> service.sendMessage(CONTACT_ID, TENANT_ID, "Test", List.of()))
+                .isSameAs(graphApiFailure);
+
+        // Then – brak zapisu wiadomości OUTBOUND (etap 3 nie może wykonać się po błędzie etapu 2)
+        verify(socialMessageRepository, never()).save(any());
+    }
+
+    // =========================================================================
     // Test 5: Brak integracji dla pageId → WARN, brak wyjątku
     // =========================================================================
 

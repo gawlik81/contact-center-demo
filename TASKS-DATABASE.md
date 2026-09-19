@@ -2893,3 +2893,128 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 - **Decyzja o zakresie:** świadomie BEZ `WITH CHECK` — minimalny, łatwo odwracalny diff zamiast ujednolicania stylu z nowszymi tabelami EPIC-29 (np. `tenant_retention_policy`/DB-046). Uzasadnienie w nagłówku migracji. Ochrona przy zapisie i tak działa — dla polityki `ALL` bez jawnego `WITH CHECK` Postgres używa `USING` również jako check (potwierdzone testem: cross-tenant INSERT odrzucony na wszystkich 4 tabelach).
 - Weryfikacja: dry-run w transakcji z `ROLLBACK` (czysty przebieg), aplikacja przez `RunFlyway.java` (`-Duser.timezone=UTC`), test manualny pod `SET ROLE app_user` + `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` na wszystkich 4 tabelach: izolacja (tenant B 0 wierszy tenanta A), cross-tenant INSERT odrzucony, `tenant_ai_config` dodatkowo test insertu własnego (tenant B, który nie miał dotąd wiersza) — zaakceptowany. Zero wyciekłych wierszy testowych po `ROLLBACK` (potwierdzone `COUNT(*)` po migracji: `tenant_ai_config`=1 czyli tylko oryginalny dev-seed).
 - **EPIC-29, warstwa DB zamknięta: DB-046..054, 9/9 ukończone.**
+
+---
+
+### DB-055 – [PORZĄDKOWY] Usunięcie zduplikowanych indeksów z partycjonowanej tabeli `contact` — migracja V093
+
+**Typ:** Schema migration / performance (dług techniczny)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-052 (V088 — rotacja partycji; każda nowa partycja `contact` dziedziczy indeksy rodzica)
+**Status:** ✅ Ukończone (migracja zweryfikowana na bazie scratch + pełnym łańcuchu Flyway w Testcontainers; **zastosowana RĘCZNIE przez `psql` na lokalnej bazie demo `contact_center` 2026-09-19 — poza Flyway**, więc `flyway_schema_history` nie ma jeszcze wpisu V093. Przy wdrożeniu z plikami V092+V093 Flyway zarejestruje V093, a ponowne wykonanie jest no-op: `DROP INDEX IF EXISTS`, guard przechodzi, komentarze nadpisywane tym samym tekstem)
+**Blokuje:** brak
+**Epic:** brak (porządki po EPIC-29 — dotyczy tabeli `contact` partycjonowanej w V007, rotowanej w DB-052)
+
+**Numeracja:** V092 jest zajęte przez `V092__social_integration_global_unique_page.sql` (zastosowane w bazie
+dev 2026-08-29, plik istnieje na gałęzi `feature-socialmedia`, a NIE na `develop`), więc migracja dostała
+następny wolny numer **V093**.
+
+> **Uwaga wdrożeniowa (zweryfikowana Flyway API na kopii `flyway_schema_history`):** baza `contact_center`
+> ma już zastosowane V092. Build z samego `develop` (V091 + V093, bez pliku V092) wystartowany na tej bazie
+> **nie przejdzie walidacji Flyway** — `V092 MISSING_SUCCESS`, `Detected applied migration not resolved
+> locally: 092` (V092 przestaje być „future" i staje się „missing", gdy V093 jest wyższe i rozpoznane lokalnie;
+> domyślne `ignoreMigrationPatterns` ignoruje tylko `*:future`). Najpierw trzeba wprowadzić na `develop`
+> `V092__social_integration_global_unique_page.sql` (merge `feature-socialmedia`), dopiero potem wdrażać V093.
+> Z plikiem V092 obecnym lokalnie Flyway widzi wyłącznie V093 jako `PENDING` i aplikuje go czysto.
+
+**Kontekst:**
+`V007__create_contact.sql` zadeklarował indeksy z sufiksami `_history`/`_date`/`_disposition`, a
+`V011__performance_indexes_views.sql` (sekcja 3) dodał drugi zestaw z innymi nazwami i tymi samymi
+kolumnami. Oba zestawy są zdefiniowane NA TABELI NADRZĘDNEJ, więc każdy propaguje się do KAŻDEJ partycji
+(11 dziś: `contact_2026_03..12` + `contact_default`, plus każda kolejna tworzona przez
+`PartitionMaintenanceJob`). Każdy INSERT/UPDATE na `contact` utrzymuje zbędne indeksy × liczba partycji —
+czysty koszt zapisu i miejsca, bez korzyści dla odczytu.
+
+**Audyt (żywa baza PG 16.13, `pg_index`: kolumny, `indoption`, opclass, collation, predykat, AM):**
+
+| Para | Indeks A (V007) — ZOSTAJE | Indeks B (V011) — USUWANY | Różnica |
+|---|---|---|---|
+| 1 | `idx_contact_agent_history` `(tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL` | `idx_contact_tenant_agent_date` | brak (identyczne) |
+| 2 | `idx_contact_disposition` `(tenant_id, disposition_code, started_at) WHERE disposition_code IS NOT NULL` | `idx_contact_tenant_disposition_date` | brak (identyczne) |
+| 3 | `idx_contact_channel_date` `(tenant_id, channel, started_at)` | `idx_contact_tenant_channel_date` `(tenant_id, channel, started_at DESC)` | tylko kierunek `started_at` (`indoption` `0 0 0` vs `0 0 3`) |
+
+**Decyzja co zostaje i dlaczego** (kryteria: referencje / nazewnictwo / V025):
+- **Referencje:** nazwy V007 występują w `documentation/tech/06-database.md` (+ html), w treści ticketu
+  powyżej (linia „Raporty > Kontakty") i w nagłówku V089; nazw V011 nie ma nigdzie poza V011/V025. Zero
+  referencji w kodzie Javy, hintach `@Query`, funkcjach SQL (`pg_proc`), widokach (`pg_views`) i w voicebot —
+  usunięcie nie wymaga zmian w kodzie ani w dokumentacji.
+- **Nazewnictwo:** po migracji 13 z 15 indeksów nie-PK na `contact` ma formę `idx_contact_<przeznaczenie>`;
+  infiks `tenant_` nie niesie informacji, bo każdy indeks `contact` (poza `idx_contact_campaign_contact_record`)
+  zaczyna się od `tenant_id`.
+- **V025:** nie dotknął par 1 i 2 (kolumny nie są enum); parę 3 dotknął symetrycznie (DROP + CREATE obu
+  indeksów `channel`) — nie rozstrzyga.
+- Statystyki `idx_scan` na żywej bazie (21 skanów tylko na `idx_contact_tenant_agent_date`) NIE są argumentem:
+  przy dwóch identycznych indeksach planner wybiera któryś arbitralnie; po usunięciu bliźniaka plan jest ten sam.
+
+**Para 3 (ASC vs DESC) — dowód, nie domysł.** Zapytania z filtrem `channel` w backendzie
+(`ContactRepository.findContacts/countContacts/findAgentReportRows/countAgentReportRows/findActiveSocialContact`;
+`getContactCountsByChannelInRange` używa `channel` tylko w `GROUP BY`) traktują `channel` wyłącznie jako
+równość lub `GROUP BY`; jedyny związany `ORDER BY` to `ORDER BY started_at DESC LIMIT/OFFSET`
+(`findContacts`). Brak `ORDER BY` zawierającego `channel` w `backend/`, `voicebot/` i migracjach.
+`EXPLAIN (ANALYZE, BUFFERS)` na bazie scratch (500 tys. wierszy, 60 tenantów, 7 zapełnionych partycji,
+`SET enable_seqscan = off`, największy tenant 64,6 tys. wierszy; w transakcji z `ROLLBACK`, dodatkowo po
+usunięciu `idx_contact_tenant_started_at`, żeby żaden inny indeks nie mógł dać kolejności po `started_at`):
+
+| Wariant | `ORDER BY started_at DESC LIMIT 20` | `ORDER BY started_at ASC LIMIT 20` | głęboka strona `OFFSET 1500` | zakres dat / `COUNT(*)` / raport `GROUP BY` |
+|---|---|---|---|---|
+| tylko ASC (zostaje) | `Merge Append` > `Index Scan Backward`, **0 węzłów Sort**, 55–57 buforów, 0,6–1,0 ms | `Index Scan`, 0 Sort, 55 buf. | 1580 / 1564 buf., ~4,7 ms | identyczne plany i bufory |
+| tylko DESC (usuwany) | `Index Scan`, 0 Sort, 55–56 buf. | `Index Scan Backward`, 0 Sort, 55 buf. | 1564 / 1580 buf., ~4,7 ms | identyczne |
+| KONTROLA (oba indeksy `channel` + `tenant_started_at` usunięte) | `Sort` > `Bitmap Heap Scan`, 13955 buf., 35–45 ms | jw. | jw. | — |
+
+Kontrola dowodzi, że test wykrywa brak indeksu — brak `Sort` w wariantach z pojedynczym indeksem jest
+dowodem, nie artefaktem. Rozmiar przy monotonicznym napływie wierszy (700 tys., kolejność czasowa): ASC ≈ DESC
+≈ 60 MB (różnica <1%; po `REINDEX` po 34 MB). **Jedyna zmierzona różnica** dotyczy kształtu `ORDER BY`, którego
+kod NIE używa: `WHERE tenant_id = ? ORDER BY channel, started_at DESC` (`channel` bez równości) — DESC obsługuje
+go skanem w przód (55 buf.), ASC wymaga `Incremental Sort` (16 tys. buf., 20–60 ms); symetrycznie ASC obsługuje
+`ORDER BY channel, started_at`, a DESC nie. Gdyby takie zapytanie powstało, należy wtedy świadomie dodać indeks
+pod jego `ORDER BY`. Wniosek: dla WSZYSTKICH istniejących ścieżek pojedynczy indeks wystarcza → usunięty wariant
+DESC, zostaje `idx_contact_channel_date` (te same kryteria co w parach 1 i 2).
+
+**Nowe partycje nie odtwarzają duplikatów.** `create_contact_partition()` (V007; V014/V077/V088 redefiniują
+wyłącznie `create_next_month_partitions()`/`rotate_*`) tworzy partycje przez `CREATE TABLE ... PARTITION OF
+contact` — partycja dziedziczy dokładnie te indeksy, które istnieją na rodzicu w chwili tworzenia. Żadna
+funkcja z `pg_proc`, `PartitionMaintenanceJob`, kod Javy ani event trigger nie tworzy indeksów `contact`
+jawnie po nazwie (zweryfikowane). Empirycznie: `SELECT create_contact_partition(2027, 1)` po migracji → 16
+indeksów, wszystkie dołączone do rodziców, bez duplikatów (także na świeżej bazie po pełnym łańcuchu Flyway).
+
+**DDL migracji (`V093__drop_duplicate_contact_indexes.sql`):**
+```sql
+SET LOCAL lock_timeout = '10s';
+-- guard (DO $$): survivors idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date
+-- MUSZĄ istnieć, inaczej RAISE EXCEPTION (ochrona przed dryfem — nie usuniemy jedynego indeksu ścieżki)
+DROP INDEX IF EXISTS idx_contact_tenant_agent_date;
+DROP INDEX IF EXISTS idx_contact_tenant_disposition_date;
+DROP INDEX IF EXISTS idx_contact_tenant_channel_date;
+COMMENT ON INDEX idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date IS '...';
+```
+
+**Blokada:** `DROP INDEX` na indeksie partycjonowanym zakłada `ACCESS EXCLUSIVE` na `contact` ORAZ na każdej
+partycji (zweryfikowane w `pg_locks`: 12 tabel) do końca transakcji Flyway. Operacja jest metadata-only
+(milisekundy), ale czeka na zakończenie trwających transakcji na `contact`, a nowe zapytania ustawiają się za
+nią w kolejce — stąd `SET LOCAL lock_timeout = '10s'` (lepiej przerwać migrację niż zablokować ruch).
+`DROP INDEX CONCURRENTLY` jest niemożliwy na indeksie partycjonowanym (`ERROR: cannot drop partitioned index ...
+concurrently`). Zalecenie: wdrożenie poza szczytem ruchu.
+
+**Kryteria akceptacji:**
+- [x] Numeracja potwierdzona: V092 zajęte (baza + `feature-socialmedia`) → V093
+- [x] Migracja aplikuje się bez błędów: scratch (`psql -1`, `ON_ERROR_STOP`); pełny łańcuch Flyway 10.20.1 na świeżej bazie w dwóch wariantach — bez V092 (czysty `develop`, 92 migracje) i z V092 z `feature-socialmedia` (93 migracje); `mvn verify -pl app` = BUILD SUCCESS, 1779 testów, 0 błędów (w tym Testcontainers `CampaignContactArchivePurgeTenantIsolationTest`; uwaga: `backend/app/target/classes/db/migration` zawierał nieaktualną kopię V092 po wcześniejszym buildzie z gałęzi social, więc ten przebieg walidował wariant „z V092" — wariant „bez V092" zweryfikowano osobno przez Flyway API)
+- [x] Idempotentna — drugie uruchomienie bez błędów i bez zmian (`DROP INDEX IF EXISTS`)
+- [x] Guard działa: przy usuniętym indeksie-zwycięzcy migracja przerywa się i niczego nie usuwa (symulacja dryfu w transakcji z `ROLLBACK`)
+- [x] Rodzic `contact`: 19 → 16 indeksów; każda z 11 partycji: 19 → 16, wszystkie dołączone; zero duplikatów (exact + direction-only)
+- [x] `create_contact_partition(2027, 1)` → nowa partycja z 16 indeksami, bez duplikatów; `create_next_month_partitions()` nadal działa
+- [x] Diff `pg_dump -s` przed/po: wyłącznie 3 indeksy rodzica + 33 indeksy partycji (+ ich `ATTACH`) usunięte i 3 komentarze dodane
+- [x] Plany zapytań pod `SET ROLE app_user` z RLS (GUC `app.current_tenant_id`): bez `Sort`, użyty indeks-zwycięzca
+- [x] Żaden kod Javy / dokumentacja nie wymaga zmian (brak referencji do usuwanych nazw)
+
+**Audyt pozostałych tabel partycjonowanych (TYLKO RAPORT, poza zakresem V093 — bez zmian):**
+`contact_event`, `contact_transcription`, `contact_ai_summary`, `audit_log`, `plugin_invocation_log` (oraz
+`campaign_contact`, LIST) — porównanie definicji indeksów rodzica po zdjęciu nazwy (`pg_indexes`) i strukturalne
+(`pg_index`: kolumny/opcje/opclass/collation/predykat) oraz wykrywanie redundancji prefiksowej (A jest
+początkiem B, ten sam predykat/kierunek): **zero duplikatów dokładnych, zero bliźniaków różniących się tylko
+kierunkiem, zero redundancji prefiksowej**. Wszystkie 3 zidentyfikowane pary występują wyłącznie na `contact`.
+Rodzic `contact` po V093 też bez redundancji prefiksowej.
+
+**Podsumowanie implementacji (2026-09-19):**
+- `V093__drop_duplicate_contact_indexes.sql` — 3× `DROP INDEX IF EXISTS` + guard + `lock_timeout` + `COMMENT ON INDEX` na 3 indeksach-zwycięzcach. Efekt na wolumenie scratch (500 tys. wierszy, po `VACUUM FULL`): usunięte indeksy ważyły 24,7 + 19,9 + 15,7 = ~60 MiB (~21% miejsca wszystkich indeksów `contact`, ~57% rozmiaru samych danych 106 MiB) i tyle mniej pracy przy każdym INSERT/UPDATE (3 indeksy × liczba partycji).
+- Bez zmian w kodzie produkcyjnym i dokumentacji. Wdrożenie: patrz „Uwaga wdrożeniowa" (kolejność względem V092).

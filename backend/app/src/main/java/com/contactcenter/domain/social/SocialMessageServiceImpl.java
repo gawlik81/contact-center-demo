@@ -128,12 +128,55 @@ class SocialMessageServiceImpl implements SocialMessageService {
     // Wysyłka wiadomości przez agenta
     // =========================================================================
 
+    /**
+     * Wysyła wiadomość przez adapter platformy social media i zapisuje rekord OUTBOUND.
+     *
+     * <p><strong>Granice transakcji (naprawa CRITICAL, code review 2026-08-29):</strong>
+     * ta metoda celowo NIE jest {@code @Transactional} – rozdzielona jest na 3 etapy,
+     * analogicznie do {@code SocialIntegrationServiceImpl.deleteIntegration()}:
+     * <ol>
+     *   <li>{@link #loadSendContext(UUID, UUID)} – krótka transakcja readOnly: odczyt kontaktu
+     *       i integracji, wybór adaptera.</li>
+     *   <li>{@code adapter.sendMessage(...)} – wywołanie synchroniczne, blokujące HTTP do
+     *       zewnętrznego API (np. WhatsApp Cloud API) wykonywane POZA jakąkolwiek transakcją,
+     *       żeby nie trzymać połączenia z puli HikariCP podczas oczekiwania na sieć.</li>
+     *   <li>{@link #saveOutboundMessage} – krótka transakcja zapisująca wiadomość OUTBOUND,
+     *       wykonywana TYLKO gdy wysyłka się powiodła.</li>
+     * </ol>
+     *
+     * <p>W przeciwieństwie do {@code revokeTokenAtProvider()} (gdzie błąd zewnętrznego API tylko
+     * loguje WARN, bo operacja nadrzędna – usunięcie integracji – już się powiodła), błąd etapu 2
+     * tutaj MUSI się propagować do wywołującego bez zapisu w DB: to jest właściwa, dotychczasowa
+     * semantyka biznesowa (wiadomość, która nie dotarła do klienta, nie powinna wyglądać w historii
+     * jak wysłana) – zachowana bez zmian względem wersji sprzed refaktoryzacji.
+     */
     @Override
-    @Transactional
     public void sendMessage(UUID contactId, UUID tenantId, String content, List<String> attachmentUrls) {
         log.info("[SocialMessage] Wysyłam wiadomość: contactId={}, tenant={}", contactId, tenantId);
 
-        // 1. Pobierz kontakt
+        // Etap 1: odczyt i walidacja kontekstu wysyłki (krótka transakcja readOnly)
+        SendContext context = loadSendContext(contactId, tenantId);
+
+        // Etap 2: wywołanie adaptera POZA transakcją – nie blokuje puli HikariCP podczas
+        // synchronicznego wywołania HTTP do zewnętrznego API. Błąd (np. WhatsAppApiException)
+        // propaguje się do wywołującego – etap 3 (zapis) celowo nie zostanie wykonany.
+        context.adapter().sendMessage(context.integrationId(), context.recipientExternalId(), content,
+                attachmentUrls != null ? attachmentUrls : List.of());
+
+        // Etap 3: zapis wiadomości OUTBOUND (krótka transakcja) – tylko po udanej wysyłce
+        saveOutboundMessage(tenantId, contactId, context.integrationId(), context.platform(),
+                context.pageId(), content);
+
+        log.info("[SocialMessage] Wiadomość OUTBOUND zapisana: contactId={}, platform={}",
+                contactId, context.platform());
+    }
+
+    /**
+     * Etap 1 wysyłki: odczyt kontaktu i aktywnej integracji, wybór adaptera. Krótka transakcja
+     * readOnly – żadnego I/O sieciowego.
+     */
+    @Transactional(readOnly = true)
+    protected SendContext loadSendContext(UUID contactId, UUID tenantId) {
         Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Kontakt nie istnieje: contactId=" + contactId));
@@ -145,7 +188,6 @@ class SocialMessageServiceImpl implements SocialMessageService {
                     "Kontakt nie jest kanałem social media: channel=" + channel);
         }
 
-        // 2. Znajdź integrację dla tego tenanta i platformy
         List<SocialIntegration> integrations = socialIntegrationRepository
                 .findByTenantIdAndPlatform(tenantId, platform);
 
@@ -160,27 +202,46 @@ class SocialMessageServiceImpl implements SocialMessageService {
                 .findFirst()
                 .orElse(integrations.get(0));
 
-        // 3. Wyślij przez adapter
-        String recipientExternalId = contact.getRemoteAddress();
-        adapterRegistry.getAdapter(platform)
-                .sendMessage(integration.getIntegrationId(), recipientExternalId, content,
-                        attachmentUrls != null ? attachmentUrls : List.of());
+        return new SendContext(
+                adapterRegistry.getAdapter(platform),
+                integration.getIntegrationId(),
+                platform,
+                integration.getPageId(),
+                contact.getRemoteAddress());
+    }
 
-        // 4. Zapisz wiadomość OUTBOUND
+    /**
+     * Etap 3 wysyłki: zapis wiadomości OUTBOUND. Krótka transakcja, wywoływana dopiero po
+     * udanym wywołaniu adaptera (poza transakcją) w {@link #sendMessage}.
+     */
+    @Transactional
+    protected void saveOutboundMessage(UUID tenantId, UUID contactId, UUID integrationId,
+                                        SocialPlatform platform, String pageId, String content) {
         SocialMessage outbound = SocialMessage.builder()
                 .tenantId(tenantId)
                 .contactId(contactId)
-                .integrationId(integration.getIntegrationId())
+                .integrationId(integrationId)
                 .platform(platform)
                 .direction(SocialMessage.Direction.OUTBOUND.name())
                 .externalMessageId("OUTBOUND-" + UUID.randomUUID())
-                .senderExternalId(integration.getPageId())
+                .senderExternalId(pageId)
                 .content(content)
                 .sentAt(Instant.now())
                 .build();
 
         socialMessageRepository.save(outbound);
-        log.info("[SocialMessage] Wiadomość OUTBOUND zapisana: contactId={}, platform={}", contactId, platform);
+    }
+
+    /**
+     * Kontekst wysyłki wiadomości – wynik etapu 1 ({@link #loadSendContext}), przekazywany do
+     * wywołania adaptera (etap 2, poza transakcją) i zapisu wiadomości (etap 3).
+     */
+    private record SendContext(
+            SocialMediaAdapter adapter,
+            UUID integrationId,
+            SocialPlatform platform,
+            String pageId,
+            String recipientExternalId) {
     }
 
     // =========================================================================

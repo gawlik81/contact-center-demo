@@ -3,12 +3,18 @@ package com.contactcenter.api.social;
 import com.contactcenter.api.social.dto.OAuthInitiateResponse;
 import com.contactcenter.api.social.dto.SocialIntegrationDto;
 import com.contactcenter.api.social.dto.SocialIntegrationListResponse;
+import com.contactcenter.api.social.dto.WhatsAppConnectRequest;
 import com.contactcenter.domain.social.SocialPlatform;
 import com.contactcenter.domain.social.SocialIntegrationService;
+import com.contactcenter.infrastructure.social.WhatsAppGraphApiVerifier;
 import com.contactcenter.security.TenantContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +37,7 @@ import java.util.UUID;
  *   <li>GET  /api/integrations              – lista integracji tenanta</li>
  *   <li>POST /api/integrations/{platform}/initiate – inicjacja OAuth (zwraca authorizationUrl)</li>
  *   <li>GET  /api/oauth/{platform}/callback – callback OAuth (publiczny, bez JWT)</li>
+ *   <li>POST /api/integrations/WHATSAPP/connect – ręczne podłączenie WhatsApp Business (bez OAuth)</li>
  *   <li>DELETE /api/integrations/{integrationId} – revoke i usunięcie integracji</li>
  * </ul>
  *
@@ -53,6 +60,8 @@ public class SocialOAuthController {
 
     private final SocialIntegrationService integrationService;
     private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
+    private final WhatsAppGraphApiVerifier whatsAppGraphApiVerifier;
 
     @Value("${social.facebook.app-id:}")
     private String facebookAppId;
@@ -236,6 +245,66 @@ public class SocialOAuthController {
     }
 
     // =========================================================================
+    // POST /api/integrations/WHATSAPP/connect – ręczne podłączenie WhatsApp
+    // =========================================================================
+
+    /**
+     * Ręcznie podłącza integrację WhatsApp Business (Cloud API).
+     *
+     * <p>WhatsApp Business API nie używa OAuth Code Flow (patrz {@link #buildAuthorizationUrl}) –
+     * administrator generuje {@code phone_number_id} i permanentny access token w Meta Business
+     * Suite / Meta for Developers i wkleja je bezpośrednio do formularza podłączenia.
+     *
+     * <p>Token nie wygasa (WhatsApp permanent access token), więc {@code expiresAt} przekazywane
+     * do {@link SocialIntegrationService#saveIntegration} jest {@code null} – zgodnie z logiką
+     * {@code refreshExpiringTokens()}, która jawnie pomija platformę WHATSAPP.
+     *
+     * <p>Jeśli tenant ma już podłączony WhatsApp pod tym samym {@code phoneNumberId}, integracja
+     * zostanie zaktualizowana (nowy token, displayName) zamiast utworzenia duplikatu – obsługiwane
+     * przez {@code findByTenantIdAndPlatformAndPageId} w warstwie serwisowej.
+     *
+     * <p><strong>Pre-flight weryfikacja (naprawa code review 2026-08-29):</strong> przed zapisem
+     * integracja jest weryfikowana względem Meta Graph API przez
+     * {@link WhatsAppGraphApiVerifier#verifyPhoneNumberAccess}. Wywołanie to musi wykonać się
+     * PRZED {@link SocialIntegrationService#saveIntegration}, który jest {@code @Transactional} –
+     * blokujące HTTP do zewnętrznego API nie może wykonywać się wewnątrz transakcji (dokładnie ten
+     * anti-pattern naprawiony wcześniej w {@code WhatsAppAdapter}/{@code SocialMessageServiceImpl}).
+     * Błędne dane (401/403/404 z Graph API) kończą się {@code IllegalArgumentException} → HTTP 422
+     * (patrz {@code GlobalExceptionHandler.handleIllegalArgumentException}) – integracja NIE jest
+     * zapisywana.
+     */
+    @PostMapping("/api/integrations/WHATSAPP/connect")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Ręczne podłączenie WhatsApp Business (Cloud API) – phone_number_id + permanentny access token")
+    public ResponseEntity<SocialIntegrationDto> connectWhatsApp(
+            @Valid @RequestBody WhatsAppConnectRequest request) {
+
+        UUID tenantId = TenantContext.getTenantId();
+        log.info("[SocialOAuth] Ręczne podłączenie WhatsApp: tenant={}, phoneNumberId={}",
+                tenantId, request.phoneNumberId());
+
+        // Pre-flight: weryfikacja (token, phoneNumberId) względem Graph API PRZED zapisem –
+        // POZA jakąkolwiek transakcją (saveIntegration() poniżej jest @Transactional).
+        whatsAppGraphApiVerifier.verifyPhoneNumberAccess(request.phoneNumberId(), request.accessToken());
+
+        String platformConfig = buildWhatsAppPlatformConfig(request.businessAccountId());
+
+        SocialIntegrationDto saved = integrationService.saveIntegration(
+                SocialPlatform.WHATSAPP,
+                request.phoneNumberId(),
+                request.displayName(),
+                request.accessToken(),
+                null, // WhatsApp permanent access token nie wygasa
+                platformConfig
+        );
+
+        log.info("[SocialOAuth] WhatsApp podłączony: integrationId={}, tenant={}, phoneNumberId={}",
+                saved.integrationId(), tenantId, request.phoneNumberId());
+
+        return ResponseEntity.ok(saved);
+    }
+
+    // =========================================================================
     // DELETE /api/integrations/{integrationId} – usuń integrację
     // =========================================================================
 
@@ -318,5 +387,33 @@ public class SocialOAuthController {
         log.debug("[SocialOAuth] Ekstrakcja page_id (stub): platform={}", platform);
         // TODO: implementacja produkcyjna – GET /me/accounts lub /me?fields=id
         return "page-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /**
+     * Buduje JSON string {@code platformConfig} dla integracji WhatsApp.
+     *
+     * <p>Zawiera {@code businessAccountId} (WABA ID) gdy podano – opcjonalne pole
+     * przydatne np. do zarządzania szablonami wiadomości przez Graph API.
+     * Budowane przez Jackson {@link ObjectMapper}/{@link ObjectNode}, nie przez ręczną
+     * konkatenację stringów – unika ryzyka wygenerowania nieprawidłowego JSON-a
+     * (np. gdy businessAccountId zawierałby znak cudzysłowu).
+     *
+     * @param businessAccountId opcjonalne WABA ID (może być null/puste)
+     * @return JSON string lub {@code null} gdy businessAccountId nie podano
+     */
+    private String buildWhatsAppPlatformConfig(String businessAccountId) {
+        if (businessAccountId == null || businessAccountId.isBlank()) {
+            return null;
+        }
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("businessAccountId", businessAccountId);
+        try {
+            return objectMapper.writeValueAsString(node);
+        } catch (JsonProcessingException e) {
+            // Praktycznie nieosiągalne dla prostego ObjectNode z jednym polem tekstowym,
+            // ale obsługujemy zgodnie z checked exception w sygnaturze Jacksona.
+            log.warn("[SocialOAuth] Błąd serializacji platformConfig dla WhatsApp: {}", e.getMessage());
+            return null;
+        }
     }
 }

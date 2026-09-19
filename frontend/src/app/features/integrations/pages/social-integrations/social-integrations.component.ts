@@ -12,7 +12,11 @@ import {
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, catchError, of } from 'rxjs';
-import { SocialIntegration, SocialPlatform } from '../../models/social-integration.model';
+import {
+  SocialIntegration,
+  SocialPlatform,
+  WhatsAppConnectRequest,
+} from '../../models/social-integration.model';
 import { SocialIntegrationService } from '../../services/social-integration.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 
@@ -60,6 +64,8 @@ const PLATFORM_CARDS: PlatformCard[] = [
 })
 export class SocialIntegrationsComponent implements OnInit {
   @ViewChild('disconnectDialogRef') private disconnectDialogRef!: ElementRef<HTMLDialogElement>;
+  @ViewChild('whatsappConnectDialogRef')
+  private whatsappConnectDialogRef!: ElementRef<HTMLDialogElement>;
 
   private readonly integrationService = inject(SocialIntegrationService);
   private readonly notifications = inject(NotificationService);
@@ -71,6 +77,17 @@ export class SocialIntegrationsComponent implements OnInit {
   readonly disconnecting = signal(false);
   readonly pendingDisconnect = signal<SocialIntegration | null>(null);
 
+  readonly connectingWhatsapp = signal(false);
+  readonly whatsappFormSubmitted = signal(false);
+  readonly whatsappPhoneNumberId = signal('');
+  readonly whatsappAccessToken = signal('');
+  readonly whatsappAccessTokenVisible = signal(false);
+  readonly whatsappDisplayName = signal('');
+  readonly whatsappBusinessAccountId = signal('');
+
+  /** Matches the backend's @Size(max = 255) on WhatsAppConnectRequest fields (accessToken excluded, no backend limit). */
+  readonly maxFieldLength = 255;
+
   readonly integrations = signal<SocialIntegration[]>([]);
 
   readonly platformCards = PLATFORM_CARDS;
@@ -81,6 +98,21 @@ export class SocialIntegrationsComponent implements OnInit {
       map.set(integration.platform, integration);
     }
     return map;
+  });
+
+  readonly whatsappFormValid = computed(() => {
+    const phoneNumberId = this.whatsappPhoneNumberId().trim();
+    const displayName = this.whatsappDisplayName().trim();
+    const businessAccountId = this.whatsappBusinessAccountId().trim();
+    const maxLen = this.maxFieldLength;
+    return (
+      phoneNumberId.length > 0 &&
+      phoneNumberId.length <= maxLen &&
+      this.whatsappAccessToken().trim().length > 0 &&
+      displayName.length > 0 &&
+      displayName.length <= maxLen &&
+      businessAccountId.length <= maxLen
+    );
   });
 
   ngOnInit(): void {
@@ -105,10 +137,6 @@ export class SocialIntegrationsComponent implements OnInit {
   }
 
   connectPlatform(platform: SocialPlatform): void {
-    if (platform === 'WHATSAPP') {
-      // WhatsApp Business API does not use OAuth Code Flow – configured via Meta Business Suite
-      return;
-    }
     this.connectingPlatform.set(platform);
     this.integrationService
       .initiateOAuth(platform)
@@ -161,6 +189,71 @@ export class SocialIntegrationsComponent implements OnInit {
         this.disconnectDialogRef.nativeElement.close();
         this.pendingDisconnect.set(null);
         this.disconnecting.set(false);
+        this.loadIntegrations();
+      });
+  }
+
+  openWhatsappConnectDialog(): void {
+    this.whatsappPhoneNumberId.set('');
+    this.whatsappAccessToken.set('');
+    this.whatsappAccessTokenVisible.set(false);
+    this.whatsappDisplayName.set('');
+    this.whatsappBusinessAccountId.set('');
+    this.whatsappFormSubmitted.set(false);
+    this.whatsappConnectDialogRef.nativeElement.showModal();
+  }
+
+  closeWhatsappConnectDialog(): void {
+    if (this.connectingWhatsapp()) return;
+    this.whatsappConnectDialogRef.nativeElement.close();
+  }
+
+  /**
+   * Handles the native `cancel` event fired when the dialog is closed via the
+   * Escape key. Without this, Escape bypasses the `connectingWhatsapp()` guard
+   * that the "Anuluj" button respects, letting the dialog close mid-request.
+   */
+  onWhatsappDialogCancel(event: Event): void {
+    if (this.connectingWhatsapp()) {
+      event.preventDefault();
+    }
+  }
+
+  toggleWhatsappAccessTokenVisibility(): void {
+    this.whatsappAccessTokenVisible.update((visible) => !visible);
+  }
+
+  onWhatsappFormSubmit(event: Event): void {
+    event.preventDefault();
+    this.submitWhatsappConnect();
+  }
+
+  private submitWhatsappConnect(): void {
+    this.whatsappFormSubmitted.set(true);
+    if (!this.whatsappFormValid() || this.connectingWhatsapp()) return;
+
+    const request: WhatsAppConnectRequest = {
+      phoneNumberId: this.whatsappPhoneNumberId().trim(),
+      accessToken: this.whatsappAccessToken().trim(),
+      displayName: this.whatsappDisplayName().trim(),
+      businessAccountId: this.whatsappBusinessAccountId().trim() || undefined,
+    };
+
+    this.connectingWhatsapp.set(true);
+    this.integrationService
+      .connectWhatsApp(request)
+      .pipe(
+        catchError(() => {
+          this.notifications.error(this.transloco.translate('integrations.social.errorConnect'));
+          this.connectingWhatsapp.set(false);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.notifications.success(this.transloco.translate('integrations.social.successConnect'));
+        this.connectingWhatsapp.set(false);
+        this.whatsappConnectDialogRef.nativeElement.close();
         this.loadIntegrations();
       });
   }

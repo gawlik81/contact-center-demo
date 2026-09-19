@@ -105,7 +105,8 @@ class SocialIntegrationRepository extends TenantAwareRepository {
      * <p><strong>UWAGA – pomija RLS celowo.</strong> Używana wyłącznie przez webhook handler,
      * który nie posiada JWT (wywołanie pochodzi z zewnętrznej platformy social media).
      * Identyfikacja tenanta następuje przez parę (platform, pageId) – każda strona może należeć
-     * tylko do jednego tenanta (constraint {@code uq_social_integration_platform_page}).
+     * tylko do jednego tenanta (constraint {@code uq_social_integration_global_platform_page},
+     * migracja V092 – globalny, NIE per-tenant jak sugerowała wcześniejsza wersja tego komentarza).
      *
      * <p>Brak wywołania {@code setTenantContextInDb()} – operacja globalna.
      * Po znalezieniu integracji serwis ustawia TenantContext ręcznie.
@@ -125,6 +126,41 @@ class SocialIntegrationRepository extends TenantAwareRepository {
                 .setMaxResults(1)
                 .getResultStream()
                 .findFirst();
+    }
+
+    /**
+     * Sprawdza, czy dana para (platform, page_id) jest już przypisana INNEMU tenantowi niż podany.
+     *
+     * <p>Używane przez {@code SocialIntegrationServiceImpl.saveIntegration()} PRZED zapisem –
+     * zapobiega sytuacji, w której np. dwaj administratorzy różnych tenantów (przez pomyłkę lub
+     * złośliwie) podłączą integrację z tym samym {@code phoneNumberId}/{@code pageId}, co przy
+     * webhookach identyfikowanych wyłącznie po (platform, pageId) (patrz
+     * {@link #findByPlatformAndPageId}) mogłoby trwale routować wiadomości klienta jednego tenanta
+     * do innego. Naruszenie tej reguły jest też wymuszone na poziomie DB przez globalny constraint
+     * {@code uq_social_integration_global_platform_page} (migracja V092) – to zapytanie pozwala
+     * jednak zwrócić czytelny {@code 409 Conflict} zamiast surowego
+     * {@code DataIntegrityViolationException} z bazy.
+     *
+     * <p>Celowo bez {@code setTenantContextInDb()} – zapytanie musi widzieć wiersze WSZYSTKICH
+     * tenantów, żeby wykryć kolizję (analogicznie do {@link #findByPlatformAndPageId}).
+     *
+     * @param platform platforma social media
+     * @param pageId   ID strony/konta na platformie
+     * @param tenantId UUID tenanta wykonującego zapis – wykluczony z wyszukiwania (własne rekordy
+     *                 tenanta nie są kolizją, to update-in-place)
+     * @return {@code true} gdy (platform, pageId) należy już do innego tenanta niż {@code tenantId}
+     */
+    @Transactional(readOnly = true)
+    public boolean existsByPlatformAndPageIdAndTenantIdNot(SocialPlatform platform, String pageId, UUID tenantId) {
+        Long count = em.createQuery(
+                        "SELECT COUNT(si) FROM SocialIntegration si "
+                                + "WHERE si.platform = :platform AND si.pageId = :pageId AND si.tenantId <> :tenantId",
+                        Long.class)
+                .setParameter("platform", platform)
+                .setParameter("pageId", pageId)
+                .setParameter("tenantId", tenantId)
+                .getSingleResult();
+        return count != null && count > 0;
     }
 
     /**

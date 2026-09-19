@@ -6,6 +6,7 @@ import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
+import com.contactcenter.domain.exception.WhatsAppApiException;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
@@ -579,6 +580,26 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         log.warn("[API][Twilio] Błąd Twilio API: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
+    }
+
+    /**
+     * Błąd zewnętrznego API WhatsApp Business (Meta Graph API) – HTTP 502 Bad Gateway.
+     *
+     * <p>Rzucany przez {@code WhatsAppAdapter} gdy wysyłka wiadomości przez Cloud API
+     * zakończy się niepowodzeniem (błąd HTTP, timeout, błąd sieciowy).
+     */
+    @ExceptionHandler(WhatsAppApiException.class)
+    public ResponseEntity<ProblemDetail> handleWhatsAppApiException(
+            WhatsAppApiException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
+        problem.setType(URI.create(ERROR_BASE_URI + "whatsapp-api-error"));
+        problem.setTitle("Błąd zewnętrznego API WhatsApp");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][WhatsApp] Błąd WhatsApp Cloud API: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 

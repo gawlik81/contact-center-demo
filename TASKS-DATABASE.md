@@ -3018,3 +3018,685 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 **Podsumowanie implementacji (2026-09-19):**
 - `V093__drop_duplicate_contact_indexes.sql` — 3× `DROP INDEX IF EXISTS` + guard + `lock_timeout` + `COMMENT ON INDEX` na 3 indeksach-zwycięzcach. Efekt na wolumenie scratch (500 tys. wierszy, po `VACUUM FULL`): usunięte indeksy ważyły 24,7 + 19,9 + 15,7 = ~60 MiB (~21% miejsca wszystkich indeksów `contact`, ~57% rozmiaru samych danych 106 MiB) i tyle mniej pracy przy każdym INSERT/UPDATE (3 indeksy × liczba partycji).
 - Bez zmian w kodzie produkcyjnym i dokumentacji. Wdrożenie: patrz „Uwaga wdrożeniowa" (kolejność względem V092).
+
+---
+
+## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+
+> Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20) — ustalenia U1–U15, decyzje
+> D1–D8 z założeniami domyślnymi (tickety działają przy nich; wpływ alternatywy opisany w każdym tickecie zależnym), wymagania
+> przekrojowe WP-1…WP-8. Powiązane: `DESIGN-data-retention-partitioning.md` (EPIC-29), `PRD.md` §6.5 (NFR-RODO01/02/03).
+> **Numery migracji Flyway NIE są wpisane w tickety** — nadaje się je przy implementacji: „następna wolna wersja; sprawdź `develop`,
+> otwarte gałęzie (`git ls-tree -r --name-only <gałąź> -- backend/src/main/resources/db/migration`) ORAZ `flyway_schema_history` żywej
+> bazy" (precedens: V092 zajęte przez gałąź `feature-socialmedia`, patrz DB-055). Jedna migracja na jedną zmianę; nigdy edycja
+> zastosowanej migracji.
+> **Numeracja:** DB-056…DB-077 (poprzedni najwyższy: DB-055). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
+> Could = bramkowane lub warunkowe. Tickety oznaczone [WARUNKOWY] wchodzą do zakresu tylko przy wskazanej alternatywie decyzji;
+> [BRAMKOWANY] — dopiero po spełnieniu progu wolumenowego.
+>
+> Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
+> ```
+> Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
+> Grupa 1:  BE-124 → DB-059 → BE-127;   DB-060 → DB-061, DB-062 → BE-129;   [BE-124 → DB-063 → BE-130, tylko D1 = C]
+> Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126, DB-059 → DB-065
+> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059, BE-127 → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
+> Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 → BE-139
+> Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070, DB-076 → DB-077
+> ```
+
+### DB-056 – Zbatchowana funkcja `purge_campaign_contact_archive` (pojedynczy DELETE → partie)
+
+**Typ:** Schema migration (funkcja SQL)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak (V091 zastosowane)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-121, DB-069, DB-075
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (test Testcontainers: `test-suite-expert`)
+
+**Kontekst:**
+`purge_campaign_contact_archive(p_tenant_id UUID, p_cutoff_date TIMESTAMPTZ) RETURNS INT` (V091) wykonuje jeden
+`DELETE … WHERE tenant_id = … AND archived_at < …` w jednej transakcji — dla dużego tenanta to długa transakcja, duży WAL i długie
+blokady (DESIGN §2 U12). `campaign_contact_archive` NIE jest partycjonowana, więc partie identyfikujemy pełnym PK
+`(record_id, campaign_id)` (zakaz `ctid` dotyczy tabel partycjonowanych — kolizje między partycjami, patrz BE-113 — tu bezpieczny, ale
+PK jest odporniejszy na przyszłą konwersję DB-069).
+
+**Zakres:**
+- Nowa migracja (numer wg WP-3): `DROP FUNCTION IF EXISTS purge_campaign_contact_archive(UUID, TIMESTAMPTZ)` +
+  `CREATE FUNCTION purge_campaign_contact_archive(p_tenant_id UUID, p_cutoff_date TIMESTAMPTZ, p_batch_size INT DEFAULT 10000) RETURNS INT` —
+  usuwa najwyżej `p_batch_size` wierszy (`WITH batch AS (SELECT record_id, campaign_id … WHERE tenant_id = p_tenant_id AND archived_at < p_cutoff_date
+  ORDER BY archived_at LIMIT p_batch_size) DELETE … USING batch …`), zwraca liczbę usuniętych. Walidacja `p_batch_size BETWEEN 1 AND 100000`.
+- `cron_log`: brak wpisu przy wyniku 0 (kończy pętlę Javy — bez spamu); przy > 0 jeden wpis na partię (albo agregat — udokumentuj wybór).
+- Jawny `DROP` starej sygnatury (nie zostawiać dwóch przeciążeń — niejednoznaczność przy DEFAULT), `COMMENT ON FUNCTION`.
+- `SET LOCAL lock_timeout` niepotrzebne (brak DDL na tabeli) — funkcja tworzona `CREATE`, nie zmienia tabel.
+
+**Kryteria akceptacji:**
+- [ ] (WP-3) Numer migracji = następna wolna wersja (develop + otwarte gałęzie + `flyway_schema_history`); migracja idempotentna (`DROP FUNCTION IF EXISTS`); w `pg_proc` istnieje wyłącznie sygnatura 3-argumentowa
+- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway (rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`): 5 wierszy tenanta A starszych niż cutoff, `p_batch_size = 2` → wywołania zwracają 2, 2, 1, 0; tenant B (też stary) nietknięty; wiersze nowsze niż cutoff nietknięte
+- [ ] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
+- [ ] Brak wpisu w `cron_log` przy wyniku 0
+- [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce
+- [ ] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji
+- [ ] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7)
+
+**Ryzyka:** zmiana semantyki wartości zwracanej (dotąd całość, teraz partia); jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121).
+
+---
+
+### DB-057 – Porządki indeksów: duplikaty (`scheduled_callback`, `agent_group_member`) i nieużywane indeksy archiwum — 3 osobne migracje
+
+**Typ:** Schema migration / performance (dług techniczny)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+Każdy zbędny indeks to koszt INSERT/UPDATE i miejsca bez korzyści dla odczytu (DESIGN §2 U14; precedens: DB-055/V093 — audyt strukturalny w
+`pg_index`, guard, `lock_timeout`, komentarze). Dowody live (2026-09-20): `idx_callback_ready` i `idx_scheduled_callback_due` mają identyczną
+definicję `(tenant_id, scheduled_at) WHERE status = 'PENDING' AND is_deleted = false`; `idx_agent_group_member_lookup` i
+`idx_campaign_agent_member_lookup` to identyczne `(agent_id) INCLUDE (group_id)`; `idx_cca_campaign (campaign_id, archived_at DESC)` i
+`idx_cca_archived_at (archived_at)` nie mają czytelników (0 skanów na pustej tabeli **nic nie dowodzi** — decyduje grep Java/`pg_proc`/`pg_views`).
+
+**Zakres — trzy migracje, po jednej na tabelę (jedna zmiana = jedna migracja):**
+1. `scheduled_callback`: usuń jeden z pary (zostaje ten z lepszymi referencjami/nazwą wg kryteriów DB-055: referencje w kodzie/dokumentacji/`pg_proc`/`pg_views`,
+   nazewnictwo); guard, że zwycięzca istnieje. Tylko RAPORT (bez zmian): `idx_callback_scheduled (tenant_id, scheduled_at, status) WHERE status = 'PENDING'` i pokrewne
+   częściowe indeksy tabeli (12 indeksów łącznie z PK) — do osobnej oceny.
+2. `agent_group_member`: usuń jeden z pary identycznych. Tylko RAPORT: `idx_agent_group_member_agent (agent_id)` jest pokryty covering-indeksem
+   `(agent_id) INCLUDE (group_id)`, a `idx_agent_group_member_group (group_id)` jest prefiksem PK `(group_id, agent_id)`.
+3. `campaign_contact_archive`: usuń `idx_cca_archived_at` i `idx_cca_campaign` **tylko jeśli w chwili implementacji**: (a) 0 czytelników (grep `backend/`, `voicebot/`,
+   `pg_proc`, `pg_views`), (b) D8 nie zdecydowało o czytelnikach archiwum po kampanii, (c) D6 nie wybrało alternatywy wymagającej takiego indeksu (DB-075).
+   Zostają: PK, `idx_cca_tenant_archived_at`, `idx_cca_tenant_customer` (guard). W przeciwnym razie migracja 3 pominięta z notatką.
+
+**Kryteria akceptacji:**
+- [ ] (WP-3) Każda migracja: numer wg reguły „następna wolna", `SET LOCAL lock_timeout`, guard (DO $$ — indeks-zwycięzca istnieje, inaczej `RAISE EXCEPTION`), `DROP INDEX IF EXISTS`, `COMMENT ON INDEX` zwycięzcy; idempotentna
+- [ ] Definicje porównane strukturalnie w `pg_index` (kolumny, `indoption`, opclass, collation, predykat, AM), nie po nazwie
+- [ ] Dowód braku regresji: `EXPLAIN` zapytań `ScheduledCallbackExecutor`/`ScheduledCallbackRepository` (callbacki) i wyszukiwania grup agenta pod `SET ROLE app_user` z GUC — przed/po ten sam indeks-zwycięzca (scratch)
+- [ ] Diff `pg_dump -s` przed/po = wyłącznie zamierzone DROP + komentarze
+- [ ] (WP-1) Pełny łańcuch Flyway (Testcontainers) zielony; bez zmian w kodzie Javy
+- [ ] Migracja 3: wyniki grepów w notatce; decyzja „usunięte/pominięte" z uzasadnieniem
+- [ ] Wdrożenie poza szczytem (DROP INDEX bierze ACCESS EXCLUSIVE — tabele niepartycjonowane, krótko)
+
+---
+
+### DB-058 – Widoki materializowane `mv_agent_daily_stats` / `mv_campaign_stats`: decyzja DROP vs harmonogram odświeżania
+
+**Typ:** Schema migration / decyzja (dług techniczny)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-076
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (wariant B: + `backend-dev-expert`)
+
+**Kontekst:**
+Widoki z V011 miały być odświeżane przez `scheduled_job.refresh_materialized_views` (`0 1 * * *`, funkcja `refresh_materialized_views()`),
+ale `pg_cron` nie jest zainstalowany, więc `last_run_at` jest NULL — dane nieaktualne od utworzenia. Zero referencji w `backend/`,
+`frontend/src`, `voicebot/`; zero skanów w `pg_stat_user_tables`; brak widoków zależnych (`pg_depend`); rozmiary 48 kB/16 kB; oba mają unikalne
+indeksy (`uq_mv_*`), więc `REFRESH … CONCURRENTLY` byłby możliwy. Widoki materializowane nie mogą mieć RLS, a zawierają `tenant_id` (DESIGN §2 U14).
+
+**Założenie do potwierdzenia:** wariant A = **DROP** (zero czytelników). Wariant B = harmonogram odświeżania w Javie (`@Scheduled` 01:00 UTC, wzorzec
+`PartitionMaintenanceJob`, `REFRESH MATERIALIZED VIEW CONCURRENTLY`) — wtedy wykonawca dopisuje ticket BE (kolejny wolny numer BE) i zmienia tylko opis w DB-076.
+
+**Zakres:**
+- Potwierdź brak czytelników zewnętrznych: `pg_stat_user_tables`, `pg_depend`, `EtlSyncServiceImpl`/ClickHouse (czy ETL czyta widoki), zapytanie do właściciela o BI/raporty.
+- Migracja A: `DROP MATERIALIZED VIEW IF EXISTS mv_agent_daily_stats, mv_campaign_stats` + `DROP FUNCTION IF EXISTS refresh_materialized_views()` (jeśli bez innych zależności).
+
+**Kryteria akceptacji:**
+- [ ] Notatka z dowodami (grep, `pg_depend`, statystyki, odpowiedź właściciela) i wybranym wariantem
+- [ ] (WP-3) Jedna migracja, idempotentna (`IF EXISTS`), numer wg reguły; pełny łańcuch Flyway zielony (WP-1)
+- [ ] `pg_matviews` bez usuniętych widoków; brak błędów zależności; diff `pg_dump -s` tylko zamierzony
+- [ ] Wpis `scheduled_job.refresh_materialized_views` uzgodniony w DB-076 (nie w tej migracji)
+
+---
+
+### DB-059 – Indeksy `(tenant_id, wiek wiadomości)` dla purge `email_message` i `social_message`
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-124 (potwierdzona semantyka D1 i definicja „wieku" wiadomości)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-127, DB-065, DB-067
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+BE-125/BE-127 wprowadzają `DELETE … WHERE tenant_id = … AND contact_id IN (…)` oraz purge osieroconych
+`WHERE tenant_id = … AND contact_id IS NULL AND <wiek> < cutoff` (DESIGN §2 U1). Dziś: `idx_email_message_contact (contact_id, received_at DESC)`,
+`idx_email_message_delivery` (częściowy), `uq_email_message_id_header (tenant_id, message_id_header)`, `idx_social_message_contact (contact_id, sent_at DESC)`,
+`idx_social_message_sender (tenant_id, platform, sender_external_id)` — brak `(tenant_id, czas)`, więc sweep osieroconych = Seq Scan przy każdej partii
+(analogia do DB-053/V089). Live: `email_message` 55 wierszy, `social_message` 0 — problem pojawi się dopiero na wolumenie, ale indeks jest tani teraz.
+
+**Zakres (jedna migracja — jeden cel):**
+- `email_message`: `CREATE INDEX idx_email_message_tenant_orphan_age ON email_message (tenant_id, (COALESCE(received_at, sent_at, created_at))) WHERE contact_id IS NULL`
+  — ta sama definicja „wieku wiadomości", która stanie się `message_at` w DB-067 (zapisz w komentarzu).
+- `social_message`: `CREATE INDEX idx_social_message_tenant_orphan_sent ON social_message (tenant_id, sent_at) WHERE contact_id IS NULL`.
+- Zwykły `CREATE INDEX IF NOT EXISTS` (wzorzec V089; tabele małe). Gdy tabele produkcyjne są duże: `-- flyway:executeInTransaction=false` + `CREATE INDEX CONCURRENTLY` (wykonawca sprawdza rozmiar).
+- Konwersje DB-065/DB-067 odtwarzają te indeksy na tabelach partycjonowanych (AC w tamtych ticketach).
+
+**Kryteria akceptacji:**
+- [ ] (WP-3) Migracja idempotentna, numer wg reguły, `COMMENT ON INDEX` z definicją „wieku"
+- [ ] (WP-3) `EXPLAIN` zapytania sweepu osieroconych **dokładnie w postaci z BE-127** (to samo wyrażenie `COALESCE`) na scratch (≥ 200 tys. wierszy, 60 tenantów, ~20 % osieroconych) → Index/Bitmap Scan na nowym indeksie, bez Seq Scan; pod `SET ROLE app_user` z GUC
+- [ ] `DELETE … WHERE tenant_id = … AND contact_id IN (…)` używa `idx_email_message_contact`/`idx_social_message_contact` (EXPLAIN w notatce)
+- [ ] Rozmiar indeksów zmierzony (koszt zapisu); pełny łańcuch Flyway zielony (WP-1)
+
+---
+
+### DB-060 – Audyt kolumn PII powiązanych z klientem (macierz Art. 17/15) — raport bez migracji
+
+**Typ:** Analiza / dokumentacja (bez zmian schematu)
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-061, DB-062, BE-129
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+D3 wymaga rozszerzenia RODO, ale DESIGN §2 U2–U4 pokazał, że (a) przepływ Java (`GdprServiceImpl`) nie woła funkcji SQL i pomija wiadomości,
+(b) funkcje SQL pomijają `scheduled_callback`, `campaign_contact*`, `contact.notes`, transkrypcje. Zanim ktokolwiek zmieni funkcje, potrzebna jest kompletna macierz.
+Znane kolumny PII (live): `contact` (`remote_address`, `channel_metadata`, `notes`, `recording_url`), `scheduled_callback` (`phone` NOT NULL, `first_name`, `last_name`, `notes`),
+`campaign_contact`/`campaign_contact_archive` (`phone`, `first_name`, `last_name`, `email`, `custom_fields` — wszystkie nullable; częściowy unikalny indeks
+`idx_campaign_contact_phone_unique (campaign_id, phone) WHERE phone IS NOT NULL`), `customer.custom_fields`/`gdpr_consent` (Java ich nie czyści).
+
+**Zakres:**
+- Zapytanie do `information_schema.columns` + `pg_constraint`: WSZYSTKIE tabele z `customer_id` lub `contact_id` (nie tylko lista wyżej) — dołącz wynik do notatki.
+- Dla każdej tabeli: kolumny PII, sposób powiązania z klientem (bezpośrednio/przez `contact`), stan dziś w: `anonymize_customer` (V013), `export_customer_data` (V017), `GdprServiceImpl`
+  (Java). Obowiązkowo: `contact_transcription.content`, `contact_ai_summary` (ocena D3: PII jako treść rozmowy), `email_message`, `social_message`, obiekty S3 (nagrania, EML = `contact.recording_url`,
+  `email-attachments/…`, pending), `contacts_dw`/ClickHouse (czy zawierają PII), `audit_log` (`old_value`/`new_value`/`ip_address` — rekomendacja: poza zakresem lub maskowanie).
+- Rekomendacja per luka (anonimizuj / usuń / zostaw + uzasadnienie, np. statystyki bez PII) i wskazanie ticketu wykonawczego (DB-062, DB-061, BE-129).
+- Ograniczenie do udokumentowania: wiadomości odcięte przed EPIC-30 (`contact_id IS NULL`) nie są przypisywalne do klienta — usuwa je BE-127 wg retencji.
+
+**Kryteria akceptacji:**
+- [ ] Macierz obejmuje wszystkie tabele z `customer_id`/`contact_id` (zapytanie w notatce), kolumny: tabela | kolumny PII | powiązanie | Art. 17 dziś | Art. 15 dziś | rekomendacja | ticket
+- [ ] Ocena transkrypcji i `contact_ai_summary` z przykładami struktury danych (bez ujawniania PII w notatce)
+- [ ] Potwierdzenie greppem: brak wywołań `anonymize_customer`/`export_customer_data` w Javie (U2) + lista miejsc, gdzie `GdprServiceImpl`/`CustomerRepository#anonymize` pomija dane
+- [ ] Zakłada D3 = A (rozszerzyć funkcje SQL i podłączyć do Javy): przy D3 = B/C wykonawca zaznacza w notatce, które luki przechodzą do BE-129 / zostają otwarte
+- [ ] (WP-4) Wyłącznie zapytania tylko-do-odczytu (`SET default_transaction_read_only = on`); notatka w pliku zadań + pamięć agenta (WP-7)
+
+---
+
+### DB-061 – Naprawa i rozszerzenie `export_customer_data` (RODO Art. 15/20)
+
+**Typ:** Schema migration / bugfix
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-060
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-129
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+`export_customer_data(p_customer_id UUID, p_tenant_id UUID) RETURNS JSONB` (V013, zastąpiona w V017) jest `STABLE` (`pg_proc.provolatile = 's'`), a jej ciało kończy się
+`INSERT INTO audit_log` — PostgreSQL odrzuca taki INSERT w funkcji nie-VOLATILE (`ERROR: INSERT is not allowed in a non-volatile function`; zachowanie zreprodukowane na funkcji
+sondującej w `pg_temp`, właściwa funkcja NIE została wywołana — DESIGN §2 U3). Poza tym: wiadomości tylko jako metadane (komentarz V017), brak `scheduled_callback`,
+`campaign_records` bez `phone`/imienia/nazwiska mimo komentarza „dane osobiste uwzględnione", brak `contact.notes` i transkrypcji. Funkcja nie ma dziś wołającego w Javie (U2).
+
+**Zakres:**
+1. Potwierdź U3 na bazie scratch: `SELECT export_customer_data(<klient>, <tenant>)` w transakcji z `ROLLBACK` → oczekiwany błąd; wynik do notatki.
+2. Nowa migracja `CREATE OR REPLACE FUNCTION export_customer_data(…)`: **rekomendacja** — usuń `INSERT INTO audit_log` z funkcji (audyt `GDPR_EXPORT` zapisuje Java: `GdprServiceImpl` już to robi; unika podwójnego wpisu) i zostaw `STABLE`;
+   alternatywa: `VOLATILE` z zachowanym INSERT — wykonawca uzasadnia wybór.
+3. Rozszerz zwracany JSONB o zbiory z macierzy DB-060 (wg D3): `scheduled_callbacks`; `campaign_records` z polami PII klienta; `contact.notes` w `contacts`; transkrypcje i podsumowania AI (jeśli DB-060 zaleca);
+   treść wiadomości e-mail/social — zakres wg rekomendacji DB-060 (Art. 15 daje prawo do kopii danych osobowych; komentarz V017 zakładał same metadane).
+4. Stabilny kontrakt JSON (klucze, typy) — konsumuje go BE-129.
+
+**Kryteria akceptacji:**
+- [ ] Reprodukcja U3 zapisana w notatce; po zmianie funkcja zwraca JSONB bez błędu
+- [ ] (WP-1) Test Testcontainers: klient z kontaktami, wiadomościami e-mail i social, callbackiem, rekordami `campaign_contact` i archiwum, transkrypcją → eksport zawiera wszystkie zbiory z macierzy; klient/tenant obcy nie wycieka (asercje po wartościach)
+- [ ] Wywołanie z `p_tenant_id` innego tenanta → wyjątek/brak danych obcego tenanta
+- [ ] (WP-4) Pod `SET ROLE app_user` z GUC `app.current_tenant_id`: funkcja działa albo wymagane uprawnienie/`SECURITY DEFINER` (z `SET search_path`) jest udokumentowane — tabele wiadomości mają RLS
+- [ ] Wydajność: klient z 10 tys. wiadomości < 2 s na scratch (EXPLAIN, indeksy po `contact_id`)
+- [ ] (WP-3) Jedna migracja, idempotentna, numer wg reguły; `COMMENT ON FUNCTION` zaktualizowany
+- [ ] Zakłada D3 = A; przy D3 = B funkcja pozostaje nieużywana (do decyzji o usunięciu), a eksport buduje Java (BE-129)
+
+**Ryzyka:** rozmiar JSONB dla klientów z dużą historią (BE-129 może wymagać strumieniowania/limitu).
+
+---
+
+### DB-062 – Rozszerzenie `anonymize_customer` (RODO Art. 17)
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-060
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-129
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+`anonymize_customer(p_customer_id, p_tenant_id, p_user_id) RETURNS VOID` (V013, VOLATILE) anonimizuje `customer`, `email_message` i `social_message` (WYŁĄCZNIE przez
+`contact_id IN (SELECT contact_id FROM contact WHERE customer_id = …)` — po odcięciu z U1 wiadomości są nieosiągalne), `contact.remote_address`/`channel_metadata`;
+NIE dotyka `scheduled_callback`, `campaign_contact`, `campaign_contact_archive`, `contact.notes`, `contact_transcription`, `contact_ai_summary`, `contact.recording_url`; zwraca VOID
+(Java nie zna zakresu ani kluczy S3 do usunięcia); blok `EXCEPTION WHEN OTHERS` przepisuje błąd. Nikt jej dziś nie woła (U2) — wpina ją BE-129.
+
+**Zakres (nowa migracja, jawny `DROP FUNCTION` starej sygnatury, bo zmienia się typ zwracany):**
+- Według macierzy DB-060: `scheduled_callback` (`phone` NOT NULL → `'ANONYMIZED'`, imię/nazwisko → `'ANONYMIZED'`, `notes` → NULL);
+  `campaign_contact` i `campaign_contact_archive` (`phone` → NULL — częściowy unikalny indeks `(campaign_id, phone) WHERE phone IS NOT NULL` nie obejmuje NULL; imię/nazwisko `'ANONYMIZED'`, `email` NULL, `custom_fields` `'{}'`);
+  `contact.notes` → NULL; `contact.recording_url` → NULL (po zebraniu kluczy); transkrypcje i podsumowania AI wg D3 (DELETE `WHERE contact_id IN (…)`, tabele partycjonowane — pełny PK); `customer.custom_fields`/`gdpr_consent` (już w V013).
+- `RETURNS JSONB`: `{ "counts": { "<tabela>": n, … }, "s3_keys": [ "…" ] }` — klucze S3 zebrane PRZED wyzerowaniem: `contact.recording_url` (nagrania i EML) oraz `attachments[*].s3_key` z wiadomości; Java usuwa obiekty po commit (BE-129).
+- Zachowaj wpis audytu `CUSTOMER_ANONYMIZED` (bez PII w `old_value`). Idempotencja: drugie wywołanie = zerowe liczniki, bez błędu.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers: klient z 2 kontaktami (jeden z `recording_url` i `notes`), 3 e-mailami (załączniki z `s3_key`), 2 wiadomościami social, 2 callbackami, 3 rekordami `campaign_contact`, 2 w archiwum, transkrypcją i podsumowaniem → po wywołaniu żadna kolumna PII z macierzy nie zawiera oryginalnej wartości; `s3_keys` = komplet kluczy
+- [ ] Izolacja: drugi klient i drugi tenant nietknięte (asercje po wartościach); wiadomości osierocone (`contact_id IS NULL`) nietknięte i udokumentowane jako ograniczenie
+- [ ] Idempotencja i atomowość: wymuszony błąd w połowie → pełny ROLLBACK
+- [ ] Placeholder nie łamie unikalności: dwa rekordy tego samego klienta w jednej kampanii (test na `idx_campaign_contact_phone_unique`)
+- [ ] (WP-4/R1) Pod `SET ROLE app_user` z GUC: UPDATE/DELETE na tabelach bez polityk zapisu nie jest po cichu pomijany (test: liczniki > 0) albo `SECURITY DEFINER` z `SET search_path` udokumentowane
+- [ ] (WP-3) Jedna migracja, numer wg reguły, pełny łańcuch Flyway; brak innych wołających starej sygnatury (grep)
+- [ ] Zakłada D3 = A (transkrypcje/podsumowania uznane za PII); przy D3 = „nie" — pomiń DELETE transkrypcji i zapisz w notatce
+
+---
+
+### DB-063 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w schemacie polityk retencji
+
+**Typ:** Schema migration
+**Priorytet:** Could Have (wchodzi do zakresu wyłącznie przy D1 = osobna kategoria)
+**Złożoność:** S
+**Zależy od:** BE-124 (potwierdzenie D1 = C)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-130
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+Przy D1 = C treść wiadomości ma własną retencję niezależną od kontaktów. Live: **trzy** CHECK-i ograniczają zbiór kategorii do 4 wartości —
+`tenant_retention_policy_data_category_check` (V082), `tenant_retention_pending_summary_data_category_check` (V083) i `retention_purge_log_data_category_check` (V084);
+DDL w opisach DB-046..048 tego nie pokazuje, więc wykonawca czyta nazwy i definicje z `pg_constraint`. Przy założeniu D1 = A ten ticket nie jest wykonywany.
+
+**Zakres:** jedna migracja: przebudowa 3 CHECK-ów (5 wartości), backfill wiersza `MESSAGE_CONTENT` dla istniejących tenantów (`INSERT … ON CONFLICT DO NOTHING`) z `retention_months` równym wartości
+`CONTACT_INTERACTIONS` danego tenanta (spójność z D1 = A; NIE płaski default — jak w DB-046) i `auto_purge_enabled = FALSE`; RLS bez zmian.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 3 CHECK-i akceptują `MESSAGE_CONTENT`, odrzucają `BOGUS`
+- [ ] Każdy istniejący tenant ma dokładnie 5 wierszy polityk; wartość = `CONTACT_INTERACTIONS` tenanta (test z niestandardową wartością)
+- [ ] (WP-3) Idempotentna, numer wg reguły, pełny łańcuch Flyway (WP-1); RLS bez regresji pod `SET ROLE app_user`
+
+---
+
+### DB-064 – RLS `email_message` i `social_message`: `FOR SELECT` → `ALL` + `WITH CHECK` + `FORCE`
+
+**Typ:** Schema migration (bezpieczeństwo, defense-in-depth)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-065, DB-067, BE-139
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+V012 utworzyło `pol_email_message_select` i `pol_social_message_select` wyłącznie `FOR SELECT`, RLS `ENABLE` bez `FORCE`. Brak polityki INSERT/UPDATE/DELETE = deny dla roli
+ograniczonej — pod rolą bez BYPASSRLS zapisy wiadomości, aktualizacja statusu dostarczenia (`EmailMessageRepository#update`) i purge byłyby odrzucane; demo tego nie widzi, bo `ccapp` = superuser + BYPASSRLS
+(DESIGN §2 U8, R1). `RlsValidationService` sprawdza tylko istnienie jakiejkolwiek polityki. Wzorzec: `plugin_invocation_log_isolation` (V077, ALL + WITH CHECK), V082–V084 (`FORCE`).
+
+**Zakres (jedna migracja — jedna zmiana „polityki zapisu wiadomości"):** dla obu tabel `DROP POLICY IF EXISTS pol_*_select`, `CREATE POLICY <tabela>_tenant_isolation … USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)
+WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)`, `ALTER TABLE … FORCE ROW LEVEL SECURITY` (GUC `app.current_tenant_id`, NIE `app.tenant_id`).
+Lista ścieżek zapisu do przeglądu (w notatce): `EmailPollingServiceImpl` (scheduler), `EmailSendServiceImpl`, `EmailContactCreator` (RabbitMQ), `SocialMessageServiceImpl` (webhook/consumer), `RetentionPurgeServiceImpl` (`@Async` + snapshot), `GdprServiceImpl`.
+Ścieżki bez kontekstu tenanta zgłaszamy jako defekty — NIE osłabiamy polityki.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-4) Test Testcontainers pod `SET ROLE app_user` (rola z V012): INSERT/UPDATE/DELETE własnego tenanta OK; cross-tenant INSERT odrzucony (WITH CHECK); cross-tenant SELECT/UPDATE/DELETE = 0 wierszy; bez GUC — 0 wierszy i INSERT odrzucony
+- [ ] `relrowsecurity = t` i `relforcerowsecurity = t` dla obu tabel
+- [ ] Lista ścieżek zapisu przejrzana, wyniki uruchomienia pod rolą ograniczoną w BE-139 (link); defekty ścieżek bez kontekstu zgłoszone
+- [ ] (WP-3) Jedna migracja, idempotentna, numer wg reguły; test regresyjny (nie wolno testować przez `ccapp` ani po nazwie partycji potomnej)
+- [ ] Konwersje DB-065/DB-067 odtwarzają polityki 1:1 (AC w tamtych ticketach)
+- [ ] (WP-4) Weryfikacja na żywo w local-demo: polling IMAP, odpowiedź e-mail i webhook social działają po przebudowie obrazów (uwaga: `ccapp` omija RLS — dowodem jest test pod `app_user`, nie demo)
+
+---
+
+### DB-065 – Partycjonowanie `social_message` (RANGE po `sent_at`)
+
+**Typ:** Schema migration (partycjonowanie online)
+**Priorytet:** Should Have
+**Złożoność:** M (0 wierszy = najtańsze okno na zmianę klucza; zgodnie z oceną zlecenia)
+**Zależy od:** BE-126 (Poziom 1 usuwa wiadomości), DB-059, DB-064
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-132
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+Realni kandydaci do partycjonowania czasowego to tylko `email_message` i `social_message` (DESIGN §2 U6/U15). `social_message`: PK `(message_id)`, `uq_social_message_external_id (tenant_id, external_message_id)`,
+`sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`, FK do `tenant` (RESTRICT) i `social_integration` (SET NULL), `platform` = enum `social_platform`, CHECK-i `chk_social_attachments_is_array`, `chk_social_message_direction`.
+Live: 0 wierszy. **PR #44 (WhatsApp) dodał zapis do `social_message` — zanim zaczniesz, przeczytaj aktualny kod** (`SocialMessageServiceImpl`, `SocialMessageConsumer`, adaptery) i wypisz zmiany w notatce.
+
+**Zakres (jedna migracja; wzorzec DB-049/V085 i V088):**
+1. Guard: `COUNT(*)` przed migracją; powyżej progu (np. 10 000) migracja przerywa się z komunikatem (wtedy inna strategia backfillu).
+2. `social_message_new … PARTITION BY RANGE (sent_at)`: PK `(message_id, sent_at)`, `UNIQUE (tenant_id, external_message_id, sent_at)` (D4 dla social: dedup aplikacyjny `findByExternalMessageId` pozostaje główną obroną; constraint jest siecią bezpieczeństwa
+   tylko przy deterministycznym `sent_at` — patrz BE-132).
+3. Partycje: zakres istniejących danych (przy 0 wierszy: bieżący miesiąc) + bieżący/+2 + `DEFAULT`.
+4. Kopia danych, `RENAME`, odtworzenie: indeksy (`idx_social_message_contact`, `idx_social_message_sender`, indeksy z DB-059), CHECK-i, FK, **RLS z DB-064 (ALL + WITH CHECK + FORCE)**, komentarze; `DROP social_message_old` dopiero po weryfikacji liczby wierszy (blok `DO $$ … RAISE EXCEPTION`).
+5. Funkcja `create_social_message_partition(p_year INT, p_month INT)` (wzorzec `create_contact_event_partition`, V088). **Bez wykonywalnego `drop_old_social_message_partitions`** (WP-6: DROP idzie wyłącznie przez `PartitionReclaimJob` z regułą „tylko puste").
+6. `CREATE OR REPLACE create_next_month_partitions()` + `PERFORM create_social_message_partition(…)` — skopiuj AKTUALNĄ definicję (po V088 i ewentualnych nowszych) i dodaj jedną linię.
+7. Indeks `(tenant_id, sent_at)` pod purge (jak DB-053/V089).
+
+**Kryteria akceptacji:**
+- [ ] (WP-3) Numer migracji wg reguły, jedna migracja, scratch (`pg_dump -s`) + pełny łańcuch Flyway; `SET LOCAL lock_timeout`
+- [ ] Liczba wierszy przed == po (weryfikacja w migracji); dodatkowo test na scratch z 100 tys. syntetycznych wierszy w 3 miesiącach: dane w poprawnych partycjach, pruning po `sent_at` widoczny w `EXPLAIN`
+- [ ] RANGE po `sent_at`, PK `(message_id, sent_at)`, unikalność złożona, FK (`tenant`, `social_integration`) i CHECK-i zachowane, enum `platform` bez zmian
+- [ ] (WP-1/WP-4) RLS ALL + WITH CHECK + FORCE pod `SET ROLE app_user` **przez tabelę nadrzędną** (partycje potomne mają `relrowsecurity = f` — nie testować po nazwie partycji); cross-tenant INSERT odrzucony
+- [ ] (WP-6) `create_social_message_partition(2027, 1)` tworzy partycję z indeksami; `create_next_month_partitions()` obejmuje 7 tabel; brak wykonywalnej `drop_old_social_message_partitions`
+- [ ] Test regresyjny kluczowy: wiersz z `sent_at` w bieżącym miesiącu trafia do partycji miesięcznej, NIE do `social_message_default` (`tableoid::regclass`)
+- [ ] (WP-1) Test Testcontainers: dwa INSERT-y z tym samym `(tenant_id, external_message_id, sent_at)` → naruszenie unikalności; z różnym `sent_at` → przechodzą (udokumentowane ograniczenie D4)
+- [ ] Wdrożenie w jednym wydaniu z BE-132; przy > 0 wierszy: backup i okno serwisowe
+- [ ] Zakłada D1 = A (Poziom 1 usuwa wiadomości przed DROP); przy D1 = B (anonimizacja) sens partycjonowania maleje — ticket do ponownej oceny
+
+---
+
+### DB-066 – [BRAMKA] Pomiar wolumenu `email_message`, próg partycjonowania (D2) i projekt deduplikacji (D4)
+
+**Typ:** Analiza / decyzja (bez zmian schematu)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak (zalecana kolejność: po wdrożeniu Poziomu 1, żeby mierzyć stan po nim)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-067, DB-068
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+Konwersja `email_message` to L (klucz złożony, dedup, ~20 plików — DESIGN §2 U6/U7), a PRD nie podaje wolumenów (NFR-S03: 50 × 100 agentów; nic o kontaktach/dzień). Demo: 55 wierszy, 216 kB, średni wiersz 1049 B (max 14,5 kB), więc nie rozstrzyga.
+Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
+
+**Zakres:**
+1. Skrypt SQL (tylko odczyt) do uruchomienia na środowisku docelowym (staging/prod-like; demo = punkt odniesienia): `pg_total_relation_size`/`pg_relation_size`/`pg_indexes_size`, `count(*)` i `reltuples`, rozkład miesięczny po
+   `COALESCE(received_at, sent_at, created_at)`, średni i p95 rozmiaru wiersza (`pg_column_size`), udział wiadomości z załącznikami i suma `size_bytes` z `attachments` (S3), `n_dead_tup` z `pg_stat_user_tables`,
+   czasy purge z `retention_purge_log` (`completed_at - started_at`, `rows_deleted`).
+2. Tempo wzrostu (wierszy i GB/mies.) i prognoza 12/24 mies.; porównanie z progami **G1–G4 z DESIGN §3 D2** → rekomendacja go/no-go i skorygowane progi.
+3. Brak danych produkcyjnych → model z wejściem od PO (e-maile/dzień/tenant × liczba tenantów) + lista pytań do PO; bramka pozostaje „nierozstrzygnięta".
+4. Projekt D4: źródła `message_at` (INBOUND: `Message#getSentDate()` → `getReceivedDate()` → `now()`; OUTBOUND: `sentAt` ustawiane raz), pomiar, ile wiadomości bez nagłówka Date w próbce, decyzja A (unikalność złożona) vs B (tabela dedup).
+5. Projekt załączników: kolejność Poziom 1 (S3 → wiersz) przed DROP, plan dla istniejących kluczy `s3_key` w JSONB, lifecycle `pending/` (BE-131).
+
+**Kryteria akceptacji:**
+- [ ] Raport z liczbami z ≥ 1 środowiska, jednoznacznie oznaczony: prod / stage / demo / model; brak liczb prod → lista pytań do PO i status „bramka nierozstrzygnięta"
+- [ ] Decyzja go/no-go zapisana w notatce (G1–G4 z wartościami) i w DESIGN §3 D2 (aktualizacja ZAŁOŻENIA)
+- [ ] Wybór D4 (A/B) zapisany; przy B tickety DB-068/BE-136 przechodzą z [WARUNKOWY] do wymaganych
+- [ ] (WP-4) Skrypty uruchamiane wyłącznie tylko-do-odczytu (`SET default_transaction_read_only = on`); (WP-3) pomiary na scratch z `SET max_parallel_maintenance_workers = 0; SET max_parallel_workers_per_gather = 0` przed VACUUM/CREATE INDEX
+
+---
+
+### DB-067 – Partycjonowanie `email_message` (kolumna `message_at`, backfill, PK/unikalność, RLS, funkcje)
+
+**Typ:** Schema migration (partycjonowanie online) — [BRAMKOWANY: wchodzi po „go" z DB-066]
+**Priorytet:** Should Have
+**Złożoność:** L (zgodnie z oceną zlecenia: klucz złożony, backfill, dedup)
+**Zależy od:** DB-066 (go), DB-064, DB-059, BE-127 (Poziom 1 działa)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-134, DB-068
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+`email_message`: PK `(message_id)` i `uq_email_message_id_header (tenant_id, message_id_header) DEFERRABLE INITIALLY DEFERRED` uniemożliwiają partycjonowanie
+(„unique constraint on partitioned table must include all partitioning columns"). `received_at` jest NULL dla OUTBOUND, `sent_at` NULL dla INBOUND, `created_at` niedeterministyczne — stąd nowa kolumna
+`message_at TIMESTAMPTZ NOT NULL` (D4). Sprawdzone na PG 16.13: **unikalność DEFERRABLE jest dozwolona na tabeli partycjonowanej** (nie jest przeszkodą), `ON CONFLICT` z deferrable nie działa (kod go nie używa).
+
+**Zakres (zwykle dwie migracje — wykonawca decyduje przy dużym wolumenie):**
+1. M1: `ALTER TABLE email_message ADD COLUMN message_at TIMESTAMPTZ` + backfill `COALESCE(received_at, sent_at, created_at)` (batchami) + trigger `BEFORE INSERT` uzupełniający `message_at` jako sieć bezpieczeństwa do wdrożenia BE-134 + `SET NOT NULL` po backfillu.
+2. M2: `email_message_new … PARTITION BY RANGE (message_at)`: PK `(message_id, message_at)`; unikalność wg D4 = A: `UNIQUE (tenant_id, message_id_header, message_at) DEFERRABLE INITIALLY DEFERRED` (przy D4 = B — bez unikalności po `message_id_header`, patrz DB-068);
+   partycje (zakres danych + bieżący/+2 + `DEFAULT`); kopia, `RENAME`, odtworzenie indeksów (`idx_email_message_contact`, `idx_email_message_delivery`, indeks z DB-059, nowy `(tenant_id, message_at)`), CHECK-i (`chk_email_attachments_is_array`, `chk_email_message_direction`), FK do `tenant`, RLS z DB-064, komentarze; `DROP email_message_old` po weryfikacji.
+3. `create_email_message_partition(p_year, p_month)`; **bez wykonywalnego `drop_old_email_message_partitions`** (SQL nie zna S3 — WP-5/WP-6); `create_next_month_partitions()` (kopia aktualnej definicji + 1 linia).
+4. `message_at` niemodyfikowalne (trigger `BEFORE UPDATE` odrzucający zmianę albo udokumentowany zakaz) — zmiana klucza partycji przenosiłaby wiersz między partycjami.
+
+**Kryteria akceptacji:**
+- [ ] (WP-3) Numery wg reguły, `SET LOCAL lock_timeout`, scratch + pełny łańcuch Flyway; plan wycofania (RENAME z powrotem przed `DROP …_old`)
+- [ ] 100 % wierszy ma `message_at NOT NULL` = `COALESCE(received_at, sent_at, created_at)`; liczba wierszy przed == po (RAISE EXCEPTION w migracji)
+- [ ] (WP-1) Test Testcontainers: duplikat `(tenant_id, message_id_header, message_at)` odrzucony; ten sam nagłówek z innym `message_at` przechodzi (udokumentowane ograniczenie D4 — obroną jest dedup aplikacyjny BE-134)
+- [ ] (WP-4) RLS ALL + WITH CHECK + FORCE pod `SET ROLE app_user` przez tabelę nadrzędną; cross-tenant INSERT odrzucony
+- [ ] `EXPLAIN` zapytań `EmailMessageRepository` (`findByContactId`, `findFirstInboundByContactId`, `findByMessageIdHeader`, `findByThreadRootMessageId`, `findAll`) na scratch ≥ 500 tys. wierszy i 12 partycjach — czasy przed/po w notatce (zapytania bez klucza partycji skanują lokalne indeksy wszystkich partycji)
+- [ ] (WP-6) `create_next_month_partitions()` obejmuje wszystkie tabele partycjonowane; test `tableoid`: bieżący miesiąc → partycja miesięczna, nie `_default`; brak wykonywalnego `drop_old_email_message_partitions`
+- [ ] Wdrożenie w jednym wydaniu z BE-134; okno serwisowe; backup
+- [ ] Zakłada D2 (bramka przekroczona), D4 = A i D1 = A; przy D4 = B unikalność przenosi się do DB-068; przy D1 = B ticket do ponownej oceny
+
+---
+
+### DB-068 – [WARUNKOWY: D4 = B] Tabela deduplikacji `email_message_dedup`
+
+**Typ:** Schema migration
+**Priorytet:** Could Have (warunkowy)
+**Złożoność:** M
+**Zależy od:** DB-066 (wybór B), DB-067
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-136
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** przy D4 = B globalną unikalność `(tenant_id, message_id_header)` przejmuje niepartycjonowana tabela (DESIGN §3 D4); ma **własną retencję**, inaczej rośnie bez końca.
+
+**Zakres:** `email_message_dedup (tenant_id UUID NOT NULL REFERENCES tenant ON DELETE CASCADE, message_id_header VARCHAR(255) NOT NULL, message_id UUID NOT NULL, first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (tenant_id, message_id_header))`;
+RLS ALL + WITH CHECK + FORCE (GUC `app.current_tenant_id`); indeks `(tenant_id, first_seen_at)` pod purge; backfill z `email_message` (`DISTINCT ON (tenant_id, message_id_header)`); DB-067 zbudowane bez unikalności po `message_id_header`.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers: dwa równoległe INSERT `ON CONFLICT DO NOTHING` z tym samym `(tenant, header)` → 1 wiersz; backfill = liczba różnych niepustych nagłówków
+- [ ] RLS pod `SET ROLE app_user`, cross-tenant INSERT odrzucony; (WP-3) jedna migracja, numer wg reguły
+- [ ] Purge wg `first_seen_at` (definicja progu = max retencja kategorii wiadomości) opisany i przetestowany w BE-136
+
+---
+
+### DB-069 – [BRAMKOWANY] Partycjonowanie `campaign_contact_archive` RANGE(`archived_at`)
+
+**Typ:** Schema migration (partycjonowanie)
+**Priorytet:** Could Have — **nie wykonywać przed spełnieniem warunku wejścia**
+**Złożoność:** L
+**Zależy od:** DB-056, DB-072 (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-137
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+Pomiar agenta na scratch (1,2 mln wierszy, DESIGN §2 U12): partycjonowanie nie zmienia kosztu purge per tenant (~250 ms w obu wariantach); zysk tylko przy globalnym „ogonie" (DELETE 400 tys. + VACUUM ≈ 1,6 s i ≈ 129 MB WAL vs `DROP` 28 ms i 0,35 MB WAL).
+Rekomendacja: NIE partycjonować teraz. **Warunek wejścia** (szacunek do kalibracji): ≥ 50–100 mln wierszy LUB problem z WAL/lagiem repliki wywołany purge LUB globalny DELETE „ogona" > 30 s. Sprawdzenie warunku = zapytanie
+(count/`reltuples`, `pg_total_relation_size`, czasy CAMPAIGN_DATA z `retention_purge_log`) zapisane w notatce; do tego czasu ticket „śpi".
+
+**Zakres (po spełnieniu warunku):** PK musi zawierać `archived_at` → `(record_id, campaign_id, archived_at)`; **`ON CONFLICT (record_id, campaign_id)` w `archive_completed_campaign_contacts()` przestaje działać** — przepisać idempotencję (np. `WHERE NOT EXISTS`);
+`purge_campaign_contact_archive` (DB-056) bez zmiany semantyki (indeks lokalny `(tenant_id, archived_at)`); `export_customer_data`/`anonymize_customer` (DB-061/062) — zapytania po `customer_id` skanują wszystkie partycje (indeks lokalny `(tenant_id, customer_id)`);
+funkcje `create_campaign_contact_archive_partition`, `create_next_month_partitions()`; RLS z DB-072.
+
+**Kryteria akceptacji:**
+- [ ] Warunek wejścia udokumentowany liczbami; pomiar DELETE vs DROP na scratch ≥ warunek (z `SET max_parallel_maintenance_workers = 0` przed VACUUM)
+- [ ] (WP-1) Test Testcontainers: idempotencja archiwizacji (dwa uruchomienia = brak duplikatów), izolacja purge per tenant na tabeli partycjonowanej
+- [ ] (WP-3/WP-6) Migracja wg reguł; maszyneria (funkcje, `create_next_month_partitions()`); brak wykonywalnego `drop_old_*` — DROP przez `PartitionReclaimJob` (BE-137)
+
+---
+
+### DB-070 – `campaign_contact`: decyzja o dekoracyjnym partycjonowaniu LIST (zostawić / uprościć / HASH)
+
+**Typ:** Decyzja (ADR) / dług techniczny
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-077
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+`campaign_contact` jest `PARTITION BY LIST (campaign_id)`, ale istnieje wyłącznie `campaign_contact_default`; żaden kod nie tworzy partycji (grep `PARTITION OF` w `backend/app/src/main` = 0; w V009 tylko komentarz),
+a `documentation/tech/06-database.md:282` i `ARCHITECTURE.md:503` twierdzą inaczej (DESIGN §2 U13). Pomiar agenta: `CREATE … PARTITION OF` przy istniejącym DEFAULT bierze `ACCESS EXCLUSIVE` na rodzicu i na DEFAULT;
+HASH(`campaign_id`) działa z PK `(record_id, campaign_id)` i częściowym unikalnym `(campaign_id, phone)`, pruning działa.
+
+**Zakres — ADR z liczbami:** opcje (A) zostawić LIST z jedyną partycją DEFAULT, (B) uprościć do zwykłej tabeli (shadow + RENAME; ryzyko: ścieżka gorąca dialera, `ACCESS EXCLUSIVE`), (C) HASH(`campaign_id`) 16–32 partycji — dopiero przy > ok. 50 mln wierszy.
+**ZAŁOŻENIE DO POTWIERDZENIA: A + sprostowanie dokumentacji (DB-077)**; B/C tylko przy dowodzie pomiarowym. Skrypt progu (count, rozmiar, plan zapytań dialera `idx_campaign_contact_dialer`) do uruchamiania przy przeglądach.
+
+**Kryteria akceptacji:**
+- [ ] ADR w notatce z dowodami: `pg_inherits`, `count(*)` (demo: 37), `EXPLAIN` zapytania dialera, koszt utrzymania każdej opcji
+- [ ] Decyzja właściciela zapisana; lista linii dokumentacji do poprawy przekazana do DB-077
+- [ ] Przy A: brak zmian schematu; przy C: opis kroków migracji (shadow HASH, kopia, RENAME, zachowanie `idx_campaign_contact_dialer`, RLS z DB-073, `lock_timeout`) — bez implementacji przed progiem
+
+---
+
+### DB-071 – Klasyfikacja tabel z `tenant_id` bez pełnego RLS (raport)
+
+**Typ:** Analiza (bez zmian schematu)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-072, DB-073, DB-074, BE-138, BE-139
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:**
+DESIGN §2 U8/U9. Live: bez RLS — `campaign_contact`, `campaign_contact_archive` (PII), `contacts_dw`, `email_routing_rule`, `email_template`, `gdpr_processing_register`, `ivr_audio`, `plugin_version`, `refresh_token` (37 wierszy z `tenant_id` NULL = SUPER_ADMIN);
+polityka tylko-SELECT — `audit_log`, `ivr_tree`, `queue`, `app_user`, `email_message`, `social_message`; `customer`/`campaign` mają SELECT+INSERT+UPDATE bez DELETE, `contact` tylko SELECT+INSERT. Nie każda tabela jest tenantowa (katalogi globalne, `tenant`), a niektóre mają
+ścieżki pre-tenant (logowanie/`findByToken`, publiczne endpointy `TenantFilter.PUBLIC_PATH_PREFIXES`).
+
+**Zakres:** dla KAŻDEJ tabeli z kolumną `tenant_id` (`information_schema.columns` + `pg_class` + `pg_policies`): klasa TENANT (RLS wymagane) / GLOBAL (świadomie bez RLS + uzasadnienie) / MIXED (`tenant_id` NULL = globalne, np. `refresh_token`, `audit_log`);
+macierz komend SELECT/INSERT/UPDATE/DELETE × polityka (brak polityki = deny pod rolą ograniczoną); ścieżki bez kontekstu tenanta, które złamałoby RLS (auth, publiczne endpointy, `@Scheduled`, RabbitMQ, `EtlSyncServiceImpl`); proponowana polityka per tabela
+(MIXED: odczyt `tenant_id IS NULL OR tenant_id = current_setting(…)`, wyjątek dla ścieżki auth); podział wykonania na DB-072 (archiwum), DB-073 (`campaign_contact`), DB-074 (reszta).
+
+**Kryteria akceptacji:**
+- [ ] Macierz kompletna (wszystkie tabele z `tenant_id`), każda z klasą i decyzją RLS tak/nie + uzasadnieniem; zapytanie źródłowe w notatce
+- [ ] Lista ścieżek pre-tenant/scheduler/RabbitMQ z odniesieniem do klas Javy
+- [ ] Decyzje do właściciela zebrane (D7 dla `campaign_contact*`); (WP-4) wyłącznie zapytania tylko-do-odczytu; notatka + pamięć agenta (WP-7)
+
+---
+
+### DB-072 – RLS `campaign_contact_archive` (D7)
+
+**Typ:** Schema migration (bezpieczeństwo, PII)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-071, BE-120 (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-069, DB-073
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+Archiwum zawiera PII (`phone`, `first_name`, `last_name`, `email`) i nie ma RLS; klauzula `WHERE tenant_id = p_tenant_id` w `purge_campaign_contact_archive` jest JEDYNĄ izolacją (komentarz V091). **Uwaga:**
+`archive_completed_campaign_contacts()` wstawia do archiwum wiersze WIELU tenantów w jednym wywołaniu — pod rolą bez BYPASSRLS `WITH CHECK` odrzuciłby wiersze innych tenantów niż GUC. Rozwiązanie wybrane w BE-120/R5 (rola serwisowa/`SECURITY DEFINER`
+albo pętla per tenant) musi być spójne z tą polityką.
+
+**Zakres:** jedna migracja: `ENABLE` + `FORCE` RLS, polityka ALL + WITH CHECK (GUC `app.current_tenant_id`); dostosowanie funkcji SQL wg decyzji z BE-120 (osobna migracja, jeśli wymagana).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-4) Test pod `SET ROLE app_user`: izolacja SELECT/INSERT/UPDATE/DELETE; `purge_campaign_contact_archive(tenant, cutoff, batch)` z GUC tenanta działa i nie rusza innych; rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`
+- [ ] Zachowanie `archive_completed_campaign_contacts()` pod rolą ograniczoną opisane i zgodne z decyzją BE-120; `export_customer_data`/`anonymize_customer` (DB-061/062) działają pod rolą z GUC
+- [ ] (WP-3) Jedna migracja, numer wg reguły; **zakłada D7 = TAK — przy D7 = NIE ticket anulowany**, a izolację utrzymuje wyłącznie filtr `tenant_id` (testy izolacji zyskują na wadze)
+
+---
+
+### DB-073 – RLS `campaign_contact` (tabela partycjonowana LIST, ścieżka gorąca dialera) (D7)
+
+**Typ:** Schema migration (bezpieczeństwo, PII)
+**Priorytet:** Should Have
+**Złożoność:** M (ścieżka gorąca dialera; przegląd wszystkich ścieżek bez kontekstu tenanta)
+**Zależy od:** DB-071, DB-072
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `backend-dev-expert`, `test-suite-expert`)
+
+**Kontekst:** `campaign_contact` (PII: `phone`, `first_name`, `last_name`, `email`) nie ma RLS. Dialer (`ProgressiveDialerServiceImpl` `@Scheduled`), `CampaignWindowActivator`, `ScheduledCallbackExecutor`, `DialerCallbackHandlerImpl`,
+`CampaignImportServiceImpl`, `EtlSyncServiceImpl` i `archive_completed_campaign_contacts()` czytają/zapisują tę tabelę potencjalnie bez kontekstu tenanta — po włączeniu RLS pod rolą ograniczoną straciłyby widoczność wierszy.
+
+**Zakres:** `ENABLE` + `FORCE` + polityka ALL + WITH CHECK na rodzicu (RLS nie dziedziczy się na partycję `campaign_contact_default` — zapytania zawsze przez rodzica; grep: 0 zapytań po nazwie partycji);
+**przegląd ścieżek** (lista klas z oceną „ma kontekst / nie ma / wymaga pętli per tenant") w notatce; `EXPLAIN` zapytań dialera po dodaniu predykatu polityki.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-4) Pod `SET ROLE app_user`: izolacja 4 komend; wszystkie ścieżki `@Scheduled`/`@Async`/RabbitMQ z przeglądu przetestowane pod rolą ograniczoną (BE-139) — brak cichej utraty wierszy
+- [ ] `EXPLAIN` zapytań dialera (`idx_campaign_contact_dialer`, `idx_campaign_contact_dialer_tenant`) bez regresji planu; czas przed/po na scratch
+- [ ] (WP-3) Jedna migracja, numer wg reguły, `lock_timeout` (ALTER … ENABLE RLS na tabeli partycjonowanej); (WP-4) dialer w local-demo działa po przebudowie (uwaga: `ccapp` omija RLS — dowodem jest test pod `app_user`)
+- [ ] **Zakłada D7 = TAK**; przy D7 = NIE ticket anulowany
+
+---
+
+### DB-074 – RLS pozostałych tabel tenantowych wg klasyfikacji (uzupełnienie komend, FORCE)
+
+**Typ:** Schema migration (bezpieczeństwo) — zbiorczy, wykonawca dzieli na migracje po tabeli/zmianie
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** DB-071
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:** wynik DB-071: tabele klasy TENANT bez RLS (`email_routing_rule`, `email_template`, `ivr_audio`, `gdpr_processing_register`, `contacts_dw` — jeśli TENANT) oraz tabele z niepełnym pokryciem komend (`audit_log`, `ivr_tree`, `queue`, `app_user` — tylko SELECT;
+`contact` — bez UPDATE/DELETE; `customer`, `campaign` — bez DELETE). Uwaga na `audit_log`: `AuditLogConsumer` zapisuje zdarzenia globalne z `tenant_id` NULL → polityka INSERT `WITH CHECK (tenant_id IS NULL OR tenant_id = current_setting(…))`. Wyłączone: tabele MIXED wg klasyfikacji (np. `refresh_token`) — osobna decyzja.
+
+**Kryteria akceptacji:**
+- [ ] Lista tabel z klasyfikacji DB-071; każda migracja: polityki dla brakujących komend + WITH CHECK + FORCE tam, gdzie decyzja „tak"; ścieżki pre-tenant (auth, publiczne endpointy) sprawdzone i wyłączone/obsłużone
+- [ ] (WP-1/WP-4) Test pod `SET ROLE app_user` dla każdej tabeli (4 komendy, cross-tenant, bez GUC); dla `contact` udowodnione, że purge (`DELETE`) działa pod rolą ograniczoną (dziś: 0 usuniętych wierszy po cichu)
+- [ ] (WP-3) Jedna migracja na tabelę/zmianę, numery wg reguły, pełny łańcuch Flyway; `RlsValidationService` (BE-138) zaktualizowany listą
+- [ ] Zakłada D7 = TAK dla PII; pozostałe tabele wg klasyfikacji
+
+---
+
+### DB-075 – [WARUNKOWY: D6 = koniec kampanii] Baza czasowa `CAMPAIGN_DATA` w archiwum
+
+**Typ:** Schema migration
+**Priorytet:** Could Have (warunkowy)
+**Złożoność:** M
+**Zależy od:** BE-120, DB-056
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-140
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** przy założeniu D6 = `archived_at` zaległa archiwizacja (BE-120: 30 kampanii) startuje zegar retencji od dnia pierwszego uruchomienia (DESIGN §3 D6). Tabela `campaign` nie ma kolumny końca kampanii (tylko `created_at`, `updated_at`, `schedule` JSONB) —
+proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
+
+**Zakres:** `ADD COLUMN campaign_ended_at TIMESTAMPTZ` w `campaign_contact_archive`, backfill z `campaign.updated_at` (udokumentuj ograniczenie proxy), `NOT NULL` po backfillu; zmiana `archive_completed_campaign_contacts()` (zapis `campaign_ended_at`),
+`purge_campaign_contact_archive` (filtr po `campaign_ended_at`), indeks `(tenant_id, campaign_ended_at)`.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test: zaległa kampania (koniec 3 lata temu, zarchiwizowana dziś) kwalifikuje się do purge natychmiast przy retencji 24 mies.; izolacja tenantów
+- [ ] Backfill 100 % wierszy, `EXPLAIN` purge używa nowego indeksu; (WP-3) jedna migracja per zmianę, numer wg reguły
+
+---
+
+### DB-076 – `scheduled_job`: uzgodnienie wpisów z rzeczywistymi wykonawcami (Java `@Scheduled`)
+
+**Typ:** Schema migration (dane) / dokumentacja
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-120, BE-122, BE-123, DB-058
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-077
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** `scheduled_job` (11 wpisów, V014/V077/V088) opisuje zadania „pg_cron", z których żadne nie jest wykonywane przez pg_cron; `last_run_at` ma tylko `create_next_month_partitions` (aktualizuje je funkcja wołana przez `PartitionMaintenanceJob`).
+Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last_run_at` NULL — to dokumentacja bez wykonania (DESIGN §2 U10).
+
+**Zakres:** jedna migracja (data-only, idempotentna): `UPDATE scheduled_job` — opis wskazuje faktycznego wykonawcę (`PartitionMaintenanceJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, `CampaignArchiveJob`, `RefreshTokenCleanupJob`) albo „brak (backstop SQL, nieaktywny)";
+`is_active = FALSE` dla wpisów bez wykonawcy (pg_cron nieobecny). Funkcje SQL zostają (backstop) — ewentualnie `COMMENT ON FUNCTION`. Bez nowych kolumn.
+
+**Kryteria akceptacji:**
+- [ ] `SELECT job_name, is_active, description FROM scheduled_job` zgodne z rzeczywistością (tabela job → wykonawca w notatce); migracja idempotentna, nie zmienia funkcji; (WP-3) numer wg reguły
+
+---
+
+### DB-077 – Dokumentacja: `06-database.md`, `ARCHITECTURE.md` (pg_cron, dynamiczne partycje, retencja, funkcje RODO)
+
+**Typ:** Documentation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-120, BE-122, BE-123, DB-070, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** dokumentacja twierdzi rzeczy sprzeczne z faktami (DESIGN §2 U10, U13).
+
+**Zakres (lokalizacje zweryfikowane 2026-09-20 — przed edycją sprawdź numery linii):** `documentation/tech/06-database.md`: ~196 (`refresh_token` „czyszczone przez pg_cron" → `RefreshTokenCleanupJob`), ~277 (archiwum: wypełniane przez job + flaga D8), ~282–284 (**„partycje tworzone dynamicznie przez aplikację" — nieprawda**: jedyna partycja `campaign_contact_default`, wg DB-070),
+~372–380 (`cron_log` i „pg_cron (V014)" → Java `@Scheduled`: `PartitionMaintenanceJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, …), ~633 (retencja `audit_log` 2 lata → `PartitionReclaimJob` i konfigurowalny horyzont, BE-123), nowa sekcja o retencji treści wiadomości (Poziom 1/2, S3) i o klucz JSONB `attachments[*].s3_key` (a nie `s3_url`);
+`ARCHITECTURE.md`: ~503–504 (dynamiczne partycje `campaign_contact`), 848 (`drop_old_audit_log_partitions()` przez pg_cron), 1071 (tabela „pg_cron jobs"). Po edycji: `node documentation/build-html.js` (regeneracja śledzonych `documentation/tech/html/*.html`).
+
+**Kryteria akceptacji:**
+- [ ] `grep -rn pg_cron documentation/ ARCHITECTURE.md` — każde wystąpienie zgodne z faktem albo oznaczone „nieaktywne, zastąpione przez …"; brak twierdzenia o dynamicznych partycjach `campaign_contact`
+- [ ] Wygenerowany HTML, linki do `DESIGN-message-retention-and-partitioning.md`; opis funkcji RODO zgodny z BE-129 (funkcje SQL wołane z Javy)

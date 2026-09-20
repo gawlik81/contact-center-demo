@@ -1,6 +1,6 @@
 ---
 name: project_epic29_plan
-description: EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów rozbity na 25 ticketów (DB-046..054, BE-111..119, FE-103..109), zaplanowany 2026-08-08
+description: EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów rozbity na 25 ticketów (DB-046..054, BE-111..119, FE-103..109), zaplanowany 2026-08-08, w pełni ukończony do 2026-08-13 (potwierdzone w TASKS-*.md 2026-09-20)
 metadata:
   type: project
 ---
@@ -18,6 +18,10 @@ treść (DDL, sygnatury klas, kryteria akceptacji) jest w `TASKS-DATABASE.md` (D
 `TASKS-BACKEND.md` (BE-111..119), `TASKS-FRONTEND.md` (FE-103..109) pod modułem
 „Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)”. Status w `PROGRESS.md` na
 dzień planowania: wszystkie 25 ticketów ⬜ (nierozpoczęte).
+
+## Aktualizacja 2026-09-20
+Wszystkie 25 ticketów mają w TASKS-*.md status ✅ z notatkami implementacyjnymi (2026-08-09..2026-08-13); PROGRESS.md pokazywał je błędnie jako ⬜ — naprawione przy planowaniu EPIC-30.
+Kontynuacja: `[[project-epic30-plan]]` (numeracja od DB-056/BE-120/FE-110; DB-055 = porządki po EPIC-29, migracja V093). Wzorzec formatu ticketów EPIC-29 (pola Typ/Priorytet/Złożoność/Zależy od/Status/Czeka na BE/Blokuje/Epic, status startowy „⬜ Nie rozpoczęte") użyto 1:1 w EPIC-30.
 
 ## Numeracja kontynuowana od (ważne dla przyszłych epików)
 - DB: ostatni przed EPIC-29 był DB-045 (EPIC-28) → EPIC-29 zajął DB-046..054

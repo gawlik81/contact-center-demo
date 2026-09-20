@@ -5839,3 +5839,93 @@ zmiany: usunięcie 3 martwych deklaracji pola z `tenant.model.ts` (`TenantConfig
 `CreateTenantRequest.limits`) — zero zmian w komponentach/szablonach. Usunięcie nieopcjonalnego
 `TenantLimits.recording_retention_days` nie ujawniło żadnych błędów kompilacji (nic go nigdzie
 nie konstruowało literalnie).
+
+---
+
+## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+
+> Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20). Backend: BE-126 (usuwanie wiadomości w kategorii `CONTACT_INTERACTIONS`),
+> BE-129 (przepływ RODO), BE-130 (tylko D1 = osobna kategoria). Zakres frontendu jest mały — partycjonowanie i harmonogramy są dla UI przezroczyste; strony retencji pozostają ADMIN-only (kontrakt EPIC-29).
+> **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
+> (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
+>
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126, BE-128 → FE-110`;  `BE-129 → FE-112`;  `[BE-130 → FE-111, tylko D1 = C]`.
+
+### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-126, BE-128
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-126 kategoria `CONTACT_INTERACTIONS` („Interakcje z kontaktami", `supervisor.settings.dataRetention.category.CONTACT_INTERACTIONS`) obejmuje także treść wiadomości e-mail i social media oraz załączniki (DESIGN §3 D1, **zakłada D1 = A**).
+Administrator musi to widzieć w tabeli polityk, na kartach dashboardu i w modalu potwierdzenia nieodwracalnego usunięcia — dziś nic o wiadomościach nie mówi.
+**Przy D1 = C** (osobna kategoria `MESSAGE_CONTENT`) ten ticket ogranicza się do punktu 3, a opis wiadomości przechodzi do FE-111. Przy D1 = B (anonimizacja) tekst zmienia się z „usunięte" na „zanonimizowane".
+
+**Zakres:**
+1. i18n (`pl`, `en`, `de`, `uk`): nowe klucze `supervisor.settings.dataRetention.categoryDescription.CONTACT_INTERACTIONS` (i dla spójności pozostałych 3 kategorii) — pl: „Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami";
+   wyświetlone pod nazwą kategorii w tabeli polityk (`data-retention.component.html`) i na kartach dashboardu; rozszerzenie `purgeModal.message` (`purge-confirm-modal.component.html`) o informację, że liczba obejmuje wiadomości i załączniki, oraz o zdanie o nieodwracalności usunięcia załączników w S3.
+   Liczba „rekordów" w podsumowaniu jest sumą różnych typów (kontakty + zdarzenia + wiadomości) — dodaj tooltip/objaśnienie (`RetentionSummaryDto`, BE-128).
+2. Historia operacji: brak zmian kontraktu (`PurgeResultDto`); nagłówek kolumny „Usunięto rekordów" — opcjonalnie objaśnienie, że suma obejmuje wiadomości.
+3. **Dryf po BE-119:** `UNSUPPORTED_PURGE_CATEGORIES` w `data-retention.component.ts` nadal zawiera `CAMPAIGN_DATA` (komentarz: „BE-119 nieukończone"), choć BE-119 jest ukończone, a `RetentionController` zwraca 501 wyłącznie dla `RECORDINGS`. Zweryfikuj kontroler przed zmianą;
+   odblokuj przycisk „Usuń teraz" dla `CAMPAIGN_DATA` (zostaje disabled dla `RECORDINGS` z `purgeUnsupportedHint`), popraw komentarze i testy komponentu.
+
+**Kryteria akceptacji:**
+- [ ] Klucze i18n kompletne w 4 językach (porównanie zbiorów kluczy w PR); opisy widoczne w tabeli polityk, na kartach i w modalu potwierdzenia
+- [ ] Przycisk „Usuń teraz": aktywny dla `CONTACT_INTERACTIONS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`; disabled z podpowiedzią dla `RECORDINGS` (test komponentu Vitest)
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); brak zmian kontraktu API; dostępność (aria) zachowana
+- [ ] (WP-4) Local-demo po przebudowie obrazu frontendu: strona `/supervisor/settings/data-retention` pokazuje opisy w każdym języku, modal potwierdzenia zawiera informację o wiadomościach; notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą
+
+---
+
+### FE-111 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w UI retencji
+
+**Typ:** Frontend implementation
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
+**Złożoność:** M
+**Zależy od:** BE-130
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-130
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis i zakres:** `retention.model.ts` (`RetentionDataCategory` += `'MESSAGE_CONTENT'`), `CATEGORY_ORDER` w `data-retention.component.ts` (5 wierszy), tabela polityk, karty dashboardu, historia, globalny badge (FE-108: suma po kategoriach — sprawdź, czy zakłada 4 kategorie),
+i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z BE-130 weryfikowana przeciw Swaggerowi, nie tylko treści ticketu (lekcja FE-103).
+
+**Kryteria akceptacji:**
+- [ ] Nowa kategoria widoczna i edytowalna (retencja w miesiącach, auto-purge) we wszystkich sekcjach strony; badge liczy 5 kategorii; brak regresji dla pozostałych 4
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone; komplet kluczy i18n w 4 językach (WP-7); (WP-4) sprawdzenie w local-demo
+
+---
+
+### FE-112 – Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15)
+
+**Typ:** Frontend implementation
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-129
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-129
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-129 anonimizacja i eksport klienta obejmują wiadomości e-mail/social (treść, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania oraz obiekty w S3 (nagrania, EML, załączniki). Obecne teksty
+(`supervisor.gdprAnonymize.effect1…effect4`, `supervisor.customerDetail.gdprAnonymizeDesc`, `gdprDownloadNote`) opisują zakres wąsko lub ogólnikowo. **Zakłada D3 = A** (zakres z DB-060); przy D3 = C ticket nie jest wykonywany.
+
+**Zakres:** modal anonimizacji (`features/supervisor/pages/customers/gdpr-anonymize-modal/gdpr-anonymize-modal.component.html`, klucze `supervisor.gdprAnonymize.*`): lista „Skutki anonimizacji" (`effect1`…`effect4`; dziś: imię i nazwisko, telefony, e-maile, „historia kontaktów zostanie zachowana bez danych osobowych")
+uzupełniona o: wiadomości e-mail i social media (treść, adresy, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania, nagrania i pliki w magazynie plików; korekta zdania `effect4`, jeśli przestaje być prawdziwe;
+sekcja „Prawa RODO" (`supervisor.customerDetail.gdprExportTitle`, `gdprDownloadNote`, `gdprAnonymizeTitle`, `gdprAnonymizeDesc`): opis zawartości paczki ZIP i zakresu anonimizacji; zachowane ostrzeżenie o nieodwracalności; obsługa ostrzeżenia o częściowym niepowodzeniu sprzątania S3
+(jeśli BE-129 je zwraca — sprawdź kontrakt); i18n 4 języków; testy modalu.
+
+**Kryteria akceptacji:**
+- [ ] Komunikaty w 4 językach wymieniają dokładnie zakres z BE-129/DB-060; ostrzeżenie o nieodwracalności zachowane; kontrakt endpointów (`POST /api/customers/{id}/gdpr/export|anonymize`) bez zmian po stronie FE
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); (WP-4) sprawdzenie w local-demo na kliencie testowym; notatka + pamięć agenta commitowana razem ze zmianą

@@ -104,3 +104,5 @@
 - [ctid NIEBEZPIECZNE na tabelach partycjonowanych](feedback_partitioned_table_ctid_delete_pitfall.md) — DELETE...WHERE ctid IN (...) usuwa wiersze z innych partycji/tenantów; bezpieczny wzorzec: pełny PK (id+partition_col)
 - [@Scheduled job + TenantContext ThreadLocal](feedback_scheduled_job_tenantcontext_missing.md) — pętla per-tenant MUSI setTenantId/clear per iterację; mockowane testy tego nie łapią (bug BE-112/BE-116, EPIC-29)
 - [Dual entry point (scheduler + REST) — TenantContext prekontrakt](feedback_dual_entry_point_tenantcontext_precontract.md) — rdzeń per-tenant bez set/clear; clear() zabronione na ścieżce REST (BE-112/BE-118 recompute)
+- [EPIC-30 BE-124 ADR retencja treści wiadomości (D1)](project_epic30_be124_message_retention_adr.md) — D1=A przyjęte BEZ potwierdzenia PO; `pending/` S3 wskazywane przez wysłane maile; EML w `contact.recording_url`; allow-list prefiksu kluczy
+- [RecordingService#deleteFromS3 połyka S3Exception](feedback_recording_delete_from_s3_swallows_errors.md) — brak sygnału porażki; nie używać przy „S3 przed wierszem" (BE-125/126/129/131)

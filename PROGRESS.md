@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-09-20 (planowanie EPIC-30 przez `product-requirements-deconstructor` + rekoncyliacja z TASKS-DATABASE.md/TASKS-BACKEND.md/TASKS-FRONTEND.md; liczby w „Podsumowaniu” przeliczone od zera z pól `**Status:**` ticketów, nie dopisane jako delta do poprzedniej wersji). Stan: **DB 55/77, BE 119/140, FE 109/112 — RAZEM 283/329 (86%)**. Ukończone są wszystkie epiki EPIC-01..EPIC-29 — EPIC-29 był w tym pliku błędnie oznaczony ⬜ (25 ticketów) mimo statusów ✅ z notatkami implementacyjnymi z 2026-08-09..2026-08-13 w TASKS-*.md; wiersze przełączone na ✅, przeniesiono DB-046..054 z tabeli „Dodatkowe migracje” do właściwej tabeli DB i dodano brakujący DB-055 (porządki po EPIC-29). Jedyny epik z zadaniami nierozpoczętymi: **EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (46 ticketów: DB-056..077, BE-120..140, FE-110..112; zaplanowany 2026-09-20, projekt do akceptacji w `DESIGN-message-retention-and-partitioning.md`; 7 ticketów warunkowych zależnych od alternatywy decyzji D1/D4/D6, 5 bramkowanych progiem wolumenowym — patrz „Nie rozpoczęte wg EPIC”)**. Poprzednia rekoncyliacja (2026-08-09, `/update-progress`): naprawiono m.in. rozbieżność EPIC-28 w Podsumowaniu, 24 tickety w EPIC-21/24/25/26/27 błędnie oznaczone ⬜ mimo zaimplementowanego kodu, kilkanaście brakujących/asymetrycznych adnotacji `**Zależy od:**`/`**Blokuje:**`; szczegóły w historii commitów tego pliku.
+**Ostatnia aktualizacja:** 2026-09-20 (planowanie EPIC-30 przez `product-requirements-deconstructor` (uzupełnione po zamknięciu BE-124 i DB-060) + rekoncyliacja z TASKS-DATABASE.md/TASKS-BACKEND.md/TASKS-FRONTEND.md; liczby w „Podsumowaniu” przeliczone od zera z pól `**Status:**` ticketów, nie dopisane jako delta do poprzedniej wersji). Stan: **DB 56/79, BE 120/142, FE 109/112 — RAZEM 285/333 (86%)**. Ukończone są wszystkie epiki EPIC-01..EPIC-29 — EPIC-29 był w tym pliku błędnie oznaczony ⬜ (25 ticketów) mimo statusów ✅ z notatkami implementacyjnymi z 2026-08-09..2026-08-13 w TASKS-*.md; wiersze przełączone na ✅, przeniesiono DB-046..054 z tabeli „Dodatkowe migracje” do właściwej tabeli DB i dodano brakujący DB-055 (porządki po EPIC-29). Jedyny epik z zadaniami nierozpoczętymi: **EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (50 ticketów, z czego 48 nierozpoczętych: DB-056..079, BE-120..142, FE-110..112; ukończone 2026-09-20: BE-124 i DB-060; zaplanowany 2026-09-20, projekt do akceptacji w `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10; 8 ticketów warunkowych zależnych od alternatywy decyzji D1/D4/D6/D10, 5 bramkowanych progiem wolumenowym — patrz „Nie rozpoczęte wg EPIC”)**. Poprzednia rekoncyliacja (2026-08-09, `/update-progress`): naprawiono m.in. rozbieżność EPIC-28 w Podsumowaniu, 24 tickety w EPIC-21/24/25/26/27 błędnie oznaczone ⬜ mimo zaimplementowanego kodu, kilkanaście brakujących/asymetrycznych adnotacji `**Zależy od:**`/`**Blokuje:**`; szczegóły w historii commitów tego pliku.
 
 ---
 
@@ -76,9 +76,9 @@
 | DB-057 | Porządki indeksów: duplikaty (`scheduled_callback`, `agent_group_member`) i nieużywane indeksy archiwum — 3 osobne migracje | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0; Should Have, S. |
 | DB-058 | Widoki materializowane `mv_agent_daily_stats` / `mv_campaign_stats`: decyzja DROP vs harmonogram odświeżania | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0; Could Have, S. |
 | DB-059 | Indeksy `(tenant_id, wiek wiadomości)` dla purge `email_message` i `social_message` | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, S. |
-| DB-060 | Audyt kolumn PII powiązanych z klientem (macierz Art. 17/15) — raport bez migracji | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, S. |
+| DB-060 | Audyt kolumn PII powiązanych z klientem (macierz Art. 17/15) — raport bez migracji | ✅ | EPIC-30. Ukończone 2026-09-20 (raport, bez migracji). Kluczowe: `anonymize_customer` (V013) nie zadziała dla klienta z kontaktami — trigger V016 blokuje `UPDATE contact` po `is_deleted = TRUE` (F1); wiązanie po `customer_id` za wąskie (D9, F2/F5); dwie ścieżki REST anonimizacji (F8); PG `contacts_dw` niesie PII (F6). Wynik: DB-078, DB-079, BE-141, BE-142, decyzje D9/D10. |
 | DB-061 | Naprawa i rozszerzenie `export_customer_data` (RODO Art. 15/20) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, M. |
-| DB-062 | Rozszerzenie `anonymize_customer` (RODO Art. 17) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, M. |
+| DB-062 | Rozszerzenie `anonymize_customer` (RODO Art. 17) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, L. |
 | DB-063 | [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w schemacie polityk retencji | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D1 = C]; Could Have, S. |
 | DB-064 | RLS `email_message` i `social_message`: `FOR SELECT` → `ALL` + `WITH CHECK` + `FORCE` | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 5 (RLS); Should Have, S. |
 | DB-065 | Partycjonowanie `social_message` (RANGE po `sent_at`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 2 (social); Should Have, M. |
@@ -94,6 +94,8 @@
 | DB-075 | [WARUNKOWY: D6 = koniec kampanii] Baza czasowa `CAMPAIGN_DATA` w archiwum | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D6 = koniec kampanii]; Could Have, M. |
 | DB-076 | `scheduled_job`: uzgodnienie wpisów z rzeczywistymi wykonawcami (Java `@Scheduled`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 6 (dokumentacja); Could Have, S. |
 | DB-077 | Dokumentacja: `06-database.md`, `ARCHITECTURE.md` (pg_cron, dynamiczne partycje, retencja, funkcje RODO) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 6 (dokumentacja); Should Have, S. |
+| DB-078 | Sweep i usunięcie kolumny `contacts_dw.remote_address` w PG-DW (PII bez retencji) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, F6); Should Have, S. |
+| DB-079 | Zawężenie `fn_contact_ref_integrity`: `UPDATE contact` bez zmiany referencji nie jest blokowany przez usuniętego klienta/agenta | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, trigger V016); Should Have, S. |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -224,12 +226,12 @@
 | BE-121 | Pętla batchowa w `CampaignArchiveRetentionRepository#purgeEligible` | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0; Should Have, S. |
 | BE-122 | Job czyszczenia `refresh_token` (`RefreshTokenCleanupJob`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0; Should Have, S. |
 | BE-123 | `audit_log` i `plugin_invocation_log` w `PartitionReclaimJob` (horyzont platformowy, D5) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0 (D5); Should Have, M. |
-| BE-124 | [ADR + inwentaryzacja] Retencja treści wiadomości: decyzja D1, PII i obiekty S3 | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D1); Must Have, S. |
+| BE-124 | [ADR + inwentaryzacja] Retencja treści wiadomości: decyzja D1, PII i obiekty S3 | ✅ | EPIC-30. Ukończone 2026-09-20 (ADR + inwentarz). D1 = A przyjęte roboczo bez wyraźnego potwierdzenia PO (pytania do PO nieprzekazane). Kluczowe: `pending/` = docelowe klucze załączników OUTBOUND (BE-131 skorygowany), EML w `contact.recording_url`, `RecordingService#deleteFromS3` połyka błędy, FB/IG `sent_at` = `Instant.now()`, wiek e-maila = INTERNALDATE (nie nagłówek `Date`). |
 | BE-125 | Usuwanie wiadomości e-mail i social po `contact_id` wraz z obiektami S3 (warstwa repo/serwis) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
 | BE-126 | Integracja w `RetentionPurgeServiceImpl#purgeContactInteractions` (usuwanie zamiast odcinania) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
 | BE-127 | Purge wiadomości osieroconych (`contact_id IS NULL` i dangling) wg retencji tenanta + dry-run | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
 | BE-128 | `RetentionEvaluationServiceImpl`: liczenie wiadomości kwalifikujących się do usunięcia (dashboard/badge) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1; Should Have, S. |
-| BE-129 | Przepływ RODO w `GdprServiceImpl` (D3): anonimizacja i eksport z wiadomościami, callbackami i rekordami kampanii; sprzątanie S3 | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, M. |
+| BE-129 | Przepływ RODO w `GdprServiceImpl` (D3): anonimizacja i eksport z wiadomościami, callbackami i rekordami kampanii; sprzątanie S3 | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Must Have, L. |
 | BE-130 | [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w silniku retencji | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D1 = C]; Could Have, M. |
 | BE-131 | Sprzątanie porzuconych załączników `pending` e-mail (S3) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1; Could Have, S. |
 | BE-132 | Migracja encji `SocialMessage` na klucz złożony `(messageId, sentAt)` | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 2 (social); Should Have, M. |
@@ -241,6 +243,8 @@
 | BE-138 | `RlsValidationService`: pokrycie komend, `FORCE` i rola połączenia | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 5 (RLS); Should Have, S. |
 | BE-139 | Testy integracyjne pod rolą bez BYPASSRLS + weryfikacja roli połączenia produkcyjnego | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 5 (RLS); Should Have, M. |
 | BE-140 | [WARUNKOWY: D6 = koniec kampanii] `CAMPAIGN_DATA` liczone od końca kampanii (warstwa Java) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D6 = koniec kampanii]; Could Have, S. |
+| BE-141 | Usunięcie `remote_address` z ETL do DW (`EtlSyncServiceImpl`, `ContactDwRow`, `PostgresDwWriter`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, F6); Should Have, S. |
+| BE-142 | [WARUNKOWY: D10] Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 [WARUNKOWY D10]; Could Have, S. |
 
 ---
 
@@ -350,32 +354,32 @@
 | FE-109 | Usunięcie `recordingRetentionDays` z `tenant-edit-modal` i `tenant.model.ts` (migracja źródła prawdy) | ✅ | EPIC-29. Ukończone. |
 | FE-110 | „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA` | ⬜ | EPIC-30. Zaplanowany 2026-09-20, nierozpoczęty. Grupa 1; Should Have, S. |
 | FE-111 | [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w UI retencji | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D1 = C]; Could Have, M. |
-| FE-112 | Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Could Have, S. |
+| FE-112 | Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, D3); Should Have, M. |
 
 ---
 
 ## Podsumowanie
 
 Przeliczone od zera 2026-09-20 bezpośrednio z treści `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/
-`TASKS-FRONTEND.md` (pole `**Status:**` każdego ticketu: DB 55 + 22, BE 119 + 21, FE 109 + 3), nie z poprzedniej wersji tej tabeli.
+`TASKS-FRONTEND.md` (pole `**Status:**` każdego ticketu: DB 55 + 24, BE 119 + 23, FE 109 + 3; BE-067 ma nietypowy zapis `[x] Zrobione` — liczony jako ukończony), nie z poprzedniej wersji tej tabeli.
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 55 | 0 | 22 | 77 |
-| Backend (BE) | 119 | 0 | 21 | 140 |
+| Database (DB) | 56 | 0 | 23 | 79 |
+| Backend (BE) | 120 | 0 | 22 | 142 |
 | Frontend (FE) | 109 | 0 | 3 | 112 |
-| **RAZEM** | **283** | **0** | **46** | **329** |
+| **RAZEM** | **285** | **0** | **48** | **333** |
 
 ### Nie rozpoczęte wg EPIC
 
 | EPIC | DB | BE | FE | Razem |
 |------|----|----|-----|-------|
-| EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 21 | 3 | 46 ⬜ (zaplanowany 2026-09-20, projekt: `DESIGN-message-retention-and-partitioning.md`; decyzje D1–D8 z założeniami domyślnymi; **Must (grupa 1, luka RODO):** DB-059..062, BE-124..127, BE-129; **7 warunkowych** (wchodzą tylko przy alternatywie decyzji): DB-063, BE-130, FE-111 (D1 = osobna kategoria), DB-068, BE-136 (D4 = tabela dedup), DB-075, BE-140 (D6 = koniec kampanii); **5 bramkowanych** progiem wolumenowym: DB-067, BE-134, BE-135 (`email_message`, bramka DB-066), DB-069, BE-137 (`campaign_contact_archive`)) |
-| **Łącznie** | **22** | **21** | **3** | **46** |
+| EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 23 | 22 | 3 | 48 ⬜ z 50 (zaplanowany 2026-09-20, projekt: `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10 z założeniami domyślnymi; **ukończone 2026-09-20:** BE-124 (ADR D1 = A przyjęte roboczo) i DB-060 (audyt PII); **Must (grupa 1, luka RODO) nierozpoczęte:** DB-059, DB-061, DB-062, BE-125..127, BE-129; **8 warunkowych** (wchodzą tylko przy alternatywie decyzji): DB-063, BE-130, FE-111 (D1 = osobna kategoria), DB-068, BE-136 (D4 = tabela dedup), DB-075, BE-140 (D6 = koniec kampanii), BE-142 (D10 = maskowanie `audit_log`); **5 bramkowanych** progiem wolumenowym: DB-067, BE-134, BE-135 (`email_message`, bramka DB-066), DB-069, BE-137 (`campaign_contact_archive`)) |
+| **Łącznie** | **23** | **22** | **3** | **48** |
 
 Wszystkie pozostałe epiki (EPIC-01 – EPIC-29) mają 0 zadań nierozpoczętych — w tym EPIC-29
 (Partycjonowanie i retencja danych z obsługi kontaktów: DB-046..054, BE-111..119, FE-103..109; ✅ wg TASKS-*.md, notatki z 2026-08-09..2026-08-13),
-które poprzednia wersja tej tabeli pokazywała jako 25 nierozpoczętych, oraz EPIC-28 (Per-Tenant Plugin System), niezależnie
+które wcześniejsza wersja tej tabeli pokazywała jako 25 nierozpoczętych, oraz EPIC-28 (Per-Tenant Plugin System), niezależnie
 zweryfikowany 2026-08-09 w kodzie (klasy domenowe, moduł Maven `plugin-sdk`, migracje V074-V077, iframe `sandbox` bez `allow-same-origin`).
 Poza epikami ukończony DB-055 (porządki indeksów `contact`, V093).
 

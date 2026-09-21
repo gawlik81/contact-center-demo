@@ -6795,7 +6795,7 @@ działają niezależnie od tej decyzji.
 > założeniami domyślnymi, wymagania przekrojowe WP-1…WP-8. Tabele/funkcje bazowe: DB-056…DB-077 (`TASKS-DATABASE.md`). **Brak nowych endpointów
 > publicznych** (`SecurityConfig` i listy `PUBLIC_PATH_PREFIXES` w filtrach bez zmian); wyjątek: BE-129 zmienia zawartość istniejących
 > `POST /api/customers/{id}/gdpr/export|anonymize`, bez zmiany ścieżek i ról (`hasAnyRole('ADMIN','SUPERVISOR')`).
-> **Numeracja:** BE-120…BE-140 (poprzedni najwyższy: BE-119).
+> **Numeracja:** BE-120…BE-142 (poprzedni najwyższy: BE-119).
 > Kluczowe fakty zweryfikowane w kodzie 2026-09-20: `RetentionPurgeServiceImpl#purgeContactInteractions` woła `detachContactReferences` (tylko `contact_id := NULL`);
 > `EmailAttachmentStorageService` nie ma operacji usuwania; `PartitionReclaimJob.TABLE_CATEGORIES` = 4 tabele `contact*` i **kasuje także niepuste partycje** (WARN, ale DROP wykonany —
 > zamierzone dla `contact*`), więc dla tabel z obiektami S3 potrzebny jest tryb „tylko puste" (BE-123 wprowadza `DropMode`, BE-133 go implementuje);
@@ -6804,8 +6804,8 @@ działają niezależnie od tej decyzji.
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
-> Grupa 1:  BE-124 → BE-125 → BE-126 → BE-127 → BE-128;   DB-059 → BE-127;   DB-060, DB-061, DB-062, BE-125 → BE-129;   BE-125 → BE-131;
->           [DB-063, BE-126, BE-127, BE-128 → BE-130, tylko D1 = C]
+> Grupa 1:  BE-124 ✅ → BE-125 → BE-126 → BE-127 → BE-128;   DB-059 → BE-127;   DB-060 ✅, DB-061, DB-062, DB-079, BE-125 → BE-129;   BE-125 → BE-131;
+>           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126, BE-127, BE-128 → BE-130, tylko D1 = C]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
 > Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125, BE-127 → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -6960,7 +6960,7 @@ log platformowy (DESIGN EPIC-29 §12.1) — więc rosną bez końca (najstarsza 
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-20) — D1 = A przyjęte do realizacji bez wyraźnego potwierdzenia właściciela (patrz notatka, sekcja 1)
 **Blokuje:** BE-125, DB-059, DB-063
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (decyzja: właściciel produktu)
@@ -6978,10 +6978,116 @@ Alternatywy: B (anonimizacja) — BE-125/126/127 robią UPDATE PII zamiast DELET
 5. Definicja „wieku wiadomości" dla osieroconych: `COALESCE(received_at, sent_at, created_at)` (e-mail) / `sent_at` (social) — ta sama co przyszłe `message_at` (DB-067).
 
 **Kryteria akceptacji:**
-- [ ] ADR zapisany; wpływ decyzji na tickety wypisany (przy B/C: co się zmienia, które tickety warunkowe wchodzą); pytania do PO wysłane
-- [ ] Inwentarz kompletny (grep po `attachments`, `s3_key`, `EmailAttachmentStorageService`, `recordingService.deleteFromS3`, `social_message`); lista zmian od PR #44 w notatce
-- [ ] Opisane oba ryzyka (a)/(b) z rekomendacją (walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` jako osobny follow-up, jeśli PO potwierdzi)
-- [ ] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7)
+- [x] ADR zapisany (notatka poniżej + `DESIGN-message-retention-and-partitioning.md` §3 D1); wpływ decyzji na tickety wypisany (przy B/C: co się zmienia, które tickety warunkowe wchodzą)
+- [ ] Pytania do PO wysłane — **NIE wysłano** (brak kanału do właściciela); lista w sekcji 9 notatki, „do przekazania"; odhaczyć po przekazaniu
+- [x] Inwentarz kompletny (grep po `attachments`, `s3_key`, `EmailAttachmentStorageService`, `deleteFromS3`, `social_message`, `SocialMessage`); lista zmian od PR #44 w notatce (sekcja 4)
+- [x] Opisane oba ryzyka (a)/(b) z rekomendacją (walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` jako osobny follow-up, jeśli PO potwierdzi) — sekcje 5 i 6
+- [x] Notatka w pliku zadań
+- [ ] Pamięć agenta commitowana razem ze zmianą (WP-7) — pliki pamięci zapisane w `.claude/agent-memory/backend-dev-expert/`; commit wykonuje zlecający
+
+**Notatka z realizacji (2026-09-20):**
+
+Metoda: wyłącznie odczyt — kod gałęzi `chore/epic-30-zadania` (zawiera PR #44), baza demo `cc-postgres` (`default_transaction_read_only=on`), MinIO (`ls`, `mc ilm rule ls`, `mc version info`, `mc du`; bez zapisu). Kod, testy, migracje i dane bez zmian; żaden purge nie został uruchomiony. Numery linii = stan z 2026-09-20.
+
+**1. ADR — D1: semantyka retencji treści wiadomości (e-mail, social)**
+- **Stan decyzji:** przyjęte do realizacji 2026-09-20 na podstawie polecenia realizacji („przejdź do realizacji") po przedstawieniu założenia domyślnego A; **wyraźnego potwierdzenia D1 właściciel nie złożył**. To nie jest zatwierdzenie: D1 = A pozostaje założeniem roboczym, tickety warunkowe (DB-063, BE-130, FE-111) są nieaktywne, ale nie zamknięte.
+- **Decyzja robocza — A:** DELETE wierszy `email_message`/`social_message` i ich obiektów S3 razem z purge kontaktu, w istniejącej kategorii `CONTACT_INTERACTIONS` (bez zmian CHECK, enuma `RetentionDataCategory` i UI kategorii).
+- **Uzasadnienie:** (1) najmniejszy zakres — 3 CHECK-i `data_category` (`tenant_retention_policy_data_category_check`, `tenant_retention_pending_summary_data_category_check`, `retention_purge_log_data_category_check`; zweryfikowane w `pg_constraint`) zostają; (2) wiadomość jest częścią interakcji, a jej wiek ≈ wiek kontaktu: w demo kontakty e-mail trwają ≤ 6 h 10 min, wiadomość powstaje najpóźniej 2 min 19 s po `contact.started_at` (0 wiadomości > 1 doby po starcie kontaktu); social: 0 wierszy, brak danych; (3) B zostawia PII, którego nie da się zanonimizować kolumną bez utraty funkcji (`filename` w `attachments`, `message_id_header`/`in_reply_to`, `cc`/`bcc` — `anonymize_customer` z V013 już dziś ich nie rusza), a tabele rosną bez końca; (4) Poziom 2 (DROP partycji) ma sens tylko przy usuwaniu wierszy.
+- **Konsekwencje A:** usunięcie jest nieodwracalne (bucket `contact-center-recordings` niewersjonowany); ten sam przycisk „Usuń teraz" (`CONTACT_INTERACTIONS`) zyskuje szerszy skutek, więc FE-110 (opis w UI) ma wejść razem z BE-126, nie po; wiadomość dziedziczy wiek kontaktu (`started_at`), nie własny; koszt S3 w pętli purge (BE-125, „Ryzyka").
+- **Zabezpieczenie na czas do potwierdzenia (opcja, decyzja zlecającego):** flaga `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe `detachContactReferences`), włączana po potwierdzeniu D1 — wtedy zmiana na B/C przed wdrożeniem nie wymaga cofania kodu, a merge BE-125/126 jest neutralny. Bez flagi: nie włączać `auto_purge_enabled` dla `CONTACT_INTERACTIONS` na produkcji i nie uruchamiać ręcznego purge po wdrożeniu BE-126 do czasu potwierdzenia.
+- **Wpływ alternatyw (ścieżka zmiany):**
+
+| Ticket | D1 = B (anonimizacja) | D1 = C (kategoria `MESSAGE_CONTENT`) |
+|---|---|---|
+| BE-125 | `purgeByContactIds` → UPDATE PII (`from/to/cc/bcc`, `subject`, `body_*`, `attachments = '[]'`; social: `content`, `sender_external_id`; `message_id_header`/`in_reply_to` — decyzja pod dedup IMAP); S3 nadal usuwane (pliki niosą PII); potrzebny znacznik „zanonimizowano" (kolumna — nowy ticket DB), inaczej sweep nie jest idempotentny | logika bez zmian; dochodzi wariant po wieku `purgeOlderThan(tenantId, cutoff, batch)` (wiadomości powiązane i osierocone) |
+| BE-126 | `detachContactReferences` zostaje (bez `@Deprecated`) + wołanie anonimizacji | wraca do odcinania referencji; usuwanie wiadomości przechodzi do BE-130 |
+| BE-127, BE-128 | sweep = UPDATE wierszy niezanonimizowanych; liczenie tych wierszy | sweep i liczenie pod kategorią `MESSAGE_CONTENT` (przenoszą się do BE-130) |
+| DB-059 | predykat indeksu + kolumna znacznika | indeks bez `WHERE contact_id IS NULL` (usuwanie po wieku obejmuje też powiązane) |
+| DB-063, BE-130, FE-111 | nie wchodzą | wchodzą (3 CHECK-i, backfill = wartość `CONTACT_INTERACTIONS`, enum, `seedDefaultPolicies`, UI, 4× i18n) |
+| DB-065/067, BE-132…135 | sens Poziomu 2 znika (wiersze nie znikają) — ponowna ocena | bez zmian; `ReclaimTarget` czyta próg `MESSAGE_CONTENT` |
+| FE-110 | „zanonimizowane" zamiast „usunięte" | tylko punkt 3 (dryf `CAMPAIGN_DATA`); opis wiadomości → FE-111 |
+
+- **Zmiana decyzji po starcie prac:** przed merge BE-125/126 — zmieniają się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie jest nieodwracalne, więc B/C dotyczą tylko danych jeszcze nieusuniętych.
+
+**2. Inwentarz PII** (schemat z `\d+` żywej bazy + kod). Jedyni pisarze `email_message`: `EmailPollingServiceImpl#parseMessage` :219–270 (INBOUND), `EmailSendServiceImpl#sendReply` :100–113 i `#sendNew` :200–212 (OUTBOUND) — grep `EmailMessage.builder()`, brak INSERT-ów w migracjach; `social_message`: `SocialMessageServiceImpl` :101–117 (INBOUND) i :217–233 (OUTBOUND).
+
+| Kolumna | PII | Uwagi |
+|---|---|---|
+| `email_message.from_address` | tak | INBOUND: `Message#getFrom()[0].toString()` = „Imię Nazwisko <adres>"; OUTBOUND: skrzynka tenanta |
+| `email_message.to_address` | tak | INBOUND: skrzynka tenanta + inni odbiorcy; OUTBOUND: adres klienta |
+| `email_message.cc_address`, `bcc_address` | tak (osoby trzecie) | ustawiane tylko dla INBOUND (live 0/55 niepustych); `anonymize_customer` (V013) ich nie czyści |
+| `email_message.subject`, `body_html`, `body_text` | tak (treść) | live: 55 / 33 / 30 niepustych |
+| `email_message.attachments` (JSONB NOT NULL, CHECK „array") | pośrednio | wpis: `filename` (bywa PII), `content_type`, `size_bytes`, **`s3_key`**; treść pliku w S3; V013 zeruje do `[]` BEZ usunięcia S3 (klucze przepadają) |
+| `email_message.message_id_header`, `in_reply_to` | pseudonimowe | Message-ID nadawcy niesie domenę/host; `uq_email_message_id_header` = dedup IMAP |
+| `email_message.contact_id` | klucz do kontaktu/klienta | NULL dla niezroutowanych i po dotychczasowym purge |
+| `social_message.content` | tak (treść) | WhatsApp: tylko `type=text`, inne typy zapisują `content = NULL` (`SocialWebhookController:399–403`) |
+| `social_message.sender_external_id` | tak | INBOUND: WhatsApp = numer telefonu (`from`), FB/IG = PSID/IGSID; OUTBOUND = `pageId` integracji (nie klient) |
+| `social_message.external_message_id` | pseudonimowe | `mid.`/`wamid.` lub `OUTBOUND-<uuid>`; klucz dedup (`uq_social_message_external_id`) |
+| `social_message.attachments` | obecnie brak | zawsze `[]`: parsery webhooków przekazują `null` (`SocialWebhookController:311`, `:349`, `:417`), wychodzące nie zapisują `attachmentUrls`; pole istnieje, więc przyszłe URL-e platform (często z tokenem) traktować jak PII |
+
+Kopie PII w `contact` (znikają z purge kontaktu, nie z tabel wiadomości): `remote_address`, `channel_metadata` (`subject`, `fromAddress`, `emailMessageId`). Poza bazą i S3 (poza zakresem EPIC-30, do odnotowania): logi aplikacji (`WhatsAppAdapter:126,133` — numer odbiorcy na INFO/ERROR; `SocialWebhookController:149,193,248` — pełny payload na DEBUG); RabbitMQ DLQ `cc.queue.dead-letter` (`RabbitMQConfig:218`, `durable`, bez TTL) trzyma `EmailEvent`/`IncomingSocialMessage` po nieudanym przetworzeniu (demo: 0 wiadomości).
+
+**3. Inwentarz obiektów zewnętrznych (S3)** — jeden bucket `contact-center-recordings`; live: 98 obiektów, 6,6 MiB, **bez wersjonowania** i **bez reguł lifecycle** (`mc version info`: „un-versioned"; `mc ilm rule ls`: „lifecycle configuration does not exist"; `docker-compose.yml:126–137` `minio-init` robi tylko `mc mb`).
+
+| Prefiks / klucz | Zapis | Wskaźnik w DB | Kto usuwa dziś | Live |
+|---|---|---|---|---|
+| `email-attachments/{tenantId}/{messageId}/{plik}` | `EmailAttachmentStorageServiceImpl#store` :43–48 ← `EmailPollingServiceImpl#collectAttachments` :363 (INBOUND) | `email_message.attachments[*].s3_key` (:376) | nikt | 6 obiektów, wszystkie wskazywane |
+| `email-attachments/{tenantId}/pending/{uuid}/{plik}` | `#storePending` :51–56 ← `EmailAttachmentController#uploadAttachment` :94 | po wysyłce: `attachments[*].s3_key` wiadomości OUTBOUND (**ten sam klucz `pending/`** — `EmailSendServiceImpl#buildAttachmentsJson` :376–395 zapisuje `s3Key` z żądania, brak przeniesienia do `{messageId}/`); przy porzuconym uploadzie: brak | nikt | 9 obiektów: 8 wskazywanych przez wysłane wiadomości (883 570 B), 1 porzucony |
+| `{tenantId}/{yyyy}/{MM}/{contactId}.eml` | `EmailEmlService#generateAndUpload` :76, `#buildEmlS3Key` :117–122 ← `EmailContactCreator#generateAndStoreEml` :192–206 (wołane :96, :357, :448) | `contact.recording_url` | `RecordingRetentionJob` (RECORDINGS) | 14 (kontakty e-mail) |
+| `{tenantId}/{yyyy}/{MM}/{contactId}.mp3` | `RecordingServiceImpl#buildS3Key` :333 | `contact.recording_url` | `RecordingRetentionJob` | 61 |
+| `plugins/…` | `PluginStorageServiceImpl` | poza kontaktami | — | 8 (poza zakresem) |
+
+- Zgodność DB↔S3: 75 wskaźników `contact.recording_url` = 75 obiektów (0 osieroconych, 0 wiszących); 6/6 kluczy INBOUND; 8/9 `pending/`. **Domena social nie ma żadnych obiektów S3** (grep `s3|S3Client|EmailAttachmentStorageService|presign|putObject` w `domain/social`, `infrastructure/social`, `api/social` = 0 trafień).
+- **Klucz metadanych = `s3_key`** (nie `s3_url`): 14/14 wpisów w bazie (`s3_url` 0); `s3_url` tylko w komentarzu V010:45 i javadoc `EmailMessage:102` (sprostować w DB-077; V010 NIE edytować).
+- **EML to pełna kopia wiadomości poza tabelą** (treść + załączniki base64, `EmailEmlService#buildAttachmentPart` :284 pobiera je po `s3_key`), a wskaźnik leży w `contact.recording_url` — kategoria RECORDINGS, nie CONTACT_INTERACTIONS (patrz ryzyko (a)).
+- **`RecordingService#deleteFromS3` połyka `S3Exception`** (`RecordingServiceImpl:307–322`, log ERROR bez rzucenia) — brak sygnału porażki, więc nie nadaje się do „S3 przed wierszem" (uzasadnia własną `EmailAttachmentStorageService#delete` z BE-125). Skutki w istniejącym kodzie: `RecordingRetentionJob#deleteRecording` :205–208 czyści `recording_url` mimo błędu S3 (obiekt osiera); `GdprServiceImpl#deleteCustomerRecordingsFromS3` liczy `failed`, który dla `S3Exception` nie rośnie (błędy sieci to `SdkClientException`, te propagują) — BE-129 nie może na tym polegać.
+- **Klucze OUTBOUND to dane od klienta:** `EmailReplyRequest.PendingAttachment#s3Key` → `EmailController#replyToMessage` :146–166 / `#sendOutboundEmail` :174–191 → `EmailSendServiceImpl` bez walidacji prefiksu `email-attachments/{tenantId}/` (kontrola IDOR jest tylko w `EmailAttachmentController#downloadAttachment` :129–135). Skutki: (i) agent może dołączyć do maila obiekt spoza swojego tenanta (`download(s3Key)` bez sprawdzenia) — luka poza zakresem EPIC-30, zgłosić osobnym ticketem; (ii) purge z BE-125 kasujący `s3_key` z JSONB bez sprawdzenia prefiksu skasowałby cudzy obiekt → allow-list prefiksu w BE-125.
+
+**4. Kod social po PR #44 (`67943eb`, merge `aa8a799`, 2026-09-19)** — lista zmian istotnych dla BE-125…127, DB-065, BE-132:
+1. Zmieniona jest **wyłącznie ścieżka wychodząca** `SocialMessageServiceImpl` (diff :128–245); przychodząca (:35–125), `SocialWebhookController`, `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialContactController`, `SocialMessage`, `SocialMessageRepository`, `IncomingSocialMessage` oraz `FacebookAdapter`/`InstagramAdapter` (nadal `[STUB]`) — bez zmian. Nowe: `WhatsAppAdapter` (realne HTTP), `V092` (globalny unique `(platform, page_id)` na `social_integration` — nie dotyczy `social_message`), `POST /api/integrations/WHATSAPP/connect`.
+2. `sendMessage` :153–172 rozbite na 3 etapy: `loadSendContext` :178 → `adapter.sendMessage` poza transakcją → `saveOutboundMessage` :217. Oba helpery mają `@Transactional protected` i są wołane przez `this.` — **self-invocation, adnotacje nieskuteczne**; granicą transakcji zapisu jest klasa `SocialMessageRepository` (`@Transactional` na klasie). Dla BE-132: natywny INSERT zostaje w transakcji repozytorium, nie zakładać transakcji serwisowej.
+3. Wiersz OUTBOUND powstaje tylko po udanym wywołaniu API (WhatsApp: 2xx). `external_message_id` nadal syntetyczne `OUTBOUND-<uuid>` (:226) — id z odpowiedzi Graph API nie jest zapisywane (webhooki statusów są ignorowane: `SocialWebhookController:369–372`); `sent_at = Instant.now()` (:229), `received_at` NULL, `attachments = []` (WhatsApp odrzuca załączniki `IllegalArgumentException`).
+4. **Korekta założenia BE-132/DB-065 („`sentAt` z platformy"):** deterministyczny jest tylko WhatsApp (`timestamp` z payloadu, `SocialWebhookController:406–409`, fallback `now()`); **Facebook i Instagram zawsze przekazują `Instant.now()` z chwili webhooka** (:312, :350). Redelivery FB/IG (Meta ponawia przy braku 200) dostaje inny `sent_at`, więc constraint `(tenant_id, external_message_id, sent_at)` go nie złapie; jedyną obroną pozostaje `findByExternalMessageId` (:75–81, bez daty; listener bez `concurrency`, więc wyścig dopiero przy ≥ 2 instancjach). Rekomendacja: w BE-132, przed DB-065, wziąć `sent_at` FB/IG z pola czasu payloadu (nazwę pola potwierdzić w dokumentacji Meta — niezweryfikowane).
+5. `SocialMessage#contactId` ma `nullable = false` (:47), a kolumna jest nullable od V028 — zapis zawsze ustawia kontakt, więc social nie produkuje sierot przy zapisie; sieroty social mogłyby powstać tylko z `detachContactReferences`. `platform` to enum `social_platform` (`columnDefinition`) — natywny INSERT (BE-132) wymaga `CAST(:platform AS social_platform)`.
+6. Dla D1: WhatsApp (`from` = numer telefonu w `sender_external_id` i `contact.remote_address`) to pierwszy kanał social z realistycznym wolumenem i danymi identyfikującymi wprost — luka „treść nigdy nie jest usuwana" dotyczy go od pierwszego dnia integracji. Live: `social_message` = 0 wierszy (najtańsze okno na DB-065).
+
+**5. Ryzyko (a) — osierocone obiekty S3 przy `RECORDINGS` > `CONTACT_INTERACTIONS`** (potwierdzone w kodzie)
+- Brak walidacji: `RetentionPolicyServiceImpl#updatePolicy` :100–114 sprawdza wyłącznie zakres [1, 120] (`validateRetentionMonths` :172–178); `RetentionController#updatePolicy` :143–178 — tylko zgodność kategorii ścieżka/body; w bazie tylko CHECK zakresu i UNIQUE, brak triggerów. Nic nie porównuje obu kategorii.
+- `RecordingRetentionJob` znajduje obiekty wyłącznie przez `contact.recording_url` (`ContactRepository#findExpiredRecordings` :1322–1348), a `ContactRepository#deleteBatchOlderThan` :587–615 (`DELETE … RETURNING contact_id`) usuwa wiersz bez odczytu `recording_url` — obiekt staje się nieosiągalny na stałe.
+- **Zasięg szerszy niż „nagrania":** w `contact.recording_url` leży też EML kontaktów e-mail (pełna kopia treści z załącznikami) — purge kontaktu przed RECORDINGS zostawia w S3 dokładnie ten materiał, który D1 = A ma usunąć.
+- **Sama walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` nie wystarcza (nawet równość jest niebezpieczna):** (i) `RecordingRetentionJob` przetwarza **jedną paczkę 100 rekordów na tenanta na przebieg** (`BATCH_SIZE` :60, :162–164, brak pętli; 1×/dobę 02:00) — tenant z > 100 nagrań/dobę nie nadąża, a zaległość przecina się z purge; (ii) różne jednostki: nagrania `now − 30·miesięcy` dni (`getRetentionDays` :156, `DAYS_PER_MONTH` = 30), purge `LocalDate.now(UTC).minusMonths(n)` (`RetentionPurgeServiceImpl:100`) — różnica do kilku dni; (iii) różne kolumny: `ended_at` vs `started_at`; (iv) polityki bywają zmieniane wstecz, a ręczny purge działa w dowolnej chwili.
+- **Stan live:** brak naruszeń (KMN Software: RECORDINGS = CI = 6 mies. — równość; Kampania Handlowa: 3 vs 60) i 0 osieroconych obiektów — ryzyko utajone, niezmaterializowane.
+- **Rekomendacja:** (1) siatka bezpieczeństwa w purge (BE-126, zakres do potwierdzenia): batch `(contact_id, recording_url)` → usunięcie obiektu (metodą zwracającą wynik, nie `RecordingService#deleteFromS3`) → wiersze wiadomości → kontakt; działa także dla zaległości i danych historycznych; (2) walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` w `RetentionPolicyServiceImpl#updatePolicy` (422 przez `IllegalArgumentException`, także przy zmianie CI w dół) — **osobny follow-up po potwierdzeniu PO**; (3) `RecordingRetentionJob`: pętla do wyczerpania zamiast jednej paczki oraz brak `clearRecordingUrl` po porażce S3 (wymaga usunięcia „połykania" błędu) — osobny ticket.
+
+**6. Ryzyko (b) — kolejność operacji przy awarii** (`RetentionPurgeServiceImpl#purgeContactInteractions` :171–192)
+- Dziś: `do { ids = contactService.purgeContactsOlderThan(…) /* DELETE…RETURNING, własna transakcja, commit */; detach(email); detach(social); } while (ids.size() == batch)`, potem pętla `contact_event` (wybór po wieku, niezależna od kontaktów — samoleczące). Kolejność „rodzic przed dzieckiem" jest dziś nieszkodliwa (`detach` to UPDATE po `contact_id`). **Po BE-126 (DELETE + S3) byłaby błędna:** `RETURNING` daje ID dopiero po commit; awaria S3/DB/JVM przed usunięciem dzieci gubi ID, wiadomości wiszą, a wskaźniki do S3 (`attachments`, `contact.recording_url`) są jedyną drogą do obiektów.
+- **Ocena rekomendacji BE-126: poprawna i konieczna dla D1 = A.** Niezmiennik: nie usuwaj wiersza, który jest jedynym wskaźnikiem do niesprzątniętego zasobu → S3 → wiersze wiadomości → wiersz kontaktu. Kolejność odwrotna (obiekt usunięty, wiersz zostaje) jest nieszkodliwa (`DeleteObject` na nieistniejącym kluczu = 204 w S3/MinIO — do potwierdzenia testem BE-125; ponowny przebieg idempotentny). Alternatywę „zostać przy `RETURNING` + `NOT EXISTS`" odradzam: odzyskuje wiersze wiadomości (klucze w JSONB przeżywają), ale nie obiekty z `contact.recording_url`, i wymaga anti-joinu po `contact_id` bez klucza partycji.
+- **Luki w BE-125/BE-126 (uzupełnione w tych ticketach):** (1) `contact.recording_url` poza opisem (patrz (a)); (2) „ta sama lista ID dwa razy" to przybliżenie — niezmiennik: **postęp = liczba faktycznie usuniętych wierszy `contact` w iteracji > 0**, przy 0 koniec pętli z WARN i `error_message`; `findContactIdsOlderThan` z `ORDER BY started_at, contact_id`; (3) usuwać kontakty wyłącznie spoza `contactIdsBlocked` (nowe pole `PurgedMessages`), nie całą paczkę — inaczej jeden nieosiągalny obiekt blokuje pozostałe kontakty paczki; (4) porażka trwała (np. 403) stoi na czele kolejki — pętla kończy się bez postępu, kontakty dalej w kolejce czekają (akceptowalne, `error_message` z liczbą); (5) współbieżne purge tego samego tenanta (ręczny + auto) nie mają blokady, ale ścieżka „S3 przed wierszem" jest idempotentna; (6) ten sam klucz S3 może być wskazywany przez > 1 wiadomość (klient może użyć `s3Key` ponownie) — przyjęte.
+
+**7. Wiek wiadomości dla osieroconych** (schemat + kod + live)
+- `email_message`: `received_at`, `sent_at` nullable; `created_at` NOT NULL DEFAULT now(). INBOUND: `receivedAt = Message#getReceivedDate() ?: now()` (`EmailPollingServiceImpl:251–253,267`), `sentAt` nigdy; OUTBOUND: `sentAt = Instant.now()` (`EmailSendServiceImpl:111,209`), `receivedAt` nigdy. Live: 30/30 INBOUND ma `received_at` i `sent_at` NULL; 25/25 OUTBOUND odwrotnie; 0 wierszy z oboma NULL i 0 z oboma ustawionymi; `created_at` różni się od `COALESCE(received_at, sent_at)` o ≤ 65,7 s.
+- **Potwierdzone:** `COALESCE(received_at, sent_at, created_at)` jest poprawne i totalne (nigdy NULL dzięki `created_at NOT NULL`); trzeci argument jest dziś nieosiągalny z kodu (dwa miejsca budowania `EmailMessage`) i zostaje jako siatka dla zapisów spoza aplikacji. Zgodne z widokiem `v_customer_timeline` (V025: `COALESCE(em.received_at, em.sent_at)`).
+- `social_message`: `sent_at` NOT NULL DEFAULT now(), `received_at` nullable, `created_at` NOT NULL → **`sent_at` wystarcza**. Semantyka `sent_at`: WhatsApp INBOUND = czas platformy, FB/IG INBOUND = czas webhooka, OUTBOUND = czas zapisu (sekcja 4, pkt 4).
+- **Uwagi:** (i) „wiek" INBOUND = INTERNALDATE serwera IMAP, nie nagłówek `Date`; DESIGN D4 proponuje dla przyszłego `message_at` `Message#getSentDate()` (nagłówek nadawcy) PRZED `getReceivedDate()` — rozbieżność z backfillem DB-067 (`COALESCE(received_at, …)` = INTERNALDATE) i wartość kontrolowana przez nadawcę (data z przeszłości = natychmiastowa kwalifikacja do purge). Rekomendacja: wiek retencyjny = czas zaobserwowany przez system; rozstrzygnąć w DB-066/DB-067/BE-134; (ii) skrzynka zmigrowana z historycznym INTERNALDATE daje „stare" świeżo zapisane wiadomości — BE-127 nie powinien usuwać sierot z `created_at` młodszym niż ≈ 24 h (filtr resztkowy, nie psuje indeksu z DB-059).
+
+**8. Testy S3, lifecycle, liczby demo**
+- (i) Testcontainers w `backend/app/pom.xml:371–388`: `junit-jupiter`, `postgresql`, `rabbitmq` (BOM 1.20.4); **brak MinIO/LocalStack** (`grep MinIO|LocalStack|S3Client` w `src/test`: tylko mock `S3Client` — `RecordingServiceTest:52`, `TwilioRecordingDownloadServiceTest:56`, `PluginStorageServiceImplTest:54`, komentarz „Brak wzorca testów integracyjnych S3/MinIO w projekcie"); w `~/.m2` brak `org.testcontainers:minio`/`localstack` (dostępność `MinIOContainer` w 1.20.4 niezweryfikowana). Wniosek: BE-125 = Testcontainers Postgres + `@Mock S3Client` (jak `CampaignContactArchivePurgeTenantIsolationTest` + `RecordingServiceTest`); MinIO-Testcontainer to nowa zależność — tylko gdy zlecający uzna za potrzebną (mock nie sprawdzi semantyki prefiksów/paginacji `ListObjectsV2` w BE-131).
+- (ii) Lifecycle/TTL dla `pending/`: **brak** (patrz sekcja 3; backend nie ustawia lifecycle — grep `Lifecycle`/`createBucket` w `src/main` = 0). Reguła prefiksu `pending/` jest dodatkowo **niebezpieczna**, dopóki załączniki wysłanych wiadomości leżą w `pending/` (BE-131 skorygowany).
+- (iii) Demo (2026-09-20, tylko odczyt): `email_message` 55 wierszy/216 kB (30 IN, 25 OUT), 23 z `contact_id IS NULL` (15 z `body_html`, 1 z załącznikiem; 18 sprzed 2026-05-13 = odcięte purge'em z 2026-08-13, 10 z `body_html`; **5 późniejszych, w tym 1 IN i 4 OUT — nie z purge, przyczyny nie zbadano**: niezroutowane/nie powiązane), 0 wiszących; 9 wiadomości z załącznikami = 14 wpisów (INBOUND 6 = 1 089 270 B w `{messageId}/`, OUTBOUND 8 = 883 570 B w `pending/`); `social_message` 0; `contact` 426 (EMAIL 32, z tego 14 z EML; PHONE 394, 61 z mp3); MinIO 98 obiektów (61 mp3, 14 eml, 6 INBOUND, 9 pending, 8 plugins). Polityki: KMN Software — wszystkie 4 kategorie = 6 mies.; Kampania Handlowa — CI 60, RECORDINGS 3, TRANSCRIPTS 3, CAMPAIGN_DATA 60; `auto_purge_enabled = false` wszędzie. `retention_purge_log`: 2 wpisy (KMN, MANUAL, COMPLETED): 2026-08-12 (cutoff 2021-08-12, 0 wierszy), 2026-08-13 (cutoff 2026-05-13, 133 wiersze).
+- **Kandydaci do purge dziś: 0** (KMN: CI 6 mies. → cutoff 2026-03-20; najstarszy kontakt 2026-05-13, najstarsza wiadomość 2026-04-25); pierwsza sierota zakwalifikuje się ≈ 2026-10-26. Test destrukcyjny (WP-4) w BE-126/BE-127 wymaga tymczasowego skrócenia polityki na tenancie testowym i zgody właściciela.
+
+**9. Pytania do PO — DO PRZEKAZANIA (nie wysłano)**
+1. **D1:** czy potwierdzasz A — treść wiadomości i załączniki znikają nieodwracalnie razem z kontaktem po retencji `CONTACT_INTERACTIONS` (a przycisk „Usuń teraz" dla tej kategorii zyskuje szerszy skutek)? Jeśli nie — B (anonimizacja) czy C (osobna kategoria `MESSAGE_CONTENT`)?
+2. **D2 (wolumeny):** ile e-maili/dzień/tenant i ilu tenantów na produkcji, jaki udział załączników i ich rozmiar (demo: 55 wierszy — nie jest reprezentatywne)?
+3. Czy purge ma usuwać także obiekt z `contact.recording_url` (EML kontaktów e-mail, nagrania) niezależnie od retencji RECORDINGS (rekomendowane), i czy wprowadzić blokadę `RECORDINGS ≤ CONTACT_INTERACTIONS` (422)?
+4. Po ilu godzinach uznajemy porzucony upload załącznika za odpadek (BE-131, propozycja 72 h) — i czy akceptujesz, że załączniki wysłanych e-maili podlegają retencji razem z wiadomością?
+5. Czy numer telefonu nadawcy WhatsApp (`sender_external_id`) traktujemy jako PII usuwane razem z wiadomością (rekomendowane: tak)?
+
+**10. Korekty w ticketach i wpływ na tickety spoza tego pliku**
+- Sprostowane w tym pliku: **BE-125** (źródło kluczy S3 = `attachments[*].s3_key` także dla `pending/`; allow-list prefiksu; `contactIdsBlocked`; powód własnej metody `delete`), **BE-126** (`contact.recording_url`, niezmiennik postępu, kontakty spoza `contactIdsBlocked`, liczby WP-4), **BE-127** (oczekiwana liczba kandydatów: dziś 0, sieroty ogółem 23; źródła sierot; filtr `created_at`), **BE-131** (założenie „`pending/` = tymczasowe" jest fałszywe — TTL/lifecycle skasowałyby załączniki wysłanych wiadomości).
+- Do zmiany w ticketach spoza zakresu tej edycji (BE-129 i BE-132 w tym pliku — nie ruszane, żeby nie wychodzić poza BE-124…127/131; DB-*/FE-* w innych plikach; szczegóły w raporcie zlecającemu): BE-129 (metoda usuwania zwracająca wynik; klucze EML i `pending/`), BE-132 (źródło `sent_at` FB/IG, self-invocation, cast enuma, aktualne numery linii), DB-059/DB-060/DB-061/DB-065/DB-066/DB-067/DB-077, FE-110 (wejście razem z BE-126).
+
+**11. Niezweryfikowane / ograniczenia:** (1) semantyka `DeleteObject` na nieistniejącym kluczu (204) przyjęta z dokumentacji S3, nie sprawdzona na MinIO (wymagałaby operacji zapisu); (2) nazwa pola czasu w payloadzie Meta FB/IG — niesprawdzona; (3) dostępność `MinIOContainer` w Testcontainers 1.20.4 — niesprawdzona (brak zależności w `~/.m2`); (4) przyczyna 5 sierot po 2026-05-13 — niezbadana; (5) zachowanie wiadomości social wobec czasu życia kontaktu — brak danych (0 wierszy); (6) RLS pod rolą ograniczoną nie był tematem tego ticketu (DB-064, BE-139).
 
 ---
 
@@ -7004,6 +7110,12 @@ Zastępuje `detachContactReferences` (JPQL `UPDATE … SET contact_id = NULL`) o
 - `EmailAttachmentStorageService#delete(String s3Key)` (+ `EmailAttachmentStorageServiceImpl`; `S3Client` i `S3Properties#getBucket()` już wstrzyknięte): idempotentne (brak obiektu = sukces), błąd S3 → `EmailAttachmentException`. Własna metoda w `domain.email` zamiast zależności od `RecordingService#deleteFromS3`.
 - `EmailMessageRepository#purgeByContactIds(tenantId, contactIds)`: kolejność **S3 przed wierszem**: (1) `SELECT message_id, attachments` dla wiadomości `WHERE tenant_id = :t AND contact_id IN (:ids)`, (2) usuń obiekty z `attachments[*].s3_key` (odporność na `[]`, brak klucza, uszkodzony JSON), (3) `DELETE` WYŁĄCZNIE wiadomości, których wszystkie obiekty usunięto; awaria S3 → wiadomość zostaje (ponowi ją następny purge), licznik `s3Failures`; wynik `PurgedMessages(deletedRows, s3ObjectsDeleted, s3Failures)`.
   Natywny SQL, identyfikacja wierszy pełnym PK, **zakaz `ctid`**; zapytanie po `contact_id IN` działa też na tabeli partycjonowanej (DB-067) — komentarz w kodzie.
+- **Korekty z BE-124 (wiążące, dowody w notatce BE-124, sekcje 3 i 6):**
+  (a) klucze S3 pochodzą wyłącznie z `attachments[*].s3_key`; klucze wiadomości OUTBOUND wskazują na `email-attachments/{tenantId}/pending/{uuid}/…`, **nie** na `{messageId}/` (`EmailSendServiceImpl#buildAttachmentsJson` zapisuje klucz z żądania; live 8 z 8) — opcjonalne sprzątanie prefiksu `{messageId}/` (niżej) obejmuje tylko załączniki INBOUND;
+  (b) **allow-list prefiksu:** kasuj wyłącznie klucze zaczynające się od `email-attachments/{tenantId}/` — klucz OUTBOUND to dane od klienta bez walidacji (`EmailReplyRequest.PendingAttachment#s3Key` → `EmailController#replyToMessage`/`#sendOutboundEmail`); obcy klucz (inny tenant, nagranie) pomiń z ERROR i licznikiem `s3Rejected`, a wiersz usuń mimo to (PII musi zniknąć, cudzy obiekt zostaje nietknięty); pusty klucz `""` (`buildAttachmentsJson` :387 zapisuje `""` przy `s3Key == null`) i wpisy niebędące obiektami pomiń bez wyjątku;
+  (c) `PurgedMessages` zwraca dodatkowo `contactIdsBlocked` (kontakty z ≥ 1 wiadomością nieusuniętą po porażce S3) — BE-126 usuwa kontakty tylko spoza tego zbioru;
+  (d) własna metoda `delete` jest konieczna z konkretnego powodu: `RecordingService#deleteFromS3` (`RecordingServiceImpl:307–322`) połyka `S3Exception` (brak sygnału porażki);
+  (e) ten sam klucz może być wskazywany przez > 1 wiadomość (klient może użyć `s3Key` ponownie) — `DeleteObject` idempotentny, przyjęte; semantykę usunięcia nieistniejącego klucza (204) potwierdzić w teście.
 - `SocialMessageRepository#purgeByContactIds(...)` (bez S3 — załączniki to URL-e platform) i `EmailMessageService#purgeByContactIds`, `SocialMessageService#purgeByContactIds`. `detachContactReferences` oznaczyć `@Deprecated` (usunięcie w BE-126).
 - Opcjonalnie (Should): po usunięciu wiersza sprzątanie prefiksu `email-attachments/{tenantId}/{messageId}/` (`ListObjectsV2` + delete) — łapie załączniki wgrane, ale nieodnotowane w `attachments` (błąd `extractAndStoreAttachments` po uploadzie); wykonawca ocenia koszt.
 - Każda metoda: `setTenantContextInDb(tenantId)` + `assertSameTenant(tenantId)` (wzorzec repozytoriów retencji), bez `TenantContext.clear()` (WP-2).
@@ -7035,8 +7147,13 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 
 **Zakres:**
 - Zastąp `detachContactReferences` wołaniem `purgeByContactIds` (BE-125). **Kolejność (rekomendacja, DESIGN R3): dzieci przed rodzicem** — nowa metoda `ContactService#findContactIdsOlderThan(tenantId, cutoff, batch)` → `purgeByContactIds` → `deleteContacts(tenantId, ids)`; awaria S3/DELETE zostawia i kontakt, i wiadomości (idempotentny ponowny przebieg).
-  Alternatywa (zostać przy `RETURNING`): kontakty znikają pierwsze, więc wiadomości z dangling `contact_id` obsługuje BE-127 (`NOT EXISTS`) — uzasadnij wybór w notatce.
-- Guard nieskończonej pętli: ta sama lista ID dwa razy pod rząd (S3 nie odpowiada) → przerwij z WARN i status `FAILED`/`error_message`.
+  Alternatywa (zostać przy `RETURNING`): kontakty znikają pierwsze, więc wiadomości z dangling `contact_id` obsługuje BE-127 (`NOT EXISTS`) — uzasadnij wybór w notatce. **BE-124 (sekcja 6) odradza tę alternatywę:** nie odzyskuje obiektów z `contact.recording_url` i wymaga anti-joinu bez klucza partycji.
+- Guard nieskończonej pętli: ta sama lista ID dwa razy pod rząd (S3 nie odpowiada) → przerwij z WARN i status `FAILED`/`error_message`. **Doprecyzowanie BE-124:** niezmiennikiem jest *postęp = liczba faktycznie usuniętych wierszy `contact` w iteracji > 0* (0 → koniec pętli, WARN, `error_message`); „ta sama lista dwa razy" jest tylko jego przybliżeniem i wymaga deterministycznego `ORDER BY started_at, contact_id` w `findContactIdsOlderThan`.
+- **Korekty z BE-124 (wiążące, dowody w notatce BE-124, sekcje 5 i 6):**
+  (a) `deleteContacts` wołać wyłącznie dla kontaktów spoza `contactIdsBlocked` zwróconego przez BE-125 (nie dla całej paczki) — inaczej jeden nieosiągalny obiekt S3 blokuje pozostałe kontakty paczki albo, przy usunięciu całej paczki, gubi wskaźnik do niesprzątniętych obiektów;
+  (b) **`contact.recording_url` (EML kontaktów e-mail = pełna kopia treści z załącznikami; nagrania mp3):** paczka powinna nieść `(contact_id, recording_url)`, a obiekt być usuwany w tej samej fazie „S3 przed wierszem" — inaczej purge osierocia obiekt (ryzyko (a) z BE-124; `RecordingRetentionJob` szuka wyłącznie po `contact.recording_url`, a `DELETE … RETURNING` go nie odczytuje). Wymaga metody usuwania zwracającej wynik (nie `RecordingService#deleteFromS3` — połyka `S3Exception`). **Zakres do potwierdzenia przez zlecającego** (rozszerza BE-125/BE-126, złożoność M zostaje, jeśli metodę usuwania wspólną dla załączników i `recording_url` zrobi BE-125);
+  (c) `contact_event` zostaje po pętli kontaktów (wybór po wieku, niezależny od kontaktu — samoleczący po awarii);
+  (d) WP-4: dziś (2026-09-20) dry-run daje **0** kandydatów (KMN: CI = 6 mies. → cutoff 2026-03-20, najstarszy kontakt 2026-05-13) — test destrukcyjny wymaga tymczasowego skrócenia polityki na tenancie testowym i zgody właściciela.
 - Semantyka `rowsDeleted`: suma `contact` + `contact_event` + `email_message` + `social_message` (Javadoc `RetentionPurgeService`, FE-110 opis). Audyt: rozszerz `buildNewValueJson` o `"breakdown":{"contacts","events","emailMessages","socialMessages","s3ObjectsDeleted","s3Failures"}`.
   `s3Failures > 0` → status `COMPLETED` z `error_message` = liczba awarii S3 (kolumna istnieje) albo `FAILED` — wykonawca uzasadnia.
 - `purgeAsync` (`TenantContext.restore/clear`) i ścieżka auto-purge (`RetentionEvaluationServiceImpl#maybeTriggerAutoPurge`) bez zmian (WP-2) — dodaj testy. `detachContactReferences` przestaje być wołane; usuń je dopiero po potwierdzeniu D1 (przy D1 = C BE-130 przywraca odcinanie referencji, bo wiadomości starzeją się wg własnej kategorii).
@@ -7066,11 +7183,13 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 **Opis:**
 Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id IS NULL`; wg analizy 18/18 sprzed cutoffu 2026-05-13, 10 z pełnym `body_html`) oraz e-maile zapisane przez IMAP i niezroutowane (V028: `contact_id` NULL przy pierwszym zapisie) nie mają dziś żadnej ścieżki usunięcia.
 
+**Korekta z BE-124 (2026-09-20, dowody w notatce BE-124, sekcje 6–8):** liczby „23 z 55" i „18/18, 10 z `body_html`" to liczba **sierot ogółem**, nie kandydatów: przy bieżącej polityce KMN (`CONTACT_INTERACTIONS` = 6 mies., cutoff 2026-03-20) dry-run daje dziś **0** kandydatów (najstarsza sierota 2026-04-25; pierwsza zakwalifikuje się ≈ 2026-10-26). Sieroty mają dwa źródła: (1) `detachContactReferences` z BE-113 (18 sprzed 2026-05-13, odcięte purge'em z 2026-08-13) oraz (2) niezroutowane e-maile — `EmailRoutingService#route` :70–74 przy braku kolejki tylko loguje WARN, a `EmailContactCreator#onEmailEvent` :76 wychodzi przy `queueId == null`, więc wiadomość zostaje z `contact_id NULL` na stałe (5 sierot po 2026-05-13: 1 IN + 4 OUT, przyczyny nie zbadano). Po BE-126 źródło (1) zanika, źródło (2) zostaje. Dangling (`contact_id` bez kontaktu): live 0.
+
 **Zakres:**
 - `EmailMessageService#purgeOrphansOlderThan(tenantId, cutoff, batch)` / `SocialMessageService#purgeOrphansOlderThan(...)` oraz dry-run `countOrphansOlderThan(tenantId, cutoff)`. Kryterium: `tenant_id = :t AND (contact_id IS NULL [OR dangling: NOT EXISTS (kontakt)]) AND <wiek> < :cutoff`, wiek = `COALESCE(received_at, sent_at, created_at)` (e-mail) / `sent_at` (social) —
   **dokładnie to wyrażenie z DB-059** (dopasowanie predykatu indeksu). S3 jak w BE-125 (kolejność S3 → wiersz).
 - Wywołanie w `purgeContactInteractions` po pętli kontaktów, ten sam `cutoff` (retencja `CONTACT_INTERACTIONS` tenanta); `rowsDeleted` += osierocone; breakdown w audycie.
-- **Ostrożność:** świeże niezroutowane e-maile (`EmailRoutingService` w toku) nigdy nie są usuwane przed cutoff (kryterium wieku); dangling `NOT EXISTS` opcjonalne wg wyboru z BE-126 (koszt zapytania po `contact_id` bez klucza partycji).
+- **Ostrożność:** świeże niezroutowane e-maile (`EmailRoutingService` w toku) nigdy nie są usuwane przed cutoff (kryterium wieku); dangling `NOT EXISTS` opcjonalne wg wyboru z BE-126 (koszt zapytania po `contact_id` bez klucza partycji). **Doprecyzowanie BE-124:** wiek INBOUND to INTERNALDATE serwera IMAP (`getReceivedDate()`), więc skrzynka zmigrowana z historycznymi datami daje „stare" świeżo zapisane wiadomości, które mogą być jeszcze w toku routingu — dodaj filtr resztkowy `created_at < now() − interval '1 day'` (nie psuje indeksu z DB-059). Klucze S3 z JSONB — z allow-listą prefiksu jak w BE-125 (klucze OUTBOUND to dane od klienta).
 - **Dry-run:** `countOrphansOlderThan` używa BE-128 i skrypt kandydatów do live-testu (WP-4).
 
 **Kryteria akceptacji:**
@@ -7078,7 +7197,7 @@ Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id 
 - [ ] `EXPLAIN` pod `SET ROLE app_user` z GUC: użyty indeks z DB-059, bez Seq Scan (scratch, ≥ 200 tys. wierszy)
 - [ ] Idempotencja; awaria S3 → wiadomość zostaje, brak nieskończonej pętli; test świeżej wiadomości w trakcie routingu (nie usuwana)
 - [ ] (WP-2) Wołane z `purgeAsync` (kontekst z snapshotu), bez `clear()` w repozytorium; test z pustym `TenantContext` → `IllegalStateException`
-- [ ] (WP-4, destrukcyjne) PRZED uruchomieniem policz kandydatów w demo (dry-run; oczekiwane ≈ 18–23 wiadomości, 10–15 z `body_html`), uzyskaj zgodę właściciela; po: `retention_purge_log.rows_deleted`, brak obiektów S3
+- [ ] (WP-4, destrukcyjne) PRZED uruchomieniem policz kandydatów w demo (dry-run; **stan z 2026-09-20: 0 kandydatów przy polityce 6 mies., 23 sieroty ogółem, 15 z `body_html`** — test wymaga tymczasowego skrócenia polityki tenanta testowego), uzyskaj zgodę właściciela; po: `retention_purge_log.rows_deleted`, brak obiektów S3
 - [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A
 
 ---
@@ -7112,8 +7231,8 @@ Po konwersjach (DB-065/DB-067) liczenie partycyjne przez `PartitionScanner` zami
 
 **Typ:** Backend implementation
 **Priorytet:** Must Have
-**Złożoność:** M (odbiega od oceny „S–M" dla grupy 1: przepływ Java + funkcje SQL + S3 + dwa kontrakty)
-**Zależy od:** DB-060, DB-061, DB-062, BE-125
+**Złożoność:** L (pierwotnie M; po korektach z DB-060: dwie ścieżki REST, podgląd zbioru podmiotu D9, jedno źródło audytu, stany operacyjne, S3 — przy D9 = B wraca do M; wykonawca może wydzielić podgląd D9 do osobnego PR)
+**Zależy od:** DB-060, DB-061, DB-062, DB-079, BE-125
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-112
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7125,17 +7244,36 @@ eksport = `customer.json` + `contacts.json` (≤ 1000) + `audit_log.json` (metad
 Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakcji) — ticket rośnie do L; przy D3 = C nie jest wykonywany.
 
 **Zakres:**
-- `anonymizeCustomer`: `customerService.findById` (jak dziś) → wywołanie `anonymize_customer(customer, tenant, user)` w JEDNEJ transakcji (nowa metoda repozytorium `TenantAwareRepository`, `assertSameTenant` + `setTenantContextInDb`), wynik `{counts, s3_keys}` → **po commit** sprzątanie S3 (nagrania: `RecordingService#deleteFromS3`; EML; załączniki e-mail: `EmailAttachmentStorageService#delete`) best-effort z retry; lista niepowodzeń S3 do audytu/logu (klucze nie mogą zniknąć — pozwalają dokończyć ręcznie).
+- `anonymizeCustomer`: `customerService.findById` (jak dziś) → wywołanie `anonymize_customer(customer, tenant, user)` w JEDNEJ transakcji (nowa metoda repozytorium `TenantAwareRepository`, `assertSameTenant` + `setTenantContextInDb`), wynik `{counts, s3_keys}` → **po commit** sprzątanie S3 best-effort z retry przez metodę zwracającą wynik per klucz: `EmailAttachmentStorageService#delete` (z BE-125) — **nie** `RecordingService#deleteFromS3`, które połyka `S3Exception` i nic nie zwraca (`RecordingServiceImpl` ≈ 307–322; BE-124 §3), więc nie da się na nim zbudować listy niepowodzeń. Zakres kluczy (BE-124 §3): nagrania i **EML kontaktów e-mail — oba w `contact.recording_url`**; załączniki e-mail z `attachments[*].s3_key`, w tym klucze `pending/` wiadomości OUTBOUND (`EmailSendServiceImpl#buildAttachmentsJson` zapisuje klucz z uploadu i nikt go nie przenosi do `{messageId}/`), z allow-listą prefiksu `email-attachments/{tenantId}/` jak w BE-125. Klucze musi zwrócić `anonymize_customer` PRZED wyzerowaniem `attachments` (V013 zeruje kolumnę bez usuwania obiektów — DB-062); lista niepowodzeń S3 do audytu/logu (klucze nie mogą zniknąć — pozwalają dokończyć ręcznie).
   **Zmiana kolejności względem dziś** (DB twardo, S3 potem) — uzasadnij w notatce. `CustomerRepository#anonymize` zostaje nieużywane albo usunięte (sprzątanie).
 - `exportCustomerData`: wywołanie `export_customer_data` (po DB-061) → ZIP: `customer.json`, `contacts.json`, `email_messages.json`, `social_messages.json`, `scheduled_callbacks.json`, `campaign_records.json`, `transcriptions.json` (wg DB-060/D3), manifest; brak ucięcia do 1000 bez informacji (paginacja/strumień). Audyt `GDPR_EXPORT` zostaje w Javie (jedyne miejsce, jeśli DB-061 usunął INSERT z funkcji).
-- Kontrakt REST bez zmian (ścieżki, role, odpowiedź ZIP / 204); wywołanie z żądania HTTP — `TenantContext` z `TenantFilter`, **bez `clear()`** (WP-2).
+- Kontrakt REST bez zmian (ścieżki, role, odpowiedź ZIP / 204; dochodzi wyłącznie podgląd D9 i przekierowanie `DELETE /api/customers/{id}`, patrz Uzupełnienie); wywołanie z żądania HTTP — `TenantContext` z `TenantFilter`, **bez `clear()`** (WP-2).
+
+**Uzupełnienie z DB-060 (2026-09-20, wiążące; dowody: notatka DB-060, przypisy F1–F8 w `TASKS-DATABASE.md`):**
+- **Druga ścieżka REST [DB-060 F8.4]:** `DELETE /api/customers/{id}` (`CustomerController:255`, `hasAnyRole('ADMIN','SUPERVISOR')` → `CustomerServiceImpl#anonymizeCustomer` :301 z `@Audited(action = "CUSTOMER_ANONYMIZED")` → `CustomerRepository#anonymize`) aktualizuje wyłącznie `customer` i nie kasuje nawet nagrań S3; używa jej UI listy klientów (`customer-list.component.ts:134` → `customer.service.ts:84 deleteCustomer`).
+  **Rekomendacja: przekierować kontroler na `GdprService#anonymizeCustomer` i zachować kontrakt** (204, role, 404 dla już zanonimizowanego), usunąć `@Audited` oraz martwe `CustomerServiceImpl#anonymizeCustomer`/`CustomerRepository#anonymize` (albo `@Deprecated`); alternatywa: wycofać endpoint — wtedy lista klientów przechodzi na modal GDPR (i tak zalecane w FE-112).
+- **Jedno źródło wpisu audytu [F8.5]:** dziś trzy — Java `GDPR_ANONYMIZE` (`GdprServiceImpl:112`, fire-and-forget), `@Audited` `CUSTOMER_ANONYMIZED` i funkcja SQL `CUSTOMER_ANONYMIZED`; eksport: Java `GDPR_EXPORT` vs SQL `CUSTOMER_DATA_EXPORTED`. Rekomendacja: Art. 17 — wpis zapisuje funkcja (atomowo z anonimizacją, `p_user_id`), Java nie publikuje własnego ani `@Audited`; Art. 15 — wpis zapisuje Java (`GDPR_EXPORT`; po DB-061 funkcja bez INSERT). Jedna nazwa akcji na operację, brak podwójnych wpisów.
+- **Zbiór podmiotu wg D9 (założenie A):** odpowiedź niesie liczniki `matched_by_link`/`matched_by_identifier`; **podgląd (dry-run):** nowy endpoint `GET /api/customers/{id}/gdpr/anonymize/preview` (te same role, bez skutków ubocznych; woła `anonymize_customer(…, p_dry_run => TRUE)`) zwraca liczniki per tabela i liczbę obiektów S3; anonimizacja i eksport po potwierdzeniu w UI (FE-112). Przy D9 = B: bez endpointu podglądu i liczników identyfikatorowych.
+- **Eksport (Art. 15):** bez cichego ucięcia do 1000 (dziś `findContactsByCustomerId(…, 0, 1000)`), z **manifestem kluczy S3 i presigned URL-e** (`EmailAttachmentStorageService#presignedDownloadUrl` i odpowiednik dla nagrań) zamiast plików w ZIP (audio i załączniki nie trafiają do archiwum), zbiór wg D9; informacje Art. 15(1)(a)–(h) z `gdpr_processing_register`.
+- **Stany operacyjne po anonimizacji** (zmiany robi funkcja SQL — DB-062; tu dowód testami): `campaign_contact` `PENDING`/`NO_ANSWER`/`CALLBACK` → `SKIPPED` (`ProgressiveDialerServiceImpl#fetchNextPendingContact` nie filtruje `phone IS NOT NULL`), `scheduled_callback` `PENDING`/`PROCESSING` → `CANCELLED` (`ScheduledCallbackExecutor` dzwoni na `getPhone()`); rekordy w toku (`DIALING`/`PROCESSING` — połączenie trwa) — opisz decyzję (odrzucić anonimizację z komunikatem albo dokończyć po zakończeniu połączenia).
+- (Could) evict Redis `cache:customer:phone:{phone}` (`CliLookupServiceImpl`, TTL 5 min) dla numerów klienta (zebrać `phone[]` przed anonimizacją) — bez tego CLI-lookup zwraca zanonimizowanego klienta do 5 min.
+- **Kolejność DB → S3 (DESIGN R8):** DB twardo w jednej transakcji, S3 dopiero po commit metodą zwracającą wynik per klucz (`EmailAttachmentStorageService#delete`), niepowodzenia do audytu; błąd bazy nie może zostawić usuniętych obiektów S3.
+- **Zależność od DB-079:** idempotencja i dosanityzowanie klientów z `is_deleted = TRUE` (m.in. zanonimizowanych dotąd przez `CustomerRepository#anonymize`) wymagają zawężenia triggera V016; do czasu DB-079 `UPDATE contact` takich klientów rzuca (także `RecordingRetentionJob#clearRecordingUrl`).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers `GdprServiceImpl` na prawdziwej bazie: klient z pełnym zestawem danych → po anonimizacji żadna kolumna PII z macierzy DB-060 nie zawiera wartości oryginalnych (w tym `customer.custom_fields`); klucze S3 z wyniku funkcji przekazane do `deleteFromS3`/`EmailAttachmentStorageService#delete` (mocki S3, asercje wywołań)
+- [ ] (WP-1) Test Testcontainers `GdprServiceImpl` na prawdziwej bazie: klient z pełnym zestawem danych → po anonimizacji żadna kolumna PII z macierzy DB-060 nie zawiera wartości oryginalnych (w tym `customer.custom_fields`); klucze S3 z wyniku funkcji przekazane do `EmailAttachmentStorageService#delete` (mock S3, asercje wywołań; **nie** `RecordingService#deleteFromS3` — połyka `S3Exception`, BE-124 §3)
 - [ ] Awaria S3 po commit nie cofa anonimizacji; lista niepowodzeń w audycie/logu
 - [ ] Eksport ZIP zawiera wszystkie zbiory; test na > 1000 kontaktach (bez cichego ucięcia)
 - [ ] Izolacja: klient obcego tenanta → `EntityNotFoundException`/404 (istniejące zachowanie) i test na prawdziwej bazie, że funkcja nie zmienia cudzych danych
 - [ ] (WP-4) Local-demo, klient testowy (utworzony na potrzeby testu): eksport i anonimizacja z UI, weryfikacja e-maili/callbacków/kampanii/S3 po przebudowie obrazów; destrukcyjne — zgoda właściciela
+- [ ] (WP-1) `DELETE /api/customers/{id}` i `POST /api/customers/{id}/gdpr/anonymize` dają identyczny efekt w bazie (obie wołają tę samą implementację — test na prawdziwej bazie z pełnym zestawem danych); po zmianie `CustomerServiceImpl#anonymizeCustomer` nie jest już osobną ścieżką
+- [ ] Jeden wpis audytu na operację: asercja, że po anonimizacji jest dokładnie 1 wiersz `audit_log` z akcją anonimizacji (bez pary `GDPR_ANONYMIZE` + `CUSTOMER_ANONYMIZED`), po eksporcie dokładnie 1 z `GDPR_EXPORT`
+- [ ] (D9 = A) `GET …/gdpr/anonymize/preview` niczego nie zmienia (asercja: brak zmian w bazie i S3) i zwraca liczniki zgodne z późniejszą anonimizacją; przy D9 = B kryterium odpada
+- [ ] Eksport bez ucięcia: klient z > 1000 kontaktami → komplet w archiwum/manifeście; manifest zawiera klucze S3 i presigned URL-e, a ZIP nie zawiera plików audio ani załączników
+- [ ] Po anonimizacji `ProgressiveDialerServiceImpl#fetchNextPendingContact` i `ScheduledCallbackExecutor` nie podejmują zanonimizowanych rekordów (test na zapytaniach SQL tych klas na prawdziwej bazie)
+- [ ] Błąd bazy przy anonimizacji NIE usuwa żadnych obiektów S3 (test: wymuszony błąd funkcji → `EmailAttachmentStorageService#delete` i usuwanie nagrań niewywołane); porażka S3 po commit nie cofa anonimizacji (lista niepowodzeń w audycie/logu)
+- [ ] Dosanityzowanie: klient z `is_deleted = TRUE` (anonimizowany dotąd ścieżką Javy) → ponowne wywołanie kończy anonimizację reszty danych bez błędu (wymaga DB-079)
+- [ ] (Could) `cache:customer:phone:{phone}` usuwany dla numerów klienta — test
 - [ ] `mvn verify -pl app`; DoD (WP-7); dokumentacja (funkcje SQL już nie martwe) → DB-077
 
 ---
@@ -7172,13 +7310,19 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
 
-**Opis:** `POST /api/email/attachments/upload` zapisuje plik pod `email-attachments/{tenantId}/pending/{uuid}/{filename}` (`EmailAttachmentStorageService#storePending`); jeśli agent nie wyśle odpowiedzi, obiekt zostaje na zawsze (brak wiersza w DB, brak TTL) — PII w storage bez właściciela (DESIGN §2 U5). Ten sam bucket co nagrania (`contact-center-recordings`).
+**Opis:** `POST /api/email/attachments/upload` zapisuje plik pod `email-attachments/{tenantId}/pending/{uuid}/{filename}` (`EmailAttachmentStorageService#storePending`); jeśli agent nie wyśle odpowiedzi, obiekt zostaje na zawsze (brak wskaźnika w DB, brak TTL) — PII w storage bez właściciela (DESIGN §2 U5). Ten sam bucket co nagrania (`contact-center-recordings`).
 
-**Zakres:** wariant A (rekomendowany): job `@Scheduled` (`email.attachments.pending-ttl-hours`, domyślnie 72) listujący prefiks `email-attachments/` z filtrem `/pending/` i `LastModified < now − TTL` → delete; nie dotyka obiektów `/{messageId}/`; dry-run w logu. Wariant B: reguła lifecycle bucketu (ops) — opisać, jeśli infrastruktura ją wspiera; wykonawca wybiera i uzasadnia.
+**UWAGA — korekta z BE-124 (2026-09-20): pierwotne założenie „`pending/` = obiekty tymczasowe" jest FAŁSZYWE:** po wysłaniu odpowiedzi ten sam klucz `pending/` trafia do `email_message.attachments[*].s3_key` wiadomości OUTBOUND (`EmailSendServiceImpl#buildAttachmentsJson` :376–395 zapisuje `s3Key` z żądania; nic nie przenosi obiektu do `{messageId}/`). Live: 9 obiektów `pending/`, **8 wskazywanych przez wysłane wiadomości**, 1 porzucony. Wariant A z pierwotnego zakresu (TTL po `LastModified` na prefiksie `/pending/`) oraz wariant B (lifecycle bucketu) **skasowałyby załączniki wysłanych wiadomości** (zepsute `GET /api/email/attachments/download` i generowanie EML). Zakres poniżej zastępuje pierwotny.
+
+**Zakres:**
+- **Wariant A′ (minimum):** job `@Scheduled` (`email.attachments.pending-ttl-hours`, domyślnie 72) — kandydat = obiekt `email-attachments/{tenantId}/pending/…` z `LastModified < now − TTL` **i niewskazywany przez żaden wiersz `email_message`** (per tenant: zbiór `attachments[*].s3_key` pobrany raz albo `attachments @> '[{"s3_key": "<klucz>"}]'` z indeksem GIN przy wolumenie); kolejność „sprawdź referencje → usuń"; nie dotyka `/{messageId}/`; dry-run w logu.
+- **Wariant A″ (rozwiązanie u źródła, zalecane, złożoność S → M):** „promocja" załączników przy wysyłce — `sendReply`/`sendNew` po udanym SMTP przenosi obiekt z `pending/` do `{messageId}/` (copy + delete) i zapisuje nowy klucz w JSONB; wtedy prefiks `pending/` jest naprawdę tymczasowy, a A′ upraszcza się do samego TTL. Wymaga jednorazowej migracji istniejących kluczy OUTBOUND (8 w demo) i testu na wysyłce.
+- **Wariant B (lifecycle bucketu, ops):** dopuszczalny WYŁĄCZNIE po A″ i migracji istniejących kluczy; dziś brak jakichkolwiek reguł lifecycle (`mc ilm rule ls`) i wersjonowania.
+- Wykonawca wybiera i uzasadnia; zależność od BE-125 (`EmailAttachmentStorageService#delete`) zostaje.
 
 **Kryteria akceptacji:**
-- [ ] Test z mockiem S3: obiekt `pending` starszy niż TTL usunięty, młodszy nie, obiekt niepending nigdy; błąd pojedynczego obiektu nie przerywa pozostałych
-- [ ] (WP-4) Local-demo: policz kandydatów w MinIO, uzyskaj zgodę, uruchom; konfiguracja w `application.yml`; DoD (WP-7)
+- [ ] (WP-1) Test na prawdziwej bazie (Testcontainers Postgres z wierszami `email_message` — referencje są w DB) + mock S3: obiekt `pending` starszy niż TTL i niewskazywany — usunięty; młodszy nie; niepending nigdy; **`pending/` wskazywany przez wiersz `email_message` (wysłana wiadomość) NIGDY nie jest usuwany (test regresyjny; w demo 8 z 9)**; błąd pojedynczego obiektu nie przerywa pozostałych
+- [ ] (WP-4) Local-demo: policz kandydatów w MinIO (**oczekiwany: 1 z 9**), uzyskaj zgodę, uruchom; konfiguracja w `application.yml`; DoD (WP-7)
 
 ---
 
@@ -7195,14 +7339,16 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 
 **Opis:**
 `SocialMessage` ma `@Id @GeneratedValue @UuidGenerator messageId` i zapis przez `em.merge`; po DB-065 klucz to `(message_id, sent_at)`. Wzorzec: BE-117 (`ContactEvent`/`ContactEventId`, `AuditLog`/`AuditLogId`) — `@IdClass` + natywny INSERT.
-**Najpierw ponownie przeczytaj aktualny kod po PR #44 (WhatsApp)** i wypisz zmiany w notatce: `SocialMessageServiceImpl` (przychodzące ≈ linie 76–117, wychodzące ≈ 226–232), `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialWebhookController`, `SocialContactController`, `ContactRepository` (odwołania do `social_message`), adaptery.
+**Najpierw ponownie przeczytaj aktualny kod po PR #44 (WhatsApp)** i wypisz zmiany w notatce: `SocialMessageServiceImpl` (dedup ≈ 75–81, zapis INBOUND ≈ 101–117, OUTBOUND ≈ 217–233; BE-124 §4), `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialWebhookController`, `SocialContactController`, `ContactRepository` (odwołania do `social_message`), adaptery.
 
 **Zakres:** `@IdClass(SocialMessageId.class)` (`messageId`, `sentAt`), `messageId` nadawany w Javie (`UUID.randomUUID()`) przed INSERT; `SocialMessageRepository#save` → natywny INSERT (`assertSameTenant`, `setTenantContextInDb`), koniec `em.merge`;
 `sentAt` deterministyczne: `incoming.sentAt()` (z platformy), a fallback `Instant.now()` jest niedeterministyczny — dedup aplikacyjny `findByExternalMessageId` (bez daty) pozostaje pierwszą obroną, a `DataIntegrityViolationException` z constraintu `(tenant_id, external_message_id, sent_at)` obsłuż jako idempotentny duplikat;
+**Korekta z BE-124 §4 (wiążąca):** deterministyczny `sentAt` ma dziś tylko WhatsApp (`timestamp` z payloadu, `SocialWebhookController` ≈ 405–409). **Facebook i Instagram zawsze ustawiają `Instant.now()` z chwili webhooka** (`SocialWebhookController` :312, :350), więc redelivery tego samego zdarzenia dostaje inny `sent_at` i constraint `(tenant_id, external_message_id, sent_at)` z DB-065 go NIE wykryje — dziś chroni przed tym globalny `UNIQUE (tenant_id, external_message_id)`, który po partycjonowaniu znika. Ujednolić źródło `sent_at` dla FB/IG (czas z payloadu Meta; nazwę pola zweryfikować — BE-124 §11) **przed lub razem z DB-065**; bez tego unikalność nie jest siecią bezpieczeństwa (wyścig dwóch dostaw = duplikat).
+Przy okazji: `saveOutboundMessage` i `loadSendContext` mają `@Transactional` przez self-invocation, więc adnotacje są nieskuteczne (BE-124 §4) — popraw albo świadomie usuń; natywny INSERT wymaga `CAST(:platform AS social_platform)` (kolumna jest enumem);
 grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesForContact` bez zmian semantycznych; sprawdź `purgeByContactIds` (BE-125) na tabeli partycjonowanej.
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers na schemacie po DB-065: zapis inbound i outbound trafia do partycji miesięcznej (`tableoid`); redelivery tego samego zdarzenia = 1 wiersz (dedup aplikacyjny + constraint); zapis pod `SET ROLE app_user` z GUC
+- [ ] (WP-1) Test Testcontainers na schemacie po DB-065: zapis inbound i outbound trafia do partycji miesięcznej (`tableoid`); redelivery tego samego zdarzenia = 1 wiersz (dedup aplikacyjny + constraint) — **także dla FB/IG z innym czasem odbioru webhooka** (`sent_at` z payloadu, nie z `Instant.now()`); zapis pod `SET ROLE app_user` z GUC
 - [ ] Brak `@GeneratedValue` na `messageId`; testy jednostkowe adapterów/consumera bez regresji; `mvn verify -pl app`
 - [ ] (WP-4) Local-demo po przebudowie obrazów: wysłanie i odbiór wiadomości social/WhatsApp (jeśli integracja skonfigurowana) — wiadomość w partycji miesięcznej
 - [ ] Wydanie razem z DB-065; DoD (WP-7)
@@ -7250,7 +7396,7 @@ grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesFor
 `domain/email/{EmailContactCreator, EmailEmlService, EmailEventPublisher, EmailMessage, EmailMessageRepository, EmailMessageService(Impl), EmailPollingServiceImpl, EmailRoutingService, EmailSendService(Impl)}`, `domain/contact/{AiSummaryServiceImpl, ContactService(Impl)}`, `RetentionPurgeServiceImpl`, `RlsValidationService` (+ komentarze w `Contact`, `ContactRepository`).
 
 **Zakres:**
-- `messageAt` NOT NULL, niemodyfikowalne: INBOUND w `EmailPollingServiceImpl#parseMessage` = `Message#getSentDate()` → `getReceivedDate()` → `now()` (dziś tylko `getReceivedDate()` z fallbackiem `now()`); OUTBOUND (`EmailSendServiceImpl`, dwie ścieżki ≈ linie 111 i 209) = ten sam `Instant` ustawiany RAZ.
+- `messageAt` NOT NULL, niemodyfikowalne: INBOUND w `EmailPollingServiceImpl#parseMessage` = `Message#getReceivedDate()` (INTERNALDATE serwera IMAP, czas zaobserwowany przez system — dokładnie dzisiejsze źródło `received_at`) → `now()` tylko gdy brak INTERNALDATE; **NIE** `Message#getSentDate()`: nagłówek `Date` jest kontrolowany przez nadawcę (przeszłość = natychmiastowa kwalifikacja do purge; korekta z BE-124 §7, DESIGN D4); OUTBOUND (`EmailSendServiceImpl`, dwie ścieżki ≈ linie 111 i 209) = ten sam `Instant` ustawiany RAZ.
 - `EmailMessageRepository#save/update`: natywny INSERT/UPDATE po `(message_id, message_at)`; `extractAndStoreAttachments` robi drugi `save(saved)` (dziś `em.merge`) → UPDATE po PK. Dedup `findByMessageIdHeader(header, tenantId)` (bez daty) zostaje (D4 = A); `DataIntegrityViolationException` z unikalności złożonej traktuj jako duplikat.
 - `EmailContactCreator`: 3× `emailMessageRepository.findById(messageId)` (linie ≈ 171, 194, 317) po zdarzeniach RabbitMQ z samym `messageId` (`EmailEvent`) → dodaj `messageAt` do `EmailEvent` (tolerancyjna deserializacja: kolejka może zawierać zdarzenia starego formatu → fallback lookup po samym `message_id`, skan lokalnych indeksów partycji; sprawdź `FAIL_ON_UNKNOWN_PROPERTIES`).
 - `EmailController` (endpointy po samym id): pojedynczy lookup po `message_id` bez klucza partycji dozwolony — udokumentuj koszt (liczba partycji × indeks PK).
@@ -7258,11 +7404,12 @@ grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesFor
 
 **Kryteria akceptacji:**
 - [ ] (WP-1) Testcontainers po DB-067: pełny przepływ IMAP (mock `Store`) → zapis → zdarzenie → `EmailContactCreator` → powiązanie z kontaktem → EML; redelivery tego samego Message-ID = 1 wiersz; OUTBOUND: `messageAt` = `sentAt`; zdarzenie starego formatu (bez `messageAt`) obsłużone; zapis pod `SET ROLE app_user` z GUC
+- [ ] INBOUND: `messageAt` = INTERNALDATE (`getReceivedDate()`), nie nagłówek `Date` nadawcy — test z wiadomością o `Date` z przeszłości i z przyszłości (wiek liczony z INTERNALDATE)
 - [ ] (WP-2) `EmailPollingServiceImpl` nadal ustawia `TenantContext` per tenant w pętli (istniejący `Snapshot`), nic nie czyści kontekstu HTTP
 - [ ] `mvn verify -pl app`; brak `em.find/merge` po samym `message_id` (grep); (WP-4) Local-demo po przebudowie: odbiór e-maila (jeśli IMAP skonfigurowany) i odpowiedź z załącznikiem — wiadomość w partycji miesięcznej, brak regresji UI e-mail
 - [ ] Wydanie razem z DB-067; DoD (WP-7)
 
-**Ryzyka:** zdarzenia RabbitMQ „w locie" podczas wdrożenia; fallback `now()` dla wiadomości bez nagłówka Date (DESIGN D4).
+**Ryzyka:** zdarzenia RabbitMQ „w locie" podczas wdrożenia; fallback `now()` dla wiadomości bez INTERNALDATE (DESIGN D4) oraz skrzynka zmigrowana z historycznym INTERNALDATE (świeże wiadomości wyglądają na stare — obrona w BE-127).
 
 ---
 
@@ -7387,3 +7534,67 @@ Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
 
 **Kryteria akceptacji:**
 - [ ] (WP-1) Testcontainers: zaległa kampania (koniec 3 lata temu, zarchiwizowana dziś) kwalifikuje się natychmiast przy retencji 24 mies.; izolacja tenantów; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-141 – Usunięcie `remote_address` z ETL do DW (`EtlSyncServiceImpl`, `ContactDwRow`, `PostgresDwWriter`)
+
+**Typ:** Backend implementation (minimalizacja danych)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-078
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+ETL kopiuje `contact.remote_address` (numer CLI/e-mail klienta) do DW: `EtlSyncServiceImpl` wybiera kolumnę (`SELECT_CONTACTS_FOR_ETL`, ≈ l. 88) i mapuje ją do `ContactDwRow.remoteAddress` (≈ l. 690), `PostgresDwWriter#upsert` zapisuje ją do PG `contacts_dw` (UPSERT wymienia kolumnę), a `ClickHouseDwWriter` jej NIE zapisuje (INSERT bez kolumny;
+schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG-DW zostało 130 wierszy PII bez kontaktu źródłowego (DB-060 F6, DESIGN U9). ETL pomija dziś tylko PRZYSZŁE synchronizacje kontaktów klientów zanonimizowanych (`UPPER(cu.first_name) = 'ANONYMIZED'`), a kontakty bez `customer_id` przechodzą.
+`etl.dw.type`: dev domyślnie `postgres`, prod `clickhouse` (`application-prod.yml`; `.env.local-demo` też `clickhouse`) — konfiguracji na żywym prodzie nie sprawdzono.
+
+**Zakres:**
+- `EtlSyncServiceImpl`: usuń `c.remote_address` z `SELECT_CONTACTS_FOR_ETL` (≈ l. 88) i `rs.getString("remote_address")` z mapowania `new ContactDwRow(…)` (≈ l. 676–690).
+- `ContactDwRow`: usuń komponent `remoteAddress` (rekord + `@param` w Javadoc, ≈ l. 28/44) i dostosuj wywołujących (`EtlSyncServiceImplTest` ≈ l. 370).
+- `PostgresDwWriter#upsert`: usuń `remote_address` z INSERT i z `ON CONFLICT DO UPDATE` oraz `ps.setString(14, row.remoteAddress())` (przenumeruj parametry); `ClickHouseDwWriter`: popraw komentarz (≈ l. 55) — bez zmiany zachowania.
+- **Kompatybilność wsteczna (kolejność wdrożenia):** po zmianie writer działa zarówno na schemacie z kolumną (nullable), jak i bez niej, więc BE-141 wchodzi PRZED lub RAZEM z DB-078 (drop kolumny).
+- Filtr `ANONYMIZED` w ETL zostaje (nie dotyczy już PII, ale jest bezpieczny).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers (PostgreSQL z pełnym Flyway): `PostgresDwWriter#upsert` zapisuje wiersz i nie odwołuje się do `remote_address` — na schemacie z kolumną i (po DB-078) bez niej; ETL end-to-end (`EtlSyncServiceImpl`) na prawdziwej bazie zapisuje kontakt do PG-DW (asercje po wartościach); dziś brak testu writera (brak testów w `infrastructure/etl`)
+- [ ] grep: 0 wystąpień `remote_address`/`remoteAddress` w `domain/etl`, `infrastructure/etl` i `dw/` poza migracjami historycznymi; `EtlSyncServiceImplTest` zaktualizowany
+- [ ] (WP-4) Local-demo po przebudowie obrazów: ETL synchronizuje bez błędu (`etl_sync_state`) dla obu wartości `etl.dw.type` (`postgres` i `clickhouse`); `mvn verify -pl app`; DoD (WP-7)
+
+**Ryzyka:** zmiana rekordu `ContactDwRow` dotyka wszystkich wywołujących (jedno miejsce w kodzie produkcyjnym + test); prod domyślnie `clickhouse`, więc realny efekt dotyczy głównie dev/PG-fallback — niezweryfikowane na żywym prodzie.
+
+---
+
+### BE-142 – [WARUNKOWY: D10] Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja)
+
+**Typ:** Backend implementation (minimalizacja danych)
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy założeniu D10 = maskowanie)
+**Złożoność:** S (M, jeśli obejmuje jednorazowe maskowanie wierszy historycznych — patrz Zakres p. 3)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`audit_log` (1227 wierszy live) trzyma pełne snapshoty PII (DB-060 F7): `CUSTOMER_CREATED` (1) i `CUSTOMER_UPDATED` (7) — `firstName`, `lastName`, `phone[]`, `email[]`, `customFields`, `gdprConsent`, `externalId`, także w `old_value`; `CONTACT_*` (CREATED 259, AGENT_ASSIGNED 362, DISPOSITION_SET 399, ACCEPTED 28, ABANDONED 14) — `remoteAddress`, `channelMetadata` (EMAIL: `fromAddress`, `subject`), `recordingUrl`, `notes`;
+`RECORDING_URL_REQUESTED` (98) — `presignedUrl` (TTL 15 min, wygasłe — nie jest to ryzyko PII). `AuditAspect#serializeToJson` (`infrastructure/aspect/AuditAspect.java`, ≈ l. 209–224) usuwa dziś wyłącznie `SENSITIVE_FIELDS` (hasła, tokeny; l. 55–58) i serializuje całą encję, a anonimizacja Art. 17 (Java i SQL) nie dotyka `audit_log`.
+**Zakłada D10 (DESIGN §3): maskowanie kluczy PII, wiersze zostają** (Art. 5(2)/30; Art. 17(3)(b)/(e) — wymaga potwierdzenia prawnego). Przy alternatywie „`audit_log` bez zmian" ticket nie jest wykonywany; ekspozycję ogranicza wtedy wyłącznie horyzont 24 mies. (D5/BE-123).
+
+**Zakres:**
+1. **Zatrzymanie PII u źródła:** lista kluczy PII jako jedno źródło prawdy w Javie (np. `AuditPiiKeys`, konfigurowalna): `firstName`, `lastName`, `phone`, `email`, `customFields`, `gdprConsent`, `externalId`, `remoteAddress`, `channelMetadata`, `notes`, `recordingUrl`, `fromAddress`, `subject`; `AuditAspect#serializeToJson` i `captureOldValue` zastępują wartości tych kluczy znacznikiem `"[MASKED]"` (klucz zostaje — widać, że pole się zmieniło, bez wartości), obok `SENSITIVE_FIELDS`. Dotyczy encji `CUSTOMER` i `CONTACT`.
+2. **Wiersze istniejące (podmiot):** maskowanie przy anonimizacji wykonuje funkcja SQL (DB-062, Could, D10 — UPDATE `audit_log` po `entity_id` i `new_value @> {"customerId": …}`; tabela partycjonowana, RLS tylko SELECT — pod rolą ograniczoną UPDATE cicho 0 wierszy, DB-064/DB-074). Lista kluczy w SQL = lista z p. 1.
+3. **Wiersze historyczne spoza anonimizacji:** decyzja o jednorazowym sweepie całego `audit_log` wymaga potwierdzenia prawnego — zapisać w notatce, bez implementacji domyślnie.
+4. `GdprServiceImpl` i funkcje SQL nie wkładają PII do własnych wpisów audytu (dziś: brak) — test.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test na prawdziwej bazie (Testcontainers, `AuditLogConsumer`/prawdziwa tabela `audit_log`): `@Audited` na `CustomerServiceImpl` (create/update) i `ContactServiceImpl` zapisuje `new_value`/`old_value` z zamaskowanymi kluczami PII i zachowanymi polami niebędącymi PII (`customerId`, `status`, `dispositionCode`) — asercje po JSON
+- [ ] Test spójności listy kluczy Java ↔ SQL (jeśli DB-062 obejmuje maskowanie wierszy podmiotu)
+- [ ] Decyzja w notatce: `presignedUrl` z `RECORDING_URL_REQUESTED` (TTL 15 min) — maskować czy zostawić; istniejące testy `AuditAspect` zielone; sprawdzone (grep FE/BE), że żaden widok historii audytu nie polega na wartościach snapshotów PII
+- [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D10
+
+**Ryzyka:** utrata użyteczności diffów audytowych (klucz zostaje, wartość nie); rozjazd list PII w Javie i SQL; decyzja prawna o wierszach historycznych.

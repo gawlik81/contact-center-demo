@@ -5908,11 +5908,11 @@ i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z B
 ### FE-112 – Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15)
 
 **Typ:** Frontend implementation
-**Priorytet:** Could Have
-**Złożoność:** S
+**Priorytet:** Should Have (w pierwotnym planie Could; przy D9 = A podgląd jest zabezpieczeniem przed fałszywymi trafieniami w nieodwracalnej operacji)
+**Złożoność:** M (w pierwotnym planie S; dochodzą podgląd D9 i przepięcie listy klientów na jedną ścieżkę anonimizacji)
 **Zależy od:** BE-129
 **Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-129
+**Czeka na BE:** BE-129 (podgląd `GET /api/customers/{id}/gdpr/anonymize/preview`, przekierowanie `DELETE /api/customers/{id}` na `GdprService`, kształt manifestu eksportu — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `angular-frontend-expert`
@@ -5926,6 +5926,17 @@ uzupełniona o: wiadomości e-mail i social media (treść, adresy, załączniki
 sekcja „Prawa RODO" (`supervisor.customerDetail.gdprExportTitle`, `gdprDownloadNote`, `gdprAnonymizeTitle`, `gdprAnonymizeDesc`): opis zawartości paczki ZIP i zakresu anonimizacji; zachowane ostrzeżenie o nieodwracalności; obsługa ostrzeżenia o częściowym niepowodzeniu sprzątania S3
 (jeśli BE-129 je zwraca — sprawdź kontrakt); i18n 4 języków; testy modalu.
 
+**Uzupełnienie z DB-060 (2026-09-20) — druga ścieżka anonimizacji i podgląd D9:**
+- **Lista klientów używa surowego DELETE [DB-060 F8.4]:** `customer-list.component.ts` (`onDeleteConfirmed` → `CustomerService#deleteCustomer` → `DELETE /api/customers/{id}`, modal `CustomerDeleteModalComponent` z kluczami `supervisor.customerDelete.*`, komunikaty `supervisor.gdprAnonymize.successAnonymize`/`errorAnonymize`) —
+  po BE-129 ta ścieżka wywołuje tę samą implementację co `POST …/gdpr/anonymize`. **Zalecane: lista otwiera ten sam modal GDPR co szczegóły klienta (`GdprAnonymizeModalComponent` + `GdprService#anonymize`, z podglądem liczników), a `customer-delete-modal` zostaje usunięty (albo zredukowany do delegacji)** — jedna ścieżka UI i jedne komunikaty.
+  Jeśli BE-129 zachowa kontrakt `DELETE` i lista pozostanie przy `customer-delete-modal`, zaktualizować przynajmniej `supervisor.customerDelete.message1`/`message2`/`warning` do pełnego zakresu (jak w modalu GDPR).
+- **Podgląd D9 (założenie A):** modal GDPR przed potwierdzeniem woła `GET /api/customers/{id}/gdpr/anonymize/preview` (BE-129) i pokazuje liczniki per zbiór (kontakty, wiadomości, callbacki, rekordy kampanii, pliki) oraz osobno trafienia „po powiązaniu" i „po numerze/adresie";
+  przy `matched_by_identifier > 0` czytelne ostrzeżenie (klucze `supervisor.gdprAnonymize.preview*`, np. „Dopasowano także rekordy po numerze telefonu lub adresie e-mail — sprawdź, czy dotyczą tej samej osoby") i **wymagane jawne potwierdzenie** (istniejący mechanizm wpisania frazy zostaje); błąd lub timeout podglądu blokuje potwierdzenie. Przy D9 = B — bez podglądu i bez tych kluczy.
+- Eksport (Art. 15): opis, że archiwum zawiera manifest kluczy plików i linki do pobrania (presigned, wygasają) zamiast samych plików; obsługa komunikatu o częściowym niepowodzeniu (jeśli BE-129 je zwraca).
+
 **Kryteria akceptacji:**
-- [ ] Komunikaty w 4 językach wymieniają dokładnie zakres z BE-129/DB-060; ostrzeżenie o nieodwracalności zachowane; kontrakt endpointów (`POST /api/customers/{id}/gdpr/export|anonymize`) bez zmian po stronie FE
+- [ ] Komunikaty w 4 językach wymieniają dokładnie zakres z BE-129/DB-060; ostrzeżenie o nieodwracalności zachowane; kontrakt endpointów (`POST /api/customers/{id}/gdpr/export|anonymize`) bez zmian po stronie FE (dochodzi wyłącznie podgląd D9)
 - [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); (WP-4) sprawdzenie w local-demo na kliencie testowym; notatka + pamięć agenta commitowana razem ze zmianą
+- [ ] Lista klientów i szczegóły klienta korzystają z jednej ścieżki anonimizacji (modal GDPR z podglądem wg D9); `customer-delete-modal` usunięty albo zaktualizowany — test komponentu listy (Vitest): akcja anonimizacji otwiera modal GDPR, sukces i błąd pokazują te same komunikaty
+- [ ] (D9 = A) Modal pokazuje liczniki podglądu i ostrzeżenie przy `matched_by_identifier > 0`; potwierdzenie możliwe dopiero po załadowaniu podglądu i wpisaniu frazy; błąd podglądu blokuje potwierdzenie (test)
+- [ ] Nowe klucze i18n (`supervisor.gdprAnonymize.preview*`) w 4 językach; zmienione/usunięte klucze `supervisor.customerDelete.*` bez martwych odwołań (grep)

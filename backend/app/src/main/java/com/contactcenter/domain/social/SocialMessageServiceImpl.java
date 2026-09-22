@@ -260,8 +260,26 @@ class SocialMessageServiceImpl implements SocialMessageService {
 
     @Override
     @Transactional
+    @Deprecated // EPIC-30 (BE-125): zastąpione przez purgeByContactIds; usunięcie w BE-126
     public int detachContactReferences(UUID tenantId, List<UUID> contactIds) {
         return socialMessageRepository.detachContactReferences(tenantId, contactIds);
+    }
+
+    // =========================================================================
+    // BE-125: Retencja – usuwanie wiadomości (EPIC-30)
+    // =========================================================================
+
+    /**
+     * Bez {@code @Transactional} na serwisie: całość to jedno {@code DELETE} w transakcji
+     * repozytorium (brak I/O do S3, więc nie ma czego dzielić) — spójnie z
+     * {@code EmailMessageService#purgeByContactIds}.
+     */
+    @Override
+    public int purgeByContactIds(UUID tenantId, List<UUID> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return 0;
+        }
+        return socialMessageRepository.purgeByContactIds(tenantId, contactIds);
     }
 
     // =========================================================================

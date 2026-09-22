@@ -77,6 +77,30 @@ public interface SocialMessageService {
      * @param tenantId   UUID tenanta
      * @param contactIds lista UUID usuniętych kontaktów – pusta lista jest no-opem
      * @return liczba zaktualizowanych wierszy
+     * @deprecated EPIC-30 (D1 = A, BE-125): purge kontaktu usuwa wiadomości — użyj
+     *             {@link #purgeByContactIds}. Podpięcie w {@code RetentionPurgeServiceImpl} i usunięcie
+     *             tej metody: BE-126 (przy D1 = C BE-130 przywraca odcinanie referencji).
      */
+    @Deprecated
     int detachContactReferences(UUID tenantId, List<UUID> contactIds);
+
+    /**
+     * Usuwa wiadomości social wskazanych kontaktów (retencja EPIC-30, BE-125, założenie D1 = A —
+     * usuwanie zamiast odcinania).
+     *
+     * <p>Bez operacji S3: domena social nie przechowuje obiektów w S3. Pojedyncze {@code DELETE} po
+     * {@code (tenant_id, contact_id IN (...))} — wynik to liczba usuniętych wierszy (brak
+     * {@code contactIdsBlocked}: nic nie może zablokować usunięcia kontaktu).
+     *
+     * <p><strong>Prekontrakt:</strong> {@code TenantContext} ustawiony na {@code tenantId}
+     * (wołający zarządza kontekstem; metoda NIGDY go nie czyści).
+     *
+     * @param tenantId   UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param contactIds kontakty, których wiadomości mają zostać usunięte — {@code null}/pusta lista to no-op
+     * @return liczba usuniętych wierszy {@code social_message}
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony (przy niepustej liście)
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     *         (przy niepustej liście)
+     */
+    int purgeByContactIds(UUID tenantId, List<UUID> contactIds);
 }

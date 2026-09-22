@@ -1508,6 +1508,22 @@ class ContactServiceImpl implements ContactService {
         return contactRepository.deleteBatchOlderThan(tenantId, cutoff, batchSize);
     }
 
+    // =========================================================================
+    // BE-126: Retencja – usuwanie kontaktów WRAZ z wiadomościami (EPIC-30, flaga
+    // retention.purge.delete-messages=true)
+    // =========================================================================
+
+    @Override
+    public List<ContactPurgeCandidate> findContactIdsOlderThan(
+            UUID tenantId, Instant cutoff, ContactPurgeCandidate cursor, int batchSize) {
+        return contactRepository.findContactIdsOlderThan(tenantId, cutoff, cursor, batchSize);
+    }
+
+    @Override
+    public Set<UUID> deleteContacts(UUID tenantId, List<UUID> ids) {
+        return contactRepository.deleteContacts(tenantId, ids);
+    }
+
     @Override
     public int purgeTranscriptionsOlderThan(UUID tenantId, Instant cutoff, int batchSize) {
         return contactTranscriptionRepository.deleteBatchOlderThan(tenantId, cutoff, batchSize);

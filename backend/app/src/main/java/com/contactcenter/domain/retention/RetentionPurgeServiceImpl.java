@@ -3,8 +3,10 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.contact.ContactEventService;
+import com.contactcenter.domain.contact.ContactPurgeCandidate;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.PurgedMessages;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.PurgeResultDto;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
@@ -27,6 +29,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -76,6 +79,18 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
 
     @Value("${retention.purge.batch-size:100}")
     private int batchSize;
+
+    /**
+     * Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — przyjęte do realizacji, ale bez wyraźnego
+     * potwierdzenia właściciela, patrz notatka BE-124/BE-125 w {@code TASKS-BACKEND.md}). Domyślnie
+     * {@code false}: {@link #purgeContactInteractionsLegacy} (odcięcie referencji, zachowanie
+     * IDENTYCZNE z dzisiejszym). {@code true}: {@link #purgeContactInteractionsWithMessageDeletion}
+     * (USUWANIE wiadomości e-mail/social wraz z obiektami S3, BE-125). NIE ustawiać {@code true} w
+     * żadnym profilu domyślnym (dev/local-demo/prod) bez świadomej decyzji — patrz
+     * {@code application.yml}.
+     */
+    @Value("${retention.purge.delete-messages:false}")
+    private boolean deleteMessagesEnabled;
 
     /**
      * Self-reference przez {@code @Lazy} – pozwala wywoływać {@code @Async} metodę przez proxy
@@ -128,19 +143,48 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
         try {
             Instant cutoff = cutoffDate.atStartOfDay(ZoneOffset.UTC).toInstant();
 
-            long rowsDeleted = switch (category) {
-                case CONTACT_INTERACTIONS -> purgeContactInteractions(tenantId, cutoff);
-                case TRANSCRIPTS -> purgeTranscripts(tenantId, cutoff);
-                case CAMPAIGN_DATA -> purgeCampaignData(tenantId, cutoff);
+            // rowsDeleted=0L jako wartość początkowa jest wyłącznie techniczna (definite assignment
+            // dla switch-a nad enum bez `default`) – każda gałąź poniżej nadpisuje ją przed użyciem.
+            long rowsDeleted = 0L;
+            // breakdownJson/warningMessage są wypełniane WYŁĄCZNIE dla CONTACT_INTERACTIONS na
+            // ścieżce z flagą deleteMessagesEnabled=true (BE-126) – dla pozostałych kategorii i dla
+            // ścieżki legacy zostają null, co zachowuje dokładnie dzisiejszy format audytu.
+            String breakdownJson = null;
+            String warningMessage = null;
+
+            switch (category) {
+                case CONTACT_INTERACTIONS -> {
+                    if (deleteMessagesEnabled) {
+                        ContactInteractionsPurgeResult result =
+                                purgeContactInteractionsWithMessageDeletion(tenantId, cutoff);
+                        rowsDeleted = result.totalRowsDeleted();
+                        breakdownJson = buildBreakdownJson(result);
+                        if (result.s3Failures() > 0) {
+                            // COMPLETED (nie FAILED) – patrz uzasadnienie w Javadoc
+                            // RetentionPurgeLogRepository#markCompleted(purgeId, tenantId, rowsDeleted, warning).
+                            warningMessage = "S3 delete failures: " + result.s3Failures()
+                                    + " — dotknięte kontakty i wiadomości pozostały nieusunięte, "
+                                    + "kolejny purge jest idempotentny";
+                        }
+                    } else {
+                        rowsDeleted = purgeContactInteractionsLegacy(tenantId, cutoff);
+                    }
+                }
+                case TRANSCRIPTS -> rowsDeleted = purgeTranscripts(tenantId, cutoff);
+                case CAMPAIGN_DATA -> rowsDeleted = purgeCampaignData(tenantId, cutoff);
                 // Nieosiągalne w praktyce – validateSupportedCategory już odrzuciła tę wartość
                 // w purge(), zanim purgeAsync w ogóle wystartował. Zabezpieczenie defensywne.
                 case RECORDINGS -> throw new UnsupportedOperationException(
                         "Kategoria " + category + " nie jest obsługiwana przez RetentionPurgeService");
-            };
+            }
 
-            purgeLogRepository.markCompleted(purgeId, tenantId, rowsDeleted);
+            if (warningMessage != null) {
+                purgeLogRepository.markCompleted(purgeId, tenantId, rowsDeleted, warningMessage);
+            } else {
+                purgeLogRepository.markCompleted(purgeId, tenantId, rowsDeleted);
+            }
             publishAudit(tenantId, purgeId, triggeredByUserId, AUDIT_ACTION_COMPLETED,
-                    buildNewValueJson(rowsDeleted, RetentionPurgeLog.STATUS_COMPLETED, null));
+                    buildNewValueJson(rowsDeleted, RetentionPurgeLog.STATUS_COMPLETED, warningMessage, breakdownJson));
 
             log.info("[RetentionPurge] Zakończono purge: purgeId={}, tenant={}, category={}, rowsDeleted={}",
                     purgeId, tenantId, category, rowsDeleted);
@@ -162,13 +206,21 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * Usuwa dane kategorii CONTACT_INTERACTIONS: {@code contact} (+ odcięcie referencji
      * {@code email_message}/{@code social_message} dla usuniętych kontaktów) oraz {@code contact_event}.
      *
+     * <p><strong>Ścieżka domyślna</strong> ({@code retention.purge.delete-messages=false}) —
+     * zachowanie IDENTYCZNE z dzisiejszym (sprzed BE-126): purge kontaktu ODCINA referencję
+     * ({@code detachContactReferences}), NIE usuwa wiadomości. PII wiadomości zostaje (DESIGN §2
+     * U1) — to jest znana, świadomie zachowana luka do czasu włączenia flagi
+     * {@link #deleteMessagesEnabled} po decyzji właściciela (D1, BE-124/BE-125).
+     *
      * <p>Batche {@code contact} są przetwarzane najpierw, w całości, po czym następują batche
      * {@code contact_event} — kolejność nie ma znaczenia biznesowego (obie tabele identyfikują
      * wiersze do usunięcia niezależnie po własnym {@code tenant_id}/{@code started_at}), ale
      * ułatwia odcinanie FK email/social per-batch (od razu po każdym batchu {@code contact},
      * zamiast trzymać pełną listę usuniętych ID w pamięci do końca operacji).
+     *
+     * @see #purgeContactInteractionsWithMessageDeletion(UUID, Instant) odpowiednik dla flagi = true
      */
-    private long purgeContactInteractions(UUID tenantId, Instant cutoff) {
+    private long purgeContactInteractionsLegacy(UUID tenantId, Instant cutoff) {
         long totalDeleted = 0;
         int effectiveBatchSize = effectiveBatchSize();
 
@@ -189,6 +241,157 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
         } while (eventsDeletedInBatch == effectiveBatchSize);
 
         return totalDeleted;
+    }
+
+    /**
+     * Usuwa dane kategorii CONTACT_INTERACTIONS WRAZ z wiadomościami e-mail/social i ich obiektami
+     * S3 (BE-126, EPIC-30, D1 = A) — ścieżka aktywna wyłącznie pod flagą
+     * {@link #deleteMessagesEnabled} ({@code retention.purge.delete-messages=true}).
+     *
+     * <p><strong>Kolejność „dzieci przed rodzicem" (DESIGN R3, BE-125 „Uwaga" w
+     * {@code TASKS-BACKEND.md}):</strong> dla każdej strony kandydatów
+     * ({@link ContactService#findContactIdsOlderThan}) najpierw usuwane są wiadomości
+     * ({@link EmailMessageService#purgeByContactIds}/{@link SocialMessageService#purgeByContactIds}),
+     * dopiero potem kontakty ({@link ContactService#deleteContacts}) — i to WYŁĄCZNIE te spoza
+     * {@link PurgedMessages#contactIdsBlocked()} (porażka S3 zostawia kontakt i jego wiadomości do
+     * kolejnego purge — idempotentne, bo {@code DeleteObject} i {@code DELETE … RETURNING} nie
+     * szkodzą przy ponowieniu).
+     *
+     * <p><strong>Strategia H-1</strong> (head-of-line blocking, code review BE-125, BE125 pkt b):
+     * pętla używa stronicowania keyset ({@link ContactService#findContactIdsOlderThan} z kursorem
+     * przesuwanym o CAŁĄ stronę), NIE miary „faktycznie usunięte kontakty w iteracji > 0" z
+     * pierwotnego sformułowania guardu (doprecyzowanie BE-124) — ta ostatnia zatrzymałaby purge
+     * tenanta na stałe, gdyby ≥ {@code batchSize} kontaktów z rzędu (posortowanych po
+     * {@code started_at}) było trwale zablokowanych (np. nieusuwalny obiekt S3 — Object Lock, H-2).
+     * Kursor przesuwa się niezależnie od liczby zablokowanych kontaktów w stronie, więc pętla zawsze
+     * kończy się wyczerpaniem kandydatów (strona pusta albo mniejsza niż {@code batchSize}) —
+     * terminacja jest gwarantowana strukturalnie przez {@code ContactRepository}, nie przez licznik
+     * usuniętych wierszy. Strona w całości zablokowana loguje WARN (sygnał diagnostyczny), ale NIE
+     * przerywa pętli.
+     *
+     * <p><strong>Drugi przebieg (BE125-02, okno SELECT→DELETE):</strong> po
+     * {@code contactService.deleteContacts} wołamy {@code purgeByContactIds} PONOWNIE, ale tylko dla
+     * kontaktów faktycznie usuniętych w TEJ SAMEJ iteracji (tanie — najwyżej {@code batchSize} ID) —
+     * łapie wiadomość dopisaną do kontaktu w oknie między SELECT-em wiadomości (faza 1 w
+     * {@code EmailMessageServiceImpl#purgeByContactIds}) a DELETE-em kontaktu (np. odpowiedź agenta
+     * na starą wiadomość dziedziczy {@code contact_id} — {@code EmailSendServiceImpl}). Jeśli i TEN
+     * przebieg coś przegapi (wiadomość dopisana w jeszcze węższym oknie tego drugiego przebiegu —
+     * praktycznie nieosiągalne, bo kontakt już nie istnieje w bazie), taka wiadomość staje się
+     * „dangling" (wskazuje na nieistniejący {@code contact_id}) i czeka na BE-127 (wariant
+     * {@code NOT EXISTS}).
+     *
+     * <p><strong>Social (BE125-05, POZA zakresem BE-126):</strong>
+     * {@code SocialMessageService#purgeByContactIds} zwraca tylko {@code int} — brak odpowiednika
+     * {@code contactIdsBlocked}, więc ciche „0 wierszy pod RLS bez polityki DELETE" jest tu
+     * niewykrywalne. Dziś bez wpływu (aplikacja łączy się jako superuser z BYPASSRLS; {@code contact}
+     * ma polityki tylko SELECT/INSERT, {@code social_message} tylko SELECT). Kontakty NIE są
+     * blokowane na podstawie wyniku social — naprawa (kolejność DB-064 przed DB-074, albo
+     * potwierdzenie usunięcia dla social) jest osobnym follow-upem, nie tym tickietem.
+     *
+     * @see #purgeContactInteractionsLegacy(UUID, Instant) odpowiednik dla flagi = false (dzisiejsze
+     *      zachowanie, bez zmian)
+     */
+    private ContactInteractionsPurgeResult purgeContactInteractionsWithMessageDeletion(
+            UUID tenantId, Instant cutoff) {
+        int effectiveBatchSize = effectiveBatchSize();
+
+        long contactsDeleted = 0;
+        long emailMessagesDeleted = 0;
+        long socialMessagesDeleted = 0;
+        long s3ObjectsDeleted = 0;
+        long s3Failures = 0;
+        long s3Rejected = 0;
+
+        ContactPurgeCandidate cursor = null;
+        List<ContactPurgeCandidate> page;
+        do {
+            page = contactService.findContactIdsOlderThan(tenantId, cutoff, cursor, effectiveBatchSize);
+            if (page.isEmpty()) {
+                break;
+            }
+            List<UUID> pageIds = page.stream().map(ContactPurgeCandidate::contactId).toList();
+
+            // Faza "dzieci": wiadomości powiązane z kandydatami CAŁEJ strony (jeszcze przed
+            // usunięciem kontaktów — kolejność "S3 przed wierszem" z BE-125 dotyczy każdej wiadomości
+            // z osobna, ale kontakt musi przeżyć na tyle długo, by wiedzieć, które wiadomości go
+            // dotyczą).
+            PurgedMessages emailResult = emailMessageService.purgeByContactIds(tenantId, pageIds);
+            // Social: tylko `int`, brak `contactIdsBlocked` (BE125-05, poza zakresem BE-126) — patrz
+            // Javadoc metody, akapit "Social". NIE używamy wyniku do blokowania kontaktów.
+            int socialDeletedInPage = socialMessageService.purgeByContactIds(tenantId, pageIds);
+
+            List<UUID> deletableIds = pageIds.stream()
+                    .filter(id -> !emailResult.contactIdsBlocked().contains(id))
+                    .toList();
+
+            // Faza "rodzic": tylko kontakty spoza zablokowanych.
+            Set<UUID> actuallyDeletedContacts = contactService.deleteContacts(tenantId, deletableIds);
+
+            // Drugi, idempotentny przebieg (BE125-02) — tylko dla WŁAŚNIE usuniętych kontaktów w tej
+            // iteracji (tanio: najwyżej effectiveBatchSize ID). Łapie wiadomości dopisane w oknie
+            // SELECT→DELETE powyżej.
+            PurgedMessages secondPassEmail = actuallyDeletedContacts.isEmpty()
+                    ? PurgedMessages.empty()
+                    : emailMessageService.purgeByContactIds(tenantId, List.copyOf(actuallyDeletedContacts));
+            int secondPassSocial = actuallyDeletedContacts.isEmpty()
+                    ? 0
+                    : socialMessageService.purgeByContactIds(tenantId, List.copyOf(actuallyDeletedContacts));
+
+            PurgedMessages emailTotalForPage = emailResult.plus(secondPassEmail);
+
+            contactsDeleted += actuallyDeletedContacts.size();
+            emailMessagesDeleted += emailTotalForPage.deletedRows();
+            socialMessagesDeleted += socialDeletedInPage + secondPassSocial;
+            s3ObjectsDeleted += emailTotalForPage.s3ObjectsDeleted();
+            s3Failures += emailTotalForPage.s3Failures();
+            s3Rejected += emailTotalForPage.s3Rejected();
+
+            // CR-BACKEND.md BE126-01: WARN nie tylko gdy CAŁA strona jest zablokowana, ale przy
+            // KAŻDEJ cichej stracie — deletableIds już wyklucza zablokowane przez S3
+            // (emailResult.contactIdsBlocked()), więc deletableIds.size() > actuallyDeletedContacts.size()
+            // oznacza, że DELETE FROM contact zwrócił mniej wierszy niż zlecono: pod rolą bez
+            // BYPASSRLS bez polityki FOR DELETE to cichy brak usunięcia (DESIGN §2 U8/R1), nie błąd.
+            // Strategia H-1 celowo NIE zatrzymuje pętli w tym przypadku (kursor i tak przesuwa się
+            // poza całą stronę), więc to WARN jest jedynym sygnałem dla operatora.
+            if (actuallyDeletedContacts.size() < deletableIds.size()) {
+                log.warn("[RetentionPurge] Część kontaktów strony nie została usunięta mimo braku "
+                                + "blokady S3 (RLS/wyścig?): tenant={}, kandydatów={}, "
+                                + "zablokowanychPrzezS3={}, oczekiwanoUsuniętych={}, faktycznieUsunięto={} "
+                                + "— purge kontynuuje z następną stroną (strategia H-1, kursor przesunięty "
+                                + "poza całą stronę)",
+                        tenantId, pageIds.size(), pageIds.size() - deletableIds.size(),
+                        deletableIds.size(), actuallyDeletedContacts.size());
+            }
+
+            // Kursor przesuwa się o CAŁĄ stronę, niezależnie od liczby zablokowanych kontaktów w niej
+            // — to jest obrona H-1 (head-of-line blocking), patrz Javadoc metody.
+            cursor = page.get(page.size() - 1);
+        } while (page.size() == effectiveBatchSize);
+
+        long eventsDeleted = 0;
+        int eventsDeletedInBatch;
+        do {
+            eventsDeletedInBatch = contactEventService.purgeOlderThan(tenantId, cutoff, effectiveBatchSize);
+            eventsDeleted += eventsDeletedInBatch;
+        } while (eventsDeletedInBatch == effectiveBatchSize);
+
+        return new ContactInteractionsPurgeResult(contactsDeleted, eventsDeleted, emailMessagesDeleted,
+                socialMessagesDeleted, s3ObjectsDeleted, s3Failures, s3Rejected);
+    }
+
+    /**
+     * Rozbicie wyniku {@link #purgeContactInteractionsWithMessageDeletion(UUID, Instant)} na
+     * tabele/S3 — wyłącznie do zsumowania {@code rowsDeleted} i zbudowania {@code breakdown} w
+     * audycie ({@link #buildBreakdownJson(ContactInteractionsPurgeResult)}); NIE jest częścią
+     * publicznego API {@link RetentionPurgeService}.
+     */
+    private record ContactInteractionsPurgeResult(
+            long contactsDeleted, long eventsDeleted, long emailMessagesDeleted, long socialMessagesDeleted,
+            long s3ObjectsDeleted, long s3Failures, long s3Rejected) {
+
+        long totalRowsDeleted() {
+            return contactsDeleted + eventsDeleted + emailMessagesDeleted + socialMessagesDeleted;
+        }
     }
 
     /**
@@ -338,17 +541,63 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     }
 
     /**
-     * Buduje JSON dla pola {@code newValue} wpisu audytowego.
+     * Buduje JSON dla pola {@code newValue} wpisu audytowego — zachowanie dla FAILED bez zmian
+     * (deleguje do {@link #buildNewValueJson(long, String, String, String)} z {@code breakdownJson=null}).
      *
      * @param rowsDeleted  suma usuniętych wierszy (0 przy błędzie/przed pierwszym batchem)
      * @param status       {@code COMPLETED} lub {@code FAILED}
      * @param errorMessage komunikat błędu (null przy sukcesie) – escapowany dla poprawności JSON
      */
     private String buildNewValueJson(long rowsDeleted, String status, String errorMessage) {
-        if (errorMessage == null) {
-            return String.format("{\"status\":\"%s\",\"rowsDeleted\":%d}", status, rowsDeleted);
+        return buildNewValueJson(rowsDeleted, status, errorMessage, null);
+    }
+
+    /**
+     * Buduje JSON dla pola {@code newValue} wpisu audytowego (BE-126: rozszerzone o {@code breakdown}
+     * i o możliwość jednoczesnego {@code rowsDeleted} + {@code errorMessage} dla COMPLETED-z-ostrzeżeniem).
+     *
+     * <p>Dla {@code status=COMPLETED} JSON ZAWSZE zawiera {@code rowsDeleted}, nawet gdy
+     * {@code errorMessage} niesie ostrzeżenie (BE-126: purge CONTACT_INTERACTIONS z częściowymi
+     * porażkami S3 — {@code s3Failures > 0} — kończy się COMPLETED, nie FAILED, patrz
+     * {@link RetentionPurgeLogRepository#markCompleted(UUID, UUID, long, String)}). Dla
+     * {@code status=FAILED} (dzisiejsze zachowanie, BEZ ZMIAN) {@code rowsDeleted} jest pomijany, gdy
+     * jest {@code errorMessage} — ta wartość i tak zawsze wynosi 0 w {@link #handleFailure}.
+     *
+     * @param rowsDeleted   suma usuniętych wierszy (0 przy błędzie/przed pierwszym batchem)
+     * @param status        {@code COMPLETED} lub {@code FAILED}
+     * @param errorMessage  komunikat błędu/ostrzeżenia (null przy pełnym sukcesie) – escapowany dla
+     *                      poprawności JSON
+     * @param breakdownJson gotowy fragment JSON rozbicia na tabele/S3
+     *                      ({@link #buildBreakdownJson(ContactInteractionsPurgeResult)}) – {@code null}
+     *                      dla wszystkiego poza CONTACT_INTERACTIONS z {@link #deleteMessagesEnabled}
+     */
+    private String buildNewValueJson(long rowsDeleted, String status, String errorMessage, String breakdownJson) {
+        StringBuilder json = new StringBuilder(64).append("{\"status\":\"").append(status).append('"');
+
+        boolean includeRowsDeleted = errorMessage == null || RetentionPurgeLog.STATUS_COMPLETED.equals(status);
+        if (includeRowsDeleted) {
+            json.append(",\"rowsDeleted\":").append(rowsDeleted);
         }
-        String escaped = errorMessage.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ");
-        return String.format("{\"status\":\"%s\",\"errorMessage\":\"%s\"}", status, escaped);
+        if (errorMessage != null) {
+            String escaped = errorMessage.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ");
+            json.append(",\"errorMessage\":\"").append(escaped).append('"');
+        }
+        if (breakdownJson != null) {
+            json.append(",\"breakdown\":").append(breakdownJson);
+        }
+        return json.append('}').toString();
+    }
+
+    /**
+     * Buduje fragment JSON {@code breakdown} dla audytu CONTACT_INTERACTIONS na ścieżce z
+     * {@link #deleteMessagesEnabled} (BE-126, Zakres ticketu — lista celowo zawiera
+     * {@code s3Rejected}, pominięty w pierwotnym opisie Zakresu w {@code TASKS-BACKEND.md}).
+     */
+    private String buildBreakdownJson(ContactInteractionsPurgeResult result) {
+        return String.format(
+                "{\"contacts\":%d,\"events\":%d,\"emailMessages\":%d,\"socialMessages\":%d,"
+                        + "\"s3ObjectsDeleted\":%d,\"s3Failures\":%d,\"s3Rejected\":%d}",
+                result.contactsDeleted(), result.eventsDeleted(), result.emailMessagesDeleted(),
+                result.socialMessagesDeleted(), result.s3ObjectsDeleted(), result.s3Failures(), result.s3Rejected());
     }
 }

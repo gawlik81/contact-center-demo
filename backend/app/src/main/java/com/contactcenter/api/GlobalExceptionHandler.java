@@ -1,5 +1,6 @@
 package com.contactcenter.api;
 
+import com.contactcenter.domain.email.EmailAttachmentAccessDeniedException;
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
@@ -112,6 +113,30 @@ public class GlobalExceptionHandler {
 
         // WARNING z detalami – do analizy security (nie ujawniamy w odpowiedzi HTTP)
         log.warn("[API][CrossTenant][Security] Odmowa dostępu cross-tenant: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    /**
+     * Klucz S3 załącznika e-mail spoza allow-listy tenanta – HTTP 403 Forbidden (BE-143).
+     *
+     * <p>Analogicznie do {@link CrossTenantAccessException} (BE-002): próba wysłania wiadomości
+     * z załącznikiem wskazującym na obiekt S3 innego tenanta, na obiekt spoza schematu załączników
+     * e-mail (nagranie, EML), albo próba wyjścia z prefiksu przez segment {@code .}/{@code ..}.
+     * Celowo 403, nie 400 — to przekroczenie granicy tenanta, nie błąd formatu danych.
+     */
+    @ExceptionHandler(EmailAttachmentAccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailAttachmentAccessDeniedException(
+            EmailAttachmentAccessDeniedException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setType(URI.create(ERROR_BASE_URI + "email-attachment-access-denied"));
+        problem.setTitle("Brak dostępu do załącznika");
+        // Celowo ogólny komunikat – nie ujawniamy szczegółów allow-listy klientowi
+        problem.setDetail("Załącznik wskazuje na obiekt S3 spoza dozwolonego zakresu tenanta");
+        problem.setProperty("timestamp", Instant.now());
+
+        // WARNING z detalami – do analizy security (surowy s3Key już zsanityzowany przez wołającego)
+        log.warn("[API][EmailAttachment][Security] Odmowa dostępu do załącznika: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 

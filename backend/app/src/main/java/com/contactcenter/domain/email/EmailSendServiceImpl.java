@@ -45,6 +45,12 @@ class EmailSendServiceImpl implements EmailSendService {
                                    String bodyHtml, String subject, UUID agentId,
                                    List<EmailReplyRequest.PendingAttachment> attachments) {
 
+        // 0. Allow-lista s3Key PRZED jakąkolwiek interakcją z DB/S3/SMTP (BE-143) — cudzy klucz
+        //    albo próba path traversal odrzuca CAŁE żądanie, nie tylko wadliwy załącznik.
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+        validateAttachmentKeys(tenantId, safeAttachments);
+
         // 1. Pobierz oryginalną wiadomość
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -75,9 +81,6 @@ class EmailSendServiceImpl implements EmailSendService {
         String newMessageId = "<" + UUID.randomUUID() + "@" + extractDomain(config.getUsername()) + ">";
 
         // 5. Wyślij przez SMTP
-        List<EmailReplyRequest.PendingAttachment> safeAttachments =
-                attachments != null ? attachments : List.of();
-
         log.info("[EmailSend] Wysyłam odpowiedź: originalId={}, to={}, tenant={}, agent={}, attachments={}",
                 originalMessageId, original.getFromAddress(), tenantId, agentId, safeAttachments.size());
 
@@ -161,6 +164,12 @@ class EmailSendServiceImpl implements EmailSendService {
                                 String bodyHtml, UUID agentId,
                                 List<EmailReplyRequest.PendingAttachment> attachments) {
 
+        // 0. Allow-lista s3Key PRZED jakąkolwiek interakcją z DB/S3/SMTP (BE-143) — cudzy klucz
+        //    albo próba path traversal odrzuca CAŁE żądanie, nie tylko wadliwy załącznik.
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+        validateAttachmentKeys(tenantId, safeAttachments);
+
         // 1. Pobierz konfigurację SMTP tenanta
         Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
@@ -182,9 +191,6 @@ class EmailSendServiceImpl implements EmailSendService {
 
         // 3. Wyślij przez SMTP
         log.info("[EmailSend] Wysyłam nową wiadomość: to={}, tenant={}, agent={}", toAddress, tenantId, agentId);
-
-        List<EmailReplyRequest.PendingAttachment> safeAttachments =
-                attachments != null ? attachments : List.of();
 
         try {
             sendSmtp(config, password, config.getUsername(), toAddress,
@@ -320,6 +326,11 @@ class EmailSendServiceImpl implements EmailSendService {
     /**
      * Pobiera bajty załącznika z S3 i buduje {@link MimeBodyPart}.
      * Błędy logowane per-załącznik – nie przerywają wysyłki pozostałych.
+     *
+     * <p>Od BE-143 {@code attachment.s3Key()} zawsze przeszedł już {@link #validateAttachmentKeys}
+     * (wywołane na początku {@link #sendReply}/{@link #sendNew}, przed {@link #sendSmtp}) — ta
+     * metoda dostaje wyłącznie klucze własnego tenanta. Try/catch tutaj pozostaje dla realnych
+     * błędów S3 (np. obiekt usunięty między uploadem a wysyłką) — nie dla walidacji allow-listy.
      */
     private MimeBodyPart buildAttachmentPart(EmailReplyRequest.PendingAttachment attachment) {
         try {
@@ -368,6 +379,33 @@ class EmailSendServiceImpl implements EmailSendService {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /**
+     * Allow-lista {@code s3Key} każdego załącznika PRZED wysyłką (BE-143): odrzuca CAŁE żądanie,
+     * gdy choćby jeden klucz nie należy do {@code tenantId} wg {@link EmailAttachmentKeys#isOwnedByTenant}
+     * — inny tenant, obiekt spoza schematu {@code email-attachments/{tenantId}/} (nagranie, EML),
+     * albo próba wyjścia z prefiksu przez segment {@code .}/{@code ..}.
+     *
+     * <p>Świadoma zmiana zachowania względem poprzedniego stanu (przed BE-143): wcześniej błąd
+     * pojedynczego załącznika był logowany i pomijany w {@link #buildAttachmentPart}, a wiadomość
+     * wychodziła bez niego. Teraz całe żądanie jest odrzucane PRZED SMTP i zapisem wiadomości —
+     * po tej walidacji {@link #buildAttachmentPart} zawsze dostaje wyłącznie własne klucze
+     * tenanta, więc nie musi już sam odrzucać cudzych.
+     *
+     * @throws EmailAttachmentAccessDeniedException gdy którykolwiek klucz nie przejdzie allow-listy
+     */
+    private void validateAttachmentKeys(UUID tenantId, List<EmailReplyRequest.PendingAttachment> attachments) {
+        for (EmailReplyRequest.PendingAttachment attachment : attachments) {
+            String s3Key = attachment != null ? attachment.s3Key() : null;
+            if (!EmailAttachmentKeys.isOwnedByTenant(tenantId, s3Key)) {
+                log.warn("[EmailSend] Odrzucono żądanie wysyłki: załącznik wskazuje na s3Key spoza "
+                                + "allow-listy tenanta: tenant={}, s3Key={}",
+                        tenantId, EmailAttachmentKeys.forLog(s3Key));
+                throw new EmailAttachmentAccessDeniedException(
+                        "Załącznik wskazuje na obiekt S3 spoza dozwolonego zakresu tenanta");
+            }
+        }
+    }
 
     /**
      * Serializuje listę załączników do JSON dla kolumny JSONB {@code attachments}.

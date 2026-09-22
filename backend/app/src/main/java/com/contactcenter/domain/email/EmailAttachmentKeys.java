@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * Klucze S3 załączników e-mail: jedno źródło prawdy dla ich budowania (zapis) oraz dla
- * odczytu i weryfikacji (retencja EPIC-30, BE-125).
+ * odczytu i weryfikacji (retencja EPIC-30, BE-125; walidacja wysyłki/pobierania, BE-143).
  *
  * <p>Budowanie kluczy ({@link #inboundKey}, {@link #pendingKey}) i allow-lista prefiksu
  * ({@link #isOwnedByTenant}) żyją w jednej klasie celowo — allow-lista nie może się rozjechać
@@ -24,14 +24,25 @@ import java.util.UUID;
  * INBOUND wskazują na {@code email-attachments/{tenantId}/{messageId}/…}, wiadomości OUTBOUND na
  * {@code email-attachments/{tenantId}/pending/{uuid}/…} (klucz z uploadu agenta, bez przenoszenia).
  *
- * <h3>Klucz z bazy to dane niezaufane</h3>
- * Klucze OUTBOUND pochodzą od klienta ({@code EmailReplyRequest.PendingAttachment#s3Key}) i nie
- * są walidowane przy wysyłce, więc purge kasuje wyłącznie klucze z prefiksem
- * {@code email-attachments/{tenantId}/} (własny tenant) — inaczej mógłby skasować cudzy obiekt
+ * <h3>Klucz z bazy albo z żądania to dane niezaufane</h3>
+ * Klucze OUTBOUND pochodzą od klienta ({@code EmailReplyRequest.PendingAttachment#s3Key}).
+ * Wysyłka ({@code EmailSendServiceImpl}) i pobieranie ({@code EmailAttachmentController})
+ * odrzucają całe żądanie, gdy klucz nie przejdzie {@link #isOwnedByTenant} (BE-143); purge
+ * (BE-125) traktuje odrzucony klucz łagodniej — pomija sam obiekt S3, ale usuwa wiersz wiadomości.
+ * Bez tej allow-listy każda z tych ścieżek mogłaby odsłonić/skasować cudzy obiekt S3
  * (inny tenant, nagranie, EML).
+ *
+ * <h3>Decyzja API BE-143 (pkt c) — allow-lista jako publiczny, reużywalny kontrakt</h3>
+ * {@link #isOwnedByTenant(UUID, String)} jest publiczna od BE-143 właśnie po to, żeby wysyłka
+ * ({@code domain.email}) i pobieranie ({@code api.email}) używały TEJ SAMEJ implementacji zamiast
+ * własnych kopii {@code startsWith}. {@link #isRecordingKeyOwnedByTenant(UUID, String)} obsługuje
+ * odrębny schemat kluczy {@code {tenantId}/…} (nagrania, EML) i jest przygotowana pod przyszłe
+ * BE-126 (pkt b — purge {@code contact.recording_url}), BE-129 ({@code GdprServiceImpl}) i BE-131
+ * (sweep bucketu), żeby te tickety nie tworzyły własnych, rozjeżdżających się allow-list. BE-143
+ * SAMO jej nie używa (dotyczy wyłącznie schematu {@code email-attachments/{tenantId}/}).
  */
 @Slf4j
-final class EmailAttachmentKeys {
+public final class EmailAttachmentKeys {
 
     /** Wspólny korzeń wszystkich kluczy załączników e-mail w buckecie. */
     static final String ROOT_PREFIX = "email-attachments/";
@@ -78,19 +89,57 @@ final class EmailAttachmentKeys {
     // =========================================================================
 
     /**
-     * Sprawdza, czy klucz jest bezpieczny do skasowania w imieniu tenanta: zaczyna się od
-     * {@code email-attachments/{tenantId}/}, ma coś za prefiksem, nie zawiera segmentów
-     * {@code .}/{@code ..} (próba wyjścia z prefiksu) ani znaków sterujących.
+     * Sprawdza, czy klucz jest bezpieczny do użycia (usunięcia, pobrania, dołączenia do wysyłki)
+     * w imieniu tenanta: zaczyna się od {@code email-attachments/{tenantId}/}, ma coś za
+     * prefiksem, nie zawiera segmentów {@code .}/{@code ..} (próba wyjścia z prefiksu) ani
+     * znaków sterujących.
      *
-     * @param tenantId UUID tenanta wykonującego purge
-     * @param s3Key    klucz odczytany z bazy (niezaufany)
-     * @return {@code true} gdy klucz wolno przekazać do {@link EmailAttachmentStorageService#delete}
+     * <p>Publiczna (BE-143) — jedyna implementacja allow-listy dla wysyłki
+     * ({@code EmailSendServiceImpl}), pobierania ({@code EmailAttachmentController}, pakiet
+     * {@code api.email}) i purge (BE-125, {@code EmailMessageServiceImpl}).
+     *
+     * @param tenantId UUID tenanta wykonującego operację
+     * @param s3Key    klucz odczytany z bazy albo z żądania klienta (niezaufany)
+     * @return {@code true} gdy klucz wolno przekazać do {@link EmailAttachmentStorageService}
      */
-    static boolean isOwnedByTenant(UUID tenantId, String s3Key) {
-        if (tenantId == null || s3Key == null) {
+    public static boolean isOwnedByTenant(UUID tenantId, String s3Key) {
+        if (tenantId == null) {
             return false;
         }
-        String prefix = tenantPrefix(tenantId);
+        return hasCleanPrefixedSuffix(tenantPrefix(tenantId), s3Key);
+    }
+
+    /**
+     * Allow-lista dla kluczy S3 POZA schematem załączników e-mail: nagrania rozmów
+     * ({@code RecordingServiceImpl#buildS3Key}) i pliki EML zapisane w
+     * {@code contact.recording_url} ({@code EmailEmlService}) — schemat {@code {tenantId}/…},
+     * BEZ korzenia {@link #ROOT_PREFIX} (inny root niż załączniki e-mail).
+     *
+     * <p>Te same reguły co {@link #isOwnedByTenant(UUID, String)}: niepusty sufiks za
+     * prefiksem, bez segmentów {@code .}/{@code ..}, bez znaków sterujących.
+     *
+     * <p><strong>Decyzja API BE-143 (pkt c):</strong> przygotowana pod przyszłe BE-126 (pkt b),
+     * BE-129 i BE-131 (zob. javadoc klasy) — BE-143 samo jej nie wywołuje.
+     *
+     * @param tenantId UUID tenanta wykonującego operację
+     * @param s3Key    klucz odczytany z bazy ({@code contact.recording_url}), niezaufany
+     * @return {@code true} gdy klucz należy do tenanta i nie próbuje wyjść z prefiksu
+     */
+    public static boolean isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key) {
+        if (tenantId == null) {
+            return false;
+        }
+        return hasCleanPrefixedSuffix(tenantId + "/", s3Key);
+    }
+
+    /**
+     * Wspólna logika obu allow-list: {@code s3Key} zaczyna się od {@code prefix}, ma coś za
+     * prefiksem, i ten sufiks nie zawiera segmentów {@code .}/{@code ..} ani znaków sterujących.
+     */
+    private static boolean hasCleanPrefixedSuffix(String prefix, String s3Key) {
+        if (s3Key == null) {
+            return false;
+        }
         if (!s3Key.startsWith(prefix) || s3Key.length() == prefix.length()) {
             return false;
         }
@@ -199,8 +248,11 @@ final class EmailAttachmentKeys {
      * traktuje je jak koniec linii) oraz znaki kierunku pisma (Unicode {@code Bidi_Control}:
      * U+061C, U+200E/U+200F, U+202A–U+202E, U+2066–U+2069), które pozwalają „odwrócić" fragment
      * wiersza logu i sfałszować jego treść.
+     *
+     * <p>Publiczna (BE-143) — używana też w {@code api.email.EmailAttachmentController} przy
+     * logowaniu kluczy odrzuconych przez {@link #isOwnedByTenant}.
      */
-    static String forLog(String s3Key) {
+    public static String forLog(String s3Key) {
         if (s3Key == null) {
             return "null";
         }

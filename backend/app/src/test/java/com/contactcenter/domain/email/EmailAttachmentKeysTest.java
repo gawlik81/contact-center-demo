@@ -141,6 +141,66 @@ class EmailAttachmentKeysTest {
     }
 
     // =========================================================================
+    // isRecordingKeyOwnedByTenant – allow-lista schematu {tenantId}/… (przygotowanie API BE-143
+    // pkt c dla BE-126/BE-129/BE-131; sama BE-143 tej metody nie używa)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("isRecordingKeyOwnedByTenant – allow-lista prefiksu {tenantId}/ (nagrania, EML)")
+    class RecordingKeyAllowlist {
+
+        @Test
+        @DisplayName("klucz nagrania i EML własnego tenanta ({tenantId}/rrrr/mm/x.ext) jest dozwolony")
+        void ownRecordingAndEmlKeys_allowed() {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A,
+                    TENANT_A + "/2026/09/" + MESSAGE_ID + ".mp3")).isTrue();
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A,
+                    TENANT_A + "/2026/09/" + MESSAGE_ID + ".eml")).isTrue();
+        }
+
+        @Test
+        @DisplayName("klucz innego tenanta jest odrzucony")
+        void foreignTenantKey_rejected() {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A,
+                    TENANT_B + "/2026/09/" + MESSAGE_ID + ".mp3")).isFalse();
+        }
+
+        @Test
+        @DisplayName("klucz ze schematu załączników e-mail (email-attachments/{tenantId}/…) jest odrzucony — inny korzeń")
+        void attachmentSchemeKey_rejected() {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A,
+                    "email-attachments/" + TENANT_A + "/" + MESSAGE_ID + "/a.pdf")).isFalse();
+        }
+
+        @Test
+        @DisplayName("sam prefiks, null i pusty klucz, null tenant są odrzucone")
+        void degenerateKeys_rejected() {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A, TENANT_A + "/")).isFalse();
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A, TENANT_A.toString())).isFalse();
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A, "")).isFalse();
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A, null)).isFalse();
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(null, TENANT_A + "/x")).isFalse();
+        }
+
+        @ParameterizedTest(name = "próba wyjścia z prefiksu: {0}")
+        @ValueSource(strings = {
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/../bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/x.mp3",
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/./x.mp3"
+        })
+        @DisplayName("segmenty . i .. są odrzucane")
+        void pathTraversal_rejected(String key) {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A, key)).isFalse();
+        }
+
+        @Test
+        @DisplayName("znaki sterujące w kluczu są odrzucane")
+        void controlCharacters_rejected() {
+            assertThat(EmailAttachmentKeys.isRecordingKeyOwnedByTenant(TENANT_A,
+                    TENANT_A + "/x\nERROR fake")).isFalse();
+        }
+    }
+
+    // =========================================================================
     // Wyciąganie kluczy z JSONB
     // =========================================================================
 

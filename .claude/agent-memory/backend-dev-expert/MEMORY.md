@@ -106,3 +106,7 @@
 - [Dual entry point (scheduler + REST) — TenantContext prekontrakt](feedback_dual_entry_point_tenantcontext_precontract.md) — rdzeń per-tenant bez set/clear; clear() zabronione na ścieżce REST (BE-112/BE-118 recompute)
 - [EPIC-30 BE-124 ADR retencja treści wiadomości (D1)](project_epic30_be124_message_retention_adr.md) — D1=A przyjęte BEZ potwierdzenia PO; `pending/` S3 wskazywane przez wysłane maile; EML w `contact.recording_url`; allow-list prefiksu kluczy
 - [RecordingService#deleteFromS3 połyka S3Exception](feedback_recording_delete_from_s3_swallows_errors.md) — brak sygnału porażki; nie używać przy „S3 przed wierszem" (BE-125/126/129/131)
+- [EPIC-30 BE-125 purge wiadomości + S3](project_epic30_be125_message_purge.md) — kontrakt `purgeByContactIds`/`PurgedMessages`, orkiestracja bez tx, `contactIdsBlocked`, RLS „ciche 0 wierszy", punkt wejścia BE-126/127
+- [Harness testów na prawdziwej bazie](feedback_jpa_real_db_integration_test_harness.md) — `PostgresTestDatabase`/`JpaTestContext` (Testcontainers+Flyway+Hibernate), pułapki EXPLAIN/ctid/RLS
+- [Obrazy MinIO: Docker Hub → quay.io](project_minio_image_registry.md) — `minio/minio` i `minio/mc` nie do pobrania z Docker Hub (401); compose nadal na Docker Hub
+- [Równoległy Maven = nieuruchomione nowe testy](feedback_maven_parallel_agents_stale_classes.md) — stale-detection po cudzym buildzie; sprawdzaj raporty per klasa, `touch`

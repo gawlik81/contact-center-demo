@@ -29,7 +29,7 @@
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
-**Blokuje:** FE-002, FE-003
+**Blokuje:** FE-002, FE-003, FE-049
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -121,7 +121,7 @@ Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpi
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
 **Czeka na BE:** brak
-**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
+**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024, FE-025, FE-026, FE-028, FE-029
 **Odniesienie PRD:** przekrojowe (wszystkie persony)
 
 **Opis:**
@@ -221,7 +221,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-012 ✅
-**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
+**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017, FE-031, FE-032, FE-040, FE-046
 **Odniesienie PRD:** US-07-05, EPIC-03, EPIC-05, EPIC-06
 
 **Opis:**
@@ -342,7 +342,7 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-25
 **Czeka na BE:** BE-020 ✅, BE-013 ✅
-**Blokuje:** brak
+**Blokuje:** FE-026
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
@@ -369,7 +369,7 @@ Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węz
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-022 ✅
-**Blokuje:** FE-016, FE-027
+**Blokuje:** FE-016, FE-027, FE-067
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -442,7 +442,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Czeka na BE:** BE-025 ✅
-**Blokuje:** FE-019, FE-020
+**Blokuje:** FE-019, FE-020, FE-040
 **Odniesienie PRD:** US-09-01, US-09-03, EPIC-09
 
 **Opis:**
@@ -465,7 +465,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
 **Czeka na BE:** BE-025 ✅, BE-027 ✅
-**Blokuje:** brak
+**Blokuje:** FE-030, FE-033
 **Odniesienie PRD:** US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -538,7 +538,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-028 ✅
-**Blokuje:** brak
+**Blokuje:** FE-029
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
@@ -1016,6 +1016,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** FE-034 (RescheduleCallbackModalComponent – reużycie)
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1084,6 +1085,7 @@ export interface ScheduledCallbackDto {
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-040 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1425,8 +1427,9 @@ editingCallback = signal<CallbackListItem | null>(null);
 **Typ:** Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Zależy od:** BE-044
+**Zależy od:** BE-044, BE-046
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-044 ✅, BE-046 ✅
 **Zrealizowane:** 2026-04-18
 **Blokuje:** FE-037, FE-038
 
@@ -1677,7 +1680,7 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-24
 **Czeka na BE:** BE-025 ✅ (Customer CRUD API)
-**Blokuje:** FE-041
+**Blokuje:** FE-041, FE-071, FE-072
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 
 **Opis:**
@@ -1815,6 +1818,7 @@ interface ManualCallbackResponse {
 **Zlozonosc:** S
 **Zależy od:** BE-051, BE-050
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-050 ✅, BE-051 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** FE-043, FE-044, FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -1888,6 +1892,7 @@ Główny widok kalendarza jako nowa zakładka w Agent Desktop. Wyświetla zdarze
 **Zlozonosc:** S
 **Zależy od:** FE-042, BE-039
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -2634,6 +2639,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 **Zlozonosc:** M
 **Zależy od:** BE-057 (REST API konfiguracji Twilio)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-057 ✅
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2701,6 +2707,7 @@ Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervi
 **Zlozonosc:** S
 **Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-060 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2745,6 +2752,7 @@ Rozszerzenie formularza tworzenia i edycji kampanii (`CampaignFormComponent`) o 
 **Zlozonosc:** S
 **Zależy od:** BE-061 (endpoint listowania numerów), FE-066 (formularz konfiguracji Twilio), FE-067 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-061 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2804,6 +2812,7 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-063 ✅, BE-064 ✅
 **Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-063, BE-064
 **Blokuje:** brak
@@ -2950,6 +2959,7 @@ maxAttempts: new FormControl(3, [
 **Zlozonosc:** S
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-067 ✅
 **Zrealizowane:** 2026-05-13
 **Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
@@ -2988,6 +2998,7 @@ Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady 
 **Zlozonosc:** M
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-068 ✅
 **Zrealizowane:** 2026-05-13
 **Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
@@ -3037,6 +3048,7 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 **Zlozonosc:** S
 **Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-069 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3086,6 +3098,7 @@ Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikacj
 **Zlozonosc:** M
 **Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-070 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3214,6 +3227,7 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 **Zlozonosc:** M
 **Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-073 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-23 Historia etapów kontaktu
@@ -3438,8 +3452,9 @@ Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (tr
 **Złożoność:** S
 **Zależy od:** BE-075, BE-076, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅, BE-076 ✅, BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-077, FE-078, FE-079, FE-080
+**Blokuje:** FE-077, FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3515,7 +3530,7 @@ POST /api/telephony/calls/{callId}/bridge/{secondCallId}
 **Zależy od:** FE-076
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-078, FE-079
+**Blokuje:** FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3588,6 +3603,7 @@ protected setTransferTargetType(type: TransferTargetType): void {
 **Złożoność:** M
 **Zależy od:** FE-076, FE-077, BE-075
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3695,6 +3711,7 @@ protected selectAgent(agent: TransferAgentItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, BE-076
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-076 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3773,6 +3790,7 @@ protected selectQueue(queue: TransferQueueItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** brak
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3833,6 +3851,7 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 **Złożoność:** S
 **Zależy od:** BE-079
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-079 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -3878,8 +3897,9 @@ Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dr
 **Złożoność:** M
 **Zależy od:** BE-080, BE-084, FE-081
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅, BE-084 ✅
 **Zrealizowane:** 2026-05-21
-**Blokuje:** FE-083
+**Blokuje:** FE-083, FE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Opis:**
@@ -3983,6 +4003,7 @@ export class CampaignAssignmentModalComponent implements OnInit {
 **Złożoność:** S
 **Zależy od:** FE-082, BE-080
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4081,6 +4102,7 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 **Złożoność:** M
 **Zależy od:** BE-085, FE-082
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-085 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4234,6 +4256,7 @@ readonly contactSelected = output<string>();
 **Złożoność:** S
 **Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-090 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** FE-087, FE-088, FE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4386,6 +4409,7 @@ generateAiSummary(): void {
 **Złożoność:** M
 **Zależy od:** BE-088 (TenantAiConfigController), FE-086
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-088 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** —
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4897,7 +4921,7 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 **Zależy od:** BE-099, BE-106
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** FE-098, FE-099
+**Blokuje:** FE-098, FE-099, FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -4996,7 +5020,7 @@ uninstall(installationId: string): Observable<void>                             
 **Zależy od:** FE-097
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** —
+**Blokuje:** FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5511,7 +5535,7 @@ frontend/public/i18n/uk.json                                                    
 **Zależy od:** FE-104
 **Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
-**Blokuje:** brak
+**Blokuje:** FE-106
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
 **Opis:**
@@ -5856,7 +5880,7 @@ nie konstruowało literalnie).
 **Typ:** Frontend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-126, BE-128
+**Zależy od:** BE-126, BE-128, BE-119 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
 **Blokuje:** brak

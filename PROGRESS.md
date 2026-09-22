@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-09-20 (planowanie EPIC-30 przez `product-requirements-deconstructor` (uzupełnione po zamknięciu BE-124 i DB-060) + rekoncyliacja z TASKS-DATABASE.md/TASKS-BACKEND.md/TASKS-FRONTEND.md; liczby w „Podsumowaniu” przeliczone od zera z pól `**Status:**` ticketów, nie dopisane jako delta do poprzedniej wersji). Stan: **DB 56/79, BE 120/142, FE 109/112 — RAZEM 285/333 (86%)**. Ukończone są wszystkie epiki EPIC-01..EPIC-29 — EPIC-29 był w tym pliku błędnie oznaczony ⬜ (25 ticketów) mimo statusów ✅ z notatkami implementacyjnymi z 2026-08-09..2026-08-13 w TASKS-*.md; wiersze przełączone na ✅, przeniesiono DB-046..054 z tabeli „Dodatkowe migracje” do właściwej tabeli DB i dodano brakujący DB-055 (porządki po EPIC-29). Jedyny epik z zadaniami nierozpoczętymi: **EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (50 ticketów, z czego 48 nierozpoczętych: DB-056..079, BE-120..142, FE-110..112; ukończone 2026-09-20: BE-124 i DB-060; zaplanowany 2026-09-20, projekt do akceptacji w `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10; 8 ticketów warunkowych zależnych od alternatywy decyzji D1/D4/D6/D10, 5 bramkowanych progiem wolumenowym — patrz „Nie rozpoczęte wg EPIC”)**. Poprzednia rekoncyliacja (2026-08-09, `/update-progress`): naprawiono m.in. rozbieżność EPIC-28 w Podsumowaniu, 24 tickety w EPIC-21/24/25/26/27 błędnie oznaczone ⬜ mimo zaimplementowanego kodu, kilkanaście brakujących/asymetrycznych adnotacji `**Zależy od:**`/`**Blokuje:**`; szczegóły w historii commitów tego pliku.
+**Ostatnia aktualizacja:** 2026-09-21 (tura 2, `/update-progress` po code review: BE-125 (4/5, zatwierdzić z poprawkami) i DB-079 (5/5, zatwierdzić) — poprawki BE125-03/07/09/10/11 i DB079-01…04 wykonane, niezależny `mvn clean verify -pl app` = 1998 testów, 0 porażek; nowe tickety **BE-143** (EPIC-30, Must: walidacja prefiksu tenanta dla `s3Key` w wysyłce e-mail i pobieraniu załącznika — BE125-01) i **BE-144** (porządkowy, bez epiku, jak DB-055: przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem); tura 1 (`/update-progress` przez `product-requirements-deconstructor`): zamknięte w EPIC-30 **BE-125** (usuwanie wiadomości e-mail/social po `contact_id` wraz z obiektami S3 — warstwa repo/serwis, niepodpięta do purge do czasu BE-126) i **DB-079** (migracja V094, zawężenie triggera `fn_contact_ref_integrity`; niezastosowana na żywej bazie) + rekoncyliacja zależności w TASKS-DATABASE.md/TASKS-BACKEND.md/TASKS-FRONTEND.md: uzupełnione symetrycznie pola `**Zależy od:**`/`**Blokuje:**` (185 wpisów w 86 ticketach) i `**Czeka na BE:**` (24 tickety FE), znaczniki ✅ przy spełnionych zależnościach EPIC-30, uwagi kontraktowe z BE-125/DB-079 w BE-126, BE-127, BE-129, BE-131, BE-135 i DB-062; dopisana zależność FE-036 → BE-046 (wynika z jego AC); 31 wpisów `**Blokuje:**` bez odpowiednika w `**Zależy od:**` zależnego ticketu (25 tranzytywnych, 6 bezpośrednich) świadomie niezmienionych — do decyzji; liczby w „Podsumowaniu” przeliczone od zera z pól `**Status:**` ticketów, nie dopisane jako delta do poprzedniej wersji). Stan: **DB 57/79, BE 121/144, FE 109/112 — RAZEM 287/335 (86%)**. Ukończone są wszystkie epiki EPIC-01..EPIC-29. Jedyny epik z zadaniami nierozpoczętymi: **EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (51 ticketów, z czego 47 nierozpoczętych; ukończone: BE-124 i DB-060 (2026-09-20) oraz BE-125 i DB-079 (2026-09-21); BE-143 dopisany 2026-09-21 z code review BE-125; zaplanowany 2026-09-20, projekt do akceptacji w `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10; 8 ticketów warunkowych zależnych od alternatywy decyzji D1/D4/D6/D10, 5 bramkowanych progiem wolumenowym — patrz „Nie rozpoczęte wg EPIC”)**; poza epikami nierozpoczęty jest wyłącznie porządkowy BE-144. Poprzednia aktualizacja (2026-09-20): planowanie EPIC-30 (uzupełnione po zamknięciu BE-124 i DB-060) + rekoncyliacja EPIC-29 — EPIC-29 był w tym pliku błędnie oznaczony ⬜ (25 ticketów) mimo statusów ✅ z notatkami implementacyjnymi z 2026-08-09..2026-08-13 w TASKS-*.md; wiersze przełączone na ✅, przeniesiono DB-046..054 z tabeli „Dodatkowe migracje” do właściwej tabeli DB i dodano brakujący DB-055 (porządki po EPIC-29). Wcześniejsza rekoncyliacja (2026-08-09, `/update-progress`): naprawiono m.in. rozbieżność EPIC-28 w Podsumowaniu, 24 tickety w EPIC-21/24/25/26/27 błędnie oznaczone ⬜ mimo zaimplementowanego kodu, kilkanaście brakujących/asymetrycznych adnotacji `**Zależy od:**`/`**Blokuje:**`; szczegóły w historii commitów tego pliku.
 
 ---
 
@@ -95,7 +95,7 @@
 | DB-076 | `scheduled_job`: uzgodnienie wpisów z rzeczywistymi wykonawcami (Java `@Scheduled`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 6 (dokumentacja); Could Have, S. |
 | DB-077 | Dokumentacja: `06-database.md`, `ARCHITECTURE.md` (pg_cron, dynamiczne partycje, retencja, funkcje RODO) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 6 (dokumentacja); Should Have, S. |
 | DB-078 | Sweep i usunięcie kolumny `contacts_dw.remote_address` w PG-DW (PII bez retencji) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, F6); Should Have, S. |
-| DB-079 | Zawężenie `fn_contact_ref_integrity`: `UPDATE contact` bez zmiany referencji nie jest blokowany przez usuniętego klienta/agenta | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, trigger V016); Should Have, S. |
+| DB-079 | Zawężenie `fn_contact_ref_integrity`: `UPDATE contact` bez zmiany referencji nie jest blokowany przez usuniętego klienta/agenta | ✅ | EPIC-30. Ukończone 2026-09-21 (migracja V094: `CREATE OR REPLACE FUNCTION`, bez DDL na tabelach). Kluczowe: wczesny `RETURN` w triggerze, gdy UPDATE nie zmienia `customer_id`/`agent_id`/`queue_id`/`campaign_id`/`tenant_id` — `anonymize_customer` (V013) działa dla klienta z kontaktami, ścieżka `clearRecordingUrl` przestaje rzucać po `is_deleted = TRUE`; INSERT i zmiany referencji walidowane jak dotąd; 21 testów `ContactRefIntegrityNarrowingTest` (pełny łańcuch Flyway, wersja „przed" wyznaczana dynamicznie przez `Flyway#info()`, dowód przed/po; przy ukrytej V094 czerwone 7 z 21); code review 5/5 (zatwierdzić; DB079-01…04 wykonane). **V094 niezastosowana na żywej bazie** (Flyway zastosuje ją przy starcie po przebudowie obrazu; weryfikacja WP-4 na local-demo otwarta). Odblokowuje DB-062 i BE-129. |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -227,7 +227,7 @@
 | BE-122 | Job czyszczenia `refresh_token` (`RefreshTokenCleanupJob`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0; Should Have, S. |
 | BE-123 | `audit_log` i `plugin_invocation_log` w `PartitionReclaimJob` (horyzont platformowy, D5) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Faza 0 (D5); Should Have, M. |
 | BE-124 | [ADR + inwentaryzacja] Retencja treści wiadomości: decyzja D1, PII i obiekty S3 | ✅ | EPIC-30. Ukończone 2026-09-20 (ADR + inwentarz). D1 = A przyjęte roboczo bez wyraźnego potwierdzenia PO (pytania do PO nieprzekazane). Kluczowe: `pending/` = docelowe klucze załączników OUTBOUND (BE-131 skorygowany), EML w `contact.recording_url`, `RecordingService#deleteFromS3` połyka błędy, FB/IG `sent_at` = `Instant.now()`, wiek e-maila = INTERNALDATE (nie nagłówek `Date`). |
-| BE-125 | Usuwanie wiadomości e-mail i social po `contact_id` wraz z obiektami S3 (warstwa repo/serwis) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
+| BE-125 | Usuwanie wiadomości e-mail i social po `contact_id` wraz z obiektami S3 (warstwa repo/serwis) | ✅ | EPIC-30. Ukończone 2026-09-21 (kod niepodpięty do purge — BE-126). Kluczowe: `EmailMessageService#purgeByContactIds` / `SocialMessageService#purgeByContactIds` (S3 przed wierszem, `PurgedMessages` z `contactIdsBlocked`, `EmailAttachmentStorageService#delete`); pod rolą bez BYPASSRLS `DELETE` usuwa 0 wierszy bez błędu, więc kontakty z nieusuniętymi wiadomościami są blokowane; orkiestracja w serwisie bez `@Transactional` (odstępstwo od ticketu); code review 4/5 (zatwierdzić z poprawkami: BE125-03/07/09/10/11 wykonane; BE125-01 → BE-143; BE125-02/04/05/06, H-1, H-2 → uwaga w BE-126); `mvn clean verify -pl app` po poprawkach (niezależna weryfikacja): 1998 testów, 0 porażek. Zakłada D1 = A (bez potwierdzenia PO). |
 | BE-126 | Integracja w `RetentionPurgeServiceImpl#purgeContactInteractions` (usuwanie zamiast odcinania) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
 | BE-127 | Purge wiadomości osieroconych (`contact_id IS NULL` i dangling) wg retencji tenanta + dry-run | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO); Must Have, M. |
 | BE-128 | `RetentionEvaluationServiceImpl`: liczenie wiadomości kwalifikujących się do usunięcia (dashboard/badge) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1; Should Have, S. |
@@ -245,6 +245,8 @@
 | BE-140 | [WARUNKOWY: D6 = koniec kampanii] `CAMPAIGN_DATA` liczone od końca kampanii (warstwa Java) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. [WARUNKOWY D6 = koniec kampanii]; Could Have, S. |
 | BE-141 | Usunięcie `remote_address` z ETL do DW (`EtlSyncServiceImpl`, `ContactDwRow`, `PostgresDwWriter`) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 (RODO, F6); Should Have, S. |
 | BE-142 | [WARUNKOWY: D10] Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja) | ⬜ | EPIC-30. Zaplanowany, nierozpoczęty. Grupa 1 [WARUNKOWY D10]; Could Have, S. |
+| BE-143 | Walidacja prefiksu tenanta dla `s3Key` w wysyłce e-mail i w pobieraniu załącznika | ⬜ | EPIC-30. Zaplanowany 2026-09-21 (z code review BE-125, BE125-01), nierozpoczęty. Grupa 1 (bezpieczeństwo, izolacja tenantów); Must Have, S. Niezależny od BE-126. |
+| BE-144 | [PORZĄDKOWY] Przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem | ⬜ | Bez epiku (jak DB-055). Zaplanowany 2026-09-21 (z code review BE-125, BE125-07), nierozpoczęty. Infrastruktura/CI; Should Have, S. |
 
 ---
 
@@ -360,28 +362,29 @@
 
 ## Podsumowanie
 
-Przeliczone od zera 2026-09-20 bezpośrednio z treści `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/
-`TASKS-FRONTEND.md` (pole `**Status:**` każdego ticketu: DB 55 + 24, BE 119 + 23, FE 109 + 3; BE-067 ma nietypowy zapis `[x] Zrobione` — liczony jako ukończony), nie z poprzedniej wersji tej tabeli.
+Przeliczone od zera 2026-09-21 bezpośrednio z treści `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/
+`TASKS-FRONTEND.md` (pole `**Status:**` każdego ticketu: DB 55 + 24, BE 120 + 24, FE 109 + 3; BE-067 ma nietypowy zapis `[x] Zrobione` — liczony jako ukończony), nie z poprzedniej wersji tej tabeli.
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 56 | 0 | 23 | 79 |
-| Backend (BE) | 120 | 0 | 22 | 142 |
+| Database (DB) | 57 | 0 | 22 | 79 |
+| Backend (BE) | 121 | 0 | 23 | 144 |
 | Frontend (FE) | 109 | 0 | 3 | 112 |
-| **RAZEM** | **285** | **0** | **48** | **333** |
+| **RAZEM** | **287** | **0** | **48** | **335** |
 
 ### Nie rozpoczęte wg EPIC
 
 | EPIC | DB | BE | FE | Razem |
 |------|----|----|-----|-------|
-| EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 23 | 22 | 3 | 48 ⬜ z 50 (zaplanowany 2026-09-20, projekt: `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10 z założeniami domyślnymi; **ukończone 2026-09-20:** BE-124 (ADR D1 = A przyjęte roboczo) i DB-060 (audyt PII); **Must (grupa 1, luka RODO) nierozpoczęte:** DB-059, DB-061, DB-062, BE-125..127, BE-129; **8 warunkowych** (wchodzą tylko przy alternatywie decyzji): DB-063, BE-130, FE-111 (D1 = osobna kategoria), DB-068, BE-136 (D4 = tabela dedup), DB-075, BE-140 (D6 = koniec kampanii), BE-142 (D10 = maskowanie `audit_log`); **5 bramkowanych** progiem wolumenowym: DB-067, BE-134, BE-135 (`email_message`, bramka DB-066), DB-069, BE-137 (`campaign_contact_archive`)) |
-| **Łącznie** | **23** | **22** | **3** | **48** |
+| EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 22 | 3 | 47 ⬜ z 51 (zaplanowany 2026-09-20, projekt: `DESIGN-message-retention-and-partitioning.md`, decyzje D1–D10 z założeniami domyślnymi; **ukończone:** BE-124 (ADR D1 = A przyjęte roboczo) i DB-060 (audyt PII) 2026-09-20, BE-125 (usuwanie wiadomości + S3, niepodpięte do purge — BE-126) i DB-079 (V094, niezastosowana na żywej bazie) 2026-09-21; **Must (grupa 1, luka RODO i izolacja tenantów) nierozpoczęte:** DB-059, DB-061, DB-062, BE-126, BE-127, BE-129, BE-143; **8 warunkowych** (wchodzą tylko przy alternatywie decyzji): DB-063, BE-130, FE-111 (D1 = osobna kategoria), DB-068, BE-136 (D4 = tabela dedup), DB-075, BE-140 (D6 = koniec kampanii), BE-142 (D10 = maskowanie `audit_log`); **5 bramkowanych** progiem wolumenowym: DB-067, BE-134, BE-135 (`email_message`, bramka DB-066), DB-069, BE-137 (`campaign_contact_archive`)) |
+| Bez epiku (porządkowe): BE-144 — przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem | 0 | 1 | 0 | 1 ⬜ (zaplanowany 2026-09-21, jak DB-055) |
+| **Łącznie** | **22** | **23** | **3** | **48** |
 
 Wszystkie pozostałe epiki (EPIC-01 – EPIC-29) mają 0 zadań nierozpoczętych — w tym EPIC-29
 (Partycjonowanie i retencja danych z obsługi kontaktów: DB-046..054, BE-111..119, FE-103..109; ✅ wg TASKS-*.md, notatki z 2026-08-09..2026-08-13),
 które wcześniejsza wersja tej tabeli pokazywała jako 25 nierozpoczętych, oraz EPIC-28 (Per-Tenant Plugin System), niezależnie
 zweryfikowany 2026-08-09 w kodzie (klasy domenowe, moduł Maven `plugin-sdk`, migracje V074-V077, iframe `sandbox` bez `allow-same-origin`).
-Poza epikami ukończony DB-055 (porządki indeksów `contact`, V093).
+Poza epikami ukończony DB-055 (porządki indeksów `contact`, V093); nierozpoczęty BE-144 (porządkowy: obrazy MinIO).
 
 ---
 

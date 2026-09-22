@@ -5,7 +5,7 @@ Status: **projekt do akceptacji** (nie wdrożone). Decyzje D1–D10 (§3) czekaj
 **D1: przyjęte do realizacji 2026-09-20 (założenie A) bez wyraźnego potwierdzenia właściciela** — stan i ścieżka zmiany w §3, ADR w `TASKS-BACKEND.md` BE-124.
 Analiza: 2026-09-20 (PostgreSQL 16.13, schemat po V093, baza demo 28 MB; tylko odczyt, bez zmian w bazie i repo).
 Powiązane: `DESIGN-data-retention-partitioning.md` (EPIC-29 — silnik retencji), `PRD.md` §6.5 (NFR-RODO01/02/03), `ARCHITECTURE.md` §4/§6.6,
-`documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079, `TASKS-BACKEND.md` BE-120…142, `TASKS-FRONTEND.md` FE-110…112.
+`documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079, `TASKS-BACKEND.md` BE-120…143 (+ BE-144 poza epikiem: porządki infrastruktury MinIO), `TASKS-FRONTEND.md` FE-110…112.
 
 ## 1. Cel
 
@@ -37,7 +37,7 @@ Oznaczenia: „live" = zapytanie tylko-do-odczytu na `cc-postgres` (2026-09-20);
 | U15 | Wolumeny są bardzo małe, a PRD nie podaje liczb | live: `email_message` 55 wierszy, 216 kB, średni wiersz 1049 B (max 14,5 kB); `social_message` 0 wierszy; NFR-S03: 50 tenantów × 100 agentów, nic o kontaktach/dzień | próg partycjonowania to szacunek (D2) |
 | U16 | Pełna kopia treści e-mail leży w S3 poza tabelą wiadomości: EML pod `contact.recording_url` | kod: `EmailContactCreator#generateAndStoreEml`, `EmailEmlService#buildEmlS3Key` (`{tenantId}/{yyyy}/{MM}/{contactId}.eml`, treść + załączniki base64); live: 14 EML, 61 mp3, 75 wskaźników = 75 obiektów, 0 osieroconych (BE-124) | kategoria RECORDINGS, nie CONTACT_INTERACTIONS: purge kontaktu bez sprzątania `recording_url` osierocia obiekt z pełną treścią (R6) |
 | U17 | `RecordingService#deleteFromS3` połyka `S3Exception` | kod: `RecordingServiceImpl:307–322`; skutki: `RecordingRetentionJob#deleteRecording` czyści `recording_url` mimo błędu S3, `GdprServiceImpl#deleteCustomerRecordingsFromS3` liczy `failed`, który nie rośnie | Poziom 1 („S3 przed wierszem") potrzebuje metody usuwania zwracającej wynik (BE-125: `EmailAttachmentStorageService#delete`); BE-129 nie może polegać na `deleteFromS3` |
-| U18 | Klucze S3 w `attachments` wiadomości OUTBOUND pochodzą od klienta | kod: `EmailReplyRequest.PendingAttachment#s3Key` → `EmailSendServiceImpl#buildAttachmentsJson` bez walidacji prefiksu (kontrola IDOR jest tylko w `EmailAttachmentController#downloadAttachment`) | purge musi kasować wyłącznie klucze z prefiksem `email-attachments/{tenantId}/` (BE-125); możliwość dołączenia obiektu spoza tenanta do wysyłanego maila — luka poza zakresem EPIC-30, do osobnego ticketu |
+| U18 | Klucze S3 w `attachments` wiadomości OUTBOUND pochodzą od klienta | kod: `EmailReplyRequest.PendingAttachment#s3Key` → `EmailSendServiceImpl#buildAttachmentsJson` bez walidacji prefiksu (kontrola IDOR jest tylko w `EmailAttachmentController#downloadAttachment`) | purge musi kasować wyłącznie klucze z prefiksem `email-attachments/{tenantId}/` (BE-125); możliwość dołączenia obiektu spoza tenanta do wysyłanego maila — luka istniejąca przed EPIC-30, potwierdzona w code review BE-125 (BE125-01: `EmailSendServiceImpl#buildAttachmentPart` pobiera obiekt po `s3Key` z żądania bez walidacji prefiksu, `EmailAttachmentController#downloadAttachment` ma `startsWith` bez odrzutu `..`) — ticket **BE-143** (Must, S; niezależny od BE-126) |
 | U19 | Po PR #44 `social_message.sent_at` jest deterministyczny tylko dla WhatsApp; `attachments` zawsze `[]` | kod: `SocialWebhookController:406–409` (WhatsApp: czas platformy), `:312`, `:350` (FB/IG: `Instant.now()` webhooka), `:311/:349/:417` (`attachments = null`); `SocialMessageServiceImpl:226–229` | unikalność `(tenant_id, external_message_id, sent_at)` (DB-065) nie deduplikuje redelivery FB/IG — BE-132 najpierw ujednolica źródło `sent_at`; social nie ma obiektów S3 |
 
 ## 3. Decyzje otwarte (właściciel produktu nie odpowiedział)
@@ -124,13 +124,13 @@ oraz (Could) zatrzymanie zapisu PII u źródła (BE-142). Wpływ alternatywy (`a
 
 ## 4. Fazy i fale
 
-Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte 2026-09-20):
+Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie)):
 
 ```
-Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121
-Fala 1  BE-124 ✅ (ADR D1) → BE-125 → BE-126 → BE-127 → BE-128 → FE-110 (też BE-126 → FE-110)      BE-124 ✅ → DB-059 → BE-127
-        DB-060 ✅ (audyt PII) → DB-061 (+ wspólna reguła D9) → DB-062 → BE-129 → FE-112      DB-079 (trigger V016) → DB-062, BE-129      BE-125 → BE-129
-        BE-141 → DB-078 (`contacts_dw`)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
+Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)
+Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 → BE-127 → BE-128 → FE-110 (też BE-126 → FE-110)      BE-124 ✅ → DB-059 → BE-127
+        DB-060 ✅ (audyt PII) → DB-061 (+ wspólna reguła D9) → DB-062 → BE-129 → FE-112      DB-079 ✅ (trigger V016) → DB-062, BE-129      BE-125 ✅ → BE-129
+        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)
@@ -139,7 +139,7 @@ Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → 
 | Fala | Cel | Priorytet | Złożoność (vs ocena zlecenia) |
 |---|---|---|---|
 | 0 | Martwe harmonogramy i porządki (bez decyzji PO, z wyjątkiem D5 i D8) | Should (DB-058 Could) | S; **BE-123 = M** (osobna ścieżka horyzontu, rozszerzenie `PartitionScanner`, wiersze z `tenant_id` NULL) |
-| 1 | Retencja treści wiadomości + RODO (+ `contacts_dw`, trigger V016) | Must (DB-078, DB-079, BE-141 Should; BE-142 Could) | S–M; **BE-129 = L** i **DB-062 = L** (po korektach z DB-060: dwie ścieżki REST, zbiór podmiotu D9 z podglądem, stany operacyjne, klucze S3), DB-061 = M; FE-112 = M |
+| 1 | Retencja treści wiadomości + RODO (+ `contacts_dw`, trigger V016) | Must (DB-078, DB-079, BE-141 Should; BE-142 Could) | S–M; **BE-129 = L** i **DB-062 = L** (po korektach z DB-060: dwie ścieżki REST, zbiór podmiotu D9 z podglądem, stany operacyjne, klucze S3), DB-061 = M; FE-112 = M; BE-143 = S (Must, bezpieczeństwo) |
 | 2 | Hardening RLS + partycjonowanie `social_message` | Should | social M (0 wierszy = najtańsze okno); **DB-073 = M** (ścieżka gorąca dialera) |
 | 3 | Partycjonowanie `email_message` | Should, **bramkowane D2** | **L** (DB-067, BE-134) |
 | 4 | Archiwum, `campaign_contact`, `scheduled_job`, dokumentacja | Could (DB-077 Should) | S–L |
@@ -203,3 +203,7 @@ konfiguracja/referencja (wg analizy: 33 z 49 tabel ≤ 30 wierszy). Retencja per
 - **R8 Kolejność S3 → DB w `GdprServiceImpl`** (DB-060 F8.3, BE-124 §3): dziś nagrania są kasowane w S3 PRZED zmianą w bazie — błąd DB po usunięciu nagrań zostawia klienta niezanonimizowanego z nieodwracalnie usuniętymi plikami;
   `RecordingService#deleteFromS3` połyka `S3Exception`, więc licznik `failed` nigdy nie rośnie, a log „failed=0" jest nieprawdziwy (U17). Mitygacja: BE-129 — DB twardo w jednej transakcji (`anonymize_customer`), S3 dopiero po commit metodą zwracającą wynik per klucz, niepowodzenia do audytu (klucze nie znikają).
 - **R9 Fałszywe trafienia przy dopasowaniu po identyfikatorze (D9 = A):** numer/adres wspólny dla wielu osób → nieodwracalna anonimizacja cudzych danych (Art. 17) albo ujawnienie ich w eksporcie (Art. 15). Mitygacja: tryb podglądu z licznikami `matched_by_link`/`matched_by_identifier` i wymagane potwierdzenie (BE-129, FE-112), normalizacja i test wspólnego numeru (DB-062).
+- **R10 Wersjonowanie bucketu / Object Lock / globalny lifecycle vs `DeleteObject`** (H-2 z code review BE-125; hipoteza do potwierdzenia w środowisku docelowym): `DeleteObject` bez `versionId` w buckecie z wersjonowaniem tylko dodaje delete marker (dane, w tym PII załączników, zostają), a przy Object Lock zwraca błąd (→ `s3Failures`, kontakt zablokowany na stałe).
+  `DEPLOYMENT.md` §21 (≈ l. 1209–1211) opisuje prod MinIO bez wersjonowania, ale z globalnym `mc ilm add … --expiry-days 365` na całym buckecie `contact-center-recordings` — tym samym, do którego trafia `email-attachments/`. Skutki do potwierdzenia z właścicielem: (1) w produkcyjnym buckecie nie może być włączone wersjonowanie ani Object Lock,
+  inaczej purge nie usuwa PII z załączników; (2) czas życia obiektów (365 dni, globalnie) jest niezależny od retencji tenanta (`CONTACT_INTERACTIONS`, np. 24 mies.) — załączniki znikną, zanim purge usunie wiersze (martwe linki; `delete` traktuje brak obiektu jako sukces, więc purge na tym nie cierpi). Uwaga: „bucket S3 niewersjonowany, bez lifecycle" w §3 (D1)
+  opisuje stan zmierzony na local-demo (BE-131: `mc ilm rule ls`), nie prod. Mitygacja: pytanie do właściciela o konfigurację prod S3 (wersjonowanie, Object Lock, lifecycle); rozstrzygnięcie w BE-131 i BE-126 (uwagi z code review BE-125); BE-144 dotyczy wyłącznie obrazów, nie polityk bucketu.

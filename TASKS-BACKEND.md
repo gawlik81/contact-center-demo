@@ -6804,7 +6804,7 @@ działają niezależnie od tej decyzji.
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
-> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 → BE-127 → BE-128;   DB-059 → BE-127;   DB-060 ✅, DB-061, DB-062, DB-079 ✅, BE-125 ✅ → BE-129;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 (walidacja `s3Key`, niezależne od BE-126);
+> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128;   DB-059 → BE-127;   DB-060 ✅, DB-061, DB-062, DB-079 ✅, BE-125 ✅ → BE-129;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126, BE-127, BE-128 → BE-130, tylko D1 = C]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
 > Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
@@ -7187,7 +7187,7 @@ Zmiany wyłącznie w kodzie i testach (żadnej migracji); nie ruszano bazy demo,
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-125 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-22, częściowo — patrz notatka: punkt (b) i WP-4 odłożone)
 **Blokuje:** BE-127, BE-133, DB-065, BE-130, FE-110
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -7209,18 +7209,31 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 - `purgeAsync` (`TenantContext.restore/clear`) i ścieżka auto-purge (`RetentionEvaluationServiceImpl#maybeTriggerAutoPurge`) bez zmian (WP-2) — dodaj testy. `detachContactReferences` przestaje być wołane; usuń je dopiero po potwierdzeniu D1 (przy D1 = C BE-130 przywraca odcinanie referencji, bo wiadomości starzeją się wg własnej kategorii).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: tenanci A i B w TEJ SAMEJ partycji `contact`; A ma kontakty przed cutoff z e-mailami (w tym z `attachments`) i social; po purge A: kontakty, zdarzenia, wiadomości usunięte, obiekty S3 (mock) usunięte; B nietknięty (COUNT po wartościach); `rowsDeleted` = suma
-- [ ] Awaria S3 w środku: kontakt i jego wiadomości zostają, ponowny purge kończy pracę; brak nieskończonej pętli (test)
-- [ ] Granica: kontakt z `started_at` dokładnie na cutoff i jego wiadomości wg istniejącej semantyki `<`; wiadomości kontaktów nowszych nietknięte
-- [ ] Audyt `RETENTION_PURGE_COMPLETED` zawiera breakdown; `PurgeResultDto`/kontrakt REST bez zmian
-- [ ] Istniejące testy `RetentionPurgeServiceImplTest` (granica `@Async`, `TenantContext`) zielone
-- [ ] (WP-4, destrukcyjne) Local-demo po przebudowie obrazów: dry-run SQL policzy wiadomości powiązane z kontaktami kwalifikującymi się (w notatce), zgoda właściciela, manualny purge `CONTACT_INTERACTIONS` na tenancie testowym z UI; sprawdź `retention_purge_log`, `audit_log`, MinIO (brak osieroconych obiektów)
-- [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A
+- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: tenanci A i B w TEJ SAMEJ partycji `contact`; A ma kontakty przed cutoff z e-mailami (w tym z `attachments`) i social; po purge A: kontakty, zdarzenia, wiadomości usunięte, obiekty S3 (mock) usunięte; B nietknięty (COUNT po wartościach); `rowsDeleted` = suma — **częściowo**: `ContactRepository#findContactIdsOlderThan`/`#deleteContacts` mają dedykowany test Testcontainers (`ContactRepositoryPurgeCandidatesIntegrationTest`, pakiet `domain.contact`, tenanci A/B w partycji `contact_2026_03`); orkiestracja `RetentionPurgeServiceImpl` (email+social+contact razem) jest przetestowana na mockach (`RetentionPurgeServiceImplTest`), NIE na jednym teście na żywej bazie obejmującym wszystkie trzy domeny naraz — patrz notatka niżej
+- [ ] Awaria S3 w środku: kontakt i jego wiadomości zostają, ponowny purge kończy pracę; brak nieskończonej pętli (test) — **częściowo**: „kontakt zostaje" i „brak nieskończonej pętli" pokryte (mock), „ponowny purge faktycznie kończy pracę" nie jest wykonane jako jeden test end-to-end w tym tickecie (wynika z kompozycji z idempotencją `purgeByContactIds` z BE-125, ale nie jest to zweryfikowane jednym testem)
+- [x] Granica: kontakt z `started_at` dokładnie na cutoff i jego wiadomości wg istniejącej semantyki `<`; wiadomości kontaktów nowszych nietknięte — real DB (`ContactRepositoryPurgeCandidatesIntegrationTest#cutoffBoundary_isExclusive`)
+- [x] Audyt `RETENTION_PURGE_COMPLETED` zawiera breakdown; `PurgeResultDto`/kontrakt REST bez zmian — `RetentionPurgeServiceImplTest$MessageDeletionEnabled$AuditBreakdown`; `PurgeResultDto`/`RetentionController` nietknięte
+- [x] Istniejące testy `RetentionPurgeServiceImplTest` (granica `@Async`, `TenantContext`) zielone — 27/27 bez zmian
+- [ ] (WP-4, destrukcyjne) Local-demo po przebudowie obrazów: dry-run SQL policzy wiadomości powiązane z kontaktami kwalifikującymi się (w notatce), zgoda właściciela, manualny purge `CONTACT_INTERACTIONS` na tenancie testowym z UI; sprawdź `retention_purge_log`, `audit_log`, MinIO (brak osieroconych obiektów) — celowo NIE wykonane (ograniczenie zlecającego, flaga `retention.purge.delete-messages` pozostaje `false` we wszystkich profilach)
+- [x] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A — `mvn verify -pl app`: 2046 testów, 0 błędów, 0 awarii
+
+**Notatka wykonawcy (2026-09-22, `backend-dev-expert`):**
+- **Flaga bezpiecznika:** `retention.purge.delete-messages` (`@Value`, domyślnie `false`) w `RetentionPurgeServiceImpl#deleteMessagesEnabled`; `application.yml` (`retention.purge.delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:false}`), bez nadpisania w żadnym profilu. `false` → `purgeContactInteractionsLegacy` (kod identyczny co dziś, tylko przemianowany). `true` → `purgeContactInteractionsWithMessageDeletion` (nowa ścieżka).
+- **Strategia H-1 (head-of-line blocking):** zamiast guardu „faktycznie usunięte kontakty w iteracji > 0" (pierwotne doprecyzowanie BE-124) zaimplementowano **stronicowanie keyset**: `ContactRepository#findContactIdsOlderThan(tenantId, cutoff, cursor, batchSize)` zwraca stronę uporządkowaną po `(started_at, contact_id)`; kursor to ostatni kandydat POPRZEDNIEJ strony i przesuwa się o CAŁĄ stronę niezależnie od tego, ilu kontaktów w niej faktycznie usunięto. Terminacja pętli zależy WYŁĄCZNIE od wyczerpania kandydatów (`page.isEmpty()` / `page.size() < batchSize`), nie od liczby usunięć — to strukturalnie eliminuje ryzyko H-1 (zablokowane kontakty nigdy nie są zwracane ponownie). Uzasadnienie i test: `RetentionPurgeServiceImplTest$MessageDeletionEnabled$HeadOfLineBlockingDefense` (2 trwale zablokowane kontakty = `batchSize` nie zatrzymują młodszego kontaktu).
+- **Drugi przebieg (BE125-02):** po `contactService.deleteContacts` dla KAŻDEJ strony wołany jest ponowny `purgeByContactIds` (email+social) wyłącznie dla kontaktów faktycznie usuniętych w tej iteracji — łapie wiadomość dopisaną w oknie SELECT→DELETE. Test: `MessageDeletionEnabled$BasicFlow`.
+- **`s3Failures > 0` → `COMPLETED` z `error_message` (NIE `FAILED`):** nowy `RetentionPurgeLogRepository#markCompleted(purgeId, tenantId, rowsDeleted, warningMessage)` (4-argumentowy, stary 3-argumentowy zachowany dla zgodności wstecznej). Uzasadnienie: część batcha kończy się poprawnie (kontakty spoza zablokowanych są usunięte), więc `FAILED` dla całej operacji byłoby mylące; kontakty dotknięte porażką S3 zostają nieusunięte i retry jest idempotentny (zgodnie z BE-125).
+- **Breakdown audytu:** `buildNewValueJson` rozszerzone o `"breakdown":{"contacts","events","emailMessages","socialMessages","s3ObjectsDeleted","s3Failures","s3Rejected"}` (zawiera `s3Rejected`, pominięty w pierwotnym opisie Zakresu).
+- **Social (BE125-05):** pozostawione bez zmian (poza zakresem) — miejsce wywołania oznaczone komentarzem w kodzie.
+- **Testy:** `ContactRepositoryPurgeCandidatesIntegrationTest` (pakiet `domain.contact`, Testcontainers, **12 testów** — granica, porządek/tie-break, stronicowanie keyset, izolacja tenantów, `deleteContacts` RETURNING, brak `ctid`) + rozszerzenie `RetentionPurgeServiceImplTest` o **8 nowych testów** (pakiet `domain.retention`, mocki) w `MessageDeletionEnabled`/`FlagDisabledRegression` (38 razem w klasie). Pełny `mvn verify -pl app`: 2046/0/0. **Sprostowanie (2026-09-22, code review CR-BACKEND.md BE126-04, przeliczone przez `grep -c @Test` i `git diff` przeciw HEAD):** pierwotna notatka wykonawcy podawała 13/12 — poprawne liczby to 12/8.
+- **Odstępstwo od WP-1 (uzasadnienie architektoniczne):** `ContactRepository`, `EmailMessageServiceImpl`/`EmailMessageRepository`, `SocialMessageRepository` są klasami **package-private** w SWOICH pakietach (`domain.contact`/`domain.email`/`domain.social`); `RetentionPurgeServiceImpl` jest package-private w `domain.retention`. Żaden pojedynczy plik testowy nie może mieć widoczności do wszystkich naraz (poza pełnym `@SpringBootTest`, świadomie odrzuconym przez ten projekt jako zbyt ciężki dla testów integracyjnych — patrz Javadoc `JpaTestContext`). Rozwiązanie: nowy natywny SQL testowany na żywej bazie w jego własnym pakiecie (`domain.contact`), orkiestracja testowana na mockach kolaboratorów (wzorzec już istniejący w tym pliku dla ścieżki legacy) — poprawność `EmailMessageService#purgeByContactIds` na żywej bazie (S3, RLS, allow-lista) jest już pokryta przez `EmailMessagePurgeIntegrationTest`/`EmailMessagePurgeRlsIntegrationTest` z BE-125 i celowo NIE duplikowana.
+- **Punkt (b) z Zakresu (usuwanie `contact.recording_url` w fazie „S3 przed wierszem"): ODŁOŻONY, nie zrobiony.** Decyzja zlecającego: kolizja z równoległym BE-143 (walidacja prefiksu tenanta, allow-lista kluczy). `contact.recording_url` pozostaje nietknięty przez ten purge — znana luka (BE-124 ryzyko (a)). Follow-up po scaleniu BE-143.
+- **WP-4 (weryfikacja na local-demo) celowo NIE wykonane** — zgodnie z ograniczeniem zlecającego (brak przebudowy stosu/purge na danych demo w tej iteracji).
 
 **Uwaga z BE-125 (2026-09-21) — kontrakt do użycia (zweryfikowany w kodzie: `EmailMessageService`, `PurgedMessages`, `SocialMessageService`):**
 - Kolejność: `EmailMessageService#purgeByContactIds(tenantId, ids)` → `SocialMessageService#purgeByContactIds(tenantId, ids)` (dla WSZYSTKICH `ids`; zwraca tylko `int` — brak odpowiednika `contactIdsBlocked`) → usunięcie kontaktów wyłącznie dla `ids − PurgedMessages#contactIdsBlocked`. Wołać POZA transakcją (z `purgeAsync` spełnione — `purgeContactInteractions` nie jest `@Transactional`); metody nie czyszczą `TenantContext`.
 - `rowsDeleted` z `PurgedMessages#deletedRows` (nie z liczby zleconych); `s3ObjectsDeleted`/`s3Failures`/`s3Rejected` do breakdownu audytu (lista w Zakresie nie ma `s3Rejected`); `PurgedMessages#plus` sumuje partie. Wyjątek z `purgeByContactIds` = błąd purge (kolejny przebieg jest idempotentny).
-- Niezmiennik postępu (faktycznie usunięte wiersze `contact` > 0) jest tym ważniejszy, że pod rolą bez `BYPASSRLS` także `DELETE` z `contact` może usunąć 0 wierszy bez błędu (polityki tylko SELECT/INSERT) — `contactIdsBlocked` chroni wiadomości, strażnik pętli zatrzymuje purge.
+- Niezmiennik postępu (faktycznie usunięte wiersze `contact` > 0) jest tym ważniejszy, że pod rolą bez `BYPASSRLS` także `DELETE` z `contact` może usunąć 0 wierszy bez błędu (polityki tylko SELECT/INSERT) — `contactIdsBlocked` chroni wiadomości.
+  **Sprostowanie po wykonaniu BE-126 (2026-09-22, code review CR-BACKEND.md BE126-01):** wykonawca NIE zastosował guardu „brak postępu → koniec pętli, `FAILED`" — zamiast tego strategia H-1 (stronicowanie keyset po `(started_at, contact_id)`) strukturalnie omija zablokowane kontakty i **nie zatrzymuje** pętli nawet przy 0 usunięciach w stronie. To celowa, lepsza obrona przed head-of-line blocking, ale oznacza, że „strażnik pętli zatrzymuje purge" jest NIEAKTUALNE — cicha strata pod RLS bez `BYPASSRLS` jest dziś wykrywana wyłącznie przez WARN w logu (rozszerzony po review na każdą częściową stratę, nie tylko całą stronę), nie przez zatrzymanie operacji. Dziś bez wpływu (`ccapp` w local-demo/prod ma `BYPASSRLS`), ale przyszły wykonawca DB-071/074 (RLS na `contact`) musi to uwzględnić przy projektowaniu alertowania.
 - Pkt (b) (`contact.recording_url`): `EmailAttachmentStorageService#delete(String)` jest gotowe i neutralne co do prefiksu (brak obiektu = sukces, błąd S3 → `EmailAttachmentException`), ale allow-listę kluczy z `recording_url` musi dodać wołający — `EmailAttachmentKeys` jest package-private i zna tylko prefiks `email-attachments/{tenantId}/`.
 
 **Uwaga z code review BE-125 (2026-09-21) — ustalenia do uwzględnienia w BE-126 (bez zmiany zakresu, statusu i złożoności; źródło: `CR-BACKEND.md`, wpis BE-125; „potwierdzone" = wykazane w kodzie, „hipoteza" = do oceny wykonawcy):**
@@ -7229,8 +7242,18 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 - **(c) H-2 — semantyka `DeleteObject` [do sprawdzenia w środowisku docelowym; pytanie do właściciela]:** wersjonowanie bucketu, Object Lock albo globalny lifecycle 365 dni (`DEPLOYMENT.md` §21 ≈ l. 1209–1211: `mc ilm add … --expiry-days 365` na całym buckecie `contact-center-recordings`). Przy wersjonowaniu `DeleteObject` dodaje tylko delete marker (PII zostaje), przy Object Lock zwraca błąd (→ `s3Failures`, kontakt zablokowany na stałe); lifecycle 365 dni jest niezależny od retencji tenanta. Patrz DESIGN R10; rozstrzygnięcie z właścicielem i w BE-131.
 - **(d) BE125-05 — social zwraca tylko `int` [potwierdzone; skutek latentny]:** ciche „0 pod RLS" jest niewykrywalne (e-mail ma `contactIdsBlocked`, social nie). Dziś bez wpływu (aplikacja łączy się jako superuser z `BYPASSRLS`; `contact` ma polityki tylko SELECT/INSERT, `social_message` tylko SELECT), ale gdyby DB-074 dał `contact` politykę DELETE przed DB-064 (polityki `social_message`), kontakty zniknęłyby, a wiadomości social z PII zostałyby. Wymóg: kolejność DB-064 przed DB-074 albo potwierdzenie usunięcia także dla social (np. tanie `SELECT DISTINCT contact_id … WHERE contact_id IN (…)` po `DELETE`, włączane do blokad); test RLS dla social.
 - **(e) BE125-06 — bezpiecznik S3 i budżet czasu [potwierdzone w kodzie; scenariusz — hipoteza]:** bezpiecznik (`S3_FAIL_FAST_THRESHOLD = 3`) liczy każdą porażkę jednakowo (także stałe błędy 4xx per klucz), faza S3 nie ma budżetu czasu, a `S3Client` jest budowany bez własnych timeoutów (`S3Config` ≈ l. 63–68); wolny, ale „zdrowy" S3 nie uruchomi bezpiecznika, a wiersze znikają dopiero na końcu partii. Wykonawca BE-126 definiuje budżet czasu fazy S3 i timeouty (`apiCallTimeout`), rozważa podpartie (S3 → `DELETE` po ok. 100 wiadomości) i rozróżnienie błędów przejściowych od stałych.
-- **(f) BE125-04 — publiczne `delete(String)` bez kontroli tenanta:** decyzja API (publiczna polityka kluczy albo `delete(UUID tenantId, String key)`) zapada w **BE-143**; pkt (b) z Zakresu (klucze `contact.recording_url`, schemat `{tenantId}/…`) zależy od tej decyzji (uwaga kontraktowa, nie zależność).
+- **(f) BE125-04 — publiczne `delete(String)` bez kontroli tenanta:** decyzja API **podjęta w BE-143** (2026-09-22; code review CR-BACKEND.md BE126-05 zgłosił, że to zdanie nie było zaktualizowane na czas — sprostowane tutaj): `EmailAttachmentKeys` rozszerzone o `isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania `RecordingServiceImpl#buildS3Key`, EML `EmailEmlService#buildEmlS3Key`), obie metody allow-listy oraz `forLog` teraz `public`. `EmailAttachmentStorageService#delete(String)` NIE dostał wariantu `delete(UUID, String)` — kontrolę tenanta wykonuje wołający PRZED wywołaniem `delete` (ten sam wzorzec co w `EmailSendServiceImpl`/`EmailAttachmentController`, BE-143). Pkt (b) z Zakresu (klucze `contact.recording_url`) pozostaje ODŁOŻONY do follow-upu (patrz notatka wykonawcy BE-126, akapit „Punkt (b)…”) — ma teraz gotowe API do użycia, gdy follow-up zostanie podjęty.
 - Odsyłacze: BE-127 (wariant „dangling" — pkt a; kursor — pkt b), BE-129 (publiczna allow-lista — BE-143), BE-131 (H-2).
+
+**Code review i poprawki (2026-09-22):**
+- Werdykt `senior-code-reviewer` (`CR-BACKEND.md`, wpis BE-126): **4/5 — zatwierdzić z poprawkami**; zero blockerów/bugów w diffie. Review czytało kod i testy oraz zweryfikowało `EXPLAIN` na żywej bazie (tylko odczyt), nie uruchamiało Mavena.
+- Ustalenia BE126-01…05 i co się z nimi stało:
+  - **BE126-01** (major, latentne, dziś nieosiągalne: strategia H-1 (keyset) usunęła niezmiennik „postęp=0 → FAILED" z BE-124; częściowa cicha strata w stronie nie była logowana, tylko strata całej strony) → **naniesione przez zlecającego**: WARN rozszerzony na KAŻDĄ częściową cichą stratę (`actuallyDeletedContacts.size() < deletableIds.size()`), nie tylko na całą stronę = 0.
+  - **BE126-02** (minor: `deleteContacts` nie filtruje `started_at < cutoff`, mimo że wywołujący już ma tę wartość z `ContactPurgeCandidate` — `DELETE` skanuje wszystkie 11 partycji zamiast tylko starych; potwierdzone `EXPLAIN` na żywej bazie — identyczny profil kosztowy jak istniejący `deleteBatchOlderThan`, NIE regresja) → **zaakceptowane jako świadomie odłożone, NIE naprawiane**: tania, ale dziś niekrytyczna okazja do poprawy przycinania partycji; koszt/zysk nie uzasadnia teraz zmiany sygnatury `deleteContacts` (dodanie `cutoff` do `DELETE_CONTACTS_SQL`).
+  - **BE126-03** (minor: Javadoc `PurgeResultDto#errorMessage` nadal mówił „komunikat błędu przy status=FAILED", a po BE-126 pole bywa niepuste też przy `status=COMPLETED` — ostrzeżenia S3) → **naniesione przez zlecającego**: Javadoc poprawiony.
+  - **BE126-04** (nit: notatka wykonawcy liczyła „13 testów"/„12 nowych testów"; `grep -c @Test` + `git diff` przeciw HEAD dają 12/8) → **sprostowane w notatce wykonawcy** (liczby niżej poprawione na 12/8).
+  - **BE126-05** (informacyjne: uwaga kontraktowa BE125-04→BE-143 wewnątrz notatki „Uwaga z code review BE-125" punkt (f) tej sekcji nie została zaktualizowana po tym, jak BE-143 faktycznie podjęła decyzję API) → **sprostowane w punkcie (f) powyżej**.
+- Niezależna weryfikacja końcowa (zlecający, po obu poprawkach kodu): `mvn verify -pl app` — **BUILD SUCCESS, Tests run: 2046, Failures: 0, Errors: 0, Skipped: 0** (ta sama liczba co w pierwotnej notatce wykonawcy — poprawki zmieniły treść dwóch plików, nie liczbę testów).
 
 ---
 
@@ -7239,7 +7262,7 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 **Typ:** Backend implementation
 **Priorytet:** Must Have
 **Złożoność:** M
-**Zależy od:** BE-126, DB-059
+**Zależy od:** BE-126 ✅, DB-059
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-128, DB-067, BE-135, BE-130
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7272,6 +7295,14 @@ Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id 
 **Uwaga z code review BE-125 (2026-09-21):**
 - BE125-02 [potwierdzone w kodzie]: wiadomości dopisane po SELECT-cie z BE-125 (np. odpowiedzi OUTBOUND na stary wątek, `contactId` odziedziczony po kontakcie) mogą po `deleteContacts` zostać sierotami z PII — jeśli BE-126 nie zrobi drugiego przebiegu `purgeByContactIds` po `deleteContacts`, wariant „dangling" (`NOT EXISTS`) przestaje być opcjonalny (patrz BE-126, pkt a). H-1 [hipoteza]: analogiczny head-of-line blocking dla pętli sierot, gdy `deletedRows` jest jedyną miarą postępu, a część wiadomości jest trwale nieusuwalna (kursor albo wykluczanie zablokowanych).
 - Naprawione po review (BE125-03/09): `toUuid(null)` w repozytorium i `PurgedMessages#contactIdsBlocked().contains(null)` nie rzucają — wiersze z `contactId = null` są bezpieczne dla `AttachmentsRow` i dla blokad.
+
+**Uwaga z BE-126 (2026-09-22):**
+- Okno SELECT→DELETE (BE125-02) jest już zamknięte PO STRONIE kontaktów właśnie usuniętych: `RetentionPurgeServiceImpl#purgeContactInteractionsWithMessageDeletion` robi drugi, idempotentny przebieg `purgeByContactIds` dla `actuallyDeletedContacts` w tej samej iteracji. To NIE zwalnia BE-127 z własnego zakresu — dotyczy tylko wiadomości dopisanych do kontaktu W TRAKCIE jego purge, a nie ogólnych sierot (`contact_id IS NULL` z detach BE-113, niezroutowanych e-maili itd., DESIGN §2 U1/U16). Wariant „dangling" (`NOT EXISTS`) nadal jest do decyzji wykonawcy BE-127, ale presja z BE125-02 jest niższa niż zakładano w code review BE-125.
+- **Strategia H-1 zastosowana w BE-126** (zamiast guardu „brak postępu → koniec pętli"): stronicowanie keyset — strona kandydatów posortowana `ORDER BY <kolumna_wieku>, <klucz>`, kursor = ostatni kandydat POPRZEDNIEJ strony (niezależnie od tego, czy został usunięty), pętla kończy się na wyczerpaniu kandydatów, nie na liczbie usunięć. Wzorzec: `ContactRepository#findContactIdsOlderThan`/`FIND_CONTACT_IDS_OLDER_THAN_NEXT_PAGE_SQL` (predykat `(kolumna, id) > (kursor_kolumna, kursor_id)`). Rekomendacja: zastosuj ten sam wzorzec zamiast liczbowego guardu z opisu Zakresu — eliminuje strukturalnie ryzyko head-of-line blocking zamiast tylko je wykrywać. Po review (CR-BACKEND.md BE126-01) dodaj też WARN przy KAŻDEJ częściowej cichej stracie (nie tylko całej stronie = 0) — wzorzec w `RetentionPurgeServiceImpl` (`actuallyDeletedContacts.size() < deletableIds.size()`).
+- `PurgeResultDto#errorMessage` może być niepuste przy `status=COMPLETED` (ostrzeżenia S3) — nie tylko przy `FAILED` (CR-BACKEND.md BE126-03); jeśli BE-127 zapisuje własne ostrzeżenia do tego samego pola, zachowaj tę semantykę.
+
+**Uwaga z BE-143 (2026-09-22) — publiczne API allow-listy do użycia:**
+- `EmailAttachmentKeys.isOwnedByTenant(UUID tenantId, String s3Key)` (schemat `email-attachments/{tenantId}/…`) i `EmailAttachmentKeys.isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania, EML z `contact.recording_url`) są PUBLICZNE od BE-143. Dla BE-127 istotna głównie pierwsza (sieroty to wiadomości e-mail/social, nie `contact.recording_url`) — użyj jej zamiast pisać własną kopię `startsWith`, jeśli sieroty niosą klucze spoza `email-attachments/{tenantId}/`.
 
 ---
 
@@ -7355,6 +7386,11 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 
 **Uwaga z code review BE-125 (2026-09-21):** (1) BE125-04: kontrola tenanta dla `EmailAttachmentStorageService#delete` (publiczna polityka kluczy albo `delete(UUID tenantId, String key)`) rozstrzyga się w BE-143 — `GdprServiceImpl` nie powinien do tego czasu zakładać kształtu tego API (uwaga kontraktowa, nie zależność). (2) H-2 [do sprawdzenia w środowisku docelowym]: wersjonowanie/Object Lock bucketu (DESIGN R10) dotyczy też sprzątania S3 po anonimizacji — `DeleteObject` przy wersjonowaniu zostawia dane.
 
+**Uwaga z BE-143 (2026-09-22) — decyzja API rozstrzygnięta, gotowa do użycia:**
+- BE-143 wybrał opcję (i) z Zakresu: rozszerzenie `EmailAttachmentKeys` (bez nowej klasy `S3KeyPolicy`), teraz `public final class`. Sygnatury: `EmailAttachmentKeys.isOwnedByTenant(UUID tenantId, String s3Key)` (schemat `email-attachments/{tenantId}/…` — załączniki) oraz `EmailAttachmentKeys.isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania z `RecordingServiceImpl#buildS3Key`, EML z `EmailEmlService#buildEmlS3Key`, oba w `contact.recording_url`; zweryfikowane w code review względem rzeczywistych producentów kluczy, nie tylko specyfikacji). `EmailAttachmentKeys.forLog(String)` też publiczne — użyj do logowania kluczy odrzuconych/niepowodzeń, nigdy surowego `s3Key`.
+- `EmailAttachmentStorageService#delete(String)` NIE dostał wariantu `delete(UUID tenantId, String key)` — kontrolę tenanta wykonuje wołający PRZED wywołaniem `delete`, allow-listą powyżej (ten sam wzorzec co w `EmailSendServiceImpl#validateAttachmentKeys` i `EmailAttachmentController#downloadAttachment`, BE-143).
+- Dla `GdprServiceImpl`: klucze załączników e-mail/social przez `isOwnedByTenant`, klucze z `contact.recording_url` (nagrania i EML) przez `isRecordingKeyOwnedByTenant` — DWIE różne allow-listy, nie jedna; nie mieszać prefiksów.
+
 ---
 
 ### BE-130 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w silniku retencji
@@ -7362,7 +7398,7 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 **Typ:** Backend implementation
 **Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** M
-**Zależy od:** DB-063, BE-126, BE-127, BE-128
+**Zależy od:** DB-063, BE-126 ✅, BE-127, BE-128
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-111
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7409,6 +7445,8 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 
 **Uwaga z code review BE-125 (2026-09-21):** (1) H-2 [do sprawdzenia w środowisku docelowym; pytanie do właściciela]: wersjonowanie/Object Lock/globalny lifecycle 365 dni (`DEPLOYMENT.md` §21 ≈ l. 1209–1211) wpływają na semantykę `DeleteObject` i na sweep — code review BE-125 kieruje tę decyzję do BE-131 (DESIGN R10). (2) BE125-04: sweep kasuje klucze pochodzące z listowania bucketu, więc pomyłka prefiksu kasuje cudzy obiekt — decyzja API (publiczna polityka kluczy albo `delete(UUID tenantId, String key)`) zapada w BE-143 (uwaga kontraktowa, nie zależność).
 
+**Uwaga z BE-143 (2026-09-22) — decyzja API rozstrzygnięta:** `EmailAttachmentKeys.isOwnedByTenant(UUID, String)` i `EmailAttachmentKeys.forLog(String)` są teraz publiczne (`isRecordingKeyOwnedByTenant` też, ale dotyczy prefiksu `{tenantId}/…` — nagrania/EML, nie `pending/`). Przy sweepie listowania bucketu użyj `isOwnedByTenant` do potwierdzenia, że klucz zwrócony przez `ListObjectsV2` naprawdę należy do tenanta, którego partię właśnie przetwarzasz, zanim wywołasz `delete` — chroni przed pomyłką prefiksu z BE125-04.
+
 ---
 
 ### BE-132 – Migracja encji `SocialMessage` na klucz złożony `(messageId, sentAt)`
@@ -7445,7 +7483,7 @@ grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesFor
 **Typ:** Backend implementation
 **Priorytet:** Should Have
 **Złożoność:** M (zgodnie z oceną zlecenia dla social; wprowadza `DropMode.ONLY_IF_EMPTY`)
-**Zależy od:** BE-132, BE-123, BE-126
+**Zależy od:** BE-132, BE-123, BE-126 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-135
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7694,7 +7732,7 @@ schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG
 **Priorytet:** Must Have (bezpieczeństwo — obejście granicy tenantów; luka istniejąca przed EPIC-30, DESIGN U18)
 **Złożoność:** S
 **Zależy od:** BE-125 ✅ (wspólny helper `EmailAttachmentKeys`, kontrakt `EmailAttachmentStorageService#delete`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -7712,15 +7750,124 @@ DESIGN U18 mówił „luka poza zakresem EPIC-30, do osobnego ticketu", lecz tak
 - **(d) Testy:** MockMvc/integracyjne — obcy klucz → odrzucenie, `..` w kluczu → odrzucenie, własny klucz przechodzi, własny klucz `pending/` (OUTBOUND) nadal działa end-to-end.
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test MockMvc/integracyjny `POST /api/email/messages/{id}/reply` i `POST /api/email/messages/outbound` (prawdziwy `EmailSendServiceImpl`, mock S3 i SMTP): (i) klucz obcego tenanta (`email-attachments/{inny-tenant}/…`) → żądanie odrzucone (kod wg decyzji wykonawcy), `EmailAttachmentStorageService#download` i SMTP NIE wywołane, wiadomość OUTBOUND niezapisana; (ii) klucz z segmentem `..` (np. `email-attachments/{tenant}/../{inny-tenant}/x`) → odrzucony; (iii) klucz nagrania `{tenantId}/…mp3` → odrzucony; (iv) własny klucz `email-attachments/{tenant}/pending/{uuid}/plik` przechodzi i trafia do `attachments` wiadomości OUTBOUND (regresja); własny klucz INBOUND `{messageId}/` też przechodzi
-- [ ] `GET /api/email/attachments/download`: obcy klucz i klucz z `..` → 403, własny klucz → 200 z presigned URL (test kontrolera; dotychczasowa ochrona IDOR zachowana)
-- [ ] Jedna implementacja allow-listy dla wysyłki, pobierania i purge (BE-125): test przypadków — obcy tenant, `.`/`..`, znaki sterujące, sam prefiks, `null`/pusty klucz
-- [ ] (WP-2) Walidacja używa `TenantContext` z żądania; brak `TenantContext.clear()` na ścieżce HTTP; test z pustym kontekstem
-- [ ] Decyzja API (publiczna polityka kluczy vs `delete(UUID tenantId, String key)`) zapisana w notatce i przekazana jako uwaga kontraktowa w BE-126/BE-129/BE-131
-- [ ] (WP-4, niedestrukcyjny) Local-demo po przebudowie obrazów: upload załącznika → odpowiedź z własnym kluczem `pending/` działa (jeśli SMTP skonfigurowany; inaczej test na poziomie MockMvc); żądanie z kluczem innego tenanta lub z `..` → odrzucone bez odczytu z S3 (sprawdź log); żadne obiekty nie są usuwane
-- [ ] `mvn verify -pl app`; DoD (WP-7)
+- [x] (WP-1) Test MockMvc/integracyjny `POST /api/email/messages/{id}/reply` i `POST /api/email/messages/outbound` (prawdziwy `EmailSendServiceImpl`, mock S3 i SMTP): (i) klucz obcego tenanta (`email-attachments/{inny-tenant}/…`) → żądanie odrzucone (kod wg decyzji wykonawcy), `EmailAttachmentStorageService#download` i SMTP NIE wywołane, wiadomość OUTBOUND niezapisana; (ii) klucz z segmentem `..` (np. `email-attachments/{tenant}/../{inny-tenant}/x`) → odrzucony; (iii) klucz nagrania `{tenantId}/…mp3` → odrzucony; (iv) własny klucz `email-attachments/{tenant}/pending/{uuid}/plik` przechodzi i trafia do `attachments` wiadomości OUTBOUND (regresja); własny klucz INBOUND `{messageId}/` też przechodzi *(pokryte, ale NIE dosłownie `MockMvc` — zob. notatka: świadome odstępstwo, ten sam kompromis co BE-118)*
+- [x] `GET /api/email/attachments/download`: obcy klucz i klucz z `..` → 403, własny klucz → 200 z presigned URL (test kontrolera; dotychczasowa ochrona IDOR zachowana)
+- [x] Jedna implementacja allow-listy dla wysyłki, pobierania i purge (BE-125): test przypadków — obcy tenant, `.`/`..`, znaki sterujące, sam prefiks, `null`/pusty klucz *(już wyczerpująco pokryte przez `EmailAttachmentKeysTest` z BE-125, bez zmian)*
+- [x] (WP-2) Walidacja używa `TenantContext` z żądania; brak `TenantContext.clear()` na ścieżce HTTP; test z pustym kontekstem
+- [ ] Decyzja API (publiczna polityka kluczy vs `delete(UUID tenantId, String key)`) zapisana w notatce i przekazana jako uwaga kontraktowa w BE-126/BE-129/BE-131 *(decyzja podjęta i udokumentowana w notatce niżej z pełnymi sygnaturami; uwaga kontraktowa w treści BE-126/BE-129/BE-131 NIE dopisana — poza zakresem plików, które wolno mi było edytować w tej iteracji, tylko sekcja BE-143. Wykonawca BE-126/BE-129/BE-131 albo zlecający powinien skopiować sekcję "Decyzja API" niżej do tamtych ticketów.)*
+- [ ] (WP-4, niedestrukcyjny) Local-demo po przebudowie obrazów: upload załącznika → odpowiedź z własnym kluczem `pending/` działa (jeśli SMTP skonfigurowany; inaczej test na poziomie MockMvc); żądanie z kluczem innego tenanta lub z `..` → odrzucone bez odczytu z S3 (sprawdź log); żadne obiekty nie są usuwane *(celowo niewykonane — wymaga przebudowy/uruchomienia stosu docker local-demo, poza zakresem tej iteracji)*
+- [x] `mvn verify -pl app`; DoD (WP-7) *(backend: BUILD SUCCESS, 2038 testów (stan na koniec iteracji, drzewo współdzielone z równoległym BE-126), 0 failures/errors; frontend `/verify` NIE uruchomione — brak zmian frontendowych w tym tickecie)*
 
 **Ryzyka:** (i) zmiana zachowania: dziś nieprawidłowy załącznik jest pomijany, a mail wychodzi bez niego — po zmianie żądanie jest odrzucane; sprawdzić w FE (odpowiedź na e-mail), że wysyła wyłącznie klucze z uploadu (`POST /api/email/attachments/upload` zwraca klucz z własnym prefiksem) i pokazuje błąd; (ii) decyzja API (pkt c) musi zapaść przed BE-126 pkt (b), BE-129 i BE-131; (iii) klucze legacy (`s3_url`) nie występują w żądaniach — niezweryfikowane na prodzie.
+
+**Notatka z implementacji (2026-09-22):**
+- **Decyzja API (pkt c) — opcja (i), rozszerzenie `EmailAttachmentKeys`, BEZ nowej klasy `S3KeyPolicy`:**
+  klasa i `isOwnedByTenant` upublicznione (były package-private w `domain.email`); dodana druga,
+  analogiczna metoda dla schematu kluczy nagrań/EML (`{tenantId}/…`, INNY korzeń niż
+  `email-attachments/{tenantId}/`). BE-143 sam używa wyłącznie `isOwnedByTenant` — druga metoda
+  jest przygotowaniem API dla BE-126 (pkt b, purge `contact.recording_url`), BE-129
+  (`GdprServiceImpl`) i BE-131 (sweep bucketu), żeby te tickety NIE tworzyły własnych,
+  rozjeżdżających się allow-list. Opcja `delete(UUID tenantId, String key)` egzekwujące prefiks
+  wewnątrz (druga propozycja z ticketu) świadomie odrzucona: wymagałaby zmiany kontraktu
+  `EmailAttachmentStorageService#delete` ustalonego w BE-125 i przeniosłaby walidację z miejsca
+  wywołania (gdzie żyje `tenantId` z `TenantContext`) do warstwy storage.
+  ```java
+  // domain.email.EmailAttachmentKeys — publiczne od BE-143
+  public static boolean isOwnedByTenant(UUID tenantId, String s3Key);
+      // schemat email-attachments/{tenantId}/… — używane przez wysyłkę (EmailSendServiceImpl),
+      // pobieranie (EmailAttachmentController) i purge (BE-125, EmailMessageServiceImpl)
+  public static boolean isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key);
+      // schemat {tenantId}/… (nagrania RecordingServiceImpl#buildS3Key, EML EmailEmlService) —
+      // przygotowane dla BE-126(b)/BE-129/BE-131; BE-143 jej NIE wywołuje
+  public static String forLog(String s3Key);
+      // bezpieczne logowanie klucza niezaufanego od klienta (było już w BE-125, teraz public)
+  ```
+  Obie allow-listy współdzielą prywatną `hasCleanPrefixedSuffix(String prefix, String s3Key)` —
+  ta sama logika (niepusty sufiks, bez segmentów `.`/`..`, bez znaków sterujących), różny prefiks.
+- **Kod błędu: HTTP 403 (nie 400), spójnie z `CrossTenantAccessException` (BE-002) i
+  dotychczasowym 403 w `downloadAttachment`.** Nowy wyjątek
+  `EmailAttachmentAccessDeniedException` (`domain.email`, `RuntimeException`, jeden konstruktor
+  `String message`) zamiast rozszerzenia `CrossTenantAccessException` — ten ostatni ma
+  `resourceId: UUID` w konstruktorze, a `s3Key` to `String`; nowa klasa jest prostsza niż zmiana
+  sygnatury współdzielonego wyjątku używanego w wielu miejscach poza tym tickietem. Mapowany na
+  403 przez nowy handler `GlobalExceptionHandler#handleEmailAttachmentAccessDeniedException`
+  (RFC 7807 `ProblemDetail`, typ `email-attachment-access-denied`, komunikat dla klienta ogólny,
+  szczegóły tylko w logu WARN po stronie serwera).
+- **(a) Wysyłka:** walidacja w `EmailSendServiceImpl#validateAttachmentKeys` (nowa prywatna
+  metoda), wywoływana jako KROK 0 na początku `sendReply`/`sendNew` — PRZED pobraniem oryginalnej
+  wiadomości/tenanta/hasła SMTP, nie tylko przed `sendSmtp`. Odrzucenie CAŁEGO żądania przy
+  pierwszym niewłaściwym kluczu (świadoma zmiana zachowania — wcześniej `buildAttachmentPart`
+  logował i pomijał pojedynczy zły załącznik). `EmailController#replyToMessage`/`#sendOutboundEmail`
+  NIE dostały własnej, drugiej walidacji — przekazują `attachments` do serwisu bez zmian (DRY,
+  jedna implementacja); to spełnia AC end-to-end (walidacja i tak dzieje się na ścieżce obu
+  endpointów, zanim dojdzie do S3/SMTP/zapisu).
+- **(b) Pobieranie:** `EmailAttachmentController#downloadAttachment` — `s3Key.startsWith(...)`
+  zamieniony na `EmailAttachmentKeys.isOwnedByTenant(tenantId, s3Key)`; odpowiedź 403 przez
+  bezpośredni `ResponseEntity.status(403)` bez zmian (bez nowego wyjątku) — zgodnie z AC
+  "403 jak dotąd". Log ostrzeżenia teraz przez `EmailAttachmentKeys.forLog(s3Key)` (drobna,
+  dodatkowa poprawka bezpieczeństwa logów przy okazji upublicznienia klasy, poza ściśle wymaganym
+  zakresem, ale zero kosztu — sama widoczność metody się zmieniła).
+- **(d) Testy — 28 nowych, wszystkie PASS:**
+  `EmailSendServiceTest$SendNewAttachmentKeyValidation` (4: AC i–iv na `sendNew`, rzeczywisty
+  `EmailSendServiceImpl`, `@Spy` na `sendSmtp` — wzorzec już istniejący w klasie),
+  `EmailSendServiceTest$SendReplyAttachmentKeyValidation` (2: obcy klucz odrzucony PRZED
+  pobraniem oryginalnej wiadomości + własny klucz INBOUND `{messageId}/` przechodzi — regresja),
+  `EmailAttachmentKeysTest$RecordingKeyAllowlist` (7: nowa metoda `isRecordingKeyOwnedByTenant`),
+  `GlobalExceptionHandlerTest$EmailAttachmentAccessDeniedExceptionTests` (3: 403, RFC 7807,
+  brak wycieku surowego klucza w odpowiedzi), `EmailAttachmentControllerTest$DownloadAttachment`
+  (7, nowy plik: własny klucz INBOUND/`pending/` → 200, obcy tenant/`..`×2/nagranie → 403,
+  WP-2 pusty `TenantContext` → `IllegalStateException`, nie fałszywa autoryzacja),
+  `EmailControllerTest$ReplyToMessage`+`$SendOutboundEmail` (5, nowy plik: kontroler przekazuje
+  `attachments` bez zmian, `null` → pusta lista, wyjątek z serwisu propaguje się niezłapany).
+  **Świadome odstępstwo od dosłownego "MockMvc/integracyjny" z AC** (ten sam kompromis co BE-118
+  `RetentionControllerTest`): projekt NIE testuje kontrolerów `api.*` przez `MockMvc` z aktywnym
+  Spring Security; zamiast tego logika biznesowa (allow-lista, kolejność kroków, brak
+  wywołań S3/SMTP) jest w 100% pokryta na `EmailSendServiceImpl` (rzeczywisty obiekt, nie mock),
+  a wiązanie kontroler→serwis osobno, bezpośrednim wywołaniem metody. Mapowanie wyjątku na 403 ma
+  własny, trzeci test (`GlobalExceptionHandlerTest`). Zestawione RAZEM te trzy klasy dają dokładnie
+  te same gwarancje behawioralne co jeden duży test `MockMvc`, bez kruchości pełnego kontekstu
+  Spring.
+- **Wynik weryfikacji FE (ryzyko i z ticketu) — bezpieczne, bez zmian FE:** grep
+  `frontend/src/app` potwierdza, że `pendingAttachments`/`s3Key` w obu miejscach wysyłki
+  (`email-contact.component.ts` — odpowiedź na wątek, `adhoc-email-modal.component.ts` — nowy
+  e-mail) są zasilane WYŁĄCZNIE odpowiedzią `POST /api/email/attachments/upload`
+  (`resp.s3Key`/`uploaded.s3Key`); `removeAttachment(s3Key)` tylko filtruje istniejącą listę po
+  wartości już w niej obecnej. Brak pola formularza czy innego kodu pozwalającego użytkownikowi
+  wpisać/zmienić `s3Key` ręcznie — FE nigdy nie wyśle dowolnego klucza. Po tej zmianie FE
+  zobaczy nowy błąd 403 zamiast dotychczasowego "cichego" pominięcia załącznika tylko w
+  scenariuszu, który i tak nie powinien wystąpić przy normalnym użyciu UI (bug w FE albo
+  modyfikacja żądania poza UI) — obsługa tego błędu w FE (komunikat dla agenta) NIE była w
+  zakresie tego ticketu i nie została zweryfikowana/zaimplementowana.
+- **Czego NIE zweryfikowano:** WP-4 (local-demo, wymaga przebudowy obrazów i działającego SMTP —
+  poza zakresem tej iteracji, zgodnie z ograniczeniami zlecenia); zachowanie FE po otrzymaniu
+  nowego 403 (czy pokazuje sensowny komunikat agentowi) — kod FE nie był zmieniany ani testowany
+  pod tym kątem; klucze legacy `s3_url` w praktyce na prodzie (ryzyko iii z ticketu, bez zmian).
+
+**Utworzone/zmienione pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/email/EmailAttachmentKeys.java                (zmieniony: class + isOwnedByTenant + forLog → public,
+                                                          +isRecordingKeyOwnedByTenant, refaktor hasCleanPrefixedSuffix)
+  domain/email/EmailAttachmentAccessDeniedException.java (nowy)
+  domain/email/EmailSendServiceImpl.java                (zmieniony: +validateAttachmentKeys, wywołanie w sendReply/sendNew)
+  domain/email/EmailSendService.java                    (zmieniony: javadoc @throws)
+  api/GlobalExceptionHandler.java                       (zmieniony: +handler 403 dla EmailAttachmentAccessDeniedException)
+  api/email/EmailAttachmentController.java              (zmieniony: isOwnedByTenant zamiast startsWith, forLog w logu)
+
+backend/app/src/test/java/com/contactcenter/
+  domain/email/EmailSendServiceTest.java                (zmieniony: +6 testów, 2 nowe @Nested)
+  domain/email/EmailAttachmentKeysTest.java             (zmieniony: +7 testów, 1 nowy @Nested)
+  api/GlobalExceptionHandlerTest.java                   (zmieniony: +3 testy, 1 nowy @Nested)
+  api/email/EmailAttachmentControllerTest.java          (nowy, 7 testów)
+  api/email/EmailControllerTest.java                    (nowy, 5 testów)
+```
+
+**Code review i poprawki (2026-09-22):**
+- Werdykt `senior-code-reviewer` (`CR-BACKEND.md`, wpis BE-143): **5/5 — zatwierdzić bez zastrzeżeń**; ticket domyka realną lukę bezpieczeństwa (BE125-01) starannie — allow-lista jako jedyne źródło prawdy reużywana przez wysyłkę/pobieranie/purge, walidacja udowodniona jako pierwsza instrukcja (kodem i testem `verifyNoInteractions`), wyjątek/handler bez wycieku surowego klucza (dowód adwersaryjnym testem `...responseDoesNotLeakRawKey`), `isRecordingKeyOwnedByTenant` zweryfikowane względem rzeczywistych producentów kluczy (`RecordingServiceImpl#buildS3Key`, `EmailEmlService#buildEmlS3Key`), nie tylko specyfikacji.
+- Ustalenia BE143-01/02:
+  - **BE143-01** (nit: AC „(WP-1) dosłowny MockMvc/integracyjny" formalnie niespełnione — pokrycie rozłożone na 3 klasy testowe zamiast jednego testu HTTP; `PendingAttachment.s3Key` i tak nie ma adnotacji Bean Validation, więc realny ubytek pokrycia jest niski, ten sam kompromis co `RetentionControllerTest`/BE-118) → **potwierdzone przez review jako brak realnej luki mimo formalnego niespełnienia AC**; nic do zrobienia w kodzie.
+  - **BE143-02** (informacyjne, duplikat BE126-05: AC „decyzja API przekazana do BE-126/BE-129/BE-131" świadomie pozostawione odhaczone jako niewykonane w tej sekcji, poza zakresem plików edytowalnych przez wykonawcę BE-143 w tej iteracji) → **nie dotyczy tej sekcji**: propagacja wykonana osobno (`/update-progress`, `product-requirements-deconstructor`) — blok „Uwaga z BE-143 (2026-09-22)" dopisany do BE-127, BE-129 i BE-131; punkt (f) w BE-126 sprostowany bezpośrednio (BE126-05).
+- Niezależna weryfikacja końcowa (zlecający, `mvn verify -pl app`, wspólne drzewo z BE-126): **BUILD SUCCESS, Tests run: 2046, Failures: 0, Errors: 0, Skipped: 0** (AC wyżej i notatka wykonawcy podają 2038 — stan sprzed scalenia z równoległymi poprawkami BE-126 w tym samym drzewie; liczba testów samego BE-143 się nie zmieniła).
 
 ---
 

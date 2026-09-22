@@ -5880,7 +5880,7 @@ nie konstruowało literalnie).
 **Typ:** Frontend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-126, BE-128, BE-119 ✅
+**Zależy od:** BE-126 ✅, BE-128, BE-119 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
 **Blokuje:** brak

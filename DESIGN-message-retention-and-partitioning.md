@@ -124,13 +124,13 @@ oraz (Could) zatrzymanie zapisu PII u źródła (BE-142). Wpływ alternatywy (`a
 
 ## 4. Fazy i fale
 
-Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie)):
+Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143):
 
 ```
 Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)
-Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 → BE-127 → BE-128 → FE-110 (też BE-126 → FE-110)      BE-124 ✅ → DB-059 → BE-127
+Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128 → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 → BE-127
         DB-060 ✅ (audyt PII) → DB-061 (+ wspólna reguła D9) → DB-062 → BE-129 → FE-112      DB-079 ✅ (trigger V016) → DB-062, BE-129      BE-125 ✅ → BE-129
-        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
+        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)
@@ -196,7 +196,7 @@ konfiguracja/referencja (wg analizy: 33 z 49 tabel ≤ 30 wierszy). Retencja per
 - **R6 Osierocone obiekty S3 spod `contact.recording_url` (EML kontaktów e-mail, nagrania)** (BE-124, ryzyko (a)): nic nie wymusza `RECORDINGS ≤ CONTACT_INTERACTIONS`
   (`RetentionPolicyServiceImpl#updatePolicy` :100–114), a `RecordingRetentionJob` szuka obiektów wyłącznie po `contact.recording_url` i przetwarza jedną paczkę 100 rekordów
   na tenanta na dobę — purge kontaktu osierocia obiekt (w przypadku EML: pełną kopię treści wiadomości). Sama walidacja nie wystarcza (zaległość, 30-dniowe vs kalendarzowe
-  miesiące, `ended_at` vs `started_at`, zmiany polityk wstecz). Mitygacja: purge sprząta obiekt z `recording_url` w fazie „S3 przed wierszem" (BE-126, zakres do potwierdzenia)
+  miesiące, `ended_at` vs `started_at`, zmiany polityk wstecz). Mitygacja: purge sprząta obiekt z `recording_url` w fazie „S3 przed wierszem" (BE-126, zakres do potwierdzenia — **stan 2026-09-22: świadomie ODŁOŻONE w BE-126 (kolizja z równoległym BE-143), z gotowym API `EmailAttachmentKeys#isRecordingKeyOwnedByTenant` do użycia — czeka na jawne podjęcie jako follow-up, nowego ticketu celowo nie założono**)
   + walidacja jako osobny follow-up po zgodzie PO. Stan live: 0 osieroconych (75/75), brak naruszeń polityk — ryzyko utajone.
 - **R7 TTL/lifecycle na `pending/` skasowałby załączniki wysłanych wiadomości** (BE-124): klucze wysłanych załączników OUTBOUND wskazują na `email-attachments/{tenantId}/pending/…`
   (live 8 z 9). Mitygacja: BE-131 skorygowany (kandydat = niewskazywany przez żaden wiersz, albo najpierw „promocja" do `{messageId}/` przy wysyłce); reguła lifecycle bucketu dopiero po promocji.

@@ -107,6 +107,9 @@
 - [EPIC-30 BE-124 ADR retencja treści wiadomości (D1)](project_epic30_be124_message_retention_adr.md) — D1=A przyjęte BEZ potwierdzenia PO; `pending/` S3 wskazywane przez wysłane maile; EML w `contact.recording_url`; allow-list prefiksu kluczy
 - [RecordingService#deleteFromS3 połyka S3Exception](feedback_recording_delete_from_s3_swallows_errors.md) — brak sygnału porażki; nie używać przy „S3 przed wierszem" (BE-125/126/129/131)
 - [EPIC-30 BE-125 purge wiadomości + S3](project_epic30_be125_message_purge.md) — kontrakt `purgeByContactIds`/`PurgedMessages`, orkiestracja bez tx, `contactIdsBlocked`, RLS „ciche 0 wierszy", punkt wejścia BE-126/127
+- [EPIC-30 BE-143 walidacja s3Key allow-listą](project_epic30_be143_attachment_key_validation.md) — `EmailAttachmentKeys` public + `isRecordingKeyOwnedByTenant` (API dla BE-126/129/131), `EmailAttachmentAccessDeniedException`→403, walidacja jako krok 0 w `EmailSendServiceImpl`
+- [EPIC-30 BE-126 integracja usuwania wiadomości](project_epic30_be126_message_deletion_integration.md) — flaga `retention.purge.delete-messages`, strategia H-1 (keyset), drugi przebieg BE125-02, punkt (b) odłożony, testowanie na granicy pakietów
+- [UUID.compareTo() vs porządek ORDER BY w Postgresie](feedback_uuid_compareto_vs_postgres_order.md) — testy sortowania po `uuid`: `Comparator.comparing(UUID::toString)`, nie `sorted()`
 - [Harness testów na prawdziwej bazie](feedback_jpa_real_db_integration_test_harness.md) — `PostgresTestDatabase`/`JpaTestContext` (Testcontainers+Flyway+Hibernate), pułapki EXPLAIN/ctid/RLS
 - [Obrazy MinIO: Docker Hub → quay.io](project_minio_image_registry.md) — `minio/minio` i `minio/mc` nie do pobrania z Docker Hub (401); compose nadal na Docker Hub
 - [Równoległy Maven = nieuruchomione nowe testy](feedback_maven_parallel_agents_stale_classes.md) — stale-detection po cudzym buildzie; sprawdzaj raporty per klasa, `touch`

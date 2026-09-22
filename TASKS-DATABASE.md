@@ -3039,7 +3039,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 → BE-127;   DB-060 ✅ → DB-061 → DB-062 → BE-129;   DB-079 ✅ → DB-062, BE-129;   [BE-124 ✅ → DB-063 → BE-130, tylko D1 = C]
 >           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
-> Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126, DB-059 → DB-065
+> Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126 ✅, DB-059 → DB-065
 > Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059, BE-127 → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 → BE-139
@@ -3571,7 +3571,7 @@ Lista ścieżek zapisu do przeglądu (w notatce): `EmailPollingServiceImpl` (sch
 **Typ:** Schema migration (partycjonowanie online)
 **Priorytet:** Should Have
 **Złożoność:** M (0 wierszy = najtańsze okno na zmianę klucza; zgodnie z oceną zlecenia)
-**Zależy od:** BE-126 (Poziom 1 usuwa wiadomości), DB-059, DB-064
+**Zależy od:** BE-126 ✅ (Poziom 1 usuwa wiadomości), DB-059, DB-064
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-132
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

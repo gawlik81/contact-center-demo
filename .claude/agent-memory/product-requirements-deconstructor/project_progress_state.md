@@ -1,12 +1,12 @@
 ---
 name: project_progress_state
-description: Stan ukończenia DB/BE/FE (2026-09-21, po turze 2) — DB 57/79, BE 121/144, FE 109/112 (287/335); EPIC-01..29 ukończone, EPIC-30 w toku (4/51: BE-124, DB-060, BE-125, DB-079), BE-144 poza epikiem; lekcje o rekoncyliacji PROGRESS.md i symetrii zależności
+description: Stan ukończenia DB/BE/FE (2026-09-22, po turze 3) — DB 57/79, BE 123/144, FE 109/112 (289/335); EPIC-01..29 ukończone, EPIC-30 w toku (6/51: BE-124, DB-060, BE-125, DB-079, BE-126, BE-143), BE-144 poza epikiem; lekcje o rekoncyliacji PROGRESS.md i symetrii zależności
 metadata:
   type: project
 ---
 
 Stan na **2026-09-21**, przeliczony z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/`TASKS-FRONTEND.md` (nie z wierszy PROGRESS.md):
-**DB 57/79, BE 121/144, FE 109/112 — RAZEM 287/335 (86%)**. Ukończone: EPIC-01..EPIC-29, DB-055 (porządki indeksów `contact`, V093, poza epikiem) oraz z EPIC-30: BE-124, DB-060 (2026-09-20), BE-125, DB-079 (2026-09-21). Nierozpoczęte: 47 ticketów **EPIC-30** (DB 22, BE 22, FE 3; patrz `[[project-epic30-plan]]`) + BE-144 (porządkowy, `Epic: brak`, jak DB-055) = 48 ⬜.
+**DB 57/79, BE 123/144, FE 109/112 — RAZEM 289/335 (86%)**. Ukończone: EPIC-01..EPIC-29, DB-055 (porządki indeksów `contact`, V093, poza epikiem) oraz z EPIC-30: BE-124, DB-060 (2026-09-20), BE-125, DB-079 (2026-09-21), BE-126, BE-143 (2026-09-22). Nierozpoczęte: 45 ticketów **EPIC-30** (DB 22, BE 20, FE 3; patrz `[[project-epic30-plan]]`) + BE-144 (porządkowy, `Epic: brak`, jak DB-055) = 46 ⬜.
 Najwyższe numery: DB-079 / BE-144 / FE-112; następny epik zaczyna od DB-080 / BE-145 / FE-113 (BE-143 = EPIC-30, BE-144 = poza epikiem). Najwyższa migracja w repo: **V094** (DB-079, NIEZASTOSOWANA na żywej bazie — Flyway zastosuje przy starcie po przebudowie obrazu); następna wolna V095 (sprawdzić refy + `flyway_schema_history`).
 
 **Why:** Ten plik to migawka — sprawdzaj bezpośrednio pliki TASKS-*.md przed poleganiem na liczbach.
@@ -28,4 +28,4 @@ Pola `Zależy od`/`Blokuje` są symetryczne w całych trzech plikach (FE: `Czeka
 ## Historia epików (skrót)
 - EPIC-25 (Kampanie — refaktor i transfer), EPIC-26 (AI Summary), EPIC-27 (własne dyspozycje), EPIC-28 (Per-Tenant Plugin System) — ✅.
 - EPIC-29 (Partycjonowanie i retencja danych z obsługi kontaktów, DB-046..054, BE-111..119, FE-103..109) — ✅ (notatki implementacyjne 2026-08-09..2026-08-13), patrz `[[project_epic29_plan]]`.
-- EPIC-30 (Retencja wiadomości, harmonogramy, partycjonowanie tabel wiadomości; 51 ticketów po dopisaniu BE-143 z code review BE-125) — zaplanowany 2026-09-20, ✅ BE-124, DB-060, BE-125, DB-079; reszta ⬜.
+- EPIC-30 (Retencja wiadomości, harmonogramy, partycjonowanie tabel wiadomości; 51 ticketów po dopisaniu BE-143 z code review BE-125) — zaplanowany 2026-09-20, ✅ BE-124, DB-060, BE-125, DB-079, BE-126, BE-143; reszta ⬜.

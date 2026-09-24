@@ -124,14 +124,14 @@ oraz (Could) zatrzymanie zapisu PII u źródła (BE-142). Wpływ alternatywy (`a
 
 ## 4. Fazy i fale
 
-Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143):
+Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143; 2026-09-24 DB-061, DB-062 (V095/V096 w kodzie, niezastosowane na żywej bazie)):
 
 ```
 Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)
 Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128 → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 → BE-127
-        DB-060 ✅ (audyt PII) → DB-061 (+ wspólna reguła D9) → DB-062 → BE-129 → FE-112      DB-079 ✅ (trigger V016) → DB-062, BE-129      BE-125 ✅ → BE-129
+        DB-060 ✅ (audyt PII) → DB-061 ✅ (+ wspólna reguła D9) → DB-062 ✅ → BE-129 → FE-112      DB-079 ✅ (trigger V016) → DB-062 ✅, BE-129      BE-125 ✅ → BE-129
         BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
-Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
+Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)
 ```
@@ -184,7 +184,7 @@ konfiguracja/referencja (wg analizy: 33 z 49 tabel ≤ 30 wierszy). Retencja per
 ## 7. Ryzyka
 
 - **R1 RLS pod rolą ograniczoną** (U8): łańcuch purge, GDPR i joby nigdy nie były uruchamiane pod rolą bez BYPASSRLS; DELETE bez polityki = 0 wierszy
-  po cichu. Mitygacja: DB-064, BE-138, BE-139, testy `SET ROLE app_user` w każdym tickecie DDL/DML.
+  po cichu. Mitygacja: DB-064, BE-138, BE-139, testy `SET ROLE app_user` w każdym tickecie DDL/DML. **Doprecyzowanie z DB-062 (2026-09-24, potwierdzone empirycznie na scratch DB):** to dotyczy DELETE/UPDATE — dla INSERT bez pasującej polityki (np. `audit_log`, brak polityki INSERT od V012) PostgreSQL rzuca twardy błąd zamiast cichego pominięcia wiersza; `anonymize_customer` (V096) pod `app_user` kończy się w trybie rzeczywistym pełnym ROLLBACK-iem na kroku `INSERT INTO audit_log`, nie częściowym sukcesem.
 - **R2 Destrukcyjne joby na danych demo** (archiwizacja 37 wierszy, purge 18–23 wiadomości, S3): WP-4, zgoda właściciela, dry-run liczący kandydatów.
 - **R3 Kolejność Poziom 1/Poziom 2** dla S3: awaria między usunięciem wiersza a obiektu osierocia plik; przyjęta kolejność „dzieci przed rodzicem,
   S3 przed wierszem, brak postępu = koniec pętli" (BE-125/126). Ocena w BE-124 (sekcja 6): poprawna i konieczna dla D1 = A — dzisiejsza pętla

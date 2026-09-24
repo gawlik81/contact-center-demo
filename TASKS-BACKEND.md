@@ -7336,7 +7336,7 @@ Po konwersjach (DB-065/DB-067) liczenie partycyjne przez `PartitionScanner` zami
 **Typ:** Backend implementation
 **Priorytet:** Must Have
 **Złożoność:** L (pierwotnie M; po korektach z DB-060: dwie ścieżki REST, podgląd zbioru podmiotu D9, jedno źródło audytu, stany operacyjne, S3 — przy D9 = B wraca do M; wykonawca może wydzielić podgląd D9 do osobnego PR)
-**Zależy od:** DB-060 ✅, DB-061, DB-062, DB-079 ✅, BE-125 ✅
+**Zależy od:** DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-112
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

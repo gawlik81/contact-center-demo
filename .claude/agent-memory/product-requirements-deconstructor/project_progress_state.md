@@ -1,13 +1,16 @@
 ---
 name: project_progress_state
-description: Stan ukończenia DB/BE/FE (2026-09-22, po turze 3) — DB 57/79, BE 123/144, FE 109/112 (289/335); EPIC-01..29 ukończone, EPIC-30 w toku (6/51: BE-124, DB-060, BE-125, DB-079, BE-126, BE-143), BE-144 poza epikiem; lekcje o rekoncyliacji PROGRESS.md i symetrii zależności
+description: Stan ukończenia DB/BE/FE (2026-09-24, po turze 4) — DB 59/79, BE 123/144, FE 109/112 (291/335); EPIC-01..29 ukończone, EPIC-30 w toku (8/51: BE-124, DB-060, BE-125, DB-079, BE-126, BE-143, DB-061, DB-062), BE-144 poza epikiem; lekcje o rekoncyliacji PROGRESS.md, symetrii zależności i o resetach scratchpada między turami
 metadata:
   type: project
 ---
 
-Stan na **2026-09-21**, przeliczony z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/`TASKS-FRONTEND.md` (nie z wierszy PROGRESS.md):
-**DB 57/79, BE 123/144, FE 109/112 — RAZEM 289/335 (86%)**. Ukończone: EPIC-01..EPIC-29, DB-055 (porządki indeksów `contact`, V093, poza epikiem) oraz z EPIC-30: BE-124, DB-060 (2026-09-20), BE-125, DB-079 (2026-09-21), BE-126, BE-143 (2026-09-22). Nierozpoczęte: 45 ticketów **EPIC-30** (DB 22, BE 20, FE 3; patrz `[[project-epic30-plan]]`) + BE-144 (porządkowy, `Epic: brak`, jak DB-055) = 46 ⬜.
-Najwyższe numery: DB-079 / BE-144 / FE-112; następny epik zaczyna od DB-080 / BE-145 / FE-113 (BE-143 = EPIC-30, BE-144 = poza epikiem). Najwyższa migracja w repo: **V094** (DB-079, NIEZASTOSOWANA na żywej bazie — Flyway zastosuje przy starcie po przebudowie obrazu); następna wolna V095 (sprawdzić refy + `flyway_schema_history`).
+Stan na **2026-09-24**, przeliczony z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`/`TASKS-FRONTEND.md` (nie z wierszy PROGRESS.md):
+**DB 59/79, BE 123/144, FE 109/112 — RAZEM 291/335 (87%)**. Ukończone: EPIC-01..EPIC-29, DB-055 (porządki indeksów `contact`, V093, poza epikiem) oraz z EPIC-30: BE-124, DB-060 (2026-09-20), BE-125, DB-079 (2026-09-21), BE-126, BE-143 (2026-09-22), DB-061, DB-062 (2026-09-24). Nierozpoczęte: 43 tickety **EPIC-30** (DB 20, BE 20, FE 3; patrz `[[project-epic30-plan]]`) + BE-144 (porządkowy, `Epic: brak`, jak DB-055) = 44 ⬜.
+Najwyższe numery: DB-079 / BE-144 / FE-112 (DB-061/DB-062 nie podnoszą najwyższy numer ticketu DB, bo są < DB-079). Najwyższa migracja w repo: **V096** (DB-062; V094/V095/V096 NIEZASTOSOWANE na żywej bazie — Flyway zastosuje wszystkie trzy przy starcie po przebudowie obrazu); następna wolna V097 (sprawdzić refy + `flyway_schema_history`).
+## Reset scratchpada między turami (2026-09-24, ważna lekcja)
+Skrypty `verify_all.py`/`neg_test.py`/`check_epic30.py` zapisane w scratchpadzie NIE przetrwały do kolejnej sesji, mimo identycznej ścieżki katalogu (ta sama nazwa UUID w kolejnych wiadomościach koordynatora nie gwarantuje persystencji plików — scratchpad jest opisany jako "session-specific"). Przy każdej nowej sesji/turze: (1) sprawdź `ls` scratchpada PRZED założeniem, że skrypty tam są; (2) jeśli ich brak, odtwórz `verify_all.py` i `neg_test.py` z opisu w tym pliku pamięci (logika: parsowanie nagłówków `### XX-NNN`, pola Zależy od/Blokuje/Status/Czeka na BE/Epic, symetria A-błąd/B-warn z rozróżnieniem tranzytywne/bezpośrednie, cykle Kahna, liczniki PROGRESS.md, tabela EPIC-30 + "Bez epiku" + "Łącznie", znaczniki ✅); (3) `check_epic30.py` (oryginalny skrypt koordynatora) nie trzeba odtwarzać — `verify_all.py` go w pełni zastępuje (szerszy zakres: całe pliki, nie tylko EPIC-30). **Próg "HARDCODED MIGRATION" musi być DYNAMICZNY**, nie stałą liczbą: liczony jako `max(V-numer plików w backend/src/main/resources/db/migration)`, bo migracje wcześniej "jeszcze niezarezerwowane" (V095, V096) z czasem stają się prawdziwymi, ukończonymi migracjami i ich cytowanie w treści własnego ticketu przestaje być błędem.
+
 
 **Why:** Ten plik to migawka — sprawdzaj bezpośrednio pliki TASKS-*.md przed poleganiem na liczbach.
 
@@ -28,4 +31,4 @@ Pola `Zależy od`/`Blokuje` są symetryczne w całych trzech plikach (FE: `Czeka
 ## Historia epików (skrót)
 - EPIC-25 (Kampanie — refaktor i transfer), EPIC-26 (AI Summary), EPIC-27 (własne dyspozycje), EPIC-28 (Per-Tenant Plugin System) — ✅.
 - EPIC-29 (Partycjonowanie i retencja danych z obsługi kontaktów, DB-046..054, BE-111..119, FE-103..109) — ✅ (notatki implementacyjne 2026-08-09..2026-08-13), patrz `[[project_epic29_plan]]`.
-- EPIC-30 (Retencja wiadomości, harmonogramy, partycjonowanie tabel wiadomości; 51 ticketów po dopisaniu BE-143 z code review BE-125) — zaplanowany 2026-09-20, ✅ BE-124, DB-060, BE-125, DB-079, BE-126, BE-143; reszta ⬜.
+- EPIC-30 (Retencja wiadomości, harmonogramy, partycjonowanie tabel wiadomości; 51 ticketów po dopisaniu BE-143 z code review BE-125) — zaplanowany 2026-09-20, ✅ BE-124, DB-060, BE-125, DB-079, BE-126, BE-143, DB-061, DB-062; reszta ⬜ (Must nierozpoczęte: DB-059, BE-127, BE-129).

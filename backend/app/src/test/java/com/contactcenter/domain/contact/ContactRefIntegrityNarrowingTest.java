@@ -550,8 +550,15 @@ class ContactRefIntegrityNarrowingTest {
             assertThat(scalar(c, "SELECT count(*) FROM contact WHERE customer_id = ? AND remote_address IS NOT NULL", CUSTOMER_TO_ANONYMIZE))
                     .as("kontakty klienta z remote_address przed anonimizacją").isEqualTo("2");
 
-            assertThat((Throwable) failureOf(c, "SELECT anonymize_customer(?, ?, NULL)", CUSTOMER_TO_ANONYMIZE, TENANT_A))
-                    .as("anonymize_customer po DB-079 nie rzuca").isNull();
+            // DB-062 (V096): sygnatura zmieniona na (UUID, UUID, UUID, BOOLEAN p_dry_run DEFAULT FALSE),
+            // typ zwracany VOID -> JSONB. p_dry_run podane JAWNIE jako FALSE (nie polegamy na DEFAULT w
+            // wywołaniu natywnym). Funkcja wywołana RAZ — wynik odczytany z podzapytania, żeby nie
+            // wywołać jej drugi raz (druga inwokacja byłaby idempotentna i pokazałaby zera, nie realne liczniki).
+            String contactCount = scalar(c,
+                    "SELECT (j -> 'counts' ->> 'contact') FROM (SELECT anonymize_customer(?, ?, NULL, FALSE) AS j) t",
+                    CUSTOMER_TO_ANONYMIZE, TENANT_A);
+            assertThat(contactCount).as("anonymize_customer po DB-079/DB-062 nie rzuca i zwraca JSONB z licznikiem contact = 2")
+                    .isEqualTo("2");
 
             assertThat(scalar(c, "SELECT is_deleted FROM customer WHERE customer_id = ?", CUSTOMER_TO_ANONYMIZE)).isEqualTo("true");
             assertThat(scalar(c, "SELECT count(*) FROM contact WHERE customer_id = ?", CUSTOMER_TO_ANONYMIZE))

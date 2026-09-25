@@ -1,6 +1,7 @@
 package com.contactcenter.api;
 
 import com.contactcenter.domain.email.EmailAttachmentAccessDeniedException;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -185,6 +186,44 @@ class GlobalExceptionHandlerTest {
             ProblemDetail problem = response.getBody();
             assertThat(problem).isNotNull();
             assertThat(problem.getDetail()).doesNotContain(foreignKey).doesNotContain(TENANT_B.toString());
+        }
+    }
+
+    // =========================================================================
+    // Testy ConflictException – BE129-02 (code review BE-129, 2026-09-24)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("ConflictException – HTTP 409 (BE-008, reużyte BE-129 dla rekordów \"w toku\")")
+    class ConflictExceptionTests {
+
+        @Test
+        @DisplayName("konflikt stanu zasobu zwraca HTTP 409")
+        void conflict_returns409() {
+            ConflictException ex = new ConflictException("Klient ma powiązany rekord w trakcie realizacji "
+                    + "połączenia — anonimizacja odrzucona: customerId=" + RESOURCE_ID);
+
+            ResponseEntity<ProblemDetail> response = handler.handleConflictException(ex, webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(response.getStatusCode().value()).isEqualTo(409);
+        }
+
+        @Test
+        @DisplayName("odpowiedź jest w formacie RFC 7807 Problem Details i niesie oryginalny komunikat")
+        void conflict_responseIsProblemDetail_carriesOriginalMessage() {
+            ConflictException ex = new ConflictException("Klient ma powiązany rekord w trakcie realizacji "
+                    + "połączenia — anonimizacja odrzucona: customerId=" + RESOURCE_ID);
+
+            ResponseEntity<ProblemDetail> response = handler.handleConflictException(ex, webRequest);
+
+            ProblemDetail problem = response.getBody();
+            assertThat(problem).isNotNull();
+            assertThat(problem.getStatus()).isEqualTo(409);
+            assertThat(problem.getType().toString()).contains("conflict");
+            assertThat(problem.getTitle()).isNotBlank();
+            assertThat(problem.getDetail()).contains(RESOURCE_ID.toString());
+            assertThat(problem.getProperties()).containsKey("timestamp");
         }
     }
 

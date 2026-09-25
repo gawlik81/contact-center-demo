@@ -3163,7 +3163,7 @@ indeksy (`uq_mv_*`), więc `REFRESH … CONCURRENTLY` byłby możliwy. Widoki ma
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-124 (✅ zamknięte 2026-09-20: D1 = A przyjęte roboczo, definicja „wieku" wiadomości potwierdzona w BE-124 §7)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-25) — migracja V097, notatka wykonania poniżej
 **Blokuje:** BE-127, DB-065, DB-067
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -3183,16 +3183,55 @@ BE-125/BE-127 wprowadzają `DELETE … WHERE tenant_id = … AND contact_id IN (
 - Konwersje DB-065/DB-067 odtwarzają te indeksy na tabelach partycjonowanych (AC w tamtych ticketach).
 
 **Kryteria akceptacji:**
-- [ ] (WP-3) Migracja idempotentna, numer wg reguły, `COMMENT ON INDEX` z definicją „wieku"
-- [ ] (WP-3) `EXPLAIN` zapytania sweepu osieroconych **dokładnie w postaci z BE-127** (to samo wyrażenie `COALESCE`) na scratch (≥ 200 tys. wierszy, 60 tenantów, ~20 % osieroconych) → Index/Bitmap Scan na nowym indeksie, bez Seq Scan; pod `SET ROLE app_user` z GUC
-- [ ] `DELETE … WHERE tenant_id = … AND contact_id IN (…)` używa `idx_email_message_contact`/`idx_social_message_contact` (EXPLAIN w notatce)
-- [ ] Rozmiar indeksów zmierzony (koszt zapisu); pełny łańcuch Flyway zielony (WP-1)
+- [x] (WP-3) Migracja idempotentna, numer wg reguły, `COMMENT ON INDEX` z definicją „wieku"
+- [x] (WP-3) `EXPLAIN` zapytania sweepu osieroconych **dokładnie w postaci z BE-127** (to samo wyrażenie `COALESCE`) na scratch (≥ 200 tys. wierszy, 60 tenantów, ~20 % osieroconych) → Index/Bitmap Scan na nowym indeksie, bez Seq Scan; pod `SET ROLE app_user` z GUC
+- [x] `DELETE … WHERE tenant_id = … AND contact_id IN (…)` używa `idx_email_message_contact`/`idx_social_message_contact` (EXPLAIN w notatce)
+- [x] Rozmiar indeksów zmierzony (koszt zapisu); pełny łańcuch Flyway zielony (WP-1)
 
 **Wpływ decyzji D1 na indeks (BE-124 §1, tabela wpływu; D1 = A przyjęte roboczo 2026-09-20 bez wyraźnego potwierdzenia PO):**
 - **D1 = A (założenie):** indeksy dokładnie jak w Zakresie — sweep osieroconych `WHERE contact_id IS NULL` po wieku.
 - **D1 = B (anonimizacja):** wiersze zostają, więc sweep musi wybierać wiersze jeszcze niezanonimizowane — potrzebny znacznik „zanonimizowano" (kolumna → osobny ticket DB) i predykat `WHERE contact_id IS NULL AND <znacznik> IS NOT TRUE`; bez niego sweep nie jest idempotentny (za każdym razem znajduje te same wiersze).
 - **D1 = C (`MESSAGE_CONTENT`):** usuwanie po wieku obejmuje także wiadomości powiązane z kontaktami, więc indeksy bez `WHERE contact_id IS NULL`: `(tenant_id, (COALESCE(received_at, sent_at, created_at)))` i `(tenant_id, sent_at)`.
 - Definicja wieku potwierdzona (BE-124 §7): `COALESCE(received_at, sent_at, created_at)` jest totalna (`created_at NOT NULL`); INBOUND = INTERNALDATE serwera IMAP (`getReceivedDate()`), nie nagłówek `Date` nadawcy — patrz DB-066/DB-067 (źródło `message_at`). Filtr resztkowy z BE-127 (`created_at < now() − 1 dzień`) nie psuje indeksu.
+
+**Notatka z wykonania (2026-09-25):**
+
+**Migracja:** `V097__add_orphan_message_age_purge_indexes.sql` — numer zweryfikowany przez `git fetch` + `git ls-tree` na wszystkich gałęziach (lokalnych i `origin/*`) oraz `flyway_schema_history` żywej bazy (tylko odczyt): najwyższy numer wszędzie to V096 (ta gałąź), V093 na `develop`/`origin/develop`, brak jakiejkolwiek gałęzi z V097 — potwierdzone jeszcze raz zgodnie z zaleceniem zlecenia. Treść: 2× `CREATE INDEX IF NOT EXISTS` + `COMMENT ON INDEX`, wzorzec nagłówka/uzasadnienia 1:1 z V089 (DB-053).
+```sql
+CREATE INDEX IF NOT EXISTS idx_email_message_tenant_orphan_age
+    ON email_message (tenant_id, (COALESCE(received_at, sent_at, created_at)))
+    WHERE contact_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_social_message_tenant_orphan_sent
+    ON social_message (tenant_id, sent_at)
+    WHERE contact_id IS NULL;
+```
+Idempotencja zweryfikowana: drugie uruchomienie tego samego pliku na bazie scratch daje `NOTICE: relation "..." already exists, skipping` bez błędu.
+
+**Baza scratch (`scratch_db059`, `pg_dump -s` z `contact_center` + ręczne zastosowanie V094–V097, usunięta po pracy):** 210 000 wierszy w `email_message` i 210 000 w `social_message`, 60 syntetycznych tenantów, ~20 % osieroconych (`contact_id IS NULL`, dokładnie 41 998/210 000 w obu tabelach). **Pułapka metodologiczna wykryta i naprawiona:** pierwsza próba generowania danych przydzielała tenanta przez `g % 60` i osierocenie przez `g % 5` — ponieważ 60 jest wielokrotnością 5, każdy tenant wypadał albo w 100 %, albo w 0 % osierocony (globalny odsetek 20 % był poprawny, ale rozkład per-tenant fałszywy), co dawało mylący plan (Seq Scan poprawny dla tenanta bez osieroconych wierszy). Naprawiono przez niezależne hashe (`hashtext('t'||g)`/`hashtext('o'||g)`) — każdy z 60 tenantów ma realną mieszankę 653–756 osieroconych wierszy (średnio 700).
+
+**EXPLAIN sweepu osieroconych (kształt BE-127, `COALESCE`), pod `SET ROLE app_user` + `set_config('app.current_tenant_id', …)`:**
+```
+EMAIL: Bitmap Heap Scan on email_message (actual rows=643, Execution Time 3.51 ms)
+       Recheck Cond: (tenant_id = ? AND contact_id IS NULL)
+       Filter: COALESCE(received_at, sent_at, created_at) < now() - interval '30 days'
+       -> Bitmap Index Scan on idx_email_message_tenant_orphan_age
+
+SOCIAL: Bitmap Heap Scan on social_message (actual rows=643, Execution Time 3.18 ms)
+        Recheck Cond: (tenant_id = ? AND sent_at < now() - interval '30 days' AND contact_id IS NULL)
+        -> Bitmap Index Scan on idx_social_message_tenant_orphan_sent
+```
+Brak Seq Scan w obu planach. Odtworzone też w Testcontainers (`OrphanMessagePurgeIndexesTest`, 30 000 wierszy/tenant, w tym pod restrykcyjną rolą `app_user`‑podobną bez BYPASSRLS) — ten sam wynik.
+
+**Regresja `DELETE/SELECT … WHERE tenant_id = … AND contact_id IN (…)` (kształt BE-125/BE-126, `EmailMessageRepository#FIND_ATTACHMENTS_SQL`/`DELETE_BY_IDS_SQL`, `SocialMessageRepository#DELETE_BY_CONTACT_IDS_SQL`), na tym samym scratch pod `app_user`:** `FIND_ATTACHMENTS_SQL` → `Index Scan using idx_email_message_contact`; `DELETE_BY_IDS_SQL` → `Index Scan using pk_email_message`; `DELETE_BY_CONTACT_IDS_SQL` (social) → `Index Scan using idx_social_message_contact`. Żaden Seq Scan — V097 nie zmienia planu istniejących zapytań purge kontaktu. Dodatkowo: pełny `mvn test` na `EmailMessagePurgeIntegrationTest`/`SocialMessagePurgeIntegrationTest`/`EmailMessagePurgeRlsIntegrationTest` (34 testy, w tym istniejące nested `QueryPlans`/`PlanAndDeprecation` z własnym EXPLAIN na tych samych indeksach) — 0 błędów z V097 na classpath.
+
+**Rozmiar indeksów (scratch, 210 000 wierszy/tabela, 42 000 pasujących do częściowego `WHERE`):** `idx_email_message_tenant_orphan_age` = 1344 kB, `idx_social_message_tenant_orphan_sent` = 1344 kB — dla porównania pełne (nie częściowe) `idx_email_message_contact`/`idx_social_message_contact` na tych samych danych: 8792 kB / 8920 kB (≈6,5× większe — częściowy `WHERE contact_id IS NULL` pokrywa tylko ~20 % wierszy). Koszt zapisu: dwa dodatkowe wpisy indeksu tylko dla wierszy `contact_id IS NULL` (osierocone są rzadkością docelowo — routing przypisuje kontakt przy normalnym przepływie), więc narzut na `INSERT`/`UPDATE...SET contact_id` jest znikomy.
+
+**Decyzja `CREATE INDEX` vs `CONCURRENTLY`:** zwykły `CREATE INDEX IF NOT EXISTS` w transakcji Flyway (bez `executeInTransaction=false`), wzorzec V089/DB-053 zastosowany 1:1. Uzasadnienie: tabele live są mikroskopijne (`email_message` 55 wierszy, `social_message` 0) — SHARE lock na czas budowy indeksu to pojedyncze milisekundy, niezauważalne. `CREATE INDEX CONCURRENTLY` nie może działać wewnątrz transakcji, a wzorzec non-transactional migration nie jest dziś używany nigdzie w repo — wprowadzanie go dla 2 małych indeksów byłoby nieproporcjonalne. Rekomendacja produkcyjna (zapisana w nagłówku migracji): gdy wolumen urośnie (sygnał: partycjonowanie DB-065/DB-067 tych samych tabel), wykonać równoważny `CREATE INDEX CONCURRENTLY` jako ręczny krok DBA poza Flyway.
+
+**Testy:** nowa klasa `OrphanMessagePurgeIndexesTest` (Testcontainers, pełny łańcuch Flyway) — 6/6 zielonych: (1) definicja obu indeksów (`pg_indexes.indexdef`, w tym częściowy `WHERE (contact_id IS NULL)`), (2) `COMMENT ON INDEX` odwołujący się do DB-059/BE-127, (3) `EXPLAIN` sweepu email (30 000 wierszy/tenant) → `idx_email_message_tenant_orphan_age`, bez Seq Scan, (4) `EXPLAIN` sweepu social → `idx_social_message_tenant_orphan_sent`, bez Seq Scan, (5) to samo zapytanie email pod restrykcyjną rolą (`PostgresTestDatabase#createRestrictedLoginRole`, odpowiednik `app_user`, bez BYPASSRLS) + GUC — nadal Bitmap Scan. **Pułapka w tej samej klasie testowej:** pierwsza wersja podtestu (5) wstawiała TYLKO wiersze osierocone (100 % `contact_id IS NULL`) dla jednego świeżego tenanta — bez selektywności warunku `contact_id IS NULL` (identyczna pułapka jak w danych scratch, opisana wyżej) planner poprawnie wybierał Seq Scan; naprawiono tym samym rozkładem 80/20 co w pozostałych podtestach. Pełny `mvn verify -pl app` (jeden przebieg, całe drzewo backendu, bez `clean`): **Tests run: 2110, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS.**
+
+**Odstępstwa i ryzyka:** brak odstępstw od zakresu ticketu. D1 pozostaje założeniem roboczym (A) — przy zmianie na B/C definicje indeksów trzeba będzie zrewidować (patrz „Wpływ decyzji D1" wyżej, bez zmian w tej migracji). BE-127 nadal nieistniejący — zapytania EXPLAIN w tej notatce i w teście są odtworzone tekstowo z zakresu ticketu/BE-124 §7, nie odczytane z produkcyjnego kodu; gdy BE-127 powstanie, wart jest jednorazowy przegląd, czy faktyczny SQL repozytorium jest bit-w-bit zgodny z tym, co tu zweryfikowano (w szczególności filtr resztkowy `created_at < now() − 1 dzień` wspomniany w BE-124 §7 — nie zmienia planu, bo dokłada się jako `Filter`, nie `Index Cond`, ale nie był explicite testowany).
 
 ---
 
@@ -3670,7 +3709,7 @@ Lista ścieżek zapisu do przeglądu (w notatce): `EmailPollingServiceImpl` (sch
 **Typ:** Schema migration (partycjonowanie online)
 **Priorytet:** Should Have
 **Złożoność:** M (0 wierszy = najtańsze okno na zmianę klucza; zgodnie z oceną zlecenia)
-**Zależy od:** BE-126 ✅ (Poziom 1 usuwa wiadomości), DB-059, DB-064
+**Zależy od:** BE-126 ✅ (Poziom 1 usuwa wiadomości), DB-059 ✅, DB-064
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-132
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -3746,7 +3785,7 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 **Typ:** Schema migration (partycjonowanie online) — [BRAMKOWANY: wchodzi po „go" z DB-066]
 **Priorytet:** Should Have
 **Złożoność:** L (zgodnie z oceną zlecenia: klucz złożony, backfill, dedup)
-**Zależy od:** DB-066 (go), DB-064, DB-059, BE-127 (Poziom 1 działa)
+**Zależy od:** DB-066 (go), DB-064, DB-059 ✅, BE-127 (Poziom 1 działa)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-134, DB-068
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

@@ -7262,7 +7262,7 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 **Typ:** Backend implementation
 **Priorytet:** Must Have
 **Złożoność:** M
-**Zależy od:** BE-126 ✅, DB-059
+**Zależy od:** BE-126 ✅, DB-059 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-128, DB-067, BE-135, BE-130
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

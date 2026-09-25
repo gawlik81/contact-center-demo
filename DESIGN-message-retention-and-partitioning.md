@@ -124,11 +124,11 @@ oraz (Could) zatrzymanie zapisu PII u źródła (BE-142). Wpływ alternatywy (`a
 
 ## 4. Fazy i fale
 
-Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143; 2026-09-24 DB-061, DB-062 (V095/V096 w kodzie, niezastosowane na żywej bazie), BE-129 (integracja Javy, bez nowej migracji)):
+Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143; 2026-09-24 DB-061, DB-062 (V095/V096 w kodzie, niezastosowane na żywej bazie), BE-129 (integracja Javy, bez nowej migracji); 2026-09-25 DB-059 (V097 w kodzie, niezastosowana na żywej bazie)):
 
 ```
 Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)
-Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128 → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 → BE-127
+Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128 → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 ✅ → BE-127
         DB-060 ✅ (audyt PII) → DB-061 ✅ (+ wspólna reguła D9) → DB-062 ✅ → BE-129 ✅ → FE-112      DB-079 ✅ (trigger V016) → DB-062 ✅, BE-129 ✅      BE-125 ✅ → BE-129 ✅
         BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139

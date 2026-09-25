@@ -5934,7 +5934,7 @@ i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z B
 **Typ:** Frontend implementation
 **Priorytet:** Should Have (w pierwotnym planie Could; przy D9 = A podgląd jest zabezpieczeniem przed fałszywymi trafieniami w nieodwracalnej operacji)
 **Złożoność:** M (w pierwotnym planie S; dochodzą podgląd D9 i przepięcie listy klientów na jedną ścieżkę anonimizacji)
-**Zależy od:** BE-129
+**Zależy od:** BE-129 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-129 (podgląd `GET /api/customers/{id}/gdpr/anonymize/preview`, przekierowanie `DELETE /api/customers/{id}` na `GdprService`, kształt manifestu eksportu — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
 **Blokuje:** brak

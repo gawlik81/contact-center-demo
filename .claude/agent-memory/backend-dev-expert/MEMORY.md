@@ -116,3 +116,4 @@
 - [Równoległy Maven = nieuruchomione nowe testy](feedback_maven_parallel_agents_stale_classes.md) — stale-detection po cudzym buildzie; sprawdzaj raporty per klasa, `touch`
 - [EPIC-30 BE-129 code review fixes](project_epic30_be129_code_review_fixes.md) — TOCTOU guard `FOR UPDATE` bez filtra statusu, `GdprControllerTest` @PreAuthorize przez `@EnableMethodSecurity`, usunięcie tautologicznego assertSameTenant
 - [Code review „istniejący wzorzec testowy" — zweryfikuj treść, nie grep](feedback_code_review_test_pattern_claim_unverified.md) — `RetentionControllerTest`/`EmailAttachmentControllerTest` wspominają „MockMvc" tylko w Javadoc o jego BRAKU
+- [EPIC-30 BE-127 sweep wiadomości osieroconych](project_epic30_be127_orphan_message_purge.md) — `purgeOrphansOlderThan` scala fetch+purge, dangling pominięty (uzasadnienie), filtr resztkowy tylko email, metodologia scratch DB w kontenerze cc-postgres

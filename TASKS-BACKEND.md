@@ -6804,10 +6804,10 @@ działają niezależnie od tej decyzji.
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
-> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 → BE-128;   DB-059 → BE-127;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126, BE-127, BE-128 → BE-130, tylko D1 = C]
+> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
+>           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126 ✅, BE-127 ✅, BE-128 → BE-130, tylko D1 = C]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
-> Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
+> Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 ✅ → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 → BE-138;   DB-064, DB-071 → BE-139
 > ```
@@ -6937,6 +6937,7 @@ log platformowy (DESIGN EPIC-29 §12.1) — więc rosną bez końca (najstarsza 
 **Zakres:**
 1. Refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)`: `ThresholdSource` = `CATEGORY_MAX_RETENTION(category)` (dziś) | `PLATFORM_HORIZON(propertyKey)` (nowe); `DropMode` = `AFTER_CUTOFF` (dzisiejsze zachowanie dla `contact*`: DROP także niepustej z WARN — **bez zmian**) | `ONLY_IF_EMPTY` (deklaracja; implementuje BE-133 jako pierwszy użytkownik).
 2. Ścieżka horyzontu: `retention.platform.audit-log-months` i `retention.platform.plugin-invocation-log-months` (domyślnie 24, walidacja ≥ 1: wartość niepoprawna → start z czytelnym błędem albo fallback 24 + WARN — opisz wybór); `cutoff = now(UTC) − months`; kandydat gdy `rangeEnd` ściśle `<` cutoff. **Niezależna od `RetentionPolicyService`** (brak polityk nie wyłącza tej ścieżki).
+**Uwaga z code review BE-127 (2026-09-26, BE127-01) — do rozstrzygnięcia przy implementacji, bez zmiany zakresu/AC powyżej:** punkt 1 zakłada `DropMode.AFTER_CUTOFF` dla `contact*` „dzisiejsze zachowanie … bez zmian" — nowy follow-up **BE-145** (poza epikiem) proponuje odwrotnie: `contact*` powinno przejść na coś w rodzaju `ONLY_IF_EMPTY` (niepusta partycja → pominięcie DROP, nie WARN-i-kontynuuj), żeby zamknąć dangling PII w `email_message`/`social_message` (brak FK). Kolejność wdrożenia (BE-123 najpierw i BE-145 tylko przełącza `DropMode` dla `contact*`, albo BE-145 najpierw jako mały, samodzielny patch i BE-123 dziedziczy nowe zachowanie zamiast „bez zmian") — do decyzji wykonawcy, który z ticketów trafi do implementacji pierwszy; ten, kto jest drugi, koryguje odpowiedni fragment tamtego ticketu.
 3. Partycja `<tabela>_default`: nigdy nie kandyduje (scanner ją wyklucza); **WARN gdy niepusta** (sygnał awarii rotacji — dokładnie błąd z EPIC-29/DB-052) — nowa metoda `PartitionScanner#countRows(String tableName)`/`isEmpty`.
 4. Niepusta partycja po horyzoncie jest OCZEKIWANA (brak Poziomu 1 dla logów platformowych) → INFO z liczbą wierszy, DROP wykonany.
 5. **Bug:** `PartitionScannerImpl#countRowsByTenant` robi `UUID.fromString(row[0].toString())` — dla `audit_log` (`tenant_id` nullable = zdarzenia globalne) `row[0] == null` → `NullPointerException`. Dodaj obsługę NULL (metoda `countRows` bez grupowania po tenancie dla ścieżki platformowej + poprawka `countRowsByTenant`) i test na prawdziwej bazie.
@@ -7263,7 +7264,7 @@ Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-126 ✅, DB-059 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-26) — patrz „Notatka z wykonania" poniżej
 **Blokuje:** BE-128, DB-067, BE-135, BE-130
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -7281,12 +7282,12 @@ Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id 
 - **Dry-run:** `countOrphansOlderThan` używa BE-128 i skrypt kandydatów do live-testu (WP-4).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers: mieszanka — osierocona stara (usunięta), osierocona świeża (zostaje), powiązana z istniejącym kontaktem (zostaje), stara osierocona tenanta B (zostaje); wiadomość z załącznikami → S3 sprzątane
-- [ ] `EXPLAIN` pod `SET ROLE app_user` z GUC: użyty indeks z DB-059, bez Seq Scan (scratch, ≥ 200 tys. wierszy)
-- [ ] Idempotencja; awaria S3 → wiadomość zostaje, brak nieskończonej pętli; test świeżej wiadomości w trakcie routingu (nie usuwana)
-- [ ] (WP-2) Wołane z `purgeAsync` (kontekst z snapshotu), bez `clear()` w repozytorium; test z pustym `TenantContext` → `IllegalStateException`
-- [ ] (WP-4, destrukcyjne) PRZED uruchomieniem policz kandydatów w demo (dry-run; **stan z 2026-09-20: 0 kandydatów przy polityce 6 mies., 23 sieroty ogółem, 15 z `body_html`** — test wymaga tymczasowego skrócenia polityki tenanta testowego), uzyskaj zgodę właściciela; po: `retention_purge_log.rows_deleted`, brak obiektów S3
-- [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A
+- [x] (WP-1) Test Testcontainers: mieszanka — osierocona stara (usunięta), osierocona świeża (zostaje), powiązana z istniejącym kontaktem (zostaje), stara osierocona tenanta B (zostaje); wiadomość z załącznikami → S3 sprzątane — `EmailMessageOrphanPurgeIntegrationTest$AcMixture`/`SocialMessageOrphanPurgeIntegrationTest$AcMixture`
+- [x] `EXPLAIN` pod `SET ROLE app_user` z GUC: użyty indeks z DB-059, bez Seq Scan (scratch, ≥ 200 tys. wierszy) — wykonane ręcznie na `scratch_be127` (210 000 wierszy/tabela, usunięta po pracy), wynik w „Notatce z wykonania"; odtworzone automatycznie na mniejszym wolumenie w `EmailMessageOrphanPurgeIntegrationTest$QueryPlans`/`SocialMessageOrphanPurgeIntegrationTest$QueryPlans`
+- [x] Idempotencja; awaria S3 → wiadomość zostaje, brak nieskończonej pętli; test świeżej wiadomości w trakcie routingu (nie usuwana) — `IdempotencyAndS3Failure`, `AcMixture` (filtr resztkowy)
+- [x] (WP-2) Wołane z `purgeAsync` (kontekst z snapshotu), bez `clear()` w repozytorium; test z pustym `TenantContext` → `IllegalStateException` — `TenantContextHandling` w obu testach integracyjnych + regresja w `RetentionPurgeServiceImplTest`
+- [ ] (WP-4, destrukcyjne) PRZED uruchomieniem policz kandydatów w demo (dry-run; **stan z 2026-09-20: 0 kandydatów przy polityce 6 mies., 23 sieroty ogółem, 15 z `body_html`; potwierdzone ponownie 2026-09-26 (tylko odczyt): wciąż 0 kandydatów przy obu politykach tenantów demo (6 i 60 mies.), `social_message` = 0 wierszy** — ŚWIADOMIE ODŁOŻONE w tej iteracji (zakaz zlecającego: bez uruchamiania purge na demo/live), wymaga zgody właściciela przed wykonaniem
+- [x] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A
 
 **Uwaga z BE-125 (2026-09-21):**
 - Faza „S3 przed wierszem" jest już zaimplementowana w `EmailMessageServiceImpl#purgeRows(tenantId, List<AttachmentsRow>)` — package-private, tak samo jak rekord `EmailMessageRepository.AttachmentsRow(messageId, contactId, attachmentsJson)` (logika BE-127 w pakiecie `domain.email`). BE-127 dokłada tylko własny SELECT sierot zwracający `AttachmentsRow` (z `contactId = null`); allow-lista prefiksu (`EmailAttachmentKeys#isOwnedByTenant`), kolejność S3 → wiersz i potwierdzenie `DELETE … RETURNING` są już w `purgeRows`. Osierocone nie trafiają do `contactIdsBlocked`.
@@ -7304,6 +7305,80 @@ Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id 
 **Uwaga z BE-143 (2026-09-22) — publiczne API allow-listy do użycia:**
 - `EmailAttachmentKeys.isOwnedByTenant(UUID tenantId, String s3Key)` (schemat `email-attachments/{tenantId}/…`) i `EmailAttachmentKeys.isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania, EML z `contact.recording_url`) są PUBLICZNE od BE-143. Dla BE-127 istotna głównie pierwsza (sieroty to wiadomości e-mail/social, nie `contact.recording_url`) — użyj jej zamiast pisać własną kopię `startsWith`, jeśli sieroty niosą klucze spoza `email-attachments/{tenantId}/`.
 
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano:**
+- `domain/email/EmailOrphanCursor.java` (nowy, public record `(Instant messageAt, UUID messageId)`) i `domain/email/OrphanEmailPurgeBatch.java` (nowy, public record `(PurgedMessages purgedMessages, int candidatesFound, EmailOrphanCursor nextCursor)`) — kursor keyset i wynik JEDNEJ strony sweepu, analogicznie do `ContactPurgeCandidate` (BE-126), ale scalające fetch+purge w jednym wywołaniu serwisu (nie ma potrzeby rozdzielać jak dla kontaktów, bo sierota nie wpływa na żadną inną decyzję).
+- `domain/email/EmailMessageRepository.java` — `COUNT_ORPHANS_SQL`/`FIND_ORPHANS_FIRST_PAGE_SQL`/`FIND_ORPHANS_NEXT_PAGE_SQL` budowane z JEDNEJ stałej `ORPHAN_AGE_EXPR = "COALESCE(received_at, sent_at, created_at)"` przez `.formatted(...)` — mechaniczna (nie tylko konwencjonalna) gwarancja identycznego wyrażenia „wieku" w trzech zapytaniach i w predykacie indeksu DB-059. Nowy package-private record `OrphanCandidate(messageId, messageAt, attachmentsJson)` z `toAttachmentsRow()`. `countOrphansOlderThan`/`findOrphansOlderThan` — obie `assertSameTenant` + `setTenantContextInDb` (WP-2). Filtr resztkowy: `created_at < :residualCutoff`, `residualCutoff = Instant.now().minus(Duration.ofDays(1))` liczone W JAVIE (nie SQL `now()`) — konsekwentnie z resztą repozytorium, gdzie `cutoff` też jest parametrem od wołającego, nie funkcją SQL.
+- `domain/email/{EmailMessageService.java,EmailMessageServiceImpl.java}` — `countOrphansOlderThan` (czysta delegacja), `purgeOrphansOlderThan` (fetch strony kandydatów → mapowanie na `AttachmentsRow` → **reużycie `purgeRows` 1:1 z BE-125** dla fazy S3+DELETE, zero duplikacji logiki allow-listy/kolejności/potwierdzenia `RETURNING` → zbudowanie `OrphanEmailPurgeBatch` z kursorem ostatniego kandydata strony).
+- `domain/social/{SocialOrphanCursor.java,OrphanSocialPurgeBatch.java}` (analogiczne, bez S3 — `OrphanSocialPurgeBatch(int deletedRows, int candidatesFound, SocialOrphanCursor nextCursor)`).
+- `domain/social/SocialMessageRepository.java` — analogiczne 3 zapytania (`sent_at` NOT NULL, bez `COALESCE`, BEZ filtra resztkowego — decyzja niżej), `OrphanCandidate(messageId, messageAt)`, `countOrphansOlderThan`/`findOrphansOlderThan`/nowa `deleteOrphansByIds` (`DELETE … RETURNING message_id`, wzorzec `EmailMessageRepository#deleteByIds` — potwierdzenie faktycznego usunięcia, nie liczby zleconych, DESIGN §2 U8/R1).
+- `domain/social/{SocialMessageService.java,SocialMessageServiceImpl.java}` — analogicznie.
+- `domain/retention/RetentionPurgeServiceImpl.java` — `purgeContactInteractionsWithMessageDeletion` rozszerzone o DWIE NIEZALEŻNE pętle keyset PO pętli kontaktów i PO pętli `contact_event` (email, potem social), pod TĄ SAMĄ flagą `retention.purge.delete-messages` (`deleteMessagesEnabled`) — zgodnie z decyzją zlecającego, bez nowej flagi. `ContactInteractionsPurgeResult` +2 pola (`orphanEmailMessagesDeleted`/`orphanSocialMessagesDeleted`), wliczone do `totalRowsDeleted()`; `s3ObjectsDeleted`/`s3Failures`/`s3Rejected` sumowane WSPÓLNIE z fazą kontakt-tied (te same akumulatory lokalne).
+
+**Kryterium wieku i filtr resztkowy (dokładnie z DB-059/BE-124 §7):** e-mail = `COALESCE(received_at, sent_at, created_at)`, social = `sent_at`. Filtr resztkowy `created_at < now() − 1 dzień` TYLKO dla e-mail — uzasadnienie: dla INBOUND „wiek" to INTERNALDATE serwera IMAP (`Message#getReceivedDate()`), które może być historyczne (skrzynka zmigrowana/świeżo podłączona) w chwili, gdy zapis do bazy jest „teraz" i wiadomość może jeszcze nie być przypisana do kontaktu (routing asynchroniczny, DESIGN §2 U1). Dla social **filtr resztkowy pominięty świadomie** — `contact_id` jest ZAWSZE ustawiany SYNCHRONICZNIE przed zapisem wiadomości (`SocialMessageServiceImpl#processIncomingWithTenantContext`, krok 4: kontakt tworzony/dobierany PRZED `save`, w tej samej transakcji) — świeża, jeszcze nieprzypisana wiadomość social z `contact_id IS NULL` nie istnieje strukturalnie w tym kodzie; „sierota" social może powstać WYŁĄCZNIE przez `detachContactReferences` na kontakcie już starszym niż cutoff, więc nigdy nie jest „świeża" w sensie, przed którym broni filtr resztkowy e-mail.
+
+**Decyzja: wariant „dangling" (`NOT EXISTS`) — POMINIĘTY w tej iteracji, świadoma, udokumentowana luka.**
+Weryfikacja PRZED podjęciem decyzji (nie założenie): grep całego `backend/app/src/main/java` i wszystkich migracji SQL potwierdza, że wiersze `contact` są usuwane WYŁĄCZNIE przez `ContactRepository#deleteContacts` (BE-126, ścieżka z flagą=true) i `ContactRepository#deleteBatchOlderThan` (legacy, flaga=false) — zero innych `DELETE FROM contact` w Javie, zero w funkcjach SQL (`anonymize_customer` robi wyłącznie `UPDATE`). Presja na wariant dangling jest niska z dwóch niezależnych powodów: (1) tryb message-deletion (flaga=true) — BE-126 już zamyka okno SELECT→DELETE dla kontaktów WŁAŚNIE usuwanych (drugi przebieg `purgeByContactIds` po `deleteContacts`, BE125-02); (2) tryb legacy (flaga=false) — `detachContactReferences` jest wołane BEZPOŚREDNIO po każdym batchu `deleteBatchOlderThan`, DLA TYCH SAMYCH ID, w tym samym synchronicznym wywołaniu metody — nie ma zewnętrznego okna czasowego, w którym nowa wiadomość mogłaby dostać `contact_id` już usuniętego kontaktu (poza teoretycznym wyścigiem wątków wymagającym, żeby routing przypisywał wiadomości do kontaktów starszych niż cutoff retencji — co nie zdarza się w tym kodzie: routing operuje na nowych/aktywnych kontaktach). Koszt: `contact` ma PK złożony `(contact_id, started_at)` — zapytanie `NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)` bez `started_at` nie może przyciąć partycji i wymaga probingu PK KAŻDEJ partycji dla każdego kandydata-sieroty, nietrywialny narzut przy potwierdzonym **0 dangling live** (i brak jakiejkolwiek innej ścieżki usuwania `contact`, która by je produkowała). Decyzja: NIE implementować teraz; jeśli w przyszłości powstanie inna ścieżka usuwania `contact` (poza tymi dwiema), wariant dangling trzeba będzie zrewidować.
+
+**Kształt breakdownu audytu:** `orphanEmailMessages`/`orphanSocialMessages` jako pola OSOBNE od `emailMessages`/`socialMessages` (NIE zsumowane) — decyzja: obserwowalność (BE-128 dashboard/badge, audytorzy odróżniający „wiadomości kontaktu właśnie usuwanego" od „sierot wg wieku") jest cenniejsza niż minimalizm JSON, a koszt to tylko 2 dodatkowe pola. Liczniki S3 (`s3ObjectsDeleted`/`s3Failures`/`s3Rejected`) zostają WSPÓLNE dla obu źródeł — czysto techniczne liczniki, bez wartości w rozdzielaniu.
+
+**Wynik EXPLAIN (scratch `scratch_be127`, usunięta po pracy):** baza scratch utworzona wewnątrz działającego kontenera `cc-postgres` (NIE local-demo, osobna baza w tym samym klastrze — bez przebudowy/restartu stosu docker), schemat sklonowany `pg_dump -s` z `contact_center` (V093) + ręcznie zastosowane V094–V097 (jak w notatce DB-059). Wygenerowano 210 000 wierszy w `email_message` i 210 000 w `social_message`, 60 syntetycznych tenantów, niezależne hashe `hashtext('tenant-...'||g)`/`hashtext('orphan-...'||g)` (pułapka DB-059 z korelacją g%60/g%5 — TU uniknięta od razu), ~20,1%/20,0% osieroconych. Pod `SET ROLE cc_scratch_be127` (LOGIN, NOSUPERUSER NOBYPASSRLS, member `app_user`) + `set_config('app.current_tenant_id', …)`:
+```
+EMAIL COUNT:       Bitmap Heap Scan → Bitmap Index Scan on idx_email_message_tenant_orphan_age
+EMAIL FIRST PAGE:  Incremental Sort (Presorted Key) → Index Scan on idx_email_message_tenant_orphan_age
+EMAIL NEXT PAGE:   Bitmap Heap Scan → Bitmap Index Scan on idx_email_message_tenant_orphan_age
+SOCIAL COUNT:      Index Only Scan on idx_social_message_tenant_orphan_sent
+SOCIAL FIRST PAGE: Incremental Sort (Presorted Key) → Index Scan on idx_social_message_tenant_orphan_sent
+SOCIAL NEXT PAGE:  Incremental Sort → Index Scan on idx_social_message_tenant_orphan_sent (Index Cond dolny+górny)
+```
+ZERO Seq Scan w 6/6 planach. Filtr resztkowy (`created_at < now() − 1 dzień`) potwierdzony jako `Filter`, NIE `Index Cond` — nie zmienia planu (domysł z notatki wykonania DB-059 potwierdzony empirycznie, nie tylko rozumowaniem). RLS aktywne (widoczne `One-Time Filter: current_setting('app.current_tenant_id')`), bez wpływu na dobór indeksu. Odtworzone automatycznie (mniejszy wolumen, 30 000 wierszy/tenant, jak `OrphanMessagePurgeIndexesTest` z DB-059) w `EmailMessageOrphanPurgeIntegrationTest$QueryPlans`/`SocialMessageOrphanPurgeIntegrationTest$QueryPlans` — ten sam wynik. Baza scratch i rola testowa usunięte po pracy (`DROP DATABASE scratch_be127`, `DROP ROLE cc_scratch_be127`).
+
+**Weryfikacja stanu demo (2026-09-26, tylko odczyt, `SET default_transaction_read_only = on`):** `tenant_retention_policy` ma 2 tenantów z `CONTACT_INTERACTIONS` (6 i 60 miesięcy); `email_message`: 23 sieroty (polityka 6 mies.) + 1 sierota (polityka 60 mies.) OGÓŁEM, ale **0 kandydatów kwalifikujących się** przy obu politykach (kryterium BE-127 z filtrem resztkowym) — zgodne z projekcją z BE-124 (pierwsza sierota kwalifikuje się ≈ 2026-10-26). `social_message`: 0 wierszy. Żaden purge NIE został uruchomiony na tej bazie.
+
+**Pliki nowe:**
+- `domain/email/EmailOrphanCursor.java`, `domain/email/OrphanEmailPurgeBatch.java`
+- `domain/social/SocialOrphanCursor.java`, `domain/social/OrphanSocialPurgeBatch.java`
+- `domain/email/EmailMessageOrphanPurgeIntegrationTest.java` (13 testów, Testcontainers)
+- `domain/social/SocialMessageOrphanPurgeIntegrationTest.java` (12 testów, Testcontainers)
+
+**Pliki zmienione:**
+- `domain/email/{EmailMessageRepository.java,EmailMessageService.java,EmailMessageServiceImpl.java}`
+- `domain/social/{SocialMessageRepository.java,SocialMessageService.java,SocialMessageServiceImpl.java}`
+- `domain/retention/RetentionPurgeServiceImpl.java`
+- `domain/retention/RetentionPurgeServiceImplTest.java` (+3 nowe testy w nowym `@Nested OrphanSweep`; domyślne stuby „brak kandydatów" w `enableFlag()` dla WSZYSTKICH testów `MessageDeletionEnabled`; zmodyfikowany `tenantContext_isClearedAfterCompletion` — sweep sierot jest bezwarunkowy, więc `verifyNoInteractions` zamieniony na precyzyjne asercje `never()`/`verify(...)`; dodatkowa asercja `never()` w `flagFalse_neverCallsNewMethods`)
+
+**Wyniki testów:**
+- `EmailMessageOrphanPurgeIntegrationTest` — 13 nowych testów (Testcontainers, pełny Flyway), zielone.
+- `SocialMessageOrphanPurgeIntegrationTest` — 12 nowych testów (Testcontainers, pełny Flyway; `SocialMessageServiceImpl` z prawdziwym `SocialMessageRepository` i 4 mockami pozostałych zależności — nieużywanych przez metody BE-127), zielone.
+- `RetentionPurgeServiceImplTest` — 42 testy w klasie (0 regresji), w tym 3 nowe `OrphanSweep` i 1 zmodyfikowany.
+- Pakiety `domain.email` + `domain.social` + `domain.retention` łącznie: **466 testów, 0 błędów** (przebieg pośredni, przed pełnym `verify`).
+- Pełny `mvn clean verify -pl app` (2026-09-26): **BUILD SUCCESS, Tests run: 2138, Failures: 0, Errors: 0, Skipped: 0** (czas 05:10 min; baseline sprzed BE-127 — 2110 z notatki DB-059 — plus 28 nowych: 13 + 12 + 3).
+
+**Odstępstwa i ryzyka:**
+1. Wariant dangling (`NOT EXISTS`) pominięty — patrz decyzja wyżej; udokumentowana, świadoma luka.
+2. Filtr resztkowy tylko dla e-mail (uzasadnienie wyżej) — social bez niego.
+3. Ten ticket NIE wymagał nowej migracji SQL (indeksy DB-059/V097 już gotowe) — potwierdzone, brak zmian w `db/migration`.
+4. Cursor/candidate typy (`EmailOrphanCursor`/`SocialOrphanCursor`) są NOWYMI publicznymi rekordami top-level (nie reużywają `ContactPurgeCandidate`) — decyzja: różne domeny (`domain.email`/`domain.social`) nie importują wzajemnie swoich typów cross-package bez potrzeby (wzorzec istniejącej duplikacji `IN_LIST_CHUNK_SIZE` między `EmailMessageRepository`/`SocialMessageRepository`).
+
+**WP-4 (destrukcyjne) — jawnie ODŁOŻONE w tej iteracji.** Purge sierot NIE uruchomiony na demo/live (zakaz zlecającego). Stan zweryfikowany TYLKO ODCZYTEM 2026-09-26 (patrz wyżej): 0 kandydatów kwalifikujących się przy obu politykach tenantów demo. Uruchomienie wymaga zgody właściciela.
+
+**Czego nie zweryfikowano:**
+- WP-4 (local-demo/live) — jawnie odłożone, zakaz zlecającego w tej iteracji.
+- Zachowanie na bardzo dużej liczbie stron (> 3) w pętli keyset na prawdziwej bazie — testowane do 3 stron (25 wierszy, batch 10, jak `ContactRepositoryPurgeCandidatesIntegrationTest`).
+- Rzeczywisty S3/MinIO — testy integracyjne używają mocka `S3Client` (wzorzec BE-125), jak wszystkie testy purge w tym repo (brak MinIO w Testcontainers dla tej klasy testów, patrz [[feedback-jpa-real-db-integration-test-harness]]).
+- Zachowanie przy setkach tysięcy prawdziwych sierot w jednym tenancie (scratch miał ~700–750/tenant) — plan zapytań jest ten sam niezależnie od skali per-tenant (indeks częściowy filtruje po `tenant_id` najpierw), ale nie zmierzono czasu end-to-end jednego pełnego przebiegu pętli na takiej skali.
+
+**Code review i poprawki (2026-09-26):** `CR-BACKEND.md`, sekcja „Review: BE-127" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów. Jedno ustalenie major, **latentne, poza zakresem tego diffu (pre-existing od EPIC-29), nie regresja**:
+- **BE127-01:** decyzja „wariant dangling pominięty" zakłada, że `contact` jest usuwany wyłącznie przez `ContactRepository#deleteContacts`/`#deleteBatchOlderThan` (oba z zamkniętym oknem na sieroty). Recenzent znalazł TRZECI mechanizm: `PartitionReclaimJob#warnIfStillHasRows` — gdy partycja miesięczna `contact` kandydująca do `DROP` (próg liczony po najdłuższej retencji ze WSZYSTKICH tenantów) wciąż ma wiersze, job loguje WARN i **mimo to wykonuje `DROP TABLE`** (zweryfikowane w kodzie, `PartitionReclaimJob.java` ≈ 165–194 — to świadoma decyzja z EPIC-29, nie błąd wprowadzony teraz). `email_message`/`social_message` nie mają FK do `contact` (potwierdzone `\d contact` na żywej bazie), więc `DROP` nie kaskaduje — zostawia `contact_id` wskazujący na nic. Scenariusz: wieloletnia awaria purge Poziomu 1 dla jednego tenanta → `PartitionReclaimJob` i tak w końcu zdejmie starą partycję z pozostałymi wierszami → wiadomości powiązane z tymi kontaktami stają się dangling **bez żadnej ścieżki usunięcia** (sweep BE-127 łapie tylko `contact_id IS NULL`, nigdy dangling po FK).
+- **Ocena zlecającego:** odległy scenariusz (wymaga wieloletniej, niezauważonej awarii Poziomu 1), ale realny i bez dzisiejszej ochrony — dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), nie tylko tego ticketu. **Nie blokuje scalenia BE-127.** Warty osobnego ticketu poza EPIC-30 message-retention (dotyczy silnika partycji z EPIC-29) — do rozważenia: (a) `warnIfStillHasRows` powinien SKIPOWAĆ `DROP` dla niepustej partycji `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` (zgodnie z WP-5 z DESIGN — „niepusta → WARN i pominięcie", nie „WARN i kontynuuj"), zamiast ufać niesprawdzanemu w runtime niezmiennikowi; (b) i/lub sweep dangling po FK dla `email_message`/`social_message` jako druga linia obrony. Świadomie NIE tworzę tego ticketu w tej sesji bez decyzji — patrz rekomendacja poniżej.
+
+**Uwagi dla BE-128/BE-130/DB-067/BE-135:**
+- **BE-128:** `EmailMessageService#countOrphansOlderThan`/`SocialMessageService#countOrphansOlderThan` gotowe do wpięcia w `RetentionEvaluationServiceImpl` (dashboard/badge) — sygnatura `(tenantId, cutoff)`, zwraca `long`.
+- **BE-130 (warunkowy, D1 = C):** jeśli kategoria `MESSAGE_CONTENT` wejdzie, sweep sierot (obie pętle w `purgeContactInteractionsWithMessageDeletion`) trzeba przenieść do nowej metody `purgeMessageContent` — kod jest już wyodrębniony w postaci dwóch samodzielnych pętli do-while, łatwych do przeniesienia.
+- **DB-067/BE-135 (partycjonowanie `email_message`):** `EmailOrphanCursor`/`EmailMessageRepository.OrphanCandidate` JUŻ niosą `messageAt` (nie tylko `messageId`) — po zmianie PK na złożony `(message_id, message_at)` trzeba będzie zaktualizować `deleteByIds`/`purgeRows`, żeby identyfikowały wiersze pełnym kluczem (uwaga z BE-125 w tym samym duchu).
+- **BE-129/D9:** dry-run `countOrphansOlderThan` NIE uwzględnia dopasowania po identyfikatorze (D9) — liczy wyłącznie po `contact_id IS NULL`, zgodnie z zakresem tego ticketu (sieroty z definicji nie mają `contact_id`, więc D9 nie ma tu zastosowania).
+
 ---
 
 ### BE-128 – `RetentionEvaluationServiceImpl`: liczenie wiadomości kwalifikujących się do usunięcia (dashboard/badge)
@@ -7311,7 +7386,7 @@ Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id 
 **Typ:** Backend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-127
+**Zależy od:** BE-127 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-130, FE-110
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7459,7 +7534,7 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 **Typ:** Backend implementation
 **Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** M
-**Zależy od:** DB-063, BE-126 ✅, BE-127, BE-128
+**Zależy od:** DB-063, BE-126 ✅, BE-127 ✅, BE-128
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-111
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7602,7 +7677,7 @@ grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesFor
 **Typ:** Backend implementation — [BRAMKOWANY]
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** BE-134, BE-133 (tryb `ONLY_IF_EMPTY`), BE-125 ✅, BE-127
+**Zależy od:** BE-134, BE-133 (tryb `ONLY_IF_EMPTY`), BE-125 ✅, BE-127 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7967,3 +8042,48 @@ Ustalenie infra (zweryfikowane 2026-09-21 przez zlecającego): `docker manifest 
 - [ ] DoD (WP-7): status i notatka w pliku zadań
 
 **Ryzyka:** przypięte wydanie może nie zawierać `mc` (healthcheck) albo różnić się poleceniem startowym — do sprawdzenia; przypięcie starszego wydania niż dane w wolumenie (patrz AC WP-4); quay.io może wymagać osobnej konfiguracji pull w CI (sprawdzić); ruchomy tag w innych miejscach (np. inne obrazy `latest` w compose) poza zakresem tego ticketu.
+
+---
+
+## MODUL: Porządki silnika partycji i retencji (EPIC-29, bez epiku EPIC-30)
+
+> Tickety porządkowe bez epiku (jak DB-055, BE-144) dotyczące silnika retencji/partycjonowania z EPIC-29, nie samej retencji wiadomości (EPIC-30).
+> **BE-145** dopisany 2026-09-26 po code review BE-127 (BE127-01, `CR-BACKEND.md`) — pre-existing ryzyko w `PartitionReclaimJob` (BE-115, EPIC-29), niezmienionym przez BE-125/126/127.
+
+### BE-145 – [PORZĄDKOWY] `PartitionReclaimJob` nie powinien usuwać (`DROP TABLE`) niepustej partycji tabel per-tenant
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Should Have (nie Must — scenariusz wymaga wieloletniej, niezauważonej awarii Poziomu 1 purge dla jednego tenanta; dotyczy WSZYSTKICH tabel per-tenant obsługiwanych przez ten job, nie tylko wiadomości)
+**Złożoność:** S (M, jeśli wykonawca zdecyduje się dodać też sweep dangling po FK jako drugą linię obrony — patrz Zakres, pkt opcjonalny)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** brak (naprawa silnika partycji/retencji z EPIC-29 — `PartitionReclaimJob` istnieje od BE-115, niezmieniony przez EPIC-30/BE-125/126/127; wynik code review BE-127 (BE127-01) 2026-09-26; jak DB-055/BE-144, bez epiku)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst (cytat z `CR-BACKEND.md`, sekcja „Review: BE-127", ustalenie BE127-01 — major, latentne, pre-existing, NIE regresja BE-127):**
+> „decyzja „wariant dangling pominięty" opiera się na twierdzeniu „`contact` jest usuwany WYŁĄCZNIE przez `deleteContacts`/`deleteBatchOlderThan`" — pomija TRZECI mechanizm (`DROP TABLE` partycji), który usuwa wiersze `contact` bez żadnego sprzątania `email_message`/`social_message`."
+> „`warnIfStillHasRows` (…) explicite sprawdza, czy partycja-kandydat do DROP wciąż ma wiersze, loguje WARN gdy tak — **i mimo to kontynuuje DROP** (…). Ten job: (1) NIE woła `EmailMessageService`/`SocialMessageService` … przed/po DROP …; (2) Usuwa wiersze `contact` niezależnie od tego, czy powiązane `email_message`/`social_message` … istnieją — … nie mają FK do `contact` …, więc DROP nie kaskaduje …, zostawiając wskazujące na nie `email_message.contact_id`/`social_message.contact_id` jako dangling."
+> „Scenariusz utraty/luki danych: gdyby purge Poziomu 1 … przestał działać dla jednego tenanta na czas dłuższy niż globalny bufor (`maxRetentionMonths` ze WSZYSTKICH tenantów — dziś demo … 60 miesięcy) — `PartitionReclaimJob` i tak w końcu DROPnie starą partycję `contact` z pozostałymi wierszami (WARN, bez blokady). Każda wiadomość … staje się DOKŁADNIE tym „dangling", które BE-127 świadomie zdecydowało się nie sprzątać … i od tego momentu NIE ISTNIEJE żadna ścieżka usunięcia tej wiadomości w całym systemie."
+
+Wykonawca BE-127 potwierdził to ustalenie i dopisał w notatce wykonania BE-127 (`TASKS-BACKEND.md`, blok „Code review i poprawki (2026-09-26)"): ryzyko dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), świadomie NIE założono ticketu w tamtej sesji bez decyzji — ten ticket jest tą decyzją.
+
+Kod: `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — `TABLE_CATEGORIES` (l. 73–79, `Map<String, RetentionDataCategory>`: `contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), `reclaimTable` (l. 131–177, wywołuje `warnIfStillHasRows` na l. 167 i `partitionScanner.dropPartition(...)` bezwarunkowo na l. 169), `warnIfStillHasRows` (l. 184–194, WYŁĄCZNIE `log.warn`, zero wpływu na sterowanie). Potwierdzone niezależnym grepem: `email_message`/`social_message` nie mają FK `REFERENCES contact` w żadnej migracji.
+
+**Powiązanie z BE-123 (⬜, EPIC-30) — do rozstrzygnięcia przy implementacji, kolejność wg wykonawcy:** BE-123 planuje refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)` z nowym `DropMode.ONLY_IF_EMPTY` (dziś zarezerwowanym dla `email_message`/`social_message` przez BE-133), ale jego bieżący opis i AC explicite zachowują dla `contact*` `DropMode.AFTER_CUTOFF` („dzisiejsze zachowanie … bez zmian") — patrz uwaga dopisana w BE-123 (2026-09-26). Jeśli BE-123 wdroży się PRZED tym ticketem, ten ticket redukuje się do przełączenia `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` na `ONLY_IF_EMPTY` (reużycie mechanizmu, bez własnego). Jeśli ten ticket wdroży się PRZED BE-123, wykonawca BE-123 musi zaktualizować swój opis/AC („bez zmian" → „ONLY_IF_EMPTY, zgodnie z BE-145").
+
+**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
+1. `warnIfStillHasRows` (albo jego wywołujący `reclaimTable`) musi zwracać informację BLOKUJĄCĄ `DROP` (nie tylko logować) dla partycji tabel per-tenant z `TABLE_CATEGORIES` (`contact`, `contact_event`, `contact_transcription`, `contact_ai_summary` — nazwa `TABLE_CATEGORIES`/`ReclaimTarget` do potwierdzenia w kodzie w chwili implementacji, może się zmienić po BE-123), zgodnie z WP-5 z `DESIGN-message-retention-and-partitioning.md` („niepusta → WARN i pominięcie", NIE „WARN i kontynuuj").
+2. **Wyjątek — horyzont platformowy** (`audit_log`, `plugin_invocation_log`, DB-123/BE-123 — inny ticket o zbliżonym numerze, NIE mylić z DB-123-Twoim-DropMode-refaktorem powyżej; sprawdź aktualną numerację): niepusta partycja po horyzoncie platformowym jest OCZEKIWANA (WP-5) — tam DROP mimo niepustej zostaje (INFO, nie blokada). Sprawdzić, czy BE-123 (jeśli już wdrożone) rozróżnia te dwie ścieżki przez `ThresholdSource`, i dopasować warunek blokady tylko do `ThresholdSource.CATEGORY_MAX_RETENTION`.
+3. **(Could, opcja B z notatki BE-127/BE127-01)** Sweep dangling po FK dla `email_message`/`social_message` (`NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)`) jako DRUGA linia obrony, niezależna od TEGO, jak `contact` zniknął — NIE wymagane, jeśli pkt 1 skutecznie zablokuje DROP u źródła; do rozważenia, jeśli wykonawca oceni, że sama blokada DROP nie wystarcza (np. inne, jeszcze nieodkryte ścieżki usuwania `contact`).
+4. Test regresyjny na `_default`/partycjach horyzontu platformowego: zachowanie `audit_log`/`plugin_invocation_log` (jeśli BE-123 już wdrożone) BEZ ZMIAN — DROP mimo niepustej, INFO w logu.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers: partycja `contact` (albo `contact_event`/`contact_transcription`/`contact_ai_summary`) kandydująca do DROP, ale z ≥ 1 wierszem → `DROP` POMINIĘTY, WARN/INFO w logu z liczbą wierszy, `pg_class`/`information_schema` po teście potwierdza, że partycja WCIĄŻ istnieje (brak zmiany w bazie)
+- [ ] Partycja pusta (dotychczasowy przypadek) → `DROP` wykonany jak dotąd (test regresyjny na istniejącym `PartitionReclaimJobTest`, zielony bez zmiany asercji tego przypadku)
+- [ ] Regresja horyzontu platformowego (jeśli BE-123 wdrożone w chwili implementacji tego ticketu; jeśli nie — udokumentować jako założenie na przyszłość): partycja `audit_log`/`plugin_invocation_log` niepusta po horyzoncie → `DROP` WYKONANY mimo niepustej (zachowanie bez zmian, INFO nie blokada)
+- [ ] `_default` (jeśli dotyczy tej ścieżki) — zachowanie bez zmian względem dzisiejszego (WARN gdy niepusta, sygnał awarii rotacji — nie część tego ticketu, tylko regresja)
+- [ ] Uwaga w BE-123 (dopisana 2026-09-26) skorygowana/potwierdzona zgodnie z faktyczną kolejnością wdrożenia obu ticketów
+- [ ] `mvn verify -pl app`; DoD (WP-7)
+
+**Ryzyka:** zmiana zachowania (partycja niepusta przestaje być usuwana) może w praktyce NIGDY nie zaobserwować różnicy na demo/testach (0 znanych incydentów, 60-miesięczny bufor) — wartość tego ticketu jest defensywna/prewencyjna, nie naprawia obserwowanego dziś problemu; jeśli globalny bufor (`maxRetentionMonths` ze wszystkich tenantów) miałby kiedyś spaść poniżej realistycznego czasu naprawy awarii Poziomu 1 dla pojedynczego tenanta, ryzyko przechodzi z teoretycznego na praktyczne — warto to odnotować jako invariant do monitorowania (poza zakresem tego ticketu, do rozważenia przy DB-076/DB-077 dokumentacji silnika retencji).

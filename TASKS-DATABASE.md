@@ -3037,10 +3037,10 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
-> Grupa 1:  BE-124 ✅ → DB-059 → BE-127;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 → BE-130, tylko D1 = C]
+> Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 → BE-130, tylko D1 = C]
 >           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
 > Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126 ✅, DB-059 → DB-065
-> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059, BE-127 → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
+> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 → BE-139
 > Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070, DB-076 → DB-077
@@ -3785,7 +3785,7 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 **Typ:** Schema migration (partycjonowanie online) — [BRAMKOWANY: wchodzi po „go" z DB-066]
 **Priorytet:** Should Have
 **Złożoność:** L (zgodnie z oceną zlecenia: klucz złożony, backfill, dedup)
-**Zależy od:** DB-066 (go), DB-064, DB-059 ✅, BE-127 (Poziom 1 działa)
+**Zależy od:** DB-066 (go), DB-064, DB-059 ✅, BE-127 ✅ (Poziom 1 działa)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-134, DB-068
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

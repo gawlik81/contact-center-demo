@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,11 +26,13 @@ import static org.mockito.Mockito.when;
 /**
  * Testy jednostkowe dla {@link PartitionReclaimJob} (EPIC-29, BE-115).
  *
- * <p>{@link PartitionScanner} i {@link RetentionPolicyService} są mockowane — job sam w sobie
- * nie potrzebuje testu na prawdziwym Postgresie, bo logika progowa (MAX retencji -> globalny
- * cutoff -> porównanie {@code rangeEnd}) jest czysto arytmetyczna. Weryfikacja rzeczywistego SQL
- * (DROP TABLE IF EXISTS, bezpiecznik identyfikatora) jest już pokryta w
- * {@code PartitionScannerImplTest}.
+ * <p>{@link PartitionScanner} i {@link RetentionPolicyService} są mockowane — logika progowa
+ * (MAX retencji -> globalny cutoff -> porównanie {@code rangeEnd}) jest czysto arytmetyczna, a
+ * weryfikacja rzeczywistego SQL (DROP TABLE IF EXISTS, bezpiecznik identyfikatora) jest już
+ * pokryta w {@code PartitionScannerImplTest}. <strong>UWAGA (BE-145):</strong> mock
+ * {@link PartitionScanner} nie potwierdza, że pominięty {@code DROP} faktycznie NIE usunął
+ * partycji z {@code pg_class}/{@code information_schema} — to jest weryfikowane osobno, na
+ * prawdziwym Postgresie, w {@code PartitionReclaimJobIntegrationTest}.
  *
  * <p>Domyślne stuby w {@link #setUp()}: {@code listPartitions} zwraca pustą listę dla
  * wszystkich 4 tabel, {@code findMaxRetentionMonths} zwraca 60 dla obu kategorii — żeby testy
@@ -237,16 +240,16 @@ class PartitionReclaimJobTest {
     }
 
     // =========================================================================
-    // Scenariusz dodatkowy: niespójność z Poziomem 1 nie blokuje DROP
+    // Scenariusz dodatkowy (BE-145): niespójność z Poziomem 1 BLOKUJE DROP
     // =========================================================================
 
     @Nested
-    @DisplayName("Partycja z niespójnością Poziomu 1 — wciąż ma wiersze, ale próg jest bezpieczny (MAX)")
-    class InconsistencyWithLevelOneDoesNotBlockDrop {
+    @DisplayName("Partycja z niespójnością Poziomu 1 — wciąż ma wiersze -> DROP zablokowany (BE-145)")
+    class InconsistencyWithLevelOneBlocksDrop {
 
         @Test
-        @DisplayName("DROP nadal wykonywany, mimo że countRowsByTenant zwraca niepustą listę (tylko WARN, nie blokuje)")
-        void stillDropsPartition_whenRowsUnexpectedlyPresent() {
+        @DisplayName("DROP POMINIĘTY, gdy countRowsByTenant zwraca niepustą listę (do 2026-09-26/BE-145: tylko WARN, DROP kontynuowany — zmienione)")
+        void doesNotDropPartition_whenRowsUnexpectedlyPresent() {
             LocalDate today = LocalDate.now(ZoneOffset.UTC);
             LocalDate oldCutoff = today.minusMonths(60).minusMonths(6);
             PartitionScanner.PartitionInfo eligible = partitionEndingAt("contact_2015_01", oldCutoff);
@@ -258,7 +261,41 @@ class PartitionReclaimJobTest {
 
             job.runReclaimJob();
 
-            verify(partitionScanner).dropPartition("contact_2015_01");
+            verify(partitionScanner, never()).dropPartition("contact_2015_01");
+        }
+
+        @Test
+        @DisplayName("WARN w logu zawiera nazwę partycji, łączną liczbę wierszy (suma tenantów) i liczbę tenantów")
+        void logsWarnWithRowCountAndTenantCount() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                LocalDate today = LocalDate.now(ZoneOffset.UTC);
+                LocalDate oldCutoff = today.minusMonths(60).minusMonths(6);
+                PartitionScanner.PartitionInfo eligible = partitionEndingAt("contact_2015_01", oldCutoff);
+
+                when(partitionScanner.listPartitions("contact")).thenReturn(List.of(eligible));
+                when(partitionScanner.countRowsByTenant("contact_2015_01"))
+                        .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 3),
+                                new PartitionScanner.TenantRowCount(TENANT_B, 1)));
+
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .anySatisfy(msg -> assertThat(msg)
+                                .contains("contact_2015_01")
+                                .contains("4 wierszy")
+                                .contains("2 tenantów")
+                                .contains("POMIJAM DROP"));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
         }
     }
 }

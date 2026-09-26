@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -258,6 +260,184 @@ class EmailMessageRepository extends TenantAwareRepository {
             return null;
         }
         return value instanceof UUID uuid ? uuid : UUID.fromString(String.valueOf(value));
+    }
+
+    /** Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania (BE-127). */
+    private static Instant toInstant(Object value) {
+        return value instanceof java.sql.Timestamp ts ? ts.toInstant() : (Instant) value;
+    }
+
+    // =========================================================================
+    // BE-127: Retencja – sweep wiadomości OSIEROCONYCH (contact_id IS NULL) wg wieku (EPIC-30)
+    // =========================================================================
+
+    /**
+     * Margines filtra resztkowego: wiadomość zapisana w ostatniej dobie NIGDY nie kwalifikuje się do
+     * sweepu sierot, nawet jeśli jej „wiek" ({@link #ORPHAN_AGE_EXPR}) wypada przed {@code cutoff}.
+     *
+     * <p><strong>Dlaczego to jest potrzebne</strong> (BE-124 §7, doprecyzowanie do DB-059): dla
+     * INBOUND „wiek" = INTERNALDATE serwera IMAP ({@code Message#getReceivedDate()}), NIE czas
+     * zapisu do bazy. Skrzynka zmigrowana z historycznym INTERNALDATE (albo email z nagłówkiem
+     * {@code Date} z przeszłości — mniej istotne, bo INBOUND korzysta z INTERNALDATE, nie z
+     * nagłówka) dałaby wiadomość „starą" wg {@code COALESCE(...)}, mimo że dopiero co trafiła do
+     * bazy i {@code EmailContactCreator}/{@code EmailRoutingService} może jeszcze nie zdążyć jej
+     * przypisać do kontaktu (routing jest asynchroniczny względem zapisu — BE-124 §2 U1). Bez tego
+     * filtra taka wiadomość zostałaby usunięta W TRAKCIE routingu.
+     *
+     * <p>Filtr jest na {@code created_at} (czas zapisu do bazy, zawsze „teraz" w chwili INSERT-u —
+     * {@code EmailMessage#onCreate}), NIE na {@link #ORPHAN_AGE_EXPR} — inaczej filtrowałby to samo,
+     * co już filtruje {@code cutoff}, i nie chroniłby niczego.
+     */
+    static final Duration ORPHAN_RESIDUAL_MARGIN = Duration.ofDays(1);
+
+    /**
+     * Wyrażenie „wieku wiadomości" — DOKŁADNIE jak w DB-059/V097 (dopasowanie predykatu częściowego
+     * indeksu {@code idx_email_message_tenant_orphan_age}, żeby planner faktycznie go użył). Używane
+     * identycznie w zapytaniu zliczającym i stronicowanym (patrz SQL-e poniżej).
+     */
+    private static final String ORPHAN_AGE_EXPR = "COALESCE(received_at, sent_at, created_at)";
+
+    /**
+     * SQL dry-run/count — package-private, żeby test integracyjny mógł zrobić {@code EXPLAIN}
+     * dokładnie tego zapytania. Budowany z {@link #ORPHAN_AGE_EXPR} (nie skopiowany ręcznie), żeby
+     * wyrażenie „wieku" było MECHANICZNIE identyczne w tym zapytaniu, w
+     * {@link #FIND_ORPHANS_FIRST_PAGE_SQL}/{@link #FIND_ORPHANS_NEXT_PAGE_SQL} i w predykacie
+     * częściowego indeksu {@code idx_email_message_tenant_orphan_age} (DB-059/V097) — literalna
+     * zgodność jest wymogiem AC BE-127, nie tylko stylistyczną preferencją.
+     */
+    static final String COUNT_ORPHANS_SQL = """
+            SELECT COUNT(*)
+            FROM email_message
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND contact_id IS NULL
+              AND %1$s < :cutoff
+              AND created_at < :residualCutoff
+            """.formatted(ORPHAN_AGE_EXPR);
+
+    /** SQL pierwszej strony sweepu sierot (brak kursora) — package-private dla testu EXPLAIN. */
+    static final String FIND_ORPHANS_FIRST_PAGE_SQL = """
+            SELECT message_id, %1$s AS message_at, CAST(attachments AS text)
+            FROM email_message
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND contact_id IS NULL
+              AND %1$s < :cutoff
+              AND created_at < :residualCutoff
+            ORDER BY %1$s, message_id
+            LIMIT :batchSize
+            """.formatted(ORPHAN_AGE_EXPR);
+
+    /** SQL kolejnych stron sweepu sierot (kursor keyset) — package-private dla testu EXPLAIN. */
+    static final String FIND_ORPHANS_NEXT_PAGE_SQL = """
+            SELECT message_id, %1$s AS message_at, CAST(attachments AS text)
+            FROM email_message
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND contact_id IS NULL
+              AND %1$s < :cutoff
+              AND created_at < :residualCutoff
+              AND (%1$s, message_id) > (:cursorMessageAt, CAST(:cursorMessageId AS uuid))
+            ORDER BY %1$s, message_id
+            LIMIT :batchSize
+            """.formatted(ORPHAN_AGE_EXPR);
+
+    /**
+     * Kandydat sierocy do fazy S3+DELETE ({@link EmailMessageServiceImpl#purgeRows}): pełne dane
+     * potrzebne do usunięcia ({@code messageId}, {@code attachmentsJson} — jak {@link AttachmentsRow},
+     * ale {@code contactId} jest zawsze {@code null} z definicji sierot) ORAZ wartość „wieku" do
+     * zbudowania {@link EmailOrphanCursor} kolejnej strony.
+     */
+    record OrphanCandidate(UUID messageId, Instant messageAt, String attachmentsJson) {
+
+        /** Konwersja do {@link AttachmentsRow} — wejście {@link EmailMessageServiceImpl#purgeRows}. */
+        AttachmentsRow toAttachmentsRow() {
+            return new AttachmentsRow(messageId, null, attachmentsJson);
+        }
+    }
+
+    /**
+     * Liczy wiadomości OSIEROCONE ({@code contact_id IS NULL}) starsze niż {@code cutoff} — dry-run
+     * (WP-4) i dashboard/badge (BE-128). Kryterium DOKŁADNIE jak {@link #findOrphansOlderThan} (bez
+     * paginacji), żeby liczba pokazana administratorowi zgadzała się z tym, co faktycznie usunie
+     * kolejny purge.
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff   granica czasowa — kandydują wiadomości z „wiekiem" < {@code cutoff}
+     * @return liczba kwalifikujących się wiadomości (nigdy ujemna)
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional(readOnly = true)
+    public long countOrphansOlderThan(UUID tenantId, Instant cutoff) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createNativeQuery(COUNT_ORPHANS_SQL)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .setParameter("residualCutoff", Instant.now().minus(ORPHAN_RESIDUAL_MARGIN))
+                .getSingleResult();
+        return count.longValue();
+    }
+
+    /**
+     * Zwraca stronę kandydatów sierocych do usunięcia (BE-127) — analogicznie do
+     * {@code ContactRepository#findContactIdsOlderThan} (BE-126): NIC nie usuwa, tylko wybiera
+     * kandydatów; wywołujący ({@link EmailMessageServiceImpl#purgeOrphansOlderThan}) robi fazę
+     * S3+DELETE przez {@link EmailMessageServiceImpl#purgeRows}.
+     *
+     * <p><strong>Strategia H-1</strong> (head-of-line blocking, jak w BE-126): porządek
+     * {@code ORDER BY <wiek>, message_id} jest deterministyczny i wspiera stronicowanie keyset —
+     * strona zaczyna się ŚCIŚLE PO ostatnim kandydacie poprzedniej strony, niezależnie od tego, czy
+     * jego wiadomość została faktycznie usunięta (porażka S3). Terminacja pętli wołającego zależy
+     * wyłącznie od wyczerpania kandydatów ({@code page.size() < batchSize}), nie od liczby usunięć.
+     *
+     * <p>Filtr resztkowy {@code created_at < :residualCutoff} (patrz {@link #ORPHAN_RESIDUAL_MARGIN})
+     * jest {@code Filter}, nie {@code Index Cond} — nie zmienia planu (indeks z DB-059 nadal
+     * używany), tylko zawęża wynik.
+     *
+     * <p>Brak indeksu pokrywającego {@code (tenant_id, wiek, message_id)} bez dodatkowego filtra —
+     * identyczna sytuacja jak {@code ContactRepository#findContactIdsOlderThan} (indeks z DB-059 nie
+     * niesie {@code message_id}, więc porządek/tie-break dogrywa planner).
+     *
+     * @param tenantId  UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff    granica czasowa — kandydują wiadomości z „wiekiem" < {@code cutoff}
+     * @param cursor    ostatni kandydat poprzedniej strony ({@code null} dla pierwszej strony)
+     * @param batchSize maksymalna liczba kandydatów na stronę
+     * @return strona kandydatów posortowana rosnąco po {@code (wiek, message_id)} — pusta, gdy nie ma
+     *         więcej kandydatów; {@code page.size() < batchSize} sygnalizuje ostatnią stronę
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional(readOnly = true)
+    public List<OrphanCandidate> findOrphansOlderThan(
+            UUID tenantId, Instant cutoff, EmailOrphanCursor cursor, int batchSize) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        Instant residualCutoff = Instant.now().minus(ORPHAN_RESIDUAL_MARGIN);
+        var query = cursor == null
+                ? em.createNativeQuery(FIND_ORPHANS_FIRST_PAGE_SQL)
+                        .setParameter("tenantId", tenantId.toString())
+                        .setParameter("cutoff", cutoff)
+                        .setParameter("residualCutoff", residualCutoff)
+                        .setParameter("batchSize", batchSize)
+                : em.createNativeQuery(FIND_ORPHANS_NEXT_PAGE_SQL)
+                        .setParameter("tenantId", tenantId.toString())
+                        .setParameter("cutoff", cutoff)
+                        .setParameter("residualCutoff", residualCutoff)
+                        .setParameter("cursorMessageAt", cursor.messageAt())
+                        .setParameter("cursorMessageId", cursor.messageId().toString())
+                        .setParameter("batchSize", batchSize);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+
+        List<OrphanCandidate> candidates = rows.stream()
+                .map(row -> new OrphanCandidate(toUuid(row[0]), toInstant(row[1]), (String) row[2]))
+                .toList();
+
+        log.debug("[EmailMessageRepo] Strona sierot do purge: tenant={}, cutoff={}, cursor={}, zwrócono={}",
+                tenantId, cutoff, cursor, candidates.size());
+        return candidates;
     }
 
     // =========================================================================

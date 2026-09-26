@@ -6,11 +6,15 @@ import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactPurgeCandidate;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.EmailOrphanCursor;
+import com.contactcenter.domain.email.OrphanEmailPurgeBatch;
 import com.contactcenter.domain.email.PurgedMessages;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.PurgeResultDto;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
+import com.contactcenter.domain.social.OrphanSocialPurgeBatch;
 import com.contactcenter.domain.social.SocialMessageService;
+import com.contactcenter.domain.social.SocialOrphanCursor;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -854,6 +858,14 @@ class RetentionPurgeServiceImplTest {
             ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true);
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
                     .thenReturn(60);
+            // BE-127: sweep sierot jest UNCONDITIONAL (wołany niezależnie od pętli kontaktów) — domyślny
+            // stub "brak kandydatów" dla WSZYSTKICH testów tej klasy zewnętrznej, żeby nie duplikować
+            // tego samego mockowania w każdym teście BE-126 nieinteresującym się sierotami. Testy, które
+            // faktycznie sprawdzają zachowanie BE-127, nadpisują ten stub (patrz OrphanSweep).
+            when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), any(), any(), anyInt()))
+                    .thenReturn(new OrphanEmailPurgeBatch(PurgedMessages.empty(), 0, null));
+            when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), any(), any(), anyInt()))
+                    .thenReturn(new OrphanSocialPurgeBatch(0, 0, null));
         }
 
         private ContactPurgeCandidate candidate(UUID contactId, Instant startedAt) {
@@ -1119,7 +1131,13 @@ class RetentionPurgeServiceImplTest {
                 service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
 
                 assertThat(TenantContext.isSet()).isFalse();
-                verifyNoInteractions(emailMessageService, socialMessageService);
+                // BE-127: sweep sierot jest UNCONDITIONAL (niezależny od pętli kontaktów) — email/social
+                // SĄ wołane (purgeOrphansOlderThan, stub domyślny z enableFlag()), ale purgeByContactIds
+                // (ścieżka "wiadomości kontaktu", pusta strona kontaktów) — NIE.
+                verify(emailMessageService, never()).purgeByContactIds(any(), any());
+                verify(socialMessageService, never()).purgeByContactIds(any(), any());
+                verify(emailMessageService).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100));
+                verify(socialMessageService).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100));
             }
         }
 
@@ -1156,6 +1174,94 @@ class RetentionPurgeServiceImplTest {
                 verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(111L));
             }
         }
+
+        @Nested
+        @DisplayName("sweep sierot wg wieku (BE-127)")
+        class OrphanSweep {
+
+            @Test
+            @DisplayName("wołany PO pętli kontaktów (niezależnie od niej), rowsDeleted i breakdown zawierają sieroty email/social")
+            void orphanSweep_runsAfterContactLoop_countsIncludedInRowsDeletedAndBreakdown() {
+                // Pętla kontaktów: nic do zrobienia (regresja BE-126 nie dotknięta).
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                // Jedna strona sierot email (3 usunięte, 2 obiekty S3) i social (4 usunięte) — strony
+                // niepełne (candidatesFound < batchSize), więc pętla sweepu kończy się po jednej stronie.
+                PurgedMessages emailOrphans = new PurgedMessages(3, 2, 0, 0, Set.of());
+                EmailOrphanCursor emailCursor = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanEmailPurgeBatch(emailOrphans, 3, emailCursor));
+
+                SocialOrphanCursor socialCursor = new SocialOrphanCursor(Instant.parse("2020-01-02T00:00:00Z"), UUID.randomUUID());
+                when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanSocialPurgeBatch(4, 4, socialCursor));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                // kontakty(0) + zdarzenia(0) + email(0) + social(0) + orphanEmail(3) + orphanSocial(4) = 7
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(7L));
+
+                ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+                verify(auditLogService).publishAuditEvent(captor.capture());
+                assertThat(captor.getValue().newValue())
+                        .contains("\"rowsDeleted\":7")
+                        .contains("\"orphanEmailMessages\":3")
+                        .contains("\"orphanSocialMessages\":4")
+                        .contains("\"s3ObjectsDeleted\":2");
+            }
+
+            @Test
+            @DisplayName("stronicowanie keyset: dwie strony sierot email, kursor drugiego wywołania = kursor zwrócony przez pierwsze")
+            void orphanSweep_multiplePages_cursorAdvances() {
+                ReflectionTestUtils.setField(service, "batchSize", 2);
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(2)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(2))).thenReturn(0);
+
+                EmailOrphanCursor cursor1 = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                EmailOrphanCursor cursor2 = new EmailOrphanCursor(Instant.parse("2020-01-02T00:00:00Z"), UUID.randomUUID());
+                // Strona 1: pełna (2 kandydaci) -> pętla kontynuuje. Strona 2: niepełna (1) -> pętla się kończy.
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2)))
+                        .thenReturn(new OrphanEmailPurgeBatch(new PurgedMessages(2, 0, 0, 0, Set.of()), 2, cursor1));
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), eq(cursor1), any(), eq(2)))
+                        .thenReturn(new OrphanEmailPurgeBatch(new PurgedMessages(1, 0, 0, 0, Set.of()), 1, cursor2));
+                when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2)))
+                        .thenReturn(new OrphanSocialPurgeBatch(0, 0, null));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                verify(emailMessageService, times(1)).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2));
+                verify(emailMessageService, times(1)).purgeOrphansOlderThan(eq(TENANT_A), eq(cursor1), any(), eq(2));
+                // strona 2 zwróciła candidatesFound(1) < batchSize(2) -> pętla NIE woła strony 3 (z cursor2)
+                verify(emailMessageService, never()).purgeOrphansOlderThan(eq(TENANT_A), eq(cursor2), any(), anyInt());
+                // kontakty(0) + zdarzenia(0) + orphanEmail(2+1) + orphanSocial(0) = 3
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(3L));
+            }
+
+            @Test
+            @DisplayName("porażka S3 w sierotach (s3Failures>0) -> COMPLETED z ostrzeżeniem, kursor i tak przesuwa się dalej (H-1)")
+            void orphanSweep_s3Failure_completesWithWarning_cursorStillAdvances() {
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                // Strona niepełna (1 kandydat na sierotę zablokowaną S3-em) -> pętla kończy się po 1 stronie,
+                // ale s3Failures > 0 musi nadal wpłynąć na status/warning całego purge.
+                PurgedMessages blockedByS3 = new PurgedMessages(0, 0, 2, 0, Set.of());
+                EmailOrphanCursor cursor = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanEmailPurgeBatch(blockedByS3, 1, cursor));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(0L), warningCaptor.capture());
+                assertThat(warningCaptor.getValue()).contains("2");
+                verify(purgeLogRepository, never()).markFailed(any(), any(), any(), anyLong());
+            }
+        }
     }
 
     // =========================================================================
@@ -1184,6 +1290,10 @@ class RetentionPurgeServiceImplTest {
             verify(socialMessageService).detachContactReferences(TENANT_A, batch);
             verify(emailMessageService, never()).purgeByContactIds(any(), any());
             verify(socialMessageService, never()).purgeByContactIds(any(), any());
+            // BE-127: sweep sierot jest podpięty za TĄ SAMĄ flagą — flaga false = zachowanie
+            // IDENTYCZNE z dzisiejszym (przed BE-127), sieroty NIETKNIĘTE.
+            verify(emailMessageService, never()).purgeOrphansOlderThan(any(), any(), any(), anyInt());
+            verify(socialMessageService, never()).purgeOrphansOlderThan(any(), any(), any(), anyInt());
             verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(3L));
         }
     }

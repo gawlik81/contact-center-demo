@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -280,6 +281,33 @@ class SocialMessageServiceImpl implements SocialMessageService {
             return 0;
         }
         return socialMessageRepository.purgeByContactIds(tenantId, contactIds);
+    }
+
+    // =========================================================================
+    // BE-127: Retencja – sweep wiadomości OSIEROCONYCH (contact_id IS NULL) wg wieku (EPIC-30)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countOrphansOlderThan(UUID tenantId, Instant cutoff) {
+        return socialMessageRepository.countOrphansOlderThan(tenantId, cutoff);
+    }
+
+    @Override
+    public OrphanSocialPurgeBatch purgeOrphansOlderThan(
+            UUID tenantId, SocialOrphanCursor cursor, Instant cutoff, int batchSize) {
+        List<SocialMessageRepository.OrphanCandidate> page =
+                socialMessageRepository.findOrphansOlderThan(tenantId, cutoff, cursor, batchSize);
+        if (page.isEmpty()) {
+            return new OrphanSocialPurgeBatch(0, 0, cursor);
+        }
+
+        List<UUID> ids = page.stream().map(SocialMessageRepository.OrphanCandidate::messageId).toList();
+        Set<UUID> deleted = socialMessageRepository.deleteOrphansByIds(tenantId, ids);
+
+        SocialMessageRepository.OrphanCandidate last = page.get(page.size() - 1);
+        SocialOrphanCursor nextCursor = new SocialOrphanCursor(last.messageAt(), last.messageId());
+        return new OrphanSocialPurgeBatch(deleted.size(), page.size(), nextCursor);
     }
 
     // =========================================================================

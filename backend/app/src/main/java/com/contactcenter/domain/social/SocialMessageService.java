@@ -1,5 +1,6 @@
 package com.contactcenter.domain.social;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -103,4 +104,44 @@ public interface SocialMessageService {
      *         (przy niepustej liście)
      */
     int purgeByContactIds(UUID tenantId, List<UUID> contactIds);
+
+    // =========================================================================
+    // BE-127: Retencja – sweep wiadomości OSIEROCONYCH (contact_id IS NULL) wg wieku (EPIC-30)
+    // =========================================================================
+
+    /**
+     * Liczy wiadomości social OSIEROCONE ({@code contact_id IS NULL}) starsze niż {@code cutoff} —
+     * dry-run (WP-4) i dashboard/badge (BE-128). Bez filtra resztkowego (patrz Javadoc
+     * {@code SocialMessageRepository#countOrphansOlderThan} — {@code contact_id} jest zawsze
+     * ustawiany synchronicznie przed zapisem, więc „świeża sierota" nie istnieje strukturalnie).
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff   granica czasowa retencji CONTACT_INTERACTIONS
+     * @return liczba kwalifikujących się wiadomości
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    long countOrphansOlderThan(UUID tenantId, Instant cutoff);
+
+    /**
+     * Usuwa JEDNĄ STRONĘ wiadomości social OSIEROCONYCH ({@code contact_id IS NULL}) starszych niż
+     * {@code cutoff} — retencja EPIC-30, BE-127 (założenie D1 = A, ta sama flaga bezpiecznika co
+     * BE-126: {@code retention.purge.delete-messages}). Bez S3 (jak {@link #purgeByContactIds}).
+     *
+     * <p><strong>Stronicowanie keyset (strategia H-1, jak BE-126):</strong> wywołujący
+     * ({@code RetentionPurgeServiceImpl}) trzyma {@link SocialOrphanCursor} między wywołaniami i
+     * kontynuuje pętlę, gdy {@link OrphanSocialPurgeBatch#candidatesFound()} == {@code batchSize}.
+     *
+     * <p><strong>Prekontrakt:</strong> {@code TenantContext} ustawiony na {@code tenantId}
+     * (wołający zarządza kontekstem; metoda NIGDY go nie czyści).
+     *
+     * @param tenantId  UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cursor    kursor poprzedniej strony ({@code null} dla pierwszej strony)
+     * @param cutoff    granica czasowa retencji CONTACT_INTERACTIONS
+     * @param batchSize maksymalna liczba kandydatów na stronę
+     * @return wynik strony: liczba usuniętych wierszy, liczba kandydatów na stronie i kursor kolejnej strony
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    OrphanSocialPurgeBatch purgeOrphansOlderThan(UUID tenantId, SocialOrphanCursor cursor, Instant cutoff, int batchSize);
 }

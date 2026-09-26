@@ -6,11 +6,15 @@ import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactPurgeCandidate;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.EmailOrphanCursor;
+import com.contactcenter.domain.email.OrphanEmailPurgeBatch;
 import com.contactcenter.domain.email.PurgedMessages;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.PurgeResultDto;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
+import com.contactcenter.domain.social.OrphanSocialPurgeBatch;
 import com.contactcenter.domain.social.SocialMessageService;
+import com.contactcenter.domain.social.SocialOrphanCursor;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -375,8 +379,41 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
             eventsDeleted += eventsDeletedInBatch;
         } while (eventsDeletedInBatch == effectiveBatchSize);
 
+        // Faza "sieroty" (BE-127, PO pętli kontaktów, TEN SAM cutoff retencji CONTACT_INTERACTIONS):
+        // wiadomości email/social z contact_id IS NULL (odcięte przez detachContactReferences przed
+        // BE-126, albo email nigdy nie zroutowany — DESIGN §2 U1/U16) nie mają dziś żadnej ścieżki
+        // usunięcia poza tą pętlą. Niezależna od pętli kontaktów powyżej — sierota z definicji NIE MA
+        // kontaktu, więc nic tu nie może być "zablokowane" przez blokadę kontaktu; jedyna obrona H-1
+        // to stronicowanie keyset po własnym kursorze (EmailOrphanCursor/SocialOrphanCursor), kursor
+        // przesuwa się o CAŁĄ stronę niezależnie od liczby faktycznie usuniętych wiadomości.
+        long orphanEmailMessagesDeleted = 0;
+        long orphanSocialMessagesDeleted = 0;
+        EmailOrphanCursor emailCursor = null;
+        OrphanEmailPurgeBatch emailBatch;
+        do {
+            emailBatch = emailMessageService.purgeOrphansOlderThan(tenantId, emailCursor, cutoff, effectiveBatchSize);
+            orphanEmailMessagesDeleted += emailBatch.purgedMessages().deletedRows();
+            s3ObjectsDeleted += emailBatch.purgedMessages().s3ObjectsDeleted();
+            s3Failures += emailBatch.purgedMessages().s3Failures();
+            s3Rejected += emailBatch.purgedMessages().s3Rejected();
+            if (emailBatch.candidatesFound() > 0) {
+                emailCursor = emailBatch.nextCursor();
+            }
+        } while (emailBatch.candidatesFound() == effectiveBatchSize);
+
+        SocialOrphanCursor socialCursor = null;
+        OrphanSocialPurgeBatch socialBatch;
+        do {
+            socialBatch = socialMessageService.purgeOrphansOlderThan(tenantId, socialCursor, cutoff, effectiveBatchSize);
+            orphanSocialMessagesDeleted += socialBatch.deletedRows();
+            if (socialBatch.candidatesFound() > 0) {
+                socialCursor = socialBatch.nextCursor();
+            }
+        } while (socialBatch.candidatesFound() == effectiveBatchSize);
+
         return new ContactInteractionsPurgeResult(contactsDeleted, eventsDeleted, emailMessagesDeleted,
-                socialMessagesDeleted, s3ObjectsDeleted, s3Failures, s3Rejected);
+                socialMessagesDeleted, orphanEmailMessagesDeleted, orphanSocialMessagesDeleted,
+                s3ObjectsDeleted, s3Failures, s3Rejected);
     }
 
     /**
@@ -384,13 +421,23 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * tabele/S3 — wyłącznie do zsumowania {@code rowsDeleted} i zbudowania {@code breakdown} w
      * audycie ({@link #buildBreakdownJson(ContactInteractionsPurgeResult)}); NIE jest częścią
      * publicznego API {@link RetentionPurgeService}.
+     *
+     * <p>{@code orphanEmailMessagesDeleted}/{@code orphanSocialMessagesDeleted} (BE-127) są policzone
+     * OSOBNO od {@code emailMessagesDeleted}/{@code socialMessagesDeleted} (wiadomości powiązane z
+     * kontaktami właśnie usuwanymi) — decyzja wykonawcy: rozdzielenie jest obserwowalnościowo
+     * cenniejsze niż sumowanie (BE-128 dashboard i audytorzy mogą chcieć odróżnić "wiadomości
+     * kontaktu" od "sierot wg wieku"), a koszt to tylko dwa dodatkowe pola w JSON breakdown. Liczniki
+     * S3 ({@code s3ObjectsDeleted}/{@code s3Failures}/{@code s3Rejected}) zostają WSPÓLNE dla obu
+     * źródeł (kontakt-tied + sieroty) — to czysto techniczne liczniki S3, bez wartości w rozdzielaniu.
      */
     private record ContactInteractionsPurgeResult(
             long contactsDeleted, long eventsDeleted, long emailMessagesDeleted, long socialMessagesDeleted,
+            long orphanEmailMessagesDeleted, long orphanSocialMessagesDeleted,
             long s3ObjectsDeleted, long s3Failures, long s3Rejected) {
 
         long totalRowsDeleted() {
-            return contactsDeleted + eventsDeleted + emailMessagesDeleted + socialMessagesDeleted;
+            return contactsDeleted + eventsDeleted + emailMessagesDeleted + socialMessagesDeleted
+                    + orphanEmailMessagesDeleted + orphanSocialMessagesDeleted;
         }
     }
 
@@ -592,12 +639,18 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * Buduje fragment JSON {@code breakdown} dla audytu CONTACT_INTERACTIONS na ścieżce z
      * {@link #deleteMessagesEnabled} (BE-126, Zakres ticketu — lista celowo zawiera
      * {@code s3Rejected}, pominięty w pierwotnym opisie Zakresu w {@code TASKS-BACKEND.md}).
+     *
+     * <p>{@code orphanEmailMessages}/{@code orphanSocialMessages} (BE-127) — patrz Javadoc
+     * {@link ContactInteractionsPurgeResult} dla uzasadnienia rozdzielenia od
+     * {@code emailMessages}/{@code socialMessages}.
      */
     private String buildBreakdownJson(ContactInteractionsPurgeResult result) {
         return String.format(
                 "{\"contacts\":%d,\"events\":%d,\"emailMessages\":%d,\"socialMessages\":%d,"
+                        + "\"orphanEmailMessages\":%d,\"orphanSocialMessages\":%d,"
                         + "\"s3ObjectsDeleted\":%d,\"s3Failures\":%d,\"s3Rejected\":%d}",
                 result.contactsDeleted(), result.eventsDeleted(), result.emailMessagesDeleted(),
-                result.socialMessagesDeleted(), result.s3ObjectsDeleted(), result.s3Failures(), result.s3Rejected());
+                result.socialMessagesDeleted(), result.orphanEmailMessagesDeleted(), result.orphanSocialMessagesDeleted(),
+                result.s3ObjectsDeleted(), result.s3Failures(), result.s3Rejected());
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -156,6 +157,40 @@ class EmailMessageServiceImpl implements EmailMessageService {
                 tenantId, rows.size(), result.deletedRows(), result.s3ObjectsDeleted(),
                 result.s3Failures(), result.s3Rejected(), result.contactIdsBlocked().size());
         return result;
+    }
+
+    // =========================================================================
+    // BE-127: Retencja – sweep wiadomości OSIEROCONYCH (contact_id IS NULL) wg wieku (EPIC-30)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countOrphansOlderThan(UUID tenantId, Instant cutoff) {
+        return emailMessageRepository.countOrphansOlderThan(tenantId, cutoff);
+    }
+
+    /**
+     * Celowo BEZ {@code @Transactional} — jak {@link #purgeByContactIds}: {@link #purgeRows} robi
+     * I/O do S3. {@link EmailMessageRepository#findOrphansOlderThan} ma własną, krótką transakcję
+     * tylko-do-odczytu.
+     */
+    @Override
+    public OrphanEmailPurgeBatch purgeOrphansOlderThan(
+            UUID tenantId, EmailOrphanCursor cursor, Instant cutoff, int batchSize) {
+        List<EmailMessageRepository.OrphanCandidate> page =
+                emailMessageRepository.findOrphansOlderThan(tenantId, cutoff, cursor, batchSize);
+        if (page.isEmpty()) {
+            return new OrphanEmailPurgeBatch(PurgedMessages.empty(), 0, cursor);
+        }
+
+        List<AttachmentsRow> rows = page.stream()
+                .map(EmailMessageRepository.OrphanCandidate::toAttachmentsRow)
+                .toList();
+        PurgedMessages purged = purgeRows(tenantId, rows);
+
+        EmailMessageRepository.OrphanCandidate last = page.get(page.size() - 1);
+        EmailOrphanCursor nextCursor = new EmailOrphanCursor(last.messageAt(), last.messageId());
+        return new OrphanEmailPurgeBatch(purged, page.size(), nextCursor);
     }
 
     /**

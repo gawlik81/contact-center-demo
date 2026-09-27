@@ -6804,8 +6804,8 @@ działają niezależnie od tej decyzji.
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
-> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126 ✅, BE-127 ✅, BE-128 → BE-130, tylko D1 = C]
+> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
+>           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130, tylko D1 = C]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
 > Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 ✅ → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -7387,7 +7387,7 @@ ZERO Seq Scan w 6/6 planach. Filtr resztkowy (`created_at < now() − 1 dzień`)
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-127 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-26, po code review i poprawce blockera BE128-01 2026-09-27) — patrz „Notatka z wykonania" i „Code review i poprawki" poniżej
 **Blokuje:** BE-130, FE-110
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
@@ -7400,9 +7400,58 @@ ZERO Seq Scan w 6/6 planach. Filtr resztkowy (`created_at < now() − 1 dzień`)
 Po konwersjach (DB-065/DB-067) liczenie partycyjne przez `PartitionScanner` zamiast zapytań po `contact_id` (wpis w `PARTITION_AWARE_TABLES` — BE-133/BE-135).
 
 **Kryteria akceptacji:**
-- [ ] `RetentionEvaluationServiceImplTest` rozszerzony (mock) oraz (WP-1) test Testcontainers z PRAWDZIWYM repozytorium i pustym `TenantContext` dla ścieżki schedulera (regresja z BE-112: brak `TenantContext` → `assertSameTenant` rzucał ISE)
-- [ ] `eligibleRowCount` = kontakty + zdarzenia + wiadomości (osierocone i powiązane); `POST …/recompute` nie wywołuje purge i nie czyści kontekstu HTTP (test `ManualRecomputeForTenant` rozszerzony)
-- [ ] Semantyka liczby opisana w Javadoc `RetentionSummaryDto`; `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A (przy D1 = C liczenie wiadomości przenosi się do osobnej kategorii — BE-130)
+- [x] `RetentionEvaluationServiceImplTest` rozszerzony (mock) oraz (WP-1) test Testcontainers z PRAWDZIWYM repozytorium i pustym `TenantContext` dla ścieżki schedulera (regresja z BE-112: brak `TenantContext` → `assertSameTenant` rzucał ISE) — mock: `RetentionEvaluationServiceImplTest$MessagesInEligibleRowCount`; real+ISE: `EmailMessageOrphanPurgeIntegrationTest$TenantContextHandling#emptyTenantContext_throwsIllegalState_countLinkedToContacts`, `SocialMessageOrphanPurgeIntegrationTest$TenantContextHandling` (analogicznie) — patrz uzasadnienie granulacji w notatce
+- [x] `eligibleRowCount` = kontakty + zdarzenia + wiadomości (osierocone i powiązane), DOKŁADNIE (nie oszacowanie); `POST …/recompute` nie wywołuje purge i nie czyści kontekstu HTTP (test `ManualRecomputeForTenant` rozszerzony o `runForTenant_alsoAddsMessages`, istniejące testy `neverTriggersAutoPurge_evenWhenEligibleAndEnabled`/`neverClearsTenantContext_*` nadal zielone bez zmian)
+- [x] Semantyka liczby opisana w Javadoc `RetentionSummaryDto`; `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A (przy D1 = C liczenie wiadomości przenosi się do osobnej kategorii — BE-130)
+
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano:**
+- `EmailMessageRepository#countLinkedToContactsOlderThan(tenantId, cutoff)` / `SocialMessageRepository#countLinkedToContactsOlderThan(tenantId, cutoff)` (nowe, package-private, `@Transactional(readOnly = true)`, `assertSameTenant` + `setTenantContextInDb` — TA SAMA ochrona co `countOrphansOlderThan` z BE-127) — `COUNT(*) FROM <tabela> WHERE tenant_id = :tenantId AND contact_id IN (SELECT contact_id FROM contact WHERE tenant_id = :tenantId AND started_at < :cutoff)`. Przewleczone przez `EmailMessageService`/`SocialMessageService` (interfejs + `...ServiceImpl`, trywialna delegacja jak `countOrphansOlderThan`).
+- `RetentionEvaluationServiceImpl#countEligibleMessages(UUID)` (nowa, private) — sumuje 4 składniki: `emailMessageService.countOrphansOlderThan` + `countLinkedToContactsOlderThan` + analogiczne dla `socialMessageService`, ze WSPÓLNYM cutoffem liczonym niezależnie od akumulatora partycji ({@code retentionPolicyService.getRetentionMonths(tenantId, CONTACT_INTERACTIONS)} → `LocalDate` → `Instant`, identyczny wzorzec co `evaluateCampaignDataForTenant`). Wołana WYŁĄCZNIE z `persistSummaryAndMaybeAutoPurgeForTenant`, TYLKO dla kategorii `CONTACT_INTERACTIONS`, w `try/catch` (błąd liczenia wiadomości loguje ERROR i nie blokuje zapisu już policzonego `eligibleRowCount` kontakt+event — patrz „Odstępstwa" niżej).
+- `RetentionSummaryDto` — Javadoc rozszerzony o pełną semantykę (DOKŁADNE liczenie, 4 składniki, uzasadnienie kosztu z dowodem EXPLAIN, odniesienie do BE-133/BE-135).
+
+**Decyzja: liczenie wiadomości powiązanych z kontaktami — DOKŁADNE, nie oszacowanie** (ticket dopuszczał oszacowanie/pominięcie jako opcję przy kosztownym dokładnym liczeniu). Zweryfikowano EMPIRYCZNIE przed podjęciem decyzji (metodologia „EXPLAIN na scratch" z BE-127, baza `scratch_be128` w kontenerze `cc-postgres`, usunięta po pracy):
+1. Naiwna obawa („`JOIN`/`IN`-subquery do `contact` wymusi `Seq Scan` całej tabeli `email_message`/`social_message` niezależnie od rozmiaru tenanta") — POTWIERDZONA przy 100% udziale jednego tenanta w tabeli (100 tys. kontaktów, 116 tys. e-maili, 1 tenant): planner wybiera `Parallel Seq Scan` na `email_message`/`social_message`.
+2. Po dodaniu 9 tenantów „szumu" (razem ~1,16 mln wierszy `email_message`/`social_message`, tenant docelowy = ~10% udziału — realistyczna wielotenantowa selektywność) planner PRZESTAWIA SIĘ na `Bitmap Index Scan` na `uq_email_message_id_header`/`idx_social_message_sender` — OBA istniejące indeksy z migracji V010 (`tenant_id` jako PIERWSZA kolumna), ŻADNA nowa migracja SQL nie była potrzebna (potwierdza AC ticketu „ten ticket nie wymaga migracji SQL"). Koszt jest więc ograniczony do wierszy TEGO tenanta (894/1033 stron heap na ~117 tys. wierszy tenanta), NIE do rozmiaru całej tabeli — nie rośnie z liczbą innych tenantów na platformie. Czas wykonania obu zapytań (`email_message`+`social_message`) na tym wolumenie: ~55–70 ms łącznie na tenanta.
+3. Strona `contact` (subquery) korzysta z partition pruning (partycjonowanie po `started_at`) + `idx_contact_tenant_started_at` — analogicznie do `ContactRepository#findContactIdsOlderThan` (BE-126).
+4. Wniosek: koszt jest proporcjonalny do rozmiaru danych TEGO tenanta (analogicznie do partycyjnego skanu `contact`/`contact_event`), a nie do rozmiaru całej platformy — DOKŁADNE liczenie jest uzasadnione i NIE wymaga oszacowania. Gdy tenant jest większością tabeli, planner naturalnie wraca do `Seq Scan` — wtedy to i tak najszybsza opcja (skan ≈ skan danych samego tenanta).
+
+**Odstępstwo (świadome, dokumentowane w kodzie):** błąd w `countEligibleMessages` (np. `EmailMessageService`/`SocialMessageService` rzuca) jest łapany w `persistSummaryAndMaybeAutoPurgeForTenant` i logowany jako ERROR — NIE blokuje zapisu `eligibleRowCount` już policzonego partycyjnie dla `contact`/`contact_event` (ten sam duch izolacji błędów co reszta klasy). W najgorszym razie `eligibleRowCount` jest niedoszacowany o wiadomości TEGO przebiegu (nie utracony całkowicie) — regresja odkryta i naprawiona podczas implementacji, bo bez tego `try/catch` istniejący test `errorForOneTenantInPartition_doesNotStopOtherTenantsInSamePartition` (współdzielony stub `retentionPolicyService.getRetentionMonths(TENANT_A, CONTACT_INTERACTIONS)` rzucający wyjątek) by się zepsuł — dodany regresyjny test `messageCountingError_doesNotPreventSummaryWriteOfContactEventCount`.
+
+**Potwierdzenie dwóch punktów wejścia (WP-2):** `countEligibleMessages` NIE zarządza `TenantContext` (żaden `set`/`clear`) — dziedziczy prekontrakt `persistSummaryAndMaybeAutoPurgeForTenant` bez zmian. Ścieżka schedulera (`persistAndMaybeAutoPurge`) ustawia kontekst przed wywołaniem i czyści w `finally` jak dotychczas; `runForTenant` (REST) wciąż nigdy nie wywołuje `clear()` i nigdy nie wyzwala purge — potwierdzone testem `runForTenant_alsoAddsMessages` (nowy) oraz wszystkimi istniejącymi testami `ManualRecomputeForTenant`/`TenantContextRegression` (zielone bez zmian).
+
+**Granulacja testu regresyjnego BE-112 (WP-1):** zamiast wiązać CAŁY `RetentionEvaluationServiceImpl` z prawdziwymi `PartitionScanner`/`RetentionPolicyService`/`TenantService` (nieproporcjonalny narzut dla wąskiego zakresu tego ticketu, który dotyka wyłącznie liczenia wiadomości), regresja jest udowodniona na tej SAMEJ granulacji co ustaloną przez BE-127 dla `countOrphansOlderThan` (patrz `feedback_scheduled_job_tenantcontext_missing`: „mock całego repozytorium/serwisu tego nie wykryje" — repozytorium musi być prawdziwe): `EmailMessageOrphanPurgeIntegrationTest`/`SocialMessageOrphanPurgeIntegrationTest`, Testcontainers + pełny Flyway, prawdziwe `EmailMessageRepository`/`SocialMessageRepository`, `TenantContext.clear()` → `IllegalStateException` z serwisu I repozytorium. Uzupełnione mockowym testem orkiestracji na poziomie serwisu (`RetentionEvaluationServiceImplTest$MessagesInEligibleRowCount#contextIsSetDuringMessageCounting_schedulerPath`) dowodzącym, że kontekst jest faktycznie ustawiony w momencie wywołania — razem dają pełne pokrycie (mechanizm ochrony + poprawność okablowania).
+
+**Pliki zmienione/dodane:**
+- Zmienione: `domain/email/{EmailMessageRepository.java,EmailMessageService.java,EmailMessageServiceImpl.java}`, `domain/social/{SocialMessageRepository.java,SocialMessageService.java,SocialMessageServiceImpl.java}`, `domain/retention/RetentionEvaluationServiceImpl.java`, `domain/retention/dto/RetentionSummaryDto.java`
+- Testy zmienione: `domain/retention/RetentionEvaluationServiceImplTest.java` (+7 testów, nowy nested `MessagesInEligibleRowCount`), `domain/email/EmailMessageOrphanPurgeIntegrationTest.java` (+5 testów: nested `CountLinkedToContacts` ×4 + 1 w `TenantContextHandling`), `domain/social/SocialMessageOrphanPurgeIntegrationTest.java` (+5 testów, analogicznie)
+
+**Wyniki testów:**
+- `RetentionEvaluationServiceImplTest`: 43 testy, 0 błędów (36 istniejących bez zmian + 7 nowych: `addsAllFourMessageComponentsToContactAndEventSum`, `doesNotAddMessagesToOtherCategories`, `usesSameCutoffFormulaAsCampaignData`, `messagesAloneCanTriggerAutoPurge`, `contextIsSetDuringMessageCounting_schedulerPath`, `messageCountingError_doesNotPreventSummaryWriteOfContactEventCount`, `runForTenant_alsoAddsMessages`)
+- `EmailMessageOrphanPurgeIntegrationTest`: 18 testów, 0 błędów (13 + 5 nowych)
+- `SocialMessageOrphanPurgeIntegrationTest`: 17 testów, 0 błędów (12 + 5 nowych)
+- Pakiety `domain.retention`+`domain.email`+`domain.social` razem: 486 testów, 0 błędów
+- `mvn clean verify -pl app`: patrz stopka wykonania niżej
+
+**Czego nie zweryfikowano:**
+- Rzeczywisty koszt na wolumenie znacznie większym niż scratch (~1,16 mln wierszy łącznie, tenant docelowy ~117 tys.) — nie zmierzono zachowania planera przy dziesiątkach milionów wierszy/setkach tenantów; wniosek „koszt proporcjonalny do tenanta" jest ekstrapolacją z zaobserwowanego przejścia Seq Scan → Bitmap Index Scan między 100% i ~10% selektywności, nie pomiarem na docelowej skali.
+- Zachowanie planera na PRODUKCYJNYM `autovacuum`/statystykach (scratch DB miał ręczne `ANALYZE` tuż po seedzie) — starsze/rozjeżdżające się statystyki mogą przesunąć próg przełączenia planu.
+- Brak automatycznego testu EXPLAIN (w odróżnieniu od BE-127) — świadomie: `uq_email_message_id_header`/`idx_social_message_sender` są indeksami ogólnego przeznaczenia (nie zbudowanymi celowo pod to zapytanie jak `idx_email_message_tenant_orphan_age` z DB-059), więc twarda asercja „plan MUSI użyć indeksu X" na małym wolumenie CI byłaby zależna od heurystyk plannera (statystyki, `work_mem`, liczba workerów) — ryzyko niestabilnego testu uznane za nieproporcjonalne do wartości; dowód kosztu pozostaje w tej notatce (wzorem `EXPLAIN na scratch` z BE-127).
+- WP-4/local-demo — nie dotyczy tego ticketu (brak migracji, brak destrukcyjnych operacji).
+
+**Uwagi dla BE-130/FE-110/BE-133/BE-135:**
+- **FE-110:** `eligibleRowCount` kategorii `CONTACT_INTERACTIONS` z `GET .../summary` i `POST .../recompute` od teraz zawiera wiadomości — dashboard/badge nie wymaga żadnej zmiany kontraktu, liczba jest po prostu wyższa i bliższa rzeczywistości.
+- **BE-130 (warunkowy, D1 = C):** jeśli kategoria `MESSAGE_CONTENT` wejdzie, `countEligibleMessages` (i dwie nowe metody repozytoriów) są naturalnym punktem przeniesienia liczenia do nowej kategorii — sygnatury (`tenantId`, `cutoff`) nie muszą się zmienić.
+- **BE-133/BE-135 (partycjonowanie `email_message`/`social_message`, DB-065/DB-067):** `countEligibleMessages` ma jawny komentarz Javadoc odsyłający do przejścia na `PartitionScanner` (wpis w `PARTITION_AWARE_TABLES`) — NIE zaprojektowano tej migracji teraz, poza zakresem BE-128.
+
+**Code review i poprawki (2026-09-27):** `CR-BACKEND.md`, sekcja „Review: BE-128" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów.
+- **BE128-01 (major, NAPRAWIONE):** przed poprawką auto-purge dla `CONTACT_INTERACTIONS` reagował na sumę zawierającą wiadomości NIEZALEŻNIE od flagi `retention.purge.delete-messages` — tenant z `auto_purge_enabled=true` i jakimikolwiek sierotami (normalny stan po ≈ 2026-10-26, patrz BE-124/BE-127) odpalałby auto-purge co noc, mimo że pod domyślną konfiguracją (`deleteMessagesEnabled=false`) `purgeContactInteractionsLegacy` nic z tych wiadomości nie usuwa — pusty, powtarzający się przebieg (nowy wiersz `retention_purge_log`+audytu bez żadnego efektu). **Naprawa:** `RetentionEvaluationServiceImpl` dostał ten sam `@Value("${retention.purge.delete-messages:false}")` co `RetentionPurgeServiceImpl` (identyczna nazwa właściwości — jedna flaga steruje obiema klasami); decyzja `maybeTriggerAutoPurge` używa `eligibleRowCount` BEZ wiadomości, gdy flaga jest `false`. Dashboard/cache (`summaryRepository.upsert`) NADAL pokazuje pełną liczbę niezależnie od flagi — dotyczy wyłącznie decyzji o wyzwoleniu purge. Test `messagesAloneCanTriggerAutoPurge` rozbity na dwa: `messagesAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled` (domyślne `false` — brak wywołania `retentionPurgeService.purge`) i `messagesAlone_triggerAutoPurge_whenDeleteMessagesEnabled` (`ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true)` — wywołanie jak dotąd). Javadoc `RetentionSummaryDto` rozszerzony o wyjaśnienie tej flagi.
+- **BE128-02 (major, udokumentowane, nie naprawiane):** „DOKŁADNE" w Javadoc `RetentionSummaryDto` dotyczy wyłącznie 4 składników wiadomości — składnik `contact`/`contact_event`, do którego są dodawane, jest z definicji KONSERWATYWNYM przybliżeniem granicy partycji miesięcznej (pre-existing trade-off z BE-112/EPIC-29, nie błąd BE-128). Dopisane jedno zdanie zastrzegające w Javadoc (cytuje BE128-02) — bez zmiany logiki, bo nie wpływa na bezpieczeństwo faktycznego purge (re-liczy kontakty wierszowo, niezależnie od akumulatora).
+- **BE128-03 (minor, nie naprawiane):** błąd liczenia wiadomości jest logowany `ERROR` (potwierdzone), ale `RetentionSummaryDto` nie ma pola sygnalizującego „ten przebieg ma częściowy błąd" — trwała awaria mogłaby zaniżać liczbę w nieskończoność, widoczne tylko w logach, nie na dashboardzie. Ten sam wzorzec obserwowalności co BE145-01 — odłożone z tego samego powodu (nowa infrastruktura metryk/alertowania w podsystemie, który dziś żadnej nie ma, wymaga osobnej decyzji o zakresie).
+- **BE128-04 (nit, nie naprawiane):** cutoff dla wiadomości liczony niezależnym wywołaniem `getRetentionMonths`/`LocalDate.now(UTC)` względem cutoffu partycji tego samego przebiegu — ryzyko materializuje się tylko na granicy dnia UTC, nieistotne.
+- Recenzent potwierdził niezależnie: argument o indeksie (`tenant_id` jako pierwsza kolumna `uq_email_message_id_header`/`idx_social_message_sender` pozwala zawężyć skan do wierszy tenanta PRZED nałożeniem `contact_id IN(...)`) jest uczciwy, nie miesza korelacji z przyczynowością; `contact.started_at` (V007) jest faktyczną kolumną partycjonowania, więc predykat jest tym samym kryterium co akumulator partycyjny; izolacja tenanta na dwóch poziomach zapytania, brak SELECT */N+1.
+- Niezależna weryfikacja zlecającego po poprawce: `mvn test -pl app -Dtest=RetentionEvaluationServiceImplTest` — 44 testy (43 sprzed poprawki, jeden rozbity na dwa), 0 błędów; pełny `mvn clean verify -pl app` — patrz nagłówek Status.
 
 ---
 
@@ -7534,7 +7583,7 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 **Typ:** Backend implementation
 **Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** M
-**Zależy od:** DB-063, BE-126 ✅, BE-127 ✅, BE-128
+**Zależy od:** DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-111
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

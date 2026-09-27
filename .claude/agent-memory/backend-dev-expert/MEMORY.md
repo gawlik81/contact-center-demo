@@ -118,3 +118,5 @@
 - [Code review „istniejący wzorzec testowy" — zweryfikuj treść, nie grep](feedback_code_review_test_pattern_claim_unverified.md) — `RetentionControllerTest`/`EmailAttachmentControllerTest` wspominają „MockMvc" tylko w Javadoc o jego BRAKU
 - [EPIC-30 BE-127 sweep wiadomości osieroconych](project_epic30_be127_orphan_message_purge.md) — `purgeOrphansOlderThan` scala fetch+purge, dangling pominięty (uzasadnienie), filtr resztkowy tylko email, metodologia scratch DB w kontenerze cc-postgres
 - [BE-145 PartitionReclaimJob blokuje DROP niepustej partycji](project_be145_partition_reclaim_drop_guard.md) — `warnIfStillHasRows`→`boolean`, relacja z przyszłym BE-123 (horyzont platformowy), test mock+real-DB
+- [EPIC-30 BE-128 liczenie wiadomości w eligibleRowCount CONTACT_INTERACTIONS](project_epic30_be128_message_count_dashboard.md) — DOKŁADNE nie oszacowanie, EXPLAIN-zweryfikowana decyzja, `countLinkedToContactsOlderThan`
+- [Reużycie tenant-prefiksowanego UNIQUE indeksu dla ad-hoc COUNT per-tenant](feedback_tenant_prefixed_unique_index_reuse.md) — sprawdź EXPLAIN pod realistyczną wielotenantową selektywnością przed projektowaniem nowej migracji

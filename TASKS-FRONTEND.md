@@ -5873,14 +5873,14 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126, BE-128 → FE-110`;  `BE-129 → FE-112`;  `[BE-130 → FE-111, tylko D1 = C]`.
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112`;  `[BE-130 → FE-111, tylko D1 = C]`.
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
 **Typ:** Frontend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-126 ✅, BE-128, BE-119 ✅
+**Zależy od:** BE-126 ✅, BE-128 ✅, BE-119 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
 **Blokuje:** brak

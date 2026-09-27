@@ -123,6 +123,25 @@ public interface SocialMessageService {
      */
     long countOrphansOlderThan(UUID tenantId, Instant cutoff);
 
+    // =========================================================================
+    // BE-128: Retencja – liczenie wiadomości POWIĄZANYCH z kontaktami kwalifikującymi się (EPIC-30)
+    // =========================================================================
+
+    /**
+     * Liczy wiadomości social POWIĄZANE z kontaktem, którego kontakt SAM kwalifikuje się do
+     * usunięcia w ramach kategorii CONTACT_INTERACTIONS — dashboard/badge (BE-128), składnik
+     * uzupełniający sieroty ({@link #countOrphansOlderThan}) w {@code eligibleRowCount}
+     * ({@code RetentionSummaryDto}, patrz Javadoc tam po pełną semantykę i uzasadnienie kosztu).
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff   granica czasowa retencji CONTACT_INTERACTIONS — kandydują wiadomości, których
+     *                 kontakt ma {@code started_at < cutoff}
+     * @return liczba kwalifikujących się wiadomości (nigdy ujemna)
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    long countLinkedToContactsOlderThan(UUID tenantId, Instant cutoff);
+
     /**
      * Usuwa JEDNĄ STRONĘ wiadomości social OSIEROCONYCH ({@code contact_id IS NULL}) starszych niż
      * {@code cutoff} — retencja EPIC-30, BE-127 (założenie D1 = A, ta sama flaga bezpiecznika co

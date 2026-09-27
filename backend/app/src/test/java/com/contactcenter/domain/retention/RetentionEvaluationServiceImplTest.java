@@ -1,7 +1,9 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
+import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
@@ -17,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -80,6 +83,12 @@ class RetentionEvaluationServiceImplTest {
 
     @Mock
     private CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
+
+    @Mock
+    private EmailMessageService emailMessageService;
+
+    @Mock
+    private SocialMessageService socialMessageService;
 
     @InjectMocks
     private RetentionEvaluationServiceImpl service;
@@ -332,6 +341,157 @@ class RetentionEvaluationServiceImplTest {
 
             verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
                     eq(15L), any(), any());
+        }
+    }
+
+    // =========================================================================
+    // BE-128: wiadomości w eligibleRowCount CONTACT_INTERACTIONS
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-128 – wiadomości dolicza się do eligibleRowCount CONTACT_INTERACTIONS")
+    class MessagesInEligibleRowCount {
+
+        @Test
+        @DisplayName("suma kontakt+event+osierocone e-mail+powiązane e-mail+osierocone social+powiązane social")
+        void addsAllFourMessageComponentsToContactAndEventSum() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            PartitionScanner.PartitionInfo contactPartition =
+                    partitionEndingAt("contact_2020_06", today.minusMonths(65));
+            when(partitionScanner.listPartitions("contact")).thenReturn(List.of(contactPartition));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 10)));
+
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(3L);
+            when(emailMessageService.countLinkedToContactsOlderThan(eq(TENANT_A), any())).thenReturn(4L);
+            when(socialMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(5L);
+            when(socialMessageService.countLinkedToContactsOlderThan(eq(TENANT_A), any())).thenReturn(6L);
+
+            service.runForAllActiveTenants();
+
+            // 10 (contact) + 3 + 4 + 5 + 6 = 28
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(28L), any(), any());
+        }
+
+        @Test
+        @DisplayName("wiadomości NIE są doliczane do TRANSCRIPTS ani CAMPAIGN_DATA")
+        void doesNotAddMessagesToOtherCategories() {
+            when(emailMessageService.countOrphansOlderThan(any(), any())).thenReturn(100L);
+            when(emailMessageService.countLinkedToContactsOlderThan(any(), any())).thenReturn(100L);
+            when(socialMessageService.countOrphansOlderThan(any(), any())).thenReturn(100L);
+            when(socialMessageService.countLinkedToContactsOlderThan(any(), any())).thenReturn(100L);
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.countEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.EligibleSummary(0, null, null));
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.TRANSCRIPTS),
+                    eq(0L), any(), any());
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CAMPAIGN_DATA),
+                    eq(0L), any(), any());
+        }
+
+        @Test
+        @DisplayName("cutoff przekazany do liczenia wiadomości = LocalDate.now(UTC).minusMonths(retentionMonths CONTACT_INTERACTIONS), jak evaluateCampaignDataForTenant")
+        void usesSameCutoffFormulaAsCampaignData() {
+            int retentionMonths = 7;
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
+                    .thenReturn(retentionMonths);
+            Instant expectedCutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(retentionMonths)
+                    .atStartOfDay(ZoneOffset.UTC).toInstant();
+
+            service.runForAllActiveTenants();
+
+            verify(emailMessageService).countOrphansOlderThan(TENANT_A, expectedCutoff);
+            verify(emailMessageService).countLinkedToContactsOlderThan(TENANT_A, expectedCutoff);
+            verify(socialMessageService).countOrphansOlderThan(TENANT_A, expectedCutoff);
+            verify(socialMessageService).countLinkedToContactsOlderThan(TENANT_A, expectedCutoff);
+        }
+
+        @Test
+        @DisplayName("CR-BACKEND.md BE128-01: eligibleRowCount=0 z partycji, wiadomości>0, deleteMessagesEnabled=false (domyślnie) "
+                + "-> dashboard pokazuje sumę, ale auto-purge NIE jest wywołany (legacy purge nic z wiadomości nie usunąłby)")
+        void messagesAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(2L);
+            // deleteMessagesEnabled domyślnie false (Java default dla pola boolean, nieustawianego w setUp()).
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(2L), eq(null), eq(null));
+            verify(retentionPurgeService, never()).purge(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("CR-BACKEND.md BE128-01: eligibleRowCount=0 z partycji, wiadomości>0, deleteMessagesEnabled=true "
+                + "-> auto-purge WYWOŁANY (suma decyduje, nie tylko kontakty/eventy)")
+        void messagesAlone_triggerAutoPurge_whenDeleteMessagesEnabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(2L);
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true);
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(2L), eq(null), eq(null));
+            verify(retentionPurgeService).purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    PurgeTriggerType.AUTO, null);
+        }
+
+        @Test
+        @DisplayName("TenantContext jest ustawiony na tenantId W MOMENCIE liczenia wiadomości (ścieżka schedulera)")
+        void contextIsSetDuringMessageCounting_schedulerPath() {
+            List<UUID> observed = new ArrayList<>();
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenAnswer(inv -> {
+                observed.add(TenantContext.getTenantIdOrNull());
+                return 0L;
+            });
+
+            service.runForAllActiveTenants();
+
+            assertThat(observed).containsExactly(TENANT_A);
+        }
+
+        @Test
+        @DisplayName("błąd liczenia wiadomości NIE blokuje zapisu już policzonego eligibleRowCount kontakt+event")
+        void messageCountingError_doesNotPreventSummaryWriteOfContactEventCount() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            PartitionScanner.PartitionInfo contactPartition =
+                    partitionEndingAt("contact_2020_06", today.minusMonths(65));
+            when(partitionScanner.listPartitions("contact")).thenReturn(List.of(contactPartition));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 10)));
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any()))
+                    .thenThrow(new RuntimeException("boom - email service down"));
+
+            service.runForAllActiveTenants();
+
+            // Wiadomości nie doliczone (błąd), ale eligibleRowCount kontaktów (10) i tak zapisany.
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(10L), any(), any());
+        }
+
+        @Test
+        @DisplayName("runForTenant (REST) dolicza wiadomości identycznie jak ścieżka schedulera")
+        void runForTenant_alsoAddsMessages() {
+            when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(9L);
+            when(retentionPurgeService.getPendingSummary(TENANT_A)).thenReturn(List.of());
+
+            TenantContext.setTenantId(TENANT_A);
+            try {
+                service.runForTenant(TENANT_A);
+            } finally {
+                TenantContext.clear();
+            }
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(9L), eq(null), eq(null));
         }
     }
 

@@ -441,6 +441,70 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-128: Retencja – liczenie wiadomości POWIĄZANYCH z kontaktami kwalifikującymi się (EPIC-30)
+    // =========================================================================
+
+    /**
+     * SQL — package-private dla testu EXPLAIN. Semi-join po {@code contact_id} do {@code contact}
+     * zawężonego TYM SAMYM {@code tenant_id}/{@code cutoff} co reszta kategorii CONTACT_INTERACTIONS
+     * ({@code started_at < cutoff} — identyczne kryterium jak {@code ContactRepository
+     * #findContactIdsOlderThan}/{@code #deleteBatchOlderThan}).
+     *
+     * <p><strong>Koszt (zweryfikowany EXPLAIN ANALYZE na scratch DB, notatka wykonania BE-128 w
+     * {@code TASKS-BACKEND.md}):</strong> podzapytanie na {@code contact} korzysta z partition
+     * pruning ({@code started_at} jest kolumną partycjonowania) i {@code idx_contact_tenant_started_at}.
+     * Strona {@code email_message} — przy realistycznej wielotenantowej selektywności (jeden tenant
+     * = mały wycinek całej tabeli, zweryfikowane przy ~10% udziału na 1,16 mln wierszy w 10 tenantach)
+     * planner wybiera {@code Bitmap Index Scan} na {@code uq_email_message_id_header} ({@code
+     * tenant_id} jako PIERWSZA kolumna tego unikalnego indeksu z V010 — NIE nowy indeks, żadna
+     * migracja SQL nie jest potrzebna), więc koszt jest ograniczony do wierszy TEGO tenanta, a NIE
+     * do rozmiaru całej tabeli (czyli NIE rośnie z liczbą INNYCH tenantów na platformie). Gdy tenant
+     * jest większością tabeli, planner naturalnie wybiera Seq Scan — wtedy jest to i tak najszybsza
+     * opcja (skan ≈ skan danych samego tenanta).
+     */
+    static final String COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL = """
+            SELECT COUNT(*)
+            FROM email_message em
+            WHERE em.tenant_id = CAST(:tenantId AS uuid)
+              AND em.contact_id IN (
+                  SELECT c.contact_id
+                  FROM contact c
+                  WHERE c.tenant_id = CAST(:tenantId AS uuid)
+                    AND c.started_at < :cutoff
+              )
+            """;
+
+    /**
+     * Liczy wiadomości e-mail POWIĄZANE z kontaktem, którego kontakt SAM kwalifikuje się do
+     * usunięcia w ramach kategorii CONTACT_INTERACTIONS ({@code contact.started_at < cutoff}, TEN
+     * SAM cutoff co reszta kategorii) — dashboard/badge (BE-128), składnik uzupełniający sieroty
+     * ({@link #countOrphansOlderThan}).
+     *
+     * <p>DOKŁADNE liczenie (nie oszacowanie) — patrz {@link #COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL}
+     * po uzasadnienie kosztu. Wynik jest wiarygodnym ORIENTACYJNYM licznikiem dla administratora —
+     * może się różnić o kilka wierszy od tego, co faktycznie usunie kolejny przebieg purge (BE-126),
+     * który operuje na stronicowanej liście kandydatów w konkretnym momencie przy współbieżnym ruchu.
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff   granica czasowa retencji CONTACT_INTERACTIONS — kandydują wiadomości, których
+     *                 kontakt ma {@code started_at < cutoff}
+     * @return liczba kwalifikujących się wiadomości (nigdy ujemna)
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional(readOnly = true)
+    public long countLinkedToContactsOlderThan(UUID tenantId, Instant cutoff) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createNativeQuery(COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .getSingleResult();
+        return count.longValue();
+    }
+
+    // =========================================================================
     // Odczyt
     // =========================================================================
 

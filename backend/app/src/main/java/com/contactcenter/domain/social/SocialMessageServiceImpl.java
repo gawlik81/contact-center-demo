@@ -293,6 +293,16 @@ class SocialMessageServiceImpl implements SocialMessageService {
         return socialMessageRepository.countOrphansOlderThan(tenantId, cutoff);
     }
 
+    // =========================================================================
+    // BE-128: Retencja – liczenie wiadomości POWIĄZANYCH z kontaktami kwalifikującymi się (EPIC-30)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countLinkedToContactsOlderThan(UUID tenantId, Instant cutoff) {
+        return socialMessageRepository.countLinkedToContactsOlderThan(tenantId, cutoff);
+    }
+
     @Override
     public OrphanSocialPurgeBatch purgeOrphansOlderThan(
             UUID tenantId, SocialOrphanCursor cursor, Instant cutoff, int batchSize) {

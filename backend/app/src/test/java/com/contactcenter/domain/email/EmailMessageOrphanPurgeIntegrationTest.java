@@ -170,6 +170,17 @@ class EmailMessageOrphanPurgeIntegrationTest {
         return jdbc.queryForObject("SELECT count(*) FROM email_message WHERE message_id = ?", Long.class, messageId) > 0;
     }
 
+    /** Wstawia bare-bones {@code contact} (BE-128: kontakt „kwalifikujący się" / „nie kwalifikujący się"). */
+    private UUID insertContact(UUID tenant, Instant startedAt) {
+        UUID contactId = UUID.randomUUID();
+        jdbc.update("""
+                        INSERT INTO contact (contact_id, tenant_id, channel, direction, status, started_at, queued_at)
+                        VALUES (?, ?, 'EMAIL', 'INBOUND', 'COMPLETED', ?, ?)
+                        """,
+                contactId, tenant, Timestamp.from(startedAt), Timestamp.from(startedAt));
+        return contactId;
+    }
+
     // =========================================================================
     // Mieszanka AC (WP-1): stara osierocona / świeża osierocona / powiązana / stara osierocona tenanta B
     // =========================================================================
@@ -374,6 +385,67 @@ class EmailMessageOrphanPurgeIntegrationTest {
     }
 
     // =========================================================================
+    // countLinkedToContactsOlderThan (BE-128) – wiadomości POWIĄZANE z kontaktem kwalifikującym się
+    // =========================================================================
+
+    @Nested
+    @DisplayName("countLinkedToContactsOlderThan (BE-128)")
+    class CountLinkedToContacts {
+
+        @Test
+        @DisplayName("liczy WYŁĄCZNIE wiadomości powiązane z kontaktem starszym niż cutoff — młodszy kontakt i sierota wykluczone")
+        void countsOnlyMessagesOfEligibleContacts() {
+            Instant cutoff = Instant.now().minus(180, ChronoUnit.DAYS);
+            UUID oldContact = insertContact(tenantA, cutoff.minus(10, ChronoUnit.DAYS));
+            UUID youngContact = insertContact(tenantA, cutoff.plus(10, ChronoUnit.DAYS));
+
+            // 2 wiadomości powiązane ze starym (kwalifikującym się) kontaktem — obie liczone,
+            // niezależnie od WŁASNEGO wieku wiadomości (kryterium jest wiek KONTAKTU, nie wiadomości).
+            insertMessage(tenantA, oldContact, Instant.now(), null, Instant.now(), "[]");
+            insertMessage(tenantA, oldContact, cutoff.minus(5, ChronoUnit.DAYS), null,
+                    cutoff.minus(5, ChronoUnit.DAYS), "[]");
+            // Powiązana z młodym kontaktem — NIE liczona.
+            insertMessage(tenantA, youngContact, cutoff.minus(5, ChronoUnit.DAYS), null,
+                    cutoff.minus(5, ChronoUnit.DAYS), "[]");
+            // Sierota (contact_id IS NULL) — poza zakresem tej metody (liczy ją countOrphansOlderThan).
+            insertMessage(tenantA, null, cutoff.minus(5, ChronoUnit.DAYS), null,
+                    cutoff.minus(5, ChronoUnit.DAYS), "[]");
+
+            assertThat(service.countLinkedToContactsOlderThan(tenantA, cutoff)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("granica cutoff: started_at kontaktu DOKŁADNIE na cutoff jest WYKLUCZONY (semantyka <, jak ContactRepository#findContactIdsOlderThan)")
+        void contactCutoffBoundary_isExclusive() {
+            Instant cutoff = Instant.now().minus(180, ChronoUnit.DAYS);
+            UUID atCutoff = insertContact(tenantA, cutoff);
+            UUID beforeCutoff = insertContact(tenantA, cutoff.minusSeconds(1));
+            insertMessage(tenantA, atCutoff, Instant.now(), null, Instant.now(), "[]");
+            insertMessage(tenantA, beforeCutoff, Instant.now(), null, Instant.now(), "[]");
+
+            assertThat(service.countLinkedToContactsOlderThan(tenantA, cutoff)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("izolacja tenantów: kontakt+wiadomość tenanta B nie wchodzą do liczby tenanta A")
+        void isolatesByTenant() {
+            Instant cutoff = Instant.now().minus(180, ChronoUnit.DAYS);
+            UUID contactA = insertContact(tenantA, cutoff.minus(10, ChronoUnit.DAYS));
+            UUID contactB = insertContact(tenantB, cutoff.minus(10, ChronoUnit.DAYS));
+            insertMessage(tenantA, contactA, Instant.now(), null, Instant.now(), "[]");
+            insertMessage(tenantB, contactB, Instant.now(), null, Instant.now(), "[]");
+
+            assertThat(service.countLinkedToContactsOlderThan(tenantA, cutoff)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("brak kandydatów -> 0, nie wyjątek")
+        void noCandidates_returnsZero() {
+            assertThat(service.countLinkedToContactsOlderThan(tenantA, Instant.now())).isZero();
+        }
+    }
+
+    // =========================================================================
     // TenantContext (WP-2)
     // =========================================================================
 
@@ -398,6 +470,18 @@ class EmailMessageOrphanPurgeIntegrationTest {
 
             assertThat(exists(m)).isTrue();
             assertThat(s3.deleteCalls).isEmpty();
+        }
+
+        @Test
+        @DisplayName("(BE-128) pusty TenantContext -> IllegalStateException dla countLinkedToContactsOlderThan (serwis i repozytorium) — regresja BE-112")
+        void emptyTenantContext_throwsIllegalState_countLinkedToContacts() {
+            Instant cutoff = Instant.now().minus(180, ChronoUnit.DAYS);
+            TenantContext.clear();
+
+            assertThatThrownBy(() -> service.countLinkedToContactsOlderThan(tenantA, cutoff))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> repository.countLinkedToContactsOlderThan(tenantA, cutoff))
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test

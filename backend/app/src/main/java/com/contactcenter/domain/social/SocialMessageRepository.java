@@ -279,6 +279,58 @@ class SocialMessageRepository extends TenantAwareRepository {
         return candidates;
     }
 
+    // =========================================================================
+    // BE-128: Retencja – liczenie wiadomości POWIĄZANYCH z kontaktami kwalifikującymi się (EPIC-30)
+    // =========================================================================
+
+    /**
+     * SQL — package-private dla testu EXPLAIN. Semi-join po {@code contact_id} do {@code contact}
+     * zawężonego TYM SAMYM {@code tenant_id}/{@code cutoff} co reszta kategorii CONTACT_INTERACTIONS
+     * — patrz {@code EmailMessageRepository#COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL} po pełne
+     * uzasadnienie kosztu (analogiczne tutaj: strona {@code social_message} korzysta z
+     * {@code idx_social_message_sender} — {@code tenant_id} jako PIERWSZA kolumna, indeks z V010,
+     * NIE nowy — gdy tenant jest małym wycinkiem całej tabeli; zweryfikowane EXPLAIN ANALYZE na
+     * scratch DB, notatka wykonania BE-128 w {@code TASKS-BACKEND.md}).
+     */
+    static final String COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL = """
+            SELECT COUNT(*)
+            FROM social_message sm
+            WHERE sm.tenant_id = CAST(:tenantId AS uuid)
+              AND sm.contact_id IN (
+                  SELECT c.contact_id
+                  FROM contact c
+                  WHERE c.tenant_id = CAST(:tenantId AS uuid)
+                    AND c.started_at < :cutoff
+              )
+            """;
+
+    /**
+     * Liczy wiadomości social POWIĄZANE z kontaktem, którego kontakt SAM kwalifikuje się do
+     * usunięcia w ramach kategorii CONTACT_INTERACTIONS ({@code contact.started_at < cutoff}, TEN
+     * SAM cutoff co reszta kategorii) — dashboard/badge (BE-128), składnik uzupełniający sieroty
+     * ({@link #countOrphansOlderThan}).
+     *
+     * <p>DOKŁADNE liczenie (nie oszacowanie) — patrz {@link #COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL}.
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param cutoff   granica czasowa retencji CONTACT_INTERACTIONS — kandydują wiadomości, których
+     *                 kontakt ma {@code started_at < cutoff}
+     * @return liczba kwalifikujących się wiadomości (nigdy ujemna)
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional(readOnly = true)
+    public long countLinkedToContactsOlderThan(UUID tenantId, Instant cutoff) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createNativeQuery(COUNT_LINKED_TO_ELIGIBLE_CONTACTS_SQL)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .getSingleResult();
+        return count.longValue();
+    }
+
     /**
      * Usuwa wskazane wiadomości sierocze i zwraca ID FAKTYCZNIE usunięte ({@code DELETE …
      * RETURNING message_id}) — jak {@code EmailMessageRepository#deleteByIds}: pod rolą bez

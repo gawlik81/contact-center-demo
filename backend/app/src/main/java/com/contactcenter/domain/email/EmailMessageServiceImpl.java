@@ -169,6 +169,16 @@ class EmailMessageServiceImpl implements EmailMessageService {
         return emailMessageRepository.countOrphansOlderThan(tenantId, cutoff);
     }
 
+    // =========================================================================
+    // BE-128: Retencja – liczenie wiadomości POWIĄZANYCH z kontaktami kwalifikującymi się (EPIC-30)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countLinkedToContactsOlderThan(UUID tenantId, Instant cutoff) {
+        return emailMessageRepository.countLinkedToContactsOlderThan(tenantId, cutoff);
+    }
+
     /**
      * Celowo BEZ {@code @Transactional} — jak {@link #purgeByContactIds}: {@link #purgeRows} robi
      * I/O do S3. {@link EmailMessageRepository#findOrphansOlderThan} ma własną, krótką transakcję

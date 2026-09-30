@@ -6805,7 +6805,7 @@ działają niezależnie od tej decyzji.
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
+>           BE-141 → DB-078;   BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
 > Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 ✅ → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -7884,10 +7884,10 @@ schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG
 
 ---
 
-### BE-142 – [WARUNKOWY: D10] Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja)
+### BE-142 – Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja)
 
 **Typ:** Backend implementation (minimalizacja danych)
-**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy założeniu D10 = maskowanie)
+**Priorytet:** Could Have (D10 formalnie potwierdzone 2026-09-30 jako „maskowanie" — patrz DESIGN §3; ticket aktywny do realizacji)
 **Złożoność:** S (M, jeśli obejmuje jednorazowe maskowanie wierszy historycznych — patrz Zakres p. 3)
 **Zależy od:** brak
 **Status:** ⬜ Nie rozpoczęte
@@ -7898,7 +7898,7 @@ schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG
 **Opis:**
 `audit_log` (1227 wierszy live) trzyma pełne snapshoty PII (DB-060 F7): `CUSTOMER_CREATED` (1) i `CUSTOMER_UPDATED` (7) — `firstName`, `lastName`, `phone[]`, `email[]`, `customFields`, `gdprConsent`, `externalId`, także w `old_value`; `CONTACT_*` (CREATED 259, AGENT_ASSIGNED 362, DISPOSITION_SET 399, ACCEPTED 28, ABANDONED 14) — `remoteAddress`, `channelMetadata` (EMAIL: `fromAddress`, `subject`), `recordingUrl`, `notes`;
 `RECORDING_URL_REQUESTED` (98) — `presignedUrl` (TTL 15 min, wygasłe — nie jest to ryzyko PII). `AuditAspect#serializeToJson` (`infrastructure/aspect/AuditAspect.java`, ≈ l. 209–224) usuwa dziś wyłącznie `SENSITIVE_FIELDS` (hasła, tokeny; l. 55–58) i serializuje całą encję, a anonimizacja Art. 17 (Java i SQL) nie dotyka `audit_log`.
-**Zakłada D10 (DESIGN §3): maskowanie kluczy PII, wiersze zostają** (Art. 5(2)/30; Art. 17(3)(b)/(e) — wymaga potwierdzenia prawnego). Przy alternatywie „`audit_log` bez zmian" ticket nie jest wykonywany; ekspozycję ogranicza wtedy wyłącznie horyzont 24 mies. (D5/BE-123).
+**D10 potwierdzone 2026-09-30, patrz DESIGN §3: maskowanie kluczy PII, wiersze zostają** (Art. 5(2)/30; Art. 17(3)(b)/(e) — potwierdzenie prawne uzyskane 2026-09-30). Alternatywa („`audit_log` bez zmian") jest zamknięta i nieaktualna (patrz DESIGN §3, zapis historyczny). Potwierdzenie dotyczy decyzji/kierunku, nie stanu wdrożenia — implementacja poniżej jeszcze nie istnieje; do czasu jej ukończenia `audit_log` nadal zawiera niezamaskowane PII, historyczne i nowo zapisywane.
 
 **Zakres:**
 1. **Zatrzymanie PII u źródła:** lista kluczy PII jako jedno źródło prawdy w Javie (np. `AuditPiiKeys`, konfigurowalna): `firstName`, `lastName`, `phone`, `email`, `customFields`, `gdprConsent`, `externalId`, `remoteAddress`, `channelMetadata`, `notes`, `recordingUrl`, `fromAddress`, `subject`; `AuditAspect#serializeToJson` i `captureOldValue` zastępują wartości tych kluczy znacznikiem `"[MASKED]"` (klucz zostaje — widać, że pole się zmieniło, bez wartości), obok `SENSITIVE_FIELDS`. Dotyczy encji `CUSTOMER` i `CONTACT`.
@@ -7910,7 +7910,7 @@ schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG
 - [ ] (WP-1) Test na prawdziwej bazie (Testcontainers, `AuditLogConsumer`/prawdziwa tabela `audit_log`): `@Audited` na `CustomerServiceImpl` (create/update) i `ContactServiceImpl` zapisuje `new_value`/`old_value` z zamaskowanymi kluczami PII i zachowanymi polami niebędącymi PII (`customerId`, `status`, `dispositionCode`) — asercje po JSON
 - [ ] Test spójności listy kluczy Java ↔ SQL (jeśli DB-062 obejmuje maskowanie wierszy podmiotu)
 - [ ] Decyzja w notatce: `presignedUrl` z `RECORDING_URL_REQUESTED` (TTL 15 min) — maskować czy zostawić; istniejące testy `AuditAspect` zielone; sprawdzone (grep FE/BE), że żaden widok historii audytu nie polega na wartościach snapshotów PII
-- [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D10
+- [ ] `mvn verify -pl app`; DoD (WP-7); D10 potwierdzone 2026-09-30
 
 **Ryzyka:** utrata użyteczności diffów audytowych (klucz zostaje, wartość nie); rozjazd list PII w Javie i SQL; decyzja prawna o wierszach historycznych.
 

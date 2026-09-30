@@ -5,6 +5,12 @@ Status: **projekt do akceptacji** (nie wdrożone). Decyzje D1–D10 (§3) czekaj
 **D1: FORMALNIE POTWIERDZONE przez właściciela produktu 2026-09-30 (opcja A)** — wcześniej, 2026-09-20, przyjęte do realizacji jedynie jako
 założenie robocze bez wyraźnego potwierdzenia, na którym działał już zamknięty łańcuch ticketów BE-124→BE-125→BE-126→BE-127→BE-128; stan i
 ścieżka zmiany w §3, ADR w `TASKS-BACKEND.md` BE-124.
+**D9: FORMALNIE POTWIERDZONE przez właściciela produktu 2026-09-30 (opcja A, z podglądem)** — kod realizujący wariant A jest już zmergowany do
+`develop` (DB-061 ✅, DB-062 ✅, BE-129 ✅); czysto formalne domknięcie already-shipped behavior. Tryb podglądu w UI administratora (FE-112)
+pozostaje ⬜ Nie rozpoczęte; stan i ścieżka zmiany w §3.
+**D10: FORMALNIE POTWIERDZONE (prawnie) przez właściciela produktu 2026-09-30 (maskowanie PII w `audit_log`, wiersze zostają)** — w odróżnieniu
+od D1/D9 implementacja (`TASKS-BACKEND.md` BE-142) **jeszcze NIE ISTNIEJE**; to potwierdzenie decyzji/kierunku, nie stanu wdrożenia; stan i
+ścieżka zmiany w §3.
 Analiza: 2026-09-20 (PostgreSQL 16.13, schemat po V093, baza demo 28 MB; tylko odczyt, bez zmian w bazie i repo).
 Powiązane: `DESIGN-data-retention-partitioning.md` (EPIC-29 — silnik retencji), `PRD.md` §6.5 (NFR-RODO01/02/03), `ARCHITECTURE.md` §4/§6.6,
 `documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079, `TASKS-BACKEND.md` BE-120…143 (+ BE-144 poza epikiem: porządki infrastruktury MinIO), `TASKS-FRONTEND.md` FE-110…112.
@@ -71,11 +77,14 @@ razem z BE-126), wiadomość dziedziczy wiek kontaktu (`started_at`).
   BE-125 zyskuje wariant po wieku; DB-059: indeks bez `WHERE contact_id IS NULL`; DB-065/067 bez zmian (próg z `MESSAGE_CONTENT`); FE-110 ogranicza się do dryfu `CAMPAIGN_DATA`.
 - **Zmiana decyzji po starcie prac (zapis historyczny):** przed merge BE-125/126 zmieniałyby się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie
   jest nieodwracalne, więc B/C dotyczyłyby tylko danych jeszcze nieusuniętych w chwili ewentualnej zmiany. Opcja zabezpieczająca, przyjęta i pozostająca w mocy: flaga
-  `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe odcinanie referencji). **Bramka produkcyjna (stan 2026-09-30):** D1 = A jest formalnie
-  potwierdzone, ale to samo w sobie NIE odblokowuje produkcji — `auto_purge_enabled` dla `CONTACT_INTERACTIONS` pozostaje zablokowany na produkcji, teraz już nie do
-  czasu potwierdzenia D1 (nieaktualne), tylko do czasu potwierdzenia **D9** (zbiór podmiotu Art. 17/15 — dziś nadal „ZAŁOŻENIE DO POTWIERDZENIA: A z podglądem",
-  ryzyko fałszywych trafień R9) i **D10** (maskowanie PII w `audit_log` — dziś nadal „ZAŁOŻENIE DO POTWIERDZENIA", wymaga potwierdzenia prawnego); oba pozostają
-  otwarte, więc bramka zostaje w mocy bez zmian.
+  `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe odcinanie referencji). **Bramka produkcyjna (stan 2026-09-30, zaktualizowana):** D1, D9
+  i D10 jako DECYZJE PRODUKTOWE są teraz WSZYSTKIE formalnie potwierdzone (nic już nie czeka na odpowiedź właściciela w tym sensie) — ale **potwierdzenie
+  decyzji ≠ kompletna techniczna realizacja**, i to jest teraz jedyny powód, dla którego bramka zostaje zamknięta. `auto_purge_enabled` dla
+  `CONTACT_INTERACTIONS` pozostaje zablokowany na produkcji: **D9** — kod (DB-061 ✅/DB-062 ✅/BE-129 ✅) istnieje i działa, ale tryb podglądu w UI
+  administratora (**FE-112**, dziś `⬜ Nie rozpoczęte`) — część mitygacji ryzyka fałszywych trafień R9 (licznik + wymagane potwierdzenie w UI) — nie jest w
+  pełni operacyjna bez niego; **D10** — decyzja (maskowanie) potwierdzona prawnie, ale **BE-142 (maskowanie `audit_log`) jeszcze niezaimplementowane** —
+  `audit_log` dziś fizycznie NIE maskuje PII. Bramka odblokuje się po **wdrożeniu BE-142** (wymagane) i **zalecanym** FE-112 (nie twardo wymaganym, ale
+  usuwa ostatnią lukę mitygacji R9). Rozróżnienie „decyzja potwierdzona" ≠ „wdrożenie kompletne" jest kluczowe — nie mylić tych dwóch stanów.
 - **B i C zamknięte (2026-09-30):** obie ścieżki analizy powyżej — (B) anonimizacja i (C) kategoria `MESSAGE_CONTENT` — są od tej daty **zamknięte i nieaktualne**:
   D1 = A jest ostateczną, formalnie potwierdzoną decyzją (tickety warunkowe DB-063/BE-130/FE-111 zamknięte jako N/A, patrz wyżej). Analiza zostaje w dokumencie
   wyłącznie jako historyczne uzasadnienie wyboru A, nie jako otwarta opcja.
@@ -128,14 +137,28 @@ V015), ale kontakty zakończonych kampanii znikają z UI i statystyk.
 z licznikami `matched_by_link`/`matched_by_identifier` w wyniku i **trybem podglądu (dry-run)** przed anonimizacją; (B) tylko powiązania kluczowe (`customer_id`, `last_contact_id`, `contact.campaign_contact_record_id`, `origin_contact_id`).
 Dowody (DB-060 F2/F5; demo ma 2 klientów, więc liczby ilustrują mechanizm): `campaign_contact.customer_id` NULL w 37/37 (import go nie ustawia), 7/37 rekordów kampanii nieosiągalnych żadnym powiązaniem; 56 z 64 kontaktów bez `customer_id` niesie telefon/e-mail klienta w `remote_address`;
 20 z 55 callbacków bez `customer_id` (wszystkie zgodne telefonem); 14 z 23 osieroconych e-maili ma adres zgodny z e-mailem klienta.
-**ZAŁOŻENIE DO POTWIERDZENIA: A (z podglądem).** Ryzyko A: fałszywe trafienia (numer/adres wspólny dla rodziny, centrali, skrzynki zbiorczej) przy nieodwracalnej operacji, a w Art. 15 ujawnienie danych osób trzecich — mitygacja: podgląd z licznikami i wymagane potwierdzenie w UI
-(BE-129, FE-112), normalizacja i test wspólnego numeru (DB-062), jedna funkcja pomocnicza dla eksportu i anonimizacji (DB-061 → DB-062).
-**Wpływ B:** DB-062 bez ścieżki po identyfikatorze (predykat `customer_id` = no-op dla kampanii), bez liczników `matched_by_*` i trybu podglądu, AC o wiadomościach osieroconych sprowadza się do „osierocone nietknięte"; DB-061 bez `matched_by_*` i bez funkcji pomocniczej D9;
-BE-129 bez endpointu podglądu (wraca do M); FE-112 bez podglądu (zostają teksty i przepięcie listy klientów). **Luka prawna zostaje otwarta** — w demo pomijane: 56 kontaktów (z transkryptami, podsumowaniami i nagraniami), 30 rekordów kampanii, 20 callbacków, 14 e-maili.
+**STAN: D9 POTWIERDZONE przez właściciela produktu 2026-09-30 — opcja A (z podglądem).** Dwa momenty: **(a) 2026-09-20** — A przyjęte jako
+założenie robocze, na którym zaimplementowano i zmergowano do `develop` **DB-061 ✅, DB-062 ✅, BE-129 ✅** (wspólna funkcja `fn_customer_subject_ids`,
+liczniki `matched_by_link`/`matched_by_identifier`, endpoint podglądu `GET .../gdpr/anonymize/preview`). **(b) 2026-09-30** — właściciel produktu
+w rozmowie z asystentem formalnie potwierdził opcję A. Ponieważ kod realizujący wariant A już istnieje i jest zmergowany, to potwierdzenie jest
+**czystym formalnym domknięciem already-shipped behavior** — D9, w odróżnieniu od D1, nigdy nie miał osobnych ticketów warunkowych wariantu B do
+zamknięcia jako N/A (różnica zakresu przy B żyła WEWNĄTRZ DB-061/DB-062/BE-129, patrz „Wpływ B" niżej — teraz zapis historyczny). Jedyny element
+mitygacji ryzyka fałszywych trafień (R9) wciąż niekompletny: **tryb podglądu w UI administratora (FE-112) pozostaje ⬜ Nie rozpoczęte.**
+**DECYZJA: A (z podglądem).** Ryzyko A: fałszywe trafienia (numer/adres wspólny dla rodziny, centrali, skrzynki zbiorczej) przy nieodwracalnej operacji, a w Art. 15 ujawnienie danych osób trzecich — mitygacja: podgląd z licznikami i wymagane potwierdzenie w UI
+(BE-129 ✅, FE-112 ⬜), normalizacja i test wspólnego numeru (DB-062 ✅), jedna funkcja pomocnicza dla eksportu i anonimizacji (DB-061 ✅ → DB-062 ✅).
+**Wpływ B (zamknięty i nieaktualny od 2026-09-30 — zapis historyczny uzasadnienia wyboru A):** DB-062 bez ścieżki po identyfikatorze (predykat `customer_id` = no-op dla kampanii), bez liczników `matched_by_*` i trybu podglądu, AC o wiadomościach osieroconych sprowadza się do „osierocone nietknięte"; DB-061 bez `matched_by_*` i bez funkcji pomocniczej D9;
+BE-129 bez endpointu podglądu (wraca do M); FE-112 bez podglądu (zostają teksty i przepięcie listy klientów). Luka prawna, którą wariant B zostawiłby otwartą — w demo pomijane: 56 kontaktów (z transkryptami, podsumowaniami i nagraniami), 30 rekordów kampanii, 20 callbacków, 14 e-maili.
 
 **D10 — PII w `audit_log` (nowa, z DB-060 F7).** `audit_log` (1227 wierszy live) trzyma pełne snapshoty klienta (`firstName`, `lastName`, `phone[]`, `email[]`, `customFields`, `gdprConsent`, `externalId`, także w `old_value`) i kontaktu (`remoteAddress`, `channelMetadata`, `notes`, `recordingUrl`);
-`@Audited` serializuje całą encję (`AuditAspect#serializeToJson` usuwa dziś tylko hasła i tokeny). **ZAŁOŻENIE DO POTWIERDZENIA: maskowanie kluczy PII w snapshotach wierszy podmiotu przy anonimizacji, wiersze zostają** (rozliczalność Art. 5(2)/30; wyjątek Art. 17(3)(b)/(e) — **wymaga potwierdzenia prawnego**),
-oraz (Could) zatrzymanie zapisu PII u źródła (BE-142). Wpływ alternatywy (`audit_log` bez zmian — świadoma decyzja prawna): BE-142 nie wchodzi, maskowanie w DB-062 (Could) odpada; ekspozycję ogranicza wyłącznie horyzont 24 mies. (D5/BE-123), a snapshoty PII przeżywają anonimizację.
+`@Audited` serializuje całą encję (`AuditAspect#serializeToJson` usuwa dziś tylko hasła i tokeny).
+**STAN: D10 POTWIERDZONE PRAWNIE przez właściciela produktu 2026-09-30 — maskowanie kluczy PII w snapshotach wierszy podmiotu przy anonimizacji,
+wiersze zostają** (rozliczalność Art. 5(2)/30; wyjątek Art. 17(3)(b)/(e) — potwierdzenie prawne uzyskane 2026-09-30), oraz (Could) zatrzymanie
+zapisu PII u źródła (BE-142). **WAŻNE — decyzja ≠ wdrożenie:** w odróżnieniu od D1 i D9, kod realizujący D10 **jeszcze NIE ISTNIEJE**. Ticket
+`TASKS-BACKEND.md` BE-142 pozostaje `⬜ Nie rozpoczęte` — potwierdzenie zdejmuje z niego warunkowość (był „[WARUNKOWY: D10]", teraz jest zwykłą
+pozycją backlogu, Priorytet Could Have bez zmian) i odblokowuje go do realizacji, ale nie wykonuje go automatycznie. **Do czasu ukończenia BE-142
+`audit_log` nadal zawiera niezamaskowane PII — zarówno historyczne, jak i nowo zapisywane.**
+**DECYZJA: maskowanie (wiersze zostają).** Alternatywa (`audit_log` bez zmian — świadoma decyzja prawna) jest od 2026-09-30 **zamknięta i
+nieaktualna** — zapis niżej zostaje wyłącznie jako historyczne uzasadnienie: przy tej alternatywie BE-142 nie wchodziłby, maskowanie w DB-062 (Could) odpadałoby; ekspozycję ograniczałby wyłącznie horyzont 24 mies. (D5/BE-123), a snapshoty PII przeżywałyby anonimizację.
 
 ## 4. Fazy i fale
 
@@ -145,7 +168,7 @@ Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = 
 Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)      BE-145 ✅ (poza epikiem: PartitionReclaimJob nie DROP-uje już niepustej partycji contact*, ukończone 2026-09-26)
 Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅ → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 ✅ → BE-127 ✅
         DB-060 ✅ (audyt PII) → DB-061 ✅ (+ wspólna reguła D9) → DB-062 ✅ → BE-129 ✅ → FE-112      DB-079 ✅ (trigger V016) → DB-062 ✅, BE-129 ✅      BE-125 ✅ → BE-129 ✅
-        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 🚫 → BE-130 🚫 → FE-111 🚫 (zamknięte 2026-09-30, D1=A potwierdzone)]
+        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜)      [D1=C: BE-124 ✅ → DB-063 🚫 → BE-130 🚫 → FE-111 🚫 (zamknięte 2026-09-30, D1=A potwierdzone)]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)

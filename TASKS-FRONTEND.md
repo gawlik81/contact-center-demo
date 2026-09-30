@@ -5873,7 +5873,7 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
@@ -5936,7 +5936,7 @@ i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z B
 **Priorytet:** Should Have (w pierwotnym planie Could; przy D9 = A podgląd jest zabezpieczeniem przed fałszywymi trafieniami w nieodwracalnej operacji)
 **Złożoność:** M (w pierwotnym planie S; dochodzą podgląd D9 i przepięcie listy klientów na jedną ścieżkę anonimizacji)
 **Zależy od:** BE-129 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-09-30, po code review — 3.5/5, dwie poprawki major) — patrz „Notatka z implementacji" i „Code review i poprawki" poniżej
 **Czeka na BE:** BE-129 (podgląd `GET /api/customers/{id}/gdpr/anonymize/preview`, przekierowanie `DELETE /api/customers/{id}` na `GdprService`, kształt manifestu eksportu — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -5965,3 +5965,47 @@ sekcja „Prawa RODO" (`supervisor.customerDetail.gdprExportTitle`, `gdprDownloa
 - [ ] Lista klientów i szczegóły klienta korzystają z jednej ścieżki anonimizacji (modal GDPR z podglądem wg D9); `customer-delete-modal` usunięty albo zaktualizowany — test komponentu listy (Vitest): akcja anonimizacji otwiera modal GDPR, sukces i błąd pokazują te same komunikaty
 - [ ] (D9 = A) Modal pokazuje liczniki podglądu i ostrzeżenie przy `matched_by_identifier > 0`; potwierdzenie możliwe dopiero po załadowaniu podglądu i wpisaniu frazy; błąd podglądu blokuje potwierdzenie (test)
 - [ ] Nowe klucze i18n (`supervisor.gdprAnonymize.preview*`) w 4 językach; zmienione/usunięte klucze `supervisor.customerDelete.*` bez martwych odwołań (grep)
+
+**Notatka z implementacji (angular-frontend-expert, 2026-09-30):**
+Zaimplementowano w całości, wariant zalecany (unifikacja), bez ścieżki awaryjnej.
+
+Kształt `AnonymizePreviewResponse` zweryfikowany w kodzie (`backend/app/src/main/java/com/contactcenter/api/customer/dto/AnonymizePreviewResponse.java` +
+`GdprServiceImpl#toPreviewResponse`) — Jackson serializuje rekord domyślnie camelCase (brak globalnej `SNAKE_CASE` strategii dla tego kontrolera, w
+przeciwieństwie do `AiSummaryClient`/`VoicebotClientImpl`): `{ dryRun, counts: { <nazwa_tabeli>: n, ... }, matchedByLink, matchedByIdentifier,
+s3ObjectsToDelete }`. Klucze ticketu (`matched_by_link`/`matched_by_identifier`) to nazewnictwo z warstwy SQL/JSONB, nie z kontraktu REST — FE użył
+`matchedByLink`/`matchedByIdentifier`. Klucze `counts` (nazwy tabel: `customer`, `contact`, `scheduled_callback`, `campaign_contact`,
+`campaign_contact_archive`, `contact_transcription`, `contact_ai_summary`, `email_message`, `social_message`, `contacts_dw`) są kopiowane 1:1 z JSONB
+funkcji SQL `anonymize_customer` (V096) i renderowane dynamicznie (nieznany przyszły klucz nie wywala UI, ląduje na końcu listy).
+
+`DELETE /api/customers/{id}` zweryfikowane jako pełne przekierowanie do `GdprService#anonymizeCustomer` (identyczny efekt co `POST .../gdpr/anonymize`,
+`CustomerController.java:257-279`) — unifikacja UI na `GdprAnonymizeModalComponent` bezpieczna. `customer-delete-modal` (3 pliki) usunięty w całości;
+`customer-list.component.ts` przełączony na ten sam modal/serwis co `customer-detail` (`openAnonymizeModal`/`closeAnonymizeModal`/
+`onGdprAnonymizeConfirmed`). `CustomerService#deleteCustomer` pozostawiony bez zmian (nadal poprawny wrapper na istniejący, udokumentowany endpoint
+backendu) — świadomie nieużywany już z UI, ale nieusunięty (poza jawnym zakresem ticketu, zero ryzyka pozostawienia).
+
+Punkt o "częściowym niepowodzeniu sprzątania S3" **pominięty celowo**: `POST /api/customers/{id}/gdpr/anonymize` zwraca `204 No Content` bez body
+(`GdprController.anonymizeCustomer` → `ResponseEntity<Void>`) — `GdprServiceImpl.anonymizeCustomer` liczy `failedKeys` wewnętrznie, ale wyłącznie loguje
+(`log.error`), nie zwraca do wywołującego. Brak DTO = brak możliwości pokazania tego w UI bez zmiany backendu (poza zakresem — "zero zmian w backendzie").
+
+Podgląd D9 ma jawny `timeout(15000ms)` (RxJS) + `catchError` — zawieszony request (nie tylko HTTP 4xx/5xx) też ustawia `previewState = 'error'` i blokuje
+potwierdzenie, zgodnie z AC. `isConfirmEnabled()` wymaga `previewState() === 'loaded'` oprócz dotychczasowej frazy `ANONIMIZUJ`.
+
+Testy: nowy `gdpr-anonymize-modal.component.spec.ts` (24 testy — preview load/sort/labels, gating potwierdzenia, timeout, retry, sukces/błąd anonimizacji,
+escape/cancel). `customer-list.component.spec.ts` zaktualizowany — 3 testy renderują PRAWDZIWY `GdprAnonymizeModalComponent` (nie stub) i sterują nim
+bezpośrednio, żeby udowodnić identyczne komunikaty sukcesu/błędu jak na stronie szczegółów klienta. `npm run lint` / `npm run build` / `npm test` — zielone
+(247/247 testów, 18 plików spec — to cały istniejący zestaw testów frontendu w tym repo, nie tylko customers/).
+
+Weryfikacja na żywo (WP-4): stack `docker compose ... local-demo` był uruchomiony (`cc-backend`/`cc-frontend`/`cc-nginx` healthy), obraz `cc-frontend`
+przebudowany i podmieniony (`docker compose build frontend && up -d frontend`, potwierdzone `curl http://localhost:80/` z poprawnym, świeżym HTML z hosta
+sandboxa). Wizualna weryfikacja przez `claude-in-chrome` **nie powiodła się** — przeglądarka rozszerzenia nie ma dostępu do sieci Dockera tego sandboxa
+(`http://localhost/` dało błąd nawigacji w rozszerzeniu, mimo że `http://example.com/` załadował się poprawnie w tej samej karcie — potwierdzone
+screenshotem), tzn. "localhost" w przeglądarce rozszerzenia to inny host niż ten, na którym stoi docker-compose. Nie ustawiałem `socat`
+port-forward (to obejście problemu z portem backendu przy `npm start`, nie z tym — przeglądarka i sandbox to najwyraźniej różne sieci/hosty w tej sesji).
+Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod źródłowy + migracja SQL V096) i przez testy jednostkowe zamiast tego.
+
+**Code review i poprawki (2026-09-30):** `CR-FRONTEND.md`, sekcja „Review: FE-112" — werdykt **3.5/5 ⭐, brak blokerów**. Recenzent potwierdził niezależnie (`npm run lint`/`build`/`test`/`prettier --check`) unifikację ścieżki anonimizacji (grep — zero pozostałych odwołań do usuniętego `customer-delete-modal`), pełne i18n w 4 językach dla wszystkich nowych/usuniętych kluczy oraz solidne pokrycie testami całego automatu stanów bramkowania podglądu D9 (`gdpr-anonymize-modal.component.spec.ts`, 24 testy).
+- **Oba ustalenia „major" — NAPRAWIONE:**
+  - Podwójny komunikat błędu przy nieudanym załadowaniu podglądu (`GdprService#previewAnonymize()`/`#anonymize()` nie ustawiały `HttpContext` z `SKIP_ERROR_TOAST`, więc globalny `errorHandlerInterceptor` pokazywał toast RÓWNOLEGLE z lokalną obsługą błędu modala) — naprawione dodaniem `{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }` do obu wywołań w `gdpr.service.ts` (wzorzec 1:1 z `social-integration.service.ts`).
+  - Niespójność i18n `supervisor.gdprAnonymize.confirmHint` w `de.json`/`uk.json` — podpowiedź instruowała operatora, by wpisał zlokalizowane słowo („ANONYMISIEREN"/„АНОНІМІЗУЙ"), którego kod nigdy nie zaakceptuje (`isConfirmEnabled()` porównuje zawsze z niełamanym na lokalizacje `'ANONIMIZUJ'`) — ujednolicone do `ANONIMIZUJ` we wszystkich 4 językach, zgodnie z etykietą pola.
+- **Pozostałe ustalenia (minor/nit — brak `takeUntilDestroyed` na subskrypcji podglądu, `previewBlockedHint` widoczny razem z komunikatem błędu, brak rozróżnienia HTTP 409 przy błędzie anonimizacji, brak etykiety i18n dla nowego klucza `audit_log` z BE-142/V098, martwy `CustomerService#deleteCustomer()`) — świadomie NIE naprawione teraz:** niski wpływ, udokumentowane w review jako kandydaci do przyszłej poprawki.
+- Zweryfikowane niezależnie po poprawkach: `npm run lint` (0 błędów), `npm run build` (sukces), `npm test` (247/247), `npx prettier --check` na zmienionych plikach (zgodne).

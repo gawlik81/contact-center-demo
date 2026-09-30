@@ -8092,6 +8092,18 @@ Ustalenie infra (zweryfikowane 2026-09-21 przez zlecającego): `docker manifest 
 
 **Ryzyka:** przypięte wydanie może nie zawierać `mc` (healthcheck) albo różnić się poleceniem startowym — do sprawdzenia; przypięcie starszego wydania niż dane w wolumenie (patrz AC WP-4); quay.io może wymagać osobnej konfiguracji pull w CI (sprawdzić); ruchomy tag w innych miejscach (np. inne obrazy `latest` w compose) poza zakresem tego ticketu.
 
+**Aktualizacja 2026-09-30 (potwierdzone w CI):** ten problem przestał być teoretyczny/prewencyjny — realnie blokuje PR na GitHub Actions. `mvn -B -pl app -am verify` na świeżym runnerze (`ubuntu-latest`, zero lokalnego cache'u obrazów) pada w `EmailAttachmentStorageServiceMinioTest.start`:
+```
+ContainerFetchException: Can't get Docker image: RemoteDockerImage(imageName=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z, ...)
+```
+Diagnoza z tej samej daty (`docker manifest inspect` z maszyny dewelopera) pokazuje, że zakres tego ticketu (przepięcie na `quay.io`) jest **NIEAKTUALNY/niewystarczający**: nie tylko Docker Hub (`minio/minio:latest` → 401 unauthorized, jak już ustalono 2026-09-21), ale TERAZ TEŻ `quay.io/minio/minio` — zarówno przypięty tag `RELEASE.2025-09-07T16-13-09Z`, jak i `latest` — odpowiada „no such manifest"/401 anonimowemu zapytaniu (`quay.io/api/v1/repository/minio/minio` → HTTP 401 „Requires authentication"), mimo że to samo repozytorium było publicznie odpytywalne 2026-09-21 przy pinowaniu tagu w BE-125. Sprawdzono też `ghcr.io/minio/minio` (denied) i `docker.io/bitnami/minio` (no such manifest) — brak sprawdzonego publicznego rejestru serwującego ten obraz anonimowo w tej chwili. Lokalnie obraz jest wciąż w cache Dockera (stąd `mvn verify` przechodzi na maszynie dewelopera), co maskowało problem do pierwszego uruchomienia na czystym runnerze CI.
+
+Wykonawca BE-144 musi więc znaleźć **inne** rozwiązanie niż samo przejście na quay.io — np. mirror obrazu do rejestru kontrolowanego przez zespół (GHCR pod namespace tego repo) albo Docker Hub/quay.io z uwierzytelnieniem w CI (`docker login` z sekretem). Nie rozstrzygam tego tutaj — tylko odnotowuję.
+
+Doraźnie (osobna zmiana, poza zakresem BE-144): `EmailAttachmentStorageServiceMinioTest` pomija się (`Assumptions.assumeTrue`, JUnit SKIPPED) gdy start kontenera MinIO padnie na błędzie pobrania obrazu, żeby PR nie był czerwony z powodu infrastruktury poza kontrolą repo — to nie jest naprawa, tylko żeby CI nie blokował niezwiązanych zmian do czasu wykonania tego ticketu.
+
+**Rekomendacja priorytetu:** biorąc pod uwagę, że problem aktywnie blokuje CI (nie jest już tylko ryzykiem na przyszłość), warto rozważyć podniesienie `Should Have` → `Must Have`. Decyzję i zmianę pola `**Priorytet:**` pozostawiam właścicielowi backlogu.
+
 ---
 
 ## MODUL: Porządki silnika partycji i retencji (EPIC-29, bez epiku EPIC-30)

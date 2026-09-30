@@ -120,3 +120,4 @@
 - [BE-145 PartitionReclaimJob blokuje DROP niepustej partycji](project_be145_partition_reclaim_drop_guard.md) — `warnIfStillHasRows`→`boolean`, relacja z przyszłym BE-123 (horyzont platformowy), test mock+real-DB
 - [EPIC-30 BE-128 liczenie wiadomości w eligibleRowCount CONTACT_INTERACTIONS](project_epic30_be128_message_count_dashboard.md) — DOKŁADNE nie oszacowanie, EXPLAIN-zweryfikowana decyzja, `countLinkedToContactsOlderThan`
 - [Reużycie tenant-prefiksowanego UNIQUE indeksu dla ad-hoc COUNT per-tenant](feedback_tenant_prefixed_unique_index_reuse.md) — sprawdź EXPLAIN pod realistyczną wielotenantową selektywnością przed projektowaniem nowej migracji
+- [BE-144 skip MinIO testu — pułapka @AfterAll po Assumptions w @BeforeAll](project_be144_minio_test_skip_afterall_pitfall.md) — @AfterAll JEST wołane mimo Assumptions.assumeTrue(false) w @BeforeAll; wymaga null-guardów na WSZYSTKICH polach; ContainerFetchException nieopakowany empirycznie

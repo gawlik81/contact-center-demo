@@ -29,7 +29,7 @@
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
-**Blokuje:** FE-002, FE-003
+**Blokuje:** FE-002, FE-003, FE-049
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -121,7 +121,7 @@ Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpi
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
 **Czeka na BE:** brak
-**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
+**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024, FE-025, FE-026, FE-028, FE-029
 **Odniesienie PRD:** przekrojowe (wszystkie persony)
 
 **Opis:**
@@ -221,7 +221,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-012 ✅
-**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
+**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017, FE-031, FE-032, FE-040, FE-046
 **Odniesienie PRD:** US-07-05, EPIC-03, EPIC-05, EPIC-06
 
 **Opis:**
@@ -342,7 +342,7 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-25
 **Czeka na BE:** BE-020 ✅, BE-013 ✅
-**Blokuje:** brak
+**Blokuje:** FE-026
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
@@ -369,7 +369,7 @@ Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węz
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-022 ✅
-**Blokuje:** FE-016, FE-027
+**Blokuje:** FE-016, FE-027, FE-067
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -442,7 +442,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Czeka na BE:** BE-025 ✅
-**Blokuje:** FE-019, FE-020
+**Blokuje:** FE-019, FE-020, FE-040
 **Odniesienie PRD:** US-09-01, US-09-03, EPIC-09
 
 **Opis:**
@@ -465,7 +465,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
 **Czeka na BE:** BE-025 ✅, BE-027 ✅
-**Blokuje:** brak
+**Blokuje:** FE-030, FE-033
 **Odniesienie PRD:** US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -538,7 +538,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-028 ✅
-**Blokuje:** brak
+**Blokuje:** FE-029
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
@@ -1016,6 +1016,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** FE-034 (RescheduleCallbackModalComponent – reużycie)
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1084,6 +1085,7 @@ export interface ScheduledCallbackDto {
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-040 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1425,8 +1427,9 @@ editingCallback = signal<CallbackListItem | null>(null);
 **Typ:** Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Zależy od:** BE-044
+**Zależy od:** BE-044, BE-046
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-044 ✅, BE-046 ✅
 **Zrealizowane:** 2026-04-18
 **Blokuje:** FE-037, FE-038
 
@@ -1677,7 +1680,7 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-24
 **Czeka na BE:** BE-025 ✅ (Customer CRUD API)
-**Blokuje:** FE-041
+**Blokuje:** FE-041, FE-071, FE-072
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 
 **Opis:**
@@ -1815,6 +1818,7 @@ interface ManualCallbackResponse {
 **Zlozonosc:** S
 **Zależy od:** BE-051, BE-050
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-050 ✅, BE-051 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** FE-043, FE-044, FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -1888,6 +1892,7 @@ Główny widok kalendarza jako nowa zakładka w Agent Desktop. Wyświetla zdarze
 **Zlozonosc:** S
 **Zależy od:** FE-042, BE-039
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -2634,6 +2639,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 **Zlozonosc:** M
 **Zależy od:** BE-057 (REST API konfiguracji Twilio)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-057 ✅
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2701,6 +2707,7 @@ Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervi
 **Zlozonosc:** S
 **Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-060 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2745,6 +2752,7 @@ Rozszerzenie formularza tworzenia i edycji kampanii (`CampaignFormComponent`) o 
 **Zlozonosc:** S
 **Zależy od:** BE-061 (endpoint listowania numerów), FE-066 (formularz konfiguracji Twilio), FE-067 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-061 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2804,6 +2812,7 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-063 ✅, BE-064 ✅
 **Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-063, BE-064
 **Blokuje:** brak
@@ -2950,6 +2959,7 @@ maxAttempts: new FormControl(3, [
 **Zlozonosc:** S
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-067 ✅
 **Zrealizowane:** 2026-05-13
 **Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
@@ -2988,6 +2998,7 @@ Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady 
 **Zlozonosc:** M
 **Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-068 ✅
 **Zrealizowane:** 2026-05-13
 **Blokuje:** brak
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
@@ -3037,6 +3048,7 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 **Zlozonosc:** S
 **Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-069 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3086,6 +3098,7 @@ Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikacj
 **Zlozonosc:** M
 **Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-070 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3214,6 +3227,7 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 **Zlozonosc:** M
 **Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-073 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-23 Historia etapów kontaktu
@@ -3438,8 +3452,9 @@ Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (tr
 **Złożoność:** S
 **Zależy od:** BE-075, BE-076, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅, BE-076 ✅, BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-077, FE-078, FE-079, FE-080
+**Blokuje:** FE-077, FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3515,7 +3530,7 @@ POST /api/telephony/calls/{callId}/bridge/{secondCallId}
 **Zależy od:** FE-076
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-078, FE-079
+**Blokuje:** FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3588,6 +3603,7 @@ protected setTransferTargetType(type: TransferTargetType): void {
 **Złożoność:** M
 **Zależy od:** FE-076, FE-077, BE-075
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3695,6 +3711,7 @@ protected selectAgent(agent: TransferAgentItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, BE-076
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-076 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3773,6 +3790,7 @@ protected selectQueue(queue: TransferQueueItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** brak
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3833,6 +3851,7 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 **Złożoność:** S
 **Zależy od:** BE-079
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-079 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -3878,8 +3897,9 @@ Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dr
 **Złożoność:** M
 **Zależy od:** BE-080, BE-084, FE-081
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅, BE-084 ✅
 **Zrealizowane:** 2026-05-21
-**Blokuje:** FE-083
+**Blokuje:** FE-083, FE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Opis:**
@@ -3983,6 +4003,7 @@ export class CampaignAssignmentModalComponent implements OnInit {
 **Złożoność:** S
 **Zależy od:** FE-082, BE-080
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4081,6 +4102,7 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 **Złożoność:** M
 **Zależy od:** BE-085, FE-082
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-085 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4234,6 +4256,7 @@ readonly contactSelected = output<string>();
 **Złożoność:** S
 **Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-090 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** FE-087, FE-088, FE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4386,6 +4409,7 @@ generateAiSummary(): void {
 **Złożoność:** M
 **Zależy od:** BE-088 (TenantAiConfigController), FE-086
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-088 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** —
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4897,7 +4921,7 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 **Zależy od:** BE-099, BE-106
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** FE-098, FE-099
+**Blokuje:** FE-098, FE-099, FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -4996,7 +5020,7 @@ uninstall(installationId: string): Observable<void>                             
 **Zależy od:** FE-097
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** —
+**Blokuje:** FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5511,7 +5535,7 @@ frontend/public/i18n/uk.json                                                    
 **Zależy od:** FE-104
 **Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
-**Blokuje:** brak
+**Blokuje:** FE-106
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
 **Opis:**
@@ -5839,3 +5863,104 @@ zmiany: usunięcie 3 martwych deklaracji pola z `tenant.model.ts` (`TenantConfig
 `CreateTenantRequest.limits`) — zero zmian w komponentach/szablonach. Usunięcie nieopcjonalnego
 `TenantLimits.recording_retention_days` nie ujawniło żadnych błędów kompilacji (nic go nigdzie
 nie konstruowało literalnie).
+
+---
+
+## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+
+> Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20). Backend: BE-126 (usuwanie wiadomości w kategorii `CONTACT_INTERACTIONS`),
+> BE-129 (przepływ RODO), BE-130 (tylko D1 = osobna kategoria). Zakres frontendu jest mały — partycjonowanie i harmonogramy są dla UI przezroczyste; strony retencji pozostają ADMIN-only (kontrakt EPIC-29).
+> **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
+> (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
+>
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112`;  `[BE-130 → FE-111, tylko D1 = C]`.
+
+### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-126 ✅, BE-128 ✅, BE-119 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-126 kategoria `CONTACT_INTERACTIONS` („Interakcje z kontaktami", `supervisor.settings.dataRetention.category.CONTACT_INTERACTIONS`) obejmuje także treść wiadomości e-mail i social media oraz załączniki (DESIGN §3 D1, **zakłada D1 = A**).
+Administrator musi to widzieć w tabeli polityk, na kartach dashboardu i w modalu potwierdzenia nieodwracalnego usunięcia — dziś nic o wiadomościach nie mówi.
+**Przy D1 = C** (osobna kategoria `MESSAGE_CONTENT`) ten ticket ogranicza się do punktu 3, a opis wiadomości przechodzi do FE-111. Przy D1 = B (anonimizacja) tekst zmienia się z „usunięte" na „zanonimizowane".
+
+**Zakres:**
+1. i18n (`pl`, `en`, `de`, `uk`): nowe klucze `supervisor.settings.dataRetention.categoryDescription.CONTACT_INTERACTIONS` (i dla spójności pozostałych 3 kategorii) — pl: „Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami";
+   wyświetlone pod nazwą kategorii w tabeli polityk (`data-retention.component.html`) i na kartach dashboardu; rozszerzenie `purgeModal.message` (`purge-confirm-modal.component.html`) o informację, że liczba obejmuje wiadomości i załączniki, oraz o zdanie o nieodwracalności usunięcia załączników w S3.
+   Liczba „rekordów" w podsumowaniu jest sumą różnych typów (kontakty + zdarzenia + wiadomości) — dodaj tooltip/objaśnienie (`RetentionSummaryDto`, BE-128).
+2. Historia operacji: brak zmian kontraktu (`PurgeResultDto`); nagłówek kolumny „Usunięto rekordów" — opcjonalnie objaśnienie, że suma obejmuje wiadomości.
+3. **Dryf po BE-119:** `UNSUPPORTED_PURGE_CATEGORIES` w `data-retention.component.ts` nadal zawiera `CAMPAIGN_DATA` (komentarz: „BE-119 nieukończone"), choć BE-119 jest ukończone, a `RetentionController` zwraca 501 wyłącznie dla `RECORDINGS`. Zweryfikuj kontroler przed zmianą;
+   odblokuj przycisk „Usuń teraz" dla `CAMPAIGN_DATA` (zostaje disabled dla `RECORDINGS` z `purgeUnsupportedHint`), popraw komentarze i testy komponentu.
+
+**Kryteria akceptacji:**
+- [ ] Klucze i18n kompletne w 4 językach (porównanie zbiorów kluczy w PR); opisy widoczne w tabeli polityk, na kartach i w modalu potwierdzenia
+- [ ] Przycisk „Usuń teraz": aktywny dla `CONTACT_INTERACTIONS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`; disabled z podpowiedzią dla `RECORDINGS` (test komponentu Vitest)
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); brak zmian kontraktu API; dostępność (aria) zachowana
+- [ ] (WP-4) Local-demo po przebudowie obrazu frontendu: strona `/supervisor/settings/data-retention` pokazuje opisy w każdym języku, modal potwierdzenia zawiera informację o wiadomościach; notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą
+
+---
+
+### FE-111 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w UI retencji
+
+**Typ:** Frontend implementation
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
+**Złożoność:** M
+**Zależy od:** BE-130
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-130
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis i zakres:** `retention.model.ts` (`RetentionDataCategory` += `'MESSAGE_CONTENT'`), `CATEGORY_ORDER` w `data-retention.component.ts` (5 wierszy), tabela polityk, karty dashboardu, historia, globalny badge (FE-108: suma po kategoriach — sprawdź, czy zakłada 4 kategorie),
+i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z BE-130 weryfikowana przeciw Swaggerowi, nie tylko treści ticketu (lekcja FE-103).
+
+**Kryteria akceptacji:**
+- [ ] Nowa kategoria widoczna i edytowalna (retencja w miesiącach, auto-purge) we wszystkich sekcjach strony; badge liczy 5 kategorii; brak regresji dla pozostałych 4
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone; komplet kluczy i18n w 4 językach (WP-7); (WP-4) sprawdzenie w local-demo
+
+---
+
+### FE-112 – Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15)
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have (w pierwotnym planie Could; przy D9 = A podgląd jest zabezpieczeniem przed fałszywymi trafieniami w nieodwracalnej operacji)
+**Złożoność:** M (w pierwotnym planie S; dochodzą podgląd D9 i przepięcie listy klientów na jedną ścieżkę anonimizacji)
+**Zależy od:** BE-129 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-129 (podgląd `GET /api/customers/{id}/gdpr/anonymize/preview`, przekierowanie `DELETE /api/customers/{id}` na `GdprService`, kształt manifestu eksportu — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-129 anonimizacja i eksport klienta obejmują wiadomości e-mail/social (treść, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania oraz obiekty w S3 (nagrania, EML, załączniki). Obecne teksty
+(`supervisor.gdprAnonymize.effect1…effect4`, `supervisor.customerDetail.gdprAnonymizeDesc`, `gdprDownloadNote`) opisują zakres wąsko lub ogólnikowo. **Zakłada D3 = A** (zakres z DB-060); przy D3 = C ticket nie jest wykonywany.
+
+**Zakres:** modal anonimizacji (`features/supervisor/pages/customers/gdpr-anonymize-modal/gdpr-anonymize-modal.component.html`, klucze `supervisor.gdprAnonymize.*`): lista „Skutki anonimizacji" (`effect1`…`effect4`; dziś: imię i nazwisko, telefony, e-maile, „historia kontaktów zostanie zachowana bez danych osobowych")
+uzupełniona o: wiadomości e-mail i social media (treść, adresy, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania, nagrania i pliki w magazynie plików; korekta zdania `effect4`, jeśli przestaje być prawdziwe;
+sekcja „Prawa RODO" (`supervisor.customerDetail.gdprExportTitle`, `gdprDownloadNote`, `gdprAnonymizeTitle`, `gdprAnonymizeDesc`): opis zawartości paczki ZIP i zakresu anonimizacji; zachowane ostrzeżenie o nieodwracalności; obsługa ostrzeżenia o częściowym niepowodzeniu sprzątania S3
+(jeśli BE-129 je zwraca — sprawdź kontrakt); i18n 4 języków; testy modalu.
+
+**Uzupełnienie z DB-060 (2026-09-20) — druga ścieżka anonimizacji i podgląd D9:**
+- **Lista klientów używa surowego DELETE [DB-060 F8.4]:** `customer-list.component.ts` (`onDeleteConfirmed` → `CustomerService#deleteCustomer` → `DELETE /api/customers/{id}`, modal `CustomerDeleteModalComponent` z kluczami `supervisor.customerDelete.*`, komunikaty `supervisor.gdprAnonymize.successAnonymize`/`errorAnonymize`) —
+  po BE-129 ta ścieżka wywołuje tę samą implementację co `POST …/gdpr/anonymize`. **Zalecane: lista otwiera ten sam modal GDPR co szczegóły klienta (`GdprAnonymizeModalComponent` + `GdprService#anonymize`, z podglądem liczników), a `customer-delete-modal` zostaje usunięty (albo zredukowany do delegacji)** — jedna ścieżka UI i jedne komunikaty.
+  Jeśli BE-129 zachowa kontrakt `DELETE` i lista pozostanie przy `customer-delete-modal`, zaktualizować przynajmniej `supervisor.customerDelete.message1`/`message2`/`warning` do pełnego zakresu (jak w modalu GDPR).
+- **Podgląd D9 (założenie A):** modal GDPR przed potwierdzeniem woła `GET /api/customers/{id}/gdpr/anonymize/preview` (BE-129) i pokazuje liczniki per zbiór (kontakty, wiadomości, callbacki, rekordy kampanii, pliki) oraz osobno trafienia „po powiązaniu" i „po numerze/adresie";
+  przy `matched_by_identifier > 0` czytelne ostrzeżenie (klucze `supervisor.gdprAnonymize.preview*`, np. „Dopasowano także rekordy po numerze telefonu lub adresie e-mail — sprawdź, czy dotyczą tej samej osoby") i **wymagane jawne potwierdzenie** (istniejący mechanizm wpisania frazy zostaje); błąd lub timeout podglądu blokuje potwierdzenie. Przy D9 = B — bez podglądu i bez tych kluczy.
+- Eksport (Art. 15): opis, że archiwum zawiera manifest kluczy plików i linki do pobrania (presigned, wygasają) zamiast samych plików; obsługa komunikatu o częściowym niepowodzeniu (jeśli BE-129 je zwraca).
+
+**Kryteria akceptacji:**
+- [ ] Komunikaty w 4 językach wymieniają dokładnie zakres z BE-129/DB-060; ostrzeżenie o nieodwracalności zachowane; kontrakt endpointów (`POST /api/customers/{id}/gdpr/export|anonymize`) bez zmian po stronie FE (dochodzi wyłącznie podgląd D9)
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); (WP-4) sprawdzenie w local-demo na kliencie testowym; notatka + pamięć agenta commitowana razem ze zmianą
+- [ ] Lista klientów i szczegóły klienta korzystają z jednej ścieżki anonimizacji (modal GDPR z podglądem wg D9); `customer-delete-modal` usunięty albo zaktualizowany — test komponentu listy (Vitest): akcja anonimizacji otwiera modal GDPR, sukces i błąd pokazują te same komunikaty
+- [ ] (D9 = A) Modal pokazuje liczniki podglądu i ostrzeżenie przy `matched_by_identifier > 0`; potwierdzenie możliwe dopiero po załadowaniu podglądu i wpisaniu frazy; błąd podglądu blokuje potwierdzenie (test)
+- [ ] Nowe klucze i18n (`supervisor.gdprAnonymize.preview*`) w 4 językach; zmienione/usunięte klucze `supervisor.customerDelete.*` bez martwych odwołań (grep)

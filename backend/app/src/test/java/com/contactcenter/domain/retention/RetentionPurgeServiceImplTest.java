@@ -3,12 +3,18 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.contact.ContactEventService;
+import com.contactcenter.domain.contact.ContactPurgeCandidate;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.EmailOrphanCursor;
+import com.contactcenter.domain.email.OrphanEmailPurgeBatch;
+import com.contactcenter.domain.email.PurgedMessages;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.PurgeResultDto;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
+import com.contactcenter.domain.social.OrphanSocialPurgeBatch;
 import com.contactcenter.domain.social.SocialMessageService;
+import com.contactcenter.domain.social.SocialOrphanCursor;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,8 +40,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -44,11 +52,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.RETURNS_DEFAULTS;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -818,6 +829,472 @@ class RetentionPurgeServiceImplTest {
             assertThat(transcripts.computed()).isTrue();
             assertThat(transcripts.eligibleRowCount()).isZero();
             assertThat(transcripts.computedAt()).isEqualTo(computedAt);
+        }
+    }
+
+    // =========================================================================
+    // BE-126: CONTACT_INTERACTIONS z flagą retention.purge.delete-messages=true
+    // =========================================================================
+
+    /**
+     * Testy jednostkowe (kolaboratorzy mockowani — wzorzec identyczny do reszty tej klasy) dla
+     * {@code purgeContactInteractionsWithMessageDeletion}: dispatch pod flagą, kolejność
+     * dzieci-przed-rodzicem, filtrowanie zablokowanych kontaktów, strategia H-1 (kursor keyset),
+     * drugi przebieg (BE125-02) i breakdown audytu. Realny natywny SQL {@code ContactRepository
+     * #findContactIdsOlderThan}/{@code #deleteContacts} ma OSOBNY test na prawdziwej bazie:
+     * {@code ContactRepositoryPurgeCandidatesIntegrationTest} (pakiet {@code domain.contact} — ta
+     * klasa nie ma widoczności do package-private {@code ContactRepository}/{@code EmailMessageServiceImpl}
+     * /{@code SocialMessageRepository}, więc test na granicy trzech pakietów domenowych nie jest tu
+     * możliwy; poprawność {@code EmailMessageService#purgeByContactIds} na prawdziwej bazie (S3, RLS,
+     * allow-lista) jest już pokryta przez {@code EmailMessagePurgeIntegrationTest}/
+     * {@code EmailMessagePurgeRlsIntegrationTest} z BE-125 — ten plik jej nie duplikuje).
+     */
+    @Nested
+    @DisplayName("CONTACT_INTERACTIONS z flagą delete-messages=true (BE-126)")
+    class MessageDeletionEnabled {
+
+        @BeforeEach
+        void enableFlag() {
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true);
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
+                    .thenReturn(60);
+            // BE-127: sweep sierot jest UNCONDITIONAL (wołany niezależnie od pętli kontaktów) — domyślny
+            // stub "brak kandydatów" dla WSZYSTKICH testów tej klasy zewnętrznej, żeby nie duplikować
+            // tego samego mockowania w każdym teście BE-126 nieinteresującym się sierotami. Testy, które
+            // faktycznie sprawdzają zachowanie BE-127, nadpisują ten stub (patrz OrphanSweep).
+            when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), any(), any(), anyInt()))
+                    .thenReturn(new OrphanEmailPurgeBatch(PurgedMessages.empty(), 0, null));
+            when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), any(), any(), anyInt()))
+                    .thenReturn(new OrphanSocialPurgeBatch(0, 0, null));
+        }
+
+        private ContactPurgeCandidate candidate(UUID contactId, Instant startedAt) {
+            return new ContactPurgeCandidate(contactId, startedAt);
+        }
+
+        @Nested
+        @DisplayName("przepływ podstawowy — jedna strona, bez zablokowanych")
+        class BasicFlow {
+
+            @Test
+            @DisplayName("email+social wołane dla całej strony, deleteContacts tylko dla niezablokowanych, drugi przebieg (BE125-02) łapie wiadomość z okna SELECT→DELETE")
+            void singlePage_noBlocked_secondPassCatchesRaceWindowMessage() {
+                UUID c1 = UUID.randomUUID();
+                UUID c2 = UUID.randomUUID();
+                Instant t1 = Instant.parse("2020-01-01T00:00:00Z");
+                Instant t2 = Instant.parse("2020-01-02T00:00:00Z");
+                List<ContactPurgeCandidate> page = List.of(candidate(c1, t1), candidate(c2, t2));
+                List<UUID> pageIds = List.of(c1, c2);
+
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(page);
+
+                // Pierwszy przebieg: 3 wiadomości/2 obiekty S3 usunięte, nikt zablokowany.
+                PurgedMessages firstPassEmail = new PurgedMessages(3, 2, 0, 0, Set.of());
+                // Drugi przebieg (BE125-02): 1 wiadomość dopisana w oknie SELECT->DELETE, złapana.
+                PurgedMessages secondPassEmail = new PurgedMessages(1, 1, 0, 0, Set.of());
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds)))
+                        .thenReturn(firstPassEmail, secondPassEmail);
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds)))
+                        .thenReturn(4, 1);
+
+                Set<UUID> deletedContacts = new LinkedHashSet<>(pageIds);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(pageIds))).thenReturn(deletedContacts);
+
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                // dzieci przed rodzicem: email+social wołane PRZED deleteContacts (kolejność w kodzie źródłowym)
+                InOrder order = inOrder(emailMessageService, socialMessageService, contactService);
+                order.verify(emailMessageService).purgeByContactIds(TENANT_A, pageIds); // 1. przebieg
+                order.verify(socialMessageService).purgeByContactIds(TENANT_A, pageIds); // 1. przebieg
+                order.verify(contactService).deleteContacts(TENANT_A, pageIds);
+                order.verify(emailMessageService).purgeByContactIds(TENANT_A, pageIds); // 2. przebieg (BE125-02)
+                order.verify(socialMessageService).purgeByContactIds(TENANT_A, pageIds); // 2. przebieg (BE125-02)
+
+                verify(emailMessageService, times(2)).purgeByContactIds(TENANT_A, pageIds);
+                verify(socialMessageService, times(2)).purgeByContactIds(TENANT_A, pageIds);
+
+                // rowsDeleted = kontakty(2) + zdarzenia(0) + email(3+1) + social(4+1) = 11
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(11L));
+                verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong(), anyString());
+            }
+        }
+
+        @Nested
+        @DisplayName("kontakty zablokowane")
+        class BlockedContacts {
+
+            @Test
+            @DisplayName("kontakt zablokowany przez purge wiadomości NIE trafia do deleteContacts; drugi przebieg nie jest wołany dla strony w całości zablokowanej")
+            void blockedContact_excludedFromDeleteContacts_noSecondPass() {
+                UUID blocked = UUID.randomUUID();
+                UUID free = UUID.randomUUID();
+                Instant t1 = Instant.parse("2020-01-01T00:00:00Z");
+                Instant t2 = Instant.parse("2020-01-02T00:00:00Z");
+                List<ContactPurgeCandidate> page = List.of(candidate(blocked, t1), candidate(free, t2));
+                List<UUID> pageIds = List.of(blocked, free);
+
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(page);
+
+                PurgedMessages email = new PurgedMessages(1, 1, 1, 0, Set.of(blocked));
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(email);
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(0);
+
+                Set<UUID> deletedContacts = new LinkedHashSet<>(List.of(free));
+                when(contactService.deleteContacts(eq(TENANT_A), eq(List.of(free)))).thenReturn(deletedContacts);
+
+                // Drugi przebieg wołany TYLKO dla faktycznie usuniętych ("free") — nie dla "blocked".
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(List.of(free))))
+                        .thenReturn(PurgedMessages.empty());
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(List.of(free)))).thenReturn(0);
+
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                verify(contactService).deleteContacts(TENANT_A, List.of(free));
+                verify(contactService, never()).deleteContacts(eq(TENANT_A), argThatContains(blocked));
+                // drugi przebieg: dokładnie jedno dodatkowe wywołanie dla "free" (pierwsze - strona; drugie - drugi przebieg)
+                verify(emailMessageService, times(1)).purgeByContactIds(TENANT_A, pageIds);
+                verify(emailMessageService, times(1)).purgeByContactIds(TENANT_A, List.of(free));
+            }
+
+            private List<UUID> argThatContains(UUID id) {
+                return org.mockito.ArgumentMatchers.argThat(list -> list != null && list.contains(id));
+            }
+        }
+
+        @Nested
+        @DisplayName("strategia H-1 (head-of-line blocking, code review BE-125)")
+        class HeadOfLineBlockingDefense {
+
+            @Test
+            @DisplayName("≥ batchSize trwale zablokowanych kontaktów na początku NIE zatrzymuje purge kontaktów młodszych — kursor przesuwa się mimo braku usunięć")
+            void permanentlyBlockedFirstPage_doesNotStallYoungerContacts() {
+                ReflectionTestUtils.setField(service, "batchSize", 2);
+
+                UUID blocked1 = UUID.randomUUID();
+                UUID blocked2 = UUID.randomUUID();
+                UUID younger = UUID.randomUUID();
+                Instant t1 = Instant.parse("2020-01-01T00:00:00Z");
+                Instant t2 = Instant.parse("2020-01-02T00:00:00Z");
+                Instant t3 = Instant.parse("2020-01-03T00:00:00Z");
+                ContactPurgeCandidate cand1 = candidate(blocked1, t1);
+                ContactPurgeCandidate cand2 = candidate(blocked2, t2);
+                ContactPurgeCandidate cand3 = candidate(younger, t3);
+                List<UUID> page1Ids = List.of(blocked1, blocked2);
+                List<UUID> page2Ids = List.of(younger);
+
+                // Strona 1: oba kontakty trwale zablokowane (np. nieusuwalny obiekt S3 — Object Lock, H-2).
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(2)))
+                        .thenReturn(List.of(cand1, cand2));
+                PurgedMessages page1Email = new PurgedMessages(0, 0, 2, 0, Set.of(blocked1, blocked2));
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(page1Ids))).thenReturn(page1Email);
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(page1Ids))).thenReturn(0);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(List.of()))).thenReturn(Set.of());
+
+                // Strona 2 (kursor = ostatni kandydat strony 1, MIMO że nic nie zostało usunięte): kontakt młodszy, bez blokad.
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), eq(cand2), eq(2)))
+                        .thenReturn(List.of(cand3));
+                PurgedMessages page2Email = new PurgedMessages(1, 1, 0, 0, Set.of());
+                // Dwa wywołania z tym samym argumentem (1. i 2. przebieg, BE125-02): pierwsze usuwa
+                // wiadomość, drugie (idempotentne) nic już nie znajduje.
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(page2Ids)))
+                        .thenReturn(page2Email, PurgedMessages.empty());
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(page2Ids))).thenReturn(0);
+                Set<UUID> page2Deleted = new LinkedHashSet<>(page2Ids);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(page2Ids))).thenReturn(page2Deleted);
+
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(2))).thenReturn(0);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                // Dokładnie DWA wywołania findContactIdsOlderThan: strona 1 (cursor=null), strona 2 (cursor=cand2)
+                // — pętla NIE zapętliła się w nieskończoność na stronie 1 mimo zera usunięć.
+                verify(contactService, times(1))
+                        .findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(2));
+                verify(contactService, times(1))
+                        .findContactIdsOlderThan(eq(TENANT_A), any(), eq(cand2), eq(2));
+                verify(contactService, never())
+                        .findContactIdsOlderThan(eq(TENANT_A), any(), eq(cand1), eq(2));
+
+                // Kontakt młodszy USUNIĘTY mimo że starsze kontakty w tej samej (pierwszej) stronie zablokowane.
+                verify(contactService).deleteContacts(TENANT_A, page2Ids);
+                verify(contactService, never()).deleteContacts(eq(TENANT_A), eq(page1Ids));
+
+                // rowsDeleted = kontakty(1: younger) + zdarzenia(0) + email(strona1:0 + strona2 1.+2. przebieg:1+0) + social(0) = 2;
+                // s3Failures zsumowane ze strony 1 (2) > 0 -> status COMPLETED, ale z ostrzeżeniem (4-argumentowy markCompleted).
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(2L), anyString());
+                verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+            }
+        }
+
+        @Nested
+        @DisplayName("breakdown w audycie")
+        class AuditBreakdown {
+
+            @Test
+            @DisplayName("wpis audytowy COMPLETED zawiera breakdown ze wszystkimi polami (w tym s3Rejected)")
+            void auditEvent_containsFullBreakdown() {
+                UUID c = UUID.randomUUID();
+                Instant t = Instant.parse("2020-01-01T00:00:00Z");
+                List<ContactPurgeCandidate> page = List.of(candidate(c, t));
+                List<UUID> pageIds = List.of(c);
+
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(page);
+                PurgedMessages email = new PurgedMessages(2, 3, 0, 1, Set.of());
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds)))
+                        .thenReturn(email, PurgedMessages.empty());
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(5, 0);
+                Set<UUID> deleted = new LinkedHashSet<>(pageIds);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(pageIds))).thenReturn(deleted);
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(7);
+
+                UUID purgeId = service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                        PurgeTriggerType.MANUAL, USER_ID);
+
+                ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+                verify(auditLogService).publishAuditEvent(captor.capture());
+                AuditLogEvent event = captor.getValue();
+                assertThat(event.action()).isEqualTo("RETENTION_PURGE_COMPLETED");
+                assertThat(event.entityId()).isEqualTo(purgeId);
+                assertThat(event.newValue())
+                        .contains("\"status\":\"COMPLETED\"")
+                        .contains("\"rowsDeleted\":15") // kontakty(1) + zdarzenia(7) + email(2) + social(5) = 15
+                        .contains("\"breakdown\"")
+                        .contains("\"contacts\":1")
+                        .contains("\"events\":7")
+                        .contains("\"emailMessages\":2")
+                        .contains("\"socialMessages\":5")
+                        .contains("\"s3ObjectsDeleted\":3")
+                        .contains("\"s3Failures\":0")
+                        .contains("\"s3Rejected\":1");
+            }
+        }
+
+        @Nested
+        @DisplayName("porażki S3 — COMPLETED z ostrzeżeniem, nie FAILED")
+        class S3FailuresWarning {
+
+            @Test
+            @DisplayName("s3Failures > 0 -> markCompleted z error_message (4 argumenty), NIE markFailed; audyt COMPLETED zawiera errorMessage")
+            void s3Failures_resultInCompletedWithWarning_notFailed() {
+                UUID c = UUID.randomUUID();
+                Instant t = Instant.parse("2020-01-01T00:00:00Z");
+                List<ContactPurgeCandidate> page = List.of(candidate(c, t));
+                List<UUID> pageIds = List.of(c);
+
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(page);
+                PurgedMessages email = new PurgedMessages(0, 1, 2, 0, Set.of(c)); // 2 porażki S3, kontakt zablokowany
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(email);
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(0);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(List.of()))).thenReturn(Set.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                // deletableIds = [] (jedyny kontakt zablokowany) -> deleteContacts([]) -> 0 kontaktów usuniętych;
+                // rowsDeleted = kontakty(0) + zdarzenia(0) + email(0) + social(0) = 0 — mimo to status COMPLETED.
+                ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(0L), warningCaptor.capture());
+                assertThat(warningCaptor.getValue()).contains("2");
+                verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+                verify(purgeLogRepository, never()).markFailed(any(), any(), any(), anyLong());
+
+                ArgumentCaptor<AuditLogEvent> auditCaptor = ArgumentCaptor.forClass(AuditLogEvent.class);
+                verify(auditLogService).publishAuditEvent(auditCaptor.capture());
+                assertThat(auditCaptor.getValue().action()).isEqualTo("RETENTION_PURGE_COMPLETED");
+                assertThat(auditCaptor.getValue().newValue())
+                        .contains("\"status\":\"COMPLETED\"")
+                        .contains("\"rowsDeleted\":0")
+                        .contains("\"errorMessage\"")
+                        .contains("\"breakdown\"");
+            }
+        }
+
+        @Nested
+        @DisplayName("TenantContext")
+        class TenantContextOnNewPath {
+
+            @Test
+            @DisplayName("TenantContext jest wyczyszczony po zakończeniu purge na ścieżce z usuwaniem wiadomości")
+            void tenantContext_isClearedAfterCompletion() {
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                assertThat(TenantContext.isSet()).isFalse();
+                // BE-127: sweep sierot jest UNCONDITIONAL (niezależny od pętli kontaktów) — email/social
+                // SĄ wołane (purgeOrphansOlderThan, stub domyślny z enableFlag()), ale purgeByContactIds
+                // (ścieżka "wiadomości kontaktu", pusta strona kontaktów) — NIE.
+                verify(emailMessageService, never()).purgeByContactIds(any(), any());
+                verify(socialMessageService, never()).purgeByContactIds(any(), any());
+                verify(emailMessageService).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100));
+                verify(socialMessageService).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100));
+            }
+        }
+
+        @Nested
+        @DisplayName("contact_event")
+        class ContactEventPurge {
+
+            @Test
+            @DisplayName("contact_event usuwany PO pętli kontaktów, niezależnie od liczby stron/zablokowanych (bez zmian względem dziś)")
+            void contactEvent_purgedAfterContactLoop_unchanged() {
+                UUID c = UUID.randomUUID();
+                Instant t = Instant.parse("2020-01-01T00:00:00Z");
+                List<ContactPurgeCandidate> page = List.of(candidate(c, t));
+                List<UUID> pageIds = List.of(c);
+
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(page);
+                when(emailMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds)))
+                        .thenReturn(PurgedMessages.empty());
+                when(socialMessageService.purgeByContactIds(eq(TENANT_A), eq(pageIds))).thenReturn(0);
+                when(contactService.deleteContacts(eq(TENANT_A), eq(pageIds))).thenReturn(Set.of(c));
+                // dwa batche zdarzeń: 100 (pełny) + 10 (niepełny, kończy pętlę)
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100)))
+                        .thenReturn(100, 10);
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                verify(contactEventService, times(2)).purgeOlderThan(eq(TENANT_A), any(), eq(100));
+                InOrder order = inOrder(contactService, contactEventService);
+                order.verify(contactService).findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100));
+                order.verify(contactService).deleteContacts(eq(TENANT_A), eq(pageIds));
+                order.verify(contactEventService, times(2)).purgeOlderThan(eq(TENANT_A), any(), eq(100));
+                // kontakty(1) + zdarzenia(100+10) + email(0) + social(0) = 111
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(111L));
+            }
+        }
+
+        @Nested
+        @DisplayName("sweep sierot wg wieku (BE-127)")
+        class OrphanSweep {
+
+            @Test
+            @DisplayName("wołany PO pętli kontaktów (niezależnie od niej), rowsDeleted i breakdown zawierają sieroty email/social")
+            void orphanSweep_runsAfterContactLoop_countsIncludedInRowsDeletedAndBreakdown() {
+                // Pętla kontaktów: nic do zrobienia (regresja BE-126 nie dotknięta).
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                // Jedna strona sierot email (3 usunięte, 2 obiekty S3) i social (4 usunięte) — strony
+                // niepełne (candidatesFound < batchSize), więc pętla sweepu kończy się po jednej stronie.
+                PurgedMessages emailOrphans = new PurgedMessages(3, 2, 0, 0, Set.of());
+                EmailOrphanCursor emailCursor = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanEmailPurgeBatch(emailOrphans, 3, emailCursor));
+
+                SocialOrphanCursor socialCursor = new SocialOrphanCursor(Instant.parse("2020-01-02T00:00:00Z"), UUID.randomUUID());
+                when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanSocialPurgeBatch(4, 4, socialCursor));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                // kontakty(0) + zdarzenia(0) + email(0) + social(0) + orphanEmail(3) + orphanSocial(4) = 7
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(7L));
+
+                ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+                verify(auditLogService).publishAuditEvent(captor.capture());
+                assertThat(captor.getValue().newValue())
+                        .contains("\"rowsDeleted\":7")
+                        .contains("\"orphanEmailMessages\":3")
+                        .contains("\"orphanSocialMessages\":4")
+                        .contains("\"s3ObjectsDeleted\":2");
+            }
+
+            @Test
+            @DisplayName("stronicowanie keyset: dwie strony sierot email, kursor drugiego wywołania = kursor zwrócony przez pierwsze")
+            void orphanSweep_multiplePages_cursorAdvances() {
+                ReflectionTestUtils.setField(service, "batchSize", 2);
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(2)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(2))).thenReturn(0);
+
+                EmailOrphanCursor cursor1 = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                EmailOrphanCursor cursor2 = new EmailOrphanCursor(Instant.parse("2020-01-02T00:00:00Z"), UUID.randomUUID());
+                // Strona 1: pełna (2 kandydaci) -> pętla kontynuuje. Strona 2: niepełna (1) -> pętla się kończy.
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2)))
+                        .thenReturn(new OrphanEmailPurgeBatch(new PurgedMessages(2, 0, 0, 0, Set.of()), 2, cursor1));
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), eq(cursor1), any(), eq(2)))
+                        .thenReturn(new OrphanEmailPurgeBatch(new PurgedMessages(1, 0, 0, 0, Set.of()), 1, cursor2));
+                when(socialMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2)))
+                        .thenReturn(new OrphanSocialPurgeBatch(0, 0, null));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                verify(emailMessageService, times(1)).purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(2));
+                verify(emailMessageService, times(1)).purgeOrphansOlderThan(eq(TENANT_A), eq(cursor1), any(), eq(2));
+                // strona 2 zwróciła candidatesFound(1) < batchSize(2) -> pętla NIE woła strony 3 (z cursor2)
+                verify(emailMessageService, never()).purgeOrphansOlderThan(eq(TENANT_A), eq(cursor2), any(), anyInt());
+                // kontakty(0) + zdarzenia(0) + orphanEmail(2+1) + orphanSocial(0) = 3
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(3L));
+            }
+
+            @Test
+            @DisplayName("porażka S3 w sierotach (s3Failures>0) -> COMPLETED z ostrzeżeniem, kursor i tak przesuwa się dalej (H-1)")
+            void orphanSweep_s3Failure_completesWithWarning_cursorStillAdvances() {
+                when(contactService.findContactIdsOlderThan(eq(TENANT_A), any(), isNull(), eq(100)))
+                        .thenReturn(List.of());
+                when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), eq(100))).thenReturn(0);
+
+                // Strona niepełna (1 kandydat na sierotę zablokowaną S3-em) -> pętla kończy się po 1 stronie,
+                // ale s3Failures > 0 musi nadal wpłynąć na status/warning całego purge.
+                PurgedMessages blockedByS3 = new PurgedMessages(0, 0, 2, 0, Set.of());
+                EmailOrphanCursor cursor = new EmailOrphanCursor(Instant.parse("2020-01-01T00:00:00Z"), UUID.randomUUID());
+                when(emailMessageService.purgeOrphansOlderThan(eq(TENANT_A), isNull(), any(), eq(100)))
+                        .thenReturn(new OrphanEmailPurgeBatch(blockedByS3, 1, cursor));
+
+                service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+                ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+                verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(0L), warningCaptor.capture());
+                assertThat(warningCaptor.getValue()).contains("2");
+                verify(purgeLogRepository, never()).markFailed(any(), any(), any(), anyLong());
+            }
+        }
+    }
+
+    // =========================================================================
+    // BE-126: flaga delete-messages=false (domyślna) — regresja ścieżki legacy
+    // =========================================================================
+
+    @Nested
+    @DisplayName("flaga delete-messages=false (domyślna) — ścieżka legacy niezmieniona (BE-126)")
+    class FlagDisabledRegression {
+
+        @Test
+        @DisplayName("findContactIdsOlderThan/deleteContacts NIGDY nie wywołane -- purgeContactsOlderThan/detachContactReferences jak dotychczas")
+        void flagFalse_neverCallsNewMethods() {
+            // deleteMessagesEnabled domyślnie false (Java default dla pola boolean, nieustawianego w setUp())
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
+                    .thenReturn(60);
+            List<UUID> batch = uuids(3);
+            when(contactService.purgeContactsOlderThan(eq(TENANT_A), any(), anyInt())).thenReturn(batch);
+            when(contactEventService.purgeOlderThan(eq(TENANT_A), any(), anyInt())).thenReturn(0);
+
+            service.purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(contactService, never()).findContactIdsOlderThan(any(), any(), any(), anyInt());
+            verify(contactService, never()).deleteContacts(any(), any());
+            verify(emailMessageService).detachContactReferences(TENANT_A, batch);
+            verify(socialMessageService).detachContactReferences(TENANT_A, batch);
+            verify(emailMessageService, never()).purgeByContactIds(any(), any());
+            verify(socialMessageService, never()).purgeByContactIds(any(), any());
+            // BE-127: sweep sierot jest podpięty za TĄ SAMĄ flagą — flaga false = zachowanie
+            // IDENTYCZNE z dzisiejszym (przed BE-127), sieroty NIETKNIĘTE.
+            verify(emailMessageService, never()).purgeOrphansOlderThan(any(), any(), any(), anyInt());
+            verify(socialMessageService, never()).purgeOrphansOlderThan(any(), any(), any(), anyInt());
+            verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(3L));
         }
     }
 }

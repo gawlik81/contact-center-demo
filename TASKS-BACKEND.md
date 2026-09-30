@@ -29,7 +29,7 @@
 **Zależy od:** DB-001
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
-**Blokuje:** BE-002, BE-005, BE-009, BE-015
+**Blokuje:** BE-002, BE-005, BE-009, BE-015, BE-001b, BE-003, BE-012, BE-067, BE-068
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -74,7 +74,7 @@ Uzupełnienie `docker-compose.yml` o MinIO (S3-compatible object storage) wymaga
 **Zależy od:** BE-001, DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
-**Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027
+**Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027, BE-007, BE-016
 **Odniesienie PRD:** US-01-01, wymagania bezpieczenstwa (izolacja)
 
 **Opis:**
@@ -96,7 +96,7 @@ Implementacja `TenantContext` (ThreadLocal) ładowanego z JWT claims przy każdy
 **Zależy od:** BE-001, DB-003
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
-**Blokuje:** BE-004, BE-012
+**Blokuje:** BE-004, BE-012, BE-054
 **Odniesienie PRD:** wymagania bezpieczenstwa (TLS, JWT, MFA, bcrypt 12)
 
 **Opis:**
@@ -166,7 +166,7 @@ Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRU
 **Zależy od:** BE-002, DB-005
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
-**Blokuje:** BE-007, FE-006
+**Blokuje:** BE-007, FE-006, BE-032, BE-033
 **Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
 
 **Opis:**
@@ -212,7 +212,7 @@ Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma 
 **Zależy od:** BE-002, DB-003
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-17
-**Blokuje:** BE-019, FE-008
+**Blokuje:** BE-019, FE-008, BE-041, FE-009
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 
 **Opis:**
@@ -236,7 +236,7 @@ Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /a
 **Zależy od:** BE-001, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
-**Blokuje:** BE-010, BE-011, BE-012, BE-013, BE-024
+**Blokuje:** BE-010, BE-011, BE-012, BE-013, BE-024, BE-032, BE-035, BE-038, BE-040, FE-010
 **Odniesienie PRD:** US-03-01, US-03-03, US-03-04, EPIC-03
 
 **Opis:**
@@ -258,7 +258,7 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 **Zależy od:** BE-001b (MinIO), BE-009, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
-**Blokuje:** brak
+**Blokuje:** BE-037
 **Odniesienie PRD:** US-03-05, wymagania RODO (retencja nagrań)
 
 **Opis:**
@@ -281,7 +281,7 @@ Serwis `RecordingService`: odbiera strumień audio z TelephonyAdapter, konwertuj
 **Zależy od:** BE-009, BE-025
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
-**Blokuje:** brak
+**Blokuje:** FE-011
 **Odniesienie PRD:** US-03-02, EPIC-03
 
 **Opis:**
@@ -303,7 +303,7 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 **Zależy od:** BE-001, BE-002, BE-003, BE-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
-**Blokuje:** FE-009, FE-021
+**Blokuje:** FE-009, FE-021, BE-029, FE-010
 **Odniesienie PRD:** US-03-01, US-07-05, EPIC-03
 
 **Opis:**
@@ -358,7 +358,7 @@ Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym
 **Zależy od:** BE-001b (MinIO), BE-009, DB-009
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-25
-**Blokuje:** BE-014, FE-014
+**Blokuje:** BE-014, FE-014, BE-034, BE-035
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
@@ -569,7 +569,7 @@ Zrealizowane: `WaitTimeEstimationService` (@Scheduled fixedDelay=30s), `QueueWai
 **Zależy od:** BE-002, DB-011
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
-**Blokuje:** BE-023, BE-024, FE-015
+**Blokuje:** BE-023, BE-024, FE-015, BE-051, BE-053
 **Odniesienie PRD:** US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -615,7 +615,7 @@ Zrealizowane: CampaignImportController (POST import + GET status), CampaignImpor
 **Zależy od:** BE-009, BE-022, DB-011
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-03
-**Blokuje:** brak
+**Blokuje:** BE-038, BE-039, BE-040, BE-041, BE-042
 **Odniesienie PRD:** US-08-03, US-08-05, EPIC-08
 
 **Opis:**
@@ -640,7 +640,7 @@ Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event Rabbit
 **Zależy od:** BE-002, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
-**Blokuje:** BE-026, BE-031, FE-018, FE-019, FE-011
+**Blokuje:** BE-026, BE-031, FE-018, FE-019, FE-011, BE-011, BE-048, FE-040
 **Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -688,7 +688,7 @@ Zrealizowane: `DeduplicationMode.java` (enum SKIP/OVERWRITE), `CustomerImportSta
 **Zależy od:** BE-002, DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-20
-**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-017, FE-019, FE-022
+**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-017, FE-019, FE-022, BE-036, BE-037, FE-030
 **Odniesienie PRD:** US-09-02, US-10-02, EPIC-09, EPIC-10
 
 **Opis:**
@@ -756,7 +756,7 @@ WebSocket topic `/tenant/{tenantId}/supervisor/metrics` z payloadem: {agents: [{
 **Zależy od:** BE-027, DB-013, DB-014
 **Status:** ✅ Ukończone (PostgreSQL fallback)
 **Zrealizowane:** 2026-04-09
-**Blokuje:** BE-030b
+**Blokuje:** BE-030b, BE-067
 **Odniesienie PRD:** US-10-06, EPIC-10
 
 **Opis:**
@@ -839,7 +839,7 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 **Zależy od:** BE-025, BE-027, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
-**Blokuje:** brak
+**Blokuje:** FE-033
 **Odniesienie PRD:** US-09-06, wymagania RODO
 
 **Opis:**
@@ -1043,7 +1043,7 @@ Istniejący `GET /api/contacts` (BE-027) obsługuje filtry: `agentId`, `customer
 **Zlozonosc:** M
 **Zależy od:** BE-027 ✅, BE-010 ✅
 **Status:** ✅ Zrealizowane
-**Blokuje:** FE-028, FE-029
+**Blokuje:** FE-028, FE-029, FE-030
 **Odniesienie PRD:** EPIC-12
 
 **Opis:**
@@ -1179,7 +1179,7 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 **Zależy od:** BE-009 (TelephonyAdapter), DB-023 (scheduled_callback z source_type), BE-024 (DialerCallbackHandler)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
-**Blokuje:** brak
+**Blokuje:** BE-068
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1357,7 +1357,7 @@ public record CreateInboundCallbackRequest(
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-15
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
-**Blokuje:** FE-034, FE-035
+**Blokuje:** FE-034, FE-035, BE-042, BE-048
 
 **Opis:**
 Rozszerzenie istniejącego endpointu `GET /api/dialer/callbacks` o obsługę ról z izolacją danych oraz nowe filtry. Aktualnie endpoint zwraca wyłącznie callbacki w statusie PENDING bez filtrowania po `agentId` — agent widzi callbacki wszystkich agentów. Zadanie naprawia to zachowanie i dodaje filtry wymagane przez panele listy.
@@ -1959,7 +1959,7 @@ Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego kl
 **Zależy od:** DB-028
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-26
-**Blokuje:** BE-050, BE-051
+**Blokuje:** BE-050, BE-051, BE-052
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
 **Opis:**
@@ -1981,7 +1981,7 @@ JPA entity `AgentBreak` mapująca tabelę `agent_break`. Enum `BreakType` (LUNCH
 **Zależy od:** BE-049
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-26
-**Blokuje:** FE-045
+**Blokuje:** FE-045, FE-042
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
 **Opis:**
@@ -2273,7 +2273,7 @@ Napisać testy jednostkowe dla `IvrService`.
 **Szacowany rozmiar:** M
 **Zależy od:** DB-030 (tabela `tenant_twilio_config`)
 **Status:** ✅ Ukończone
-**Blokuje:** BE-056, BE-057, BE-058
+**Blokuje:** BE-056, BE-057, BE-058, BE-059, BE-086
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2310,7 +2310,7 @@ Warstwa danych dla konfiguracji Twilio per tenant. Trzy elementy:
 **Szacowany rozmiar:** M
 **Zależy od:** BE-055 (encja i repozytorium)
 **Status:** ✅ Ukończone
-**Blokuje:** BE-057, BE-058
+**Blokuje:** BE-057, BE-058, BE-061
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
 **Opis:**
@@ -2628,7 +2628,7 @@ Nie należy buforować wyników (lista może się zmieniać po zakupie/usunięci
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-08
 **Zależy od:** –
-**Blokuje:** BE-063
+**Blokuje:** BE-063, BE-066
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
 **Opis:**
@@ -2717,7 +2717,7 @@ if (isNoAnswer) {
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-062
-**Blokuje:** BE-065
+**Blokuje:** BE-065, FE-069
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
 **Opis:**
@@ -3076,7 +3076,7 @@ Response 200: EmailMessageResponse
 **Zależy od:** DB-034 (kolumna `notes` w tabeli `contact`)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-14
-**Blokuje:** FE-073
+**Blokuje:** FE-073, BE-070
 **Epic:** EPIC-22 Notatki do kontaktów
 
 **Opis:**
@@ -3775,7 +3775,7 @@ public List<TransferQueueResponse> getAvailableQueues(UUID tenantId) {
 **Zależy od:** BE-074
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-076, FE-080
+**Blokuje:** FE-076, FE-080, BE-083
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3861,7 +3861,7 @@ public ResponseEntity<CallSessionResponse> transferCall(
 **Zależy od:** DB-036
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-21
-**Blokuje:** BE-080, BE-081, FE-081
+**Blokuje:** BE-080, BE-081, FE-081, BE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Kontekst:**
@@ -3903,7 +3903,7 @@ public ResponseEntity<CallSessionResponse> transferCall(
 **Zależy od:** DB-036, BE-079
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-21
-**Blokuje:** BE-081, BE-084, FE-082
+**Blokuje:** BE-081, BE-084, FE-082, FE-083
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Opis:**
@@ -4129,7 +4129,7 @@ if (eligibleCampaigns.isEmpty()) {
 **Zależy od:** BE-079
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-21
-**Blokuje:** brak
+**Blokuje:** BE-083, BE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Kontekst — zweryfikowany stan:**
@@ -4752,7 +4752,7 @@ class SummarizeResponse(BaseModel):
 **Złożoność:** M
 **Zależy od:** DB-040 (tabela `custom_disposition`)
 **Status:** ✅ Zrealizowane
-**Blokuje:** BE-093, BE-094
+**Blokuje:** BE-093, BE-094, FE-090
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
 **Opis:**
@@ -4845,7 +4845,7 @@ private static final List<AvailableDispositionDto> SYSTEM_DEFAULT_DISPOSITIONS =
 **Złożoność:** S
 **Zależy od:** BE-092
 **Status:** ✅ Zrobione
-**Blokuje:** FE-090
+**Blokuje:** FE-090, FE-091, FE-092
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
 **Opis:**
@@ -4890,7 +4890,7 @@ DELETE /api/dispositions/queues/{queueId}/{id}         → 204
 **Złożoność:** S
 **Zależy od:** BE-092
 **Status:** ✅ Zrobione
-**Blokuje:** FE-093
+**Blokuje:** FE-093, FE-090
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
 **Opis:**
@@ -5031,7 +5031,7 @@ Analogicznie `applyToQueue`.
 **Złożoność:** S
 **Zależy od:** BE-095
 **Status:** ✅ Zrobione
-**Blokuje:** FE-094
+**Blokuje:** FE-094, FE-095, FE-096
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
 **Opis:**
@@ -5086,7 +5086,7 @@ POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (li
 **Złożoność:** M
 **Zależy od:** brak (nowy moduł niezależny od `app`)
 **Status:** ✅ Zrobione
-**Blokuje:** BE-098
+**Blokuje:** BE-098, BE-101
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5213,7 +5213,7 @@ backend/app/src/main/java/com/contactcenter/
 **Złożoność:** M
 **Zależy od:** BE-098
 **Status:** ✅ Zrobione
-**Blokuje:** BE-100
+**Blokuje:** BE-100, BE-110, FE-097, FE-098
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5425,7 +5425,7 @@ Testy: `CircuitBreakerStateTest` (6), `ExtensionPointPublisherImplTest` (12, exe
 **Złożoność:** M
 **Zależy od:** BE-102
 **Status:** ✅ Zrobione (2026-06-21)
-**Blokuje:** BE-107
+**Blokuje:** BE-107, FE-100
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5598,7 +5598,7 @@ GET /api/supervisor/plugins/{installationId}/invocations?page=0&size=20&status=F
 **Złożoność:** M
 **Zależy od:** BE-101
 **Status:** ✅ Zrobione (2026-06-22)
-**Blokuje:** BE-107
+**Blokuje:** BE-107, BE-110, FE-097, FE-098
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5736,7 +5736,7 @@ accessor testowy do package-private `PluginConfigImpl`). `config` nigdy nie traf
 **Złożoność:** M
 **Zależy od:** BE-103, BE-106
 **Status:** ✅ Zrobione
-**Blokuje:** —
+**Blokuje:** FE-099
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5779,7 +5779,7 @@ backend/app/src/main/java/com/contactcenter/
 **Złożoność:** S
 **Zależy od:** BE-099, BE-106
 **Status:** ✅ Zrobione
-**Blokuje:** —
+**Blokuje:** FE-101
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Skąd ten ticket — realny scenariusz odkryty przy testowaniu uploadu na żywym backendzie:**
@@ -6547,7 +6547,7 @@ backend/app/src/main/java/com/contactcenter/domain/contact/
 **Złożoność:** M
 **Zależy od:** BE-111, BE-112, BE-113
 **Status:** ✅ Ukończone
-**Blokuje:** FE-103
+**Blokuje:** FE-103, FE-104, FE-105, FE-106, FE-107, FE-108
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
 **Opis:**
@@ -6700,7 +6700,7 @@ List<RetentionSummaryDto> getPendingSummary(UUID tenantId);
 **Złożoność:** S
 **Zależy od:** BE-113
 **Status:** ✅ Ukończone (2026-08-13)
-**Blokuje:** brak
+**Blokuje:** FE-110
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
 **Opis:**
@@ -6786,3 +6786,1400 @@ działają niezależnie od tej decyzji.
   sekwencyjnie — uwaga: równoległe uruchomienie dwóch `mvn` na tym samym module w trakcie
   implementacji dało fałszywe `NoClassDefFoundError` niepowiązanych klas, przez kolizję zapisu do
   `target/`; po czystym, pojedynczym `mvn clean verify` build jest zielony).
+
+---
+
+## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+
+> Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20) — ustalenia U1–U15, decyzje D1–D8 z
+> założeniami domyślnymi, wymagania przekrojowe WP-1…WP-8. Tabele/funkcje bazowe: DB-056…DB-077 (`TASKS-DATABASE.md`). **Brak nowych endpointów
+> publicznych** (`SecurityConfig` i listy `PUBLIC_PATH_PREFIXES` w filtrach bez zmian); wyjątek: BE-129 zmienia zawartość istniejących
+> `POST /api/customers/{id}/gdpr/export|anonymize`, bez zmiany ścieżek i ról (`hasAnyRole('ADMIN','SUPERVISOR')`).
+> **Numeracja:** BE-120…BE-143 (poprzedni najwyższy: BE-119); BE-143 dopisany 2026-09-21 z code review BE-125 (BE125-01); BE-144 (porządkowy, bez epiku) w osobnym module na końcu pliku.
+> Kluczowe fakty zweryfikowane w kodzie 2026-09-20: `RetentionPurgeServiceImpl#purgeContactInteractions` woła `detachContactReferences` (tylko `contact_id := NULL`);
+> `EmailAttachmentStorageService` nie ma operacji usuwania; `PartitionReclaimJob.TABLE_CATEGORIES` = 4 tabele `contact*` i **kasuje także niepuste partycje** (WARN, ale DROP wykonany —
+> zamierzone dla `contact*`), więc dla tabel z obiektami S3 potrzebny jest tryb „tylko puste" (BE-123 wprowadza `DropMode`, BE-133 go implementuje);
+> `PartitionScannerImpl#countRowsByTenant` rzuca NPE dla wierszy z `tenant_id IS NULL` (`row[0].toString()`), co dotyczy `audit_log` (BE-123).
+>
+> Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
+> ```
+> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
+> Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
+>           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130, tylko D1 = C]
+> Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
+> Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 ✅ → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
+> Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 5:  DB-071 → BE-138;   DB-064, DB-071 → BE-139
+> ```
+> Wspólne wymagania (skrót; pełna treść w DESIGN §5): **WP-1** testy Testcontainers na pełnym łańcuchu Flyway dla każdej zmiany natywnego SQL/JPA (precedens:
+> `CampaignContactArchivePurgeTenantIsolationTest`; mocki `EntityManager` nie złapały błędu `resultClass`+enum, braku `TenantContext` w schedulerze, `Map.of().get(null)`);
+> **WP-2** joby `@Scheduled` z pętlą per tenant: `TenantContext.setTenantId` na początku iteracji i `clear()` w `finally`, NIGDY `clear()` na ścieżce z żądania HTTP
+> (wzorce: `SocialIntegrationServiceImpl#refreshToken`, `RetentionEvaluationServiceImpl`); **WP-4** weryfikacja na żywo w local-demo po przebudowie obrazów, joby destrukcyjne — policz kandydatów i uzyskaj zgodę właściciela;
+> **WP-5** Poziom 1 (wiersze + S3 per tenant) przed Poziomem 2 (DROP partycji); **WP-7** DoD: status i notatki w pliku zadań, pamięć agentów (`.claude/agent-memory/`) commitowana razem ze zmianą.
+
+### BE-120 – Job archiwizacji kampanii: `archive_completed_campaign_contacts()` (`CampaignArchiveJob`)
+
+**Typ:** Backend implementation (domknięcie martwego harmonogramu)
+**Priorytet:** Should Have
+**Złożoność:** S (ocena zlecenia potwierdzona; ryzyko RLS opisane niżej — jeśli okaże się wymagać refaktoru funkcji, wykonawca dopisuje osobny ticket DB)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-072, DB-075, DB-076, DB-077
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+Funkcja SQL `archive_completed_campaign_contacts()` (V015) dla każdej kampanii `COMPLETED`/`STOPPED` z `updated_at < now() - 30 dni` kopiuje `campaign_contact` do `campaign_contact_archive`
+(`ON CONFLICT (record_id, campaign_id) DO NOTHING`), usuwa je z tabeli operacyjnej, próbuje dropnąć partycję `campaign_contact_<uuid>` (nie istnieje), zapisuje `cron_log` i `scheduled_job.last_run_at` — w jednej transakcji dla wszystkich tenantów.
+Nikt jej nie woła (DESIGN §2 U10): live 30/30 kampanii kwalifikuje się (37 wierszy `campaign_contact`), archiwum = 0 wierszy.
+
+**⚠️ To nie jest zmiana wolna od decyzji PO (D8, DESIGN §3):** czytelnicy `campaign_contact` (`CampaignContactRepository`, `CampaignContactHistoryController` `/api/campaigns/{campaignId}/contacts/{recordId}/attempts`,
+`DialerController`, statystyki po `(campaign_id, status)`, `EtlSyncServiceImpl`) nie czytają archiwum — po archiwizacji kontakty zakończonych kampanii > 30 dni znikają z UI i statystyk. **ZAŁOŻENIE DO POTWIERDZENIA:** job dostarczony
+za flagą `retention.campaign-archive.enabled` (domyślnie `false`); włączenie po zgodzie właściciela. Przy alternatywie „domyślnie włączony" (pierwotny zamiar V015) zmienia się tylko domyślna wartość flagi i konieczność zgody przed wdrożeniem.
+Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zegar `archived_at` startuje od tego dnia (efektywnie wydłuża retencję PII zaległych kampanii).
+
+**Zakres:**
+- `domain/retention/CampaignArchiveJob` (package-private `@Component`): `@Scheduled(cron = "${retention.campaign-archive-cron:0 0 4 * * *}", zone = "UTC")` — 04:00 zgodnie z wpisem w `scheduled_job`; zajęte sloty: 00:30 `PartitionMaintenanceJob`, 01:00 `RetentionEvaluationJob`, 02:00 `RecordingRetentionJob`, niedziela 03:00 `PartitionReclaimJob`.
+- Metoda `CampaignArchiveRetentionRepository#archiveCompletedCampaigns()` (`SELECT archive_completed_campaign_contacts()`; funkcja jest `RETURNS VOID` — liczba przeniesionych wierszy z różnicy `count(*)` kwalifikujących się przed/po albo z `cron_log`; nie zmieniaj typu zwracanego bez ticketu DB).
+- Flaga `retention.campaign-archive.enabled` (domyślnie `false`); przy `false` job loguje INFO i nic nie wywołuje. Wpisy w `application.yml` (sekcja `retention:`) z komentarzem.
+- **Kontekst tenanta (WP-2):** funkcja jest cross-tenant z założenia i nie używa GUC — job NIE ustawia `TenantContext`; jawny prekontrakt w Javadoc (scheduler, brak kontekstu, rola DB musi widzieć wszystkie kampanie).
+- **Ryzyko RLS (DESIGN R5):** funkcja iteruje po `campaign` (FORCE RLS) i usuwa z `campaign_contact`; pod rolą bez BYPASSRLS i bez GUC zwróci 0 kampanii. Domyślnie: zachowanie zmierzone i opisane (test), rozwiązanie (rola serwisowa/`SECURITY DEFINER` albo pętla per tenant z `p_tenant_id`) rozstrzyga DB-072 razem z BE-139.
+- Pierwsze uruchomienie = jedna transakcja na wszystkie zaległe kampanie: zmierz na scratch (np. 30 kampanii × 10 tys. rekordów) czas, WAL i blokady `campaign_contact`; > 30 s → wariant per kampania (ticket DB).
+
+**Kryteria akceptacji:**
+- [ ] Job `@Scheduled` (UTC, konfigurowalny cron), flaga `enabled` domyślnie `false`; przy `false` zero wywołań SQL (test jednostkowy: `verifyNoInteractions`)
+- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: kampania `COMPLETED` z `updated_at` > 30 dni i 3 rekordami → rekordy w archiwum (`archived_at` ustawione), znikają z `campaign_contact`; kampania `RUNNING` i `COMPLETED` < 30 dni nietknięte; kwalifikująca się kampania drugiego tenanta też zarchiwizowana — asercje po wartościach
+- [ ] Idempotencja: drugie uruchomienie bez zmian i bez błędu
+- [ ] Wyjątek funkcji SQL nie zatrzymuje schedulera (try/catch, log ERROR); test
+- [ ] Zachowanie pod `SET ROLE app_user` bez GUC zmierzone i opisane w Javadoc jobu (zero kampanii); decyzja przekazana do DB-072/BE-139
+- [ ] Inwentaryzacja czytelników `campaign_contact` (lista klas/endpointów) w notatce: co zobaczy użytkownik po archiwizacji; zgoda właściciela na włączenie flagi zapisana
+- [ ] (WP-4) Local-demo po przebudowie obrazów: policz kwalifikujące się (spodziewane 30 kampanii/37 wierszy), uzyskaj zgodę, uruchom (flaga włączona tymczasowo), sprawdź `cron_log`, `scheduled_job.last_run_at` (aktualizuje je funkcja) i UI kampanii
+- [ ] `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-121 – Pętla batchowa w `CampaignArchiveRetentionRepository#purgeEligible`
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-056
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:**
+`purgeEligible(UUID tenantId, Instant cutoff)` woła jednokrotnie `SELECT purge_campaign_contact_archive(CAST(:tenantId AS uuid), :cutoff)` (V091) w jednej `@Transactional`. Po DB-056 funkcja usuwa ≤ `p_batch_size` wierszy,
+więc repozytorium musi iterować. Wołający: `RetentionPurgeServiceImpl#purgeCampaignData` (w wątku `@Async` po `TenantContext.restore`).
+
+**Zakres:**
+- Pętla `do { n = callBatch(); total += n; } while (n == batchSize)`; **każda partia w osobnej transakcji** (`TransactionTemplate` lub metoda w osobnym beanie — uwaga na self-invocation `this.` omijające proxy, patrz BE-113) → krótkie blokady i WAL.
+- Rozmiar partii: nowa właściwość `retention.campaign-archive.purge-batch-size` (domyślnie 10 000; istniejące `retention.purge.batch-size` = 100 dotyczy DELETE po PK na tabelach partycjonowanych).
+- `assertSameTenant(tenantId)` i `setTenantContextInDb(tenantId)` na starcie (jak dziś); **bez `TenantContext.clear()`** — metoda działa na wątku, którego kontekstem zarządza `purgeAsync` (WP-2). Guard przed nieskończoną pętlą (limit iteracji lub brak postępu → przerwanie z WARN).
+- `rowsDeleted` = suma partii; sygnatura `purgeEligible` bez zmian (`RetentionPurgeServiceImpl` nietknięty).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers: 25 000 wierszy tenanta A i 10 000 tenanta B (batch 10 000) → A usunięte całkowicie, B nietknięty; liczba wywołań funkcji = 4 (3 pełne + końcowa 0)
+- [ ] Każda partia w osobnej transakcji: awaria w 2. partii nie cofa 1. (test); `retention_purge_log` kończy się `FAILED` z komunikatem, częściowy postęp zostaje
+- [ ] (WP-2) Repozytorium nie woła `TenantContext.clear()`; test z pustym `TenantContext` → `IllegalStateException` z `assertSameTenant` (wzorzec `TenantRetentionPendingSummaryRepositoryTest`)
+- [ ] Guard nieskończonej pętli przetestowany; `CampaignArchiveRetentionRepositoryTest` (mock) zaktualizowany, `CampaignContactArchivePurgeTenantIsolationTest` zielony
+- [ ] `mvn verify -pl app`; DoD (WP-7); wdrożenie razem z DB-056
+
+---
+
+### BE-122 – Job czyszczenia `refresh_token` (`RefreshTokenCleanupJob`)
+
+**Typ:** Backend implementation (domknięcie martwego harmonogramu)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-076, DB-077
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`RefreshTokenRepository#deleteExpiredAndRevoked(Instant cutoff)` (JPQL `DELETE … WHERE rt.expiresAt < :cutoff OR rt.revoked = true`, javadoc: „nie zaimplementowany w BE-003, ale metoda gotowa") nie ma wołającego; SQL `cleanup_expired_refresh_tokens()` wymagała nieobecnego pg_cron.
+Live: `refresh_token` 1333 wiersze, 1331 wygasłych, 1298 unieważnionych, 37 z `tenant_id` NULL (SUPER_ADMIN). Repozytorium jest `interface … extends JpaRepository` **package-private** w `domain.user`, tabela nie ma RLS.
+
+**Zakres:**
+- `domain/user/RefreshTokenCleanupJob` (package-private `@Component`, `@Scheduled(cron = "${auth.refresh-token-cleanup.cron:0 30 3 * * *}", zone = "UTC")`; wolny slot względem 00:30/01:00/02:00/04:00), `@Transactional` (metoda `@Modifying` wymaga transakcji).
+- Semantyka: `cutoff = now − auth.refresh-token-cleanup.grace-days` (domyślnie 7). Obecne JPQL kasuje unieważnione tokeny natychmiast, co gubi diagnostykę replay w `AuthServiceImpl` (stary token po rotacji jest `revoked = true`, replay = odrzucenie; po usunięciu = „nie znaleziono" — obie ścieżki odrzucają, ale log/ślad znika).
+  Rekomendacja: `(rt.revoked = true AND rt.createdAt < :cutoff) OR rt.expiresAt < :cutoff`; wykonawca uzasadnia wybór.
+- Bez `TenantContext` (tabela globalna, brak pętli per tenant) — jawny komentarz w Javadoc (WP-2). Log INFO z liczbą usuniętych. Przy dużych wolumenach (zmierz) batching natywnym DELETE po PK `token_id` (tabela zwykła, niepartycjonowana) w osobnych transakcjach.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers z realnym JPQL: tokeny aktywny / wygasły < grace / wygasły > grace / unieważniony świeży / unieważniony stary / `tenant_id IS NULL` → usunięte dokładnie te przewidziane przez wybraną semantykę (mock nie wykryłby błędu warunku `OR`)
+- [ ] (WP-2) Job nie zależy od `TenantContext` — test z pustym kontekstem przechodzi; wyjątek nie crashuje schedulera
+- [ ] Istniejące testy `AuthServiceImpl` (refresh/logout/replay) zielone; test replay: token usunięty po grace → 401 jak nieistniejący
+- [ ] (WP-4) Local-demo: policz kandydatów (spodziewane ≈ 1331 wygasłych / 1298 unieważnionych, bez tokenów aktywnych), uzyskaj zgodę, uruchom; po: aktywne i w grace zostają, logowanie/refresh działa
+- [ ] `application.yml`: cron + `grace-days`; DoD (WP-7)
+
+---
+
+### BE-123 – `audit_log` i `plugin_invocation_log` w `PartitionReclaimJob` (horyzont platformowy, D5)
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Should Have
+**Złożoność:** M (odbiega od oceny zlecenia „S": osobna ścieżka horyzontu, refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode`, rozszerzenie `PartitionScanner`, poprawka NPE dla `tenant_id` NULL, test na prawdziwej bazie)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-133, DB-076, DB-077
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`PartitionReclaimJob.TABLE_CATEGORIES` (`Map<String, RetentionDataCategory>`) obejmuje 4 tabele `contact*` i liczy próg z `MAX(retention_months)` kategorii (`RetentionPolicyService#findMaxRetentionMonths`). `audit_log` i `plugin_invocation_log` (6 tabel w `PartitionMaintenanceJob.PARTITIONED_TABLES`) nie mają kategorii —
+log platformowy (DESIGN EPIC-29 §12.1) — więc rosną bez końca (najstarsza partycja `audit_log` = 2026_03; `ARCHITECTURE.md:848` obiecuje 2 lata). SQL `drop_old_audit_log_partitions`/`rotate_*` nie mają wołającego.
+**D5 (ZAŁOŻENIE DO POTWIERDZENIA prawnie):** horyzont 24 mies., konfigurowalny; przy innej wartości zmienia się wyłącznie konfiguracja.
+
+**Zakres:**
+1. Refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)`: `ThresholdSource` = `CATEGORY_MAX_RETENTION(category)` (dziś) | `PLATFORM_HORIZON(propertyKey)` (nowe); `DropMode` = `AFTER_CUTOFF` (dzisiejsze zachowanie dla `contact*`: DROP także niepustej z WARN — **bez zmian**) | `ONLY_IF_EMPTY` (deklaracja; implementuje BE-133 jako pierwszy użytkownik).
+2. Ścieżka horyzontu: `retention.platform.audit-log-months` i `retention.platform.plugin-invocation-log-months` (domyślnie 24, walidacja ≥ 1: wartość niepoprawna → start z czytelnym błędem albo fallback 24 + WARN — opisz wybór); `cutoff = now(UTC) − months`; kandydat gdy `rangeEnd` ściśle `<` cutoff. **Niezależna od `RetentionPolicyService`** (brak polityk nie wyłącza tej ścieżki).
+**Uwaga z code review BE-127 (2026-09-26, BE127-01), skorygowana 2026-09-26 po wdrożeniu BE-145 — do rozstrzygnięcia przy implementacji, bez zmiany zakresu/AC powyżej:** **BE-145 wdrożone PIERWSZE** (2026-09-26, poza tym epikiem — patrz notatka wykonania w sekcji BE-145). Punkt 1 powyżej NIE JEST już aktualny w części dotyczącej `contact*`: zamiast „`DropMode.AFTER_CUTOFF` dla `contact*` — dzisiejsze zachowanie … bez zmian", wykonawca TEGO ticketu (BE-123) musi przyjąć `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` jako `DropMode.ONLY_IF_EMPTY` (niepusta partycja → pominięcie DROP, WARN z liczbą wierszy — zaimplementowane w `PartitionReclaimJob.warnIfStillHasRows`/`reclaimTable`, bez `ThresholdSource`/`ReclaimTarget`, bo BE-123 jeszcze nie istniało). Wyjątek „horyzont platformowy" (pkt 2, `audit_log`/`plugin_invocation_log`, DROP mimo niepustej — INFO nie blokada) pozostaje bez zmian i musi zostać dodany jako NOWY, jedyny wpis z `DropMode.AFTER_CUTOFF` przy refaktorze `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode` — patrz też komentarz zostawiony w javadoc `PartitionReclaimJob` (sekcja „BE-145 vs. przyszły BE-123").
+3. Partycja `<tabela>_default`: nigdy nie kandyduje (scanner ją wyklucza); **WARN gdy niepusta** (sygnał awarii rotacji — dokładnie błąd z EPIC-29/DB-052) — nowa metoda `PartitionScanner#countRows(String tableName)`/`isEmpty`.
+4. Niepusta partycja po horyzoncie jest OCZEKIWANA (brak Poziomu 1 dla logów platformowych) → INFO z liczbą wierszy, DROP wykonany.
+5. **Bug:** `PartitionScannerImpl#countRowsByTenant` robi `UUID.fromString(row[0].toString())` — dla `audit_log` (`tenant_id` nullable = zdarzenia globalne) `row[0] == null` → `NullPointerException`. Dodaj obsługę NULL (metoda `countRows` bez grupowania po tenancie dla ścieżki platformowej + poprawka `countRowsByTenant`) i test na prawdziwej bazie.
+6. `application.yml` (`retention.platform.*`) z komentarzem o wymaganym potwierdzeniu prawnym. Funkcji SQL `rotate_*`/`drop_old_*` nie usuwamy (backstop; uzgodnienie opisu w DB-076).
+
+**Kryteria akceptacji:**
+- [ ] `audit_log` i `plugin_invocation_log`: partycja `rangeEnd < now − 24 mies.` → DROP; 23-miesięczna nie; `_default` nigdy (test jednostkowy + (WP-1/WP-6) Testcontainers z realnymi partycjami z `create_audit_log_partition`)
+- [ ] Test Testcontainers: partycja `audit_log` z wierszami `tenant_id IS NULL` i z tenantami → brak NPE, DROP wykonany, INFO z liczbą wierszy (test zapisany tak, by PRZED poprawką padał NPE — udokumentuj)
+- [ ] `_default` niepusta → WARN (test z appenderem logów)
+- [ ] Ścieżka horyzontu nie zależy od `RetentionPolicyService` (test: usługa rzuca `ResourceNotFoundException`, `audit_log` nadal przetwarzany); błąd jednej tabeli nie przerywa pozostałych
+- [ ] Zachowanie `contact*` bez zmian (istniejące `PartitionReclaimJobTest` zielone bez zmiany asercji)
+- [ ] (WP-2) Javadoc: scheduler bez kontekstu, scanner cross-tenant z założenia
+- [ ] (WP-4) Local-demo: najstarsza partycja `audit_log_2026_03` ma < 24 mies., więc job niczego nie usunie — dowód: log INFO; test DROP z niskim horyzontem wyłącznie na kopii/po policzeniu wierszy i zgodzie (destrukcyjne)
+- [ ] `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-124 – [ADR + inwentaryzacja] Retencja treści wiadomości: decyzja D1, PII i obiekty S3
+
+**Typ:** Analiza / ADR (bez zmian w kodzie produkcyjnym)
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-09-20) — D1 = A przyjęte do realizacji bez wyraźnego potwierdzenia właściciela (patrz notatka, sekcja 1)
+**Blokuje:** BE-125, DB-059, DB-063
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (decyzja: właściciel produktu)
+
+**Opis:**
+Zamyka decyzję D1 i przygotowuje kompletny inwentarz, zanim ktokolwiek zacznie usuwać dane. **ZAŁOŻENIE DO POTWIERDZENIA (D1 = A):** DELETE wierszy i załączników S3 razem z purge kontaktu w istniejącej kategorii `CONTACT_INTERACTIONS` (bez zmian CHECK/enuma/UI).
+Alternatywy: B (anonimizacja) — BE-125/126/127 robią UPDATE PII zamiast DELETE, tabele rosną bez końca, sens Poziomu 2 znika; C (kategoria `MESSAGE_CONTENT`) — wchodzą DB-063, BE-130, FE-111.
+
+**Zakres:**
+1. ADR w notatce ticketu + aktualizacja DESIGN §3 D1 (potwierdzenie/zmiana założenia); pytania do PO (D1, D2 — wolumeny) wysłane listą.
+2. Inwentarz PII i obiektów zewnętrznych: `email_message` (`from_address`, `to_address`, `cc_address`, `bcc_address`, `subject`, `body_html`, `body_text`, `attachments`, `message_id_header`, `in_reply_to`), `social_message` (`content`, `sender_external_id`, `attachments`, `external_message_id`);
+   S3: `email-attachments/{tenantId}/{messageId}/…`, `email-attachments/{tenantId}/pending/{uuid}/…`, EML (`contact.recording_url`), nagrania. **Klucz metadanych załącznika w JSONB to `s3_key`** (potwierdzone w `EmailPollingServiceImpl#collectAttachments` i `EmailSendServiceImpl#buildAttachmentsJson`) — komentarz V010 i javadoc `EmailMessage` mówią `s3_url` (do sprostowania w DB-077).
+3. **Ponowne przeczytanie kodu po PR #44 (WhatsApp):** `SocialMessageServiceImpl` (przychodzące: dedup `findByExternalMessageId`, `sentAt = incoming.sentAt() ?: now()`; wychodzące: `externalMessageId = "OUTBOUND-" + UUID`), `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialWebhookController`, `SocialContactController`, adaptery — czy `attachments` niosą URL-e z tokenami/PII; brak S3 w domenie social (grep) potwierdzić.
+4. Dwa ryzyka do opisania: (a) brak walidacji `RECORDINGS ≤ CONTACT_INTERACTIONS` w `RetentionPolicyServiceImpl#updatePolicy` → kontakt z niepustym `contact.recording_url` usunięty przed retencją nagrań osierocia obiekt S3 (`RecordingRetentionJob` szuka po `contact.recording_url`); (b) kolejność operacji przy awarii — **dzieci przed rodzicem, S3 przed wierszem, brak postępu = koniec pętli** (DESIGN R3).
+5. Definicja „wieku wiadomości" dla osieroconych: `COALESCE(received_at, sent_at, created_at)` (e-mail) / `sent_at` (social) — ta sama co przyszłe `message_at` (DB-067).
+
+**Kryteria akceptacji:**
+- [x] ADR zapisany (notatka poniżej + `DESIGN-message-retention-and-partitioning.md` §3 D1); wpływ decyzji na tickety wypisany (przy B/C: co się zmienia, które tickety warunkowe wchodzą)
+- [ ] Pytania do PO wysłane — **NIE wysłano** (brak kanału do właściciela); lista w sekcji 9 notatki, „do przekazania"; odhaczyć po przekazaniu
+- [x] Inwentarz kompletny (grep po `attachments`, `s3_key`, `EmailAttachmentStorageService`, `deleteFromS3`, `social_message`, `SocialMessage`); lista zmian od PR #44 w notatce (sekcja 4)
+- [x] Opisane oba ryzyka (a)/(b) z rekomendacją (walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` jako osobny follow-up, jeśli PO potwierdzi) — sekcje 5 i 6
+- [x] Notatka w pliku zadań
+- [ ] Pamięć agenta commitowana razem ze zmianą (WP-7) — pliki pamięci zapisane w `.claude/agent-memory/backend-dev-expert/`; commit wykonuje zlecający
+
+**Notatka z realizacji (2026-09-20):**
+
+Metoda: wyłącznie odczyt — kod gałęzi `chore/epic-30-zadania` (zawiera PR #44), baza demo `cc-postgres` (`default_transaction_read_only=on`), MinIO (`ls`, `mc ilm rule ls`, `mc version info`, `mc du`; bez zapisu). Kod, testy, migracje i dane bez zmian; żaden purge nie został uruchomiony. Numery linii = stan z 2026-09-20.
+
+**1. ADR — D1: semantyka retencji treści wiadomości (e-mail, social)**
+- **Stan decyzji:** przyjęte do realizacji 2026-09-20 na podstawie polecenia realizacji („przejdź do realizacji") po przedstawieniu założenia domyślnego A; **wyraźnego potwierdzenia D1 właściciel nie złożył**. To nie jest zatwierdzenie: D1 = A pozostaje założeniem roboczym, tickety warunkowe (DB-063, BE-130, FE-111) są nieaktywne, ale nie zamknięte.
+- **Decyzja robocza — A:** DELETE wierszy `email_message`/`social_message` i ich obiektów S3 razem z purge kontaktu, w istniejącej kategorii `CONTACT_INTERACTIONS` (bez zmian CHECK, enuma `RetentionDataCategory` i UI kategorii).
+- **Uzasadnienie:** (1) najmniejszy zakres — 3 CHECK-i `data_category` (`tenant_retention_policy_data_category_check`, `tenant_retention_pending_summary_data_category_check`, `retention_purge_log_data_category_check`; zweryfikowane w `pg_constraint`) zostają; (2) wiadomość jest częścią interakcji, a jej wiek ≈ wiek kontaktu: w demo kontakty e-mail trwają ≤ 6 h 10 min, wiadomość powstaje najpóźniej 2 min 19 s po `contact.started_at` (0 wiadomości > 1 doby po starcie kontaktu); social: 0 wierszy, brak danych; (3) B zostawia PII, którego nie da się zanonimizować kolumną bez utraty funkcji (`filename` w `attachments`, `message_id_header`/`in_reply_to`, `cc`/`bcc` — `anonymize_customer` z V013 już dziś ich nie rusza), a tabele rosną bez końca; (4) Poziom 2 (DROP partycji) ma sens tylko przy usuwaniu wierszy.
+- **Konsekwencje A:** usunięcie jest nieodwracalne (bucket `contact-center-recordings` niewersjonowany); ten sam przycisk „Usuń teraz" (`CONTACT_INTERACTIONS`) zyskuje szerszy skutek, więc FE-110 (opis w UI) ma wejść razem z BE-126, nie po; wiadomość dziedziczy wiek kontaktu (`started_at`), nie własny; koszt S3 w pętli purge (BE-125, „Ryzyka").
+- **Zabezpieczenie na czas do potwierdzenia (opcja, decyzja zlecającego):** flaga `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe `detachContactReferences`), włączana po potwierdzeniu D1 — wtedy zmiana na B/C przed wdrożeniem nie wymaga cofania kodu, a merge BE-125/126 jest neutralny. Bez flagi: nie włączać `auto_purge_enabled` dla `CONTACT_INTERACTIONS` na produkcji i nie uruchamiać ręcznego purge po wdrożeniu BE-126 do czasu potwierdzenia.
+- **Wpływ alternatyw (ścieżka zmiany):**
+
+| Ticket | D1 = B (anonimizacja) | D1 = C (kategoria `MESSAGE_CONTENT`) |
+|---|---|---|
+| BE-125 | `purgeByContactIds` → UPDATE PII (`from/to/cc/bcc`, `subject`, `body_*`, `attachments = '[]'`; social: `content`, `sender_external_id`; `message_id_header`/`in_reply_to` — decyzja pod dedup IMAP); S3 nadal usuwane (pliki niosą PII); potrzebny znacznik „zanonimizowano" (kolumna — nowy ticket DB), inaczej sweep nie jest idempotentny | logika bez zmian; dochodzi wariant po wieku `purgeOlderThan(tenantId, cutoff, batch)` (wiadomości powiązane i osierocone) |
+| BE-126 | `detachContactReferences` zostaje (bez `@Deprecated`) + wołanie anonimizacji | wraca do odcinania referencji; usuwanie wiadomości przechodzi do BE-130 |
+| BE-127, BE-128 | sweep = UPDATE wierszy niezanonimizowanych; liczenie tych wierszy | sweep i liczenie pod kategorią `MESSAGE_CONTENT` (przenoszą się do BE-130) |
+| DB-059 | predykat indeksu + kolumna znacznika | indeks bez `WHERE contact_id IS NULL` (usuwanie po wieku obejmuje też powiązane) |
+| DB-063, BE-130, FE-111 | nie wchodzą | wchodzą (3 CHECK-i, backfill = wartość `CONTACT_INTERACTIONS`, enum, `seedDefaultPolicies`, UI, 4× i18n) |
+| DB-065/067, BE-132…135 | sens Poziomu 2 znika (wiersze nie znikają) — ponowna ocena | bez zmian; `ReclaimTarget` czyta próg `MESSAGE_CONTENT` |
+| FE-110 | „zanonimizowane" zamiast „usunięte" | tylko punkt 3 (dryf `CAMPAIGN_DATA`); opis wiadomości → FE-111 |
+
+- **Zmiana decyzji po starcie prac:** przed merge BE-125/126 — zmieniają się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie jest nieodwracalne, więc B/C dotyczą tylko danych jeszcze nieusuniętych.
+
+**2. Inwentarz PII** (schemat z `\d+` żywej bazy + kod). Jedyni pisarze `email_message`: `EmailPollingServiceImpl#parseMessage` :219–270 (INBOUND), `EmailSendServiceImpl#sendReply` :100–113 i `#sendNew` :200–212 (OUTBOUND) — grep `EmailMessage.builder()`, brak INSERT-ów w migracjach; `social_message`: `SocialMessageServiceImpl` :101–117 (INBOUND) i :217–233 (OUTBOUND).
+
+| Kolumna | PII | Uwagi |
+|---|---|---|
+| `email_message.from_address` | tak | INBOUND: `Message#getFrom()[0].toString()` = „Imię Nazwisko <adres>"; OUTBOUND: skrzynka tenanta |
+| `email_message.to_address` | tak | INBOUND: skrzynka tenanta + inni odbiorcy; OUTBOUND: adres klienta |
+| `email_message.cc_address`, `bcc_address` | tak (osoby trzecie) | ustawiane tylko dla INBOUND (live 0/55 niepustych); `anonymize_customer` (V013) ich nie czyści |
+| `email_message.subject`, `body_html`, `body_text` | tak (treść) | live: 55 / 33 / 30 niepustych |
+| `email_message.attachments` (JSONB NOT NULL, CHECK „array") | pośrednio | wpis: `filename` (bywa PII), `content_type`, `size_bytes`, **`s3_key`**; treść pliku w S3; V013 zeruje do `[]` BEZ usunięcia S3 (klucze przepadają) |
+| `email_message.message_id_header`, `in_reply_to` | pseudonimowe | Message-ID nadawcy niesie domenę/host; `uq_email_message_id_header` = dedup IMAP |
+| `email_message.contact_id` | klucz do kontaktu/klienta | NULL dla niezroutowanych i po dotychczasowym purge |
+| `social_message.content` | tak (treść) | WhatsApp: tylko `type=text`, inne typy zapisują `content = NULL` (`SocialWebhookController:399–403`) |
+| `social_message.sender_external_id` | tak | INBOUND: WhatsApp = numer telefonu (`from`), FB/IG = PSID/IGSID; OUTBOUND = `pageId` integracji (nie klient) |
+| `social_message.external_message_id` | pseudonimowe | `mid.`/`wamid.` lub `OUTBOUND-<uuid>`; klucz dedup (`uq_social_message_external_id`) |
+| `social_message.attachments` | obecnie brak | zawsze `[]`: parsery webhooków przekazują `null` (`SocialWebhookController:311`, `:349`, `:417`), wychodzące nie zapisują `attachmentUrls`; pole istnieje, więc przyszłe URL-e platform (często z tokenem) traktować jak PII |
+
+Kopie PII w `contact` (znikają z purge kontaktu, nie z tabel wiadomości): `remote_address`, `channel_metadata` (`subject`, `fromAddress`, `emailMessageId`). Poza bazą i S3 (poza zakresem EPIC-30, do odnotowania): logi aplikacji (`WhatsAppAdapter:126,133` — numer odbiorcy na INFO/ERROR; `SocialWebhookController:149,193,248` — pełny payload na DEBUG); RabbitMQ DLQ `cc.queue.dead-letter` (`RabbitMQConfig:218`, `durable`, bez TTL) trzyma `EmailEvent`/`IncomingSocialMessage` po nieudanym przetworzeniu (demo: 0 wiadomości).
+
+**3. Inwentarz obiektów zewnętrznych (S3)** — jeden bucket `contact-center-recordings`; live: 98 obiektów, 6,6 MiB, **bez wersjonowania** i **bez reguł lifecycle** (`mc version info`: „un-versioned"; `mc ilm rule ls`: „lifecycle configuration does not exist"; `docker-compose.yml:126–137` `minio-init` robi tylko `mc mb`).
+
+| Prefiks / klucz | Zapis | Wskaźnik w DB | Kto usuwa dziś | Live |
+|---|---|---|---|---|
+| `email-attachments/{tenantId}/{messageId}/{plik}` | `EmailAttachmentStorageServiceImpl#store` :43–48 ← `EmailPollingServiceImpl#collectAttachments` :363 (INBOUND) | `email_message.attachments[*].s3_key` (:376) | nikt | 6 obiektów, wszystkie wskazywane |
+| `email-attachments/{tenantId}/pending/{uuid}/{plik}` | `#storePending` :51–56 ← `EmailAttachmentController#uploadAttachment` :94 | po wysyłce: `attachments[*].s3_key` wiadomości OUTBOUND (**ten sam klucz `pending/`** — `EmailSendServiceImpl#buildAttachmentsJson` :376–395 zapisuje `s3Key` z żądania, brak przeniesienia do `{messageId}/`); przy porzuconym uploadzie: brak | nikt | 9 obiektów: 8 wskazywanych przez wysłane wiadomości (883 570 B), 1 porzucony |
+| `{tenantId}/{yyyy}/{MM}/{contactId}.eml` | `EmailEmlService#generateAndUpload` :76, `#buildEmlS3Key` :117–122 ← `EmailContactCreator#generateAndStoreEml` :192–206 (wołane :96, :357, :448) | `contact.recording_url` | `RecordingRetentionJob` (RECORDINGS) | 14 (kontakty e-mail) |
+| `{tenantId}/{yyyy}/{MM}/{contactId}.mp3` | `RecordingServiceImpl#buildS3Key` :333 | `contact.recording_url` | `RecordingRetentionJob` | 61 |
+| `plugins/…` | `PluginStorageServiceImpl` | poza kontaktami | — | 8 (poza zakresem) |
+
+- Zgodność DB↔S3: 75 wskaźników `contact.recording_url` = 75 obiektów (0 osieroconych, 0 wiszących); 6/6 kluczy INBOUND; 8/9 `pending/`. **Domena social nie ma żadnych obiektów S3** (grep `s3|S3Client|EmailAttachmentStorageService|presign|putObject` w `domain/social`, `infrastructure/social`, `api/social` = 0 trafień).
+- **Klucz metadanych = `s3_key`** (nie `s3_url`): 14/14 wpisów w bazie (`s3_url` 0); `s3_url` tylko w komentarzu V010:45 i javadoc `EmailMessage:102` (sprostować w DB-077; V010 NIE edytować).
+- **EML to pełna kopia wiadomości poza tabelą** (treść + załączniki base64, `EmailEmlService#buildAttachmentPart` :284 pobiera je po `s3_key`), a wskaźnik leży w `contact.recording_url` — kategoria RECORDINGS, nie CONTACT_INTERACTIONS (patrz ryzyko (a)).
+- **`RecordingService#deleteFromS3` połyka `S3Exception`** (`RecordingServiceImpl:307–322`, log ERROR bez rzucenia) — brak sygnału porażki, więc nie nadaje się do „S3 przed wierszem" (uzasadnia własną `EmailAttachmentStorageService#delete` z BE-125). Skutki w istniejącym kodzie: `RecordingRetentionJob#deleteRecording` :205–208 czyści `recording_url` mimo błędu S3 (obiekt osiera); `GdprServiceImpl#deleteCustomerRecordingsFromS3` liczy `failed`, który dla `S3Exception` nie rośnie (błędy sieci to `SdkClientException`, te propagują) — BE-129 nie może na tym polegać.
+- **Klucze OUTBOUND to dane od klienta:** `EmailReplyRequest.PendingAttachment#s3Key` → `EmailController#replyToMessage` :146–166 / `#sendOutboundEmail` :174–191 → `EmailSendServiceImpl` bez walidacji prefiksu `email-attachments/{tenantId}/` (kontrola IDOR jest tylko w `EmailAttachmentController#downloadAttachment` :129–135). Skutki: (i) agent może dołączyć do maila obiekt spoza swojego tenanta (`download(s3Key)` bez sprawdzenia) — luka poza zakresem EPIC-30, zgłosić osobnym ticketem; (ii) purge z BE-125 kasujący `s3_key` z JSONB bez sprawdzenia prefiksu skasowałby cudzy obiekt → allow-list prefiksu w BE-125.
+
+**4. Kod social po PR #44 (`67943eb`, merge `aa8a799`, 2026-09-19)** — lista zmian istotnych dla BE-125…127, DB-065, BE-132:
+1. Zmieniona jest **wyłącznie ścieżka wychodząca** `SocialMessageServiceImpl` (diff :128–245); przychodząca (:35–125), `SocialWebhookController`, `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialContactController`, `SocialMessage`, `SocialMessageRepository`, `IncomingSocialMessage` oraz `FacebookAdapter`/`InstagramAdapter` (nadal `[STUB]`) — bez zmian. Nowe: `WhatsAppAdapter` (realne HTTP), `V092` (globalny unique `(platform, page_id)` na `social_integration` — nie dotyczy `social_message`), `POST /api/integrations/WHATSAPP/connect`.
+2. `sendMessage` :153–172 rozbite na 3 etapy: `loadSendContext` :178 → `adapter.sendMessage` poza transakcją → `saveOutboundMessage` :217. Oba helpery mają `@Transactional protected` i są wołane przez `this.` — **self-invocation, adnotacje nieskuteczne**; granicą transakcji zapisu jest klasa `SocialMessageRepository` (`@Transactional` na klasie). Dla BE-132: natywny INSERT zostaje w transakcji repozytorium, nie zakładać transakcji serwisowej.
+3. Wiersz OUTBOUND powstaje tylko po udanym wywołaniu API (WhatsApp: 2xx). `external_message_id` nadal syntetyczne `OUTBOUND-<uuid>` (:226) — id z odpowiedzi Graph API nie jest zapisywane (webhooki statusów są ignorowane: `SocialWebhookController:369–372`); `sent_at = Instant.now()` (:229), `received_at` NULL, `attachments = []` (WhatsApp odrzuca załączniki `IllegalArgumentException`).
+4. **Korekta założenia BE-132/DB-065 („`sentAt` z platformy"):** deterministyczny jest tylko WhatsApp (`timestamp` z payloadu, `SocialWebhookController:406–409`, fallback `now()`); **Facebook i Instagram zawsze przekazują `Instant.now()` z chwili webhooka** (:312, :350). Redelivery FB/IG (Meta ponawia przy braku 200) dostaje inny `sent_at`, więc constraint `(tenant_id, external_message_id, sent_at)` go nie złapie; jedyną obroną pozostaje `findByExternalMessageId` (:75–81, bez daty; listener bez `concurrency`, więc wyścig dopiero przy ≥ 2 instancjach). Rekomendacja: w BE-132, przed DB-065, wziąć `sent_at` FB/IG z pola czasu payloadu (nazwę pola potwierdzić w dokumentacji Meta — niezweryfikowane).
+5. `SocialMessage#contactId` ma `nullable = false` (:47), a kolumna jest nullable od V028 — zapis zawsze ustawia kontakt, więc social nie produkuje sierot przy zapisie; sieroty social mogłyby powstać tylko z `detachContactReferences`. `platform` to enum `social_platform` (`columnDefinition`) — natywny INSERT (BE-132) wymaga `CAST(:platform AS social_platform)`.
+6. Dla D1: WhatsApp (`from` = numer telefonu w `sender_external_id` i `contact.remote_address`) to pierwszy kanał social z realistycznym wolumenem i danymi identyfikującymi wprost — luka „treść nigdy nie jest usuwana" dotyczy go od pierwszego dnia integracji. Live: `social_message` = 0 wierszy (najtańsze okno na DB-065).
+
+**5. Ryzyko (a) — osierocone obiekty S3 przy `RECORDINGS` > `CONTACT_INTERACTIONS`** (potwierdzone w kodzie)
+- Brak walidacji: `RetentionPolicyServiceImpl#updatePolicy` :100–114 sprawdza wyłącznie zakres [1, 120] (`validateRetentionMonths` :172–178); `RetentionController#updatePolicy` :143–178 — tylko zgodność kategorii ścieżka/body; w bazie tylko CHECK zakresu i UNIQUE, brak triggerów. Nic nie porównuje obu kategorii.
+- `RecordingRetentionJob` znajduje obiekty wyłącznie przez `contact.recording_url` (`ContactRepository#findExpiredRecordings` :1322–1348), a `ContactRepository#deleteBatchOlderThan` :587–615 (`DELETE … RETURNING contact_id`) usuwa wiersz bez odczytu `recording_url` — obiekt staje się nieosiągalny na stałe.
+- **Zasięg szerszy niż „nagrania":** w `contact.recording_url` leży też EML kontaktów e-mail (pełna kopia treści z załącznikami) — purge kontaktu przed RECORDINGS zostawia w S3 dokładnie ten materiał, który D1 = A ma usunąć.
+- **Sama walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` nie wystarcza (nawet równość jest niebezpieczna):** (i) `RecordingRetentionJob` przetwarza **jedną paczkę 100 rekordów na tenanta na przebieg** (`BATCH_SIZE` :60, :162–164, brak pętli; 1×/dobę 02:00) — tenant z > 100 nagrań/dobę nie nadąża, a zaległość przecina się z purge; (ii) różne jednostki: nagrania `now − 30·miesięcy` dni (`getRetentionDays` :156, `DAYS_PER_MONTH` = 30), purge `LocalDate.now(UTC).minusMonths(n)` (`RetentionPurgeServiceImpl:100`) — różnica do kilku dni; (iii) różne kolumny: `ended_at` vs `started_at`; (iv) polityki bywają zmieniane wstecz, a ręczny purge działa w dowolnej chwili.
+- **Stan live:** brak naruszeń (KMN Software: RECORDINGS = CI = 6 mies. — równość; Kampania Handlowa: 3 vs 60) i 0 osieroconych obiektów — ryzyko utajone, niezmaterializowane.
+- **Rekomendacja:** (1) siatka bezpieczeństwa w purge (BE-126, zakres do potwierdzenia): batch `(contact_id, recording_url)` → usunięcie obiektu (metodą zwracającą wynik, nie `RecordingService#deleteFromS3`) → wiersze wiadomości → kontakt; działa także dla zaległości i danych historycznych; (2) walidacja `RECORDINGS ≤ CONTACT_INTERACTIONS` w `RetentionPolicyServiceImpl#updatePolicy` (422 przez `IllegalArgumentException`, także przy zmianie CI w dół) — **osobny follow-up po potwierdzeniu PO**; (3) `RecordingRetentionJob`: pętla do wyczerpania zamiast jednej paczki oraz brak `clearRecordingUrl` po porażce S3 (wymaga usunięcia „połykania" błędu) — osobny ticket.
+
+**6. Ryzyko (b) — kolejność operacji przy awarii** (`RetentionPurgeServiceImpl#purgeContactInteractions` :171–192)
+- Dziś: `do { ids = contactService.purgeContactsOlderThan(…) /* DELETE…RETURNING, własna transakcja, commit */; detach(email); detach(social); } while (ids.size() == batch)`, potem pętla `contact_event` (wybór po wieku, niezależna od kontaktów — samoleczące). Kolejność „rodzic przed dzieckiem" jest dziś nieszkodliwa (`detach` to UPDATE po `contact_id`). **Po BE-126 (DELETE + S3) byłaby błędna:** `RETURNING` daje ID dopiero po commit; awaria S3/DB/JVM przed usunięciem dzieci gubi ID, wiadomości wiszą, a wskaźniki do S3 (`attachments`, `contact.recording_url`) są jedyną drogą do obiektów.
+- **Ocena rekomendacji BE-126: poprawna i konieczna dla D1 = A.** Niezmiennik: nie usuwaj wiersza, który jest jedynym wskaźnikiem do niesprzątniętego zasobu → S3 → wiersze wiadomości → wiersz kontaktu. Kolejność odwrotna (obiekt usunięty, wiersz zostaje) jest nieszkodliwa (`DeleteObject` na nieistniejącym kluczu = 204 w S3/MinIO — do potwierdzenia testem BE-125; ponowny przebieg idempotentny). Alternatywę „zostać przy `RETURNING` + `NOT EXISTS`" odradzam: odzyskuje wiersze wiadomości (klucze w JSONB przeżywają), ale nie obiekty z `contact.recording_url`, i wymaga anti-joinu po `contact_id` bez klucza partycji.
+- **Luki w BE-125/BE-126 (uzupełnione w tych ticketach):** (1) `contact.recording_url` poza opisem (patrz (a)); (2) „ta sama lista ID dwa razy" to przybliżenie — niezmiennik: **postęp = liczba faktycznie usuniętych wierszy `contact` w iteracji > 0**, przy 0 koniec pętli z WARN i `error_message`; `findContactIdsOlderThan` z `ORDER BY started_at, contact_id`; (3) usuwać kontakty wyłącznie spoza `contactIdsBlocked` (nowe pole `PurgedMessages`), nie całą paczkę — inaczej jeden nieosiągalny obiekt blokuje pozostałe kontakty paczki; (4) porażka trwała (np. 403) stoi na czele kolejki — pętla kończy się bez postępu, kontakty dalej w kolejce czekają (akceptowalne, `error_message` z liczbą); (5) współbieżne purge tego samego tenanta (ręczny + auto) nie mają blokady, ale ścieżka „S3 przed wierszem" jest idempotentna; (6) ten sam klucz S3 może być wskazywany przez > 1 wiadomość (klient może użyć `s3Key` ponownie) — przyjęte.
+
+**7. Wiek wiadomości dla osieroconych** (schemat + kod + live)
+- `email_message`: `received_at`, `sent_at` nullable; `created_at` NOT NULL DEFAULT now(). INBOUND: `receivedAt = Message#getReceivedDate() ?: now()` (`EmailPollingServiceImpl:251–253,267`), `sentAt` nigdy; OUTBOUND: `sentAt = Instant.now()` (`EmailSendServiceImpl:111,209`), `receivedAt` nigdy. Live: 30/30 INBOUND ma `received_at` i `sent_at` NULL; 25/25 OUTBOUND odwrotnie; 0 wierszy z oboma NULL i 0 z oboma ustawionymi; `created_at` różni się od `COALESCE(received_at, sent_at)` o ≤ 65,7 s.
+- **Potwierdzone:** `COALESCE(received_at, sent_at, created_at)` jest poprawne i totalne (nigdy NULL dzięki `created_at NOT NULL`); trzeci argument jest dziś nieosiągalny z kodu (dwa miejsca budowania `EmailMessage`) i zostaje jako siatka dla zapisów spoza aplikacji. Zgodne z widokiem `v_customer_timeline` (V025: `COALESCE(em.received_at, em.sent_at)`).
+- `social_message`: `sent_at` NOT NULL DEFAULT now(), `received_at` nullable, `created_at` NOT NULL → **`sent_at` wystarcza**. Semantyka `sent_at`: WhatsApp INBOUND = czas platformy, FB/IG INBOUND = czas webhooka, OUTBOUND = czas zapisu (sekcja 4, pkt 4).
+- **Uwagi:** (i) „wiek" INBOUND = INTERNALDATE serwera IMAP, nie nagłówek `Date`; DESIGN D4 proponuje dla przyszłego `message_at` `Message#getSentDate()` (nagłówek nadawcy) PRZED `getReceivedDate()` — rozbieżność z backfillem DB-067 (`COALESCE(received_at, …)` = INTERNALDATE) i wartość kontrolowana przez nadawcę (data z przeszłości = natychmiastowa kwalifikacja do purge). Rekomendacja: wiek retencyjny = czas zaobserwowany przez system; rozstrzygnąć w DB-066/DB-067/BE-134; (ii) skrzynka zmigrowana z historycznym INTERNALDATE daje „stare" świeżo zapisane wiadomości — BE-127 nie powinien usuwać sierot z `created_at` młodszym niż ≈ 24 h (filtr resztkowy, nie psuje indeksu z DB-059).
+
+**8. Testy S3, lifecycle, liczby demo**
+- (i) Testcontainers w `backend/app/pom.xml:371–388`: `junit-jupiter`, `postgresql`, `rabbitmq` (BOM 1.20.4); **brak MinIO/LocalStack** (`grep MinIO|LocalStack|S3Client` w `src/test`: tylko mock `S3Client` — `RecordingServiceTest:52`, `TwilioRecordingDownloadServiceTest:56`, `PluginStorageServiceImplTest:54`, komentarz „Brak wzorca testów integracyjnych S3/MinIO w projekcie"); w `~/.m2` brak `org.testcontainers:minio`/`localstack` (dostępność `MinIOContainer` w 1.20.4 niezweryfikowana). Wniosek: BE-125 = Testcontainers Postgres + `@Mock S3Client` (jak `CampaignContactArchivePurgeTenantIsolationTest` + `RecordingServiceTest`); MinIO-Testcontainer to nowa zależność — tylko gdy zlecający uzna za potrzebną (mock nie sprawdzi semantyki prefiksów/paginacji `ListObjectsV2` w BE-131).
+- (ii) Lifecycle/TTL dla `pending/`: **brak** (patrz sekcja 3; backend nie ustawia lifecycle — grep `Lifecycle`/`createBucket` w `src/main` = 0). Reguła prefiksu `pending/` jest dodatkowo **niebezpieczna**, dopóki załączniki wysłanych wiadomości leżą w `pending/` (BE-131 skorygowany).
+- (iii) Demo (2026-09-20, tylko odczyt): `email_message` 55 wierszy/216 kB (30 IN, 25 OUT), 23 z `contact_id IS NULL` (15 z `body_html`, 1 z załącznikiem; 18 sprzed 2026-05-13 = odcięte purge'em z 2026-08-13, 10 z `body_html`; **5 późniejszych, w tym 1 IN i 4 OUT — nie z purge, przyczyny nie zbadano**: niezroutowane/nie powiązane), 0 wiszących; 9 wiadomości z załącznikami = 14 wpisów (INBOUND 6 = 1 089 270 B w `{messageId}/`, OUTBOUND 8 = 883 570 B w `pending/`); `social_message` 0; `contact` 426 (EMAIL 32, z tego 14 z EML; PHONE 394, 61 z mp3); MinIO 98 obiektów (61 mp3, 14 eml, 6 INBOUND, 9 pending, 8 plugins). Polityki: KMN Software — wszystkie 4 kategorie = 6 mies.; Kampania Handlowa — CI 60, RECORDINGS 3, TRANSCRIPTS 3, CAMPAIGN_DATA 60; `auto_purge_enabled = false` wszędzie. `retention_purge_log`: 2 wpisy (KMN, MANUAL, COMPLETED): 2026-08-12 (cutoff 2021-08-12, 0 wierszy), 2026-08-13 (cutoff 2026-05-13, 133 wiersze).
+- **Kandydaci do purge dziś: 0** (KMN: CI 6 mies. → cutoff 2026-03-20; najstarszy kontakt 2026-05-13, najstarsza wiadomość 2026-04-25); pierwsza sierota zakwalifikuje się ≈ 2026-10-26. Test destrukcyjny (WP-4) w BE-126/BE-127 wymaga tymczasowego skrócenia polityki na tenancie testowym i zgody właściciela.
+
+**9. Pytania do PO — DO PRZEKAZANIA (nie wysłano)**
+1. **D1:** czy potwierdzasz A — treść wiadomości i załączniki znikają nieodwracalnie razem z kontaktem po retencji `CONTACT_INTERACTIONS` (a przycisk „Usuń teraz" dla tej kategorii zyskuje szerszy skutek)? Jeśli nie — B (anonimizacja) czy C (osobna kategoria `MESSAGE_CONTENT`)?
+2. **D2 (wolumeny):** ile e-maili/dzień/tenant i ilu tenantów na produkcji, jaki udział załączników i ich rozmiar (demo: 55 wierszy — nie jest reprezentatywne)?
+3. Czy purge ma usuwać także obiekt z `contact.recording_url` (EML kontaktów e-mail, nagrania) niezależnie od retencji RECORDINGS (rekomendowane), i czy wprowadzić blokadę `RECORDINGS ≤ CONTACT_INTERACTIONS` (422)?
+4. Po ilu godzinach uznajemy porzucony upload załącznika za odpadek (BE-131, propozycja 72 h) — i czy akceptujesz, że załączniki wysłanych e-maili podlegają retencji razem z wiadomością?
+5. Czy numer telefonu nadawcy WhatsApp (`sender_external_id`) traktujemy jako PII usuwane razem z wiadomością (rekomendowane: tak)?
+
+**10. Korekty w ticketach i wpływ na tickety spoza tego pliku**
+- Sprostowane w tym pliku: **BE-125** (źródło kluczy S3 = `attachments[*].s3_key` także dla `pending/`; allow-list prefiksu; `contactIdsBlocked`; powód własnej metody `delete`), **BE-126** (`contact.recording_url`, niezmiennik postępu, kontakty spoza `contactIdsBlocked`, liczby WP-4), **BE-127** (oczekiwana liczba kandydatów: dziś 0, sieroty ogółem 23; źródła sierot; filtr `created_at`), **BE-131** (założenie „`pending/` = tymczasowe" jest fałszywe — TTL/lifecycle skasowałyby załączniki wysłanych wiadomości).
+- Do zmiany w ticketach spoza zakresu tej edycji (BE-129 i BE-132 w tym pliku — nie ruszane, żeby nie wychodzić poza BE-124…127/131; DB-*/FE-* w innych plikach; szczegóły w raporcie zlecającemu): BE-129 (metoda usuwania zwracająca wynik; klucze EML i `pending/`), BE-132 (źródło `sent_at` FB/IG, self-invocation, cast enuma, aktualne numery linii), DB-059/DB-060/DB-061/DB-065/DB-066/DB-067/DB-077, FE-110 (wejście razem z BE-126).
+
+**11. Niezweryfikowane / ograniczenia:** (1) semantyka `DeleteObject` na nieistniejącym kluczu (204) przyjęta z dokumentacji S3, nie sprawdzona na MinIO (wymagałaby operacji zapisu); (2) nazwa pola czasu w payloadzie Meta FB/IG — niesprawdzona; (3) dostępność `MinIOContainer` w Testcontainers 1.20.4 — niesprawdzona (brak zależności w `~/.m2`); (4) przyczyna 5 sierot po 2026-05-13 — niezbadana; (5) zachowanie wiadomości social wobec czasu życia kontaktu — brak danych (0 wierszy); (6) RLS pod rolą ograniczoną nie był tematem tego ticketu (DB-064, BE-139).
+
+---
+
+### BE-125 – Usuwanie wiadomości e-mail i social po `contact_id` wraz z obiektami S3 (warstwa repo/serwis)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-124 ✅
+**Status:** ✅ Ukończone (2026-09-21) — zakłada D1 = A (przyjęte do realizacji bez wyraźnego potwierdzenia właściciela, zob. BE-124); kod NIE jest podpięty do purge (BE-126), nic destrukcyjnego się nie uruchamia
+**Blokuje:** BE-126, BE-129, BE-131, BE-135, BE-143
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+Zastępuje `detachContactReferences` (JPQL `UPDATE … SET contact_id = NULL`) operacją usuwania. Repozytoria domen `email`/`social` są package-private, więc logika trafia do `EmailMessageRepository`/`SocialMessageRepository` i publicznych `EmailMessageService`/`SocialMessageService` (wzorzec BE-113).
+**Zakłada D1 = A;** przy D1 = B te metody robią UPDATE PII (`body_*`, adresy, `subject`, `attachments = '[]'`) zamiast DELETE, przy D1 = C — bez zmian w tym tickecie.
+
+**Zakres:**
+- `EmailAttachmentStorageService#delete(String s3Key)` (+ `EmailAttachmentStorageServiceImpl`; `S3Client` i `S3Properties#getBucket()` już wstrzyknięte): idempotentne (brak obiektu = sukces), błąd S3 → `EmailAttachmentException`. Własna metoda w `domain.email` zamiast zależności od `RecordingService#deleteFromS3`.
+- `EmailMessageRepository#purgeByContactIds(tenantId, contactIds)`: kolejność **S3 przed wierszem**: (1) `SELECT message_id, attachments` dla wiadomości `WHERE tenant_id = :t AND contact_id IN (:ids)`, (2) usuń obiekty z `attachments[*].s3_key` (odporność na `[]`, brak klucza, uszkodzony JSON), (3) `DELETE` WYŁĄCZNIE wiadomości, których wszystkie obiekty usunięto; awaria S3 → wiadomość zostaje (ponowi ją następny purge), licznik `s3Failures`; wynik `PurgedMessages(deletedRows, s3ObjectsDeleted, s3Failures)`.
+  Natywny SQL, identyfikacja wierszy pełnym PK, **zakaz `ctid`**; zapytanie po `contact_id IN` działa też na tabeli partycjonowanej (DB-067) — komentarz w kodzie.
+- **Korekty z BE-124 (wiążące, dowody w notatce BE-124, sekcje 3 i 6):**
+  (a) klucze S3 pochodzą wyłącznie z `attachments[*].s3_key`; klucze wiadomości OUTBOUND wskazują na `email-attachments/{tenantId}/pending/{uuid}/…`, **nie** na `{messageId}/` (`EmailSendServiceImpl#buildAttachmentsJson` zapisuje klucz z żądania; live 8 z 8) — opcjonalne sprzątanie prefiksu `{messageId}/` (niżej) obejmuje tylko załączniki INBOUND;
+  (b) **allow-list prefiksu:** kasuj wyłącznie klucze zaczynające się od `email-attachments/{tenantId}/` — klucz OUTBOUND to dane od klienta bez walidacji (`EmailReplyRequest.PendingAttachment#s3Key` → `EmailController#replyToMessage`/`#sendOutboundEmail`); obcy klucz (inny tenant, nagranie) pomiń z ERROR i licznikiem `s3Rejected`, a wiersz usuń mimo to (PII musi zniknąć, cudzy obiekt zostaje nietknięty); pusty klucz `""` (`buildAttachmentsJson` :387 zapisuje `""` przy `s3Key == null`) i wpisy niebędące obiektami pomiń bez wyjątku;
+  (c) `PurgedMessages` zwraca dodatkowo `contactIdsBlocked` (kontakty z ≥ 1 wiadomością nieusuniętą po porażce S3) — BE-126 usuwa kontakty tylko spoza tego zbioru;
+  (d) własna metoda `delete` jest konieczna z konkretnego powodu: `RecordingService#deleteFromS3` (`RecordingServiceImpl:307–322`) połyka `S3Exception` (brak sygnału porażki);
+  (e) ten sam klucz może być wskazywany przez > 1 wiadomość (klient może użyć `s3Key` ponownie) — `DeleteObject` idempotentny, przyjęte; semantykę usunięcia nieistniejącego klucza (204) potwierdzić w teście.
+- `SocialMessageRepository#purgeByContactIds(...)` (bez S3 — załączniki to URL-e platform) i `EmailMessageService#purgeByContactIds`, `SocialMessageService#purgeByContactIds`. `detachContactReferences` oznaczyć `@Deprecated` (usunięcie w BE-126).
+- Opcjonalnie (Should): po usunięciu wiersza sprzątanie prefiksu `email-attachments/{tenantId}/{messageId}/` (`ListObjectsV2` + delete) — łapie załączniki wgrane, ale nieodnotowane w `attachments` (błąd `extractAndStoreAttachments` po uploadzie); wykonawca ocenia koszt.
+- Każda metoda: `setTenantContextInDb(tenantId)` + `assertSameTenant(tenantId)` (wzorzec repozytoriów retencji), bez `TenantContext.clear()` (WP-2).
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test na prawdziwej bazie (Testcontainers, pełny Flyway) + `S3Client` mock (wzorzec `RecordingServiceTest`; MinIO Testcontainer opcjonalnie): wiadomość z 2 załącznikami → obiekty usunięte, wiersz usunięty; awaria S3 na 2. obiekcie → wiersz zostaje, `s3Failures = 1`; drugi przebieg (S3 sprawny) → sukces (idempotencja)
+- [x] Izolacja: `contactIds` tenanta A nie usuwa wiadomości tenanta B (test po wartościach); wiadomości z pustym/uszkodzonym JSONB `attachments` obsłużone bez wyjątku
+- [x] (WP-2) Test z pustym `TenantContext` → `IllegalStateException`; brak `ctid`; `EXPLAIN` DELETE po `contact_id IN` używa `idx_email_message_contact`/`idx_social_message_contact` (notatka)
+- [x] Social: usunięcie bez operacji S3 (test); `detachContactReferences` `@Deprecated` z odwołaniem do BE-126
+- [x] `mvn verify -pl app` — 1940 testów, 0 failures, 0 errors, 0 skipped
+- [ ] DoD (WP-7): status i notatka w pliku zadań — zrobione; pamięć agenta zapisana w `.claude/agent-memory/backend-dev-expert/` (`project_epic30_be125_message_purge.md`, `feedback_jpa_real_db_integration_test_harness.md`) — **commit razem ze zmianą wykonuje zlecający**
+
+**Ryzyka:** opóźnienie S3 × rozmiar partii (`retention.purge.batch-size` = 100 wiadomości może oznaczać setki obiektów) — zmierz; partie a limity S3 (rate).
+
+**Notatka z realizacji (2026-09-21):**
+
+Zmiany wyłącznie w kodzie i testach (żadnej migracji); nie ruszano bazy demo, MinIO ani stosu docker; `RetentionPurgeServiceImpl` bez zmian (podpięcie = BE-126). Numery testów: 96 nowych (59 jednostkowych + 37 na prawdziwej infrastrukturze).
+
+**1. Co zrobiono**
+- `EmailAttachmentStorageService#delete(String)` (+ Impl): `DeleteObject`, brak obiektu = sukces; błąd S3 → `EmailAttachmentException`. Łapie `SdkException`, nie tylko `S3Exception` — błędy sieci/timeoutu to `SdkClientException`, więc `S3Exception` samo (jak `RecordingService#deleteFromS3`) by je przepuściło. `EmailAttachmentException` wyniesiony z Impl do publicznej klasy top-level (metoda `delete` jest częścią publicznego kontraktu i będą ją wołać BE-126/129/131 spoza pakietu).
+- `EmailAttachmentKeys` (nowa, package-private): jedno źródło budowania kluczy (`store`/`storePending` używają jej — schemat bez zmian, test regresji), allow-lista `isOwnedByTenant` (prefiks `email-attachments/{tenantId}/` + odrzut segmentów `.`/`..` i znaków sterujących), `extractS3Keys` (odporność na `null`/`[]`/uszkodzony JSON/wpisy nieobiektowe/brak lub pusty `s3_key`/klucz nietekstowy/stare `s3_url`; nigdy nie rzuca), `forLog` (klucz OUTBOUND to dane od klienta — bez wstrzyknięcia linii do logów).
+- `EmailMessageRepository`: `findAttachmentsByContactIds` (natywny SQL, projekcja `Object[]`: `message_id, contact_id, CAST(attachments AS text)`) i `deleteByIds` (`DELETE … WHERE tenant_id AND message_id IN (…) RETURNING message_id`); `assertSameTenant` + `setTenantContextInDb`, porcje `IN` po 1000, brak `ctid`, brak `TenantContext.clear()`; `detachContactReferences` → `@Deprecated` (Javadoc odsyła do BE-126; repo, interfejs i impl).
+- `EmailMessageService#purgeByContactIds(tenantId, contactIds)` → `PurgedMessages(deletedRows, s3ObjectsDeleted, s3Failures, s3Rejected, Set<UUID> contactIdsBlocked)`; `EmailMessageServiceImpl#purgeRows` (package-private) = fazy S3 → DELETE niezależne od selektora (BE-127 dołoży tylko własny SELECT osieroconych).
+- Social: `SocialMessageRepository#purgeByContactIds` (jeden `DELETE … contact_id IN`), `SocialMessageService#purgeByContactIds` → `int`; `detachContactReferences` → `@Deprecated`.
+
+**2. Decyzje projektowe i odstępstwa od ticketu**
+- **Orkiestracja w serwisie, nie w `EmailMessageRepository#purgeByContactIds` (odstępstwo).** Repozytorium ma dwie krótkie transakcje (SELECT readOnly, DELETE), a serwis — celowo BEZ `@Transactional` — robi I/O do S3 pomiędzy nimi. Ticketowy wariant „wszystko w repozytorium" trzymałby połączenie HikariCP przez setki wywołań S3 i wiązał repozytorium z klientem S3. Dowód: test z pulą rozmiaru 1 — w chwili wywołania S3 aktywnych połączeń = 0.
+- **`contactIdsBlocked` obejmuje także wiersze niepotwierdzone przez `DELETE … RETURNING`** (ponad ticket). Pod rolą bez `BYPASSRLS` `DELETE` z `email_message` usuwa **0 wierszy bez błędu** (polityka wiadomości to tylko `FOR SELECT`, V012; DESIGN U8/R1) — potwierdzone testem pod rolą LOGIN członkiem `app_user`: `deletedRows = 0`, 3 kontakty zablokowane, obiekty S3 usunięte. Bez tego BE-126 uznałby sukces i usunął kontakt, zostawiając wiadomość z PII bez wskaźnika do niczego. Dotyczy też wyścigu z równoległym purge (zwraca wiersze tylko ten, który je usunął).
+- **Bezpiecznik S3 (ponad ticket):** po 3 porażkach `DeleteObject` z rzędu (`EmailMessageServiceImpl.S3_FAIL_FAST_THRESHOLD`) reszta obiektów nie jest próbowana (wiadomości zostają, ich kontakty → `contactIdsBlocked`). Domyślny `S3Client` ponawia żądania (3 próby — widać w logu testu z niedostępnym S3: „Request attempt 1–3") i ma timeouty rzędu sekund, więc bez bezpiecznika niedostępny S3 blokowałby wątek purge na `timeout × liczba obiektów`. Wiadomości bez obiektów S3 są usuwane mimo przerwania.
+- **Klucz S3 w partii usuwany raz** (pamięć wyników per klucz): ten sam klucz w >1 wiadomości = jedno wywołanie i jeden wynik dla wszystkich; nieudane usunięcie blokuje wszystkie wiadomości, które go wskazują. Skutek uboczny przyjęty w tickecie (punkt e): skasowanie klucza współdzielonego z wiadomością spoza partii psuje jej załącznik.
+- **Allow-lista rozszerzona** o odrzut segmentów `.`/`..` i znaków sterujących (klucz z bazy jest niezaufany). Obcy klucz: pominięty z ERROR i `s3Rejected` (liczone raz na różny klucz), wiersz usuwany.
+- **`PurgedMessages` ma `s3Rejected`** (z listy testów ticketu) i metody `empty()`/`plus()`; social zwraca `int` — bez S3 nie ma czego blokować, a wspólny typ wymusiłby zależność social → email.
+- **Opcjonalne sprzątanie prefiksu `{messageId}/` — NIE wdrożone (świadomie).** Koszt: 1 `ListObjectsV2` na każdą usuwaną wiadomość INBOUND, także tę bez załączników (dziś purge bez załączników nie dotyka S3 w ogóle) + kasacja po prefiksie (większy promień rażenia przy błędzie niż kasacja po kluczach z JSONB). Zysk: łapie jedyny realny przypadek „wiersz istnieje, obiekt wgrany, ale nieodnotowany w `attachments`" — padł `UPDATE attachments` po uploadzie w `EmailPollingServiceImpl#extractAndStoreAttachments`. To samo, i szerzej (także wiersze usunięte), pokryje sweep „obiektów niewskazywanych przez żaden wiersz" z BE-131.
+- `EmailMessageRepository#purgeByContactIds` z ticketu w kodzie nie istnieje — jego rolę pełni para `findAttachmentsByContactIds`/`deleteByIds` + `EmailMessageService#purgeByContactIds` (jw.).
+
+**3. Testy (96 nowych)**
+- Jednostkowe (59): `EmailAttachmentKeysTest` 24, `EmailMessageServiceImplPurgeTest` 22 (kolejność S3 → wiersz przez `InOrder`, awaria na 2. obiekcie, izolacja awarii do wiadomości, bezpiecznik, współdzielony klucz, allow-lista, potwierdzenie `DELETE`, wiadomości osierocone z `contactId = null`, deprecjacja), `EmailAttachmentStorageServiceImplTest` 8, `PurgedMessagesTest` 3, `SocialMessageServicePurgeTest` 2.
+- Na prawdziwej infrastrukturze (37; Testcontainers `postgres:16-alpine`, pełny Flyway, prawdziwy Hibernate + proxy `@Transactional`; `S3Client` = mock/fake): `EmailMessagePurgeIntegrationTest` 18 (2 załączniki → obiekty i wiersz usunięte; awaria S3 na 2. obiekcie → wiersz zostaje, `s3Failures = 1`, drugi przebieg sukces, klucze usunięte dwukrotnie = idempotencja; całkowita awaria S3; brak połączenia DB w trakcie S3; obcy prefiks/nagranie/EML/`..` → `s3Rejected`, wiersz usunięty; pusty/nietypowy JSONB; ten sam klucz w >1 wiadomości; tenant A nie tyka B — także przy TYM SAMYM `contact_id`, po wartościach; niezgodny tenant → `CrossTenantAccessException`; pusty `TenantContext` → `IllegalStateException` (serwis + repo); `TenantContext` przeżywa purge; 2345 kontaktów/1205 wiadomości ponad porcję `IN`; `EXPLAIN`), `EmailMessagePurgeRlsIntegrationTest` 2 (rola bez `BYPASSRLS`), `SocialMessagePurgeIntegrationTest` 12 (kontekst bez beana S3; izolacja; `TenantContext`; porcje; `EXPLAIN`; `@Deprecated`), `EmailAttachmentStorageServiceMinioTest` 5 (prawdziwy MinIO przez `GenericContainer`, bez nowej zależności: usunięcie, **usunięcie nieistniejącego klucza = sukces (204) — punkt (e) potwierdzony**, niedostępny S3 → `EmailAttachmentException`, purge end-to-end z cudzym obiektem, pomiar opóźnienia).
+- Nowy harness (do ponownego użycia w BE-126/127): `com.contactcenter.support.{PostgresTestDatabase, JpaTestContext, TestcontainersSupport}` — singleton kontenera per JVM, minimalny kontekst Springa z prawdziwym Hibernate.
+- `mvn verify -pl app`: **BUILD SUCCESS, 1940 testów, 0 failures, 0 errors, 0 skipped.**
+
+**4. Pomiary (Testcontainers, scratch — baza demo i MinIO demo nietknięte)**
+- `EXPLAIN` (30 tys. wierszy + `ANALYZE`): `SELECT … contact_id IN (…)` → `Index Scan using idx_email_message_contact` (filtr `tenant_id`); `DELETE … message_id IN (…)` → `Bitmap Index Scan on pk_email_message`; social `DELETE … contact_id IN (…)` → `Index Scan using idx_social_message_contact`. Bez Seq Scan.
+- Opóźnienie `DeleteObject` na lokalnym MinIO (kontener, 1 wątek, sekwencyjnie): 200 × istniejący = 674 ms (3,4 ms/szt.), 200 × nieistniejący = 552 ms (2,8 ms/szt.). Partia 100 kontaktów × ~2 załączniki ≈ 200 wywołań ≈ 0,7 s lokalnie. Dla AWS S3 (~20–50 ms/wywołanie — **założenie, nie pomiar**) ≈ 4–10 s na partię. Limity S3 (rzędu tysięcy DELETE/s na prefiks wg dokumentacji AWS — niezweryfikowane) przy wywołaniach sekwencyjnych nie są zagrożone.
+
+**5. Nie zweryfikowane**
+- Opóźnienia i limity na prawdziwym AWS S3 (tylko lokalny MinIO). Tag `minio/minio:latest` w teście jest ruchomy (jak w `docker-compose.yml`).
+- Zachowanie pod dużym wolumenem produkcyjnym (D2 — brak liczb).
+- Wyścig: wiadomość zapisana po SELECT a przed usunięciem kontaktu (np. odpowiedź klienta w wątku) zostanie z `contact_id` wskazującym na usunięty kontakt — obsłuży ją BE-127 (dangling), o ile zostanie wybrany wariant z `NOT EXISTS`; ten wyścig istniał też przy `detachContactReferences`.
+
+**6. Uwagi dla BE-126 / BE-127**
+- BE-126: wołać `email.purgeByContactIds(tenantId, ids)` → `social.purgeByContactIds(tenantId, ids)` (social można wołać dla WSZYSTKICH `ids` — usunięcie PII nie zależy od S3) → `deleteContacts` tylko dla `ids − contactIdsBlocked`. Wołać POZA transakcją (z `purgeAsync` — spełnione; kontekst z snapshotu; metody nie czyszczą `TenantContext`). Niezmiennik „postęp = faktycznie usunięte wiersze `contact` > 0" jest tu KLUCZOWY: pod rolą bez `BYPASSRLS` także `DELETE` z `contact` może usunąć 0 wierszy bez błędu (polityka tylko `INSERT`, DESIGN U8) — wtedy `contactIdsBlocked` chroni wiadomości, a strażnik pętli zatrzyma purge. `deletedRows` z `PurgedMessages` (a nie liczba zleconych) idzie do `rowsDeleted`/breakdown; `s3Failures`/`s3Rejected`/`s3ObjectsDeleted` do `breakdown`. `PurgedMessages#plus` sumuje partie. Wyjątek z `purgeByContactIds` (np. awaria DB po usunięciu obiektów) traktować jak błąd purge — kolejny przebieg jest idempotentny.
+- BE-126 pkt (b) (`contact.recording_url`): `EmailAttachmentStorageService#delete` jest neutralne co do prefiksu (ten sam bucket) i zwraca wynik przez wyjątek — nadaje się do kluczy `recording_url`, ale allow-listę (`{tenantId}/…`) trzeba dodać po stronie wołającego; `EmailAttachmentKeys` jest package-private i dotyczy tylko `email-attachments/`.
+- BE-127: `EmailMessageServiceImpl#purgeRows` + własne zapytanie zwracające `AttachmentsRow` (z `contactId = null`); `PurgedMessages.deletedRows` = miara postępu pętli. Dane osierocone nie mają `contactIdsBlocked`.
+- Po przejściu na klucz złożony `(message_id, message_at)` (BE-134) `AttachmentsRow` musi nieść `messageAt`, a `deleteByIds` identyfikować wiersze pełnym kluczem (komentarz w kodzie); `contact_id IN` bez klucza partycji odpyta indeksy partycji.
+
+**Code review i poprawki (2026-09-21):**
+- Werdykt `senior-code-reviewer` (`CR-BACKEND.md`, wpis BE-125): **4/5 — zatwierdzić z poprawkami**; brak blockerów i majorów w samym diffie (rdzeń „S3 przed wierszem", potwierdzanie `DELETE … RETURNING`, allow-lista i izolacja tenantów poprawne). Review czytało kod i testy, nie uruchamiało Mavena.
+- Ustalenia BE125-01…13 i dokąd trafiły: **BE125-01** (major, poza zakresem diffu: `s3Key` z żądania wysyłki nie jest walidowany, kontrola w downloadzie bez odrzutu `..`) → nowy ticket **BE-143**; **BE125-02** (okno SELECT→DELETE), **BE125-04** (publiczne `delete(String)` bez kontroli tenanta — decyzja API razem z BE-143), **BE125-05** (social zwraca tylko `int`), **BE125-06** (bezpiecznik/budżet czasu/timeouty S3) oraz hipotezy **H-1** (head-of-line blocking) i **H-2** (wersjonowanie/Object Lock/lifecycle) → uwaga w **BE-126** (H-2 także DESIGN R10 i pytanie do właściciela); **BE125-08/12/13** (test RLS asertujący inwariant, higiena harnessu, bulk `DeleteObjects`/podpartie/guard „poza transakcją") → backlog bez ticketu (do wzięcia przy BE-126/DB-064); **BE125-03/07/09/10/11** → wykonane.
+- Wykonane poprawki: **BE125-03** — `toUuid` null-safe + package-private `toAttachmentsRow(Object[])` (wiersz z `contact_id IS NULL` nie wysadza SELECT-a; potrzebne BE-127); **BE125-07** — test MinIO przypięty do `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (powód: obrazy MinIO z Docker Hub nie są już anonimowo pobieralne — `docker manifest inspect minio/minio:latest` → `denied / unauthorized`, kontrola `alpine` działa; `docker-compose.yml` nadal używa `minio/minio:latest` i `minio/mc:latest` → **BE-144**); **BE125-09** — `PurgedMessages#contactIdsBlocked().contains(null)` nie rzuca NPE; **BE125-10** — WARN dla pominiętych wpisów `attachments` (stary `s3_url`, nietekstowy `s3_key`); **BE125-11** — `forLog` filtruje U+2028/U+2029 i znaki kierunkowe (bidi), a nazwa załącznika `.`/`..` jest zamieniana na bezpieczną.
+- Niezależna weryfikacja końcowa (zlecający, po wszystkich poprawkach): `mvn clean verify -pl app` — **Tests run: 1998, Failures: 0, Errors: 0, Skipped: 0, BUILD SUCCESS** (liczba 1940 w AC i w notatce powyżej to stan sprzed review).
+- Sprostowanie do pkt 5 notatki („Nie zweryfikowane", pierwszy punkt): uwaga o ruchomym tagu `minio/minio:latest` w teście jest po BE125-07 nieaktualna (test przypięty); `latest` zostaje w `docker-compose.yml` (BE-144). Otwarte bez zmian: punkt DoD o commicie (wykonuje zlecający).
+
+---
+
+### BE-126 – Integracja w `RetentionPurgeServiceImpl#purgeContactInteractions` (usuwanie zamiast odcinania)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-125 ✅
+**Status:** ✅ Ukończone (2026-09-22, częściowo — patrz notatka: punkt (b) i WP-4 odłożone)
+**Blokuje:** BE-127, BE-133, DB-065, BE-130, FE-110
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+Dziś pętla `contactService.purgeContactsOlderThan(tenantId, cutoff, batch)` (`ContactRepository#deleteBatchOlderThan`: `DELETE … RETURNING contact_id`) usuwa kontakty, po czym woła `emailMessageService/socialMessageService.detachContactReferences` (linie ≈ 177–183) — PII wiadomości zostaje (DESIGN §2 U1).
+
+**Zakres:**
+- Zastąp `detachContactReferences` wołaniem `purgeByContactIds` (BE-125). **Kolejność (rekomendacja, DESIGN R3): dzieci przed rodzicem** — nowa metoda `ContactService#findContactIdsOlderThan(tenantId, cutoff, batch)` → `purgeByContactIds` → `deleteContacts(tenantId, ids)`; awaria S3/DELETE zostawia i kontakt, i wiadomości (idempotentny ponowny przebieg).
+  Alternatywa (zostać przy `RETURNING`): kontakty znikają pierwsze, więc wiadomości z dangling `contact_id` obsługuje BE-127 (`NOT EXISTS`) — uzasadnij wybór w notatce. **BE-124 (sekcja 6) odradza tę alternatywę:** nie odzyskuje obiektów z `contact.recording_url` i wymaga anti-joinu bez klucza partycji.
+- Guard nieskończonej pętli: ta sama lista ID dwa razy pod rząd (S3 nie odpowiada) → przerwij z WARN i status `FAILED`/`error_message`. **Doprecyzowanie BE-124:** niezmiennikiem jest *postęp = liczba faktycznie usuniętych wierszy `contact` w iteracji > 0* (0 → koniec pętli, WARN, `error_message`); „ta sama lista dwa razy" jest tylko jego przybliżeniem i wymaga deterministycznego `ORDER BY started_at, contact_id` w `findContactIdsOlderThan`.
+- **Korekty z BE-124 (wiążące, dowody w notatce BE-124, sekcje 5 i 6):**
+  (a) `deleteContacts` wołać wyłącznie dla kontaktów spoza `contactIdsBlocked` zwróconego przez BE-125 (nie dla całej paczki) — inaczej jeden nieosiągalny obiekt S3 blokuje pozostałe kontakty paczki albo, przy usunięciu całej paczki, gubi wskaźnik do niesprzątniętych obiektów;
+  (b) **`contact.recording_url` (EML kontaktów e-mail = pełna kopia treści z załącznikami; nagrania mp3):** paczka powinna nieść `(contact_id, recording_url)`, a obiekt być usuwany w tej samej fazie „S3 przed wierszem" — inaczej purge osierocia obiekt (ryzyko (a) z BE-124; `RecordingRetentionJob` szuka wyłącznie po `contact.recording_url`, a `DELETE … RETURNING` go nie odczytuje). Wymaga metody usuwania zwracającej wynik (nie `RecordingService#deleteFromS3` — połyka `S3Exception`). **Zakres do potwierdzenia przez zlecającego** (rozszerza BE-125/BE-126, złożoność M zostaje, jeśli metodę usuwania wspólną dla załączników i `recording_url` zrobi BE-125);
+  (c) `contact_event` zostaje po pętli kontaktów (wybór po wieku, niezależny od kontaktu — samoleczący po awarii);
+  (d) WP-4: dziś (2026-09-20) dry-run daje **0** kandydatów (KMN: CI = 6 mies. → cutoff 2026-03-20, najstarszy kontakt 2026-05-13) — test destrukcyjny wymaga tymczasowego skrócenia polityki na tenancie testowym i zgody właściciela.
+- Semantyka `rowsDeleted`: suma `contact` + `contact_event` + `email_message` + `social_message` (Javadoc `RetentionPurgeService`, FE-110 opis). Audyt: rozszerz `buildNewValueJson` o `"breakdown":{"contacts","events","emailMessages","socialMessages","s3ObjectsDeleted","s3Failures"}`.
+  `s3Failures > 0` → status `COMPLETED` z `error_message` = liczba awarii S3 (kolumna istnieje) albo `FAILED` — wykonawca uzasadnia.
+- `purgeAsync` (`TenantContext.restore/clear`) i ścieżka auto-purge (`RetentionEvaluationServiceImpl#maybeTriggerAutoPurge`) bez zmian (WP-2) — dodaj testy. `detachContactReferences` przestaje być wołane; usuń je dopiero po potwierdzeniu D1 (przy D1 = C BE-130 przywraca odcinanie referencji, bo wiadomości starzeją się wg własnej kategorii).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: tenanci A i B w TEJ SAMEJ partycji `contact`; A ma kontakty przed cutoff z e-mailami (w tym z `attachments`) i social; po purge A: kontakty, zdarzenia, wiadomości usunięte, obiekty S3 (mock) usunięte; B nietknięty (COUNT po wartościach); `rowsDeleted` = suma — **częściowo**: `ContactRepository#findContactIdsOlderThan`/`#deleteContacts` mają dedykowany test Testcontainers (`ContactRepositoryPurgeCandidatesIntegrationTest`, pakiet `domain.contact`, tenanci A/B w partycji `contact_2026_03`); orkiestracja `RetentionPurgeServiceImpl` (email+social+contact razem) jest przetestowana na mockach (`RetentionPurgeServiceImplTest`), NIE na jednym teście na żywej bazie obejmującym wszystkie trzy domeny naraz — patrz notatka niżej
+- [ ] Awaria S3 w środku: kontakt i jego wiadomości zostają, ponowny purge kończy pracę; brak nieskończonej pętli (test) — **częściowo**: „kontakt zostaje" i „brak nieskończonej pętli" pokryte (mock), „ponowny purge faktycznie kończy pracę" nie jest wykonane jako jeden test end-to-end w tym tickecie (wynika z kompozycji z idempotencją `purgeByContactIds` z BE-125, ale nie jest to zweryfikowane jednym testem)
+- [x] Granica: kontakt z `started_at` dokładnie na cutoff i jego wiadomości wg istniejącej semantyki `<`; wiadomości kontaktów nowszych nietknięte — real DB (`ContactRepositoryPurgeCandidatesIntegrationTest#cutoffBoundary_isExclusive`)
+- [x] Audyt `RETENTION_PURGE_COMPLETED` zawiera breakdown; `PurgeResultDto`/kontrakt REST bez zmian — `RetentionPurgeServiceImplTest$MessageDeletionEnabled$AuditBreakdown`; `PurgeResultDto`/`RetentionController` nietknięte
+- [x] Istniejące testy `RetentionPurgeServiceImplTest` (granica `@Async`, `TenantContext`) zielone — 27/27 bez zmian
+- [ ] (WP-4, destrukcyjne) Local-demo po przebudowie obrazów: dry-run SQL policzy wiadomości powiązane z kontaktami kwalifikującymi się (w notatce), zgoda właściciela, manualny purge `CONTACT_INTERACTIONS` na tenancie testowym z UI; sprawdź `retention_purge_log`, `audit_log`, MinIO (brak osieroconych obiektów) — celowo NIE wykonane (ograniczenie zlecającego, flaga `retention.purge.delete-messages` pozostaje `false` we wszystkich profilach)
+- [x] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A — `mvn verify -pl app`: 2046 testów, 0 błędów, 0 awarii
+
+**Notatka wykonawcy (2026-09-22, `backend-dev-expert`):**
+- **Flaga bezpiecznika:** `retention.purge.delete-messages` (`@Value`, domyślnie `false`) w `RetentionPurgeServiceImpl#deleteMessagesEnabled`; `application.yml` (`retention.purge.delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:false}`), bez nadpisania w żadnym profilu. `false` → `purgeContactInteractionsLegacy` (kod identyczny co dziś, tylko przemianowany). `true` → `purgeContactInteractionsWithMessageDeletion` (nowa ścieżka).
+- **Strategia H-1 (head-of-line blocking):** zamiast guardu „faktycznie usunięte kontakty w iteracji > 0" (pierwotne doprecyzowanie BE-124) zaimplementowano **stronicowanie keyset**: `ContactRepository#findContactIdsOlderThan(tenantId, cutoff, cursor, batchSize)` zwraca stronę uporządkowaną po `(started_at, contact_id)`; kursor to ostatni kandydat POPRZEDNIEJ strony i przesuwa się o CAŁĄ stronę niezależnie od tego, ilu kontaktów w niej faktycznie usunięto. Terminacja pętli zależy WYŁĄCZNIE od wyczerpania kandydatów (`page.isEmpty()` / `page.size() < batchSize`), nie od liczby usunięć — to strukturalnie eliminuje ryzyko H-1 (zablokowane kontakty nigdy nie są zwracane ponownie). Uzasadnienie i test: `RetentionPurgeServiceImplTest$MessageDeletionEnabled$HeadOfLineBlockingDefense` (2 trwale zablokowane kontakty = `batchSize` nie zatrzymują młodszego kontaktu).
+- **Drugi przebieg (BE125-02):** po `contactService.deleteContacts` dla KAŻDEJ strony wołany jest ponowny `purgeByContactIds` (email+social) wyłącznie dla kontaktów faktycznie usuniętych w tej iteracji — łapie wiadomość dopisaną w oknie SELECT→DELETE. Test: `MessageDeletionEnabled$BasicFlow`.
+- **`s3Failures > 0` → `COMPLETED` z `error_message` (NIE `FAILED`):** nowy `RetentionPurgeLogRepository#markCompleted(purgeId, tenantId, rowsDeleted, warningMessage)` (4-argumentowy, stary 3-argumentowy zachowany dla zgodności wstecznej). Uzasadnienie: część batcha kończy się poprawnie (kontakty spoza zablokowanych są usunięte), więc `FAILED` dla całej operacji byłoby mylące; kontakty dotknięte porażką S3 zostają nieusunięte i retry jest idempotentny (zgodnie z BE-125).
+- **Breakdown audytu:** `buildNewValueJson` rozszerzone o `"breakdown":{"contacts","events","emailMessages","socialMessages","s3ObjectsDeleted","s3Failures","s3Rejected"}` (zawiera `s3Rejected`, pominięty w pierwotnym opisie Zakresu).
+- **Social (BE125-05):** pozostawione bez zmian (poza zakresem) — miejsce wywołania oznaczone komentarzem w kodzie.
+- **Testy:** `ContactRepositoryPurgeCandidatesIntegrationTest` (pakiet `domain.contact`, Testcontainers, **12 testów** — granica, porządek/tie-break, stronicowanie keyset, izolacja tenantów, `deleteContacts` RETURNING, brak `ctid`) + rozszerzenie `RetentionPurgeServiceImplTest` o **8 nowych testów** (pakiet `domain.retention`, mocki) w `MessageDeletionEnabled`/`FlagDisabledRegression` (38 razem w klasie). Pełny `mvn verify -pl app`: 2046/0/0. **Sprostowanie (2026-09-22, code review CR-BACKEND.md BE126-04, przeliczone przez `grep -c @Test` i `git diff` przeciw HEAD):** pierwotna notatka wykonawcy podawała 13/12 — poprawne liczby to 12/8.
+- **Odstępstwo od WP-1 (uzasadnienie architektoniczne):** `ContactRepository`, `EmailMessageServiceImpl`/`EmailMessageRepository`, `SocialMessageRepository` są klasami **package-private** w SWOICH pakietach (`domain.contact`/`domain.email`/`domain.social`); `RetentionPurgeServiceImpl` jest package-private w `domain.retention`. Żaden pojedynczy plik testowy nie może mieć widoczności do wszystkich naraz (poza pełnym `@SpringBootTest`, świadomie odrzuconym przez ten projekt jako zbyt ciężki dla testów integracyjnych — patrz Javadoc `JpaTestContext`). Rozwiązanie: nowy natywny SQL testowany na żywej bazie w jego własnym pakiecie (`domain.contact`), orkiestracja testowana na mockach kolaboratorów (wzorzec już istniejący w tym pliku dla ścieżki legacy) — poprawność `EmailMessageService#purgeByContactIds` na żywej bazie (S3, RLS, allow-lista) jest już pokryta przez `EmailMessagePurgeIntegrationTest`/`EmailMessagePurgeRlsIntegrationTest` z BE-125 i celowo NIE duplikowana.
+- **Punkt (b) z Zakresu (usuwanie `contact.recording_url` w fazie „S3 przed wierszem"): ODŁOŻONY, nie zrobiony.** Decyzja zlecającego: kolizja z równoległym BE-143 (walidacja prefiksu tenanta, allow-lista kluczy). `contact.recording_url` pozostaje nietknięty przez ten purge — znana luka (BE-124 ryzyko (a)). Follow-up po scaleniu BE-143.
+- **WP-4 (weryfikacja na local-demo) celowo NIE wykonane** — zgodnie z ograniczeniem zlecającego (brak przebudowy stosu/purge na danych demo w tej iteracji).
+
+**Uwaga z BE-125 (2026-09-21) — kontrakt do użycia (zweryfikowany w kodzie: `EmailMessageService`, `PurgedMessages`, `SocialMessageService`):**
+- Kolejność: `EmailMessageService#purgeByContactIds(tenantId, ids)` → `SocialMessageService#purgeByContactIds(tenantId, ids)` (dla WSZYSTKICH `ids`; zwraca tylko `int` — brak odpowiednika `contactIdsBlocked`) → usunięcie kontaktów wyłącznie dla `ids − PurgedMessages#contactIdsBlocked`. Wołać POZA transakcją (z `purgeAsync` spełnione — `purgeContactInteractions` nie jest `@Transactional`); metody nie czyszczą `TenantContext`.
+- `rowsDeleted` z `PurgedMessages#deletedRows` (nie z liczby zleconych); `s3ObjectsDeleted`/`s3Failures`/`s3Rejected` do breakdownu audytu (lista w Zakresie nie ma `s3Rejected`); `PurgedMessages#plus` sumuje partie. Wyjątek z `purgeByContactIds` = błąd purge (kolejny przebieg jest idempotentny).
+- Niezmiennik postępu (faktycznie usunięte wiersze `contact` > 0) jest tym ważniejszy, że pod rolą bez `BYPASSRLS` także `DELETE` z `contact` może usunąć 0 wierszy bez błędu (polityki tylko SELECT/INSERT) — `contactIdsBlocked` chroni wiadomości.
+  **Sprostowanie po wykonaniu BE-126 (2026-09-22, code review CR-BACKEND.md BE126-01):** wykonawca NIE zastosował guardu „brak postępu → koniec pętli, `FAILED`" — zamiast tego strategia H-1 (stronicowanie keyset po `(started_at, contact_id)`) strukturalnie omija zablokowane kontakty i **nie zatrzymuje** pętli nawet przy 0 usunięciach w stronie. To celowa, lepsza obrona przed head-of-line blocking, ale oznacza, że „strażnik pętli zatrzymuje purge" jest NIEAKTUALNE — cicha strata pod RLS bez `BYPASSRLS` jest dziś wykrywana wyłącznie przez WARN w logu (rozszerzony po review na każdą częściową stratę, nie tylko całą stronę), nie przez zatrzymanie operacji. Dziś bez wpływu (`ccapp` w local-demo/prod ma `BYPASSRLS`), ale przyszły wykonawca DB-071/074 (RLS na `contact`) musi to uwzględnić przy projektowaniu alertowania.
+- Pkt (b) (`contact.recording_url`): `EmailAttachmentStorageService#delete(String)` jest gotowe i neutralne co do prefiksu (brak obiektu = sukces, błąd S3 → `EmailAttachmentException`), ale allow-listę kluczy z `recording_url` musi dodać wołający — `EmailAttachmentKeys` jest package-private i zna tylko prefiks `email-attachments/{tenantId}/`.
+
+**Uwaga z code review BE-125 (2026-09-21) — ustalenia do uwzględnienia w BE-126 (bez zmiany zakresu, statusu i złożoności; źródło: `CR-BACKEND.md`, wpis BE-125; „potwierdzone" = wykazane w kodzie, „hipoteza" = do oceny wykonawcy):**
+- **(a) BE125-02 — okno SELECT→DELETE [potwierdzone w kodzie; częstość — hipoteza]:** wiadomość dopisana do kontaktu PO SELECT-cie z `purgeByContactIds` (np. odpowiedź agenta na starą wiadomość dziedziczy stary kontakt: `EmailSendServiceImpl` ≈ l. 102 `.contactId(original.getContactId())`; okno = czas fazy S3, sekundy do minut) nie trafia do `rows`, więc nie jest usuwana i nie blokuje kontaktu; po `deleteContacts` zostaje sierotą z PII (`email_message.contact_id` nie ma FK). Rozwiązania: drugi, idempotentny `purgeByContactIds` po `deleteContacts` (najtańsze) albo obowiązkowy wariant „dangling" w BE-127; dodać test charakteryzujący (fake S3 wstawiający wiadomość w trakcie `delete`).
+- **(b) H-1 — head-of-line blocking [hipoteza]:** `contactIdsBlocked` nie odróżnia porażki przejściowej od stałej; przy `ORDER BY started_at, contact_id` zablokowane kontakty leżą na początku każdej partii, a ≥ `batch-size` takich kontaktów zatrzyma purge tenanta (pętla kończy się „brakiem postępu", ale nie dociera do młodszych). Do oceny: kursor keyset (`started_at, contact_id`) przesuwany poza zablokowane i koniec pętli przy `ids.size() < batch` zamiast miary „postęp = usunięte kontakty > 0" (zablokowane skracają tę liczbę i kończyłyby pętlę przedwcześnie); test z ≥ `batch-size` trwale nieusuwalnymi kontaktami. Dotyczy sformułowania guardu w Zakresie (doprecyzowanie BE-124) — decyzja wykonawcy.
+- **(c) H-2 — semantyka `DeleteObject` [do sprawdzenia w środowisku docelowym; pytanie do właściciela]:** wersjonowanie bucketu, Object Lock albo globalny lifecycle 365 dni (`DEPLOYMENT.md` §21 ≈ l. 1209–1211: `mc ilm add … --expiry-days 365` na całym buckecie `contact-center-recordings`). Przy wersjonowaniu `DeleteObject` dodaje tylko delete marker (PII zostaje), przy Object Lock zwraca błąd (→ `s3Failures`, kontakt zablokowany na stałe); lifecycle 365 dni jest niezależny od retencji tenanta. Patrz DESIGN R10; rozstrzygnięcie z właścicielem i w BE-131.
+- **(d) BE125-05 — social zwraca tylko `int` [potwierdzone; skutek latentny]:** ciche „0 pod RLS" jest niewykrywalne (e-mail ma `contactIdsBlocked`, social nie). Dziś bez wpływu (aplikacja łączy się jako superuser z `BYPASSRLS`; `contact` ma polityki tylko SELECT/INSERT, `social_message` tylko SELECT), ale gdyby DB-074 dał `contact` politykę DELETE przed DB-064 (polityki `social_message`), kontakty zniknęłyby, a wiadomości social z PII zostałyby. Wymóg: kolejność DB-064 przed DB-074 albo potwierdzenie usunięcia także dla social (np. tanie `SELECT DISTINCT contact_id … WHERE contact_id IN (…)` po `DELETE`, włączane do blokad); test RLS dla social.
+- **(e) BE125-06 — bezpiecznik S3 i budżet czasu [potwierdzone w kodzie; scenariusz — hipoteza]:** bezpiecznik (`S3_FAIL_FAST_THRESHOLD = 3`) liczy każdą porażkę jednakowo (także stałe błędy 4xx per klucz), faza S3 nie ma budżetu czasu, a `S3Client` jest budowany bez własnych timeoutów (`S3Config` ≈ l. 63–68); wolny, ale „zdrowy" S3 nie uruchomi bezpiecznika, a wiersze znikają dopiero na końcu partii. Wykonawca BE-126 definiuje budżet czasu fazy S3 i timeouty (`apiCallTimeout`), rozważa podpartie (S3 → `DELETE` po ok. 100 wiadomości) i rozróżnienie błędów przejściowych od stałych.
+- **(f) BE125-04 — publiczne `delete(String)` bez kontroli tenanta:** decyzja API **podjęta w BE-143** (2026-09-22; code review CR-BACKEND.md BE126-05 zgłosił, że to zdanie nie było zaktualizowane na czas — sprostowane tutaj): `EmailAttachmentKeys` rozszerzone o `isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania `RecordingServiceImpl#buildS3Key`, EML `EmailEmlService#buildEmlS3Key`), obie metody allow-listy oraz `forLog` teraz `public`. `EmailAttachmentStorageService#delete(String)` NIE dostał wariantu `delete(UUID, String)` — kontrolę tenanta wykonuje wołający PRZED wywołaniem `delete` (ten sam wzorzec co w `EmailSendServiceImpl`/`EmailAttachmentController`, BE-143). Pkt (b) z Zakresu (klucze `contact.recording_url`) pozostaje ODŁOŻONY do follow-upu (patrz notatka wykonawcy BE-126, akapit „Punkt (b)…”) — ma teraz gotowe API do użycia, gdy follow-up zostanie podjęty.
+- Odsyłacze: BE-127 (wariant „dangling" — pkt a; kursor — pkt b), BE-129 (publiczna allow-lista — BE-143), BE-131 (H-2).
+
+**Code review i poprawki (2026-09-22):**
+- Werdykt `senior-code-reviewer` (`CR-BACKEND.md`, wpis BE-126): **4/5 — zatwierdzić z poprawkami**; zero blockerów/bugów w diffie. Review czytało kod i testy oraz zweryfikowało `EXPLAIN` na żywej bazie (tylko odczyt), nie uruchamiało Mavena.
+- Ustalenia BE126-01…05 i co się z nimi stało:
+  - **BE126-01** (major, latentne, dziś nieosiągalne: strategia H-1 (keyset) usunęła niezmiennik „postęp=0 → FAILED" z BE-124; częściowa cicha strata w stronie nie była logowana, tylko strata całej strony) → **naniesione przez zlecającego**: WARN rozszerzony na KAŻDĄ częściową cichą stratę (`actuallyDeletedContacts.size() < deletableIds.size()`), nie tylko na całą stronę = 0.
+  - **BE126-02** (minor: `deleteContacts` nie filtruje `started_at < cutoff`, mimo że wywołujący już ma tę wartość z `ContactPurgeCandidate` — `DELETE` skanuje wszystkie 11 partycji zamiast tylko starych; potwierdzone `EXPLAIN` na żywej bazie — identyczny profil kosztowy jak istniejący `deleteBatchOlderThan`, NIE regresja) → **zaakceptowane jako świadomie odłożone, NIE naprawiane**: tania, ale dziś niekrytyczna okazja do poprawy przycinania partycji; koszt/zysk nie uzasadnia teraz zmiany sygnatury `deleteContacts` (dodanie `cutoff` do `DELETE_CONTACTS_SQL`).
+  - **BE126-03** (minor: Javadoc `PurgeResultDto#errorMessage` nadal mówił „komunikat błędu przy status=FAILED", a po BE-126 pole bywa niepuste też przy `status=COMPLETED` — ostrzeżenia S3) → **naniesione przez zlecającego**: Javadoc poprawiony.
+  - **BE126-04** (nit: notatka wykonawcy liczyła „13 testów"/„12 nowych testów"; `grep -c @Test` + `git diff` przeciw HEAD dają 12/8) → **sprostowane w notatce wykonawcy** (liczby niżej poprawione na 12/8).
+  - **BE126-05** (informacyjne: uwaga kontraktowa BE125-04→BE-143 wewnątrz notatki „Uwaga z code review BE-125" punkt (f) tej sekcji nie została zaktualizowana po tym, jak BE-143 faktycznie podjęła decyzję API) → **sprostowane w punkcie (f) powyżej**.
+- Niezależna weryfikacja końcowa (zlecający, po obu poprawkach kodu): `mvn verify -pl app` — **BUILD SUCCESS, Tests run: 2046, Failures: 0, Errors: 0, Skipped: 0** (ta sama liczba co w pierwotnej notatce wykonawcy — poprawki zmieniły treść dwóch plików, nie liczbę testów).
+
+---
+
+### BE-127 – Purge wiadomości osieroconych (`contact_id IS NULL` i dangling) wg retencji tenanta + dry-run
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-126 ✅, DB-059 ✅
+**Status:** ✅ Ukończone (2026-09-26) — patrz „Notatka z wykonania" poniżej
+**Blokuje:** BE-128, DB-067, BE-135, BE-130
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+Wiadomości już odcięte przez dotychczasowy purge (live 23 z 55 z `contact_id IS NULL`; wg analizy 18/18 sprzed cutoffu 2026-05-13, 10 z pełnym `body_html`) oraz e-maile zapisane przez IMAP i niezroutowane (V028: `contact_id` NULL przy pierwszym zapisie) nie mają dziś żadnej ścieżki usunięcia.
+
+**Korekta z BE-124 (2026-09-20, dowody w notatce BE-124, sekcje 6–8):** liczby „23 z 55" i „18/18, 10 z `body_html`" to liczba **sierot ogółem**, nie kandydatów: przy bieżącej polityce KMN (`CONTACT_INTERACTIONS` = 6 mies., cutoff 2026-03-20) dry-run daje dziś **0** kandydatów (najstarsza sierota 2026-04-25; pierwsza zakwalifikuje się ≈ 2026-10-26). Sieroty mają dwa źródła: (1) `detachContactReferences` z BE-113 (18 sprzed 2026-05-13, odcięte purge'em z 2026-08-13) oraz (2) niezroutowane e-maile — `EmailRoutingService#route` :70–74 przy braku kolejki tylko loguje WARN, a `EmailContactCreator#onEmailEvent` :76 wychodzi przy `queueId == null`, więc wiadomość zostaje z `contact_id NULL` na stałe (5 sierot po 2026-05-13: 1 IN + 4 OUT, przyczyny nie zbadano). Po BE-126 źródło (1) zanika, źródło (2) zostaje. Dangling (`contact_id` bez kontaktu): live 0.
+
+**Zakres:**
+- `EmailMessageService#purgeOrphansOlderThan(tenantId, cutoff, batch)` / `SocialMessageService#purgeOrphansOlderThan(...)` oraz dry-run `countOrphansOlderThan(tenantId, cutoff)`. Kryterium: `tenant_id = :t AND (contact_id IS NULL [OR dangling: NOT EXISTS (kontakt)]) AND <wiek> < :cutoff`, wiek = `COALESCE(received_at, sent_at, created_at)` (e-mail) / `sent_at` (social) —
+  **dokładnie to wyrażenie z DB-059** (dopasowanie predykatu indeksu). S3 jak w BE-125 (kolejność S3 → wiersz).
+- Wywołanie w `purgeContactInteractions` po pętli kontaktów, ten sam `cutoff` (retencja `CONTACT_INTERACTIONS` tenanta); `rowsDeleted` += osierocone; breakdown w audycie.
+- **Ostrożność:** świeże niezroutowane e-maile (`EmailRoutingService` w toku) nigdy nie są usuwane przed cutoff (kryterium wieku); dangling `NOT EXISTS` opcjonalne wg wyboru z BE-126 (koszt zapytania po `contact_id` bez klucza partycji). **Doprecyzowanie BE-124:** wiek INBOUND to INTERNALDATE serwera IMAP (`getReceivedDate()`), więc skrzynka zmigrowana z historycznymi datami daje „stare" świeżo zapisane wiadomości, które mogą być jeszcze w toku routingu — dodaj filtr resztkowy `created_at < now() − interval '1 day'` (nie psuje indeksu z DB-059). Klucze S3 z JSONB — z allow-listą prefiksu jak w BE-125 (klucze OUTBOUND to dane od klienta).
+- **Dry-run:** `countOrphansOlderThan` używa BE-128 i skrypt kandydatów do live-testu (WP-4).
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test Testcontainers: mieszanka — osierocona stara (usunięta), osierocona świeża (zostaje), powiązana z istniejącym kontaktem (zostaje), stara osierocona tenanta B (zostaje); wiadomość z załącznikami → S3 sprzątane — `EmailMessageOrphanPurgeIntegrationTest$AcMixture`/`SocialMessageOrphanPurgeIntegrationTest$AcMixture`
+- [x] `EXPLAIN` pod `SET ROLE app_user` z GUC: użyty indeks z DB-059, bez Seq Scan (scratch, ≥ 200 tys. wierszy) — wykonane ręcznie na `scratch_be127` (210 000 wierszy/tabela, usunięta po pracy), wynik w „Notatce z wykonania"; odtworzone automatycznie na mniejszym wolumenie w `EmailMessageOrphanPurgeIntegrationTest$QueryPlans`/`SocialMessageOrphanPurgeIntegrationTest$QueryPlans`
+- [x] Idempotencja; awaria S3 → wiadomość zostaje, brak nieskończonej pętli; test świeżej wiadomości w trakcie routingu (nie usuwana) — `IdempotencyAndS3Failure`, `AcMixture` (filtr resztkowy)
+- [x] (WP-2) Wołane z `purgeAsync` (kontekst z snapshotu), bez `clear()` w repozytorium; test z pustym `TenantContext` → `IllegalStateException` — `TenantContextHandling` w obu testach integracyjnych + regresja w `RetentionPurgeServiceImplTest`
+- [ ] (WP-4, destrukcyjne) PRZED uruchomieniem policz kandydatów w demo (dry-run; **stan z 2026-09-20: 0 kandydatów przy polityce 6 mies., 23 sieroty ogółem, 15 z `body_html`; potwierdzone ponownie 2026-09-26 (tylko odczyt): wciąż 0 kandydatów przy obu politykach tenantów demo (6 i 60 mies.), `social_message` = 0 wierszy** — ŚWIADOMIE ODŁOŻONE w tej iteracji (zakaz zlecającego: bez uruchamiania purge na demo/live), wymaga zgody właściciela przed wykonaniem
+- [x] `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A
+
+**Uwaga z BE-125 (2026-09-21):**
+- Faza „S3 przed wierszem" jest już zaimplementowana w `EmailMessageServiceImpl#purgeRows(tenantId, List<AttachmentsRow>)` — package-private, tak samo jak rekord `EmailMessageRepository.AttachmentsRow(messageId, contactId, attachmentsJson)` (logika BE-127 w pakiecie `domain.email`). BE-127 dokłada tylko własny SELECT sierot zwracający `AttachmentsRow` (z `contactId = null`); allow-lista prefiksu (`EmailAttachmentKeys#isOwnedByTenant`), kolejność S3 → wiersz i potwierdzenie `DELETE … RETURNING` są już w `purgeRows`. Osierocone nie trafiają do `contactIdsBlocked`.
+- Miarą postępu pętli jest `PurgedMessages#deletedRows` (nie liczba zleconych). Po BE-134 (klucz złożony) `AttachmentsRow` musi nieść `messageAt`, a `EmailMessageRepository#deleteByIds` identyfikować wiersze pełnym kluczem (komentarze w kodzie; wzorzec `ContactRepository#deleteBatchOlderThan`).
+
+**Uwaga z code review BE-125 (2026-09-21):**
+- BE125-02 [potwierdzone w kodzie]: wiadomości dopisane po SELECT-cie z BE-125 (np. odpowiedzi OUTBOUND na stary wątek, `contactId` odziedziczony po kontakcie) mogą po `deleteContacts` zostać sierotami z PII — jeśli BE-126 nie zrobi drugiego przebiegu `purgeByContactIds` po `deleteContacts`, wariant „dangling" (`NOT EXISTS`) przestaje być opcjonalny (patrz BE-126, pkt a). H-1 [hipoteza]: analogiczny head-of-line blocking dla pętli sierot, gdy `deletedRows` jest jedyną miarą postępu, a część wiadomości jest trwale nieusuwalna (kursor albo wykluczanie zablokowanych).
+- Naprawione po review (BE125-03/09): `toUuid(null)` w repozytorium i `PurgedMessages#contactIdsBlocked().contains(null)` nie rzucają — wiersze z `contactId = null` są bezpieczne dla `AttachmentsRow` i dla blokad.
+
+**Uwaga z BE-126 (2026-09-22):**
+- Okno SELECT→DELETE (BE125-02) jest już zamknięte PO STRONIE kontaktów właśnie usuniętych: `RetentionPurgeServiceImpl#purgeContactInteractionsWithMessageDeletion` robi drugi, idempotentny przebieg `purgeByContactIds` dla `actuallyDeletedContacts` w tej samej iteracji. To NIE zwalnia BE-127 z własnego zakresu — dotyczy tylko wiadomości dopisanych do kontaktu W TRAKCIE jego purge, a nie ogólnych sierot (`contact_id IS NULL` z detach BE-113, niezroutowanych e-maili itd., DESIGN §2 U1/U16). Wariant „dangling" (`NOT EXISTS`) nadal jest do decyzji wykonawcy BE-127, ale presja z BE125-02 jest niższa niż zakładano w code review BE-125.
+- **Strategia H-1 zastosowana w BE-126** (zamiast guardu „brak postępu → koniec pętli"): stronicowanie keyset — strona kandydatów posortowana `ORDER BY <kolumna_wieku>, <klucz>`, kursor = ostatni kandydat POPRZEDNIEJ strony (niezależnie od tego, czy został usunięty), pętla kończy się na wyczerpaniu kandydatów, nie na liczbie usunięć. Wzorzec: `ContactRepository#findContactIdsOlderThan`/`FIND_CONTACT_IDS_OLDER_THAN_NEXT_PAGE_SQL` (predykat `(kolumna, id) > (kursor_kolumna, kursor_id)`). Rekomendacja: zastosuj ten sam wzorzec zamiast liczbowego guardu z opisu Zakresu — eliminuje strukturalnie ryzyko head-of-line blocking zamiast tylko je wykrywać. Po review (CR-BACKEND.md BE126-01) dodaj też WARN przy KAŻDEJ częściowej cichej stracie (nie tylko całej stronie = 0) — wzorzec w `RetentionPurgeServiceImpl` (`actuallyDeletedContacts.size() < deletableIds.size()`).
+- `PurgeResultDto#errorMessage` może być niepuste przy `status=COMPLETED` (ostrzeżenia S3) — nie tylko przy `FAILED` (CR-BACKEND.md BE126-03); jeśli BE-127 zapisuje własne ostrzeżenia do tego samego pola, zachowaj tę semantykę.
+
+**Uwaga z BE-143 (2026-09-22) — publiczne API allow-listy do użycia:**
+- `EmailAttachmentKeys.isOwnedByTenant(UUID tenantId, String s3Key)` (schemat `email-attachments/{tenantId}/…`) i `EmailAttachmentKeys.isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania, EML z `contact.recording_url`) są PUBLICZNE od BE-143. Dla BE-127 istotna głównie pierwsza (sieroty to wiadomości e-mail/social, nie `contact.recording_url`) — użyj jej zamiast pisać własną kopię `startsWith`, jeśli sieroty niosą klucze spoza `email-attachments/{tenantId}/`.
+
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano:**
+- `domain/email/EmailOrphanCursor.java` (nowy, public record `(Instant messageAt, UUID messageId)`) i `domain/email/OrphanEmailPurgeBatch.java` (nowy, public record `(PurgedMessages purgedMessages, int candidatesFound, EmailOrphanCursor nextCursor)`) — kursor keyset i wynik JEDNEJ strony sweepu, analogicznie do `ContactPurgeCandidate` (BE-126), ale scalające fetch+purge w jednym wywołaniu serwisu (nie ma potrzeby rozdzielać jak dla kontaktów, bo sierota nie wpływa na żadną inną decyzję).
+- `domain/email/EmailMessageRepository.java` — `COUNT_ORPHANS_SQL`/`FIND_ORPHANS_FIRST_PAGE_SQL`/`FIND_ORPHANS_NEXT_PAGE_SQL` budowane z JEDNEJ stałej `ORPHAN_AGE_EXPR = "COALESCE(received_at, sent_at, created_at)"` przez `.formatted(...)` — mechaniczna (nie tylko konwencjonalna) gwarancja identycznego wyrażenia „wieku" w trzech zapytaniach i w predykacie indeksu DB-059. Nowy package-private record `OrphanCandidate(messageId, messageAt, attachmentsJson)` z `toAttachmentsRow()`. `countOrphansOlderThan`/`findOrphansOlderThan` — obie `assertSameTenant` + `setTenantContextInDb` (WP-2). Filtr resztkowy: `created_at < :residualCutoff`, `residualCutoff = Instant.now().minus(Duration.ofDays(1))` liczone W JAVIE (nie SQL `now()`) — konsekwentnie z resztą repozytorium, gdzie `cutoff` też jest parametrem od wołającego, nie funkcją SQL.
+- `domain/email/{EmailMessageService.java,EmailMessageServiceImpl.java}` — `countOrphansOlderThan` (czysta delegacja), `purgeOrphansOlderThan` (fetch strony kandydatów → mapowanie na `AttachmentsRow` → **reużycie `purgeRows` 1:1 z BE-125** dla fazy S3+DELETE, zero duplikacji logiki allow-listy/kolejności/potwierdzenia `RETURNING` → zbudowanie `OrphanEmailPurgeBatch` z kursorem ostatniego kandydata strony).
+- `domain/social/{SocialOrphanCursor.java,OrphanSocialPurgeBatch.java}` (analogiczne, bez S3 — `OrphanSocialPurgeBatch(int deletedRows, int candidatesFound, SocialOrphanCursor nextCursor)`).
+- `domain/social/SocialMessageRepository.java` — analogiczne 3 zapytania (`sent_at` NOT NULL, bez `COALESCE`, BEZ filtra resztkowego — decyzja niżej), `OrphanCandidate(messageId, messageAt)`, `countOrphansOlderThan`/`findOrphansOlderThan`/nowa `deleteOrphansByIds` (`DELETE … RETURNING message_id`, wzorzec `EmailMessageRepository#deleteByIds` — potwierdzenie faktycznego usunięcia, nie liczby zleconych, DESIGN §2 U8/R1).
+- `domain/social/{SocialMessageService.java,SocialMessageServiceImpl.java}` — analogicznie.
+- `domain/retention/RetentionPurgeServiceImpl.java` — `purgeContactInteractionsWithMessageDeletion` rozszerzone o DWIE NIEZALEŻNE pętle keyset PO pętli kontaktów i PO pętli `contact_event` (email, potem social), pod TĄ SAMĄ flagą `retention.purge.delete-messages` (`deleteMessagesEnabled`) — zgodnie z decyzją zlecającego, bez nowej flagi. `ContactInteractionsPurgeResult` +2 pola (`orphanEmailMessagesDeleted`/`orphanSocialMessagesDeleted`), wliczone do `totalRowsDeleted()`; `s3ObjectsDeleted`/`s3Failures`/`s3Rejected` sumowane WSPÓLNIE z fazą kontakt-tied (te same akumulatory lokalne).
+
+**Kryterium wieku i filtr resztkowy (dokładnie z DB-059/BE-124 §7):** e-mail = `COALESCE(received_at, sent_at, created_at)`, social = `sent_at`. Filtr resztkowy `created_at < now() − 1 dzień` TYLKO dla e-mail — uzasadnienie: dla INBOUND „wiek" to INTERNALDATE serwera IMAP (`Message#getReceivedDate()`), które może być historyczne (skrzynka zmigrowana/świeżo podłączona) w chwili, gdy zapis do bazy jest „teraz" i wiadomość może jeszcze nie być przypisana do kontaktu (routing asynchroniczny, DESIGN §2 U1). Dla social **filtr resztkowy pominięty świadomie** — `contact_id` jest ZAWSZE ustawiany SYNCHRONICZNIE przed zapisem wiadomości (`SocialMessageServiceImpl#processIncomingWithTenantContext`, krok 4: kontakt tworzony/dobierany PRZED `save`, w tej samej transakcji) — świeża, jeszcze nieprzypisana wiadomość social z `contact_id IS NULL` nie istnieje strukturalnie w tym kodzie; „sierota" social może powstać WYŁĄCZNIE przez `detachContactReferences` na kontakcie już starszym niż cutoff, więc nigdy nie jest „świeża" w sensie, przed którym broni filtr resztkowy e-mail.
+
+**Decyzja: wariant „dangling" (`NOT EXISTS`) — POMINIĘTY w tej iteracji, świadoma, udokumentowana luka.**
+Weryfikacja PRZED podjęciem decyzji (nie założenie): grep całego `backend/app/src/main/java` i wszystkich migracji SQL potwierdza, że wiersze `contact` są usuwane WYŁĄCZNIE przez `ContactRepository#deleteContacts` (BE-126, ścieżka z flagą=true) i `ContactRepository#deleteBatchOlderThan` (legacy, flaga=false) — zero innych `DELETE FROM contact` w Javie, zero w funkcjach SQL (`anonymize_customer` robi wyłącznie `UPDATE`). Presja na wariant dangling jest niska z dwóch niezależnych powodów: (1) tryb message-deletion (flaga=true) — BE-126 już zamyka okno SELECT→DELETE dla kontaktów WŁAŚNIE usuwanych (drugi przebieg `purgeByContactIds` po `deleteContacts`, BE125-02); (2) tryb legacy (flaga=false) — `detachContactReferences` jest wołane BEZPOŚREDNIO po każdym batchu `deleteBatchOlderThan`, DLA TYCH SAMYCH ID, w tym samym synchronicznym wywołaniu metody — nie ma zewnętrznego okna czasowego, w którym nowa wiadomość mogłaby dostać `contact_id` już usuniętego kontaktu (poza teoretycznym wyścigiem wątków wymagającym, żeby routing przypisywał wiadomości do kontaktów starszych niż cutoff retencji — co nie zdarza się w tym kodzie: routing operuje na nowych/aktywnych kontaktach). Koszt: `contact` ma PK złożony `(contact_id, started_at)` — zapytanie `NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)` bez `started_at` nie może przyciąć partycji i wymaga probingu PK KAŻDEJ partycji dla każdego kandydata-sieroty, nietrywialny narzut przy potwierdzonym **0 dangling live** (i brak jakiejkolwiek innej ścieżki usuwania `contact`, która by je produkowała). Decyzja: NIE implementować teraz; jeśli w przyszłości powstanie inna ścieżka usuwania `contact` (poza tymi dwiema), wariant dangling trzeba będzie zrewidować.
+
+**Kształt breakdownu audytu:** `orphanEmailMessages`/`orphanSocialMessages` jako pola OSOBNE od `emailMessages`/`socialMessages` (NIE zsumowane) — decyzja: obserwowalność (BE-128 dashboard/badge, audytorzy odróżniający „wiadomości kontaktu właśnie usuwanego" od „sierot wg wieku") jest cenniejsza niż minimalizm JSON, a koszt to tylko 2 dodatkowe pola. Liczniki S3 (`s3ObjectsDeleted`/`s3Failures`/`s3Rejected`) zostają WSPÓLNE dla obu źródeł — czysto techniczne liczniki, bez wartości w rozdzielaniu.
+
+**Wynik EXPLAIN (scratch `scratch_be127`, usunięta po pracy):** baza scratch utworzona wewnątrz działającego kontenera `cc-postgres` (NIE local-demo, osobna baza w tym samym klastrze — bez przebudowy/restartu stosu docker), schemat sklonowany `pg_dump -s` z `contact_center` (V093) + ręcznie zastosowane V094–V097 (jak w notatce DB-059). Wygenerowano 210 000 wierszy w `email_message` i 210 000 w `social_message`, 60 syntetycznych tenantów, niezależne hashe `hashtext('tenant-...'||g)`/`hashtext('orphan-...'||g)` (pułapka DB-059 z korelacją g%60/g%5 — TU uniknięta od razu), ~20,1%/20,0% osieroconych. Pod `SET ROLE cc_scratch_be127` (LOGIN, NOSUPERUSER NOBYPASSRLS, member `app_user`) + `set_config('app.current_tenant_id', …)`:
+```
+EMAIL COUNT:       Bitmap Heap Scan → Bitmap Index Scan on idx_email_message_tenant_orphan_age
+EMAIL FIRST PAGE:  Incremental Sort (Presorted Key) → Index Scan on idx_email_message_tenant_orphan_age
+EMAIL NEXT PAGE:   Bitmap Heap Scan → Bitmap Index Scan on idx_email_message_tenant_orphan_age
+SOCIAL COUNT:      Index Only Scan on idx_social_message_tenant_orphan_sent
+SOCIAL FIRST PAGE: Incremental Sort (Presorted Key) → Index Scan on idx_social_message_tenant_orphan_sent
+SOCIAL NEXT PAGE:  Incremental Sort → Index Scan on idx_social_message_tenant_orphan_sent (Index Cond dolny+górny)
+```
+ZERO Seq Scan w 6/6 planach. Filtr resztkowy (`created_at < now() − 1 dzień`) potwierdzony jako `Filter`, NIE `Index Cond` — nie zmienia planu (domysł z notatki wykonania DB-059 potwierdzony empirycznie, nie tylko rozumowaniem). RLS aktywne (widoczne `One-Time Filter: current_setting('app.current_tenant_id')`), bez wpływu na dobór indeksu. Odtworzone automatycznie (mniejszy wolumen, 30 000 wierszy/tenant, jak `OrphanMessagePurgeIndexesTest` z DB-059) w `EmailMessageOrphanPurgeIntegrationTest$QueryPlans`/`SocialMessageOrphanPurgeIntegrationTest$QueryPlans` — ten sam wynik. Baza scratch i rola testowa usunięte po pracy (`DROP DATABASE scratch_be127`, `DROP ROLE cc_scratch_be127`).
+
+**Weryfikacja stanu demo (2026-09-26, tylko odczyt, `SET default_transaction_read_only = on`):** `tenant_retention_policy` ma 2 tenantów z `CONTACT_INTERACTIONS` (6 i 60 miesięcy); `email_message`: 23 sieroty (polityka 6 mies.) + 1 sierota (polityka 60 mies.) OGÓŁEM, ale **0 kandydatów kwalifikujących się** przy obu politykach (kryterium BE-127 z filtrem resztkowym) — zgodne z projekcją z BE-124 (pierwsza sierota kwalifikuje się ≈ 2026-10-26). `social_message`: 0 wierszy. Żaden purge NIE został uruchomiony na tej bazie.
+
+**Pliki nowe:**
+- `domain/email/EmailOrphanCursor.java`, `domain/email/OrphanEmailPurgeBatch.java`
+- `domain/social/SocialOrphanCursor.java`, `domain/social/OrphanSocialPurgeBatch.java`
+- `domain/email/EmailMessageOrphanPurgeIntegrationTest.java` (13 testów, Testcontainers)
+- `domain/social/SocialMessageOrphanPurgeIntegrationTest.java` (12 testów, Testcontainers)
+
+**Pliki zmienione:**
+- `domain/email/{EmailMessageRepository.java,EmailMessageService.java,EmailMessageServiceImpl.java}`
+- `domain/social/{SocialMessageRepository.java,SocialMessageService.java,SocialMessageServiceImpl.java}`
+- `domain/retention/RetentionPurgeServiceImpl.java`
+- `domain/retention/RetentionPurgeServiceImplTest.java` (+3 nowe testy w nowym `@Nested OrphanSweep`; domyślne stuby „brak kandydatów" w `enableFlag()` dla WSZYSTKICH testów `MessageDeletionEnabled`; zmodyfikowany `tenantContext_isClearedAfterCompletion` — sweep sierot jest bezwarunkowy, więc `verifyNoInteractions` zamieniony na precyzyjne asercje `never()`/`verify(...)`; dodatkowa asercja `never()` w `flagFalse_neverCallsNewMethods`)
+
+**Wyniki testów:**
+- `EmailMessageOrphanPurgeIntegrationTest` — 13 nowych testów (Testcontainers, pełny Flyway), zielone.
+- `SocialMessageOrphanPurgeIntegrationTest` — 12 nowych testów (Testcontainers, pełny Flyway; `SocialMessageServiceImpl` z prawdziwym `SocialMessageRepository` i 4 mockami pozostałych zależności — nieużywanych przez metody BE-127), zielone.
+- `RetentionPurgeServiceImplTest` — 42 testy w klasie (0 regresji), w tym 3 nowe `OrphanSweep` i 1 zmodyfikowany.
+- Pakiety `domain.email` + `domain.social` + `domain.retention` łącznie: **466 testów, 0 błędów** (przebieg pośredni, przed pełnym `verify`).
+- Pełny `mvn clean verify -pl app` (2026-09-26): **BUILD SUCCESS, Tests run: 2138, Failures: 0, Errors: 0, Skipped: 0** (czas 05:10 min; baseline sprzed BE-127 — 2110 z notatki DB-059 — plus 28 nowych: 13 + 12 + 3).
+
+**Odstępstwa i ryzyka:**
+1. Wariant dangling (`NOT EXISTS`) pominięty — patrz decyzja wyżej; udokumentowana, świadoma luka.
+2. Filtr resztkowy tylko dla e-mail (uzasadnienie wyżej) — social bez niego.
+3. Ten ticket NIE wymagał nowej migracji SQL (indeksy DB-059/V097 już gotowe) — potwierdzone, brak zmian w `db/migration`.
+4. Cursor/candidate typy (`EmailOrphanCursor`/`SocialOrphanCursor`) są NOWYMI publicznymi rekordami top-level (nie reużywają `ContactPurgeCandidate`) — decyzja: różne domeny (`domain.email`/`domain.social`) nie importują wzajemnie swoich typów cross-package bez potrzeby (wzorzec istniejącej duplikacji `IN_LIST_CHUNK_SIZE` między `EmailMessageRepository`/`SocialMessageRepository`).
+
+**WP-4 (destrukcyjne) — jawnie ODŁOŻONE w tej iteracji.** Purge sierot NIE uruchomiony na demo/live (zakaz zlecającego). Stan zweryfikowany TYLKO ODCZYTEM 2026-09-26 (patrz wyżej): 0 kandydatów kwalifikujących się przy obu politykach tenantów demo. Uruchomienie wymaga zgody właściciela.
+
+**Czego nie zweryfikowano:**
+- WP-4 (local-demo/live) — jawnie odłożone, zakaz zlecającego w tej iteracji.
+- Zachowanie na bardzo dużej liczbie stron (> 3) w pętli keyset na prawdziwej bazie — testowane do 3 stron (25 wierszy, batch 10, jak `ContactRepositoryPurgeCandidatesIntegrationTest`).
+- Rzeczywisty S3/MinIO — testy integracyjne używają mocka `S3Client` (wzorzec BE-125), jak wszystkie testy purge w tym repo (brak MinIO w Testcontainers dla tej klasy testów, patrz [[feedback-jpa-real-db-integration-test-harness]]).
+- Zachowanie przy setkach tysięcy prawdziwych sierot w jednym tenancie (scratch miał ~700–750/tenant) — plan zapytań jest ten sam niezależnie od skali per-tenant (indeks częściowy filtruje po `tenant_id` najpierw), ale nie zmierzono czasu end-to-end jednego pełnego przebiegu pętli na takiej skali.
+
+**Code review i poprawki (2026-09-26):** `CR-BACKEND.md`, sekcja „Review: BE-127" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów. Jedno ustalenie major, **latentne, poza zakresem tego diffu (pre-existing od EPIC-29), nie regresja**:
+- **BE127-01:** decyzja „wariant dangling pominięty" zakłada, że `contact` jest usuwany wyłącznie przez `ContactRepository#deleteContacts`/`#deleteBatchOlderThan` (oba z zamkniętym oknem na sieroty). Recenzent znalazł TRZECI mechanizm: `PartitionReclaimJob#warnIfStillHasRows` — gdy partycja miesięczna `contact` kandydująca do `DROP` (próg liczony po najdłuższej retencji ze WSZYSTKICH tenantów) wciąż ma wiersze, job loguje WARN i **mimo to wykonuje `DROP TABLE`** (zweryfikowane w kodzie, `PartitionReclaimJob.java` ≈ 165–194 — to świadoma decyzja z EPIC-29, nie błąd wprowadzony teraz). `email_message`/`social_message` nie mają FK do `contact` (potwierdzone `\d contact` na żywej bazie), więc `DROP` nie kaskaduje — zostawia `contact_id` wskazujący na nic. Scenariusz: wieloletnia awaria purge Poziomu 1 dla jednego tenanta → `PartitionReclaimJob` i tak w końcu zdejmie starą partycję z pozostałymi wierszami → wiadomości powiązane z tymi kontaktami stają się dangling **bez żadnej ścieżki usunięcia** (sweep BE-127 łapie tylko `contact_id IS NULL`, nigdy dangling po FK).
+- **Ocena zlecającego:** odległy scenariusz (wymaga wieloletniej, niezauważonej awarii Poziomu 1), ale realny i bez dzisiejszej ochrony — dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), nie tylko tego ticketu. **Nie blokuje scalenia BE-127.** Warty osobnego ticketu poza EPIC-30 message-retention (dotyczy silnika partycji z EPIC-29) — do rozważenia: (a) `warnIfStillHasRows` powinien SKIPOWAĆ `DROP` dla niepustej partycji `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` (zgodnie z WP-5 z DESIGN — „niepusta → WARN i pominięcie", nie „WARN i kontynuuj"), zamiast ufać niesprawdzanemu w runtime niezmiennikowi; (b) i/lub sweep dangling po FK dla `email_message`/`social_message` jako druga linia obrony. Świadomie NIE tworzę tego ticketu w tej sesji bez decyzji — patrz rekomendacja poniżej.
+
+**Uwagi dla BE-128/BE-130/DB-067/BE-135:**
+- **BE-128:** `EmailMessageService#countOrphansOlderThan`/`SocialMessageService#countOrphansOlderThan` gotowe do wpięcia w `RetentionEvaluationServiceImpl` (dashboard/badge) — sygnatura `(tenantId, cutoff)`, zwraca `long`.
+- **BE-130 (warunkowy, D1 = C):** jeśli kategoria `MESSAGE_CONTENT` wejdzie, sweep sierot (obie pętle w `purgeContactInteractionsWithMessageDeletion`) trzeba przenieść do nowej metody `purgeMessageContent` — kod jest już wyodrębniony w postaci dwóch samodzielnych pętli do-while, łatwych do przeniesienia.
+- **DB-067/BE-135 (partycjonowanie `email_message`):** `EmailOrphanCursor`/`EmailMessageRepository.OrphanCandidate` JUŻ niosą `messageAt` (nie tylko `messageId`) — po zmianie PK na złożony `(message_id, message_at)` trzeba będzie zaktualizować `deleteByIds`/`purgeRows`, żeby identyfikowały wiersze pełnym kluczem (uwaga z BE-125 w tym samym duchu).
+- **BE-129/D9:** dry-run `countOrphansOlderThan` NIE uwzględnia dopasowania po identyfikatorze (D9) — liczy wyłącznie po `contact_id IS NULL`, zgodnie z zakresem tego ticketu (sieroty z definicji nie mają `contact_id`, więc D9 nie ma tu zastosowania).
+
+---
+
+### BE-128 – `RetentionEvaluationServiceImpl`: liczenie wiadomości kwalifikujących się do usunięcia (dashboard/badge)
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-127 ✅
+**Status:** ✅ Ukończone (2026-09-26, po code review i poprawce blockera BE128-01 2026-09-27) — patrz „Notatka z wykonania" i „Code review i poprawki" poniżej
+**Blokuje:** BE-130, FE-110
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:**
+`RetentionEvaluationServiceImpl.PARTITION_AWARE_TABLES[CONTACT_INTERACTIONS]` = `contact`, `contact_event`; dashboard (FE-105) i badge (FE-108) nie liczą wiadomości, więc `eligibleRowCount` jest niższy niż to, co realnie usunie purge po BE-126/127.
+
+**Zakres:** dodać do liczby `CONTACT_INTERACTIONS`: (a) wiadomości osierocone kwalifikujące się (`countOrphansOlderThan`, BE-127) i (b) wiadomości powiązane z kontaktami kwalifikującymi się (zapytanie po `contact_id IN (kontakty przed cutoff)` z limitem kosztu albo szacunek — wykonawca wybiera i dokumentuje semantykę „liczba szacunkowa" w Javadoc `RetentionSummaryDto`).
+**Dwa punkty wejścia (WP-2):** rdzeń per-tenant bez zarządzania kontekstem (`persistSummaryAndMaybeAutoPurgeForTenant`, `evaluateCampaignDataForTenant` — wzorzec BE-112), `set/clear` tylko w pętlach schedulera; `runForTenant` (REST `POST …/recompute`) nie czyści kontekstu HTTP i NIGDY nie wywołuje purge.
+Po konwersjach (DB-065/DB-067) liczenie partycyjne przez `PartitionScanner` zamiast zapytań po `contact_id` (wpis w `PARTITION_AWARE_TABLES` — BE-133/BE-135).
+
+**Kryteria akceptacji:**
+- [x] `RetentionEvaluationServiceImplTest` rozszerzony (mock) oraz (WP-1) test Testcontainers z PRAWDZIWYM repozytorium i pustym `TenantContext` dla ścieżki schedulera (regresja z BE-112: brak `TenantContext` → `assertSameTenant` rzucał ISE) — mock: `RetentionEvaluationServiceImplTest$MessagesInEligibleRowCount`; real+ISE: `EmailMessageOrphanPurgeIntegrationTest$TenantContextHandling#emptyTenantContext_throwsIllegalState_countLinkedToContacts`, `SocialMessageOrphanPurgeIntegrationTest$TenantContextHandling` (analogicznie) — patrz uzasadnienie granulacji w notatce
+- [x] `eligibleRowCount` = kontakty + zdarzenia + wiadomości (osierocone i powiązane), DOKŁADNIE (nie oszacowanie); `POST …/recompute` nie wywołuje purge i nie czyści kontekstu HTTP (test `ManualRecomputeForTenant` rozszerzony o `runForTenant_alsoAddsMessages`, istniejące testy `neverTriggersAutoPurge_evenWhenEligibleAndEnabled`/`neverClearsTenantContext_*` nadal zielone bez zmian)
+- [x] Semantyka liczby opisana w Javadoc `RetentionSummaryDto`; `mvn verify -pl app`; DoD (WP-7); zakłada D1 = A (przy D1 = C liczenie wiadomości przenosi się do osobnej kategorii — BE-130)
+
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano:**
+- `EmailMessageRepository#countLinkedToContactsOlderThan(tenantId, cutoff)` / `SocialMessageRepository#countLinkedToContactsOlderThan(tenantId, cutoff)` (nowe, package-private, `@Transactional(readOnly = true)`, `assertSameTenant` + `setTenantContextInDb` — TA SAMA ochrona co `countOrphansOlderThan` z BE-127) — `COUNT(*) FROM <tabela> WHERE tenant_id = :tenantId AND contact_id IN (SELECT contact_id FROM contact WHERE tenant_id = :tenantId AND started_at < :cutoff)`. Przewleczone przez `EmailMessageService`/`SocialMessageService` (interfejs + `...ServiceImpl`, trywialna delegacja jak `countOrphansOlderThan`).
+- `RetentionEvaluationServiceImpl#countEligibleMessages(UUID)` (nowa, private) — sumuje 4 składniki: `emailMessageService.countOrphansOlderThan` + `countLinkedToContactsOlderThan` + analogiczne dla `socialMessageService`, ze WSPÓLNYM cutoffem liczonym niezależnie od akumulatora partycji ({@code retentionPolicyService.getRetentionMonths(tenantId, CONTACT_INTERACTIONS)} → `LocalDate` → `Instant`, identyczny wzorzec co `evaluateCampaignDataForTenant`). Wołana WYŁĄCZNIE z `persistSummaryAndMaybeAutoPurgeForTenant`, TYLKO dla kategorii `CONTACT_INTERACTIONS`, w `try/catch` (błąd liczenia wiadomości loguje ERROR i nie blokuje zapisu już policzonego `eligibleRowCount` kontakt+event — patrz „Odstępstwa" niżej).
+- `RetentionSummaryDto` — Javadoc rozszerzony o pełną semantykę (DOKŁADNE liczenie, 4 składniki, uzasadnienie kosztu z dowodem EXPLAIN, odniesienie do BE-133/BE-135).
+
+**Decyzja: liczenie wiadomości powiązanych z kontaktami — DOKŁADNE, nie oszacowanie** (ticket dopuszczał oszacowanie/pominięcie jako opcję przy kosztownym dokładnym liczeniu). Zweryfikowano EMPIRYCZNIE przed podjęciem decyzji (metodologia „EXPLAIN na scratch" z BE-127, baza `scratch_be128` w kontenerze `cc-postgres`, usunięta po pracy):
+1. Naiwna obawa („`JOIN`/`IN`-subquery do `contact` wymusi `Seq Scan` całej tabeli `email_message`/`social_message` niezależnie od rozmiaru tenanta") — POTWIERDZONA przy 100% udziale jednego tenanta w tabeli (100 tys. kontaktów, 116 tys. e-maili, 1 tenant): planner wybiera `Parallel Seq Scan` na `email_message`/`social_message`.
+2. Po dodaniu 9 tenantów „szumu" (razem ~1,16 mln wierszy `email_message`/`social_message`, tenant docelowy = ~10% udziału — realistyczna wielotenantowa selektywność) planner PRZESTAWIA SIĘ na `Bitmap Index Scan` na `uq_email_message_id_header`/`idx_social_message_sender` — OBA istniejące indeksy z migracji V010 (`tenant_id` jako PIERWSZA kolumna), ŻADNA nowa migracja SQL nie była potrzebna (potwierdza AC ticketu „ten ticket nie wymaga migracji SQL"). Koszt jest więc ograniczony do wierszy TEGO tenanta (894/1033 stron heap na ~117 tys. wierszy tenanta), NIE do rozmiaru całej tabeli — nie rośnie z liczbą innych tenantów na platformie. Czas wykonania obu zapytań (`email_message`+`social_message`) na tym wolumenie: ~55–70 ms łącznie na tenanta.
+3. Strona `contact` (subquery) korzysta z partition pruning (partycjonowanie po `started_at`) + `idx_contact_tenant_started_at` — analogicznie do `ContactRepository#findContactIdsOlderThan` (BE-126).
+4. Wniosek: koszt jest proporcjonalny do rozmiaru danych TEGO tenanta (analogicznie do partycyjnego skanu `contact`/`contact_event`), a nie do rozmiaru całej platformy — DOKŁADNE liczenie jest uzasadnione i NIE wymaga oszacowania. Gdy tenant jest większością tabeli, planner naturalnie wraca do `Seq Scan` — wtedy to i tak najszybsza opcja (skan ≈ skan danych samego tenanta).
+
+**Odstępstwo (świadome, dokumentowane w kodzie):** błąd w `countEligibleMessages` (np. `EmailMessageService`/`SocialMessageService` rzuca) jest łapany w `persistSummaryAndMaybeAutoPurgeForTenant` i logowany jako ERROR — NIE blokuje zapisu `eligibleRowCount` już policzonego partycyjnie dla `contact`/`contact_event` (ten sam duch izolacji błędów co reszta klasy). W najgorszym razie `eligibleRowCount` jest niedoszacowany o wiadomości TEGO przebiegu (nie utracony całkowicie) — regresja odkryta i naprawiona podczas implementacji, bo bez tego `try/catch` istniejący test `errorForOneTenantInPartition_doesNotStopOtherTenantsInSamePartition` (współdzielony stub `retentionPolicyService.getRetentionMonths(TENANT_A, CONTACT_INTERACTIONS)` rzucający wyjątek) by się zepsuł — dodany regresyjny test `messageCountingError_doesNotPreventSummaryWriteOfContactEventCount`.
+
+**Potwierdzenie dwóch punktów wejścia (WP-2):** `countEligibleMessages` NIE zarządza `TenantContext` (żaden `set`/`clear`) — dziedziczy prekontrakt `persistSummaryAndMaybeAutoPurgeForTenant` bez zmian. Ścieżka schedulera (`persistAndMaybeAutoPurge`) ustawia kontekst przed wywołaniem i czyści w `finally` jak dotychczas; `runForTenant` (REST) wciąż nigdy nie wywołuje `clear()` i nigdy nie wyzwala purge — potwierdzone testem `runForTenant_alsoAddsMessages` (nowy) oraz wszystkimi istniejącymi testami `ManualRecomputeForTenant`/`TenantContextRegression` (zielone bez zmian).
+
+**Granulacja testu regresyjnego BE-112 (WP-1):** zamiast wiązać CAŁY `RetentionEvaluationServiceImpl` z prawdziwymi `PartitionScanner`/`RetentionPolicyService`/`TenantService` (nieproporcjonalny narzut dla wąskiego zakresu tego ticketu, który dotyka wyłącznie liczenia wiadomości), regresja jest udowodniona na tej SAMEJ granulacji co ustaloną przez BE-127 dla `countOrphansOlderThan` (patrz `feedback_scheduled_job_tenantcontext_missing`: „mock całego repozytorium/serwisu tego nie wykryje" — repozytorium musi być prawdziwe): `EmailMessageOrphanPurgeIntegrationTest`/`SocialMessageOrphanPurgeIntegrationTest`, Testcontainers + pełny Flyway, prawdziwe `EmailMessageRepository`/`SocialMessageRepository`, `TenantContext.clear()` → `IllegalStateException` z serwisu I repozytorium. Uzupełnione mockowym testem orkiestracji na poziomie serwisu (`RetentionEvaluationServiceImplTest$MessagesInEligibleRowCount#contextIsSetDuringMessageCounting_schedulerPath`) dowodzącym, że kontekst jest faktycznie ustawiony w momencie wywołania — razem dają pełne pokrycie (mechanizm ochrony + poprawność okablowania).
+
+**Pliki zmienione/dodane:**
+- Zmienione: `domain/email/{EmailMessageRepository.java,EmailMessageService.java,EmailMessageServiceImpl.java}`, `domain/social/{SocialMessageRepository.java,SocialMessageService.java,SocialMessageServiceImpl.java}`, `domain/retention/RetentionEvaluationServiceImpl.java`, `domain/retention/dto/RetentionSummaryDto.java`
+- Testy zmienione: `domain/retention/RetentionEvaluationServiceImplTest.java` (+7 testów, nowy nested `MessagesInEligibleRowCount`), `domain/email/EmailMessageOrphanPurgeIntegrationTest.java` (+5 testów: nested `CountLinkedToContacts` ×4 + 1 w `TenantContextHandling`), `domain/social/SocialMessageOrphanPurgeIntegrationTest.java` (+5 testów, analogicznie)
+
+**Wyniki testów:**
+- `RetentionEvaluationServiceImplTest`: 43 testy, 0 błędów (36 istniejących bez zmian + 7 nowych: `addsAllFourMessageComponentsToContactAndEventSum`, `doesNotAddMessagesToOtherCategories`, `usesSameCutoffFormulaAsCampaignData`, `messagesAloneCanTriggerAutoPurge`, `contextIsSetDuringMessageCounting_schedulerPath`, `messageCountingError_doesNotPreventSummaryWriteOfContactEventCount`, `runForTenant_alsoAddsMessages`)
+- `EmailMessageOrphanPurgeIntegrationTest`: 18 testów, 0 błędów (13 + 5 nowych)
+- `SocialMessageOrphanPurgeIntegrationTest`: 17 testów, 0 błędów (12 + 5 nowych)
+- Pakiety `domain.retention`+`domain.email`+`domain.social` razem: 486 testów, 0 błędów
+- `mvn clean verify -pl app`: patrz stopka wykonania niżej
+
+**Czego nie zweryfikowano:**
+- Rzeczywisty koszt na wolumenie znacznie większym niż scratch (~1,16 mln wierszy łącznie, tenant docelowy ~117 tys.) — nie zmierzono zachowania planera przy dziesiątkach milionów wierszy/setkach tenantów; wniosek „koszt proporcjonalny do tenanta" jest ekstrapolacją z zaobserwowanego przejścia Seq Scan → Bitmap Index Scan między 100% i ~10% selektywności, nie pomiarem na docelowej skali.
+- Zachowanie planera na PRODUKCYJNYM `autovacuum`/statystykach (scratch DB miał ręczne `ANALYZE` tuż po seedzie) — starsze/rozjeżdżające się statystyki mogą przesunąć próg przełączenia planu.
+- Brak automatycznego testu EXPLAIN (w odróżnieniu od BE-127) — świadomie: `uq_email_message_id_header`/`idx_social_message_sender` są indeksami ogólnego przeznaczenia (nie zbudowanymi celowo pod to zapytanie jak `idx_email_message_tenant_orphan_age` z DB-059), więc twarda asercja „plan MUSI użyć indeksu X" na małym wolumenie CI byłaby zależna od heurystyk plannera (statystyki, `work_mem`, liczba workerów) — ryzyko niestabilnego testu uznane za nieproporcjonalne do wartości; dowód kosztu pozostaje w tej notatce (wzorem `EXPLAIN na scratch` z BE-127).
+- WP-4/local-demo — nie dotyczy tego ticketu (brak migracji, brak destrukcyjnych operacji).
+
+**Uwagi dla BE-130/FE-110/BE-133/BE-135:**
+- **FE-110:** `eligibleRowCount` kategorii `CONTACT_INTERACTIONS` z `GET .../summary` i `POST .../recompute` od teraz zawiera wiadomości — dashboard/badge nie wymaga żadnej zmiany kontraktu, liczba jest po prostu wyższa i bliższa rzeczywistości.
+- **BE-130 (warunkowy, D1 = C):** jeśli kategoria `MESSAGE_CONTENT` wejdzie, `countEligibleMessages` (i dwie nowe metody repozytoriów) są naturalnym punktem przeniesienia liczenia do nowej kategorii — sygnatury (`tenantId`, `cutoff`) nie muszą się zmienić.
+- **BE-133/BE-135 (partycjonowanie `email_message`/`social_message`, DB-065/DB-067):** `countEligibleMessages` ma jawny komentarz Javadoc odsyłający do przejścia na `PartitionScanner` (wpis w `PARTITION_AWARE_TABLES`) — NIE zaprojektowano tej migracji teraz, poza zakresem BE-128.
+
+**Code review i poprawki (2026-09-27):** `CR-BACKEND.md`, sekcja „Review: BE-128" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów.
+- **BE128-01 (major, NAPRAWIONE):** przed poprawką auto-purge dla `CONTACT_INTERACTIONS` reagował na sumę zawierającą wiadomości NIEZALEŻNIE od flagi `retention.purge.delete-messages` — tenant z `auto_purge_enabled=true` i jakimikolwiek sierotami (normalny stan po ≈ 2026-10-26, patrz BE-124/BE-127) odpalałby auto-purge co noc, mimo że pod domyślną konfiguracją (`deleteMessagesEnabled=false`) `purgeContactInteractionsLegacy` nic z tych wiadomości nie usuwa — pusty, powtarzający się przebieg (nowy wiersz `retention_purge_log`+audytu bez żadnego efektu). **Naprawa:** `RetentionEvaluationServiceImpl` dostał ten sam `@Value("${retention.purge.delete-messages:false}")` co `RetentionPurgeServiceImpl` (identyczna nazwa właściwości — jedna flaga steruje obiema klasami); decyzja `maybeTriggerAutoPurge` używa `eligibleRowCount` BEZ wiadomości, gdy flaga jest `false`. Dashboard/cache (`summaryRepository.upsert`) NADAL pokazuje pełną liczbę niezależnie od flagi — dotyczy wyłącznie decyzji o wyzwoleniu purge. Test `messagesAloneCanTriggerAutoPurge` rozbity na dwa: `messagesAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled` (domyślne `false` — brak wywołania `retentionPurgeService.purge`) i `messagesAlone_triggerAutoPurge_whenDeleteMessagesEnabled` (`ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true)` — wywołanie jak dotąd). Javadoc `RetentionSummaryDto` rozszerzony o wyjaśnienie tej flagi.
+- **BE128-02 (major, udokumentowane, nie naprawiane):** „DOKŁADNE" w Javadoc `RetentionSummaryDto` dotyczy wyłącznie 4 składników wiadomości — składnik `contact`/`contact_event`, do którego są dodawane, jest z definicji KONSERWATYWNYM przybliżeniem granicy partycji miesięcznej (pre-existing trade-off z BE-112/EPIC-29, nie błąd BE-128). Dopisane jedno zdanie zastrzegające w Javadoc (cytuje BE128-02) — bez zmiany logiki, bo nie wpływa na bezpieczeństwo faktycznego purge (re-liczy kontakty wierszowo, niezależnie od akumulatora).
+- **BE128-03 (minor, nie naprawiane):** błąd liczenia wiadomości jest logowany `ERROR` (potwierdzone), ale `RetentionSummaryDto` nie ma pola sygnalizującego „ten przebieg ma częściowy błąd" — trwała awaria mogłaby zaniżać liczbę w nieskończoność, widoczne tylko w logach, nie na dashboardzie. Ten sam wzorzec obserwowalności co BE145-01 — odłożone z tego samego powodu (nowa infrastruktura metryk/alertowania w podsystemie, który dziś żadnej nie ma, wymaga osobnej decyzji o zakresie).
+- **BE128-04 (nit, nie naprawiane):** cutoff dla wiadomości liczony niezależnym wywołaniem `getRetentionMonths`/`LocalDate.now(UTC)` względem cutoffu partycji tego samego przebiegu — ryzyko materializuje się tylko na granicy dnia UTC, nieistotne.
+- Recenzent potwierdził niezależnie: argument o indeksie (`tenant_id` jako pierwsza kolumna `uq_email_message_id_header`/`idx_social_message_sender` pozwala zawężyć skan do wierszy tenanta PRZED nałożeniem `contact_id IN(...)`) jest uczciwy, nie miesza korelacji z przyczynowością; `contact.started_at` (V007) jest faktyczną kolumną partycjonowania, więc predykat jest tym samym kryterium co akumulator partycyjny; izolacja tenanta na dwóch poziomach zapytania, brak SELECT */N+1.
+- Niezależna weryfikacja zlecającego po poprawce: `mvn test -pl app -Dtest=RetentionEvaluationServiceImplTest` — 44 testy (43 sprzed poprawki, jeden rozbity na dwa), 0 błędów; pełny `mvn clean verify -pl app` — patrz nagłówek Status.
+
+---
+
+### BE-129 – Przepływ RODO w `GdprServiceImpl` (D3): anonimizacja i eksport z wiadomościami, callbackami i rekordami kampanii; sprzątanie S3
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L (pierwotnie M; po korektach z DB-060: dwie ścieżki REST, podgląd zbioru podmiotu D9, jedno źródło audytu, stany operacyjne, S3 — przy D9 = B wraca do M; wykonawca może wydzielić podgląd D9 do osobnego PR)
+**Zależy od:** DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅
+**Status:** ✅ Ukończone (2026-09-24) — patrz „Notatka z wykonania"
+**Blokuje:** FE-112
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`GdprController` (`POST /api/customers/{id}/gdpr/export|anonymize`, `hasAnyRole('ADMIN','SUPERVISOR')`) → `GdprServiceImpl`: anonimizacja = S3 nagrania (best-effort, PRZED bazą) + `CustomerRepository#anonymize` (UPDATE wyłącznie `customer`: imię, nazwisko, `phone`, `email`, `is_deleted`; **nie** `custom_fields`/`gdpr_consent`);
+eksport = `customer.json` + `contacts.json` (≤ 1000) + `audit_log.json` (metadane). Funkcje SQL `anonymize_customer`/`export_customer_data` nie są wołane (DESIGN §2 U2). **Zakłada D3 = A:** Java wywołuje rozszerzone funkcje SQL (DB-061/062) i sprząta S3.
+Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakcji) — ticket rośnie do L; przy D3 = C nie jest wykonywany.
+
+**Zakres:**
+- `anonymizeCustomer`: `customerService.findById` (jak dziś) → wywołanie `anonymize_customer(customer, tenant, user)` w JEDNEJ transakcji (nowa metoda repozytorium `TenantAwareRepository`, `assertSameTenant` + `setTenantContextInDb`), wynik `{counts, s3_keys}` → **po commit** sprzątanie S3 best-effort z retry przez metodę zwracającą wynik per klucz: `EmailAttachmentStorageService#delete` (z BE-125) — **nie** `RecordingService#deleteFromS3`, które połyka `S3Exception` i nic nie zwraca (`RecordingServiceImpl` ≈ 307–322; BE-124 §3), więc nie da się na nim zbudować listy niepowodzeń. Zakres kluczy (BE-124 §3): nagrania i **EML kontaktów e-mail — oba w `contact.recording_url`**; załączniki e-mail z `attachments[*].s3_key`, w tym klucze `pending/` wiadomości OUTBOUND (`EmailSendServiceImpl#buildAttachmentsJson` zapisuje klucz z uploadu i nikt go nie przenosi do `{messageId}/`), z allow-listą prefiksu `email-attachments/{tenantId}/` jak w BE-125. Klucze musi zwrócić `anonymize_customer` PRZED wyzerowaniem `attachments` (V013 zeruje kolumnę bez usuwania obiektów — DB-062); lista niepowodzeń S3 do audytu/logu (klucze nie mogą zniknąć — pozwalają dokończyć ręcznie).
+  **Zmiana kolejności względem dziś** (DB twardo, S3 potem) — uzasadnij w notatce. `CustomerRepository#anonymize` zostaje nieużywane albo usunięte (sprzątanie).
+- `exportCustomerData`: wywołanie `export_customer_data` (po DB-061) → ZIP: `customer.json`, `contacts.json`, `email_messages.json`, `social_messages.json`, `scheduled_callbacks.json`, `campaign_records.json`, `transcriptions.json` (wg DB-060/D3), manifest; brak ucięcia do 1000 bez informacji (paginacja/strumień). Audyt `GDPR_EXPORT` zostaje w Javie (jedyne miejsce, jeśli DB-061 usunął INSERT z funkcji).
+- Kontrakt REST bez zmian (ścieżki, role, odpowiedź ZIP / 204; dochodzi wyłącznie podgląd D9 i przekierowanie `DELETE /api/customers/{id}`, patrz Uzupełnienie); wywołanie z żądania HTTP — `TenantContext` z `TenantFilter`, **bez `clear()`** (WP-2).
+
+**Uzupełnienie z DB-060 (2026-09-20, wiążące; dowody: notatka DB-060, przypisy F1–F8 w `TASKS-DATABASE.md`):**
+- **Druga ścieżka REST [DB-060 F8.4]:** `DELETE /api/customers/{id}` (`CustomerController:255`, `hasAnyRole('ADMIN','SUPERVISOR')` → `CustomerServiceImpl#anonymizeCustomer` :301 z `@Audited(action = "CUSTOMER_ANONYMIZED")` → `CustomerRepository#anonymize`) aktualizuje wyłącznie `customer` i nie kasuje nawet nagrań S3; używa jej UI listy klientów (`customer-list.component.ts:134` → `customer.service.ts:84 deleteCustomer`).
+  **Rekomendacja: przekierować kontroler na `GdprService#anonymizeCustomer` i zachować kontrakt** (204, role, 404 dla już zanonimizowanego), usunąć `@Audited` oraz martwe `CustomerServiceImpl#anonymizeCustomer`/`CustomerRepository#anonymize` (albo `@Deprecated`); alternatywa: wycofać endpoint — wtedy lista klientów przechodzi na modal GDPR (i tak zalecane w FE-112).
+- **Jedno źródło wpisu audytu [F8.5]:** dziś trzy — Java `GDPR_ANONYMIZE` (`GdprServiceImpl:112`, fire-and-forget), `@Audited` `CUSTOMER_ANONYMIZED` i funkcja SQL `CUSTOMER_ANONYMIZED`; eksport: Java `GDPR_EXPORT` vs SQL `CUSTOMER_DATA_EXPORTED`. Rekomendacja: Art. 17 — wpis zapisuje funkcja (atomowo z anonimizacją, `p_user_id`), Java nie publikuje własnego ani `@Audited`; Art. 15 — wpis zapisuje Java (`GDPR_EXPORT`; po DB-061 funkcja bez INSERT). Jedna nazwa akcji na operację, brak podwójnych wpisów.
+- **Zbiór podmiotu wg D9 (założenie A):** odpowiedź niesie liczniki `matched_by_link`/`matched_by_identifier`; **podgląd (dry-run):** nowy endpoint `GET /api/customers/{id}/gdpr/anonymize/preview` (te same role, bez skutków ubocznych; woła `anonymize_customer(…, p_dry_run => TRUE)`) zwraca liczniki per tabela i liczbę obiektów S3; anonimizacja i eksport po potwierdzeniu w UI (FE-112). Przy D9 = B: bez endpointu podglądu i liczników identyfikatorowych.
+- **Eksport (Art. 15):** bez cichego ucięcia do 1000 (dziś `findContactsByCustomerId(…, 0, 1000)`), z **manifestem kluczy S3 i presigned URL-e** (`EmailAttachmentStorageService#presignedDownloadUrl` i odpowiednik dla nagrań) zamiast plików w ZIP (audio i załączniki nie trafiają do archiwum), zbiór wg D9; informacje Art. 15(1)(a)–(h) z `gdpr_processing_register`.
+- **Stany operacyjne po anonimizacji** (zmiany robi funkcja SQL — DB-062; tu dowód testami): `campaign_contact` `PENDING`/`NO_ANSWER`/`CALLBACK` → `SKIPPED` (`ProgressiveDialerServiceImpl#fetchNextPendingContact` nie filtruje `phone IS NOT NULL`), `scheduled_callback` `PENDING`/`PROCESSING` → `CANCELLED` (`ScheduledCallbackExecutor` dzwoni na `getPhone()`); rekordy w toku (`DIALING`/`PROCESSING` — połączenie trwa) — opisz decyzję (odrzucić anonimizację z komunikatem albo dokończyć po zakończeniu połączenia).
+- (Could) evict Redis `cache:customer:phone:{phone}` (`CliLookupServiceImpl`, TTL 5 min) dla numerów klienta (zebrać `phone[]` przed anonimizacją) — bez tego CLI-lookup zwraca zanonimizowanego klienta do 5 min.
+- **Kolejność DB → S3 (DESIGN R8):** DB twardo w jednej transakcji, S3 dopiero po commit metodą zwracającą wynik per klucz (`EmailAttachmentStorageService#delete`), niepowodzenia do audytu; błąd bazy nie może zostawić usuniętych obiektów S3.
+- **Zależność od DB-079:** idempotencja i dosanityzowanie klientów z `is_deleted = TRUE` (m.in. zanonimizowanych dotąd przez `CustomerRepository#anonymize`) wymagają zawężenia triggera V016; do czasu DB-079 `UPDATE contact` takich klientów rzuca (także `RecordingRetentionJob#clearRecordingUrl`).
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test Testcontainers `GdprServiceImpl` na prawdziwej bazie: klient z pełnym zestawem danych → po anonimizacji żadna kolumna PII z macierzy DB-060 nie zawiera wartości oryginalnych (w tym `customer.custom_fields`) — zapewnione przez `anonymize_customer` (DB-062, już wyczerpująco pokryte `AnonymizeCustomerExtensionTest`) wołane przez `GdprRepository`; klucze S3 z wyniku funkcji przekazane do `EmailAttachmentStorageService#delete` (mock, asercje wywołań w `GdprServiceIntegrationTest#fullDataSet_passesS3KeysFromSqlResultToDeletion_andAnonymizesPii` na prawdziwej bazie; **nie** `RecordingService#deleteFromS3`)
+- [x] Awaria S3 po commit nie cofa anonimizacji; lista niepowodzeń w logu (`GdprServiceIntegrationTest#s3FailureAfterCommit_...`)
+- [x] Eksport ZIP zawiera wszystkie zbiory; test na > 1000 kontaktach (bez cichego ucięcia) — `GdprServiceIntegrationTest#noTruncation_over1000Contacts` (1050 kontaktów)
+- [x] Izolacja: klient obcego tenanta → `EntityNotFoundException`/404 i test na prawdziwej bazie, że funkcja nie zmienia cudzych danych (`GdprServiceIntegrationTest#foreignTenant_throwsEntityNotFoundException_noChanges`)
+- [ ] (WP-4) Local-demo — **NIE wykonane w tej iteracji** (zakaz zlecającego: bez przebudowy obrazów/migracji na żywej bazie w tym zleceniu); pozostaje do wykonania przy najbliższym wdrożeniu V095/V096
+- [x] (WP-1) `DELETE /api/customers/{id}` i `POST /api/customers/{id}/gdpr/anonymize` dają identyczny efekt w bazie — **skonsolidowane strukturalnie**: `CustomerController#anonymizeCustomer` woła teraz bezpośrednio `GdprService#anonymizeCustomer` (ta sama implementacja, zero duplikacji logiki), potwierdzone `CustomerControllerTest` (mock) i `GdprServiceIntegrationTest` (jedna, wspólna implementacja na prawdziwej bazie); `CustomerServiceImpl#anonymizeCustomer` nie jest już wołana przez żaden kontroler (oznaczona `@Deprecated`)
+- [x] Jeden wpis audytu na operację: `GdprServiceIntegrationTest#exactlyOneAuditEntry_writtenBySqlFunction_javaDoesNotDuplicate` (dokładnie 1 wiersz `audit_log` z `CUSTOMER_ANONYMIZED`, `verifyNoInteractions(auditLogService)`); eksport — `publishesExactlyOneAuditEvent` (dokładnie 1 `GDPR_EXPORT`)
+- [x] (D9 = A) `GET …/gdpr/anonymize/preview` niczego nie zmienia (asercja: brak zmian w bazie i S3) i zwraca liczniki zgodne z późniejszą anonimizacją (`GdprServiceIntegrationTest$PreviewAnonymizeCustomer`)
+- [x] Eksport bez ucięcia: klient z > 1000 kontaktami → komplet w archiwum/manifeście; manifest zawiera klucze S3 i presigned URL-e, a ZIP nie zawiera plików audio ani załączników (`manifestHasPresignedUrlsForBothSchemas_noRawFilesInZip`)
+- [x] Po anonimizacji `ProgressiveDialerServiceImpl#fetchNextPendingContact` i `ScheduledCallbackExecutor`/`ScheduledCallbackRepository` nie podejmują zanonimizowanych rekordów — test replikujący dokładny predykat SQL tych klas na prawdziwej bazie, wywołany PRZEZ warstwę Javy (`afterAnonymize_dialerAndCallbackPredicates_returnZeroRows`)
+- [x] Błąd bazy przy anonimizacji NIE usuwa żadnych obiektów S3 (`dbErrorBeforeCommit_doesNotCallS3Delete_noChanges`, guard DB061-08 wymuszony kolizją `record_id`); porażka S3 po commit nie cofa anonimizacji (jw.)
+- [x] Dosanityzowanie: klient z `is_deleted = TRUE` (anonimizowany dotąd ścieżką Javy) → ponowne wywołanie kończy anonimizację reszty danych bez błędu (`dosanityzacja_customerAlreadyDeletedViaJavaPath_completesWithoutError`)
+- [ ] (Could) `cache:customer:phone:{phone}` usuwany dla numerów klienta — **jawnie odłożone w tej iteracji** (zlecający: pomiń, chyba że bez wysiłku „przy okazji"; nie było)
+- [x] `mvn verify -pl app`; DoD (WP-7) — patrz „Notatka z wykonania" dla dokładnych liczb; dokumentacja (funkcje SQL już nie martwe) → DB-077 pozostaje osobnym zadaniem dokumentacyjnym (poza zakresem edycji tej iteracji)
+
+**Nowy endpoint (BE-129):** `GET /api/customers/{id}/gdpr/anonymize/preview` (`hasAnyRole('ADMIN','SUPERVISOR')`, bez efektów ubocznych) → `AnonymizePreviewResponse{dryRun, counts: Map<String,Integer>, matchedByLink, matchedByIdentifier, s3ObjectsToDelete}` (`api.customer.dto.AnonymizePreviewResponse`). 404 gdy klient nie istnieje w tenancie. Kontrakt bloku „Uzupełnienie z DB-060" (`p_dry_run = TRUE`) zachowany bez zmian.
+
+**Decyzja: rekordy „w toku" (DIALING/PROCESSING):** anonimizacja (nie podgląd) klienta z powiązanym `campaign_contact.status = 'DIALING'` LUB `scheduled_callback.status = 'PROCESSING'` (w zbiorze podmiotu `fn_customer_subject_ids`, ten sam co reszta D9 = A) kończy się jawnym błędem **409 Conflict** (`ConflictException`, komunikat z `customerId`) — PRZED wywołaniem `anonymize_customer`, w tej samej transakcji co guard istnienia klienta (`GdprRepository#anonymize`). Świadomie NIE próbujemy dokończyć anonimizacji po zakończeniu połączenia (wymagałoby nasłuchu zdarzeń telefonii/kampanii i osobnego mechanizmu retry — poza zakresem tego ticketu, potencjalny osobny epik). Guard reużywa `fn_customer_subject_ids` (DB-061/062) zamiast własnej reguły dopasowania — ten sam zbiór podmiotu co mutacja, więc nigdy się nie rozjedzie. Guard dotyczy WYŁĄCZNIE `dryRun = false` — podgląd nic nie zmienia, więc nie ma czego chronić przed współbieżną mutacją.
+
+**Notatka z wykonania (2026-09-24):**
+
+**Zaimplementowano:**
+- `domain/gdpr/GdprRepository.java` (nowy, package-private, `extends TenantAwareRepository`) — jedyne miejsce wołania funkcji SQL. `anonymize(customerId, tenantId, userId, dryRun) → AnonymizeAttempt(customerExists, rejectedInProgress, resultJson)` w JEDNEJ `@Transactional` metodzie: `assertSameTenant` + `setTenantContextInDb` → `exists()` (bez filtra `is_deleted`, dosanityzowanie) → guard `hasInProgressRecords()` (tylko `!dryRun`, reużywa `fn_customer_subject_ids`) → `SELECT anonymize_customer(...)::text`. `exportCustomerData(customerId, tenantId) → String` (`@Transactional(readOnly = true)`, `SELECT export_customer_data(...)::text`). Repozytorium NIE rzuca wyjątków domenowych (`EntityNotFoundException`/`ConflictException` żyją w serwisie, zgodnie z konwencją projektu) — zwraca stan przez rekord.
+- `domain/gdpr/GdprServiceImpl.java` (przepisany): `anonymizeCustomer`/`previewAnonymizeCustomer` dzielą `performAnonymize(...)` (mapuje `AnonymizeAttempt` na wyjątki), `anonymizeCustomer` dodatkowo sprząta S3 PO powrocie z transakcyjnej metody repozytorium (kolejność DB→S3 przez naturalny punkt commitu proxy Springa — bez własnego `@Transactional`, bez self-invocation). `exportCustomerData` zachowuje `customerService.findById` jako pre-check 404 (spójny z guardem `is_deleted = false` wewnątrz `export_customer_data`), buduje ZIP z 8 zbiorów (`customer.json`…`ai_summaries.json`) + `manifest.json` (metadane + `s3Objects[{s3Key,type,presignedUrl}]`, klasyfikacja przez `EmailAttachmentKeys.isOwnedByTenant`/`isRecordingKeyOwnedByTenant`, presign przez `EmailAttachmentStorageService#presignedDownloadUrl`/`RecordingService#generatePresignedUrlForKey`). `cleanupS3Objects` — best-effort, per-klucz `try/catch RuntimeException`, lista niepowodzeń logowana ERROR (`EmailAttachmentKeys.forLog`), nie przerywa pętli.
+- `domain/gdpr/GdprService.java` — dodana `AnonymizePreviewResponse previewAnonymizeCustomer(UUID)`; javadoc zaktualizowany (SQL-driven flow, D9, guard w toku, jedno źródło audytu).
+- `api/customer/dto/AnonymizePreviewResponse.java` (nowy DTO, `api.customer.dto` — konwencja z `CustomerResponse`).
+- `api/customer/GdprController.java` — nowy `GET /anonymize/preview`.
+- `api/customer/CustomerController.java` — `DELETE /api/customers/{id}` deleguje teraz do `GdprService#anonymizeCustomer` (wstrzyknięty jako drugi konstruktorowy bean); `customerService.anonymizeCustomer`/`anonymize` już nie są wołane przez kontroler.
+- `domain/customer/{CustomerService.java,CustomerServiceImpl.java,CustomerRepository.java}` — `@Audited(action = "CUSTOMER_ANONYMIZED")` USUNIĘTY z `CustomerServiceImpl#anonymizeCustomer` (jedno źródło audytu — pisze je funkcja SQL); trzy metody (`CustomerService#anonymizeCustomer`, `CustomerService#anonymize`, `CustomerRepository#anonymize`) oznaczone `@Deprecated` z javadoc wskazującym `GdprService#anonymizeCustomer` — **NIE usunięte** (decyzja poniżej).
+
+**Decyzja: konsolidacja `@Deprecated`, nie usunięcie.** Ticket dawał wybór (usunięcie albo `@Deprecated`, uzasadnij). Wybrano `@Deprecated`: usunięcie z publicznego interfejsu `CustomerService` niosło ryzyko przeoczenia innego wołającego poza `backend/` (repo ma też `voicebot/` i `frontend/`, grep ograniczony do `backend/`), a koszt utrzymania trzech martwych, jawnie oznaczonych metod jest niski. Trzy istniejące testy jednostkowe (`CustomerServiceTest#anonymizeCustomer_*`) pozostawione bez zmian — nadal dowodzą, że deprecated ścieżka działa (na wypadek gdyby coś jednak z niej korzystało), tylko już nie jest wołana produkcyjnie.
+
+**Decyzja: rekordy w toku — 409 Conflict, guard w Javie przed wywołaniem SQL** (opisana wyżej przy nowym endpoincie). Alternatywa odrzucona: dociąganie stanu telefonii i próba dokończenia po zakończeniu połączenia — osobny epik synchronizacji ze zdarzeniami `call.hangup`/dialera, poza zakresem L-owego już ticketu.
+
+**Pliki zmienione/dodane:**
+- Nowe: `domain/gdpr/GdprRepository.java`, `api/customer/dto/AnonymizePreviewResponse.java`, `domain/gdpr/GdprServiceIntegrationTest.java` (test)
+- Zmienione: `domain/gdpr/{GdprService.java,GdprServiceImpl.java}`, `api/customer/{GdprController.java,CustomerController.java}`, `domain/customer/{CustomerService.java,CustomerServiceImpl.java,CustomerRepository.java}`, `domain/gdpr/GdprServiceTest.java` (przepisany pod nową architekturę), `api/CustomerControllerTest.java` (DELETE mockuje teraz `GdprService`)
+
+**Wyniki testów:**
+- `GdprServiceTest` (mock `GdprRepository`) — 15 testów, zielone: mapowanie wyjątków (404/409), brak podwójnego audytu, klasyfikacja kluczy S3 do dwóch allow-list, kontynuacja pętli po błędzie S3, budowa ZIP+manifestu, brak ucięcia (delegacja).
+- `GdprServiceIntegrationTest` (nowy, Testcontainers, pełny łańcuch Flyway, prawdziwy `GdprRepository`/SQL) — 13 testów, zielone: pełny zestaw danych (S3 obu schematów), awaria S3 po commit, błąd DB (guard DB061-08) nie woła S3, izolacja obcego tenanta, guard DIALING, guard PROCESSING, dosanityzowanie, dokładnie 1 wpis audytu, predykaty dialera/callbacka = 0 po anonimizacji, podgląd bez efektów ubocznych, eksport 1050 kontaktów bez ucięcia, manifest z presigned URL dla obu schematów bez plików w ZIP, dokładnie 1 `GDPR_EXPORT`.
+- `CustomerControllerTest` — 15 testów (zaktualizowane 2 istniejące + 1 nowy dla 409), zielone.
+- Bez regresji: `AnonymizeCustomerExtensionTest` (14), `ExportCustomerDataSubjectHelperTest` (10), `ContactRefIntegrityNarrowingTest` (21), `CustomerServiceTest` — wszystkie zielone.
+- Pełny `mvn verify -pl app` (2026-09-24): **BUILD SUCCESS, Tests run: 2088, Failures: 0, Errors: 0, Skipped: 0** (czas 02:11 min).
+
+**Odstępstwa i ryzyka:**
+1. (WP-4) Weryfikacja na local-demo NIE wykonana — zakaz zlecającego w tej iteracji (bez przebudowy obrazów/wywołań na żywej bazie); do wykonania przy najbliższym wdrożeniu V095/V096.
+2. (Could) Redis `cache:customer:phone:{phone}` eviction — jawnie odłożone (decyzja zlecającego), nie zaimplementowane.
+3. `CustomerServiceImpl#anonymizeCustomer`/`CustomerService#anonymize`/`CustomerRepository#anonymize` pozostają w kodzie jako `@Deprecated`, nie usunięte — patrz uzasadnienie wyżej.
+4. Guard rekordów w toku (DIALING/PROCESSING) NIE obejmuje kontaktów ze statusem `ACTIVE`/`QUEUED`/`ON_HOLD` (aktywne połączenie głosowe spoza kampanii/callbacku) — świadomie ograniczone do dwóch statusów wprost wymienionych w tickecie; kontakt aktywny spoza kampanii dziś i tak ma `remote_address`/`notes`/`recording_url` wyzerowane przez `anonymize_customer` niezależnie od statusu (funkcja SQL nie warunkuje tego po statusie kontaktu) — ryzyko rezydualne, nieujęte w zakresie tego ticketu.
+5. `EmailAttachmentStorageService#presignedDownloadUrl`/`RecordingService#generatePresignedUrlForKey` w manifeście eksportu są best-effort (błąd pojedynczego klucza → `presignedUrl: null` w manifeście, nie przerywa eksportu) — niezweryfikowane na realnym S3/MinIO (tylko mock w testach).
+
+**Czego nie zweryfikowano:**
+- WP-4 local-demo (zakaz w tym zleceniu).
+- Zachowanie na dużych wolumenach S3 (setki kluczy w jednej anonimizacji) — testowane do 2 kluczy (oba schematy), zgodnie ze wzorcem DB-061/062.
+- Realny endpoint `presignedDownloadUrl`/`generatePresignedUrlForKey` na żywym S3/MinIO — w testach zawsze mock.
+- (Could) Redis eviction — nie dotyczy (odłożone).
+
+**Uwagi dla FE-112:**
+- Kontrakt `GET /api/customers/{id}/gdpr/anonymize/preview` → 200 `AnonymizePreviewResponse{dryRun: true, counts: {customer, contact, scheduled_callback, campaign_contact, campaign_contact_archive, contact_transcription, contact_ai_summary, email_message, social_message, contacts_dw}, matchedByLink, matchedByIdentifier, s3ObjectsToDelete}`; 404 gdy klient nie istnieje.
+- Format błędu 409 (rekord w toku) dla `POST /api/customers/{id}/gdpr/anonymize` i `DELETE /api/customers/{id}`: `ConflictException` → RFC 7807 `ProblemDetail` przez `GlobalExceptionHandler#handleConflictException` (status 409), treść komunikatu zawiera `customerId` — FE powinien pokazać czytelny komunikat „poczekaj na zakończenie połączenia" zamiast surowego tekstu wyjątku.
+- `matchedByIdentifier > 0` w podglądzie sygnalizuje ryzyko R9 (numer/adres wspólny dla wielu klientów, np. centrala firmy) — UI powinno to wizualnie wyróżnić przed potwierdzeniem nieodwracalnej operacji.
+
+**Uwaga z DB-079 i BE-125 (2026-09-21):**
+- DB-079 (V094, `CREATE OR REPLACE FUNCTION fn_contact_ref_integrity`) jest gotowe w kodzie i przetestowane na pełnym łańcuchu Flyway, ale NIE zastosowane na żywej bazie (Flyway zastosuje je przy starcie po przebudowie obrazu) — zależność jest spełniona dopiero po WDROŻENIU V094 (testy Testcontainers na pełnym Flyway mają ją już teraz; test WP-4 na local-demo dopiero po wdrożeniu). Po wdrożeniu zdanie z punktu „Zależność od DB-079" o tym, że `UPDATE contact` klientów z `is_deleted = TRUE` rzuca (m.in. ścieżka `RecordingRetentionJob` → `ContactService#clearRecordingUrl`), stanie się nieaktualne.
+- BE-125: `EmailAttachmentStorageService#delete(String)` jest gotowe (brak obiektu = sukces; błąd S3 → publiczny `EmailAttachmentException`, łapany jest `SdkException`, więc także błędy sieci/timeoutu), ale allow-lista `EmailAttachmentKeys` jest package-private w `domain.email` — `GdprServiceImpl` (`domain.gdpr`) potrzebuje własnej allow-listy prefiksu dla kluczy `attachments[*].s3_key` i `contact.recording_url`.
+
+**Uwaga z code review BE-125 (2026-09-21):** (1) BE125-04: kontrola tenanta dla `EmailAttachmentStorageService#delete` (publiczna polityka kluczy albo `delete(UUID tenantId, String key)`) rozstrzyga się w BE-143 — `GdprServiceImpl` nie powinien do tego czasu zakładać kształtu tego API (uwaga kontraktowa, nie zależność). (2) H-2 [do sprawdzenia w środowisku docelowym]: wersjonowanie/Object Lock bucketu (DESIGN R10) dotyczy też sprzątania S3 po anonimizacji — `DeleteObject` przy wersjonowaniu zostawia dane.
+
+**Uwaga z BE-143 (2026-09-22) — decyzja API rozstrzygnięta, gotowa do użycia:**
+- BE-143 wybrał opcję (i) z Zakresu: rozszerzenie `EmailAttachmentKeys` (bez nowej klasy `S3KeyPolicy`), teraz `public final class`. Sygnatury: `EmailAttachmentKeys.isOwnedByTenant(UUID tenantId, String s3Key)` (schemat `email-attachments/{tenantId}/…` — załączniki) oraz `EmailAttachmentKeys.isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key)` (schemat `{tenantId}/…` — nagrania z `RecordingServiceImpl#buildS3Key`, EML z `EmailEmlService#buildEmlS3Key`, oba w `contact.recording_url`; zweryfikowane w code review względem rzeczywistych producentów kluczy, nie tylko specyfikacji). `EmailAttachmentKeys.forLog(String)` też publiczne — użyj do logowania kluczy odrzuconych/niepowodzeń, nigdy surowego `s3Key`.
+- `EmailAttachmentStorageService#delete(String)` NIE dostał wariantu `delete(UUID tenantId, String key)` — kontrolę tenanta wykonuje wołający PRZED wywołaniem `delete`, allow-listą powyżej (ten sam wzorzec co w `EmailSendServiceImpl#validateAttachmentKeys` i `EmailAttachmentController#downloadAttachment`, BE-143).
+- Dla `GdprServiceImpl`: klucze załączników e-mail/social przez `isOwnedByTenant`, klucze z `contact.recording_url` (nagrania i EML) przez `isRecordingKeyOwnedByTenant` — DWIE różne allow-listy, nie jedna; nie mieszać prefiksów.
+
+**Code review i poprawki (2026-09-24):**
+
+**Werdykt recenzji (`CR-BACKEND.md`, sekcja „Review: BE-129"):** 3/5 ⭐ — zatwierdzić z poprawkami. Dwa majory (BE129-01, BE129-02) do domknięcia w krótkim odstępie; trzy minory/nity (BE129-03…07) nieblokujące. Poniżej domknięcie BE129-01/02/03 (BE129-04…07 pozostają w kolejce jako nieblokujące — nie w zakresie tej iteracji).
+
+- **BE129-01 (major, wyścig TOCTOU w guardzie „rekordów w toku") — naprawione.** Guard `GdprRepository#SQL_HAS_IN_PROGRESS_RECORDS` robił zwykły `SELECT` bez blokady wiersza — pod READ COMMITTED nie eliminował wyścigu z `ProgressiveDialerServiceImpl`/`ScheduledCallbackExecutor` w obrębie tej samej transakcji. Fix: `FOR UPDATE OF cc`/`FOR UPDATE OF sb` na CTE joinujących do `fn_customer_subject_ids`, celowo BEZ filtra po statusie w WHERE blokady (blokować trzeba WSZYSTKIE wiersze zbioru podmiotu, nie tylko już-DIALING — filtrowanie po statusie przed blokadą odtwarza ten sam wyścig o krok dalej); status sprawdzany dopiero w zewnętrznym `EXISTS` po uzyskaniu blokady. Składnia i semantyka zweryfikowane empirycznie na scratch Postgres 16 (throwaway kontener, usunięty po pracy) PRZED wdrożeniem do kodu: `FOR UPDATE OF <alias>` działa wewnątrz `EXISTS(...)` i wewnątrz CTE joinującego z funkcją zwracającą zbiór (ograniczenie „FOR UPDATE + set-returning function" dotyczy wyłącznie listy SELECT, nie FROM/JOIN). Nowy test współbieżności `GdprRepositoryConcurrencyTest` (Testcontainers, pełny Flyway, dwa równoległe połączenia JDBC, SQL guardu wyciągnięty REFLEKSJĄ z prywatnej stałej repozytorium — nie kopiowany ręcznie) dowodzi na PRAWDZIWEJ bazie: (1) `ProgressiveDialerServiceImpl`'s `FOR UPDATE SKIP LOCKED` pomija wiersz zablokowany przez guard i wybiera inny kontakt, bez blokowania się; (2) `ScheduledCallbackRepository#updateStatusIfPending` (zwykły UPDATE) czeka na commit guardu, potem trafia na już zmieniony status i aktualizuje 0 wierszy; (3) odtworzony ORYGINALNY scenariusz z recenzji w drugą stronę — dialer klaimuje PIERWSZY (trzyma blokadę przez cały `initiateDialForAgent`), guard uruchomiony W TRAKCIE poprawnie czeka, a po commit dialera widzi świeży `DIALING` i zwraca „w toku". **Ryzyko rezydualne (udokumentowane w kodzie, NIE naprawione — poza zakresem plików edytowalnych):** `initiateDialForAgent` jest `@Transactional` i obejmuje wywołanie telefonii (zewnętrzne I/O w transakcji, pre-existing, niezwiązany z tym ticketem anti-pattern) — żądanie anonimizacji może czekać na zakończenie całej inicjacji połączenia, jeśli dialer akurat trzyma blokadę na jednym z rekordów tego klienta. Świadomy koszt poprawności (blokować, nie pomijać); usunięcie wymagałoby zmiany granic transakcji w `ProgressiveDialerServiceImpl` (plik poza zakresem tej iteracji).
+- **BE129-02 (major, brak testu Spring/MockMvc dla `GdprController`) — naprawione.** Nowy `GdprControllerTest` (`@WebMvcTest` + lokalny `MinimalBootConfig` z `@EnableMethodSecurity(prePostEnabled = true)` — niezależne od łańcucha filtrów servletowych, `addFilters = false` wyłącza tylko `JwtAuthFilter`/`TenantFilter`; `@WithMockUser` z `spring-security-test` ustawia `SecurityContextHolder`) dowodzi na realnym żądaniu HTTP: `@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")` faktycznie blokuje rolę AGENT (403) dla WSZYSTKICH TRZECH endpointów (`POST .../export`, `POST .../anonymize`, `GET .../anonymize/preview`), happy path dla ADMIN (wszystkie trzy) i dodatkowo SUPERVISOR (anonymize, dowód że `hasAnyRole` dopuszcza obie role), 404 dla `EntityNotFoundException` (wszystkie trzy) i 409 z pełnym RFC 7807 `ProblemDetail` (zawiera `customerId`) dla `ConflictException` na `POST .../anonymize`. `GlobalExceptionHandler` (pakiet nadrzędny `api`, nie `api.customer`) dopisany jawnie do `@Import`, bo skanowanie od `MinimalBootConfig` nie sięga w górę pakietów. `GlobalExceptionHandlerTest` NIE miał testu `handleConflictException` (potwierdzone grepem, zgodnie z ustaleniem recenzji) — dopisano `ConflictExceptionTests` (2 testy: status 409, RFC 7807 + oryginalny komunikat), mapowanie 409 pokryte teraz na dwóch poziomach (jednostkowy handler + integracyjny przez MockMvc).
+- **BE129-03 (minor, tautologiczne `assertSameTenant`) — usunięte.** `GdprRepository#anonymize`/`#exportCustomerData`: `assertSameTenant(tenantId, customerId)` porównywało `TenantContext.getTenantId()` z wartością pochodzącą z TEGO SAMEGO `TenantContext.getTenantId()` u wołającego (`GdprServiceImpl`) — nigdy nie mogło rzucić. Zdecydowano usunąć (nie zostawić z komentarzem) — prawdziwa izolacja tenanta żyje wyłącznie w predykatach `WHERE tenant_id = …` (`exists()`, `hasInProgressRecords()`, obie funkcje SQL, niezależnie zweryfikowane w DB-061/DB-062); jednozdaniowy komentarz w kodzie wyjaśnia decyzję, żeby nie sugerować przeoczenia konwencji `CLAUDE.md`.
+- **Pliki zmienione:** `domain/gdpr/GdprRepository.java` (BE129-01 SQL + javadoc, BE129-03).
+- **Pliki nowe:** `domain/gdpr/GdprRepositoryConcurrencyTest.java` (3 testy współbieżności), `api/customer/GdprControllerTest.java` (11 testów MockMvc).
+- **Pliki zmienione (testy):** `api/GlobalExceptionHandlerTest.java` (+2 testy `ConflictExceptionTests`).
+- **Wynik `mvn verify -pl app` (2026-09-24, po poprawkach):** BUILD SUCCESS, **Tests run: 2104, Failures: 0, Errors: 0, Skipped: 0** (baseline sprzed poprawek: 2088; +16 nowych testów, zero regresji).
+- **Czego nie zweryfikowano:** BE129-04…07 (nity/minory z recenzji) pozostają nieadresowane — poza zakresem tej iteracji (zlecający ograniczył ją do BE129-01/02/03); brak weryfikacji na local-demo (jak w pierwotnej notatce WP-4); brak testu na bardzo dużej liczbie równoległych prób claim (test współbieżności ogranicza się do dwóch stron na raz, zgodnie ze wzorcem reszty BE-129).
+
+---
+
+### BE-130 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w silniku retencji
+
+**Typ:** Backend implementation
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
+**Złożoność:** M
+**Zależy od:** DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-111
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis i zakres:** `RetentionDataCategory.MESSAGE_CONTENT` (Javadoc: enum zgodny z 3 CHECK-ami po DB-063); `RetentionPolicyServiceImpl#seedDefaultPolicies` (nowy tenant: wartość = `CONTACT_INTERACTIONS`); `RetentionEvaluationServiceImpl` (osobna kategoria → tabele wiadomości; wiadomości znikają z liczby `CONTACT_INTERACTIONS`);
+`RetentionPurgeServiceImpl` (`switch`, `validateSupportedCategory`, `purgeMessageContent`: wiadomości starsze niż retencja tej kategorii NIEZALEŻNIE od kontaktu — usunięcie wiadomości nie usuwa kontaktu; `purgeContactInteractions` wraca do odcinania referencji (`detachContactReferences`), a wiadomości — powiązane i osierocone — są usuwane wyłącznie wg wieku w kategorii `MESSAGE_CONTENT` (sweep z BE-127 przechodzi do tej kategorii));
+`PartitionReclaimJob`/`ReclaimTarget` (kategoria `MESSAGE_CONTENT` jako źródło progu dla tabel wiadomości), `RetentionController` (walidacja kategorii w `PUT /policies/{category}`), DTO.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Testcontainers pełnego przepływu (polityka → ewaluacja → purge) dla nowej kategorii; istniejące kategorie bez regresji
+- [ ] `RetentionController` przyjmuje `MESSAGE_CONTENT`, odrzuca nieznaną; kontrakt DTO udokumentowany dla FE-111; (WP-2) ścieżki schedulera i REST zachowują wzorzec kontekstu
+
+---
+
+### BE-131 – Sprzątanie porzuconych załączników `pending` e-mail (S3)
+
+**Typ:** Backend implementation
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-125 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `POST /api/email/attachments/upload` zapisuje plik pod `email-attachments/{tenantId}/pending/{uuid}/{filename}` (`EmailAttachmentStorageService#storePending`); jeśli agent nie wyśle odpowiedzi, obiekt zostaje na zawsze (brak wskaźnika w DB, brak TTL) — PII w storage bez właściciela (DESIGN §2 U5). Ten sam bucket co nagrania (`contact-center-recordings`).
+
+**UWAGA — korekta z BE-124 (2026-09-20): pierwotne założenie „`pending/` = obiekty tymczasowe" jest FAŁSZYWE:** po wysłaniu odpowiedzi ten sam klucz `pending/` trafia do `email_message.attachments[*].s3_key` wiadomości OUTBOUND (`EmailSendServiceImpl#buildAttachmentsJson` :376–395 zapisuje `s3Key` z żądania; nic nie przenosi obiektu do `{messageId}/`). Live: 9 obiektów `pending/`, **8 wskazywanych przez wysłane wiadomości**, 1 porzucony. Wariant A z pierwotnego zakresu (TTL po `LastModified` na prefiksie `/pending/`) oraz wariant B (lifecycle bucketu) **skasowałyby załączniki wysłanych wiadomości** (zepsute `GET /api/email/attachments/download` i generowanie EML). Zakres poniżej zastępuje pierwotny.
+
+**Zakres:**
+- **Wariant A′ (minimum):** job `@Scheduled` (`email.attachments.pending-ttl-hours`, domyślnie 72) — kandydat = obiekt `email-attachments/{tenantId}/pending/…` z `LastModified < now − TTL` **i niewskazywany przez żaden wiersz `email_message`** (per tenant: zbiór `attachments[*].s3_key` pobrany raz albo `attachments @> '[{"s3_key": "<klucz>"}]'` z indeksem GIN przy wolumenie); kolejność „sprawdź referencje → usuń"; nie dotyka `/{messageId}/`; dry-run w logu.
+- **Wariant A″ (rozwiązanie u źródła, zalecane, złożoność S → M):** „promocja" załączników przy wysyłce — `sendReply`/`sendNew` po udanym SMTP przenosi obiekt z `pending/` do `{messageId}/` (copy + delete) i zapisuje nowy klucz w JSONB; wtedy prefiks `pending/` jest naprawdę tymczasowy, a A′ upraszcza się do samego TTL. Wymaga jednorazowej migracji istniejących kluczy OUTBOUND (8 w demo) i testu na wysyłce.
+- **Wariant B (lifecycle bucketu, ops):** dopuszczalny WYŁĄCZNIE po A″ i migracji istniejących kluczy; dziś brak jakichkolwiek reguł lifecycle (`mc ilm rule ls`) i wersjonowania.
+- Wykonawca wybiera i uzasadnia; zależność od BE-125 (`EmailAttachmentStorageService#delete`) zostaje.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test na prawdziwej bazie (Testcontainers Postgres z wierszami `email_message` — referencje są w DB) + mock S3: obiekt `pending` starszy niż TTL i niewskazywany — usunięty; młodszy nie; niepending nigdy; **`pending/` wskazywany przez wiersz `email_message` (wysłana wiadomość) NIGDY nie jest usuwany (test regresyjny; w demo 8 z 9)**; błąd pojedynczego obiektu nie przerywa pozostałych
+- [ ] (WP-4) Local-demo: policz kandydatów w MinIO (**oczekiwany: 1 z 9**), uzyskaj zgodę, uruchom; konfiguracja w `application.yml`; DoD (WP-7)
+
+**Uwaga z BE-125 (2026-09-21):**
+- `EmailAttachmentStorageService#delete(String)` jest gotowe (brak obiektu = sukces; błąd S3 → `EmailAttachmentException`); `EmailAttachmentKeys` (allow-lista prefiksu, `extractS3Keys`) jest package-private w `domain.email`.
+- Punkt otwarty (bez zmiany zakresu tego ticketu): BE-125 świadomie NIE sprząta prefiksu `{messageId}/` (obiekt wgrany, ale nieodnotowany w `attachments`, gdy padł `UPDATE attachments` po uploadzie w `EmailPollingServiceImpl#extractAndStoreAttachments`) i wskazuje na sweep z BE-131 jako pokrycie tego przypadku; zakres A′ obejmuje jednak wyłącznie `pending/` i „nie dotyka `/{messageId}/`" — przypadek pozostaje niepokryty, dopóki wykonawca/właściciel nie zdecyduje o rozszerzeniu sweepu.
+
+**Uwaga z code review BE-125 (2026-09-21):** (1) H-2 [do sprawdzenia w środowisku docelowym; pytanie do właściciela]: wersjonowanie/Object Lock/globalny lifecycle 365 dni (`DEPLOYMENT.md` §21 ≈ l. 1209–1211) wpływają na semantykę `DeleteObject` i na sweep — code review BE-125 kieruje tę decyzję do BE-131 (DESIGN R10). (2) BE125-04: sweep kasuje klucze pochodzące z listowania bucketu, więc pomyłka prefiksu kasuje cudzy obiekt — decyzja API (publiczna polityka kluczy albo `delete(UUID tenantId, String key)`) zapada w BE-143 (uwaga kontraktowa, nie zależność).
+
+**Uwaga z BE-143 (2026-09-22) — decyzja API rozstrzygnięta:** `EmailAttachmentKeys.isOwnedByTenant(UUID, String)` i `EmailAttachmentKeys.forLog(String)` są teraz publiczne (`isRecordingKeyOwnedByTenant` też, ale dotyczy prefiksu `{tenantId}/…` — nagrania/EML, nie `pending/`). Przy sweepie listowania bucketu użyj `isOwnedByTenant` do potwierdzenia, że klucz zwrócony przez `ListObjectsV2` naprawdę należy do tenanta, którego partię właśnie przetwarzasz, zanim wywołasz `delete` — chroni przed pomyłką prefiksu z BE125-04.
+
+---
+
+### BE-132 – Migracja encji `SocialMessage` na klucz złożony `(messageId, sentAt)`
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** DB-065
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-133
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`SocialMessage` ma `@Id @GeneratedValue @UuidGenerator messageId` i zapis przez `em.merge`; po DB-065 klucz to `(message_id, sent_at)`. Wzorzec: BE-117 (`ContactEvent`/`ContactEventId`, `AuditLog`/`AuditLogId`) — `@IdClass` + natywny INSERT.
+**Najpierw ponownie przeczytaj aktualny kod po PR #44 (WhatsApp)** i wypisz zmiany w notatce: `SocialMessageServiceImpl` (dedup ≈ 75–81, zapis INBOUND ≈ 101–117, OUTBOUND ≈ 217–233; BE-124 §4), `SocialMessageConsumer`, `SocialMessagePublisherImpl`, `SocialWebhookController`, `SocialContactController`, `ContactRepository` (odwołania do `social_message`), adaptery.
+
+**Zakres:** `@IdClass(SocialMessageId.class)` (`messageId`, `sentAt`), `messageId` nadawany w Javie (`UUID.randomUUID()`) przed INSERT; `SocialMessageRepository#save` → natywny INSERT (`assertSameTenant`, `setTenantContextInDb`), koniec `em.merge`;
+`sentAt` deterministyczne: `incoming.sentAt()` (z platformy), a fallback `Instant.now()` jest niedeterministyczny — dedup aplikacyjny `findByExternalMessageId` (bez daty) pozostaje pierwszą obroną, a `DataIntegrityViolationException` z constraintu `(tenant_id, external_message_id, sent_at)` obsłuż jako idempotentny duplikat;
+**Korekta z BE-124 §4 (wiążąca):** deterministyczny `sentAt` ma dziś tylko WhatsApp (`timestamp` z payloadu, `SocialWebhookController` ≈ 405–409). **Facebook i Instagram zawsze ustawiają `Instant.now()` z chwili webhooka** (`SocialWebhookController` :312, :350), więc redelivery tego samego zdarzenia dostaje inny `sent_at` i constraint `(tenant_id, external_message_id, sent_at)` z DB-065 go NIE wykryje — dziś chroni przed tym globalny `UNIQUE (tenant_id, external_message_id)`, który po partycjonowaniu znika. Ujednolić źródło `sent_at` dla FB/IG (czas z payloadu Meta; nazwę pola zweryfikować — BE-124 §11) **przed lub razem z DB-065**; bez tego unikalność nie jest siecią bezpieczeństwa (wyścig dwóch dostaw = duplikat).
+Przy okazji: `saveOutboundMessage` i `loadSendContext` mają `@Transactional` przez self-invocation, więc adnotacje są nieskuteczne (BE-124 §4) — popraw albo świadomie usuń; natywny INSERT wymaga `CAST(:platform AS social_platform)` (kolumna jest enumem);
+grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesForContact` bez zmian semantycznych; sprawdź `purgeByContactIds` (BE-125) na tabeli partycjonowanej.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers na schemacie po DB-065: zapis inbound i outbound trafia do partycji miesięcznej (`tableoid`); redelivery tego samego zdarzenia = 1 wiersz (dedup aplikacyjny + constraint) — **także dla FB/IG z innym czasem odbioru webhooka** (`sent_at` z payloadu, nie z `Instant.now()`); zapis pod `SET ROLE app_user` z GUC
+- [ ] Brak `@GeneratedValue` na `messageId`; testy jednostkowe adapterów/consumera bez regresji; `mvn verify -pl app`
+- [ ] (WP-4) Local-demo po przebudowie obrazów: wysłanie i odbiór wiadomości social/WhatsApp (jeśli integracja skonfigurowana) — wiadomość w partycji miesięcznej
+- [ ] Wydanie razem z DB-065; DoD (WP-7)
+
+---
+
+### BE-133 – Podpięcie `social_message` do maszynerii partycji i retencji
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** M (zgodnie z oceną zlecenia dla social; wprowadza `DropMode.ONLY_IF_EMPTY`)
+**Zależy od:** BE-132, BE-123, BE-126 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-135
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis (WP-6):** nowa tabela partycjonowana wymaga wpisów w: `PartitionMaintenanceJob.PARTITIONED_TABLES` (bufor 3 miesięcy przez `createTablePartition("social_message", …)` → `create_social_message_partition`), `PartitionReclaimJob` (`ReclaimTarget`), `RetentionEvaluationServiceImpl.PARTITION_AWARE_TABLES`,
+`RetentionPurgeServiceImpl` (purge po `contact_id` z BE-126 sprawdzić po konwersji). Konwencja nazw `social_message_YYYY_MM` (`PartitionScanner`).
+
+**Zakres:** `PARTITIONED_TABLES` += `social_message`; `ReclaimTarget("social_message", CATEGORY_MAX_RETENTION(CONTACT_INTERACTIONS), ONLY_IF_EMPTY)` — **implementacja `DropMode.ONLY_IF_EMPTY`**: niepusta partycja → WARN z liczbą wierszy (bez DROP), pusta → DROP, `_default` nigdy;
+`PARTITION_AWARE_TABLES[CONTACT_INTERACTIONS]` += `social_message` (liczenie partycyjne zamiast zapytań po `contact_id`, BE-128); potwierdzenie, że prefiks LIKE w `PartitionScannerImpl#listPartitions` nie koliduje z innymi tabelami. Wiek partycji vs retencja: `rangeEnd < now − MAX(CONTACT_INTERACTIONS)`.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-6) Testcontainers: po `ensureFuturePartitions()` istnieją partycje bieżący..+3 dla wszystkich 7 tabel; reclaim: pusta partycja starsza niż max → DROP, niepusta → WARN i zostaje, `_default` niepusta → WARN; ewaluacja liczy wiadomości social partycyjnie
+- [ ] `PartitionMaintenanceJobTest`/`PartitionReclaimJobTest` zaktualizowane (7 tabel; tryb ONLY_IF_EMPTY); zachowanie `contact*` bez zmian
+- [ ] (WP-5) Poziom 1 działa przed Poziomem 2: test — partycja z wierszem po max retencji nie znika, po purge Poziom 1 zostaje pusta i jest dropnięta
+- [ ] (WP-4) Local-demo: `PartitionMaintenanceJob` po przebudowie tworzy partycje `social_message_*` (log INFO), nic nie jest usuwane; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-134 – Migracja encji `EmailMessage` na klucz złożony + `messageAt` (IMAP, wysyłka, zdarzenia RabbitMQ)
+
+**Typ:** Backend implementation — [BRAMKOWANY: po „go" z DB-066/DB-067]
+**Priorytet:** Should Have
+**Złożoność:** L (zgodnie z oceną zlecenia: 20 plików main, IMAP, zdarzenia)
+**Zależy od:** DB-067
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-135, BE-136
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`EmailMessage` (`@Id message_id`, `em.merge/find`) przechodzi na `@IdClass(EmailMessageId.class)` `(id, messageAt)` i natywny INSERT/UPDATE po pełnym PK (wzorzec BE-117). Pliki main odwołujące się do `EmailMessage`/`email_message` (grep 2026-09-20): `api/email/EmailController`, `api/email/dto/EmailMessageResponse`,
+`domain/email/{EmailContactCreator, EmailEmlService, EmailEventPublisher, EmailMessage, EmailMessageRepository, EmailMessageService(Impl), EmailPollingServiceImpl, EmailRoutingService, EmailSendService(Impl)}`, `domain/contact/{AiSummaryServiceImpl, ContactService(Impl)}`, `RetentionPurgeServiceImpl`, `RlsValidationService` (+ komentarze w `Contact`, `ContactRepository`).
+
+**Zakres:**
+- `messageAt` NOT NULL, niemodyfikowalne: INBOUND w `EmailPollingServiceImpl#parseMessage` = `Message#getReceivedDate()` (INTERNALDATE serwera IMAP, czas zaobserwowany przez system — dokładnie dzisiejsze źródło `received_at`) → `now()` tylko gdy brak INTERNALDATE; **NIE** `Message#getSentDate()`: nagłówek `Date` jest kontrolowany przez nadawcę (przeszłość = natychmiastowa kwalifikacja do purge; korekta z BE-124 §7, DESIGN D4); OUTBOUND (`EmailSendServiceImpl`, dwie ścieżki ≈ linie 111 i 209) = ten sam `Instant` ustawiany RAZ.
+- `EmailMessageRepository#save/update`: natywny INSERT/UPDATE po `(message_id, message_at)`; `extractAndStoreAttachments` robi drugi `save(saved)` (dziś `em.merge`) → UPDATE po PK. Dedup `findByMessageIdHeader(header, tenantId)` (bez daty) zostaje (D4 = A); `DataIntegrityViolationException` z unikalności złożonej traktuj jako duplikat.
+- `EmailContactCreator`: 3× `emailMessageRepository.findById(messageId)` (linie ≈ 171, 194, 317) po zdarzeniach RabbitMQ z samym `messageId` (`EmailEvent`) → dodaj `messageAt` do `EmailEvent` (tolerancyjna deserializacja: kolejka może zawierać zdarzenia starego formatu → fallback lookup po samym `message_id`, skan lokalnych indeksów partycji; sprawdź `FAIL_ON_UNKNOWN_PROPERTIES`).
+- `EmailController` (endpointy po samym id): pojedynczy lookup po `message_id` bez klucza partycji dozwolony — udokumentuj koszt (liczba partycji × indeks PK).
+- D4 = B → BE-136 zamiast unikalności złożonej.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Testcontainers po DB-067: pełny przepływ IMAP (mock `Store`) → zapis → zdarzenie → `EmailContactCreator` → powiązanie z kontaktem → EML; redelivery tego samego Message-ID = 1 wiersz; OUTBOUND: `messageAt` = `sentAt`; zdarzenie starego formatu (bez `messageAt`) obsłużone; zapis pod `SET ROLE app_user` z GUC
+- [ ] INBOUND: `messageAt` = INTERNALDATE (`getReceivedDate()`), nie nagłówek `Date` nadawcy — test z wiadomością o `Date` z przeszłości i z przyszłości (wiek liczony z INTERNALDATE)
+- [ ] (WP-2) `EmailPollingServiceImpl` nadal ustawia `TenantContext` per tenant w pętli (istniejący `Snapshot`), nic nie czyści kontekstu HTTP
+- [ ] `mvn verify -pl app`; brak `em.find/merge` po samym `message_id` (grep); (WP-4) Local-demo po przebudowie: odbiór e-maila (jeśli IMAP skonfigurowany) i odpowiedź z załącznikiem — wiadomość w partycji miesięcznej, brak regresji UI e-mail
+- [ ] Wydanie razem z DB-067; DoD (WP-7)
+
+**Ryzyka:** zdarzenia RabbitMQ „w locie" podczas wdrożenia; fallback `now()` dla wiadomości bez INTERNALDATE (DESIGN D4) oraz skrzynka zmigrowana z historycznym INTERNALDATE (świeże wiadomości wyglądają na stare — obrona w BE-127).
+
+---
+
+### BE-135 – Podpięcie `email_message` do maszynerii + Poziom 1 przed Poziomem 2 (obiekty S3)
+
+**Typ:** Backend implementation — [BRAMKOWANY]
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** BE-134, BE-133 (tryb `ONLY_IF_EMPTY`), BE-125 ✅, BE-127 ✅
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** jak BE-133 dla `email_message`, z twardą regułą S3 (WP-5): `DROP` partycji nie usuwa obiektów S3, więc `PartitionReclaimJob` nigdy nie usuwa partycji zawierającej wiersze z niepustym `attachments` — `ONLY_IF_EMPTY` obejmuje to z definicji.
+
+**Zakres:** `PARTITIONED_TABLES` += `email_message`; `ReclaimTarget("email_message", CATEGORY_MAX_RETENTION(CONTACT_INTERACTIONS), ONLY_IF_EMPTY)`; `PARTITION_AWARE_TABLES[CONTACT_INTERACTIONS]` += `email_message`; potwierdzenie braku wykonywalnego `drop_old_email_message_partitions` (DB-067);
+ponowna weryfikacja BE-125/BE-127 na tabeli partycjonowanej (DELETE po `contact_id IN` skanuje lokalne indeksy wszystkich partycji — `EXPLAIN` i czasy; osierocone po `message_at`).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-5) Testcontainers: partycja z wierszem z załącznikiem po max retencji NIE jest dropnięta (WARN z liczbą wierszy i wskazówką „uruchom purge Poziom 1"); po purge Poziom 1 (BE-127) jest pusta → DROP; obiekty S3 (mock) usunięte PRZED dropem
+- [ ] Testy jak BE-133 (bufor 3 miesięcy dla wszystkich tabel, `_default` nigdy, `contact*` bez zmian); `EXPLAIN` purge po `contact_id IN` na ≥ 500 tys. wierszy/12 partycjach w notatce
+- [ ] (WP-4) Local-demo: partycje `email_message_*` tworzone przez `PartitionMaintenanceJob`, nic nie usuwane; `mvn verify -pl app`; DoD (WP-7)
+
+**Uwaga z BE-125 (2026-09-21):** kod BE-125 nie zakłada klucza złożonego — `EmailMessageRepository#deleteByIds` usuwa po `message_id`, a `AttachmentsRow` nie niesie `messageAt` (komentarze w kodzie wskazują dostosowanie przy BE-134/DB-067). Przy ponownej weryfikacji na tabeli partycjonowanej porównać z pomiarem BE-125 (30 tys. wierszy, tabela niepartycjonowana): SELECT po `contact_id IN` → Index Scan `idx_email_message_contact`, `DELETE … message_id IN` → Bitmap Index Scan `pk_email_message`, social `DELETE … contact_id IN` → Index Scan `idx_social_message_contact`; bez Seq Scan.
+
+---
+
+### BE-136 – [WARUNKOWY: D4 = B] Deduplikacja e-mail przez tabelę `email_message_dedup`
+
+**Typ:** Backend implementation
+**Priorytet:** Could Have (warunkowy)
+**Złożoność:** M
+**Zależy od:** DB-068, BE-134
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis i zakres:** `EmailPollingServiceImpl#processMessage`: zamiast `findByMessageIdHeader` — `INSERT INTO email_message_dedup … ON CONFLICT DO NOTHING RETURNING` w tej samej transakcji co INSERT wiadomości (rollback obu przy błędzie); repozytorium `TenantAwareRepository`; purge tabeli dedup po `first_seen_at` (próg = max retencja kategorii wiadomości) jako krok `purgeContactInteractions`.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test wyścigu (Testcontainers): 2 równoległe wątki × ten sam Message-ID → 1 wiersz wiadomości i 1 wiersz dedup; purge dedup po retencji; RLS pod `SET ROLE app_user`
+- [ ] (WP-2) Polling nadal ustawia `TenantContext` per tenant; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-137 – [BRAMKOWANY] `campaign_contact_archive` w maszynerii partycji
+
+**Typ:** Backend implementation
+**Priorytet:** Could Have — dopiero po DB-069 (warunek wolumenowy)
+**Złożoność:** S
+**Zależy od:** DB-069
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis i zakres:** `PARTITIONED_TABLES` += `campaign_contact_archive`; `PARTITION_AWARE_TABLES[CAMPAIGN_DATA]` = `campaign_contact_archive` (zastępuje `CampaignArchiveRetentionRepository#countEligible`, zachowując `oldest/newest_eligible_period`);
+`ReclaimTarget("campaign_contact_archive", CATEGORY_MAX_RETENTION(CAMPAIGN_DATA), AFTER_CUTOFF)` (brak obiektów zewnętrznych); `purgeEligible` (BE-121) zostaje jako Poziom 1.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1/WP-6) Testcontainers na tabeli partycjonowanej: `CampaignContactArchivePurgeTenantIsolationTest` zielony, ewaluacja partycyjna zgodna z dotychczasowym zapytaniem, DROP tylko dla partycji starszych niż max retencja; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-138 – `RlsValidationService`: pokrycie komend, `FORCE` i rola połączenia
+
+**Typ:** Backend implementation (bezpieczeństwo, obserwowalność)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-071
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `RlsValidationService` (`infrastructure/config`, `@EventListener(ApplicationReadyEvent)`) sprawdza tylko, czy tabela z twardej listy 11 nazw ma JAKĄKOLWIEK politykę w `pg_policies` — polityka tylko-SELECT przechodzi walidację (DESIGN §2 U8), mimo że zapisy pod rolą ograniczoną są odrzucane.
+
+**Zakres:** (1) lista tabel z klasyfikacji DB-071 (klasa TENANT) zamiast twardej; (2) sprawdzenie pokrycia komend (polityka `ALL` albo komplet SELECT/INSERT/UPDATE/DELETE) i `relforcerowsecurity`; (3) log roli połączenia: `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user` — WARN gdy superuser/BYPASSRLS („RLS jest wyłącznie defense-in-depth; główną ochroną `assertSameTenant`"), flaga `rls.validation.fail-on-bypass` (domyślnie `false`) dla prod; (4) wynik jako lista naruszeń w logu.
+Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers na pełnym Flyway: po DB-064/DB-074 zero naruszeń dla tabel TENANT; test negatywny: tabela z polityką SELECT-only → naruszenie raportowane; rola superuser → WARN; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-139 – Testy integracyjne pod rolą bez BYPASSRLS + weryfikacja roli połączenia produkcyjnego
+
+**Typ:** Testing / infrastruktura testowa
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** DB-064, DB-071
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert` dla konfiguracji)
+
+**Opis:** cały łańcuch retencji/RODO/jobów działa dziś wyłącznie dlatego, że `ccapp` = superuser + BYPASSRLS; `app_user` (V012) jest `NOLOGIN`, więc nigdy nie była nią uruchamiana aplikacja (DESIGN §2 U8, R1). Brak polityki UPDATE/DELETE na `contact` oznacza, że purge pod rolą ograniczoną usunąłby 0 wierszy po cichu.
+
+**Zakres:**
+1. Infrastruktura testowa: baza Testcontainers z pełnym Flyway + rola **logująca** (NOSUPERUSER NOBYPASSRLS, członek `app_user`) albo `SET ROLE app_user` przez `connectionInitSql`; narzędzie w `src/test` współdzielone przez testy (wzorzec `CampaignContactArchivePurgeTenantIsolationTest`).
+2. Scenariusze pod tą rolą (minimum 6): purge `contact`/`contact_event`/wiadomości (BE-126/127), `PartitionScanner`/joby, `GdprServiceImpl` (BE-129), zapis/aktualizacja `EmailMessageRepository`/`SocialMessageRepository`, `CampaignArchiveRetentionRepository`, cleanup `refresh_token`; asercje: zapis bez GUC odrzucony/0 wierszy, DELETE po `contact` (dziś bez polityki) = 0 usuniętych — wynik dokumentuje lukę (→ DB-074).
+3. **Weryfikacja roli produkcyjnej:** jaką rolą łączy się aplikacja w prod (`DB_USERNAME` w `application-prod.yml`, `docker-compose.yml`, `DEPLOYMENT.md`); jeśli superuser/BYPASSRLS → raport i propozycja: dedykowana rola LOGIN będąca członkiem `app_user` (NOBYPASSRLS) oraz osobna rola migracyjna (Flyway); zapis w `DEPLOYMENT.md`. Bez zmian produkcyjnych w tym tickecie.
+
+**Kryteria akceptacji:**
+- [ ] Harness zielony w `mvn verify -pl app` (≥ 6 scenariuszy); wyniki (które ścieżki się łamią pod rolą ograniczoną) w notatce jako lista defektów → tickety
+- [ ] Raport o roli produkcyjnej i rekomendacja w `DEPLOYMENT.md`; (WP-1/WP-4) testy nie używają `ccapp` ani nazw partycji potomnych; DoD (WP-7)
+
+---
+
+### BE-140 – [WARUNKOWY: D6 = koniec kampanii] `CAMPAIGN_DATA` liczone od końca kampanii (warstwa Java)
+
+**Typ:** Backend implementation
+**Priorytet:** Could Have (warunkowy)
+**Złożoność:** S
+**Zależy od:** DB-075
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert`
+
+**Opis i zakres:** `CampaignArchiveRetentionRepository#countEligible` (`campaign_ended_at < :cutoff`, `oldest/newest_eligible_period` z tej kolumny) i `purgeEligible` (funkcja SQL po DB-075); Javadoc `RetentionEvaluationServiceImpl`.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Testcontainers: zaległa kampania (koniec 3 lata temu, zarchiwizowana dziś) kwalifikuje się natychmiast przy retencji 24 mies.; izolacja tenantów; `mvn verify -pl app`; DoD (WP-7)
+
+---
+
+### BE-141 – Usunięcie `remote_address` z ETL do DW (`EtlSyncServiceImpl`, `ContactDwRow`, `PostgresDwWriter`)
+
+**Typ:** Backend implementation (minimalizacja danych)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-078
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+ETL kopiuje `contact.remote_address` (numer CLI/e-mail klienta) do DW: `EtlSyncServiceImpl` wybiera kolumnę (`SELECT_CONTACTS_FOR_ETL`, ≈ l. 88) i mapuje ją do `ContactDwRow.remoteAddress` (≈ l. 690), `PostgresDwWriter#upsert` zapisuje ją do PG `contacts_dw` (UPSERT wymienia kolumnę), a `ClickHouseDwWriter` jej NIE zapisuje (INSERT bez kolumny;
+schemat `dw/migrations/V001`: „brak PII"). Kolumna nie służy analityce; w PG-DW zostało 130 wierszy PII bez kontaktu źródłowego (DB-060 F6, DESIGN U9). ETL pomija dziś tylko PRZYSZŁE synchronizacje kontaktów klientów zanonimizowanych (`UPPER(cu.first_name) = 'ANONYMIZED'`), a kontakty bez `customer_id` przechodzą.
+`etl.dw.type`: dev domyślnie `postgres`, prod `clickhouse` (`application-prod.yml`; `.env.local-demo` też `clickhouse`) — konfiguracji na żywym prodzie nie sprawdzono.
+
+**Zakres:**
+- `EtlSyncServiceImpl`: usuń `c.remote_address` z `SELECT_CONTACTS_FOR_ETL` (≈ l. 88) i `rs.getString("remote_address")` z mapowania `new ContactDwRow(…)` (≈ l. 676–690).
+- `ContactDwRow`: usuń komponent `remoteAddress` (rekord + `@param` w Javadoc, ≈ l. 28/44) i dostosuj wywołujących (`EtlSyncServiceImplTest` ≈ l. 370).
+- `PostgresDwWriter#upsert`: usuń `remote_address` z INSERT i z `ON CONFLICT DO UPDATE` oraz `ps.setString(14, row.remoteAddress())` (przenumeruj parametry); `ClickHouseDwWriter`: popraw komentarz (≈ l. 55) — bez zmiany zachowania.
+- **Kompatybilność wsteczna (kolejność wdrożenia):** po zmianie writer działa zarówno na schemacie z kolumną (nullable), jak i bez niej, więc BE-141 wchodzi PRZED lub RAZEM z DB-078 (drop kolumny).
+- Filtr `ANONYMIZED` w ETL zostaje (nie dotyczy już PII, ale jest bezpieczny).
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test Testcontainers (PostgreSQL z pełnym Flyway): `PostgresDwWriter#upsert` zapisuje wiersz i nie odwołuje się do `remote_address` — na schemacie z kolumną i (po DB-078) bez niej; ETL end-to-end (`EtlSyncServiceImpl`) na prawdziwej bazie zapisuje kontakt do PG-DW (asercje po wartościach); dziś brak testu writera (brak testów w `infrastructure/etl`)
+- [ ] grep: 0 wystąpień `remote_address`/`remoteAddress` w `domain/etl`, `infrastructure/etl` i `dw/` poza migracjami historycznymi; `EtlSyncServiceImplTest` zaktualizowany
+- [ ] (WP-4) Local-demo po przebudowie obrazów: ETL synchronizuje bez błędu (`etl_sync_state`) dla obu wartości `etl.dw.type` (`postgres` i `clickhouse`); `mvn verify -pl app`; DoD (WP-7)
+
+**Ryzyka:** zmiana rekordu `ContactDwRow` dotyka wszystkich wywołujących (jedno miejsce w kodzie produkcyjnym + test); prod domyślnie `clickhouse`, więc realny efekt dotyczy głównie dev/PG-fallback — niezweryfikowane na żywym prodzie.
+
+---
+
+### BE-142 – [WARUNKOWY: D10] Maskowanie PII w `audit_log` (zapis przez `@Audited` i anonimizacja)
+
+**Typ:** Backend implementation (minimalizacja danych)
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy założeniu D10 = maskowanie)
+**Złożoność:** S (M, jeśli obejmuje jednorazowe maskowanie wierszy historycznych — patrz Zakres p. 3)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+`audit_log` (1227 wierszy live) trzyma pełne snapshoty PII (DB-060 F7): `CUSTOMER_CREATED` (1) i `CUSTOMER_UPDATED` (7) — `firstName`, `lastName`, `phone[]`, `email[]`, `customFields`, `gdprConsent`, `externalId`, także w `old_value`; `CONTACT_*` (CREATED 259, AGENT_ASSIGNED 362, DISPOSITION_SET 399, ACCEPTED 28, ABANDONED 14) — `remoteAddress`, `channelMetadata` (EMAIL: `fromAddress`, `subject`), `recordingUrl`, `notes`;
+`RECORDING_URL_REQUESTED` (98) — `presignedUrl` (TTL 15 min, wygasłe — nie jest to ryzyko PII). `AuditAspect#serializeToJson` (`infrastructure/aspect/AuditAspect.java`, ≈ l. 209–224) usuwa dziś wyłącznie `SENSITIVE_FIELDS` (hasła, tokeny; l. 55–58) i serializuje całą encję, a anonimizacja Art. 17 (Java i SQL) nie dotyka `audit_log`.
+**Zakłada D10 (DESIGN §3): maskowanie kluczy PII, wiersze zostają** (Art. 5(2)/30; Art. 17(3)(b)/(e) — wymaga potwierdzenia prawnego). Przy alternatywie „`audit_log` bez zmian" ticket nie jest wykonywany; ekspozycję ogranicza wtedy wyłącznie horyzont 24 mies. (D5/BE-123).
+
+**Zakres:**
+1. **Zatrzymanie PII u źródła:** lista kluczy PII jako jedno źródło prawdy w Javie (np. `AuditPiiKeys`, konfigurowalna): `firstName`, `lastName`, `phone`, `email`, `customFields`, `gdprConsent`, `externalId`, `remoteAddress`, `channelMetadata`, `notes`, `recordingUrl`, `fromAddress`, `subject`; `AuditAspect#serializeToJson` i `captureOldValue` zastępują wartości tych kluczy znacznikiem `"[MASKED]"` (klucz zostaje — widać, że pole się zmieniło, bez wartości), obok `SENSITIVE_FIELDS`. Dotyczy encji `CUSTOMER` i `CONTACT`.
+2. **Wiersze istniejące (podmiot):** maskowanie przy anonimizacji wykonuje funkcja SQL (DB-062, Could, D10 — UPDATE `audit_log` po `entity_id` i `new_value @> {"customerId": …}`; tabela partycjonowana, RLS tylko SELECT — pod rolą ograniczoną UPDATE cicho 0 wierszy, DB-064/DB-074). Lista kluczy w SQL = lista z p. 1.
+3. **Wiersze historyczne spoza anonimizacji:** decyzja o jednorazowym sweepie całego `audit_log` wymaga potwierdzenia prawnego — zapisać w notatce, bez implementacji domyślnie.
+4. `GdprServiceImpl` i funkcje SQL nie wkładają PII do własnych wpisów audytu (dziś: brak) — test.
+
+**Kryteria akceptacji:**
+- [ ] (WP-1) Test na prawdziwej bazie (Testcontainers, `AuditLogConsumer`/prawdziwa tabela `audit_log`): `@Audited` na `CustomerServiceImpl` (create/update) i `ContactServiceImpl` zapisuje `new_value`/`old_value` z zamaskowanymi kluczami PII i zachowanymi polami niebędącymi PII (`customerId`, `status`, `dispositionCode`) — asercje po JSON
+- [ ] Test spójności listy kluczy Java ↔ SQL (jeśli DB-062 obejmuje maskowanie wierszy podmiotu)
+- [ ] Decyzja w notatce: `presignedUrl` z `RECORDING_URL_REQUESTED` (TTL 15 min) — maskować czy zostawić; istniejące testy `AuditAspect` zielone; sprawdzone (grep FE/BE), że żaden widok historii audytu nie polega na wartościach snapshotów PII
+- [ ] `mvn verify -pl app`; DoD (WP-7); zakłada D10
+
+**Ryzyka:** utrata użyteczności diffów audytowych (klucz zostaje, wartość nie); rozjazd list PII w Javie i SQL; decyzja prawna o wierszach historycznych.
+
+---
+
+### BE-143 – Walidacja prefiksu tenanta dla `s3Key` w wysyłce e-mail i w pobieraniu załącznika
+
+**Typ:** Backend implementation (bezpieczeństwo / izolacja tenantów)
+**Priorytet:** Must Have (bezpieczeństwo — obejście granicy tenantów; luka istniejąca przed EPIC-30, DESIGN U18)
+**Złożoność:** S
+**Zależy od:** BE-125 ✅ (wspólny helper `EmailAttachmentKeys`, kontrakt `EmailAttachmentStorageService#delete`)
+**Status:** ✅ Ukończone
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:**
+Ustalenie BE125-01 z code review BE-125 (`CR-BACKEND.md`, 2026-09-21; potwierdzone grepem w kodzie):
+- `EmailSendServiceImpl#buildAttachmentPart` (≈ l. 324–327) pobiera `attachmentStorageService.download(attachment.s3Key())` dla klucza z ciała żądania (`EmailReplyRequest.PendingAttachment#s3Key`; `EmailController#replyToMessage` — `POST /api/email/messages/{id}/reply` — i `#sendOutboundEmail` — `POST /api/email/messages/outbound` — przekazują `attachments` bez walidacji) **bez sprawdzenia prefiksu `email-attachments/{tenantId}/`**. Agent tenanta A, znając pełny klucz obiektu tenanta B (albo nagrania `{tenantId}/…mp3`, EML kontaktu), może dołączyć go do wysyłanego maila — cross-tenant disclosure. Ekspozycja jest ograniczona nieodgadywalnością kluczy (UUID tenanta + UUID wiadomości), ale to obejście granicy tenantów, a nie tylko „defense in depth". `buildAttachmentsJson` (≈ l. 376–387) zapisuje ten klucz w `email_message.attachments`; purge (BE-125) odrzuca obcy klucz allow-listą, ale to obrona w głąb, nie naprawa.
+- `EmailAttachmentController#downloadAttachment` (≈ l. 126–135, `GET /api/email/attachments/download`) sprawdza tylko `s3Key.startsWith("email-attachments/" + tenantId + "/")` — bez odrzutu segmentów `.`/`..` i znaków sterujących; tę klasę obejścia zamyka już `EmailAttachmentKeys#isOwnedByTenant` (BE-125), ale jest package-private w `domain.email`, a kontroler leży w `api.email`.
+DESIGN U18 mówił „luka poza zakresem EPIC-30, do osobnego ticketu", lecz takiego ticketu nie było (`grep` po `TASKS-BACKEND.md` znajdował `PendingAttachment` wyłącznie w BE-124/BE-125) — ten ticket go zakłada. **Niezależny od BE-126** (poprawka bezpieczeństwa, nie element purge).
+
+**Zakres:**
+- **(a) Wysyłka:** `EmailSendServiceImpl` (`sendReply`/`sendNew` PRZED `sendSmtp`; `buildAttachmentsJson`/`buildAttachmentPart`) oraz wejście REST (`EmailController#replyToMessage`, `#sendOutboundEmail`) — każdy `PendingAttachment#s3Key` musi przejść allow-listę `email-attachments/{tenantId}/` (niepusty sufiks, bez segmentów `.`/`..`, bez znaków sterujących), inaczej ODRZUCENIE CAŁEGO żądania przed wysyłką SMTP i zapisem wiadomości (dziś błąd pojedynczego załącznika jest logowany i pomijany — `buildAttachmentPart`; zmiana zachowania jest świadoma). Kod błędu (400 vs 403) ustala wykonawca, spójnie z 403 w downloadzie i z `GlobalExceptionHandler`.
+- **(b) Pobieranie:** `EmailAttachmentController#downloadAttachment` — ta sama allow-lista zamiast gołego `startsWith` (403 jak dotąd).
+- **(c) Udostępnienie allow-listy = decyzja API razem z BE125-04:** `EmailAttachmentKeys#isOwnedByTenant` jest dziś package-private, a `EmailAttachmentStorageService#delete(String)` nie kontroluje tenanta. Opcje: publiczna, testowana polityka kluczy (np. `S3KeyPolicy`) albo `delete(UUID tenantId, String key)` egzekwujące prefiks wewnątrz. Decyzja ma pasować do BE-126 (pkt b: klucze z `contact.recording_url` mają schemat `{tenantId}/…`, inny niż `email-attachments/{tenantId}/`), BE-129 (`GdprServiceImpl` w `domain.gdpr`) i BE-131 (sweep kluczy z listowania bucketu — pomyłka prefiksu kasuje cudzy obiekt), żeby nie powstały trzy własne allow-listy. Wynik zapisać w notatce; BE-126/BE-129/BE-131 mają w treści uwagę kontraktową, bez zależności.
+- **(d) Testy:** MockMvc/integracyjne — obcy klucz → odrzucenie, `..` w kluczu → odrzucenie, własny klucz przechodzi, własny klucz `pending/` (OUTBOUND) nadal działa end-to-end.
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test MockMvc/integracyjny `POST /api/email/messages/{id}/reply` i `POST /api/email/messages/outbound` (prawdziwy `EmailSendServiceImpl`, mock S3 i SMTP): (i) klucz obcego tenanta (`email-attachments/{inny-tenant}/…`) → żądanie odrzucone (kod wg decyzji wykonawcy), `EmailAttachmentStorageService#download` i SMTP NIE wywołane, wiadomość OUTBOUND niezapisana; (ii) klucz z segmentem `..` (np. `email-attachments/{tenant}/../{inny-tenant}/x`) → odrzucony; (iii) klucz nagrania `{tenantId}/…mp3` → odrzucony; (iv) własny klucz `email-attachments/{tenant}/pending/{uuid}/plik` przechodzi i trafia do `attachments` wiadomości OUTBOUND (regresja); własny klucz INBOUND `{messageId}/` też przechodzi *(pokryte, ale NIE dosłownie `MockMvc` — zob. notatka: świadome odstępstwo, ten sam kompromis co BE-118)*
+- [x] `GET /api/email/attachments/download`: obcy klucz i klucz z `..` → 403, własny klucz → 200 z presigned URL (test kontrolera; dotychczasowa ochrona IDOR zachowana)
+- [x] Jedna implementacja allow-listy dla wysyłki, pobierania i purge (BE-125): test przypadków — obcy tenant, `.`/`..`, znaki sterujące, sam prefiks, `null`/pusty klucz *(już wyczerpująco pokryte przez `EmailAttachmentKeysTest` z BE-125, bez zmian)*
+- [x] (WP-2) Walidacja używa `TenantContext` z żądania; brak `TenantContext.clear()` na ścieżce HTTP; test z pustym kontekstem
+- [ ] Decyzja API (publiczna polityka kluczy vs `delete(UUID tenantId, String key)`) zapisana w notatce i przekazana jako uwaga kontraktowa w BE-126/BE-129/BE-131 *(decyzja podjęta i udokumentowana w notatce niżej z pełnymi sygnaturami; uwaga kontraktowa w treści BE-126/BE-129/BE-131 NIE dopisana — poza zakresem plików, które wolno mi było edytować w tej iteracji, tylko sekcja BE-143. Wykonawca BE-126/BE-129/BE-131 albo zlecający powinien skopiować sekcję "Decyzja API" niżej do tamtych ticketów.)*
+- [ ] (WP-4, niedestrukcyjny) Local-demo po przebudowie obrazów: upload załącznika → odpowiedź z własnym kluczem `pending/` działa (jeśli SMTP skonfigurowany; inaczej test na poziomie MockMvc); żądanie z kluczem innego tenanta lub z `..` → odrzucone bez odczytu z S3 (sprawdź log); żadne obiekty nie są usuwane *(celowo niewykonane — wymaga przebudowy/uruchomienia stosu docker local-demo, poza zakresem tej iteracji)*
+- [x] `mvn verify -pl app`; DoD (WP-7) *(backend: BUILD SUCCESS, 2038 testów (stan na koniec iteracji, drzewo współdzielone z równoległym BE-126), 0 failures/errors; frontend `/verify` NIE uruchomione — brak zmian frontendowych w tym tickecie)*
+
+**Ryzyka:** (i) zmiana zachowania: dziś nieprawidłowy załącznik jest pomijany, a mail wychodzi bez niego — po zmianie żądanie jest odrzucane; sprawdzić w FE (odpowiedź na e-mail), że wysyła wyłącznie klucze z uploadu (`POST /api/email/attachments/upload` zwraca klucz z własnym prefiksem) i pokazuje błąd; (ii) decyzja API (pkt c) musi zapaść przed BE-126 pkt (b), BE-129 i BE-131; (iii) klucze legacy (`s3_url`) nie występują w żądaniach — niezweryfikowane na prodzie.
+
+**Notatka z implementacji (2026-09-22):**
+- **Decyzja API (pkt c) — opcja (i), rozszerzenie `EmailAttachmentKeys`, BEZ nowej klasy `S3KeyPolicy`:**
+  klasa i `isOwnedByTenant` upublicznione (były package-private w `domain.email`); dodana druga,
+  analogiczna metoda dla schematu kluczy nagrań/EML (`{tenantId}/…`, INNY korzeń niż
+  `email-attachments/{tenantId}/`). BE-143 sam używa wyłącznie `isOwnedByTenant` — druga metoda
+  jest przygotowaniem API dla BE-126 (pkt b, purge `contact.recording_url`), BE-129
+  (`GdprServiceImpl`) i BE-131 (sweep bucketu), żeby te tickety NIE tworzyły własnych,
+  rozjeżdżających się allow-list. Opcja `delete(UUID tenantId, String key)` egzekwujące prefiks
+  wewnątrz (druga propozycja z ticketu) świadomie odrzucona: wymagałaby zmiany kontraktu
+  `EmailAttachmentStorageService#delete` ustalonego w BE-125 i przeniosłaby walidację z miejsca
+  wywołania (gdzie żyje `tenantId` z `TenantContext`) do warstwy storage.
+  ```java
+  // domain.email.EmailAttachmentKeys — publiczne od BE-143
+  public static boolean isOwnedByTenant(UUID tenantId, String s3Key);
+      // schemat email-attachments/{tenantId}/… — używane przez wysyłkę (EmailSendServiceImpl),
+      // pobieranie (EmailAttachmentController) i purge (BE-125, EmailMessageServiceImpl)
+  public static boolean isRecordingKeyOwnedByTenant(UUID tenantId, String s3Key);
+      // schemat {tenantId}/… (nagrania RecordingServiceImpl#buildS3Key, EML EmailEmlService) —
+      // przygotowane dla BE-126(b)/BE-129/BE-131; BE-143 jej NIE wywołuje
+  public static String forLog(String s3Key);
+      // bezpieczne logowanie klucza niezaufanego od klienta (było już w BE-125, teraz public)
+  ```
+  Obie allow-listy współdzielą prywatną `hasCleanPrefixedSuffix(String prefix, String s3Key)` —
+  ta sama logika (niepusty sufiks, bez segmentów `.`/`..`, bez znaków sterujących), różny prefiks.
+- **Kod błędu: HTTP 403 (nie 400), spójnie z `CrossTenantAccessException` (BE-002) i
+  dotychczasowym 403 w `downloadAttachment`.** Nowy wyjątek
+  `EmailAttachmentAccessDeniedException` (`domain.email`, `RuntimeException`, jeden konstruktor
+  `String message`) zamiast rozszerzenia `CrossTenantAccessException` — ten ostatni ma
+  `resourceId: UUID` w konstruktorze, a `s3Key` to `String`; nowa klasa jest prostsza niż zmiana
+  sygnatury współdzielonego wyjątku używanego w wielu miejscach poza tym tickietem. Mapowany na
+  403 przez nowy handler `GlobalExceptionHandler#handleEmailAttachmentAccessDeniedException`
+  (RFC 7807 `ProblemDetail`, typ `email-attachment-access-denied`, komunikat dla klienta ogólny,
+  szczegóły tylko w logu WARN po stronie serwera).
+- **(a) Wysyłka:** walidacja w `EmailSendServiceImpl#validateAttachmentKeys` (nowa prywatna
+  metoda), wywoływana jako KROK 0 na początku `sendReply`/`sendNew` — PRZED pobraniem oryginalnej
+  wiadomości/tenanta/hasła SMTP, nie tylko przed `sendSmtp`. Odrzucenie CAŁEGO żądania przy
+  pierwszym niewłaściwym kluczu (świadoma zmiana zachowania — wcześniej `buildAttachmentPart`
+  logował i pomijał pojedynczy zły załącznik). `EmailController#replyToMessage`/`#sendOutboundEmail`
+  NIE dostały własnej, drugiej walidacji — przekazują `attachments` do serwisu bez zmian (DRY,
+  jedna implementacja); to spełnia AC end-to-end (walidacja i tak dzieje się na ścieżce obu
+  endpointów, zanim dojdzie do S3/SMTP/zapisu).
+- **(b) Pobieranie:** `EmailAttachmentController#downloadAttachment` — `s3Key.startsWith(...)`
+  zamieniony na `EmailAttachmentKeys.isOwnedByTenant(tenantId, s3Key)`; odpowiedź 403 przez
+  bezpośredni `ResponseEntity.status(403)` bez zmian (bez nowego wyjątku) — zgodnie z AC
+  "403 jak dotąd". Log ostrzeżenia teraz przez `EmailAttachmentKeys.forLog(s3Key)` (drobna,
+  dodatkowa poprawka bezpieczeństwa logów przy okazji upublicznienia klasy, poza ściśle wymaganym
+  zakresem, ale zero kosztu — sama widoczność metody się zmieniła).
+- **(d) Testy — 28 nowych, wszystkie PASS:**
+  `EmailSendServiceTest$SendNewAttachmentKeyValidation` (4: AC i–iv na `sendNew`, rzeczywisty
+  `EmailSendServiceImpl`, `@Spy` na `sendSmtp` — wzorzec już istniejący w klasie),
+  `EmailSendServiceTest$SendReplyAttachmentKeyValidation` (2: obcy klucz odrzucony PRZED
+  pobraniem oryginalnej wiadomości + własny klucz INBOUND `{messageId}/` przechodzi — regresja),
+  `EmailAttachmentKeysTest$RecordingKeyAllowlist` (7: nowa metoda `isRecordingKeyOwnedByTenant`),
+  `GlobalExceptionHandlerTest$EmailAttachmentAccessDeniedExceptionTests` (3: 403, RFC 7807,
+  brak wycieku surowego klucza w odpowiedzi), `EmailAttachmentControllerTest$DownloadAttachment`
+  (7, nowy plik: własny klucz INBOUND/`pending/` → 200, obcy tenant/`..`×2/nagranie → 403,
+  WP-2 pusty `TenantContext` → `IllegalStateException`, nie fałszywa autoryzacja),
+  `EmailControllerTest$ReplyToMessage`+`$SendOutboundEmail` (5, nowy plik: kontroler przekazuje
+  `attachments` bez zmian, `null` → pusta lista, wyjątek z serwisu propaguje się niezłapany).
+  **Świadome odstępstwo od dosłownego "MockMvc/integracyjny" z AC** (ten sam kompromis co BE-118
+  `RetentionControllerTest`): projekt NIE testuje kontrolerów `api.*` przez `MockMvc` z aktywnym
+  Spring Security; zamiast tego logika biznesowa (allow-lista, kolejność kroków, brak
+  wywołań S3/SMTP) jest w 100% pokryta na `EmailSendServiceImpl` (rzeczywisty obiekt, nie mock),
+  a wiązanie kontroler→serwis osobno, bezpośrednim wywołaniem metody. Mapowanie wyjątku na 403 ma
+  własny, trzeci test (`GlobalExceptionHandlerTest`). Zestawione RAZEM te trzy klasy dają dokładnie
+  te same gwarancje behawioralne co jeden duży test `MockMvc`, bez kruchości pełnego kontekstu
+  Spring.
+- **Wynik weryfikacji FE (ryzyko i z ticketu) — bezpieczne, bez zmian FE:** grep
+  `frontend/src/app` potwierdza, że `pendingAttachments`/`s3Key` w obu miejscach wysyłki
+  (`email-contact.component.ts` — odpowiedź na wątek, `adhoc-email-modal.component.ts` — nowy
+  e-mail) są zasilane WYŁĄCZNIE odpowiedzią `POST /api/email/attachments/upload`
+  (`resp.s3Key`/`uploaded.s3Key`); `removeAttachment(s3Key)` tylko filtruje istniejącą listę po
+  wartości już w niej obecnej. Brak pola formularza czy innego kodu pozwalającego użytkownikowi
+  wpisać/zmienić `s3Key` ręcznie — FE nigdy nie wyśle dowolnego klucza. Po tej zmianie FE
+  zobaczy nowy błąd 403 zamiast dotychczasowego "cichego" pominięcia załącznika tylko w
+  scenariuszu, który i tak nie powinien wystąpić przy normalnym użyciu UI (bug w FE albo
+  modyfikacja żądania poza UI) — obsługa tego błędu w FE (komunikat dla agenta) NIE była w
+  zakresie tego ticketu i nie została zweryfikowana/zaimplementowana.
+- **Czego NIE zweryfikowano:** WP-4 (local-demo, wymaga przebudowy obrazów i działającego SMTP —
+  poza zakresem tej iteracji, zgodnie z ograniczeniami zlecenia); zachowanie FE po otrzymaniu
+  nowego 403 (czy pokazuje sensowny komunikat agentowi) — kod FE nie był zmieniany ani testowany
+  pod tym kątem; klucze legacy `s3_url` w praktyce na prodzie (ryzyko iii z ticketu, bez zmian).
+
+**Utworzone/zmienione pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/email/EmailAttachmentKeys.java                (zmieniony: class + isOwnedByTenant + forLog → public,
+                                                          +isRecordingKeyOwnedByTenant, refaktor hasCleanPrefixedSuffix)
+  domain/email/EmailAttachmentAccessDeniedException.java (nowy)
+  domain/email/EmailSendServiceImpl.java                (zmieniony: +validateAttachmentKeys, wywołanie w sendReply/sendNew)
+  domain/email/EmailSendService.java                    (zmieniony: javadoc @throws)
+  api/GlobalExceptionHandler.java                       (zmieniony: +handler 403 dla EmailAttachmentAccessDeniedException)
+  api/email/EmailAttachmentController.java              (zmieniony: isOwnedByTenant zamiast startsWith, forLog w logu)
+
+backend/app/src/test/java/com/contactcenter/
+  domain/email/EmailSendServiceTest.java                (zmieniony: +6 testów, 2 nowe @Nested)
+  domain/email/EmailAttachmentKeysTest.java             (zmieniony: +7 testów, 1 nowy @Nested)
+  api/GlobalExceptionHandlerTest.java                   (zmieniony: +3 testy, 1 nowy @Nested)
+  api/email/EmailAttachmentControllerTest.java          (nowy, 7 testów)
+  api/email/EmailControllerTest.java                    (nowy, 5 testów)
+```
+
+**Code review i poprawki (2026-09-22):**
+- Werdykt `senior-code-reviewer` (`CR-BACKEND.md`, wpis BE-143): **5/5 — zatwierdzić bez zastrzeżeń**; ticket domyka realną lukę bezpieczeństwa (BE125-01) starannie — allow-lista jako jedyne źródło prawdy reużywana przez wysyłkę/pobieranie/purge, walidacja udowodniona jako pierwsza instrukcja (kodem i testem `verifyNoInteractions`), wyjątek/handler bez wycieku surowego klucza (dowód adwersaryjnym testem `...responseDoesNotLeakRawKey`), `isRecordingKeyOwnedByTenant` zweryfikowane względem rzeczywistych producentów kluczy (`RecordingServiceImpl#buildS3Key`, `EmailEmlService#buildEmlS3Key`), nie tylko specyfikacji.
+- Ustalenia BE143-01/02:
+  - **BE143-01** (nit: AC „(WP-1) dosłowny MockMvc/integracyjny" formalnie niespełnione — pokrycie rozłożone na 3 klasy testowe zamiast jednego testu HTTP; `PendingAttachment.s3Key` i tak nie ma adnotacji Bean Validation, więc realny ubytek pokrycia jest niski, ten sam kompromis co `RetentionControllerTest`/BE-118) → **potwierdzone przez review jako brak realnej luki mimo formalnego niespełnienia AC**; nic do zrobienia w kodzie.
+  - **BE143-02** (informacyjne, duplikat BE126-05: AC „decyzja API przekazana do BE-126/BE-129/BE-131" świadomie pozostawione odhaczone jako niewykonane w tej sekcji, poza zakresem plików edytowalnych przez wykonawcę BE-143 w tej iteracji) → **nie dotyczy tej sekcji**: propagacja wykonana osobno (`/update-progress`, `product-requirements-deconstructor`) — blok „Uwaga z BE-143 (2026-09-22)" dopisany do BE-127, BE-129 i BE-131; punkt (f) w BE-126 sprostowany bezpośrednio (BE126-05).
+- Niezależna weryfikacja końcowa (zlecający, `mvn verify -pl app`, wspólne drzewo z BE-126): **BUILD SUCCESS, Tests run: 2046, Failures: 0, Errors: 0, Skipped: 0** (AC wyżej i notatka wykonawcy podają 2038 — stan sprzed scalenia z równoległymi poprawkami BE-126 w tym samym drzewie; liczba testów samego BE-143 się nie zmieniła).
+
+---
+
+## MODUL: Porządki infrastrukturalne i CI (bez epiku)
+
+> Tickety porządkowe bez epiku (jak DB-055). **BE-144** dopisany 2026-09-21 po code review BE-125 (BE125-07) i weryfikacji dostępności obrazów MinIO;
+> poprzednie zadanie infrastrukturalne tego obszaru: BE-001b (docker-compose, MinIO).
+
+### BE-144 – [PORZĄDKOWY] Przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem
+
+**Typ:** Infrastructure (dług techniczny / dostępność obrazów)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** brak (porządki infrastruktury lokalnej/CI — wynik code review BE-125 (BE125-07) i weryfikacji dostępności obrazów 2026-09-21; jak DB-055, bez epiku)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:**
+Ustalenie infra (zweryfikowane 2026-09-21 przez zlecającego): `docker manifest inspect minio/minio:latest` → `denied / unauthorized` (kontrola: `alpine` działa) — obrazy MinIO z Docker Hub nie są już anonimowo pobieralne. `docker-compose.yml` używa `minio/minio:latest` (l. 102, serwis `minio`) i `minio/mc:latest` (l. 127, serwis `minio-init`) — ruchomy tag i Docker Hub. Lokalny stos działa dziś tylko z cache'u obrazów; świeża maszyna, CI albo `docker compose pull` nie podniesie MinIO. Test `EmailAttachmentStorageServiceMinioTest` (BE-125) jest już przypięty do `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (BE125-07); compose i dokumentacja nadal wskazują Docker Hub i `latest`.
+
+**Zakres:**
+- `docker-compose.yml`: `minio` → `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (to samo wydanie co w teście — jedno wydanie w całym repo); `minio-init` → `quay.io/minio/mc:<przypięty RELEASE>` — wykonawca sprawdza dostępność `quay.io/minio/mc` (pull anonimowy) i wybiera wydanie zgodne z serwerem, a także zgodność `command: server /data --console-address ":9001"`, healthchecka `mc ready local` (wymaga `mc` w obrazie serwera) i entrypointu `minio-init` (`mc alias set`, `mc mb --ignore-existing`) z przypiętym wydaniem.
+- Pozostałe overlaye compose: `docker-compose.local-demo.yml` (l. 109: serwis `minio` nadpisuje tylko porty, bez obrazu — potwierdzić `docker compose config`); grep 2026-09-21: brak innych plików compose ani manifestów z obrazami MinIO.
+- Dokumentacja z nazwami obrazów: `ARCHITECTURE.md` (l. 881, 1235), `documentation/tech/08-infrastructure.md` (l. 22), `DOCKER-COMMANDS.md` (sekcja 8 „MinIO": polecenia `mc` w kontenerach `cc-minio`/`cc-minio-init`), `DEPLOYMENT.md` (§21 „MinIO Distributed", ≈ l. 1200–1211: brak wzmianek o obrazie w grepie; instalacja binarna `minio server` i `mc ilm add … --expiry-days 365` — sprawdzić źródło binariów/`mc` i odnotować globalny lifecycle 365 dni jako powiązany z ryzykiem R10 (DESIGN §7; H-2 z code review BE-125), bez zmiany polityki bucketu w tym tickecie).
+- `.github/workflows/ci.yml`: `mvn -B -pl app -am verify` uruchamia `EmailAttachmentStorageServiceMinioTest` na `ubuntu-latest` (pull z quay.io z przypiętym tagiem); `release.yml` bez wzmianek o MinIO (grep). Wykonawca sprawdza, czy runner pobiera obraz z quay.io bez logowania i czy potrzebny jest cache.
+- **NIE zmieniać stosu lokalnego użytkownika bez zgody:** przebudowa (`docker compose up -d minio`) = pobranie obrazów z quay.io; wolumen `minio_data` musi pozostać nietknięty.
+
+**Kryteria akceptacji:**
+- [ ] `docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml config` renderuje się bez błędów, a `minio`/`minio-init` wskazują `quay.io/minio/…` z przypiętym tagiem (bez `latest`); `grep -rn "minio/minio:latest\|minio/mc:latest"` po repo (poza `CR-*.md`, `TASKS-*.md`, `PROGRESS.md`, pamięcią agentów) → 0 trafień
+- [ ] `docker manifest inspect` (anonimowo) działa dla obu przypiętych obrazów; pull na czysto (`docker compose pull minio minio-init` na demonie bez cache'u albo `--dry-run` tam, gdzie się da) kończy się sukcesem
+- [ ] Healthcheck `minio` (`mc ready local`) przechodzi na przypiętym wydaniu, a `minio-init` tworzy bucket `contact-center-recordings` — sprawdzone na osobnym, tymczasowym projekcie compose (`-p`, inne porty i wolumeny), NIE na stosie użytkownika
+- [ ] Dokumentacja zaktualizowana (lista wyżej); `EmailAttachmentStorageServiceMinioTest` i compose używają tego samego wydania (jedno miejsce prawdy albo komentarz „utrzymywać razem")
+- [ ] (WP-4, wymaga zgody właściciela) Przełączenie stosu local-demo na przypięte wydanie: najpierw sprawdzić wersję obecnie działającego kontenera i nie schodzić poniżej niej (ryzyko niezgodności formatu danych w wolumenie `minio_data` — do potwierdzenia), pobranie obrazów z quay.io; dane i bucket nietknięte
+- [ ] DoD (WP-7): status i notatka w pliku zadań
+
+**Ryzyka:** przypięte wydanie może nie zawierać `mc` (healthcheck) albo różnić się poleceniem startowym — do sprawdzenia; przypięcie starszego wydania niż dane w wolumenie (patrz AC WP-4); quay.io może wymagać osobnej konfiguracji pull w CI (sprawdzić); ruchomy tag w innych miejscach (np. inne obrazy `latest` w compose) poza zakresem tego ticketu.
+
+**Aktualizacja 2026-09-30 (potwierdzone w CI):** ten problem przestał być teoretyczny/prewencyjny — realnie blokuje PR na GitHub Actions. `mvn -B -pl app -am verify` na świeżym runnerze (`ubuntu-latest`, zero lokalnego cache'u obrazów) pada w `EmailAttachmentStorageServiceMinioTest.start`:
+```
+ContainerFetchException: Can't get Docker image: RemoteDockerImage(imageName=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z, ...)
+```
+Diagnoza z tej samej daty (`docker manifest inspect` z maszyny dewelopera) pokazuje, że zakres tego ticketu (przepięcie na `quay.io`) jest **NIEAKTUALNY/niewystarczający**: nie tylko Docker Hub (`minio/minio:latest` → 401 unauthorized, jak już ustalono 2026-09-21), ale TERAZ TEŻ `quay.io/minio/minio` — zarówno przypięty tag `RELEASE.2025-09-07T16-13-09Z`, jak i `latest` — odpowiada „no such manifest"/401 anonimowemu zapytaniu (`quay.io/api/v1/repository/minio/minio` → HTTP 401 „Requires authentication"), mimo że to samo repozytorium było publicznie odpytywalne 2026-09-21 przy pinowaniu tagu w BE-125. Sprawdzono też `ghcr.io/minio/minio` (denied) i `docker.io/bitnami/minio` (no such manifest) — brak sprawdzonego publicznego rejestru serwującego ten obraz anonimowo w tej chwili. Lokalnie obraz jest wciąż w cache Dockera (stąd `mvn verify` przechodzi na maszynie dewelopera), co maskowało problem do pierwszego uruchomienia na czystym runnerze CI.
+
+Wykonawca BE-144 musi więc znaleźć **inne** rozwiązanie niż samo przejście na quay.io — np. mirror obrazu do rejestru kontrolowanego przez zespół (GHCR pod namespace tego repo) albo Docker Hub/quay.io z uwierzytelnieniem w CI (`docker login` z sekretem). Nie rozstrzygam tego tutaj — tylko odnotowuję.
+
+Doraźnie (osobna zmiana, poza zakresem BE-144): `EmailAttachmentStorageServiceMinioTest` pomija się (`Assumptions.assumeTrue`, JUnit SKIPPED) gdy start kontenera MinIO padnie na błędzie pobrania obrazu, żeby PR nie był czerwony z powodu infrastruktury poza kontrolą repo — to nie jest naprawa, tylko żeby CI nie blokował niezwiązanych zmian do czasu wykonania tego ticketu.
+
+**Rekomendacja priorytetu:** biorąc pod uwagę, że problem aktywnie blokuje CI (nie jest już tylko ryzykiem na przyszłość), warto rozważyć podniesienie `Should Have` → `Must Have`. Decyzję i zmianę pola `**Priorytet:**` pozostawiam właścicielowi backlogu.
+
+---
+
+## MODUL: Porządki silnika partycji i retencji (EPIC-29, bez epiku EPIC-30)
+
+> Tickety porządkowe bez epiku (jak DB-055, BE-144) dotyczące silnika retencji/partycjonowania z EPIC-29, nie samej retencji wiadomości (EPIC-30).
+> **BE-145** dopisany 2026-09-26 po code review BE-127 (BE127-01, `CR-BACKEND.md`) — pre-existing ryzyko w `PartitionReclaimJob` (BE-115, EPIC-29), niezmienionym przez BE-125/126/127.
+
+### BE-145 – [PORZĄDKOWY] `PartitionReclaimJob` nie powinien usuwać (`DROP TABLE`) niepustej partycji tabel per-tenant
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Should Have (nie Must — scenariusz wymaga wieloletniej, niezauważonej awarii Poziomu 1 purge dla jednego tenanta; dotyczy WSZYSTKICH tabel per-tenant obsługiwanych przez ten job, nie tylko wiadomości)
+**Złożoność:** S (M, jeśli wykonawca zdecyduje się dodać też sweep dangling po FK jako drugą linię obrony — patrz Zakres, pkt opcjonalny)
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-09-26) — patrz „Notatka z wykonania" poniżej
+**Blokuje:** brak
+**Epic:** brak (naprawa silnika partycji/retencji z EPIC-29 — `PartitionReclaimJob` istnieje od BE-115, niezmieniony przez EPIC-30/BE-125/126/127; wynik code review BE-127 (BE127-01) 2026-09-26; jak DB-055/BE-144, bez epiku)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst (cytat z `CR-BACKEND.md`, sekcja „Review: BE-127", ustalenie BE127-01 — major, latentne, pre-existing, NIE regresja BE-127):**
+> „decyzja „wariant dangling pominięty" opiera się na twierdzeniu „`contact` jest usuwany WYŁĄCZNIE przez `deleteContacts`/`deleteBatchOlderThan`" — pomija TRZECI mechanizm (`DROP TABLE` partycji), który usuwa wiersze `contact` bez żadnego sprzątania `email_message`/`social_message`."
+> „`warnIfStillHasRows` (…) explicite sprawdza, czy partycja-kandydat do DROP wciąż ma wiersze, loguje WARN gdy tak — **i mimo to kontynuuje DROP** (…). Ten job: (1) NIE woła `EmailMessageService`/`SocialMessageService` … przed/po DROP …; (2) Usuwa wiersze `contact` niezależnie od tego, czy powiązane `email_message`/`social_message` … istnieją — … nie mają FK do `contact` …, więc DROP nie kaskaduje …, zostawiając wskazujące na nie `email_message.contact_id`/`social_message.contact_id` jako dangling."
+> „Scenariusz utraty/luki danych: gdyby purge Poziomu 1 … przestał działać dla jednego tenanta na czas dłuższy niż globalny bufor (`maxRetentionMonths` ze WSZYSTKICH tenantów — dziś demo … 60 miesięcy) — `PartitionReclaimJob` i tak w końcu DROPnie starą partycję `contact` z pozostałymi wierszami (WARN, bez blokady). Każda wiadomość … staje się DOKŁADNIE tym „dangling", które BE-127 świadomie zdecydowało się nie sprzątać … i od tego momentu NIE ISTNIEJE żadna ścieżka usunięcia tej wiadomości w całym systemie."
+
+Wykonawca BE-127 potwierdził to ustalenie i dopisał w notatce wykonania BE-127 (`TASKS-BACKEND.md`, blok „Code review i poprawki (2026-09-26)"): ryzyko dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), świadomie NIE założono ticketu w tamtej sesji bez decyzji — ten ticket jest tą decyzją.
+
+Kod: `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — `TABLE_CATEGORIES` (l. 73–79, `Map<String, RetentionDataCategory>`: `contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), `reclaimTable` (l. 131–177, wywołuje `warnIfStillHasRows` na l. 167 i `partitionScanner.dropPartition(...)` bezwarunkowo na l. 169), `warnIfStillHasRows` (l. 184–194, WYŁĄCZNIE `log.warn`, zero wpływu na sterowanie). Potwierdzone niezależnym grepem: `email_message`/`social_message` nie mają FK `REFERENCES contact` w żadnej migracji.
+
+**Powiązanie z BE-123 (⬜, EPIC-30) — do rozstrzygnięcia przy implementacji, kolejność wg wykonawcy:** BE-123 planuje refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)` z nowym `DropMode.ONLY_IF_EMPTY` (dziś zarezerwowanym dla `email_message`/`social_message` przez BE-133), ale jego bieżący opis i AC explicite zachowują dla `contact*` `DropMode.AFTER_CUTOFF` („dzisiejsze zachowanie … bez zmian") — patrz uwaga dopisana w BE-123 (2026-09-26). Jeśli BE-123 wdroży się PRZED tym ticketem, ten ticket redukuje się do przełączenia `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` na `ONLY_IF_EMPTY` (reużycie mechanizmu, bez własnego). Jeśli ten ticket wdroży się PRZED BE-123, wykonawca BE-123 musi zaktualizować swój opis/AC („bez zmian" → „ONLY_IF_EMPTY, zgodnie z BE-145").
+
+**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
+1. `warnIfStillHasRows` (albo jego wywołujący `reclaimTable`) musi zwracać informację BLOKUJĄCĄ `DROP` (nie tylko logować) dla partycji tabel per-tenant z `TABLE_CATEGORIES` (`contact`, `contact_event`, `contact_transcription`, `contact_ai_summary` — nazwa `TABLE_CATEGORIES`/`ReclaimTarget` do potwierdzenia w kodzie w chwili implementacji, może się zmienić po BE-123), zgodnie z WP-5 z `DESIGN-message-retention-and-partitioning.md` („niepusta → WARN i pominięcie", NIE „WARN i kontynuuj").
+2. **Wyjątek — horyzont platformowy** (`audit_log`, `plugin_invocation_log`, DB-123/BE-123 — inny ticket o zbliżonym numerze, NIE mylić z DB-123-Twoim-DropMode-refaktorem powyżej; sprawdź aktualną numerację): niepusta partycja po horyzoncie platformowym jest OCZEKIWANA (WP-5) — tam DROP mimo niepustej zostaje (INFO, nie blokada). Sprawdzić, czy BE-123 (jeśli już wdrożone) rozróżnia te dwie ścieżki przez `ThresholdSource`, i dopasować warunek blokady tylko do `ThresholdSource.CATEGORY_MAX_RETENTION`.
+3. **(Could, opcja B z notatki BE-127/BE127-01)** Sweep dangling po FK dla `email_message`/`social_message` (`NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)`) jako DRUGA linia obrony, niezależna od TEGO, jak `contact` zniknął — NIE wymagane, jeśli pkt 1 skutecznie zablokuje DROP u źródła; do rozważenia, jeśli wykonawca oceni, że sama blokada DROP nie wystarcza (np. inne, jeszcze nieodkryte ścieżki usuwania `contact`).
+4. Test regresyjny na `_default`/partycjach horyzontu platformowego: zachowanie `audit_log`/`plugin_invocation_log` (jeśli BE-123 już wdrożone) BEZ ZMIAN — DROP mimo niepustej, INFO w logu.
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test Testcontainers: partycja `contact` (albo `contact_event`/`contact_transcription`/`contact_ai_summary`) kandydująca do DROP, ale z ≥ 1 wierszem → `DROP` POMINIĘTY, WARN/INFO w logu z liczbą wierszy, `pg_class`/`information_schema` po teście potwierdza, że partycja WCIĄŻ istnieje (brak zmiany w bazie) — `PartitionReclaimJobIntegrationTest#nonEmptyOldPartition_dropIsSkipped_partitionStillExistsInDatabase`; WARN z liczbą wierszy zweryfikowany osobno przez appender logów w `PartitionReclaimJobTest$InconsistencyWithLevelOneBlocksDrop#logsWarnWithRowCountAndTenantCount`
+- [x] Partycja pusta (dotychczasowy przypadek) → `DROP` wykonany jak dotąd (test regresyjny na istniejącym `PartitionReclaimJobTest`, zielony bez zmiany asercji tego przypadku) — `SafelyEmptyPartitionEligibleForDrop` (mock, bez zmiany) + regresja dodatkowo potwierdzona na prawdziwej bazie: `PartitionReclaimJobIntegrationTest#emptyOldPartition_isStillDropped`
+- [ ] Regresja horyzontu platformowego — **NIE DOTYCZY DZIŚ**: potwierdzone 2026-09-26 (`grep -n "^### BE-123 " TASKS-BACKEND.md`), że BE-123 jest ⬜ NIEZAIMPLEMENTOWANE w chwili tej pracy — `TABLE_CATEGORIES` nie ma dziś żadnego wpisu platformowego (`audit_log`/`plugin_invocation_log`), więc nie ma dziś ścieżki, na której blokada wprowadzona przez BE-145 mogłaby zmienić zachowanie horyzontu platformowego. Założenie na przyszłość udokumentowane: (a) w javadoc `PartitionReclaimJob` (sekcja „BE-145 vs. przyszły BE-123"), (b) w uwadze dopisanej do BE-123 poniżej — wykonawca BE-123 musi dodać analogiczny wyjątek `DropMode.AFTER_CUTOFF`/INFO-nie-blokada TYLKO dla nowego wpisu platformowego, nie usuwać blokady dla `contact*`
+- [x] `_default` (jeśli dotyczy tej ścieżki) — zachowanie bez zmian względem dzisiejszego (WARN gdy niepusta, sygnał awarii rotacji — nie część tego ticketu, tylko regresja) — `_default` nigdy nie dociera do `warnIfStillHasRows` (odrzucony wcześniej przez `expectedPartitionPattern`), regresja: `PartitionReclaimJobTest$DefaultPartitionNeverDropped`, zielony bez zmiany asercji
+- [x] Uwaga w BE-123 (dopisana 2026-09-26) skorygowana/potwierdzona zgodnie z faktyczną kolejnością wdrożenia obu ticketów — patrz sekcja BE-123 powyżej, uwaga skorygowana 2026-09-26 (BE-145 wdrożone pierwsze)
+- [x] `mvn verify -pl app`; DoD (WP-7) — `mvn clean verify -pl app`: BUILD SUCCESS, Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0
+
+**Ryzyka:** zmiana zachowania (partycja niepusta przestaje być usuwana) może w praktyce NIGDY nie zaobserwować różnicy na demo/testach (0 znanych incydentów, 60-miesięczny bufor) — wartość tego ticketu jest defensywna/prewencyjna, nie naprawia obserwowanego dziś problemu; jeśli globalny bufor (`maxRetentionMonths` ze wszystkich tenantów) miałby kiedyś spaść poniżej realistycznego czasu naprawy awarii Poziomu 1 dla pojedynczego tenanta, ryzyko przechodzi z teoretycznego na praktyczne — warto to odnotować jako invariant do monitorowania (poza zakresem tego ticketu, do rozważenia przy DB-076/DB-077 dokumentacji silnika retencji).
+
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano (zmiana sterowania, punkt 1 Zakresu):** `PartitionReclaimJob.warnIfStillHasRows` zmienione z `void` (wyłącznie `log.warn`) na `boolean` — zwraca `true`, gdy partycja-kandydat do `DROP` wciąż ma ≥ 1 wiersz (dowolnego tenanta). `reclaimTable` sprawdza ten wynik i, gdy `true`, wykonuje `continue` (pomija `dropPartition` dla tej partycji w tym przebiegu) — partycja zostanie ponownie oceniona przy następnym uruchomieniu jobu (co niedzielę). Treść WARN rozszerzona o `POMIJAM DROP (BE-145)` i wzmiankę, że partycja zostanie ponownie sprawdzona. Partycja pusta → ścieżka bez zmian (`dropPartition` wykonywane jak dotąd). Javadoc klasy `PartitionReclaimJob` rozszerzony: nowy punkt w liście algorytmu + nowa sekcja „BE-145 vs. przyszły BE-123" z jawną notatką dla przyszłego wykonawcy BE-123 (patrz niżej).
+
+**Decyzja o wyjątku „horyzont platformowy" (punkt 2 Zakresu) — bezprzedmiotowy dziś, potwierdzone:** `grep -n "^### BE-123 " TASKS-BACKEND.md` potwierdza BE-123 jako ⬜ Nie rozpoczęte. Odczyt kodu (`PartitionReclaimJob.TABLE_CATEGORIES`, l. 89–97 po zmianie) potwierdza dokładnie 4 wpisy per-tenant (`contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), zero wpisów platformowych (`audit_log`/`plugin_invocation_log` nie istnieją w tej mapie — nie są nawet dziś przetwarzane przez ten job). Wniosek: blokada `DROP` niepustej partycji zaimplementowana w punkcie 1 dotyczy dziś BEZWARUNKOWO wszystkich wpisów `TABLE_CATEGORIES`, bez potrzeby rozróżniania przez `ThresholdSource`/`DropMode` (infrastruktura z BE-123, świadomie NIE zbudowana na zapas — kolizja z przyszłym refaktorem BE-123, niepotrzebna złożoność). Zamiast tego: (a) javadoc `PartitionReclaimJob` dostał sekcję ostrzegającą przyszłego wykonawcę BE-123, że przy dodaniu wpisu platformowego musi dodać analogiczny wyjątek (DROP mimo niepustej, INFO nie blokada) TYLKO dla tego jednego wpisu; (b) uwaga z code review BE-127 (BE127-01) w sekcji BE-123 powyżej skorygowana — odwrócona kolejność wdrożenia (BE-145 pierwsze) oznacza, że opis/AC BE-123 („`DropMode.AFTER_CUTOFF` dla `contact*` — bez zmian") jest już NIEAKTUALNY; wykonawca BE-123 musi przyjąć `ONLY_IF_EMPTY` dla `contact*` jako fakt dokonany, nie projekt do wdrożenia.
+
+**Decyzja o wariancie „dangling po FK" (punkt 3 Zakresu, Could) — POMINIĘTY, jak w BE-127/BE127-01:** blokada `DROP` u źródła (punkt 1) zamyka JEDYNĄ znaną ścieżkę, przez którą `PartitionReclaimJob` mógł osierocić `email_message`/`social_message` (usunięcie wierszy `contact` przez `DROP TABLE` partycji, bez wołania serwisów wiadomości). Sweep `NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)` dla `email_message`/`social_message` pozostaje NIEZAIMPLEMENTOWANY — decyzja świadoma, uzasadnienie identyczne jak w notatce BE-127 (`[[project_epic30_be127_orphan_message_purge]]`, sekcja „Decyzja: wariant dangling POMINIĘTY"): (1) po tej poprawce nie ma już żadnej znanej, aktywnej ścieżki tworzenia dangling; (2) koszt zapytania `NOT EXISTS` bez `started_at` (PK `contact` = `(contact_id, started_at)`) = probing PK każdej partycji per kandydat, bez partition pruning — nietrywialny narzut bez potwierdzonej potrzeby; (3) rozszerzałoby zakres ticketu PORZĄDKOWEGO poza to, co wymaga naprawy. Rewizja potrzebna TYLKO, jeśli powstanie INNA ścieżka usuwania wierszy `contact` poza `deleteContacts`/`deleteBatchOlderThan`/`DROP TABLE` partycji (te trzy są dziś WSZYSTKIE zaadresowane: pierwsze dwie przez BE-125/126/127, trzecia przez ten ticket).
+
+**Zmienione/dodane pliki:**
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — zmiana sterowania (`warnIfStillHasRows` → `boolean`, `reclaimTable` pomija `dropPartition` gdy `true`) + rozszerzony javadoc.
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobTest.java` — nested class `InconsistencyWithLevelOneDoesNotBlockDrop` → `InconsistencyWithLevelOneBlocksDrop`; test `stillDropsPartition_whenRowsUnexpectedlyPresent` odwrócony na `doesNotDropPartition_whenRowsUnexpectedlyPresent` (asercja `never().dropPartition(...)`); nowy test `logsWarnWithRowCountAndTenantCount` (appender logów, weryfikuje treść WARN — nazwa partycji, suma wierszy, liczba tenantów, `POMIJAM DROP`); zaktualizowany javadoc klasy (odsyła do nowego testu integracyjnego dla weryfikacji na prawdziwej bazie).
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobIntegrationTest.java` (NOWY) — test na Testcontainers/pełny Flyway (wzorzec `PostgresTestDatabase`/`JpaTestContext`, jak w `ContactRepositoryPurgeCandidatesIntegrationTest`): `PartitionScannerImpl` REALNA (nie mock), `RetentionPolicyService` mockowany (kontrola progu); 2 testy — (1) partycja z 1 wierszem starsza niż próg → `DROP` pominięty, partycja i wiersz potwierdzone jako WCIĄŻ ISTNIEJĄCE zapytaniem do `pg_tables`/`FROM ONLY <partycja>` po przebiegu jobu (sedno poprawki — mock nie mógłby tego wykazać); (2) regresja: partycja pusta starsza niż próg → `DROP` wykonany, partycja faktycznie zniknęła z `pg_tables`. Partycje testowe tworzone przez prawdziwą funkcję SQL `create_contact_partition` (V007) z datami WZGLĘDNYMI (`LocalDate.now().minusMonths(70/75)`), odległymi od dat używanych przez inne testy na tej samej współdzielonej bazie testowej (2001/2026/2027/2028).
+- `TASKS-BACKEND.md` — status/AC BE-145 (ta notatka) + korekta uwagi BE127-01 w sekcji BE-123 (punkt 4 Zakresu).
+
+**Wyniki testów:**
+- `PartitionReclaimJobTest` (mock): wszystkie nested classes zielone, w tym zmieniona `InconsistencyWithLevelOneBlocksDrop` (2 testy) — `mvn test -pl app -Dtest=PartitionReclaimJobTest`.
+- `PartitionReclaimJobIntegrationTest` (Testcontainers, NOWA): 2/2 zielone — `mvn test -pl app -Dtest=PartitionReclaimJobIntegrationTest`.
+- Pełny `mvn clean verify -pl app` (moduł `app`, cały pakiet, po zmianie): **BUILD SUCCESS**, `Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0`, czas 03:22 min. Testy tego ticketu w tym przebiegu: `PartitionReclaimJobTest` — 5 nested classes zielonych (`SafelyEmptyPartitionEligibleForDrop` 1, `YoungPartitionNotDropped` 1, `ThresholdUsesMaxNotMin` 2, `DefaultPartitionNeverDropped` 1, `TablesProcessedIndependently` 2, `InconsistencyWithLevelOneBlocksDrop` 2 [zmieniona]) = 9 testów; `PartitionReclaimJobIntegrationTest` (nowa) — 2/2 zielone.
+
+**Odstępstwa i ryzyka:**
+- Punkt 3 Zakresu (Could, dangling po FK) świadomie pominięty — patrz decyzja powyżej.
+- AC „regresja horyzontu platformowego" oznaczona jako nie dotyczy dziś (BE-123 niezaimplementowane) — nie ma dziś kodu do zregresowania; założenie na przyszłość zostawione w javadoc + uwadze BE-123, nie w teście (nie da się przetestować nieistniejącego zachowania).
+- Brak migracji SQL — zgodnie z zakresem ticketu (czysta zmiana logiki Java).
+- Nazwa metody `warnIfStillHasRows` NIE zmieniona (mimo że dziś robi więcej niż tylko „warn") — zachowana zgodnie z sugestią z treści ticketu („zaprojektuj to jako zmianę sterowania… np. `warnIfStillHasRows` zwraca `boolean`"); nowa semantyka opisana w javadoc metody.
+
+**Czego nie zweryfikowano:**
+- Zachowanie na żywej bazie demo/produkcyjnej — zgodnie z ograniczeniem zlecenia (WP-4, job destrukcyjny), job NIE był uruchamiany poza Testcontainers.
+- Interakcja z przyszłym BE-123 (refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode`) — nie istnieje w kodzie w chwili tej pracy, więc nie da się zweryfikować integracji; zamiast tego zostawiono jawne wskazówki (javadoc + uwaga BE-123).
+- Sweep dangling po FK (punkt 3, Could) — nie zaimplementowany, więc nie testowany (decyzja o pominięciu, nie przeoczenie).
+
+**Code review i poprawki (2026-09-26):** `CR-BACKEND.md`, sekcja „Review: BE-145" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów.
+- **BE145-01 (major, nienaprawione, rekomendacja follow-up niewymagana teraz):** ta poprawka zamienia „cichy `DROP` mimo niepustej partycji" na „cichy brak `DROP` w nieskończoność" — jedynym sygnałem jest identyczny `log.warn` co tydzień, bez metryki/licznika/progu eskalacji. Recenzent potwierdził grepem, że CAŁY silnik retencji (`RetentionPurgeService`, `RetentionEvaluationJob`, `PartitionMaintenanceJob`, `RecordingRetentionJob`) nie ma dziś żadnych metryk Micrometer — BE-145 nie odbiega od konwencji podsystemu, ale konsekwencje są tu wyższe (wcześniej WARN był informacyjny, teraz jest jedynym sygnałem awarii). **Decyzja zlecającego: nie tworzę teraz osobnego ticketu na mechanizm alertowania** — to nowa infrastruktura (Micrometer/metryki) w kodzie, który dotąd nie miał żadnej, więc wymaga świadomej decyzji o zakresie, nie automatycznego dociągnięcia. Odnotowane jako otwarty punkt do rozważenia razem z dokumentacją silnika retencji (DB-076/DB-077) albo jako osobny ticket, jeśli właściciel zdecyduje.
+- **BE145-02 (minor, nienaprawione):** `PartitionReclaimJobIntegrationTest` nie czyści po sobie utworzonej partycji/wiersza testowego we współdzielonym per-JVM kontenerze Testcontainers — dziś bez aktywnego skutku (dane testowe używają dat odległych od innych testów na tej samej bazie), ale warto posprzątać przy następnej okazji dotykania tego pliku.
+- Recenzent potwierdził niezależnie (nie tylko czytając notatkę): poprawność `continue` w pętli `for`, że `TABLE_CATEGORIES` ma dziś dosłownie 4 wpisy per-tenant, że zmiana w sekcji BE-123 dotyczy wyłącznie jednego akapitu, i że dziś istnieją WYŁĄCZNIE trzy mechanizmy usuwania `contact` (grep po `DELETE FROM contact\b` i `DROP TABLE`/`dropPartition` w całym repo) — wszystkie trzy są teraz zaadresowane.

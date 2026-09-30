@@ -50,10 +50,27 @@ import java.util.regex.Pattern;
  *       {@code <=}, to jest zamierzenie zachowawcze tego jobu, w odróżnieniu od progu
  *       "eligible for purge" w {@code RetentionEvaluationJob}, który dopuszcza {@code <=}).</li>
  *   <li>Przed {@code DROP}: {@link PartitionScanner#countRowsByTenant} — jeśli partycja wciąż
- *       ma wiersze, loguje WARN (niespójność z Poziomem 1) ale NIE blokuje {@code DROP} — próg
- *       jest już policzony po najdłuższej retencji, więc usunięcie jest bezpieczne mimo to.</li>
- *   <li>{@link PartitionScanner#dropPartition} wykonuje {@code DROP TABLE IF EXISTS}.</li>
+ *       ma wiersze, {@code DROP} jest BLOKOWANY (BE-145) i partycja jest pomijana w tym
+ *       przebiegu (WARN z liczbą wierszy); zostanie ponownie oceniona przy następnym
+ *       uruchomieniu jobu. Do 2026-09-26 (BE-145) job logował WARN i mimo to kontynuował
+ *       {@code DROP} — świadomie zmienione, bo trzeci, nieoczywisty mechanizm usuwania
+ *       wierszy {@code contact} (ten właśnie {@code DROP TABLE}, poza
+ *       {@code RetentionPurgeService}/BE-113) mógł osierocić {@code email_message}/
+ *       {@code social_message} (brak FK do {@code contact}) bez żadnej ścieżki ich
+ *       późniejszego usunięcia — patrz ustalenie code review BE-127 (BE127-01, cytat w
+ *       notatce wykonania BE-145, {@code TASKS-BACKEND.md}).</li>
+ *   <li>{@link PartitionScanner#dropPartition} wykonuje {@code DROP TABLE IF EXISTS} —
+ *       TYLKO gdy partycja jest pusta.</li>
  * </ol>
+ *
+ * <p><strong>BE-145 vs. przyszły BE-123 (horyzont platformowy {@code audit_log}/
+ * {@code plugin_invocation_log}):</strong> {@code TABLE_CATEGORIES} dziś (2026-09-26) obejmuje
+ * WYŁĄCZNIE 4 tabele per-tenant powyżej — blokada {@code DROP} niepustej partycji poniżej
+ * dotyczy więc bezwarunkowo WSZYSTKICH wpisów tej mapy. Gdy BE-123 doda tu wpis platformowy
+ * ({@code audit_log}/{@code plugin_invocation_log}, gdzie niepusta partycja po horyzoncie jest
+ * OCZEKIWANA — DROP mimo niepustej, INFO nie blokada), wykonawca BE-123 musi dodać analogiczny
+ * wyjątek (np. rozróżnienie przez {@code ThresholdSource}/{@code DropMode} z jego refaktoru)
+ * TYLKO dla tego jednego wpisu — NIE usuwać blokady poniżej dla `contact*`.</p>
  *
  * <p><strong>Odporność na błędy:</strong> błąd przy jednej tabeli NIE przerywa przetwarzania
  * pozostałych (log ERROR + kontynuacja, wzorzec {@code RecordingRetentionJob.processRetentionForTenant}).
@@ -164,7 +181,12 @@ class PartitionReclaimJob {
                 continue;
             }
 
-            warnIfStillHasRows(partition, category);
+            // BE-145: partycja kandydująca do DROP, ale wciąż zawierająca wiersze, NIE jest
+            // usuwana w tym przebiegu (patrz javadoc klasy — trzeci mechanizm usuwania wierszy
+            // contact, poza RetentionPurgeService, mógł osierocić email_message/social_message).
+            if (warnIfStillHasRows(partition, category)) {
+                continue;
+            }
 
             partitionScanner.dropPartition(partition.partitionName());
             dropped.add(partition.partitionName());
@@ -176,20 +198,33 @@ class PartitionReclaimJob {
     }
 
     /**
-     * Ostrzega (ale nie blokuje {@code DROP}), jeśli partycja kandydująca do usunięcia wciąż
-     * zawiera wiersze — sygnalizuje niespójność z Poziomem 1 ({@code RetentionPurgeService}),
-     * która teoretycznie nie powinna wystąpić, bo próg tego jobu jest liczony po NAJDŁUŻSZEJ
-     * retencji spośród wszystkich tenantów.
+     * Sprawdza, czy partycja kandydująca do usunięcia wciąż zawiera wiersze — jeśli tak, loguje
+     * WARN z liczbą wierszy i sygnalizuje wywołującemu ({@link #reclaimTable}), że {@code DROP}
+     * MUSI zostać pominięty w tym przebiegu (BE-145).
+     *
+     * <p>Do 2026-09-26 ta metoda wyłącznie logowała WARN i nie miała żadnego wpływu na
+     * sterowanie — {@code DROP} był wykonywany bezwarunkowo mimo niespójności z Poziomem 1
+     * ({@code RetentionPurgeService}). Zmienione, bo taka niespójność (partycja niepusta mimo
+     * że próg jest liczony po najdłuższej retencji ze wszystkich tenantów) oznacza w praktyce
+     * wieloletnią, niezauważoną awarię Poziomu 1 dla PRZYNAJMNIEJ JEDNEGO tenanta — usunięcie
+     * całej partycji w takim stanie usuwa te wiersze BEZ jakiejkolwiek szansy na późniejszą
+     * naprawę (np. dosprzątanie {@code email_message}/{@code social_message} wskazujących na
+     * usunięty {@code contact} przez {@code detachContactReferences}/BE-125..127).
+     *
+     * @return {@code true}, gdy partycja wciąż ma wiersze (DROP musi zostać pominięty),
+     *         {@code false}, gdy jest bezpiecznie pusta (DROP może zostać wykonany)
      */
-    private void warnIfStillHasRows(PartitionScanner.PartitionInfo partition, RetentionDataCategory category) {
+    private boolean warnIfStillHasRows(PartitionScanner.PartitionInfo partition, RetentionDataCategory category) {
         List<PartitionScanner.TenantRowCount> rowCounts = partitionScanner.countRowsByTenant(partition.partitionName());
         if (rowCounts.isEmpty()) {
-            return;
+            return false;
         }
         long totalRows = rowCounts.stream().mapToLong(PartitionScanner.TenantRowCount::rowCount).sum();
         log.warn("[PartitionReclaimJob] Partycja {} kandyduje do DROP, ale wciąż zawiera {} wierszy "
-                        + "({} tenantów) — niespójność z Poziomem 1 (RetentionPurgeService), kontynuuję "
-                        + "DROP mimo to (próg liczony po najdłuższej retencji, więc jest bezpieczny): kategoria={}",
+                        + "({} tenantów) — POMIJAM DROP (BE-145): niespójność z Poziomem 1 "
+                        + "(RetentionPurgeService) wskazuje na możliwą awarię purge dla jednego z tenantów; "
+                        + "partycja zostanie ponownie oceniona przy następnym przebiegu jobu. Kategoria={}",
                 partition.partitionName(), totalRows, rowCounts.size(), category);
+        return true;
     }
 }

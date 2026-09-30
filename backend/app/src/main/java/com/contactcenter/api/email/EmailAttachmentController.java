@@ -1,6 +1,7 @@
 package com.contactcenter.api.email;
 
 import com.contactcenter.api.email.dto.UploadedAttachmentResponse;
+import com.contactcenter.domain.email.EmailAttachmentKeys;
 import com.contactcenter.domain.email.EmailAttachmentStorageService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -114,7 +115,10 @@ public class EmailAttachmentController {
      *
      * <p>Zwraca HTTP 302 redirect na presigned URL (TTL: 1 godzina).
      *
-     * <p>Ochrona przed IDOR: s3Key musi zaczynać się od {@code email-attachments/{tenantId}/}.
+     * <p>Ochrona przed IDOR: {@code s3Key} musi przejść allow-listę prefiksu tenanta
+     * {@link EmailAttachmentKeys#isOwnedByTenant} — {@code email-attachments/{tenantId}/}, bez
+     * segmentów {@code .}/{@code ..} ani znaków sterujących (BE-143, ta sama implementacja co
+     * walidacja wysyłki w {@code EmailSendServiceImpl} i purge w {@code EmailMessageServiceImpl}).
      * Agent nie może pobrać załącznika innego tenanta, nawet znając klucz S3.
      *
      * @param s3Key klucz S3 załącznika (zwrócony przez upload lub zawarty w EmailMessageResponse)
@@ -126,11 +130,11 @@ public class EmailAttachmentController {
     public ResponseEntity<Map<String, String>> downloadAttachment(@RequestParam("s3Key") String s3Key) {
         UUID tenantId = TenantContext.getTenantId();
 
-        // IDOR protection: s3Key musi należeć do bieżącego tenanta
-        String expectedPrefix = "email-attachments/" + tenantId + "/";
-        if (!s3Key.startsWith(expectedPrefix)) {
+        // IDOR protection (BE-143): allow-lista prefiksu tenanta, nie goły startsWith – odrzuca
+        // też próby path traversal (segmenty . / ..) i znaki sterujące.
+        if (!EmailAttachmentKeys.isOwnedByTenant(tenantId, s3Key)) {
             log.warn("[EmailAttachment] Próba dostępu do nieautoryzowanego s3Key: key={}, tenant={}",
-                    s3Key, tenantId);
+                    EmailAttachmentKeys.forLog(s3Key), tenantId);
             return ResponseEntity.status(403).build();
         }
 

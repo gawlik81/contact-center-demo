@@ -13,3 +13,5 @@ Projekt nie ma H2 w zależnościach testowych – testy repozytoriów używają 
 Gdy używasz wspólnych stubbingów w `@BeforeEach` (np. defaultowe zachowanie mockQuery), ZAWSZE dodaj `@MockitoSettings(strictness = Strictness.LENIENT)` na klasie testu – inaczej Mockito strict mode zgłosi `UnnecessaryStubbingException` dla testów które nie korzystają z wszystkich stubbingów (patrz QueueAssignmentRepositoryTest).
 
 Uwaga na generics: `mock.getResultList().thenReturn(List.of(Object[]))` – Java nie może wywnioskować `List<Object[]>` z `List.of(array)`. Zamiast tego użyj: `ArrayList returnedRows = new ArrayList(); returnedRows.add(row);` z `@SuppressWarnings("unchecked")`.
+
+**Aktualizacja (BE-125, 2026-09-21):** dla natywnego SQL/RLS/`TenantContext` używaj teraz harnessu na prawdziwej bazie — patrz [[feedback-jpa-real-db-integration-test-harness]]. Mock `EntityManager` zostaje uzasadniony tylko dla prostych delegacji bez logiki SQL.

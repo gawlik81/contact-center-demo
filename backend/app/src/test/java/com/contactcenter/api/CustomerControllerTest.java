@@ -7,6 +7,7 @@ import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.gdpr.GdprService;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;
@@ -45,6 +46,7 @@ class CustomerControllerTest {
     private static final UUID CUSTOMER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Mock private CustomerService customerService;
+    @Mock private GdprService gdprService;
 
     @InjectMocks
     private CustomerController customerController;
@@ -312,29 +314,42 @@ class CustomerControllerTest {
     // =========================================================================
 
     @Test
-    @DisplayName("anonymizeCustomer – zwraca HTTP 204 No Content po anonimizacji")
+    @DisplayName("anonymizeCustomer – deleguje do GdprService i zwraca HTTP 204 No Content (BE-129)")
     void anonymizeCustomer_returns204WhenSuccessful() {
         // given
-        doNothing().when(customerService).anonymizeCustomer(CUSTOMER_ID, TENANT_ID);
+        doNothing().when(gdprService).anonymizeCustomer(CUSTOMER_ID);
 
         // when
         ResponseEntity<Void> result = customerController.anonymizeCustomer(CUSTOMER_ID);
 
         // then
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(customerService).anonymizeCustomer(CUSTOMER_ID, TENANT_ID);
+        verify(gdprService).anonymizeCustomer(CUSTOMER_ID);
+        verifyNoInteractions(customerService);
     }
 
     @Test
-    @DisplayName("anonymizeCustomer – propaguje EntityNotFoundException gdy klient nie istnieje")
+    @DisplayName("anonymizeCustomer – propaguje EntityNotFoundException gdy klient nie istnieje (BE-129)")
     void anonymizeCustomer_propagatesEntityNotFoundExceptionWhenNotFound() {
         // given
         doThrow(new EntityNotFoundException("Klient nie istnieje: " + CUSTOMER_ID))
-                .when(customerService).anonymizeCustomer(CUSTOMER_ID, TENANT_ID);
+                .when(gdprService).anonymizeCustomer(CUSTOMER_ID);
 
         // when / then
         assertThatThrownBy(() -> customerController.anonymizeCustomer(CUSTOMER_ID))
                 .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("anonymizeCustomer – propaguje ConflictException (409) gdy klient ma rekord w toku (BE-129)")
+    void anonymizeCustomer_propagatesConflictExceptionWhenRecordInProgress() {
+        // given
+        doThrow(new ConflictException("Klient ma powiązany rekord w trakcie realizacji połączenia"))
+                .when(gdprService).anonymizeCustomer(CUSTOMER_ID);
+
+        // when / then
+        assertThatThrownBy(() -> customerController.anonymizeCustomer(CUSTOMER_ID))
+                .isInstanceOf(ConflictException.class);
     }
 
     // =========================================================================

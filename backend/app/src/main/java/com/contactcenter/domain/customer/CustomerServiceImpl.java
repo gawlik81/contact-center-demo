@@ -294,9 +294,18 @@ class CustomerServiceImpl implements CustomerService {
      * @param customerId UUID klienta do anonimizacji
      * @param tenantId   UUID tenanta
      * @throws EntityNotFoundException HTTP 404 gdy klient nie istnieje lub już anonimizowany
+     * @deprecated BE-129 (EPIC-30): ta ścieżka aktualizuje WYŁĄCZNIE tabelę {@code customer} (nie
+     *             kontakty/callbacki/rekordy kampanii/wiadomości/S3) i nie jest już wywoływana przez
+     *             {@code CustomerController} — {@code DELETE /api/customers/{id}} przekierowuje na
+     *             {@code GdprService#anonymizeCustomer}, który woła funkcję SQL {@code anonymize_customer}
+     *             (DB-062, pełny zakres wg macierzy DB-060) i jest jedynym źródłem wpisu audytowego
+     *             {@code CUSTOMER_ANONYMIZED} (stąd usunięcie {@code @Audited} z tej metody — uniknięcie
+     *             podwójnego audytu). Pozostawiona zamiast usunięcia — usunięcie z publicznego interfejsu
+     *             {@link CustomerService} uznano za zbyt ryzykowne bez pewności co do wszystkich wołających
+     *             poza tym repozytorium kodu; NIE wołaj jej w nowym kodzie.
      */
     @Transactional
-    @Audited(action = "CUSTOMER_ANONYMIZED", entityType = "CUSTOMER", entityIdParamIndex = 0)
+    @Deprecated
     @Override
     public void anonymizeCustomer(UUID customerId, UUID tenantId) {
         int updated = customerRepository.anonymize(customerId, tenantId);
@@ -523,8 +532,12 @@ class CustomerServiceImpl implements CustomerService {
      * @param customerId UUID klienta do anonimizacji
      * @param tenantId   UUID tenanta (cross-tenant guard)
      * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
+     * @deprecated BE-129 (EPIC-30): aktualizuje WYŁĄCZNIE tabelę {@code customer} — zobacz
+     *             {@link #anonymizeCustomer(UUID, UUID)}. {@code GdprServiceImpl} nie woła już tej
+     *             metody (woła funkcję SQL {@code anonymize_customer} przez {@code GdprRepository}).
      */
     @Transactional
+    @Deprecated
     @Override
     public int anonymize(UUID customerId, UUID tenantId) {
         return customerRepository.anonymize(customerId, tenantId);

@@ -69,3 +69,24 @@ Nowe po BE-124/DB-060: **DB-078** (sweep + drop `contacts_dw.remote_address`, za
 - `retention_purge_log.data_category` MA CHECK (V084); D1=C wymaga przebudowy trzech CHECK-ów. Klucz załącznika w JSONB to `s3_key` (nie `s3_url` z V010).
 - FE dryf po BE-119: `UNSUPPORTED_PURGE_CATEGORIES` w `data-retention.component.ts` nadal blokuje `CAMPAIGN_DATA` (FE-110).
 - `PROGRESS.md` nie ma wierszy dla EPIC-27 (DB-040/041, BE-092..096, FE-090..096) i addendów EPIC-28 (BE-110, FE-101/102) — liczby w Podsumowaniu liczone z TASKS-*.md; NIE naprawione (poza zakresem).
+
+**Tura 10 (2026-09-30, czysto dokumentacyjna — zero zmian w kodzie, D1 od ZAŁOŻENIA do POTWIERDZENIA):** właściciel produktu formalnie potwierdził
+D1 = A w rozmowie z koordynatorem („Dla D1 wybieram opcję A"). To zmienia status prawny decyzji z „przyjęte roboczo 2026-09-20 bez potwierdzenia"
+na „formalnie zatwierdzone 2026-09-30" — **nie zmienia stanu wdrożenia** (BE-124…128 były już zaimplementowane i zmergowane pod założeniem A).
+Konsekwencje: **DB-063, BE-130, FE-111** (jedyne 3 tickety warunkowe D1=C) zamknięte jako **`🚫 N/A`** — nowy symbol statusu, **brak precedensu w
+repo** przed tą turą (sprawdzone grepem „N/A"/„🚫"/„Nie dotyczy" w TASKS-*.md), wprowadzony i udokumentowany w Legendzie PROGRESS.md; ticket nie
+usuwane (opis/AC nietknięte), tylko pole `**Status:**` + jednozdaniowe wyjaśnienie, plus `🚫` w `**Zależy od:**`/`**Czeka na BE:**` gdzie te trzy ID
+się wzajemnie wymieniają. **Zweryfikowane grepem `**Zależy od:**` po tych 3 ID w całych TASKS-*.md: ŻADEN inny, aktywny ticket od nich nie zależy**
+— jedyne odwołania to sam wewnętrzny łańcuch DB-063→BE-130→FE-111 (potwierdza wzorzec z `[[feedback_verify_callers_and_symmetry]]`: zawsze grepuj
+zależności zamiast ufać, że „warunkowy, nikt się nie zdążył podłączyć" jest bezpiecznym założeniem — tu akurat było prawdziwe, ale NIE zgadywane).
+**D9 i D10 sprawdzone w DESIGN §3 i pozostają otwarte** („ZAŁOŻENIE DO POTWIERDZENIA", bez zmian) — bramka produkcyjna `auto_purge_enabled` dla
+`CONTACT_INTERACTIONS` (flaga `retention.purge.delete-messages`) **zostaje w mocy**, tylko przeformułowana: powodem blokady jest teraz D9/D10, nie
+już D1. D2–D8 przeczytane, niezmienione.
+**PROGRESS.md „Razem" (336) świadomie NIE zmniejszony** mimo że 3 tickety przestały być „do zrobienia": dodana nowa kolumna „N/A" w tabeli Obszar
+(DB 18⬜+1🚫=19 z „Nie rozpoczęte" starego, analogicznie BE/FE), zamiast cichego wrzucenia do „Ukończone" (fałszywe — kod nie powstał) albo
+pozostawienia w „Nie rozpoczęte" (mylące — sugeruje otwarty backlog). Precedens dla przyszłych zamknięć „won't-do": użyj `🚫 N/A`, dodaj kolumnę,
+zachowaj inwariant sumy 4 kolumn = Razem per wiersz, nie zmieniaj mianownika bez jawnego wyjaśnienia w PROGRESS.md.
+Pliki zmienione: DESIGN-message-retention-and-partitioning.md (nagłówek, §3 D1 pełny akapit, zamknięcie B/C, bramka, diagram Fala 1), TASKS-DATABASE.md
+(DB-063 + preambuła Grupa 1), TASKS-BACKEND.md (BE-130 + preambuła + notatka w BE-124 sekcja 1, Status/kod BE-124 NIE ruszone — na wyraźne polecenie),
+TASKS-FRONTEND.md (FE-111 + preambuła), PROGRESS.md (Legenda, Obszar, Nie rozpoczęte wg EPIC, 3 wiersze per-ticket, cały nagłówek Ostatnia/Poprzednia
+aktualizacja przesunięty o jedną turę). Zero commitów/pushów (na wyraźne polecenie zlecającego).

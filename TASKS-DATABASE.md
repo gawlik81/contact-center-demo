@@ -3037,7 +3037,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
 > Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
-> Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 → BE-130, tylko D1 = C]
+> Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 >           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
 > Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126 ✅, DB-059 → DB-065
 > Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
@@ -3653,7 +3653,8 @@ NIE dotyka `scheduled_callback`, `campaign_contact`, `campaign_contact_archive`,
 **Priorytet:** Could Have (wchodzi do zakresu wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** S
 **Zależy od:** BE-124 ✅ (potwierdzenie D1 = C)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** 🚫 N/A — zamknięte 2026-09-30 (D1 formalnie potwierdzone przez właściciela produktu jako opcja A; ten ticket dotyczył wyłącznie
+wariantu C, patrz DESIGN §3)
 **Blokuje:** BE-130
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`

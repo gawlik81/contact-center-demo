@@ -2,7 +2,9 @@
 
 Status: **projekt do akceptacji** (nie wdrożone). Decyzje D1–D10 (§3) czekają na właściciela produktu — tickety mają działać przy
 **założeniach domyślnych** oznaczonych „ZAŁOŻENIE DO POTWIERDZENIA"; przy alternatywie zmienia się wskazany zakres, nie kolejność prac.
-**D1: przyjęte do realizacji 2026-09-20 (założenie A) bez wyraźnego potwierdzenia właściciela** — stan i ścieżka zmiany w §3, ADR w `TASKS-BACKEND.md` BE-124.
+**D1: FORMALNIE POTWIERDZONE przez właściciela produktu 2026-09-30 (opcja A)** — wcześniej, 2026-09-20, przyjęte do realizacji jedynie jako
+założenie robocze bez wyraźnego potwierdzenia, na którym działał już zamknięty łańcuch ticketów BE-124→BE-125→BE-126→BE-127→BE-128; stan i
+ścieżka zmiany w §3, ADR w `TASKS-BACKEND.md` BE-124.
 Analiza: 2026-09-20 (PostgreSQL 16.13, schemat po V093, baza demo 28 MB; tylko odczyt, bez zmian w bazie i repo).
 Powiązane: `DESIGN-data-retention-partitioning.md` (EPIC-29 — silnik retencji), `PRD.md` §6.5 (NFR-RODO01/02/03), `ARCHITECTURE.md` §4/§6.6,
 `documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079, `TASKS-BACKEND.md` BE-120…143 (+ BE-144 poza epikiem: porządki infrastruktury MinIO), `TASKS-FRONTEND.md` FE-110…112.
@@ -46,13 +48,19 @@ Każda: opcje → **ZAŁOŻENIE DO POTWIERDZENIA** (domyślne, na nim działają
 
 **D1 — semantyka retencji treści wiadomości.** Opcje: (A) DELETE wierszy i załączników S3 razem z purge kontaktu, w istniejącej kategorii
 `CONTACT_INTERACTIONS`; (B) anonimizacja (zostają metadane); (C) osobna kategoria `MESSAGE_CONTENT`.
-**STAN (BE-124, 2026-09-20): przyjęte do realizacji 2026-09-20 na podstawie polecenia realizacji po przedstawieniu założenia domyślnego A;
-wyraźnego potwierdzenia D1 właściciel nie złożył.** To nie jest zatwierdzenie decyzji: A pozostaje założeniem roboczym, tickety warunkowe
-(DB-063, BE-130, FE-111) są nieaktywne, ale nie zamknięte. Pytania do właściciela (D1, D2 i pochodne z BE-124) czekają na przekazanie.
-**ZAŁOŻENIE: A** (bez zmian CHECK/enuma/UI). ADR z uzasadnieniem i dowodami: `TASKS-BACKEND.md` BE-124. Skutki A: usunięcie jest nieodwracalne
+**STAN: D1 FORMALNIE POTWIERDZONE przez właściciela produktu 2026-09-30 — opcja A.** Dwa momenty: **(a) 2026-09-20 (BE-124)** — A przyjęte do
+realizacji na podstawie polecenia realizacji po przedstawieniu założenia domyślnego, **bez wyraźnego potwierdzenia właściciela**; na tym założeniu
+roboczym zaimplementowano i zmergowano do `develop` cały łańcuch BE-124 → BE-125 → BE-126 → BE-127 → BE-128 (wszystkie ✅). **(b) 2026-09-30** —
+właściciel produktu w rozmowie z asystentem formalnie potwierdził: „Dla D1 wybieram opcję A". To **jest** zatwierdzenie decyzji (nie tylko
+kontynuacja założenia): tickety warunkowe dla wariantu C — DB-063, BE-130, FE-111 — są **zamknięte jako N/A** 2026-09-30 (patrz `**Status:**` w
+TASKS-DATABASE.md/TASKS-BACKEND.md/TASKS-FRONTEND.md). Potwierdzenie **nie zmienia stanu wdrożenia** — BE-124…128 były już zaimplementowane pod
+założeniem A i kod pozostaje bez zmian; to czysto formalne domknięcie decyzji produktowej. Pytania do właściciela dot. **pozostałych decyzji
+(D2–D10, wciąż otwartych)** czekają nadal na przekazanie/potwierdzenie — D1 nie jest już jedną z nich.
+**DECYZJA: A** (bez zmian CHECK/enuma/UI). ADR z uzasadnieniem i dowodami: `TASKS-BACKEND.md` BE-124 (notatka z realizacji, sekcja 1; dopisek o
+potwierdzeniu 2026-09-30). Skutki A: usunięcie jest nieodwracalne
 (bucket S3 niewersjonowany, bez lifecycle), ten sam przycisk „Usuń teraz" dla `CONTACT_INTERACTIONS` zyskuje szerszy skutek (FE-110 ma wejść
 razem z BE-126), wiadomość dziedziczy wiek kontaktu (`started_at`).
-**Wpływ alternatyw (ścieżka zmiany):**
+**Wpływ alternatyw (ścieżka zmiany — zapis historyczny uzasadnienia decyzji; zob. zdanie zamykające poniżej: B i C są zamknięte, D1 = A jest ostateczne):**
 - **(B)** — BE-125: `purgeByContactIds` → UPDATE PII (`from/to/cc/bcc`, `subject`, `body_*`, `attachments = '[]'`; social: `content`, `sender_external_id`),
   obiekty S3 nadal usuwane, potrzebny znacznik „zanonimizowano" (nowy ticket DB), inaczej sweep nie jest idempotentny; BE-126: `detachContactReferences` zostaje
   + wołanie anonimizacji; BE-127/128: UPDATE i liczenie wierszy niezanonimizowanych; DB-059: predykat indeksu + kolumna; DB-063/BE-130/FE-111 nie wchodzą;
@@ -61,9 +69,16 @@ razem z BE-126), wiadomość dziedziczy wiek kontaktu (`started_at`).
   `retention_purge_log_data_category_check`, backfill = wartość `CONTACT_INTERACTIONS`), BE-130 (enum, `seedDefaultPolicies`, ewaluacja, purge, `ReclaimTarget`, kontroler),
   FE-111 (UI, 4× i18n); BE-126 wraca do odcinania referencji, a usuwanie wiadomości i sweep (BE-127) oraz liczenie (BE-128) przechodzą pod `MESSAGE_CONTENT`;
   BE-125 zyskuje wariant po wieku; DB-059: indeks bez `WHERE contact_id IS NULL`; DB-065/067 bez zmian (próg z `MESSAGE_CONTENT`); FE-110 ogranicza się do dryfu `CAMPAIGN_DATA`.
-- **Zmiana decyzji po starcie prac:** przed merge BE-125/126 zmieniają się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie jest nieodwracalne, więc B/C
-  dotyczą tylko danych jeszcze nieusuniętych. Opcja zabezpieczająca (do decyzji zlecającego): flaga `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe
-  odcinanie referencji), włączana po potwierdzeniu D1; bez flagi — nie włączać `auto_purge_enabled` dla `CONTACT_INTERACTIONS` na produkcji do czasu potwierdzenia.
+- **Zmiana decyzji po starcie prac (zapis historyczny):** przed merge BE-125/126 zmieniałyby się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie
+  jest nieodwracalne, więc B/C dotyczyłyby tylko danych jeszcze nieusuniętych w chwili ewentualnej zmiany. Opcja zabezpieczająca, przyjęta i pozostająca w mocy: flaga
+  `retention.purge.delete-messages` (domyślnie `false` = dotychczasowe odcinanie referencji). **Bramka produkcyjna (stan 2026-09-30):** D1 = A jest formalnie
+  potwierdzone, ale to samo w sobie NIE odblokowuje produkcji — `auto_purge_enabled` dla `CONTACT_INTERACTIONS` pozostaje zablokowany na produkcji, teraz już nie do
+  czasu potwierdzenia D1 (nieaktualne), tylko do czasu potwierdzenia **D9** (zbiór podmiotu Art. 17/15 — dziś nadal „ZAŁOŻENIE DO POTWIERDZENIA: A z podglądem",
+  ryzyko fałszywych trafień R9) i **D10** (maskowanie PII w `audit_log` — dziś nadal „ZAŁOŻENIE DO POTWIERDZENIA", wymaga potwierdzenia prawnego); oba pozostają
+  otwarte, więc bramka zostaje w mocy bez zmian.
+- **B i C zamknięte (2026-09-30):** obie ścieżki analizy powyżej — (B) anonimizacja i (C) kategoria `MESSAGE_CONTENT` — są od tej daty **zamknięte i nieaktualne**:
+  D1 = A jest ostateczną, formalnie potwierdzoną decyzją (tickety warunkowe DB-063/BE-130/FE-111 zamknięte jako N/A, patrz wyżej). Analiza zostaje w dokumencie
+  wyłącznie jako historyczne uzasadnienie wyboru A, nie jako otwarta opcja.
 
 **D2 — wolumen i próg partycjonowania `email_message`.** Brak liczb w PRD. Opcje progu: niski (≈ 2 GB / 500 tys. wierszy), średni, wysoki.
 **ZAŁOŻENIE: wchodzimy w konwersję, gdy spełnione jest którekolwiek z:** G1 `pg_total_relation_size('email_message')` ≥ 10 GB (tabela + TOAST +
@@ -130,7 +145,7 @@ Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = 
 Fala 0  BE-120, BE-122, BE-123, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)      BE-145 ✅ (poza epikiem: PartitionReclaimJob nie DROP-uje już niepustej partycji contact*, ukończone 2026-09-26)
 Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅ → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 ✅ → BE-127 ✅
         DB-060 ✅ (audyt PII) → DB-061 ✅ (+ wspólna reguła D9) → DB-062 ✅ → BE-129 ✅ → FE-112      DB-079 ✅ (trigger V016) → DB-062 ✅, BE-129 ✅      BE-125 ✅ → BE-129 ✅
-        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 → BE-130 → FE-111]
+        BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      [D10: BE-142]      [D1=C: BE-124 ✅ → DB-063 🚫 → BE-130 🚫 → FE-111 🚫 (zamknięte 2026-09-30, D1=A potwierdzone)]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)

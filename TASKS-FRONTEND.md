@@ -5873,7 +5873,7 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112`;  `[BE-130 → FE-111, tylko D1 = C]`.
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
@@ -5913,9 +5913,10 @@ Administrator musi to widzieć w tabeli polityk, na kartach dashboardu i w modal
 **Typ:** Frontend implementation
 **Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** M
-**Zależy od:** BE-130
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-130
+**Zależy od:** BE-130 🚫
+**Status:** 🚫 N/A — zamknięte 2026-09-30 (D1 formalnie potwierdzone przez właściciela produktu jako opcja A; ten ticket dotyczył wyłącznie
+wariantu C, patrz DESIGN §3)
+**Czeka na BE:** BE-130 🚫 (N/A, zamknięte)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `angular-frontend-expert`

@@ -6805,7 +6805,7 @@ działają niezależnie od tej decyzji.
 > ```
 > Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130, tylko D1 = C]
+>           BE-141 → DB-078;   [BE-142, tylko D10];   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 → BE-132 → BE-133;   BE-123, BE-126 → BE-133
 > Grupa 3:  DB-067 → BE-134 → BE-135;   BE-133, BE-125 ✅, BE-127 ✅ → BE-135;   [DB-068, BE-134 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -7009,6 +7009,10 @@ Metoda: wyłącznie odczyt — kod gałęzi `chore/epic-30-zadania` (zawiera PR 
 | FE-110 | „zanonimizowane" zamiast „usunięte" | tylko punkt 3 (dryf `CAMPAIGN_DATA`); opis wiadomości → FE-111 |
 
 - **Zmiana decyzji po starcie prac:** przed merge BE-125/126 — zmieniają się wyłącznie tickety; po uruchomieniu purge na realnych danych usunięcie jest nieodwracalne, więc B/C dotyczą tylko danych jeszcze nieusuniętych.
+
+**Aktualizacja 2026-09-30:** D1 formalnie potwierdzone przez właściciela produktu jako opcja A (patrz DESIGN §3). Tickety warunkowe dla wariantu C
+(DB-063, BE-130, FE-111) zamknięte jako N/A tego samego dnia. Status i kod tego ticketu (BE-124) bez zmian — to czysto formalne domknięcie decyzji
+produktowej, implementacja BE-124…128 (już zmergowana do `develop` pod założeniem A) się nie zmienia.
 
 **2. Inwentarz PII** (schemat z `\d+` żywej bazy + kod). Jedyni pisarze `email_message`: `EmailPollingServiceImpl#parseMessage` :219–270 (INBOUND), `EmailSendServiceImpl#sendReply` :100–113 i `#sendNew` :200–212 (OUTBOUND) — grep `EmailMessage.builder()`, brak INSERT-ów w migracjach; `social_message`: `SocialMessageServiceImpl` :101–117 (INBOUND) i :217–233 (OUTBOUND).
 
@@ -7583,8 +7587,9 @@ Przy D3 = B: logika DB trafia do Javy (wiele repozytoriów, brak jednej transakc
 **Typ:** Backend implementation
 **Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
 **Złożoność:** M
-**Zależy od:** DB-063, BE-126 ✅, BE-127 ✅, BE-128 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅
+**Status:** 🚫 N/A — zamknięte 2026-09-30 (D1 formalnie potwierdzone przez właściciela produktu jako opcja A; ten ticket dotyczył wyłącznie
+wariantu C, patrz DESIGN §3)
 **Blokuje:** FE-111
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`

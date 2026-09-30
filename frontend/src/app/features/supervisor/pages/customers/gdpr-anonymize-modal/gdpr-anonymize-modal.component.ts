@@ -4,6 +4,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  OnInit,
+  computed,
   inject,
   input,
   output,
@@ -11,8 +13,26 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { catchError, of, timeout } from 'rxjs';
 import { GdprService } from '../services/gdpr.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import {
+  AnonymizePreviewResponse,
+  GDPR_PREVIEW_COUNT_LABEL_KEYS,
+  GDPR_PREVIEW_COUNT_ORDER,
+} from '../gdpr.model';
+
+type PreviewState = 'loading' | 'loaded' | 'error';
+
+/** Podgląd D9 musi się załadować zanim potwierdzenie zostanie odblokowane — zawieszony request
+ *  (nie tylko jawny błąd HTTP) też ma zablokować potwierdzenie nieodwracalnej operacji. */
+const PREVIEW_TIMEOUT_MS = 15000;
+
+interface PreviewRow {
+  key: string;
+  labelKey: string;
+  count: number;
+}
 
 @Component({
   selector: 'app-gdpr-anonymize-modal',
@@ -24,7 +44,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class GdprAnonymizeModalComponent implements AfterViewInit {
+export class GdprAnonymizeModalComponent implements OnInit, AfterViewInit {
   private readonly gdprService = inject(GdprService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
@@ -40,13 +60,62 @@ export class GdprAnonymizeModalComponent implements AfterViewInit {
   readonly confirmText = signal('');
   readonly isLoading = signal(false);
 
-  readonly isConfirmEnabled = () => this.confirmText() === 'ANONIMIZUJ' && !this.isLoading();
+  readonly previewState = signal<PreviewState>('loading');
+  readonly preview = signal<AnonymizePreviewResponse | null>(null);
+
+  readonly hasIdentifierMatches = computed(() => (this.preview()?.matchedByIdentifier ?? 0) > 0);
+
+  readonly previewRows = computed<PreviewRow[]>(() => {
+    const counts = this.preview()?.counts ?? {};
+    const keys = Object.keys(counts);
+    keys.sort((a, b) => {
+      const ia = GDPR_PREVIEW_COUNT_ORDER.indexOf(a);
+      const ib = GDPR_PREVIEW_COUNT_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    return keys.map((key) => ({
+      key,
+      labelKey: GDPR_PREVIEW_COUNT_LABEL_KEYS[key] ?? key,
+      count: counts[key],
+    }));
+  });
+
+  readonly isConfirmEnabled = () =>
+    this.confirmText() === 'ANONIMIZUJ' && !this.isLoading() && this.previewState() === 'loaded';
+
+  ngOnInit(): void {
+    this.loadPreview();
+  }
 
   ngAfterViewInit(): void {
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && !dialog.open) {
       dialog.showModal();
     }
+  }
+
+  /** Woła GET .../gdpr/anonymize/preview (D9 = A) — błąd lub timeout blokuje potwierdzenie. */
+  loadPreview(): void {
+    this.previewState.set('loading');
+    this.preview.set(null);
+
+    this.gdprService
+      .previewAnonymize(this.customerId())
+      .pipe(
+        timeout(PREVIEW_TIMEOUT_MS),
+        catchError(() => of(null)),
+      )
+      .subscribe((preview) => {
+        if (preview) {
+          this.preview.set(preview);
+          this.previewState.set('loaded');
+        } else {
+          this.previewState.set('error');
+        }
+      });
   }
 
   onEscapeKey(event: Event): void {
@@ -70,17 +139,11 @@ export class GdprAnonymizeModalComponent implements AfterViewInit {
         );
         this.confirmed.emit();
       },
-      error: (err: { status?: number }) => {
+      error: () => {
         this.isLoading.set(false);
-        if (err.status === 403) {
-          this.notifications.error(
-            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
-          );
-        } else {
-          this.notifications.error(
-            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
-          );
-        }
+        this.notifications.error(
+          this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
+        );
       },
     });
   }

@@ -25,7 +25,66 @@
         <li>{{ 'supervisor.gdprAnonymize.effect2' | transloco }}</li>
         <li>{{ 'supervisor.gdprAnonymize.effect3' | transloco }}</li>
         <li>{{ 'supervisor.gdprAnonymize.effect4' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect5' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect6' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect7' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect8' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect9' | transloco }}</li>
       </ul>
+
+      <div class="anonymize-dialog__preview" aria-live="polite">
+        <h3 class="anonymize-dialog__preview-title">
+          {{ 'supervisor.gdprAnonymize.previewTitle' | transloco }}
+        </h3>
+
+        @switch (previewState()) {
+          @case ('loading') {
+            <p class="anonymize-dialog__preview-status">
+              <span class="btn-spinner" aria-hidden="true"></span>
+              {{ 'supervisor.gdprAnonymize.previewLoading' | transloco }}
+            </p>
+          }
+          @case ('error') {
+            <div class="anonymize-dialog__preview-error" role="alert">
+              <p>{{ 'supervisor.gdprAnonymize.previewError' | transloco }}</p>
+              <button type="button" class="btn btn-cancel btn-preview-retry" (click)="loadPreview()">
+                {{ 'supervisor.gdprAnonymize.previewRetry' | transloco }}
+              </button>
+            </div>
+          }
+          @case ('loaded') {
+            <dl
+              class="anonymize-dialog__preview-counts"
+              [attr.aria-label]="'supervisor.gdprAnonymize.previewCountsLabel' | transloco"
+            >
+              @for (row of previewRows(); track row.key) {
+                <div class="anonymize-dialog__preview-row">
+                  <dt>{{ row.labelKey | transloco }}</dt>
+                  <dd>{{ row.count }}</dd>
+                </div>
+              }
+              <div class="anonymize-dialog__preview-row">
+                <dt>{{ 'supervisor.gdprAnonymize.previewCount.s3Objects' | transloco }}</dt>
+                <dd>{{ preview()!.s3ObjectsToDelete }}</dd>
+              </div>
+            </dl>
+
+            <p class="anonymize-dialog__preview-matched">
+              {{ 'supervisor.gdprAnonymize.previewMatchedByLink' | transloco }}:
+              {{ preview()!.matchedByLink }}
+              &middot;
+              {{ 'supervisor.gdprAnonymize.previewMatchedByIdentifier' | transloco }}:
+              {{ preview()!.matchedByIdentifier }}
+            </p>
+
+            @if (hasIdentifierMatches()) {
+              <div class="anonymize-dialog__preview-warning" role="alert">
+                {{ 'supervisor.gdprAnonymize.previewIdentifierWarning' | transloco }}
+              </div>
+            }
+          }
+        }
+      </div>
 
       <div class="anonymize-dialog__confirm-field">
         <label for="confirm-input" class="anonymize-dialog__confirm-label">
@@ -46,6 +105,11 @@
         @if (confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ') {
           <p class="anonymize-dialog__confirm-hint" role="alert" aria-live="polite">
             {{ 'supervisor.gdprAnonymize.confirmHint' | transloco }}
+          </p>
+        }
+        @if (previewState() !== 'loaded') {
+          <p class="anonymize-dialog__confirm-hint" aria-live="polite">
+            {{ 'supervisor.gdprAnonymize.previewBlockedHint' | transloco }}
           </p>
         }
       </div>

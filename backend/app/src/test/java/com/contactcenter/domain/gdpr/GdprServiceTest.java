@@ -161,6 +161,23 @@ class GdprServiceTest {
         }
 
         @Test
+        @DisplayName("BE-142 Zakres p.4: wpis audytowy GDPR_EXPORT nie niesie żadnego PII eksportowanego klienta – oldValue/newValue są null")
+        void auditEvent_carriesNoCustomerPii_oldAndNewValueAreNull() {
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildCustomer()));
+            when(gdprRepository.exportCustomerData(CUSTOMER_ID, TENANT_ID))
+                    .thenReturn(fullExportJson());
+
+            gdprService.exportCustomerData(CUSTOMER_ID);
+
+            ArgumentCaptor<com.contactcenter.domain.audit.AuditLogEvent> captor =
+                    ArgumentCaptor.forClass(com.contactcenter.domain.audit.AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().oldValue()).isNull();
+            assertThat(captor.getValue().newValue()).isNull();
+        }
+
+        @Test
         @DisplayName("nie ucina eksportu – deleguje w całości do export_customer_data bez limitu w Javie")
         void doesNotTruncate_delegatesEntirelyToSqlFunction() {
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
@@ -209,6 +226,12 @@ class GdprServiceTest {
             verifyNoInteractions(emailAttachmentStorageService, auditLogService);
         }
 
+        // BE-142 Zakres p.4: ten test (pre-existing, BE-129) już potwierdza dokładnie AC BE-142 –
+        // "GdprServiceImpl nie wkłada PII do własnych wpisów audytu" dla anonimizacji jest spełnione
+        // przez PROSTSZY fakt: anonymizeCustomer w ogóle NIE publikuje żadnego własnego wpisu audytowego
+        // (jedyny wpis CUSTOMER_ANONYMIZED zapisuje SQL, bez kluczy z AuditPiiKeys – patrz V098 nagłówek,
+        // sekcja 3, akapit o kolejności kroku 10). Regresja tego stanu (np. przyszłe dodanie @Audited na
+        // GdprServiceImpl) zostanie natychmiast wykryta przez verifyNoInteractions poniżej.
         @Test
         @DisplayName("nie publikuje własnego wpisu audytowego – funkcja SQL już zapisała CUSTOMER_ANONYMIZED")
         void doesNotPublishOwnAuditEvent() {

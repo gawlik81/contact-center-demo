@@ -211,6 +211,130 @@ class AuditAspectTest {
     }
 
     // =========================================================================
+    // Maskowanie PII (BE-142) – AuditPiiKeys, wyłącznie CUSTOMER/CONTACT
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Maskowanie PII (BE-142) – AuditPiiKeys, wyłącznie CUSTOMER/CONTACT")
+    class PiiMasking {
+
+        @Test
+        @DisplayName("CUSTOMER: maskuje firstName/lastName/externalId/phone/email/customFields w newValue, customerId/source nietknięte")
+        void customerEntityType_masksPiiFields_inNewValue() throws Throwable {
+            CustomerLikeResult result = new CustomerLikeResult(
+                    ENTITY_ID, "Jan", "Kowalski", "ERP-1",
+                    java.util.List.of("+48500100200"), java.util.List.of("jan@example.com"),
+                    java.util.Map.of("vip", true), "MANUAL");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{}, result);
+            Audited audited = mockAudited("CUSTOMER_CREATED", "CUSTOMER", false, "", -1);
+
+            auditAspect.auditMethod(pjp, audited);
+
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            String newValue = captor.getValue().newValue();
+
+            assertThat(newValue).contains("\"firstName\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"lastName\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"externalId\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"phone\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"email\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"customFields\":\"[MASKED]\"");
+            // pola NIE-PII zostają nietknięte
+            assertThat(newValue).contains("\"source\":\"MANUAL\"");
+            assertThat(newValue).contains(ENTITY_ID.toString());
+        }
+
+        @Test
+        @DisplayName("CONTACT: maskuje remoteAddress/channelMetadata/notes/recordingUrl w newValue, status/dispositionCode nietknięte")
+        void contactEntityType_masksPiiFields_inNewValue() throws Throwable {
+            ContactLikeResult result = new ContactLikeResult(
+                    ENTITY_ID, "+48500100200", java.util.Map.of("sip_call_id", "abc"),
+                    "notatka agenta", "s3://bucket/rec.mp3", "COMPLETED", "SALE");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{}, result);
+            Audited audited = mockAudited("CONTACT_DISPOSITION_SET", "CONTACT", false, "", -1);
+
+            auditAspect.auditMethod(pjp, audited);
+
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            String newValue = captor.getValue().newValue();
+
+            assertThat(newValue).contains("\"remoteAddress\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"channelMetadata\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"notes\":\"[MASKED]\"");
+            assertThat(newValue).contains("\"recordingUrl\":\"[MASKED]\"");
+            // pola operacyjne NIE-PII zostają nietknięte
+            assertThat(newValue).contains("\"status\":\"COMPLETED\"");
+            assertThat(newValue).contains("\"dispositionCode\":\"SALE\"");
+        }
+
+        @Test
+        @DisplayName("inna encja (TENANT): pole firstName NIE jest maskowane – maskowanie warunkowe wyłącznie CUSTOMER/CONTACT")
+        void nonMaskedEntityType_doesNotMaskEvenSameFieldName() throws Throwable {
+            TenantLikeResult result = new TenantLikeResult(ENTITY_ID, "Jan", "Nazwa Tenanta");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{}, result);
+            Audited audited = mockAudited("TENANT_CREATED", "TENANT", false, "", -1);
+
+            auditAspect.auditMethod(pjp, audited);
+
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            String newValue = captor.getValue().newValue();
+
+            assertThat(newValue).contains("\"firstName\":\"Jan\"");
+            assertThat(newValue).doesNotContain("[MASKED]");
+        }
+
+        @Test
+        @DisplayName("RECORDING_URL_REQUESTED (entityType=CONTACT): presignedUrl NIE jest maskowany – klucz spoza AuditPiiKeys (decyzja BE-142)")
+        void recordingUrlRequested_presignedUrlNotInPiiKeys_staysUnmasked() throws Throwable {
+            RecordingUrlLikeResult result = new RecordingUrlLikeResult(
+                    ENTITY_ID, "http://minio:9000/rec.mp3?X-Amz-Signature=abc", 42);
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{}, result);
+            Audited audited = mockAudited("RECORDING_URL_REQUESTED", "CONTACT", false, "", -1);
+
+            auditAspect.auditMethod(pjp, audited);
+
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            String newValue = captor.getValue().newValue();
+
+            assertThat(newValue).contains("X-Amz-Signature");
+            assertThat(newValue).doesNotContain("[MASKED]");
+        }
+
+        @Test
+        @DisplayName("oldValue (captureOldValue=true, ścieżka refleksyjna dla CONTACT – nie jest w ENTITY_CLASS_MAP): maskowanie stosowane również do oldValue")
+        void captureOldValue_maskingAppliesToOldValueToo() throws Throwable {
+            ContactLikeResult oldEntity = new ContactLikeResult(
+                    ENTITY_ID, "+48500100200", java.util.Map.of("sip_call_id", "xyz"),
+                    null, null, "IN_PROGRESS", null);
+            FetchTarget target = new FetchTarget(oldEntity);
+
+            ProceedingJoinPoint pjp = mock(ProceedingJoinPoint.class);
+            when(pjp.getArgs()).thenReturn(new Object[]{ENTITY_ID});
+            when(pjp.getTarget()).thenReturn(target);
+            ContactLikeResult newResult = new ContactLikeResult(
+                    ENTITY_ID, "+48500100200", java.util.Map.of("sip_call_id", "xyz"),
+                    "agent notatka", null, "COMPLETED", "SALE");
+            when(pjp.proceed()).thenReturn(newResult);
+
+            Audited audited = mockAudited("CONTACT_DISPOSITION_SET", "CONTACT", true, "fetchOldContact", -1);
+
+            auditAspect.auditMethod(pjp, audited);
+
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            AuditLogEvent event = captor.getValue();
+
+            assertThat(event.oldValue()).contains("\"remoteAddress\":\"[MASKED]\"");
+            assertThat(event.oldValue()).contains("\"status\":\"IN_PROGRESS\"");
+            assertThat(event.newValue()).contains("\"notes\":\"[MASKED]\"");
+        }
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 
@@ -258,5 +382,32 @@ class AuditAspectTest {
         public String getEmail() { return email; }
         public String getPasswordHash() { return passwordHash; }
         public String getMfaSecret() { return mfaSecret; }
+    }
+
+    /** Wynik z polami PII klienta (jak {@code CustomerResponse}) – dla testów maskowania BE-142. */
+    record CustomerLikeResult(UUID customerId, String firstName, String lastName, String externalId,
+                               java.util.List<String> phone, java.util.List<String> email,
+                               java.util.Map<String, Object> customFields, String source) {}
+
+    /** Wynik z polami PII kontaktu (jak {@code ContactResponse}) – dla testów maskowania BE-142. */
+    record ContactLikeResult(UUID contactId, String remoteAddress, java.util.Map<String, Object> channelMetadata,
+                              String notes, String recordingUrl, String status, String dispositionCode) {}
+
+    /** Wynik z polem {@code presignedUrl} (jak dla akcji RECORDING_URL_REQUESTED) – spoza {@code AuditPiiKeys}. */
+    record RecordingUrlLikeResult(UUID contactId, String presignedUrl, Integer durationSeconds) {}
+
+    /** Wynik z polem {@code firstName} na encji INNEJ niż CUSTOMER/CONTACT – dowód warunkowości maskowania. */
+    record TenantLikeResult(UUID id, String firstName, String name) {}
+
+    /**
+     * Cel wywołania refleksyjnego {@code fetchOldValueMethod} – symuluje serwis z getterem starego
+     * stanu. MUSI być {@code public} (razem z metodą) – {@code AuditAspect} wywołuje ją reflection
+     * z INNEGO pakietu ({@code infrastructure.aspect}), a JVM odmawia dostępu do publicznej metody
+     * na klasie o niepublicznej (domyślnej) widoczności przy wywołaniu spoza pakietu.
+     */
+    public static class FetchTarget {
+        private final Object toReturn;
+        FetchTarget(Object toReturn) { this.toReturn = toReturn; }
+        public Object fetchOldContact(UUID id) { return toReturn; }
     }
 }

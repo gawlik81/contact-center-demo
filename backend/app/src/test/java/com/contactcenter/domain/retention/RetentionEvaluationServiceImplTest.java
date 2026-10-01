@@ -3,7 +3,6 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
-import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
@@ -87,9 +86,6 @@ class RetentionEvaluationServiceImplTest {
     @Mock
     private EmailMessageService emailMessageService;
 
-    @Mock
-    private SocialMessageService socialMessageService;
-
     @InjectMocks
     private RetentionEvaluationServiceImpl service;
 
@@ -149,6 +145,7 @@ class RetentionEvaluationServiceImplTest {
 
             verify(partitionScanner).listPartitions("contact");
             verify(partitionScanner).listPartitions("contact_event");
+            verify(partitionScanner).listPartitions("social_message");
             verify(partitionScanner).listPartitions("contact_transcription");
             verify(partitionScanner).listPartitions("contact_ai_summary");
             verify(partitionScanner).countRowsByTenant("contact_2020_01");
@@ -342,6 +339,35 @@ class RetentionEvaluationServiceImplTest {
             verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
                     eq(15L), any(), any());
         }
+
+        @Test
+        @DisplayName("BE-133: suma liczby wierszy z trzech tabel kategorii (contact + contact_event + social_message) dla jednego tenanta")
+        void sumsRowCountsAcrossAllThreeTablesOfCategoryIncludingSocialMessage() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            PartitionScanner.PartitionInfo contactPartition =
+                    partitionEndingAt("contact_2020_06", today.minusMonths(65));
+            PartitionScanner.PartitionInfo eventPartition =
+                    partitionEndingAt("contact_event_2020_06", today.minusMonths(65));
+            PartitionScanner.PartitionInfo socialPartition =
+                    partitionEndingAt("social_message_2020_06", today.minusMonths(65));
+
+            when(partitionScanner.listPartitions("contact")).thenReturn(List.of(contactPartition));
+            when(partitionScanner.listPartitions("contact_event")).thenReturn(List.of(eventPartition));
+            when(partitionScanner.listPartitions("social_message")).thenReturn(List.of(socialPartition));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 10)));
+            when(partitionScanner.countRowsByTenant("contact_event_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 5)));
+            when(partitionScanner.countRowsByTenant("social_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 2)));
+
+            service.runForAllActiveTenants();
+
+            // 10 (contact) + 5 (contact_event) + 2 (social_message) = 17 — liczone WYŁĄCZNIE przez
+            // PartitionScanner (scanPartitionAwareCategory), nie przez countEligibleMessages.
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(17L), any(), any());
+        }
     }
 
     // =========================================================================
@@ -353,8 +379,8 @@ class RetentionEvaluationServiceImplTest {
     class MessagesInEligibleRowCount {
 
         @Test
-        @DisplayName("suma kontakt+event+osierocone e-mail+powiązane e-mail+osierocone social+powiązane social")
-        void addsAllFourMessageComponentsToContactAndEventSum() {
+        @DisplayName("suma kontakt+osierocone e-mail+powiązane e-mail (BE-133: social_message liczona osobno, partycyjnie — patrz test w MultiTenantPartition)")
+        void addsBothEmailMessageComponentsToContactSum() {
             LocalDate today = LocalDate.now(ZoneOffset.UTC);
             PartitionScanner.PartitionInfo contactPartition =
                     partitionEndingAt("contact_2020_06", today.minusMonths(65));
@@ -364,14 +390,12 @@ class RetentionEvaluationServiceImplTest {
 
             when(emailMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(3L);
             when(emailMessageService.countLinkedToContactsOlderThan(eq(TENANT_A), any())).thenReturn(4L);
-            when(socialMessageService.countOrphansOlderThan(eq(TENANT_A), any())).thenReturn(5L);
-            when(socialMessageService.countLinkedToContactsOlderThan(eq(TENANT_A), any())).thenReturn(6L);
 
             service.runForAllActiveTenants();
 
-            // 10 (contact) + 3 + 4 + 5 + 6 = 28
+            // 10 (contact) + 3 + 4 = 17
             verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
-                    eq(28L), any(), any());
+                    eq(17L), any(), any());
         }
 
         @Test
@@ -379,8 +403,6 @@ class RetentionEvaluationServiceImplTest {
         void doesNotAddMessagesToOtherCategories() {
             when(emailMessageService.countOrphansOlderThan(any(), any())).thenReturn(100L);
             when(emailMessageService.countLinkedToContactsOlderThan(any(), any())).thenReturn(100L);
-            when(socialMessageService.countOrphansOlderThan(any(), any())).thenReturn(100L);
-            when(socialMessageService.countLinkedToContactsOlderThan(any(), any())).thenReturn(100L);
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
             when(campaignArchiveRetentionRepository.countEligible(eq(TENANT_A), any()))
@@ -407,8 +429,6 @@ class RetentionEvaluationServiceImplTest {
 
             verify(emailMessageService).countOrphansOlderThan(TENANT_A, expectedCutoff);
             verify(emailMessageService).countLinkedToContactsOlderThan(TENANT_A, expectedCutoff);
-            verify(socialMessageService).countOrphansOlderThan(TENANT_A, expectedCutoff);
-            verify(socialMessageService).countLinkedToContactsOlderThan(TENANT_A, expectedCutoff);
         }
 
         @Test

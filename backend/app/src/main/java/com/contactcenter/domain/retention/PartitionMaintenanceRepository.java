@@ -15,13 +15,13 @@ import java.util.regex.Pattern;
  * <p><strong>Dwie funkcje SQL, dwa różne cele:</strong>
  * <ul>
  *   <li>{@link #createNextMonthPartitions()} — woła zbiorczą funkcję {@code create_next_month_partitions()}
- *       (V014, rozszerzona {@code CREATE OR REPLACE} w V077/V088 o wszystkie 6 tabel). Tworzy
- *       partycję WYŁĄCZNIE na miesiąc {@code teraz + 1} dla wszystkich 6 tabel na raz, oraz —
+ *       (V014, rozszerzona {@code CREATE OR REPLACE} w V077/V088/V100 o wszystkie 7 tabel). Tworzy
+ *       partycję WYŁĄCZNIE na miesiąc {@code teraz + 1} dla wszystkich 7 tabel na raz, oraz —
  *       jako jedyna z dwóch metod — zapisuje wpis w {@code cron_log}/{@code scheduled_job}
  *       (bookkeeping zgodny z konwencją infrastruktury pg_cron z V014, mimo że samo pg_cron jest
  *       nieaktywne w tym środowisku). Wywoływana raz na uruchomienie joba (BE-114 AC #1).</li>
  *   <li>{@link #createTablePartition(String, int, int)} — woła NISKOPOZIOMOWĄ funkcję
- *       {@code create_<tabela>_partition(p_year, p_month)} (V004/V007/V077/V088) dla JEDNEJ
+ *       {@code create_<tabela>_partition(p_year, p_month)} (V004/V007/V077/V088/V100) dla JEDNEJ
  *       konkretnej tabeli i JEDNEGO konkretnego miesiąca. Używana przez
  *       {@link PartitionMaintenanceJob} w pętli po ofsetach {@code 1..MONTHS_AHEAD}, bo
  *       {@code create_next_month_partitions()} sama w sobie NIE buduje bufora wielomiesięcznego
@@ -53,8 +53,9 @@ class PartitionMaintenanceRepository {
 
     /**
      * Woła {@code SELECT create_next_month_partitions()} — tworzy partycję na miesiąc
-     * {@code teraz + 1} dla wszystkich 6 tabel partycjonowanych na raz (V088, linie 622-648),
-     * i zapisuje wpis bookkeeping w {@code cron_log}/{@code scheduled_job}.
+     * {@code teraz + 1} dla wszystkich 7 tabel partycjonowanych na raz (V088, linie 622-648;
+     * {@code social_message} dołączona w V100/BE-133), i zapisuje wpis bookkeeping w
+     * {@code cron_log}/{@code scheduled_job}.
      */
     @Transactional
     void createNextMonthPartitions() {

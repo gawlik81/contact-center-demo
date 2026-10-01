@@ -97,6 +97,24 @@ class PartitionReclaimJobIntegrationTest {
         return partitionName;
     }
 
+    /** Tworzy partycję {@code social_message_YYYY_MM} (idempotentna funkcja SQL z V100/DB-065, BE-133). */
+    private static String createSocialMessagePartition(LocalDate firstOfMonth) {
+        String partitionName = "social_message_%04d_%02d".formatted(firstOfMonth.getYear(), firstOfMonth.getMonthValue());
+        jdbc.execute("SELECT create_social_message_partition(%d, %d)"
+                .formatted(firstOfMonth.getYear(), firstOfMonth.getMonthValue()));
+        return partitionName;
+    }
+
+    private void insertSocialMessage(UUID messageId, UUID tenant, LocalDate month) {
+        OffsetDateTime sentAt = month.withDayOfMonth(15).atTime(10, 0).atOffset(ZoneOffset.UTC);
+        Timestamp ts = Timestamp.from(sentAt.toInstant());
+        jdbc.update("""
+                        INSERT INTO social_message (message_id, tenant_id, platform, direction, external_message_id, sent_at)
+                        VALUES (?, ?, 'WHATSAPP', 'INBOUND', ?, ?)
+                        """,
+                messageId, tenant, "ext-be145-" + messageId, ts);
+    }
+
     private void insertContact(UUID contactId, UUID tenant, LocalDate month) {
         OffsetDateTime startedAt = month.withDayOfMonth(15).atTime(10, 0).atOffset(ZoneOffset.UTC);
         Timestamp ts = Timestamp.from(startedAt.toInstant());
@@ -158,6 +176,92 @@ class PartitionReclaimJobIntegrationTest {
 
         assertThat(partitionExists(partitionName))
                 .as("partycja %s (pusta) powinna zostać usunięta przez job — bez zmiany dotychczasowego zachowania", partitionName)
+                .isFalse();
+    }
+
+    // =========================================================================
+    // Scenariusz 3 (BE-133, EPIC-30): social_message dziedziczy mechanizm BE-145
+    // =========================================================================
+
+    @Test
+    @DisplayName("BE-133: partycja social_message_* starsza niż globalny próg, ale z >= 1 wierszem -> DROP POMINIĘTY, tak jak contact* (BE-145)")
+    void nonEmptyOldSocialMessagePartition_dropIsSkipped_partitionStillExistsInDatabase() {
+        LocalDate oldMonth = LocalDate.now(ZoneOffset.UTC).minusMonths(70).withDayOfMonth(1);
+        String partitionName = createSocialMessagePartition(oldMonth);
+
+        UUID messageId = UUID.randomUUID();
+        insertSocialMessage(messageId, tenantId, oldMonth);
+        try {
+            assertThat(countRowsInPartition(partitionName)).isEqualTo(1); // sanity check przed jobem
+
+            job.runReclaimJob();
+
+            assertThat(partitionExists(partitionName))
+                    .as("partycja %s wciąż istnieje po jobie (DROP pominięty, BE-145/BE-133)", partitionName)
+                    .isTrue();
+            assertThat(countRowsInPartition(partitionName))
+                    .as("wiersz w partycji %s nie został usunięty razem z (pominiętym) DROP", partitionName)
+                    .isEqualTo(1);
+        } finally {
+            // Posprzątaj po teście: w odróżnieniu od analogicznego testu "contact" (BE-145,
+            // nonEmptyOldPartition_dropIsSkipped_partitionStillExistsInDatabase, który celowo
+            // zostawia trwały ślad w współdzielonej bazie testowej), ta partycja social_message
+            // MUSI zniknąć po tym teście — social_message ma (w odróżnieniu od contact) kruche
+            // testy EXPLAIN sprawdzające globalnie "doesNotContain(Seq Scan)" na CAŁEJ tabeli
+            // (SocialMessageOrphanPurgeIntegrationTest#explain_usesOrphanIndex, BE-127/BE-128) —
+            // pozostawiona, trwale niepusta, bardzo mała partycja wywołałaby tam Seq Scan subplan
+            // (plan Postgresa dla tabel rzędu 1 wiersza) i fałszywie wysadzała ten NIEZWIĄZANY test.
+            jdbc.execute("DROP TABLE IF EXISTS \"" + partitionName + "\"");
+        }
+    }
+
+    @Test
+    @DisplayName("BE-133: regresja — partycja social_message_* starsza niż globalny próg, bezpiecznie pusta -> DROP WYKONANY")
+    void emptyOldSocialMessagePartition_isDropped() {
+        LocalDate oldMonth = LocalDate.now(ZoneOffset.UTC).minusMonths(75).withDayOfMonth(1);
+        String partitionName = createSocialMessagePartition(oldMonth);
+        assertThat(partitionExists(partitionName)).isTrue(); // sanity check przed jobem
+
+        job.runReclaimJob();
+
+        assertThat(partitionExists(partitionName))
+                .as("partycja %s (pusta) powinna zostać usunięta przez job", partitionName)
+                .isFalse();
+    }
+
+    // =========================================================================
+    // Scenariusz 4 (WP-5, BE-133): Poziom 1 (purge wierszowy) PRZED Poziomem 2 (DROP partycji)
+    // =========================================================================
+
+    @Test
+    @DisplayName("WP-5: partycja social_message_* z wierszem starszym niż max retencji NIE znika aż do purge Poziomu 1; "
+            + "po purge (symulacja BE-126 — usunięcie wiersza) partycja jest pusta i JEST dropnięta przy kolejnym przebiegu reclaim")
+    void partitionSurvivesUntilLevelOnePurge_thenDroppedOnNextReclaimRun() {
+        // Offset (72) celowo RÓŻNY od -70 użytego w nonEmptyOldSocialMessagePartition_dropIsSkipped
+        // powyżej -- współdzielona partycja miesięczna między dwoma testami w tej samej klasie
+        // policzyłaby wiersz z OBU testów (sanity check "== 1 wiersz" poniżej by się wysypał).
+        LocalDate oldMonth = LocalDate.now(ZoneOffset.UTC).minusMonths(72).withDayOfMonth(1);
+        String partitionName = createSocialMessagePartition(oldMonth);
+        UUID messageId = UUID.randomUUID();
+        insertSocialMessage(messageId, tenantId, oldMonth);
+
+        // --- Przebieg 1: wiersz wciąż obecny (Poziom 1/BE-126 jeszcze nie zadziałał) ---
+        job.runReclaimJob();
+
+        assertThat(partitionExists(partitionName))
+                .as("przebieg 1: partycja %s NIE może zniknąć, dopóki wiersz nie jest usunięty (Poziom 1 przed Poziomem 2)", partitionName)
+                .isTrue();
+        assertThat(countRowsInPartition(partitionName)).isEqualTo(1);
+
+        // --- Poziom 1 (BE-126, już istniejące): usuwa wiersz niezależnie od tego jobu ---
+        jdbc.update("DELETE FROM ONLY \"" + partitionName + "\" WHERE message_id = ?", messageId);
+        assertThat(countRowsInPartition(partitionName)).isEqualTo(0); // sanity check: Poziom 1 zadziałał
+
+        // --- Przebieg 2: partycja teraz pusta -> DROP WYKONANY ---
+        job.runReclaimJob();
+
+        assertThat(partitionExists(partitionName))
+                .as("przebieg 2: partycja %s jest pusta po Poziomie 1 -> Poziom 2 (ten job) ją usuwa", partitionName)
                 .isFalse();
     }
 }

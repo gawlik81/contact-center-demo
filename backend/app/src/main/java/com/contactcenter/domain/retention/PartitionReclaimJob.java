@@ -33,10 +33,14 @@ import java.util.regex.Pattern;
  *
  * <p><strong>Zakres tabel/kategorii:</strong>
  * <ul>
- *   <li>{@code contact}, {@code contact_event} → {@link RetentionDataCategory#CONTACT_INTERACTIONS}</li>
+ *   <li>{@code contact}, {@code contact_event}, {@code social_message} (BE-133, 2026-10-01) →
+ *       {@link RetentionDataCategory#CONTACT_INTERACTIONS}</li>
  *   <li>{@code contact_transcription}, {@code contact_ai_summary} → {@link RetentionDataCategory#TRANSCRIPTS}</li>
  * </ul>
- * Mapowanie identyczne jak w {@code RetentionPurgeServiceImpl} (BE-113) — patrz jego javadoc.
+ * Mapowanie identyczne jak w {@code RetentionPurgeServiceImpl} (BE-113) dla {@code contact}/
+ * {@code contact_event}/{@code contact_transcription}/{@code contact_ai_summary} — {@code social_message}
+ * NIE jest usuwana wiersz-po-wierszu przez ten job (DROP partycji jest jej JEDYNYM mechanizmem
+ * fizycznego usunięcia na poziomie partycji, patrz {@code social_message} w nagłówku {@code V100}).
  * Partycja {@code <tabela>_default} nigdy nie jest kandydatem do {@code DROP}: {@link PartitionScanner#listPartitions}
  * wyklucza ją strukturalnie (filtr {@code tablename != '<tabela>_default'}), więc ten job nie
  * potrzebuje dodatkowego sprawdzenia.
@@ -64,13 +68,22 @@ import java.util.regex.Pattern;
  * </ol>
  *
  * <p><strong>BE-145 vs. przyszły BE-123 (horyzont platformowy {@code audit_log}/
- * {@code plugin_invocation_log}):</strong> {@code TABLE_CATEGORIES} dziś (2026-09-26) obejmuje
- * WYŁĄCZNIE 4 tabele per-tenant powyżej — blokada {@code DROP} niepustej partycji poniżej
+ * {@code plugin_invocation_log}):</strong> {@code TABLE_CATEGORIES} dziś (2026-10-01, po BE-133)
+ * obejmuje WYŁĄCZNIE 5 tabel per-tenant powyżej — blokada {@code DROP} niepustej partycji poniżej
  * dotyczy więc bezwarunkowo WSZYSTKICH wpisów tej mapy. Gdy BE-123 doda tu wpis platformowy
  * ({@code audit_log}/{@code plugin_invocation_log}, gdzie niepusta partycja po horyzoncie jest
  * OCZEKIWANA — DROP mimo niepustej, INFO nie blokada), wykonawca BE-123 musi dodać analogiczny
  * wyjątek (np. rozróżnienie przez {@code ThresholdSource}/{@code DropMode} z jego refaktoru)
- * TYLKO dla tego jednego wpisu — NIE usuwać blokady poniżej dla `contact*`.</p>
+ * TYLKO dla tego jednego wpisu — NIE usuwać blokady poniżej dla `contact*`/`social_message`.</p>
+ *
+ * <p><strong>BE-133 (2026-10-01, EPIC-30):</strong> ticket w {@code TASKS-BACKEND.md} formalnie
+ * zależy od BE-123 ({@code ReclaimTarget}/{@code DropMode.ONLY_IF_EMPTY}) — decyzja product ownera:
+ * BE-123 NIE jest zaimplementowane i NIE czekamy na nie. {@code social_message} jest podpięta
+ * WYŁĄCZNIE wpisem w {@code TABLE_CATEGORIES} i dziedziczy bezwarunkową blokadę DROP niepustej
+ * partycji wprowadzoną przez BE-145 — co jest DOKŁADNIE semantyką {@code DropMode.ONLY_IF_EMPTY}
+ * z przyszłego BE-123, tylko bez nazwy/konfigurowalności. Zero zmian kodu w tej klasie poza samym
+ * wpisem mapy — {@link PartitionScanner}/{@link PartitionScannerImpl} są już w pełni generyczne po
+ * nazwie tabeli (konwencja {@code social_message_YYYY_MM} + {@code _default} z {@code V100}).</p>
  *
  * <p><strong>Odporność na błędy:</strong> błąd przy jednej tabeli NIE przerywa przetwarzania
  * pozostałych (log ERROR + kontynuacja, wzorzec {@code RecordingRetentionJob.processRetentionForTenant}).
@@ -92,6 +105,9 @@ class PartitionReclaimJob {
     static {
         TABLE_CATEGORIES.put("contact", RetentionDataCategory.CONTACT_INTERACTIONS);
         TABLE_CATEGORIES.put("contact_event", RetentionDataCategory.CONTACT_INTERACTIONS);
+        // BE-133 (EPIC-30, 2026-10-01): social_message podpięta pod istniejący mechanizm BE-145
+        // (DROP TYLKO pustej partycji) — patrz javadoc klasy, sekcja "BE-133".
+        TABLE_CATEGORIES.put("social_message", RetentionDataCategory.CONTACT_INTERACTIONS);
         TABLE_CATEGORIES.put("contact_transcription", RetentionDataCategory.TRANSCRIPTS);
         TABLE_CATEGORIES.put("contact_ai_summary", RetentionDataCategory.TRANSCRIPTS);
     }

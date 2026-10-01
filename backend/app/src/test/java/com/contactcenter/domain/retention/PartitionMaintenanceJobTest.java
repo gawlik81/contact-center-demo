@@ -39,12 +39,13 @@ import static org.mockito.Mockito.when;
  * osobno w {@code PartitionMaintenanceRepositoryTest} i zweryfikowane manualnie na żywej instancji
  * {@code cc-postgres}.
  *
- * <p><strong>Test regresyjny kluczowy (BE-114 AC):</strong> {@link EnsureFuturePartitions#buildsThreeMonthBufferForAllSixPartitionedTables()}
+ * <p><strong>Test regresyjny kluczowy (BE-114 AC):</strong> {@link EnsureFuturePartitions#buildsThreeMonthBufferForAllSevenPartitionedTables()}
  * — potwierdza, że po jednym wywołaniu {@link PartitionMaintenanceJob#ensureFuturePartitions()}
  * partycja na "bieżący miesiąc + 3" (offset {@value PartitionMaintenanceJob#MONTHS_AHEAD}) zostaje
- * zażądana dla wszystkich 6 partycjonowanych tabel — {@code create_next_month_partitions()} sama
- * w sobie gwarantuje wyłącznie "+1" (patrz javadoc klasy testowanej), więc bez pętli budującej
- * bufor to kryterium akceptacji nie byłoby spełnione żadnym pojedynczym wywołaniem SQL.
+ * zażądana dla wszystkich 7 partycjonowanych tabel ({@code social_message} dołączona w BE-133/EPIC-30) —
+ * {@code create_next_month_partitions()} sama w sobie gwarantuje wyłącznie "+1" (patrz javadoc klasy
+ * testowanej), więc bez pętli budującej bufor to kryterium akceptacji nie byłoby spełnione żadnym
+ * pojedynczym wywołaniem SQL.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -78,8 +79,8 @@ class PartitionMaintenanceJobTest {
         }
 
         @Test
-        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 6 partycjonowanych tabel")
-        void buildsThreeMonthBufferForAllSixPartitionedTables() {
+        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 7 partycjonowanych tabel")
+        void buildsThreeMonthBufferForAllSevenPartitionedTables() {
             YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
             Set<YearMonth> expectedOffsets = java.util.stream.IntStream
                     .rangeClosed(1, PartitionMaintenanceJob.MONTHS_AHEAD)
@@ -147,8 +148,8 @@ class PartitionMaintenanceJobTest {
 
             assertThatCode(() -> job.ensureFuturePartitions()).doesNotThrowAnyException();
 
-            // "contact" - 3 próby (każda rzuca wyjątek, każda złapana z osobna), pozostałe 5 tabel
-            // po 3 udane wywołania - łącznie 6*3 prób.
+            // "contact" - 3 próby (każda rzuca wyjątek, każda złapana z osobna), pozostałe 6 tabel
+            // po 3 udane wywołania - łącznie 7*3 prób.
             verify(partitionMaintenanceRepository, times(PartitionMaintenanceJob.PARTITIONED_TABLES.size() * PartitionMaintenanceJob.MONTHS_AHEAD))
                     .createTablePartition(anyString(), anyInt(), anyInt());
         }

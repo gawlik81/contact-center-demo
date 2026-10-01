@@ -3038,7 +3038,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > ```
 > Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
->           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
+>           BE-141 ✅ → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startowały niezależnie
 > Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126 ✅, DB-059 → DB-065
 > Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -4074,7 +4074,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Schema migration (dane + DDL) — 2 osobne migracje
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-141
+**Zależy od:** BE-141 ✅ (ukończone 2026-10-01 — ticket odblokowany, gotowy do realizacji)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

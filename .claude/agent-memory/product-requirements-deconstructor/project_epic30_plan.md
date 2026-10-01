@@ -69,3 +69,56 @@ Nowe po BE-124/DB-060: **DB-078** (sweep + drop `contacts_dw.remote_address`, za
 - `retention_purge_log.data_category` MA CHECK (V084); D1=C wymaga przebudowy trzech CHECK-ów. Klucz załącznika w JSONB to `s3_key` (nie `s3_url` z V010).
 - FE dryf po BE-119: `UNSUPPORTED_PURGE_CATEGORIES` w `data-retention.component.ts` nadal blokuje `CAMPAIGN_DATA` (FE-110).
 - `PROGRESS.md` nie ma wierszy dla EPIC-27 (DB-040/041, BE-092..096, FE-090..096) i addendów EPIC-28 (BE-110, FE-101/102) — liczby w Podsumowaniu liczone z TASKS-*.md; NIE naprawione (poza zakresem).
+
+**Tura 10 (2026-09-30, czysto dokumentacyjna — zero zmian w kodzie, D1 od ZAŁOŻENIA do POTWIERDZENIA):** właściciel produktu formalnie potwierdził
+D1 = A w rozmowie z koordynatorem („Dla D1 wybieram opcję A"). To zmienia status prawny decyzji z „przyjęte roboczo 2026-09-20 bez potwierdzenia"
+na „formalnie zatwierdzone 2026-09-30" — **nie zmienia stanu wdrożenia** (BE-124…128 były już zaimplementowane i zmergowane pod założeniem A).
+Konsekwencje: **DB-063, BE-130, FE-111** (jedyne 3 tickety warunkowe D1=C) zamknięte jako **`🚫 N/A`** — nowy symbol statusu, **brak precedensu w
+repo** przed tą turą (sprawdzone grepem „N/A"/„🚫"/„Nie dotyczy" w TASKS-*.md), wprowadzony i udokumentowany w Legendzie PROGRESS.md; ticket nie
+usuwane (opis/AC nietknięte), tylko pole `**Status:**` + jednozdaniowe wyjaśnienie, plus `🚫` w `**Zależy od:**`/`**Czeka na BE:**` gdzie te trzy ID
+się wzajemnie wymieniają. **Zweryfikowane grepem `**Zależy od:**` po tych 3 ID w całych TASKS-*.md: ŻADEN inny, aktywny ticket od nich nie zależy**
+— jedyne odwołania to sam wewnętrzny łańcuch DB-063→BE-130→FE-111 (potwierdza wzorzec z `[[feedback_verify_callers_and_symmetry]]`: zawsze grepuj
+zależności zamiast ufać, że „warunkowy, nikt się nie zdążył podłączyć" jest bezpiecznym założeniem — tu akurat było prawdziwe, ale NIE zgadywane).
+**D9 i D10 sprawdzone w DESIGN §3 i pozostają otwarte** („ZAŁOŻENIE DO POTWIERDZENIA", bez zmian) — bramka produkcyjna `auto_purge_enabled` dla
+`CONTACT_INTERACTIONS` (flaga `retention.purge.delete-messages`) **zostaje w mocy**, tylko przeformułowana: powodem blokady jest teraz D9/D10, nie
+już D1. D2–D8 przeczytane, niezmienione.
+**PROGRESS.md „Razem" (336) świadomie NIE zmniejszony** mimo że 3 tickety przestały być „do zrobienia": dodana nowa kolumna „N/A" w tabeli Obszar
+(DB 18⬜+1🚫=19 z „Nie rozpoczęte" starego, analogicznie BE/FE), zamiast cichego wrzucenia do „Ukończone" (fałszywe — kod nie powstał) albo
+pozostawienia w „Nie rozpoczęte" (mylące — sugeruje otwarty backlog). Precedens dla przyszłych zamknięć „won't-do": użyj `🚫 N/A`, dodaj kolumnę,
+zachowaj inwariant sumy 4 kolumn = Razem per wiersz, nie zmieniaj mianownika bez jawnego wyjaśnienia w PROGRESS.md.
+Pliki zmienione: DESIGN-message-retention-and-partitioning.md (nagłówek, §3 D1 pełny akapit, zamknięcie B/C, bramka, diagram Fala 1), TASKS-DATABASE.md
+(DB-063 + preambuła Grupa 1), TASKS-BACKEND.md (BE-130 + preambuła + notatka w BE-124 sekcja 1, Status/kod BE-124 NIE ruszone — na wyraźne polecenie),
+TASKS-FRONTEND.md (FE-111 + preambuła), PROGRESS.md (Legenda, Obszar, Nie rozpoczęte wg EPIC, 3 wiersze per-ticket, cały nagłówek Ostatnia/Poprzednia
+aktualizacja przesunięty o jedną turę). Zero commitów/pushów (na wyraźne polecenie zlecającego).
+
+**Tura 11 (2026-09-30, czysto dokumentacyjna — zero zmian w kodzie, D9 i D10 od ZAŁOŻENIA do POTWIERDZENIA, TRAKTOWANE ŚWIADOMIE RÓŻNIE):**
+właściciel produktu formalnie potwierdził w tej samej sesji co D1: **D9 = A** (z podglądem) i **D10 = maskowanie PII w `audit_log`** (z potwierdzeniem
+prawnym). **Kluczowa różnica względem D1 (i między D9/D10 nawzajem), zastosowana świadomie:** D9 jest jak D1 — kod wariantu A **już zmergowany do
+`develop`** (DB-061 ✅, DB-062 ✅, BE-129 ✅) — więc to czyste formalne domknięcie already-shipped behavior. **Zgodnie ze zleceniem sprawdziłem grepem
+(`D9 = B`, `D9=B`, `D9 ≠ A`) czy istnieje ticket warunkowy analogiczny do DB-063/BE-130/FE-111 przy D1 = C — NIE ISTNIEJE.** D9 nigdy nie miał osobnych
+ticketów wariantowych; różnica zakresu przy B żyła WEWNĄTRZ DB-061/DB-062/BE-129/FE-112 (opisana w „Wpływ B" DESIGN §3, teraz oznaczona jako
+zamknięta/historyczna) — więc **zero ticketów do zamknięcia jako 🚫 N/A** tym razem, w odróżnieniu od tury 10. **D10 jest odwrotne — kod NIE ISTNIEJE.**
+Ticket **BE-142** („[WARUNKOWY: D10] Maskowanie PII w `audit_log`") stracił etykietę warunkowości (tytuł, pole `**Priorytet:**` — wartość `Could Have`
+**nietknięta**, tylko usunięta fraza „warunkowy — wchodzi wyłącznie przy założeniu D10 = maskowanie") i **ODBLOKOWAŁ SIĘ z warunkowego na zwykły backlog
+Could Have** — **Status pozostaje `⬜ Nie rozpoczęte`** (świadomie, na wyraźne polecenie: to nadal backlog, decyzję o terminie realizacji podejmuje
+właściciel osobno). To jest DOKŁADNE ODWRÓCENIE wzorca D1/DB-063/BE-130/FE-111 (tam: potwierdzenie → zamknięcie jako N/A; tu: potwierdzenie →
+odblokowanie z warunkowego na aktywny backlog, bez zmiany statusu) — nie skopiowałem mechanicznie wzorca tury 10, tylko dostosowałem do faktycznego
+stanu wdrożenia każdej decyzji, zgodnie z explicit instrukcją zlecającego.
+**Bramka produkcyjna (`retention.purge.delete-messages`/`auto_purge_enabled`) — NAJWAŻNIEJSZE ROZRÓŻNIENIE tej tury:** D1, D9 i D10 jako DECYZJE są
+teraz WSZYSTKIE formalnie potwierdzone, ale to **nie jest to samo, co kompletna techniczna realizacja** — bramka zostaje zablokowana, tylko zmienia
+się powód: nie „D9/D10 niepotwierdzone", tylko „D9/D10 potwierdzone jako decyzje, ale ich techniczna realizacja (BE-142, FE-112) jeszcze niekompletna".
+D9: kod (DB-061/062/BE-129) istnieje, ale **FE-112** (podgląd D9 w UI administratora, mitygacja R9) wciąż `⬜`. D10: decyzja potwierdzona prawnie, ale
+**BE-142** (maskowanie) wciąż `⬜` — `audit_log` dziś fizycznie NIE maskuje PII. Bramka odblokuje się po wdrożeniu BE-142 (wymagane) i zalecanym FE-112.
+**PROGRESS.md liczniki (Obszar, Nie rozpoczęte wg EPIC) BEZ ZMIAN** — żaden ticket nie zmienił statusu (BE-142 był i zostaje `⬜`), zmieniła się
+wyłącznie opisowa klasyfikacja: „5 warunkowych" → „4 warunkowe" (BE-142 wyjęty z tej listy, dostał własną adnotację „odblokowany 2026-09-30"); wiersz
+BE-142 w tabeli ticketów stracił etykietę „[WARUNKOWY: D10]"; nowy wpis „Ostatnia aktualizacja" (tura 11) ze skróconym podsumowaniem tury 10 zepchniętym
+do „Poprzednio tura 10 (...)" (zgodnie z ustalonym wzorcem — PEŁNY tekst dawnego „Ostatnia aktualizacja" tury 10 przeniesiony BEZ SKRÓTÓW do
+„Poprzednia aktualizacja", zastępując tam pełny tekst tury 9).
+Pliki zmienione: DESIGN-message-retention-and-partitioning.md (nagłówek — dopisane D9/D10 analogicznie do D1; §3 D9 pełny akapit STAN/DECYZJA/Wpływ B
+zamknięty; §3 D10 pełny akapit STAN/DECYZJA z jawnym „decyzja ≠ wdrożenie"; bramka produkcyjna przeformułowana; diagram Fala 1 `[D10: BE-142]` → bez
+nawiasu warunkowego), TASKS-BACKEND.md (BE-142: tytuł, Priorytet, opis „Zakłada D10" → „D10 potwierdzone", linia AC; preambuła grafu „Grupa 1"
+`[BE-142, tylko D10]` → bez nawiasu), PROGRESS.md (nowy wpis Ostatnia/Poprzednia aktualizacja przesunięty o turę, wiersz BE-142, zdanie
+„5 warunkowych"→„4 warunkowe", nota w Podsumowaniu o braku reklasyfikacji liczbowej). TASKS-DATABASE.md/TASKS-FRONTEND.md **NIE dotknięte** — DB-061,
+DB-062, BE-129, FE-112 mają własne historyczne wzmianki „D9 = A"/„D9 = B" (opisujące zakres WEWNĄTRZ tych już ukończonych/niezaimplementowanego
+ticketów), świadomie NIE ruszone (analogicznie do tego, że BE-125..128 nie zostały dotknięte przy potwierdzeniu D1 — tylko ticket-ADR odpowiednik,
+tu żaden, bo D9 nie ma osobnego ADR-ticketu jak BE-124). Zero commitów/pushów (na wyraźne polecenie zlecającego).

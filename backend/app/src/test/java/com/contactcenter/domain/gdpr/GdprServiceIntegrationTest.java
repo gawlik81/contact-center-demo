@@ -290,6 +290,53 @@ class GdprServiceIntegrationTest {
         }
 
         @Test
+        @DisplayName("BE-142 Zakres p.4 (end-to-end): audit_log PII istniejący PRZED anonimizacją jest zamaskowany PO przejściu przez Javę (GdprServiceImpl#anonymizeCustomer -> GdprRepository -> anonymize_customer -> mask_audit_log_pii)")
+        void anonymizeCustomer_masksPreExistingAuditLogPii_viaJavaEntryPoint() {
+            // Wiersze audit_log PRZED anonimizacją – seedowane bezpośrednio SQL-em (odtwarzają to, co
+            // w produkcji zapisałby AuditAspect PRZED tym, jak zaczęło maskować u źródła – BE-142
+            // Zakres p.1 chroni TYLKO nowe wpisy; ten test dowodzi, że wpisy HISTORYCZNE są maskowane
+            // wstecznie przez tę samą operację Java (anonymizeCustomer), którą testuje reszta tej klasy
+            // – nie osobną, bezpośrednią ścieżką SQL jak w MaskAuditLogPiiTest).
+            UUID customerId = insertCustomer(tenantA, "Halina", "Maskowana", "+48500100299", "halina@example.com", false);
+            UUID contactId = insertContact(tenantA, customerId, "+48500100299", null);
+
+            insertAuditLog(tenantA, "CUSTOMER_CREATED", "CUSTOMER", customerId, null,
+                    "{\"firstName\":\"Halina\",\"lastName\":\"Maskowana\",\"customerId\":\"" + customerId
+                            + "\",\"source\":\"MANUAL\"}");
+            insertAuditLog(tenantA, "CONTACT_DISPOSITION_SET", "CONTACT", contactId,
+                    "{\"remoteAddress\":\"+48500100299\",\"contactId\":\"" + contactId + "\",\"status\":\"IN_PROGRESS\"}",
+                    "{\"remoteAddress\":\"+48500100299\",\"contactId\":\"" + contactId + "\",\"customerId\":\"" + customerId
+                            + "\",\"dispositionCode\":\"SALE\",\"status\":\"COMPLETED\"}");
+
+            gdprService.anonymizeCustomer(customerId);
+
+            // Porównanie przez sparsowany JSON (nie surowy string .contains()) – jsonb::text w
+            // PostgreSQL formatuje z odstępem po dwukropku ("key": "value"), inaczej niż
+            // objectMapper.writeValueAsString() w Javie ("key":"value") – ten sam wzorzec co
+            // MaskAuditLogPiiTest (jsonColumn/JsonNode), żeby nie być kruchym na formatowanie.
+            JsonNode created = readJsonColumn(
+                    "SELECT new_value::text FROM audit_log WHERE action = 'CUSTOMER_CREATED' AND new_value->>'customerId' = ?",
+                    customerId.toString());
+            assertThat(created.get("firstName").asText()).isEqualTo("[MASKED]");
+            assertThat(created.get("lastName").asText()).isEqualTo("[MASKED]");
+            // pola nie-PII nietknięte
+            assertThat(created.get("source").asText()).isEqualTo("MANUAL");
+            assertThat(created.get("customerId").asText()).isEqualTo(customerId.toString());
+
+            JsonNode dispositionOld = readJsonColumn(
+                    "SELECT old_value::text FROM audit_log WHERE action = 'CONTACT_DISPOSITION_SET' AND entity_id = ?",
+                    contactId);
+            JsonNode dispositionNew = readJsonColumn(
+                    "SELECT new_value::text FROM audit_log WHERE action = 'CONTACT_DISPOSITION_SET' AND entity_id = ?",
+                    contactId);
+            assertThat(dispositionOld.get("remoteAddress").asText()).isEqualTo("[MASKED]");
+            assertThat(dispositionNew.get("remoteAddress").asText()).isEqualTo("[MASKED]");
+            // pola operacyjne NIE-PII nietknięte
+            assertThat(dispositionNew.get("dispositionCode").asText()).isEqualTo("SALE");
+            assertThat(dispositionNew.get("status").asText()).isEqualTo("COMPLETED");
+        }
+
+        @Test
         @DisplayName("po anonimizacji predykaty ProgressiveDialerServiceImpl/ScheduledCallbackRepository nie widzą zanonimizowanych rekordów")
         void afterAnonymize_dialerAndCallbackPredicates_returnZeroRows() {
             UUID customerId = insertCustomer(tenantA, "Zofia", "Kolejka", "+48500100207", null, false);
@@ -474,6 +521,18 @@ class GdprServiceIntegrationTest {
                 """, recordId, campaignId, tenant, customerId, phone, firstName);
     }
 
+    /** Wiersz audit_log seedowany bezpośrednio SQL-em (BE-142) – odtwarza to, co w produkcji zapisałby AuditAspect. */
+    private void insertAuditLog(UUID tenant, String action, String entityType, UUID entityId,
+                                 String oldValueJson, String newValueJson) {
+        jdbc.update("""
+                INSERT INTO audit_log (log_id, tenant_id, user_id, action, entity_type, entity_id,
+                    old_value, new_value, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), now())
+                """,
+                UUID.randomUUID(), tenant, UUID.randomUUID(), action, entityType, entityId,
+                oldValueJson, newValueJson);
+    }
+
     private String recordingKey(UUID tenant) {
         return tenant + "/2026/09/recording-be129.mp3";
     }
@@ -484,6 +543,16 @@ class GdprServiceIntegrationTest {
 
     private String attachmentsJson(String s3Key) {
         return "[{\"filename\":\"zal.pdf\",\"content_type\":\"application/pdf\",\"size_bytes\":10,\"s3_key\":\"" + s3Key + "\"}]";
+    }
+
+    /** Zapytanie zwracające pojedynczą kolumnę JSONB (jako {@code ::text}), sparsowane do {@link JsonNode}. */
+    private JsonNode readJsonColumn(String sql, Object... params) {
+        String text = jdbc.queryForObject(sql, String.class, params);
+        try {
+            return new ObjectMapper().readTree(text);
+        } catch (Exception e) {
+            throw new AssertionError("nie udało się sparsować JSON: " + text, e);
+        }
     }
 
     private boolean customerIsDeleted(UUID customerId) {

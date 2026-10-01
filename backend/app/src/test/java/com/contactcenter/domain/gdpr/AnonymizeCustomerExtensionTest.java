@@ -559,19 +559,27 @@ class AnonymizeCustomerExtensionTest {
     // =========================================================================================
     // 10) RLS pod SET ROLE app_user -- per tabela: ktore faktycznie sie zmieniaja, ktore cicho 0,
     //     ktore rzucaja twardy blad (audit_log INSERT)
+    //
+    //     AKTUALIZACJA DB-064/V099 (2026-10-01): email_message/social_message mialy WYLACZNIE
+    //     polityke SELECT (bez FORCE) od V012 -- UPDATE pod app_user dopasowywal CICHO 0 wierszy,
+    //     dokladnie jak dzis nadal contact (brak jakiejkolwiek polityki UPDATE). V099 zastapilo
+    //     te polityki jedna FOR ALL + WITH CHECK + FORCE (wzorzec plugin_invocation_log/V077) --
+    //     UPDATE wlasnego tenanta pod app_user TERAZ dziala dla obu tabel. Testy (A) i (C) ponizej
+    //     zaktualizowane, zeby odzwierciedlac ten fakt (byly czescia dowodu luki DB-060/DB-064
+    //     przed migracja -- dzis dokumentuja naprawe).
     // =========================================================================================
 
     @Test
-    @DisplayName("RLS/app_user (A): UPDATE contact/email_message/social_message pod app_user dopasowuje CICHO 0 wierszy (bez bledu) -- brak polityki UPDATE/tylko polityka SELECT")
-    void rlsUnderAppUser_contactEmailSocial_silentlyZeroRows() throws Exception {
+    @DisplayName("RLS/app_user (A): UPDATE contact pod app_user nadal dopasowuje CICHO 0 wierszy (brak polityki UPDATE) -- UPDATE email_message/social_message TERAZ dziala (DB-064/V099: polityka ALL + WITH CHECK + FORCE)")
+    void rlsUnderAppUser_contactStillZero_emailSocialNowWriteable() throws Exception {
         inRolledBackTx(DB, c -> {
             asAppUser(c, TENANT_A);
             assertThat(update(c, "UPDATE contact SET remote_address = NULL WHERE contact_id = ? AND tenant_id = ?", CONTACT_RLS, TENANT_A))
                     .as("contact: brak polityki UPDATE -- 0 wierszy, bez bledu").isEqualTo(0);
             assertThat(update(c, "UPDATE email_message SET subject = '[ANONYMIZED]' WHERE message_id = ? AND tenant_id = ?", EMAIL_RLS, TENANT_A))
-                    .as("email_message: tylko polityka SELECT -- 0 wierszy, bez bledu").isEqualTo(0);
+                    .as("email_message: DB-064/V099 dodalo polityke ALL+WITH CHECK+FORCE -- UPDATE wlasnego tenanta dziala").isEqualTo(1);
             assertThat(update(c, "UPDATE social_message SET content = 'x' WHERE message_id = ? AND tenant_id = ?", SOCIAL_RLS, TENANT_A))
-                    .as("social_message: tylko polityka SELECT -- 0 wierszy, bez bledu").isEqualTo(0);
+                    .as("social_message: DB-064/V099 dodalo polityke ALL+WITH CHECK+FORCE -- UPDATE wlasnego tenanta dziala").isEqualTo(1);
             return null;
         });
     }
@@ -602,7 +610,7 @@ class AnonymizeCustomerExtensionTest {
     }
 
     @Test
-    @DisplayName("RLS/app_user (C): z tymczasowo dodana polityka INSERT na audit_log (izolacja luki audit_log od reszty warstwy zapisu) -- scheduled_callback/campaign_contact/campaign_contact_archive/contacts_dw/contact_transcription/contact_ai_summary/customer faktycznie sie zmieniaja pod app_user; contact/email_message/social_message pozostaja 0 (liczniki to ujawniaja)")
+    @DisplayName("RLS/app_user (C): z tymczasowo dodana polityka INSERT na audit_log (izolacja luki audit_log od reszty warstwy zapisu) -- scheduled_callback/campaign_contact/campaign_contact_archive/contacts_dw/contact_transcription/contact_ai_summary/customer/email_message/social_message (DB-064/V099) faktycznie sie zmieniaja pod app_user; tylko contact pozostaje 0 (brak polityki UPDATE, liczniki to ujawniaja)")
     void rlsUnderAppUser_withAuditLogPolicyPatchedForIsolation_revealsPerTableCounters() throws Exception {
         inRolledBackTx(DB, c -> {
             // Patch TYLKO w tej transakcji testowej (cofniety razem z reszta) -- izoluje test WARSTWY
@@ -623,8 +631,8 @@ class AnonymizeCustomerExtensionTest {
             assertThat(counts.get("contact_ai_summary").asInt()).as("contact_ai_summary: polityka ALL + FORCE dziala").isEqualTo(1);
 
             assertThat(counts.get("contact").asInt()).as("contact: brak polityki UPDATE -- cicho 0").isZero();
-            assertThat(counts.get("email_message").asInt()).as("email_message: tylko SELECT -- cicho 0").isZero();
-            assertThat(counts.get("social_message").asInt()).as("social_message: tylko SELECT -- cicho 0").isZero();
+            assertThat(counts.get("email_message").asInt()).as("email_message: DB-064/V099 polityka ALL+WITH CHECK+FORCE dziala").isEqualTo(1);
+            assertThat(counts.get("social_message").asInt()).as("social_message: DB-064/V099 polityka ALL+WITH CHECK+FORCE dziala").isEqualTo(1);
             return null;
         });
     }

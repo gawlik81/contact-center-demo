@@ -161,7 +161,7 @@ class AuditAspectTest {
         void customerCreated_usesResultAccessor_notTenantIdParam() throws Throwable {
             // given – sygnatura jak createCustomer(CreateCustomerRequest request, UUID tenantId):
             // jedyny UUID w args to tenantId, "request" nie jest UUID.
-            CustomerLikeResult result = new CustomerLikeResult(ENTITY_ID, "Jan Kowalski");
+            AccessorCustomerResult result = new AccessorCustomerResult(ENTITY_ID, "Jan Kowalski");
             ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
             Audited audited = mockAudited("CUSTOMER_CREATED", "CUSTOMER", false, "", -1, "customerId");
 
@@ -180,7 +180,7 @@ class AuditAspectTest {
         void contactCreated_usesResultAccessor_notTenantIdParam() throws Throwable {
             // given – sygnatura jak createContact(CreateContactRequest request, UUID tenantId):
             // jedyny UUID w args to tenantId.
-            ContactLikeResult result = new ContactLikeResult(ENTITY_ID, "QUEUED");
+            AccessorContactResult result = new AccessorContactResult(ENTITY_ID, "QUEUED");
             ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
             Audited audited = mockAudited("CONTACT_CREATED", "CONTACT", false, "", -1, "contactId");
 
@@ -198,7 +198,7 @@ class AuditAspectTest {
         @DisplayName("CONTACT_CREATED (overload z boolean ivrEntry): entity_id poprawny mimo 3 argumentów")
         void contactCreatedWithIvrEntry_usesResultAccessor_notTenantIdParam() throws Throwable {
             // given – sygnatura jak createContact(request, tenantId, boolean ivrEntry)
-            ContactLikeResult result = new ContactLikeResult(ENTITY_ID, "IVR");
+            AccessorContactResult result = new AccessorContactResult(ENTITY_ID, "IVR");
             ProceedingJoinPoint pjp = mockJoinPoint(
                     new Object[]{new SomeRequest("payload"), TENANT_ID, true}, result);
             Audited audited = mockAudited("CONTACT_CREATED", "CONTACT", false, "", -1, "contactId");
@@ -284,7 +284,7 @@ class AuditAspectTest {
             // UUID userId, boolean isAgent): contactId jest PIERWSZYM UUID w args, tenantId drugim.
             // Brak entityIdParamIndex i entityIdResultAccessor – musi zadziałać stary skan parametrów.
             UUID contactId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
-            ContactLikeResult result = new ContactLikeResult(contactId, "COMPLETED");
+            AccessorContactResult result = new AccessorContactResult(contactId, "COMPLETED");
             ProceedingJoinPoint pjp = mockJoinPoint(
                     new Object[]{contactId, new SomeRequest("disposition"), TENANT_ID, USER_ID, true}, result);
             Audited audited = mockAudited("CONTACT_DISPOSITION_SET", "CONTACT", false, "", -1);
@@ -573,11 +573,18 @@ class AuditAspectTest {
      */
     public record SimpleResult(UUID id, String name) {}
 
-    /** Wynik metody z akcesorem customerId() (jak {@code CustomerResponse}, BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
-    public record CustomerLikeResult(UUID customerId, String name) {}
+    /**
+     * Wynik metody z akcesorem customerId() (jak {@code CustomerResponse}, BE-146); musi być
+     * {@code public} – zob. {@link SimpleResult}.
+     *
+     * <p>Nazwa (nie {@code CustomerLikeResult}) – po scaleniu z BE-142 na {@code develop} ta nazwa
+     * kolidowałaby z rekordem PII niżej w tym pliku (identyczna nazwa, inne pola, dodane niezależnie
+     * na siostrzanej gałęzi).
+     */
+    public record AccessorCustomerResult(UUID customerId, String name) {}
 
     /** Wynik metody z akcesorem contactId() (jak {@code ContactResponse}, BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
-    public record ContactLikeResult(UUID contactId, String status) {}
+    public record AccessorContactResult(UUID contactId, String status) {}
 
     /** Parametr nie-UUID symulujący *Request DTO przekazywane do metod CREATE (BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
     public record SomeRequest(String value) {}

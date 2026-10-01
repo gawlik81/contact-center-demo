@@ -128,14 +128,14 @@ class ContactServiceImpl implements ContactService {
     // =========================================================================
 
     @Transactional
-    @Audited(action = "CONTACT_CREATED", entityType = "CONTACT")
+    @Audited(action = "CONTACT_CREATED", entityType = "CONTACT", entityIdResultAccessor = "contactId")
     @Override
     public ContactResponse createContact(CreateContactRequest request, UUID tenantId) {
         return createContact(request, tenantId, false);
     }
 
     @Transactional
-    @Audited(action = "CONTACT_CREATED", entityType = "CONTACT")
+    @Audited(action = "CONTACT_CREATED", entityType = "CONTACT", entityIdResultAccessor = "contactId")
     @Override
     public ContactResponse createContact(CreateContactRequest request, UUID tenantId, boolean ivrEntry) {
         Instant now = Instant.now();

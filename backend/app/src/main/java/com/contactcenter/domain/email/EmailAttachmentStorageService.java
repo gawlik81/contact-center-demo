@@ -1,5 +1,7 @@
 package com.contactcenter.domain.email;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -76,4 +78,35 @@ public interface EmailAttachmentStorageService {
      * @throws EmailAttachmentException gdy S3 zgłosi błąd
      */
     void delete(String s3Key);
+
+    // =========================================================================
+    // Listowanie pending (BE-131)
+    // =========================================================================
+
+    /**
+     * Obiekt S3 pod prefiksem {@code pending/} zwrócony przez {@link #listPendingObjects} —
+     * klucz i czas ostatniej modyfikacji (S3 {@code LastModified}), potrzebne do porównania
+     * z TTL sweepu porzuconych załączników (retencja EPIC-30, BE-131).
+     *
+     * @param s3Key        klucz S3 obiektu
+     * @param lastModified czas ostatniej modyfikacji zwrócony przez {@code ListObjectsV2}
+     */
+    record PendingObject(String s3Key, Instant lastModified) {}
+
+    /**
+     * Listuje WSZYSTKIE obiekty S3 pod prefiksem {@code email-attachments/{tenantId}/pending/}
+     * danego tenanta — sweep porzuconych załączników (retencja EPIC-30, BE-131). Stronicuje
+     * przez {@code ListObjectsV2} (do 1000 kluczy na stronę AWS SDK), zwraca pełną listę.
+     *
+     * <p>NIE filtruje po TTL ani po referencjach w {@code email_message.attachments[*].s3_key} —
+     * to odpowiedzialność wołającego ({@code PendingAttachmentSweepJob}). Prefiks jest budowany
+     * TĄ SAMĄ metodą co zapis ({@code EmailAttachmentKeys#pendingKey}), więc zwrócone klucze nie
+     * mogą wyjść poza katalog {@code pending/} tego tenanta — wołający i tak weryfikuje to
+     * dodatkowo przez {@code EmailAttachmentKeys#isOwnedByTenant} przed usunięciem (BE125-04/BE-143).
+     *
+     * @param tenantId UUID tenanta
+     * @return lista obiektów pending (nigdy {@code null}), pusta gdy tenant nie ma żadnych
+     * @throws EmailAttachmentException gdy S3 zgłosi błąd
+     */
+    List<PendingObject> listPendingObjects(UUID tenantId);
 }

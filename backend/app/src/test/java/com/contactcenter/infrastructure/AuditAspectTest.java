@@ -148,6 +148,196 @@ class AuditAspectTest {
     }
 
     // =========================================================================
+    // BE-146: entityIdResultAccessor – poprawny entity_id dla akcji *_CREATED, gdy jedyny
+    // UUID w parametrach wywołania to tenantId (semantycznie NIE jest entity_id).
+    // =========================================================================
+
+    @Nested
+    @DisplayName("auditMethod() – BE-146: entityIdResultAccessor dla akcji CREATED")
+    class EntityIdResultAccessor {
+
+        @Test
+        @DisplayName("CUSTOMER_CREATED: entity_id = customerId() z wyniku, NIE tenantId z parametrów")
+        void customerCreated_usesResultAccessor_notTenantIdParam() throws Throwable {
+            // given – sygnatura jak createCustomer(CreateCustomerRequest request, UUID tenantId):
+            // jedyny UUID w args to tenantId, "request" nie jest UUID.
+            CustomerLikeResult result = new CustomerLikeResult(ENTITY_ID, "Jan Kowalski");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
+            Audited audited = mockAudited("CUSTOMER_CREATED", "CUSTOMER", false, "", -1, "customerId");
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+            assertThat(captor.getValue().entityId()).isNotEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("CONTACT_CREATED: entity_id = contactId() z wyniku, NIE tenantId z parametrów")
+        void contactCreated_usesResultAccessor_notTenantIdParam() throws Throwable {
+            // given – sygnatura jak createContact(CreateContactRequest request, UUID tenantId):
+            // jedyny UUID w args to tenantId.
+            ContactLikeResult result = new ContactLikeResult(ENTITY_ID, "QUEUED");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
+            Audited audited = mockAudited("CONTACT_CREATED", "CONTACT", false, "", -1, "contactId");
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+            assertThat(captor.getValue().entityId()).isNotEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("CONTACT_CREATED (overload z boolean ivrEntry): entity_id poprawny mimo 3 argumentów")
+        void contactCreatedWithIvrEntry_usesResultAccessor_notTenantIdParam() throws Throwable {
+            // given – sygnatura jak createContact(request, tenantId, boolean ivrEntry)
+            ContactLikeResult result = new ContactLikeResult(ENTITY_ID, "IVR");
+            ProceedingJoinPoint pjp = mockJoinPoint(
+                    new Object[]{new SomeRequest("payload"), TENANT_ID, true}, result);
+            Audited audited = mockAudited("CONTACT_CREATED", "CONTACT", false, "", -1, "contactId");
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+        }
+
+        @Test
+        @DisplayName("gdy akcesor nie istnieje na wyniku – fallback na id()/getId(), NIE skan parametrów")
+        void whenAccessorMethodMissing_fallsBackToIdGetterNotParamScan() throws Throwable {
+            // given – result ma id() (jak SimpleResult), ale adnotacja wskazuje nieistniejący akcesor;
+            // jedyny UUID w parametrach to TENANT_ID, który NIE powinien zostać przyjęty.
+            SimpleResult result = new SimpleResult(ENTITY_ID, "Test");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
+            Audited audited = mockAudited("CUSTOMER_CREATED", "CUSTOMER", false, "", -1, "nonExistentAccessor");
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+            assertThat(captor.getValue().entityId()).isNotEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("gdy akcesor nieznany i wynik bez id()/getId() – entity_id null (NIE tenantId)")
+        void whenAccessorAndIdGetterBothMissing_entityIdIsNullNotTenantId() throws Throwable {
+            // given – wynik bez id()/getId() (np. void/Optional-like), jedyny UUID to TENANT_ID
+            SomeRequest result = new SomeRequest("brak id");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload"), TENANT_ID}, result);
+            Audited audited = mockAudited("CUSTOMER_CREATED", "CUSTOMER", false, "", -1, "nonExistentAccessor");
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isNull();
+        }
+    }
+
+    // =========================================================================
+    // BE-146: testy regresyjne – akcje dziś poprawnie działające MUSZĄ zachować zachowanie
+    // =========================================================================
+
+    @Nested
+    @DisplayName("auditMethod() – BE-146 regresja: akcje bez entityIdResultAccessor bez zmian")
+    class RegressionExistingBehaviorUnchanged {
+
+        @Test
+        @DisplayName("CUSTOMER_UPDATED-style: entityIdParamIndex=0 nadal ma najwyższy priorytet")
+        void explicitParamIndex_stillHighestPriority_evenWithUuidInLaterParams() throws Throwable {
+            // given – jak updateCustomer(UUID customerId, UpdateCustomerRequest request, UUID tenantId):
+            // entityIdParamIndex=0 wskazuje customerId, mimo że tenantId też jest UUID w args.
+            SimpleResult result = new SimpleResult(ENTITY_ID, "Test");
+            ProceedingJoinPoint pjp = mockJoinPoint(
+                    new Object[]{ENTITY_ID, new SomeRequest("payload"), TENANT_ID}, result);
+            Audited audited = mockAudited("CUSTOMER_UPDATED", "CUSTOMER", false, "", 0);
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+        }
+
+        @Test
+        @DisplayName("CONTACT_DISPOSITION_SET/AGENT_ASSIGNED/ACCEPTED/ABANDONED-style: " +
+                "pierwszy UUID (contactId) wybrany mimo braku jawnego indeksu i obecności tenantId")
+        void firstUuidParamScan_stillPicksContactIdNotTenantId_whenNoAccessorConfigured() throws Throwable {
+            // given – jak setDisposition(UUID contactId, DispositionRequest request, UUID tenantId,
+            // UUID userId, boolean isAgent): contactId jest PIERWSZYM UUID w args, tenantId drugim.
+            // Brak entityIdParamIndex i entityIdResultAccessor – musi zadziałać stary skan parametrów.
+            UUID contactId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
+            ContactLikeResult result = new ContactLikeResult(contactId, "COMPLETED");
+            ProceedingJoinPoint pjp = mockJoinPoint(
+                    new Object[]{contactId, new SomeRequest("disposition"), TENANT_ID, USER_ID, true}, result);
+            Audited audited = mockAudited("CONTACT_DISPOSITION_SET", "CONTACT", false, "", -1);
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(contactId);
+            assertThat(captor.getValue().entityId()).isNotEqualTo(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("TENANT_CREATED/EMAIL_TEMPLATE_CREATED-style: brak UUID w parametrach, " +
+                "fallback na id()/getId() z wyniku bez zmian")
+        void noUuidInParams_noAccessorConfigured_fallsBackToIdGetterAsBefore() throws Throwable {
+            // given – jak createTenant(CreateTenantRequest request): zero UUID w args.
+            SimpleResult result = new SimpleResult(ENTITY_ID, "Test Tenant");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{new SomeRequest("payload")}, result);
+            Audited audited = mockAudited("TENANT_CREATED", "TENANT", false, "", -1);
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(ENTITY_ID);
+        }
+
+        @Test
+        @DisplayName("RECORDING_ACCESS/TENANT_TWILIO_CONFIG_UPDATED-style: jedyny/pierwszy UUID " +
+                "w parametrach jest entity_id (np. contactId lub tenantId-jako-entity) – bez zmian")
+        void firstUuidParam_isTheEntityItself_stillWorksWhenNoAccessorConfigured() throws Throwable {
+            // given – jak generatePresignedUrl(UUID contactId, UUID tenantId): entityType=RECORDING,
+            // ale pierwszy UUID (contactId) jest poprawnym entity_id dla tej akcji.
+            UUID contactId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+            ProceedingJoinPoint pjp = mockJoinPoint(new Object[]{contactId, TENANT_ID}, java.util.Optional.of("s3key"));
+            Audited audited = mockAudited("RECORDING_ACCESS", "RECORDING", false, "", -1);
+
+            // when
+            auditAspect.auditMethod(pjp, audited);
+
+            // then
+            ArgumentCaptor<AuditLogEvent> captor = ArgumentCaptor.forClass(AuditLogEvent.class);
+            verify(auditLogService).publishAuditEvent(captor.capture());
+            assertThat(captor.getValue().entityId()).isEqualTo(contactId);
+        }
+    }
+
+    // =========================================================================
     // Adnotacja @Audited – bez TenantContext (operacja globalna)
     // =========================================================================
 
@@ -348,12 +538,22 @@ class AuditAspectTest {
 
     private Audited mockAudited(String action, String entityType,
                                  boolean captureOldValue, String fetchMethod, int entityIdParamIndex) {
+        return mockAudited(action, entityType, captureOldValue, fetchMethod, entityIdParamIndex, "");
+    }
+
+    /**
+     * @param entityIdResultAccessor nazwa akcesora na wyniku metody (BE-146) – "" oznacza
+     *                                "nie ustawiony" (zgodnie z domyślną wartością w {@link Audited}).
+     */
+    private Audited mockAudited(String action, String entityType, boolean captureOldValue,
+                                 String fetchMethod, int entityIdParamIndex, String entityIdResultAccessor) {
         Audited audited = mock(Audited.class);
         when(audited.action()).thenReturn(action);
         when(audited.entityType()).thenReturn(entityType);
         when(audited.captureOldValue()).thenReturn(captureOldValue);
         when(audited.fetchOldValueMethod()).thenReturn(fetchMethod);
         when(audited.entityIdParamIndex()).thenReturn(entityIdParamIndex);
+        when(audited.entityIdResultAccessor()).thenReturn(entityIdResultAccessor);
         return audited;
     }
 
@@ -361,11 +561,29 @@ class AuditAspectTest {
     // Klasy pomocnicze (dane testowe)
     // =========================================================================
 
-    /** Prosty wynik metody z metodą id() (jak record DTO). */
-    record SimpleResult(UUID id, String name) {}
+    /**
+     * Prosty wynik metody z metodą id() (jak record DTO).
+     *
+     * <p><strong>Uwaga:</strong> musi być {@code public} – {@link AuditAspect} (produkcyjny kod)
+     * żyje w INNYM pakiecie ({@code infrastructure.aspect} vs {@code infrastructure}) i odpytuje
+     * ten rekord refleksyjnie ({@code getMethod().invoke()}). Rekord pakietowo-prywatny powoduje
+     * {@code IllegalAccessException} przy wywołaniu z innego pakietu, mimo że sam akcesor jest
+     * {@code public} – w produkcyjnym kodzie DTO (np. {@code CustomerResponse}) są zawsze
+     * {@code public} w {@code public} pakietach, więc ten problem nie występuje poza testami.
+     */
+    public record SimpleResult(UUID id, String name) {}
 
-    /** Wynik z polami wrażliwymi (klasa z getterami, nie record – żeby Jackson serializował). */
-    static class SensitiveResult {
+    /** Wynik metody z akcesorem customerId() (jak {@code CustomerResponse}, BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
+    public record CustomerLikeResult(UUID customerId, String name) {}
+
+    /** Wynik metody z akcesorem contactId() (jak {@code ContactResponse}, BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
+    public record ContactLikeResult(UUID contactId, String status) {}
+
+    /** Parametr nie-UUID symulujący *Request DTO przekazywane do metod CREATE (BE-146); musi być {@code public} – zob. {@link SimpleResult}. */
+    public record SomeRequest(String value) {}
+
+    /** Wynik z polami wrażliwymi (klasa z getterami, nie record – żeby Jackson serializował); musi być {@code public} – zob. {@link SimpleResult}. */
+    public static class SensitiveResult {
         private final UUID id;
         private final String email;
         private final String passwordHash;

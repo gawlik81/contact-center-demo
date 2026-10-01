@@ -65,7 +65,7 @@ class CustomerServiceImpl implements CustomerService {
      * @return DTO nowo utworzonego klienta
      */
     @Transactional
-    @Audited(action = "CUSTOMER_CREATED", entityType = "CUSTOMER")
+    @Audited(action = "CUSTOMER_CREATED", entityType = "CUSTOMER", entityIdResultAccessor = "customerId")
     @Override
     public CustomerResponse createCustomer(CreateCustomerRequest request, UUID tenantId) {
         // Normalizacja: pusty/blank string traktujemy jako "brak externalId" (NULL), nie dosłowny "".

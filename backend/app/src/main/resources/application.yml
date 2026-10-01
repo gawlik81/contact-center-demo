@@ -390,6 +390,22 @@ email:
   encryption-key: ${EMAIL_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
   # Włącza/wyłącza moduł email (IMAP polling + SMTP)
   enabled: ${EMAIL_ENABLED:true}
+  attachments:
+    # Retencja EPIC-30 (BE-131): sweep obiektów S3 "email-attachments/{tenantId}/pending/..."
+    # porzuconych przez agenta (upload bez wysłania odpowiedzi). TTL liczony od S3 LastModified.
+    # UWAGA (korekta BE-124/BE-131): klucz pending/ wciąż wskazywany przez email_message.attachments
+    # (wiadomość OUTBOUND) NIGDY nie jest usuwany, niezależnie od tego TTL – patrz Javadoc
+    # PendingAttachmentSweepJob.
+    pending-ttl-hours: ${EMAIL_ATTACHMENTS_PENDING_TTL_HOURS:72}
+    # Wyrażenie cron sweepu (domyślnie: codziennie 02:30 UTC, po RecordingRetentionJob o 02:00 UTC).
+    pending-sweep-cron: ${EMAIL_ATTACHMENTS_PENDING_SWEEP_CRON:0 30 2 * * *}
+    # Bezpiecznik wdrożeniowy (ten sam wzorzec co retention.purge.delete-messages, BE-126). Domyślnie
+    # false: job tylko liczy i loguje kandydatów (dry-run) – NIE wywołuje DeleteObject. true: job
+    # faktycznie usuwa porzucone obiekty pending z S3. NIE WŁĄCZAĆ w żadnym profilu domyślnym
+    # (dev/local-demo/prod) bez świadomej decyzji właściciela po przeglądzie logów dry-run na
+    # docelowym środowisku – patrz Javadoc PendingAttachmentSweepJob i notatka wykonania BE-131
+    # w TASKS-BACKEND.md.
+    pending-sweep-delete-enabled: ${EMAIL_ATTACHMENTS_PENDING_SWEEP_DELETE_ENABLED:false}
 
 # =============================================================================
 # Social Media OAuth – integracje Facebook Messenger, Instagram, WhatsApp Business (BE-017)

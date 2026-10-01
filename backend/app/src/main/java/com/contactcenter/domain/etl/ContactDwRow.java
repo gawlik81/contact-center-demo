@@ -7,7 +7,10 @@ import java.util.UUID;
  * DTO reprezentujący jeden wiersz w Data Warehouse dla kontaktu.
  *
  * <p>Zawiera pola analityczne (bez PII klienta – customer_id pomijane celowo,
- * dane RODO anonimizowane już po stronie źródłowej).
+ * dane RODO anonimizowane już po stronie źródłowej). Od BE-141 nie zawiera
+ * {@code remoteAddress} (numer CLI / e-mail klienta) – kolumna nie służyła
+ * analityce, a niosła PII; {@code contacts_dw.remote_address} w PostgreSQL
+ * zostaje jako nullable do czasu DB-078 (drop kolumny).
  *
  * <p>Odpowiada schematowi tabeli {@code contacts_dw} (V036) i
  * tabeli ClickHouse {@code contacts_dw} w data warehouse.
@@ -25,7 +28,6 @@ import java.util.UUID;
  * @param startedAt       czas rozpoczęcia
  * @param endedAt         czas zakończenia (nullable)
  * @param queuedAt        czas trafienia do kolejki
- * @param remoteAddress   numer CLI / email nadawcy (nullable)
  */
 public record ContactDwRow(
         UUID contactId,
@@ -40,6 +42,5 @@ public record ContactDwRow(
         Integer durationSec,
         Instant startedAt,
         Instant endedAt,
-        Instant queuedAt,
-        String remoteAddress
+        Instant queuedAt
 ) {}

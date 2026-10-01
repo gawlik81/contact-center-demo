@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -180,4 +181,24 @@ public interface EmailMessageService {
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
      */
     OrphanEmailPurgeBatch purgeOrphansOlderThan(UUID tenantId, EmailOrphanCursor cursor, Instant cutoff, int batchSize);
+
+    // =========================================================================
+    // BE-131: Retencja – sweep porzuconych załączników pending w S3 (EPIC-30)
+    // =========================================================================
+
+    /**
+     * Zwraca zbiór kluczy S3 spod {@code email-attachments/{tenantId}/pending/...} wciąż
+     * odwoływanych przez którąkolwiek wiadomość tenanta ({@code attachments[*].s3_key}) — sweep
+     * porzuconych załączników pending (retencja EPIC-30, BE-131, {@code PendingAttachmentSweepJob}).
+     *
+     * <p>Wiadomości OUTBOUND odwołują się do kluczy {@code pending/} BEZ przenoszenia obiektu
+     * (korekta BE-124/BE-131) — klucz obecny w zwróconym zbiorze NIE jest porzucony i NIE WOLNO go
+     * usunąć z S3, nawet jeśli jest starszy niż TTL sweepu.
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @return zbiór kluczy S3 (nigdy {@code null}), pusty gdy żadna wiadomość nie odwołuje się do {@code pending/}
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    Set<String> findReferencedPendingS3Keys(UUID tenantId);
 }

@@ -401,9 +401,18 @@ class SocialMessageOrphanPurgeIntegrationTest {
                 String firstPagePlan = explain(firstPageSql);
                 String nextPagePlan = explain(nextPageSql);
 
-                assertThat(countPlan).contains(SOCIAL_ORPHAN_INDEX).doesNotContain("Seq Scan");
-                assertThat(firstPagePlan).contains(SOCIAL_ORPHAN_INDEX).doesNotContain("Seq Scan");
-                assertThat(nextPagePlan).contains(SOCIAL_ORPHAN_INDEX).doesNotContain("Seq Scan");
+                // DB-065/V100: social_message jest teraz partycjonowana -- EXPLAIN wypisuje nazwę
+                // fizycznego indeksu POTOMNEGO partycji, nie nazwę indeksu rodzica (patrz javadoc
+                // PostgresTestDatabase#explainUsesIndexOrItsPartitionChildren).
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, countPlan, SOCIAL_ORPHAN_INDEX))
+                        .as("COUNT plan używa %s albo jego indeksu potomnego partycji", SOCIAL_ORPHAN_INDEX).isTrue();
+                assertThat(countPlan).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, firstPagePlan, SOCIAL_ORPHAN_INDEX))
+                        .as("FIRST PAGE plan używa %s albo jego indeksu potomnego partycji", SOCIAL_ORPHAN_INDEX).isTrue();
+                assertThat(firstPagePlan).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, nextPagePlan, SOCIAL_ORPHAN_INDEX))
+                        .as("NEXT PAGE plan używa %s albo jego indeksu potomnego partycji", SOCIAL_ORPHAN_INDEX).isTrue();
+                assertThat(nextPagePlan).doesNotContain("Seq Scan");
                 System.out.println("[EXPLAIN BE-127 social COUNT]\n" + countPlan);
                 System.out.println("[EXPLAIN BE-127 social FIRST PAGE]\n" + firstPagePlan);
                 System.out.println("[EXPLAIN BE-127 social NEXT PAGE]\n" + nextPagePlan);
@@ -447,7 +456,13 @@ class SocialMessageOrphanPurgeIntegrationTest {
                             .replace(":batchSize", "100");
                     String plan = String.join("\n", restrictedJdbc.queryForList("EXPLAIN " + sql, String.class));
 
-                    assertThat(plan).contains(SOCIAL_ORPHAN_INDEX).doesNotContain("Seq Scan");
+                    // Katalog (pg_inherits/pg_class) odpytany przez połączenie superusera (jdbc,
+                    // pole klasy) -- te tabele systemowe nie są objęte RLS na danych domenowych,
+                    // więc nie trzeba do tego sesji ograniczonej roli, z której pochodzi plan.
+                    assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, SOCIAL_ORPHAN_INDEX))
+                            .as("plan pod app_user używa %s albo jego indeksu potomnego partycji", SOCIAL_ORPHAN_INDEX)
+                            .isTrue();
+                    assertThat(plan).doesNotContain("Seq Scan");
                     System.out.println("[EXPLAIN BE-127 social pod app_user]\n" + plan);
                 } finally {
                     restrictedJdbc.execute("ROLLBACK");

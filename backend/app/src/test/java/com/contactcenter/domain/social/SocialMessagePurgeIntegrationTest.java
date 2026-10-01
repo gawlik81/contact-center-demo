@@ -235,7 +235,7 @@ class SocialMessagePurgeIntegrationTest {
     class PlanAndDeprecation {
 
         @Test
-        @DisplayName("DELETE po contact_id IN korzysta z idx_social_message_contact (bez Seq Scan)")
+        @DisplayName("DELETE po contact_id IN korzysta z idx_social_message_contact")
         void explain_usesContactIndex() {
             UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant EXPLAIN social " + UUID.randomUUID());
             try {
@@ -255,7 +255,21 @@ class SocialMessagePurgeIntegrationTest {
 
                 String plan = String.join("\n", jdbc.queryForList("EXPLAIN " + sql, String.class));
 
-                assertThat(plan).contains("idx_social_message_contact").doesNotContain("Seq Scan");
+                // DB-065/V100: social_message jest teraz partycjonowana -- EXPLAIN wypisuje nazwę
+                // fizycznego indeksu POTOMNEGO partycji, nie nazwę indeksu rodzica (patrz javadoc
+                // PostgresTestDatabase#explainUsesIndexOrItsPartitionChildren).
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, "idx_social_message_contact"))
+                        .as("plan używa idx_social_message_contact albo jego indeksu potomnego partycji")
+                        .isTrue();
+                // UWAGA (DB-065): zapytanie filtruje WYŁĄCZNIE po contact_id (bez sent_at = kolumna
+                // partycjonowania), więc Postgres NIE MOŻE przyciąć (prune) żadnej partycji -- musi
+                // odwiedzić wszystkie, w tym te praktycznie puste dla tego zapytania (inne partycje
+                // utworzone przez inne klasy testowe współdzielące ten sam kontener, np.
+                // social_message_2027_06/07 z SocialMessagePartitioningTest). Seq Scan na takiej
+                // prawie-pustej partycji jest POPRAWNĄ, tańszą decyzją plannera (koszt ~1.0), nie
+                // regresją -- celowo NIE sprawdzamy już globalnie "doesNotContain(Seq Scan)" w całym
+                // planie Append po wielu partycjach; dowodem braku regresji jest wyłącznie to, że
+                // partycja z FAKTYCZNYMI danymi (2026_10, 30 000 wierszy) używa indeksu (asercja wyżej).
                 System.out.println("[EXPLAIN DELETE social contact_id IN]\n" + plan);
             } finally {
                 jdbc.update("DELETE FROM social_message WHERE tenant_id = ?", tenant);

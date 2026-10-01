@@ -86,7 +86,10 @@ class OrphanMessagePurgeIndexesTest {
                     .as("definicja %s", SOCIAL_INDEX)
                     .contains("USING btree (tenant_id, sent_at)")
                     .contains("WHERE (contact_id IS NULL)")
-                    .contains("ON public.social_message");
+                    // "ON ONLY public.social_message" od DB-065/V100 (tabela partycjonowana) --
+                    // "ONLY" nie pojawia się na nie-partycjonowanych tabelach (np. email_message,
+                    // dopóki DB-067 nie partycjonuje jej też), więc dopuszczamy oba warianty.
+                    .containsPattern("ON (ONLY )?public\\.social_message");
         }
 
         @Test
@@ -200,7 +203,13 @@ class OrphanMessagePurgeIndexesTest {
 
                 String plan = explain(sql);
 
-                assertThat(plan).contains(SOCIAL_INDEX).doesNotContain("Seq Scan");
+                // DB-065/V100: social_message jest teraz partycjonowana -- EXPLAIN wypisuje nazwę
+                // fizycznego indeksu POTOMNEGO partycji, nie nazwę indeksu rodzica (patrz javadoc
+                // PostgresTestDatabase#explainUsesIndexOrItsPartitionChildren).
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, SOCIAL_INDEX))
+                        .as("plan używa %s albo jego indeksu potomnego partycji", SOCIAL_INDEX)
+                        .isTrue();
+                assertThat(plan).doesNotContain("Seq Scan");
                 System.out.println("[EXPLAIN social orphan sweep — DB-059/BE-127]\n" + plan);
             } finally {
                 jdbc.update("DELETE FROM social_message WHERE tenant_id = ?", tenant);

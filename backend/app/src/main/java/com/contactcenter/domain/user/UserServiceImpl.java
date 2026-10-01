@@ -90,7 +90,7 @@ class UserServiceImpl implements UserService {
      * @throws IllegalArgumentException HTTP 422 gdy email już zajęty w tenancie
      */
     @Transactional
-    @Audited(action = "USER_CREATED", entityType = "USER")
+    @Audited(action = "USER_CREATED", entityType = "USER", entityIdResultAccessor = "id")
     @Override
     public UserResponse createUser(CreateUserRequest request, UUID tenantId) {
         // SUPER_ADMIN nie może powstać przez ten endpoint (ani żaden inny poza bootstrapem

@@ -51,11 +51,36 @@ public @interface Audited {
      * <p>Aspekt próbuje znaleźć UUID w kolejności:
      * <ol>
      *   <li>Parametr pod indeksem {@code entityIdParamIndex} (gdy >= 0)</li>
+     *   <li>Akcesor wskazany przez {@link #entityIdResultAccessor()} na wyniku metody (gdy ustawiony)</li>
      *   <li>Pierwszy parametr typu UUID</li>
-     *   <li>Pole {@code id} na obiekcie zwróconym przez metodę</li>
+     *   <li>Pole {@code id} / {@code getId()} na obiekcie zwróconym przez metodę</li>
      * </ol>
      */
     int entityIdParamIndex() default -1;
+
+    /**
+     * Nazwa bezargumentowej metody-akcesora na WYNIKU metody, zwracającej UUID encji (entity_id).
+     *
+     * <p>Przeznaczona dla operacji CREATE, gdzie ID encji jest generowane WEWNĄTRZ metody
+     * (nieznane w momencie wywołania – {@link #entityIdParamIndex()} nie ma zastosowania),
+     * a wynik jest rekordem Javy z własną nazwą akcesora (np. {@code customerId()},
+     * {@code contactId()}, {@code queueId()}), nie konwencjonalnym {@code id()} / {@code getId()}.
+     *
+     * <p><strong>Uwaga (BE-146):</strong> gdy ten atrybut jest ustawiony (niepusty), aspekt
+     * wywołuje wskazany akcesor na wyniku i NIE skanuje parametrów wywołania w poszukiwaniu
+     * UUID (próba "pierwszy parametr typu UUID" jest pomijana). Jest to świadome – bez tego
+     * jawna deklaracja "ID jest w wyniku" mogłaby zostać przesłonięta przez przypadkowy UUID
+     * w parametrach (np. {@code tenantId} przekazany jako jedyny UUID do metody CREATE, który
+     * semantycznie NIE jest {@code entity_id} – zob. bug opisany w BE-146).
+     *
+     * <p>Przykład: {@code @Audited(action = "CUSTOMER_CREATED", entityType = "CUSTOMER",
+     * entityIdResultAccessor = "customerId")} dla {@code createCustomer(CreateCustomerRequest,
+     * UUID tenantId)} zwracającej {@code CustomerResponse(UUID customerId, ...)}.
+     *
+     * <p>Domyślna wartość {@code ""} oznacza "nie ustawiony" – aspekt zachowuje dotychczasowe
+     * zachowanie (skan parametrów, potem {@code id()}/{@code getId()} na wyniku).
+     */
+    String entityIdResultAccessor() default "";
 
     /**
      * Czy przechwytywać stan encji przed wywołaniem (old_value).

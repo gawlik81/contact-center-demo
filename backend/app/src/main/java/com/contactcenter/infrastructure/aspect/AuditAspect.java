@@ -278,8 +278,13 @@ public class AuditAspect {
      * <p>Kolejność prób:
      * <ol>
      *   <li>Parametr pod indeksem {@link Audited#entityIdParamIndex()} (gdy >= 0)</li>
-     *   <li>Pierwszy parametr typu UUID</li>
-     *   <li>Pole {@code id} na obiekcie wynikowym przez refleksję</li>
+     *   <li>Akcesor {@link Audited#entityIdResultAccessor()} na wyniku metody (gdy ustawiony) –
+     *       gdy skonfigurowany, PRZESŁANIA Próbę "skan parametrów" poniżej (zamiast tylko
+     *       mieć od niej niższy priorytet) – zob. {@link Audited#entityIdResultAccessor()}
+     *       i BE-146: bez tego jawna deklaracja "ID jest w wyniku" mogłaby zostać przesłonięta
+     *       przez przypadkowy UUID w parametrach (typowo {@code tenantId} dla operacji CREATE).</li>
+     *   <li>Pierwszy parametr typu UUID (tylko gdy {@code entityIdResultAccessor} NIE ustawiony)</li>
+     *   <li>Pole {@code id} / {@code getId()} na obiekcie wynikowym przez refleksję</li>
      * </ol>
      *
      * @param pjp     punkt złączenia z argumentami wywołania
@@ -290,41 +295,100 @@ public class AuditAspect {
     private UUID extractEntityId(ProceedingJoinPoint pjp, Audited audited, Object result) {
         Object[] args = pjp.getArgs();
 
-        // Próba 1: jawnie wskazany indeks parametru
+        // Próba 1: jawnie wskazany indeks parametru – najwyższy priorytet, autor adnotacji
+        // jawnie zadeklarował, które parametr niesie entity_id.
         int idx = audited.entityIdParamIndex();
         if (idx >= 0 && idx < args.length && args[idx] instanceof UUID uuid) {
             return uuid;
         }
 
-        // Próba 2: pierwszy parametr UUID
+        // Próba 2: jawnie wskazany akcesor na wyniku metody (BE-146). Konfiguracja jawna –
+        // ma priorytet nad heurystyką skanu parametrów (Próba 3), żeby heurystyka nie mogła
+        // błędnie przechwycić np. tenantId jako entity_id dla operacji CREATE, gdzie
+        // prawdziwe ID encji jest dostępne wyłącznie w wyniku.
+        String accessorName = audited.entityIdResultAccessor();
+        if (!accessorName.isBlank()) {
+            UUID fromAccessor = invokeUuidAccessor(result, accessorName);
+            if (fromAccessor != null) {
+                return fromAccessor;
+            }
+            log.warn("[AuditAspect] entityIdResultAccessor='{}' skonfigurowany dla action={}, " +
+                            "entityType={}, ale nie udało się pobrać z niego UUID (wynik null, " +
+                            "metoda nie istnieje lub nie zwraca UUID) – pomijam skan parametrów " +
+                            "(świadomie, zob. Audited#entityIdResultAccessor) i próbuję " +
+                            "id()/getId() na wyniku jako ostatni fallback",
+                    accessorName, audited.action(), audited.entityType());
+            // Świadomie NIE wracamy do skanu parametrów (Próba 3) – autor adnotacji jawnie
+            // zadeklarował, że ID jest w wyniku; fallback to wyłącznie Próba 4 (id()/getId()).
+            return extractIdFromResult(result);
+        }
+
+        // Próba 3: pierwszy parametr UUID (heurystyka – tylko gdy brak jawnej konfiguracji wyżej)
         UUID fromParam = findFirstUuidParam(args, -1);
         if (fromParam != null) {
             return fromParam;
         }
 
-        // Próba 3: pole "id" na wyniku metody
-        if (result != null) {
-            try {
-                Method idGetter = result.getClass().getMethod("id");
-                Object idValue = idGetter.invoke(result);
-                if (idValue instanceof UUID uuid) {
-                    return uuid;
-                }
-            } catch (NoSuchMethodException ignored) {
-                // Próbuj przez pole "getId"
-            } catch (Exception e) {
-                log.trace("[AuditAspect] Nie udało się pobrać id() z wyniku: {}", e.getMessage());
-            }
+        // Próba 4: pole "id" / "getId()" na wyniku metody
+        return extractIdFromResult(result);
+    }
 
-            try {
-                Method idGetter = result.getClass().getMethod("getId");
-                Object idValue = idGetter.invoke(result);
-                if (idValue instanceof UUID uuid) {
-                    return uuid;
-                }
-            } catch (Exception e) {
-                log.trace("[AuditAspect] Nie udało się pobrać getId() z wyniku: {}", e.getMessage());
+    /**
+     * Wywołuje bezargumentowy akcesor o podanej nazwie na wyniku metody i zwraca jego wynik
+     * jako UUID.
+     *
+     * @param result       wynik wywołania metody (może być null)
+     * @param accessorName nazwa metody-akcesora (np. {@code "customerId"})
+     * @return UUID zwrócony przez akcesor lub null, gdy wynik jest null, metoda nie istnieje,
+     *         rzuca wyjątek, lub zwraca wartość inną niż UUID
+     */
+    private UUID invokeUuidAccessor(Object result, String accessorName) {
+        if (result == null) {
+            return null;
+        }
+        try {
+            Method accessor = result.getClass().getMethod(accessorName);
+            Object value = accessor.invoke(result);
+            return value instanceof UUID uuid ? uuid : null;
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się wywołać akcesora '{}' na wyniku {}: {}",
+                    accessorName, result.getClass().getSimpleName(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Pobiera UUID encji przez konwencjonalne {@code id()} (rekordy) lub {@code getId()}
+     * (klasy JavaBean) na wyniku metody.
+     *
+     * @param result wynik wywołania metody (może być null)
+     * @return UUID lub null, gdy wynik jest null albo żadna z metod nie istnieje / nie zwraca UUID
+     */
+    private UUID extractIdFromResult(Object result) {
+        if (result == null) {
+            return null;
+        }
+
+        try {
+            Method idGetter = result.getClass().getMethod("id");
+            Object idValue = idGetter.invoke(result);
+            if (idValue instanceof UUID uuid) {
+                return uuid;
             }
+        } catch (NoSuchMethodException ignored) {
+            // Próbuj przez pole "getId"
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się pobrać id() z wyniku: {}", e.getMessage());
+        }
+
+        try {
+            Method idGetter = result.getClass().getMethod("getId");
+            Object idValue = idGetter.invoke(result);
+            if (idValue instanceof UUID uuid) {
+                return uuid;
+            }
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się pobrać getId() z wyniku: {}", e.getMessage());
         }
 
         return null;

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.plugin;
 
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.ValidationResult;
 
@@ -28,6 +29,11 @@ public interface PluginStorageService {
     /**
      * Zapisuje zwalidowany JAR pluginu: upload do object storage + insert do katalogu per-tenant.
      *
+     * <p>Przeciążenie zachowujące dotychczasowe zachowanie (fix/plugin-version-overwrite) —
+     * równoważne wywołaniu {@link #storeValidatedJar(byte[], String, ValidationResult, UUID, UUID, boolean)}
+     * z {@code overwrite=false}: upload wersji, która już istnieje dla tego tenanta, kończy się
+     * {@link ConflictException} (HTTP 409), a stary wiersz pozostaje nietknięty.
+     *
      * @param jarBytes          surowe bajty JAR-a (już zwalidowane przez {@link PluginValidationService})
      * @param originalFilename  oryginalna nazwa wgranego pliku (do budowy klucza S3)
      * @param validationResult  wynik walidacji ({@code VALIDATED}/{@code PENDING_REVIEW}) — niesie
@@ -35,13 +41,55 @@ public interface PluginStorageService {
      * @param tenantId          tenant wykonujący upload (zapisywany w {@code plugin_version.tenant_id})
      * @param uploadedByUserId  identyfikator użytkownika wykonującego upload
      * @return DTO nowo utworzonej wersji pluginu
+     * @throws ConflictException gdy wersja z manifestu jest już wgrana dla tego tenanta (HTTP 409)
+     */
+    default PluginVersionDto storeValidatedJar(
+            byte[] jarBytes,
+            String originalFilename,
+            ValidationResult validationResult,
+            UUID tenantId,
+            UUID uploadedByUserId) {
+        return storeValidatedJar(jarBytes, originalFilename, validationResult, tenantId, uploadedByUserId, false);
+    }
+
+    /**
+     * Zapisuje zwalidowany JAR pluginu: upload do object storage + insert/update w katalogu
+     * per-tenant (fix/plugin-version-overwrite, EPIC-28).
+     *
+     * <p>Jeśli wersja z manifestu (ten sam {@code pluginKey} + {@code version}) jest już wgrana
+     * dla danego tenanta ({@code tenant_plugin_installation}-owy constraint
+     * {@code uq_plugin_version_plugin_version_tenant}, V078):
+     * <ul>
+     *   <li>{@code overwrite=false} — rzuca {@link ConflictException} (HTTP 409) z czytelnym
+     *       komunikatem; zero zmian w DB/S3 poza nowym obiektem S3 pod nowym kluczem (jeśli upload
+     *       dotarł do tego etapu — patrz uwaga w implementacji o kolejności operacji).</li>
+     *   <li>{@code overwrite=true} — aktualizuje istniejący wiersz {@code plugin_version} W MIEJSCU
+     *       (ten sam {@code id}) zamiast insertować nowy. Zachowuje integralność FK
+     *       {@code tenant_plugin_installation.plugin_version_id} ({@code ON DELETE RESTRICT},
+     *       V075) — instalacje tenantów wskazujące na ten wiersz automatycznie "widzą" nową treść.</li>
+     * </ul>
+     *
+     * <p>Jeśli wersja NIE istnieje, {@code overwrite} nie ma znaczenia — zachowanie identyczne
+     * jak dotychczas (nowy wiersz, INSERT).
+     *
+     * @param jarBytes          surowe bajty JAR-a (już zwalidowane przez {@link PluginValidationService})
+     * @param originalFilename  oryginalna nazwa wgranego pliku (do budowy klucza S3)
+     * @param validationResult  wynik walidacji ({@code VALIDATED}/{@code PENDING_REVIEW}) — niesie
+     *                          sparsowany manifest potrzebny do budowy {@code Plugin}/{@code PluginVersion}
+     * @param tenantId          tenant wykonujący upload (zapisywany w {@code plugin_version.tenant_id})
+     * @param uploadedByUserId  identyfikator użytkownika wykonującego upload
+     * @param overwrite         {@code true} aby zastąpić istniejącą wersję tego samego numeru
+     *                          nowym JAR-em (zamiast odrzucić upload jako duplikat)
+     * @return DTO wersji pluginu (nowej, albo zaktualizowanej przy overwrite)
+     * @throws ConflictException gdy wersja już istnieje dla tego tenanta i {@code overwrite=false}
      */
     PluginVersionDto storeValidatedJar(
             byte[] jarBytes,
             String originalFilename,
             ValidationResult validationResult,
             UUID tenantId,
-            UUID uploadedByUserId);
+            UUID uploadedByUserId,
+            boolean overwrite);
 
     /**
      * Pobiera bajty JAR-a pluginu z object storage.

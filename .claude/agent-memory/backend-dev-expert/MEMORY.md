@@ -12,6 +12,7 @@
 - [ScheduledCallbackExecutor BE-038](project_be038_scheduled_callback_executor.md) — @Scheduled oddzwonienia, ochrona double-processing
 - [Inbound Callback Endpoint BE-040](project_be040_inbound_callback.md) — POST contacts/{id}/callback, sourceType=INBOUND_CALLBACK
 - [Email Attachments](project_email_attachments.md) — S3 storage, IMAP extraction, SMTP multipart/mixed
+- [fix/plugin-version-overwrite (EPIC-28)](project_plugin_version_overwrite_fix.md) — UPDATE w miejscu (FK RESTRICT), afterCommit S3 cleanup, reużycie ConflictException, default method dla kompatybilności
 
 ## Wzorce/konwencje
 

@@ -1,5 +1,6 @@
 package com.contactcenter.api.plugin;
 
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.plugin.PluginStorageService;
 import com.contactcenter.domain.plugin.PluginValidationService;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
@@ -23,7 +24,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -87,9 +90,9 @@ class PluginUploadControllerTest {
 
             when(pluginValidationService.validate(file.getBytes(), UPLOADED_BY)).thenReturn(validated);
             when(pluginStorageService.storeValidatedJar(file.getBytes(), file.getOriginalFilename(),
-                    validated, TENANT_ID, UPLOADED_BY)).thenReturn(expectedDto);
+                    validated, TENANT_ID, UPLOADED_BY, false)).thenReturn(expectedDto);
 
-            ResponseEntity<?> response = controller.uploadPlugin(file);
+            ResponseEntity<?> response = controller.uploadPlugin(file, false);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             assertThat(response.getBody()).isEqualTo(expectedDto);
@@ -104,10 +107,10 @@ class PluginUploadControllerTest {
 
             when(pluginValidationService.validate(file.getBytes(), UPLOADED_BY)).thenReturn(rejected);
 
-            ResponseEntity<?> response = controller.uploadPlugin(file);
+            ResponseEntity<?> response = controller.uploadPlugin(file, false);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any());
+            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any(), anyBoolean());
         }
 
         @Test
@@ -117,11 +120,11 @@ class PluginUploadControllerTest {
             MockMultipartFile file = new MockMultipartFile("file", "huge.jar",
                     "application/java-archive", oversized);
 
-            ResponseEntity<?> response = controller.uploadPlugin(file);
+            ResponseEntity<?> response = controller.uploadPlugin(file, false);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
             verify(pluginValidationService, never()).validate(any(), any());
-            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any());
+            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any(), anyBoolean());
         }
 
         @Test
@@ -130,7 +133,7 @@ class PluginUploadControllerTest {
             MockMultipartFile emptyFile = new MockMultipartFile("file", "empty.jar",
                     "application/java-archive", new byte[0]);
 
-            ResponseEntity<?> response = controller.uploadPlugin(emptyFile);
+            ResponseEntity<?> response = controller.uploadPlugin(emptyFile, false);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
             verify(pluginValidationService, never()).validate(any(), any());
@@ -146,12 +149,82 @@ class PluginUploadControllerTest {
                     "1.3.0", "1.x", "VALIDATED", List.of(), List.of("customer:read"), UPLOADED_BY, Instant.now());
 
             when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
-            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY))).thenReturn(dto);
+            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(false)))
+                    .thenReturn(dto);
 
-            controller.uploadPlugin(file);
+            controller.uploadPlugin(file, false);
 
             verify(pluginValidationService).validate(any(), eq(UPLOADED_BY));
-            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY));
+            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(false));
+        }
+    }
+
+    // =========================================================================
+    // Overwrite (fix/plugin-version-overwrite, EPIC-28)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("POST /api/supervisor/plugins?overwrite=")
+    class UploadPluginOverwrite {
+
+        @Test
+        @DisplayName("domyślnie (overwrite nieprzekazane przez klienta) przekazuje overwrite=false do storage")
+        void shouldDefaultOverwriteToFalse() throws Exception {
+            MockMultipartFile file = validJarFile();
+            ValidationResult validated = ValidationResult.validated();
+            PluginVersionDto dto = new PluginVersionDto(
+                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "Acme CRM Sync", "Acme Sp. z o.o.",
+                    "1.3.0", "1.x", "VALIDATED", List.of(), List.of("customer:read"), UPLOADED_BY, Instant.now());
+
+            when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
+            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(false)))
+                    .thenReturn(dto);
+
+            // Spring @RequestParam(defaultValue = "false") robi to samo przy braku parametru w
+            // query string — tu symulowane bezpośrednim wywołaniem metody kontrolera z `false`
+            // (ten test dokumentuje kontrakt domyślnej wartości, nie mechanizm bindowania Springa).
+            ResponseEntity<?> response = controller.uploadPlugin(file, false);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), any(), any(), eq(false));
+        }
+
+        @Test
+        @DisplayName("overwrite=true przekazuje overwrite=true do storage i zwraca 201 z zaktualizowanym DTO")
+        void shouldPassOverwriteTrueToStorageService() throws Exception {
+            MockMultipartFile file = validJarFile();
+            ValidationResult validated = ValidationResult.validated();
+            PluginVersionDto dto = new PluginVersionDto(
+                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "Acme CRM Sync", "Acme Sp. z o.o.",
+                    "1.3.0", "1.x", "VALIDATED", List.of(), List.of("customer:read"), UPLOADED_BY, Instant.now());
+
+            when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
+            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(true)))
+                    .thenReturn(dto);
+
+            ResponseEntity<?> response = controller.uploadPlugin(file, true);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            assertThat(response.getBody()).isEqualTo(dto);
+            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(true));
+        }
+
+        @Test
+        @DisplayName("propaguje ConflictException ze storage (duplikat wersji, overwrite=false) jako wyjątek "
+                + "— GlobalExceptionHandler mapuje go na 409 z czytelnym komunikatem")
+        void shouldPropagateConflictExceptionWhenVersionAlreadyExistsAndOverwriteFalse() throws Exception {
+            MockMultipartFile file = validJarFile();
+            ValidationResult validated = ValidationResult.validated();
+
+            when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
+            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY), eq(false)))
+                    .thenThrow(new ConflictException(
+                            "Wersja 1.3.0 pluginu acme-crm-sync jest już wgrana dla tego tenanta. "
+                                    + "Użyj overwrite=true, aby ją zastąpić, albo zwiększ numer wersji."));
+
+            assertThatThrownBy(() -> controller.uploadPlugin(file, false))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("Użyj overwrite=true");
         }
     }
 }

@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -78,6 +79,12 @@ public class PluginUploadController {
                 kluczem już istnieje w katalogu, ta wersja jest dopisywana do niego; w przeciwnym
                 razie tworzony jest nowy wpis w katalogu.
 
+                Jeśli wersja z manifestu jest już wgrana dla tego tenanta, upload jest domyślnie
+                odrzucany (HTTP 409) — żeby zastąpić jej treść nowym JAR-em (np. poprawka buga bez
+                bumpu numeru wersji), przekaż parametr `overwrite=true`. Zastąpienie aktualizuje
+                istniejący wpis w miejscu (ten sam identyfikator wersji) — instalacje tenantów
+                wskazujące na tę wersję automatycznie zaczynają korzystać z nowej treści.
+
                 Upload odrzucony (REJECTED) NIE jest zapisywany nigdzie — ani do object storage,
                 ani do bazy danych.
 
@@ -94,7 +101,7 @@ public class PluginUploadController {
         responses = {
             @ApiResponse(
                 responseCode = "201",
-                description = "Plugin zwalidowany i zapisany do katalogu",
+                description = "Plugin zwalidowany i zapisany (albo zastąpiony, przy overwrite=true) w katalogu",
                 content = @Content(schema = @Schema(implementation = PluginVersionDto.class))
             ),
             @ApiResponse(
@@ -104,12 +111,20 @@ public class PluginUploadController {
                 content = @Content(schema = @Schema(implementation = PluginValidationErrorResponse.class))
             ),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)")
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
+            @ApiResponse(
+                responseCode = "409",
+                description = "Wersja z manifestu jest już wgrana dla tego tenanta, a overwrite=false "
+                        + "(wartość domyślna) — użyj overwrite=true, aby ją zastąpić, albo zwiększ numer wersji"
+            )
         }
     )
     public ResponseEntity<?> uploadPlugin(
             @Parameter(description = "Plik JAR pluginu (max 50 MB)", required = true)
-            @RequestPart("file") MultipartFile file
+            @RequestPart("file") MultipartFile file,
+            @Parameter(description = "Zastąp istniejącą wersję (ten sam pluginKey+version dla tego tenanta) "
+                    + "nowym JAR-em, w miejsce domyślnego odrzucenia duplikatu")
+            @RequestParam(name = "overwrite", defaultValue = "false") boolean overwrite
     ) throws IOException {
 
         UUID currentUserId = TenantContext.getUserId();
@@ -144,10 +159,13 @@ public class PluginUploadController {
         PluginVersionDto pluginVersionDto = pluginStorageService.storeValidatedJar(
                 jarBytes, file.getOriginalFilename(), validationResult,
                 TenantContext.getTenantId(),
-                currentUserId);
+                currentUserId,
+                overwrite);
 
-        log.info("[PluginUpload] Plugin zapisany do katalogu: pluginKey={}, version={}, status={}, uploadedBy={}",
-                pluginVersionDto.pluginKey(), pluginVersionDto.version(), pluginVersionDto.status(), currentUserId);
+        log.info("[PluginUpload] Plugin zapisany do katalogu: pluginKey={}, version={}, status={}, "
+                        + "overwrite={}, uploadedBy={}",
+                pluginVersionDto.pluginKey(), pluginVersionDto.version(), pluginVersionDto.status(),
+                overwrite, currentUserId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(pluginVersionDto);
     }

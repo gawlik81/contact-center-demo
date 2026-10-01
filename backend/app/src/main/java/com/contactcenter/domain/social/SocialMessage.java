@@ -3,7 +3,6 @@ package com.contactcenter.domain.social;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
@@ -12,7 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Encja JPA mapująca tabelę {@code social_message} (schemat z V010__create_email_social.sql).
+ * Encja JPA mapująca tabelę {@code social_message} (schemat z V010__create_email_social.sql,
+ * partycjonowana RANGE po {@code sent_at} od V100/DB-065).
  *
  * <p>Kolumna {@code platform} używa typu ENUM {@code social_platform} – zachowanego
  * dla tabeli social_message (podobnie jak social_integration, nie konwertowanego do VARCHAR).
@@ -21,9 +21,21 @@ import java.util.UUID;
  * Format: [{"url": "...", "type": "image", "name": "..."}]
  *
  * <p>Wiadomości social media są immutable po zapisie (brak updated_at).
+ *
+ * <p><strong>BE-132 (EPIC-30):</strong> od V100 tabela jest partycjonowana RANGE po {@code sent_at},
+ * co wymaga – analogicznie do {@code ContactEvent}/{@code ContactEventId} (BE-117) – klucza złożonego
+ * {@code (message_id, sent_at)} obsługiwanego przez {@link SocialMessageId}. PostgreSQL wymaga, żeby
+ * kolumna partycjonowania wchodziła w PRIMARY KEY. {@code messageId} NIE jest już generowany przez
+ * Hibernate ({@code @GeneratedValue}) – jest nadawany w Javie ({@code UUID.randomUUID()}) PRZED
+ * zapisem, zawsze przez natywny INSERT w {@link SocialMessageRepository#save} (koniec {@code em.merge},
+ * które nie wspiera klucza złożonego na partycjonowanej tabeli). Usunięto {@code @PrePersist} (martwy
+ * kod dla ścieżki natywnego INSERT – callbacki cyklu życia JPA nie są wywoływane dla
+ * {@code createNativeQuery}) – wypełnianie domyślnych wartości ({@code createdAt}, {@code attachments},
+ * fallback {@code sentAt}) przeniesione do {@link SocialMessageRepository#save}, jedynego punktu zapisu.
  */
 @Entity
 @Table(name = "social_message")
+@IdClass(SocialMessageId.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,9 +43,12 @@ import java.util.UUID;
 @Builder
 public class SocialMessage {
 
+    /**
+     * Nadawany w Javie ({@code UUID.randomUUID()}) PRZED zapisem – patrz klasa Javadoc. Celowo BEZ
+     * {@code @GeneratedValue}/{@code @UuidGenerator}: na tabeli partycjonowanej z kluczem złożonym
+     * strategia generowania Hibernate dla pojedynczej kolumny nie ma zastosowania.
+     */
     @Id
-    @GeneratedValue
-    @UuidGenerator
     @Column(name = "message_id", updatable = false, nullable = false)
     private UUID messageId;
 
@@ -90,7 +105,18 @@ public class SocialMessage {
     @Builder.Default
     private String attachments = "[]";
 
-    /** Czas wysłania wiadomości na platformie. */
+    /**
+     * Czas wysłania wiadomości na platformie – kolumna partycjonowania (V100/DB-065), NOT NULL.
+     * Jest częścią klucza głównego {@link SocialMessageId}.
+     *
+     * <p><strong>BE-132:</strong> musi być deterministyczny (czas zdarzenia z payloadu platformy),
+     * NIE czas przetworzenia webhooka ({@code Instant.now()} w chwili odbioru) – inaczej redelivery
+     * tego samego zdarzenia dostaje inny {@code sent_at} i unikalność złożona {@code (tenant_id,
+     * external_message_id, sent_at)} nie wykrywa duplikatu. Patrz
+     * {@code SocialWebhookController#parseFacebookEvent}/{@code parseInstagramEvent}/
+     * {@code parseWhatsAppMessage}.
+     */
+    @Id
     @Column(name = "sent_at", nullable = false)
     private Instant sentAt;
 
@@ -100,19 +126,6 @@ public class SocialMessage {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
-        if (attachments == null) {
-            attachments = "[]";
-        }
-        if (sentAt == null) {
-            sentAt = Instant.now();
-        }
-    }
 
     // =========================================================================
     // Enum kierunku wiadomości

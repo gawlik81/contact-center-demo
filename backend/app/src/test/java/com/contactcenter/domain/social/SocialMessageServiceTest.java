@@ -127,7 +127,7 @@ class SocialMessageServiceTest {
         when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.empty()); // brak aktywnego kontaktu
         when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         IncomingSocialMessage incoming = buildIncomingMessage();
 
@@ -180,7 +180,7 @@ class SocialMessageServiceTest {
                 .thenReturn(Optional.empty());
         when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.of(existingContact));
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         IncomingSocialMessage incoming = buildIncomingMessage();
 
@@ -225,7 +225,7 @@ class SocialMessageServiceTest {
         when(socialIntegrationRepository.findByTenantIdAndPlatform(TENANT_ID, SocialPlatform.FACEBOOK))
                 .thenReturn(List.of(integration));
         when(adapterRegistry.getAdapter(SocialPlatform.FACEBOOK)).thenReturn(adapter);
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         // Ustaw TenantContext (normalnie robi TenantFilter dla żądań HTTP)
         TenantContext.setTenantId(TENANT_ID);

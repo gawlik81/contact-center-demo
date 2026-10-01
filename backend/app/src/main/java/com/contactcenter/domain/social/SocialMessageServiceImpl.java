@@ -99,9 +99,12 @@ class SocialMessageServiceImpl implements SocialMessageService {
                     contactId, incoming.senderExternalId());
         }
 
-        // 5. Zapisz wiadomość
+        // 5. Zapisz wiadomość (messageId nadawany w Javie PRZED zapisem – BE-132, wzorzec
+        // ContactEventServiceImpl#buildEvent – klucz złożony (message_id, sent_at) na tabeli
+        // partycjonowanej od V100 nie wspiera @GeneratedValue)
         String attachmentsJson = serializeAttachments(incoming.attachments());
         SocialMessage message = SocialMessage.builder()
+                .messageId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .contactId(contactId)
                 .integrationId(integration.getIntegrationId())
@@ -115,7 +118,22 @@ class SocialMessageServiceImpl implements SocialMessageService {
                 .receivedAt(Instant.now())
                 .build();
 
-        socialMessageRepository.save(message);
+        Optional<SocialMessage> saved = socialMessageRepository.save(message);
+        if (saved.isEmpty()) {
+            // BE-132: DRUGA linia obrony (constraint DB) złapała duplikat, który umknął dedupowi
+            // aplikacyjnemu powyżej (krok 3) – prawdopodobny race dwóch równoległych deliveries tego
+            // samego zdarzenia. Celowo NIE publikujemy contact.queued ani nie logujemy błędu – inny
+            // wątek/instancja konsumenta już zapisał tę wiadomość i (jeśli isNewContact było true po
+            // jego stronie) opublikował własny ContactQueuedMessage. Znany, pre-istniejący brak:
+            // kontakt utworzony w kroku 4 PRZEZ TEN wątek (jeśli isNewContact) pozostaje osierocony
+            // (bez wiadomości) – ten edge case istniał już przed BE-132 (dotyczy dowolnej rasy dwóch
+            // webhooków, niezależnie od partycjonowania) i jest poza zakresem tego ticketu.
+            log.info("[SocialMessage] Duplikat złapany przez constraint DB (druga linia obrony): " +
+                     "externalMsgId={}, tenant={}, sentAt={} – pomijam dalsze przetwarzanie",
+                    incoming.externalMessageId(), tenantId, message.getSentAt());
+            return;
+        }
+
         log.info("[SocialMessage] Wiadomość zapisana: messageId={}, contactId={}, tenant={}",
                 message.getMessageId(), contactId, tenantId);
 
@@ -150,6 +168,17 @@ class SocialMessageServiceImpl implements SocialMessageService {
      * tutaj MUSI się propagować do wywołującego bez zapisu w DB: to jest właściwa, dotychczasowa
      * semantyka biznesowa (wiadomość, która nie dotarła do klienta, nie powinna wyglądać w historii
      * jak wysłana) – zachowana bez zmian względem wersji sprzed refaktoryzacji.
+     *
+     * <p><strong>BE-132 – korekta {@code @Transactional} (self-invocation):</strong>
+     * {@link #loadSendContext} i {@link #saveOutboundMessage} MIAŁY adnotację {@code @Transactional},
+     * ale wywołane przez {@code this.} z TEJ SAMEJ instancji (self-invocation) – klasyczna pułapka
+     * Spring AOP (proxy-based): adnotacja działa tylko przy wywołaniu przez proxy bean-a, nie przy
+     * wywołaniu wewnętrznym. Adnotacje były więc faktycznie nieskuteczne – usunięto je (nie dodano
+     * {@code @Lazy self}/wywołania przez proxy, bo to niepotrzebne tutaj): obie metody tylko
+     * ORKIESTRUJĄ wywołania na INNYCH bean-ach ({@code contactService}, {@code socialIntegrationRepository},
+     * {@code socialMessageRepository}) – każdy z nich ma WŁASNĄ, poprawnie działającą granicę
+     * transakcyjną (wywołanie przez jego własny proxy), więc brak adnotacji na tych dwóch metodach
+     * serwisu nie zmienia zachowania, tylko usuwa mylący, martwy kod.
      */
     @Override
     public void sendMessage(UUID contactId, UUID tenantId, String content, List<String> attachmentUrls) {
@@ -173,10 +202,13 @@ class SocialMessageServiceImpl implements SocialMessageService {
     }
 
     /**
-     * Etap 1 wysyłki: odczyt kontaktu i aktywnej integracji, wybór adaptera. Krótka transakcja
-     * readOnly – żadnego I/O sieciowego.
+     * Etap 1 wysyłki: odczyt kontaktu i aktywnej integracji, wybór adaptera. Żadnego I/O sieciowego.
+     *
+     * <p>Bez {@code @Transactional} – patrz Javadoc {@link #sendMessage} ("korekta self-invocation").
+     * Odczyty wewnątrz ({@code contactService.findContactEntity},
+     * {@code socialIntegrationRepository.findByTenantIdAndPlatform}) mają własną granicę transakcyjną
+     * na swoich bean-ach.
      */
-    @Transactional(readOnly = true)
     protected SendContext loadSendContext(UUID contactId, UUID tenantId) {
         Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -212,13 +244,24 @@ class SocialMessageServiceImpl implements SocialMessageService {
     }
 
     /**
-     * Etap 3 wysyłki: zapis wiadomości OUTBOUND. Krótka transakcja, wywoływana dopiero po
-     * udanym wywołaniu adaptera (poza transakcją) w {@link #sendMessage}.
+     * Etap 3 wysyłki: zapis wiadomości OUTBOUND, wywoływany dopiero po udanym wywołaniu adaptera
+     * (poza transakcją) w {@link #sendMessage}.
+     *
+     * <p>Bez {@code @Transactional} – patrz Javadoc {@link #sendMessage} ("korekta self-invocation").
+     * Rzeczywista granica transakcyjna zapisu żyje w {@code socialMessageRepository.save} (klasa
+     * {@code SocialMessageRepository} ma {@code @Transactional} na poziomie klasy, wywołana tu przez
+     * jej własny proxy – to DZIAŁA poprawnie, w odróżnieniu od adnotacji na tej metodzie serwisu).
+     *
+     * <p>{@code externalMessageId} jest losowym UUID (prefiks {@code "OUTBOUND-"}) – praktycznie
+     * nigdy nie koliduje z unikalnością złożoną {@code (tenant_id, external_message_id, sent_at)},
+     * więc wynik {@code empty()} z {@link SocialMessageRepository#save} jest tu tylko logowany, bez
+     * dodatkowej logiki idempotentności (w odróżnieniu od ścieżki INBOUND, gdzie duplikat jest
+     * zdarzeniem oczekiwanym przy redelivery webhooka).
      */
-    @Transactional
     protected void saveOutboundMessage(UUID tenantId, UUID contactId, UUID integrationId,
                                         SocialPlatform platform, String pageId, String content) {
         SocialMessage outbound = SocialMessage.builder()
+                .messageId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .contactId(contactId)
                 .integrationId(integrationId)
@@ -230,7 +273,11 @@ class SocialMessageServiceImpl implements SocialMessageService {
                 .sentAt(Instant.now())
                 .build();
 
-        socialMessageRepository.save(outbound);
+        if (socialMessageRepository.save(outbound).isEmpty()) {
+            log.warn("[SocialMessage] Zapis OUTBOUND wyciszony przez constraint DB (nieoczekiwane – "
+                            + "externalMessageId jest losowym UUID): contactId={}, tenant={}",
+                    contactId, tenantId);
+        }
     }
 
     /**

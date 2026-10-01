@@ -32,18 +32,113 @@ class SocialMessageRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
-     * Zapisuje nową wiadomość social media.
+     * SQL zapisu — natywny INSERT (BE-132, EPIC-30). Zastępuje dawne {@code em.merge}, które nie
+     * wspiera klucza złożonego {@code (message_id, sent_at)} wymuszonego partycjonowaniem (V100,
+     * DB-065) — wzorzec 1:1 z {@code ContactEventRepository#save}.
      *
-     * @param message encja do zapisania – {@code tenantId} musi być ustawione
-     * @return zapisana encja z wygenerowanym {@code messageId}
+     * <p><strong>{@code ON CONFLICT ON CONSTRAINT uq_social_message_external_id DO NOTHING RETURNING
+     * message_id}</strong> — DRUGA linia obrony idempotentności (pierwsza: dedup aplikacyjny
+     * {@code SocialMessageServiceImpl#processIncomingWithTenantContext} →
+     * {@link #findByExternalMessageId}), na wypadek race'u między dwoma równoległymi deliveries tego
+     * samego zdarzenia webhooka, które OBA przeszły przez dedup aplikacyjny przed commitem. Celowo
+     * {@code ON CONFLICT} (zero wyjątków) a NIE {@code catch (DataIntegrityViolationException)}:
+     * złapanie wyjątku z natywnego zapytania w TEJ SAMEJ transakcji Springa oznaczyłoby ją jako
+     * rollback-only (Hibernate unieważnia sesję po błędzie SQL), więc dalszy kod metody — w tym
+     * ewentualny kolejny zapis w tej samej transakcji — i tak by się nie powiódł; {@code ON CONFLICT
+     * DO NOTHING} unika tego problemu u źródła, bez wyjątku i bez poświęcania transakcji. Celowo
+     * TARGETOWANY na nazwany constraint (nie bezwarunkowe {@code ON CONFLICT DO NOTHING}) — kolizja
+     * PRIMARY KEY (praktycznie niemożliwa przy losowym {@code UUID.randomUUID()}) oznaczałaby błąd
+     * aplikacji, nie legalny duplikat, i powinna rzucić wyjątek głośno, a nie zostać po cichu
+     * wyciszona.
+     */
+    private static final String INSERT_SQL = """
+            INSERT INTO social_message
+                (message_id, tenant_id, contact_id, integration_id, platform, direction,
+                 external_message_id, sender_external_id, content, attachments,
+                 sent_at, received_at, created_at)
+            VALUES (
+                CAST(:messageId      AS uuid),
+                CAST(:tenantId       AS uuid),
+                CAST(:contactId      AS uuid),
+                CAST(:integrationId  AS uuid),
+                CAST(:platform       AS social_platform),
+                :direction,
+                :externalMessageId,
+                :senderExternalId,
+                :content,
+                CAST(:attachments    AS jsonb),
+                :sentAt,
+                :receivedAt,
+                :createdAt
+            )
+            ON CONFLICT ON CONSTRAINT uq_social_message_external_id DO NOTHING
+            RETURNING message_id
+            """;
+
+    /**
+     * Zapisuje nową wiadomość social media przez natywny INSERT (BE-132).
+     *
+     * <p>{@code messageId} jest nadawany PRZED wywołaniem tej metody ({@code UUID.randomUUID()} w
+     * {@code SocialMessageServiceImpl}, wzorzec {@code ContactEventServiceImpl#buildEvent}) — gdy
+     * encja przychodzi bez {@code messageId}, metoda nadaje go sama (defensywnie, dla wywołań z
+     * testów). Domyślne wartości ({@code createdAt}, fallback {@code attachments}) są ustawiane tutaj
+     * — zastępuje dawny {@code @PrePersist}, który nie jest wywoływany dla natywnego INSERT.
+     *
+     * @param message encja do zapisania – {@code tenantId}, {@code platform}, {@code direction},
+     *                 {@code externalMessageId}, {@code sentAt} muszą być ustawione
+     * @return {@code Optional} z zapisaną encją (z finalnym {@code messageId}) — {@code empty} gdy
+     *         INSERT został wyciszony przez {@code ON CONFLICT DO NOTHING} (DRUGA linia obrony
+     *         idempotentności, patrz {@link #INSERT_SQL}); wołający MUSI sprawdzić wynik i potraktować
+     *         {@code empty} jako idempotentny duplikat, NIE jako błąd
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId niezgodny z kontekstem
      */
-    public SocialMessage save(SocialMessage message) {
+    public Optional<SocialMessage> save(SocialMessage message) {
         assertSameTenant(message.getTenantId());
         setTenantContextInDb();
-        log.debug("[SocialMessageRepo] Zapisuję wiadomość: externalId={}, platform={}, tenant={}",
-                message.getExternalMessageId(), message.getPlatform(), message.getTenantId());
-        return em.merge(message);
+
+        if (message.getMessageId() == null) {
+            message.setMessageId(UUID.randomUUID());
+        }
+        Instant now = Instant.now();
+        if (message.getCreatedAt() == null) {
+            message.setCreatedAt(now);
+        }
+        if (message.getSentAt() == null) {
+            message.setSentAt(now);
+        }
+        if (message.getAttachments() == null) {
+            message.setAttachments("[]");
+        }
+
+        log.debug("[SocialMessageRepo] Zapisuję wiadomość: messageId={}, externalId={}, platform={}, tenant={}",
+                message.getMessageId(), message.getExternalMessageId(), message.getPlatform(), message.getTenantId());
+
+        List<?> returned = em.createNativeQuery(INSERT_SQL)
+                .setParameter("messageId", message.getMessageId().toString())
+                .setParameter("tenantId", message.getTenantId().toString())
+                .setParameter("contactId", message.getContactId() != null ? message.getContactId().toString() : null)
+                .setParameter("integrationId", message.getIntegrationId() != null ? message.getIntegrationId().toString() : null)
+                .setParameter("platform", message.getPlatform().name())
+                .setParameter("direction", message.getDirection())
+                .setParameter("externalMessageId", message.getExternalMessageId())
+                .setParameter("senderExternalId", message.getSenderExternalId())
+                .setParameter("content", message.getContent())
+                .setParameter("attachments", message.getAttachments())
+                .setParameter("sentAt", message.getSentAt())
+                .setParameter("receivedAt", message.getReceivedAt())
+                .setParameter("createdAt", message.getCreatedAt())
+                .getResultList();
+
+        if (returned.isEmpty()) {
+            log.warn("[SocialMessageRepo] Duplikat wykryty przez constraint DB (DRUGA linia obrony — "
+                            + "dedup aplikacyjny findByExternalMessageId go nie złapał, prawdopodobny race "
+                            + "dwóch równoległych deliveries): externalId={}, tenant={}, sentAt={} — INSERT wyciszony",
+                    message.getExternalMessageId(), message.getTenantId(), message.getSentAt());
+            return Optional.empty();
+        }
+
+        log.debug("[SocialMessageRepo] Wiadomość zapisana: messageId={}", message.getMessageId());
+        return Optional.of(message);
     }
 
     // =========================================================================

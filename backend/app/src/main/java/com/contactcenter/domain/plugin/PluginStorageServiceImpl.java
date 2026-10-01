@@ -103,7 +103,21 @@ class PluginStorageServiceImpl implements PluginStorageService {
         // w miejscu) — jeśli DB zawiedzie po udanym uploadzie, skutkiem jest w najgorszym razie
         // osierocony nowy obiekt S3 (nieszkodliwy — nic go nie referencuje), nigdy odwrotnie
         // (wiersz DB wskazujący na nieistniejący/niekompletny obiekt).
-        String s3Key = buildS3Key(tenantId, manifest.pluginKey(), manifest.version(), originalFilename);
+        //
+        // BLOCKER (code review, fix/plugin-version-overwrite): na ścieżce overwrite klucz S3
+        // MUSI być zawsze nowy/unikalny — NIGDY ten sam co istniejący wiersz, nawet gdy
+        // originalFilename się nie zmienił. buildS3Key(...) jest deterministyczny: przy tej
+        // samej nazwie pliku PUT pod tym samym kluczem nadpisałby bajty W MIEJSCU, PRZED
+        // commitem transakcji DB — gdyby ten commit later zawiódł (deadlock, constraint,
+        // cokolwiek), ROLLBACK zwróciłby wiersz do starego checksumu/statusu, ale fizyczna
+        // treść pod tym kluczem S3 byłaby już nieodwracalnie nowa (S3 nie jest transakcyjne,
+        // bucket bez versioning, downloadJar nie rewaliduje checksumu przy odczycie).
+        // buildOverwriteS3Key(...) rozwiązuje to, dopisując unikalny segment — PUT idzie więc
+        // ZAWSZE pod świeży klucz, stary klucz (i jego treść) przetrwa nietknięty aż do udanego
+        // commitu, kiedy {@link #scheduleOldS3ObjectCleanup} go usuwa.
+        String s3Key = existingVersion.isPresent()
+                ? buildOverwriteS3Key(tenantId, manifest.pluginKey(), manifest.version(), originalFilename)
+                : buildS3Key(tenantId, manifest.pluginKey(), manifest.version(), originalFilename);
         uploadToS3(s3Key, jarBytes);
 
         PluginVersion.PluginVersionStatus versionStatus = toPluginVersionStatus(validationResult);
@@ -112,10 +126,6 @@ class PluginStorageServiceImpl implements PluginStorageService {
         if (existingVersion.isPresent()) {
             pluginVersion = applyOverwrite(existingVersion.get(), s3Key, manifest, validationResult,
                     versionStatus, uploadedByUserId);
-            log.info("[PluginStorage] Wersja pluginu ZASTĄPIONA (overwrite): id={}, pluginKey={}, "
-                            + "version={}, status={}, s3Key={}, tenant={}, uploadedBy={}",
-                    pluginVersion.getId(), manifest.pluginKey(), manifest.version(), versionStatus,
-                    s3Key, tenantId, uploadedByUserId);
         } else {
             pluginVersion = PluginVersion.builder()
                     .plugin(plugin)
@@ -149,11 +159,19 @@ class PluginStorageServiceImpl implements PluginStorageService {
      * zamiast update zawiodłoby, gdyby jakakolwiek instalacja tenanta wskazywała już na tę wersję,
      * i w ogóle złamałoby intencję "zastąp treść, instalacje nadal wskazują na tę samą wersję".
      *
-     * <p>Jeśli nowy klucz S3 różni się od starego (inna {@code originalFilename} — ten sam
-     * tenant/plugin/version dają ten sam prefiks ścieżki, ale nazwa pliku jest częścią klucza),
-     * stary obiekt S3 jest planowany do usunięcia PO commicie tej transakcji (patrz
-     * {@link #scheduleOldS3ObjectCleanup}) — nigdy przed, żeby nie usunąć danych, do których
-     * wiersz nadal by wskazywał w razie rollbacku.
+     * <p>{@code newS3Key} jest zawsze (patrz {@link #buildOverwriteS3Key}) RÓŻNY od
+     * {@code previousS3Key} — stary obiekt S3 jest więc BEZWARUNKOWO planowany do usunięcia PO
+     * commicie tej transakcji (patrz {@link #scheduleOldS3ObjectCleanup}) — nigdy przed, żeby nie
+     * usunąć danych, do których wiersz nadal by wskazywał w razie rollbacku. Brak tu już
+     * {@code if (!previousS3Key.equals(newS3Key))} — przy deterministycznym kluczu (przed
+     * BLOCKER fixem) bywało to {@code false} dla tej samej nazwy pliku; teraz zawsze różne.
+     *
+     * <p><strong>Audit log (major finding, code review):</strong> {@code domain.plugin} nie
+     * używa dziś {@code AuditAspect}/{@code AuditLogService} (zero innych klas w tym pakiecie je
+     * woła) — overwrite jest pierwszą operacją w tym pakiecie, która nadpisuje treść wiersza W
+     * MIEJSCU, bez możliwości odtworzenia "co działało wcześniej pod tym {@code
+     * plugin_version.id}" inaczej niż przez logi. Stąd jawny wpis PRZED→PO (checksum/s3Key/status)
+     * poniżej — trwały (pliki logów), minimalny substytut pełnego {@code @Audited}.
      */
     private PluginVersion applyOverwrite(
             PluginVersion existing,
@@ -164,6 +182,8 @@ class PluginStorageServiceImpl implements PluginStorageService {
             UUID uploadedByUserId) {
 
         String previousS3Key = existing.getJarObjectKey();
+        String previousChecksum = existing.getChecksumSha256();
+        PluginVersion.PluginVersionStatus previousStatus = existing.getStatus();
 
         existing.setJarObjectKey(newS3Key);
         existing.setChecksumSha256(manifest.checksumSha256());
@@ -176,22 +196,28 @@ class PluginStorageServiceImpl implements PluginStorageService {
 
         PluginVersion saved = pluginVersionRepository.save(existing);
 
-        if (!previousS3Key.equals(newS3Key)) {
-            scheduleOldS3ObjectCleanup(previousS3Key);
-        }
+        log.info("[PluginStorage][AUDIT] Wersja pluginu ZASTĄPIONA (overwrite): id={}, tenant={}, "
+                        + "uploadedBy={}, checksum: {} -> {}, s3Key: {} -> {}, status: {} -> {}",
+                saved.getId(), saved.getTenantId(), uploadedByUserId,
+                previousChecksum, saved.getChecksumSha256(), previousS3Key, newS3Key,
+                previousStatus, versionStatus);
+
+        scheduleOldS3ObjectCleanup(previousS3Key);
 
         return saved;
     }
 
     /**
-     * Usuwa stary obiekt S3 osierocony przez {@code overwrite} (zmiana nazwy pliku między
-     * wgraniami tej samej wersji) — PO commicie bieżącej transakcji, nie przed.
+     * Usuwa stary obiekt S3 osierocony przez {@code overwrite} (zawsze — klucz nowego uploadu
+     * jest teraz zawsze unikalny, patrz {@link #buildOverwriteS3Key}, więc stary klucz jest
+     * zawsze różny od nowego) — PO commicie bieżącej transakcji, nie przed.
      *
      * <p>S3 nie jest transakcyjne — gdyby usuwanie nastąpiło przed commitem, a transakcja DB
      * zostałaby wycofana z jakiegokolwiek powodu, wiersz wróciłby do wskazywania na stary klucz,
      * który już by nie istniał (utrata danych gorsza niż osierocony obiekt). Rejestrujemy więc
-     * {@link TransactionSynchronization#afterCommit()} — usunięcie następuje tylko wtedy, gdy
-     * wiersz faktycznie zaczął wskazywać na nowy klucz.
+     * {@link TransactionSynchronization#afterCommit()} — usunięcie następuje wyłącznie po udanym
+     * commicie; w razie rollbacku {@code afterCommit()} nigdy nie jest wywoływane przez Springa,
+     * więc stary obiekt przetrwa nietknięty.
      *
      * <p>Jeśli usunięcie po commicie się nie powiedzie, błąd jest logowany na ERROR, ale NIE
      * propagowany (transakcja już zacommitowana — rzucenie wyjątku nic by nie wycofało, Spring
@@ -289,6 +315,24 @@ class PluginStorageServiceImpl implements PluginStorageService {
     private String buildS3Key(UUID tenantId, String pluginKey, String version, String originalFilename) {
         String encodedFilename = encodeFilename(originalFilename);
         return String.format("plugins/%s/%s/%s/%s", tenantId, pluginKey, version, encodedFilename);
+    }
+
+    /**
+     * Klucz S3 dla {@code overwrite=true} — jak {@link #buildS3Key}, ale z dopisanym unikalnym
+     * segmentem ({@link UUID#randomUUID()}), żeby ZAWSZE różnił się od poprzedniego klucza tej
+     * samej wersji, nawet gdy {@code originalFilename} się nie zmienił (BLOCKER fix, code
+     * review, fix/plugin-version-overwrite — patrz komentarz w {@link #storeValidatedJar} przy
+     * wywołaniu tej metody po pełne uzasadnienie: bez tego PUT nadpisywałby w miejscu treść, do
+     * której DB wiersz jeszcze wskazuje PRZED commitem, co jest nieodwracalne, jeśli commit
+     * potem zawiedzie).
+     *
+     * <p>Ścieżka pierwszego uploadu (insert) nadal używa deterministycznego {@link #buildS3Key}
+     * — bez zmian, zero wpływu na istniejące testy/zachowanie dla nowych wersji.
+     */
+    private String buildOverwriteS3Key(UUID tenantId, String pluginKey, String version, String originalFilename) {
+        String encodedFilename = encodeFilename(originalFilename);
+        String uniqueSuffix = UUID.randomUUID().toString();
+        return String.format("plugins/%s/%s/%s/%s-%s", tenantId, pluginKey, version, uniqueSuffix, encodedFilename);
     }
 
     private void uploadToS3(String s3Key, byte[] jarBytes) {

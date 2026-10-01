@@ -45,8 +45,7 @@ dodano nowej migracji tylko do update'u tekstu komentarza (kosmetyczne, zero wp�
 funkcjonalnego) — zaproponowane jako opcjonalny follow-up, nie zrobione bez pytania.
 
 ## S3 cleanup vs transakcja — wzorzec `afterCommit`
-Gdy `overwrite=true` i nowy `originalFilename` różni się od starego → nowy S3 key różny od
-starego → stary obiekt osierocony. Usuwanie:
+Usuwanie starego obiektu S3 przy `overwrite=true`:
 1. Upload NOWEJ treści do S3 ZAWSZE przed modyfikacją DB (insert i update) — porażka DB po
    udanym uploadzie daje w najgorszym razie osierocony NOWY obiekt (nieszkodliwy).
 2. Usunięcie STAREGO obiektu S3 rejestrowane przez
@@ -64,12 +63,53 @@ To pierwszy użyty w repo `TransactionSynchronizationManager.registerSynchroniza
 (grep nie znalazł wcześniejszego użycia) — rozważ to miejsce jako referencję, jeśli inny serwis
 będzie potrzebował "S3 delete bezpieczny względem rollbacku".
 
+## BLOCKER znaleziony przez code review (naprawiony w tej samej gałęzi, po pierwszym handbacku)
+Pierwsza wersja budowała klucz S3 przy overwrite przez deterministyczny `buildS3Key(tenantId,
+pluginKey, version, originalFilename)` — **identyczny jak istniejący**, gdy admin wgrywał
+poprawkę z TĄ SAMĄ nazwą pliku (najczęstszy use case tego ficha: "poprawka buga bez bumpu
+wersji"). Sekwencja: `uploadToS3` leci PRZED `save()` w ramach `@Transactional` — PUT pod
+identycznym kluczem nadpisywał bajty W MIEJSCU, PRZED commitem. Gdyby `save()`/commit zawiódł
+POTEM (deadlock, constraint, cokolwiek) → ROLLBACK DB wracał do starego checksumu/statusu, ale
+fizyczna treść pod tym kluczem S3 była już nieodwracalnie nowa (S3 nie jest transakcyjne, bucket
+bez versioning, `downloadJar` nie rewaliduje checksumu przy odczycie). Mój komentarz "najgorszy
+przypadek to nieszkodliwy osierocony NOWY obiekt" był prawdziwy TYLKO dla insert i
+overwrite-z-inną-nazwą — fałszywy dla overwrite-z-tą-samą-nazwą (tam "nowy" i "stary" to ten sam,
+już referencjonowany klucz).
+
+**Fix:** nowa `buildOverwriteS3Key(tenantId, pluginKey, version, originalFilename)` dopisuje
+`UUID.randomUUID()` jako segment ścieżki — klucz przy overwrite jest ZAWSZE unikalny, niezależnie
+od tego, czy `originalFilename` się zmienił. Insert (brak istniejącej wersji) nadal używa
+deterministycznego `buildS3Key` bez zmian. Efekt: `scheduleOldS3ObjectCleanup(previousS3Key)` w
+`applyOverwrite` jest teraz wołane BEZWARUNKOWO (usunięto `if (!previousS3Key.equals(newS3Key))`
+— zawsze `true` po tym fixie, warunek byłby dead code) — stary klucz przetrwa nietknięty aż do
+commitu niezależnie od scenariusza.
+
+**Major (ten sam przebieg):** dodano audit log (`[PluginStorage][AUDIT]`) w `applyOverwrite` z
+checksum/s3Key/status PRZED→PO — `domain.plugin` nie używa dziś `AuditAspect`/`AuditLogService`,
+więc to jedyny trwały zapis "co działało wcześniej pod tym `plugin_version.id`" po nadpisaniu w
+miejscu.
+
+**Regresja (code review wymógł):** `overwriteWithSameFilenameNeverOverwritesOldKeyInPlaceWhenDbSaveFails`
+— mock `pluginVersionRepository.save()` rzuca `DataIntegrityViolationException` PO udanym
+`s3Client.putObject()`; weryfikuje, że PUT poszedł pod inny klucz niż stary i że `deleteObject`
+nigdy nie jest wołane (stary obiekt nietknięty, mimo "rollbacku").
+
+## `mvn verify -pl app` — pułapka zabrudzonego `target/`
+Pierwszy przebieg (bez `mvn clean`) dał 7 niepowodzeń w zupełnie innym obszarze (EPIC-30
+`social_message` EXPLAIN-plan/definicje indeksów) — zgłosiłem je błędnie jako "pre-existing,
+środowiskowe" na podstawie reprodukcji w izolacji. Koordynator poprawił: to był zabrudzony
+`target/classes/db/migration` z innej równolegle pracującej gałęzi w tym samym katalogu roboczym
+— `mvn clean -pl app` przed `verify` dał 2212/2212 zielone. Zobacz
+[[feedback_stale_target_classes_migrations_false_failures]] — reprodukcja w izolacji NIE jest
+dowodem "niezwiązane", gdy `target/` jest współdzielony między gałęziami/agentami.
+
 ## Testy
-`PluginStorageServiceImplTest$Overwrite` (6 testów) + `PluginUploadControllerTest
-$UploadPluginOverwrite` (3 testy). Istniejące testy (9 + 5) przeszły BEZ ZMIAN treści logiki —
-tylko kontroler zmienił sygnaturę Javy (`uploadPlugin(file, overwrite)`), więc 5 wywołań w
-`PluginUploadControllerTest` wymagało dopisania `, false` (kontrakt HTTP sam jest w pełni
-wstecznie kompatybilny przez `@RequestParam(defaultValue = "false")` — to tylko test woła
+`PluginStorageServiceImplTest$Overwrite` (7 testów po poprawce blockera, w tym regresja save()-fails)
++ `PluginUploadControllerTest$UploadPluginOverwrite` (3 testy). Istniejące testy (9 + 5) przeszły
+BEZ ZMIAN treści logiki — tylko kontroler zmienił sygnaturę Javy (`uploadPlugin(file, overwrite)`),
+więc 5 wywołań w `PluginUploadControllerTest` wymagało dopisania `, false` (kontrakt HTTP sam jest
+w pełni wstecznie kompatybilny przez `@RequestParam(defaultValue = "false")` — to tylko test woła
 metodę Javy bezpośrednio, nie przez Spring MVC).
 
-Zobacz też [[project_epic28_plugin_system]], [[project_be100_plugin_registration]].
+Zobacz też [[project_epic28_plugin_system]], [[project_be100_plugin_registration]],
+[[feedback_stale_target_classes_migrations_false_failures]].

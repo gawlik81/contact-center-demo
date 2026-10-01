@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.AbortableInputStream;
@@ -382,14 +383,14 @@ class PluginStorageServiceImplTest {
         }
 
         @Test
-        @DisplayName("overwrite=true, ta sama nazwa pliku: UPDATE w miejscu (ten sam id), S3 nadpisany pod tym "
-                + "samym kluczem, brak deleteObject")
+        @DisplayName("BLOCKER fix: overwrite=true, ta sama nazwa pliku — NOWY unikalny klucz S3 (nigdy ten "
+                + "sam co stary), UPDATE w miejscu (ten sam id), stary klucz usunięty po sukcesie")
         void overwritesExistingVersionInPlaceWithSameFilename() {
             byte[] newJarBytes = buildValidJarWithExtraEntry();
             ValidationResult validationResult = ValidationResult.validated();
             Plugin existingPlugin = existingPluginFixture();
-            String s3Key = "plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin.jar";
-            PluginVersion existingVersion = existingVersionFixture(existingPlugin, s3Key);
+            String oldS3Key = "plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin.jar";
+            PluginVersion existingVersion = existingVersionFixture(existingPlugin, oldS3Key);
             Instant originalUploadedAt = existingVersion.getUploadedAt();
             String originalChecksum = existingVersion.getChecksumSha256();
 
@@ -399,23 +400,71 @@ class PluginStorageServiceImplTest {
             when(pluginVersionRepository.save(any(PluginVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                     .thenReturn(PutObjectResponse.builder().build());
+            when(s3Client.deleteObject(any(DeleteObjectRequest.class))).thenReturn(DeleteObjectResponse.builder().build());
 
             PluginVersionDto dto = service.storeValidatedJar(newJarBytes, "plugin.jar", validationResult,
                     TENANT_ID, UPLOADED_BY, true);
 
             assertThat(dto.id()).isEqualTo(EXISTING_VERSION_ID);
 
+            ArgumentCaptor<PutObjectRequest> putCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+            verify(s3Client).putObject(putCaptor.capture(), any(RequestBody.class));
+            String newS3Key = putCaptor.getValue().key();
+            // Nawet przy identycznej nazwie pliku, nowy klucz S3 NIGDY nie jest tym samym kluczem
+            // co stary — PUT nigdy nie nadpisuje treści w miejscu (BLOCKER fix).
+            assertThat(newS3Key).isNotEqualTo(oldS3Key);
+            assertThat(newS3Key).startsWith("plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/");
+            assertThat(newS3Key).endsWith("-plugin.jar");
+
             ArgumentCaptor<PluginVersion> captor = ArgumentCaptor.forClass(PluginVersion.class);
             verify(pluginVersionRepository).save(captor.capture());
             PluginVersion saved = captor.getValue();
             assertThat(saved.getId()).isEqualTo(EXISTING_VERSION_ID);
-            assertThat(saved.getJarObjectKey()).isEqualTo(s3Key);
+            assertThat(saved.getJarObjectKey()).isEqualTo(newS3Key);
             assertThat(saved.getChecksumSha256()).isNotEqualTo(originalChecksum);
             assertThat(saved.getUploadedAt()).isAfter(originalUploadedAt);
 
             // tenant_plugin_installation.plugin_version_id (FK ON DELETE RESTRICT, V075) — ten sam
             // id przed/po oznacza, że instalacje tenantów wskazujące na tę wersję wciąż są poprawne.
             verify(pluginVersionRepository, never()).deleteById(any());
+
+            // Stary klucz jest usuwany PO udanym save() — dokładnie ten klucz, nic innego.
+            ArgumentCaptor<DeleteObjectRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+            verify(s3Client).deleteObject(deleteCaptor.capture());
+            assertThat(deleteCaptor.getValue().key()).isEqualTo(oldS3Key);
+        }
+
+        @Test
+        @DisplayName("BLOCKER fix: overwrite z TĄ SAMĄ nazwą pliku — jeśli DB save() zawiedzie PO udanym S3 "
+                + "PUT, nowa treść idzie pod NOWY unikalny klucz (nigdy nadpisując w miejscu stary), stary "
+                + "klucz nigdy nie jest usuwany/dotykany — jego treść przetrwa nietknięta mimo rollbacku DB")
+        void overwriteWithSameFilenameNeverOverwritesOldKeyInPlaceWhenDbSaveFails() {
+            byte[] newJarBytes = buildValidJarWithExtraEntry();
+            ValidationResult validationResult = ValidationResult.validated();
+            Plugin existingPlugin = existingPluginFixture();
+            String oldS3Key = "plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin.jar";
+            PluginVersion existingVersion = existingVersionFixture(existingPlugin, oldS3Key);
+
+            when(pluginRepository.findByPluginKey("acme-crm-sync")).thenReturn(Optional.of(existingPlugin));
+            when(pluginVersionRepository.findByPluginIdAndVersionAndTenantId(EXISTING_PLUGIN_ID, "1.3.0", TENANT_ID))
+                    .thenReturn(Optional.of(existingVersion));
+            when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                    .thenReturn(PutObjectResponse.builder().build());
+            when(pluginVersionRepository.save(any(PluginVersion.class)))
+                    .thenThrow(new DataIntegrityViolationException("simulated deadlock po udanym S3 PUT"));
+
+            assertThatThrownBy(() -> service.storeValidatedJar(newJarBytes, "plugin.jar", validationResult,
+                    TENANT_ID, UPLOADED_BY, true))
+                    .isInstanceOf(DataIntegrityViolationException.class);
+
+            ArgumentCaptor<PutObjectRequest> putCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+            verify(s3Client).putObject(putCaptor.capture(), any(RequestBody.class));
+            // Nowa treść poszła pod zupełnie inny klucz niż stary — PUT NIGDY nie nadpisał bajtów
+            // pod kluczem, na który DB wiersz (po rollbacku) wciąż wskazuje.
+            assertThat(putCaptor.getValue().key()).isNotEqualTo(oldS3Key);
+
+            // Stary klucz nigdy nie jest usuwany/dotykany, gdy save() zawiedzie — jego treść
+            // (w produkcji: realne bajty w S3) przetrwa nietknięta, zgodna z wierszem DB po rollbacku.
             verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
         }
 
@@ -426,7 +475,6 @@ class PluginStorageServiceImplTest {
             ValidationResult validationResult = ValidationResult.validated();
             Plugin existingPlugin = existingPluginFixture();
             String oldS3Key = "plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin-v1.jar";
-            String newS3Key = "plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin-v2.jar";
             PluginVersion existingVersion = existingVersionFixture(existingPlugin, oldS3Key);
 
             when(pluginRepository.findByPluginKey("acme-crm-sync")).thenReturn(Optional.of(existingPlugin));
@@ -441,7 +489,10 @@ class PluginStorageServiceImplTest {
 
             ArgumentCaptor<PutObjectRequest> putCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
             verify(s3Client).putObject(putCaptor.capture(), any(RequestBody.class));
-            assertThat(putCaptor.getValue().key()).isEqualTo(newS3Key);
+            String newS3Key = putCaptor.getValue().key();
+            assertThat(newS3Key).isNotEqualTo(oldS3Key);
+            assertThat(newS3Key).startsWith("plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/");
+            assertThat(newS3Key).endsWith("-plugin-v2.jar");
 
             ArgumentCaptor<DeleteObjectRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
             verify(s3Client).deleteObject(deleteCaptor.capture());

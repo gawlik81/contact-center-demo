@@ -505,6 +505,69 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-131: Retencja – sweep porzuconych załączników pending w S3 (EPIC-30)
+    // =========================================================================
+
+    /**
+     * SQL — package-private dla testu EXPLAIN (BE-131). Pre-filtr {@code attachments <> '[]'} +
+     * {@code LIKE '%/pending/%'} jest poprawnościowo bezpieczny (nie tylko optymalizacją): klucz
+     * {@code pending/{uuid}/...} to JEDYNY schemat kluczy zawierający segment {@code pending}
+     * ({@code EmailAttachmentKeys#inboundKey} ma w tym miejscu {@code messageId}, zawsze UUID, nigdy
+     * literału {@code pending}) — żadna wiadomość odwołująca się do klucza {@code pending/} nie
+     * zostanie przez ten filtr pominięta. Parsowanie faktycznych kluczy (odporne na uszkodzone
+     * dane) robi {@link EmailAttachmentKeys#extractS3Keys} w Javie, nie SQL.
+     */
+    static final String FIND_ATTACHMENTS_REFERENCING_PENDING_SQL = """
+            SELECT message_id, CAST(attachments AS text)
+            FROM email_message
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND attachments <> '[]'
+              AND CAST(attachments AS text) LIKE '%/pending/%'
+            """;
+
+    /**
+     * Zwraca zbiór kluczy S3 spod {@code email-attachments/{tenantId}/pending/...} wciąż
+     * odwoływanych przez którąkolwiek wiadomość tenanta ({@code attachments[*].s3_key}) — sweep
+     * porzuconych załączników pending (retencja EPIC-30, BE-131, {@code PendingAttachmentSweepJob}).
+     *
+     * <p>Wiadomości OUTBOUND odwołują się do kluczy {@code pending/} BEZ przenoszenia obiektu
+     * (korekta BE-124/BE-131: pierwotne założenie „{@code pending/} = tymczasowe" było fałszywe) —
+     * klucz obecny w zwróconym zbiorze NIE jest porzucony, nawet jeśli jego {@code LastModified} w
+     * S3 jest starszy niż TTL sweepu, i NIE WOLNO go usunąć.
+     *
+     * <p>Pobiera cały zbiór referencji tenanta JEDNYM zapytaniem (wariant z ticketu BE-131: „zbiór
+     * {@code attachments[*].s3_key} pobrany raz"), nie po jednym zapytaniu na kandydata S3 — liczba
+     * obiektów {@code pending/} do sprawdzenia w jednym przebiegu jest rzędu dziesiątek/setek, nie
+     * warto płacić N zapytań JSONB containment bez indeksu GIN (odłożone jako przyszłe usprawnienie
+     * przy wolumenie, patrz TASKS-BACKEND.md BE-131).
+     *
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @return zbiór kluczy S3 (nigdy {@code null}), pusty gdy żadna wiadomość nie odwołuje się do {@code pending/}
+     * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    @Transactional(readOnly = true)
+    public Set<String> findReferencedPendingS3Keys(UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(FIND_ATTACHMENTS_REFERENCING_PENDING_SQL)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        Set<String> keys = new HashSet<>();
+        for (Object[] row : rows) {
+            UUID messageId = toUuid(row[0]);
+            keys.addAll(EmailAttachmentKeys.extractS3Keys(messageId, (String) row[1]));
+        }
+
+        log.debug("[EmailMessageRepo] Referencje pending (BE-131): tenant={}, wiadomości={}, kluczy={}",
+                tenantId, rows.size(), keys.size());
+        return keys;
+    }
+
+    // =========================================================================
     // Odczyt
     // =========================================================================
 

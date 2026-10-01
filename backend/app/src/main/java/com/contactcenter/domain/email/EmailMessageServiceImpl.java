@@ -203,6 +203,16 @@ class EmailMessageServiceImpl implements EmailMessageService {
         return new OrphanEmailPurgeBatch(purged, page.size(), nextCursor);
     }
 
+    // =========================================================================
+    // BE-131: Retencja – sweep porzuconych załączników pending w S3 (EPIC-30)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> findReferencedPendingS3Keys(UUID tenantId) {
+        return emailMessageRepository.findReferencedPendingS3Keys(tenantId);
+    }
+
     /**
      * Stan fazy S3 jednego wywołania purge: allow-lista prefiksu tenanta, pamięć wyników per klucz
      * (ten sam klucz w kilku wiadomościach jest usuwany raz i ma jeden wynik dla wszystkich),

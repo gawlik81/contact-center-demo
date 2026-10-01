@@ -11,8 +11,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -20,6 +23,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -138,6 +143,44 @@ class EmailAttachmentStorageServiceImpl implements EmailAttachmentStorageService
                     EmailAttachmentKeys.forLog(s3Key), e.getMessage(), e);
             throw new EmailAttachmentException(
                     "Nie udało się usunąć załącznika z S3: " + EmailAttachmentKeys.forLog(s3Key), e);
+        }
+    }
+
+    // =========================================================================
+    // Listowanie pending (BE-131)
+    // =========================================================================
+
+    @Override
+    public List<PendingObject> listPendingObjects(UUID tenantId) {
+        String prefix = EmailAttachmentKeys.tenantPrefix(tenantId) + "pending/";
+        List<PendingObject> result = new ArrayList<>();
+        try {
+            String continuationToken = null;
+            do {
+                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                        .bucket(s3Properties.getBucket())
+                        .prefix(prefix)
+                        .maxKeys(1000);
+                if (continuationToken != null) {
+                    requestBuilder.continuationToken(continuationToken);
+                }
+
+                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                for (S3Object object : response.contents()) {
+                    result.add(new PendingObject(object.key(), object.lastModified()));
+                }
+                continuationToken = Boolean.TRUE.equals(response.isTruncated())
+                        ? response.nextContinuationToken() : null;
+            } while (continuationToken != null);
+
+            log.debug("[EmailAttachment] Listowanie pending: tenant={}, prefix={}, obiektów={}",
+                    tenantId, prefix, result.size());
+            return result;
+        } catch (S3Exception e) {
+            log.error("[EmailAttachment] Błąd listowania obiektów pending: tenant={}, prefix={}, error={}",
+                    tenantId, prefix, e.getMessage(), e);
+            throw new EmailAttachmentException(
+                    "Nie udało się wylistować obiektów pending z S3: tenant=" + tenantId, e);
         }
     }
 

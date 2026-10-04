@@ -128,3 +128,10 @@
 - [Zabrudzony target/classes → fałszywe failures EXPLAIN/indeksów](feedback_stale_target_classes_migrations_false_failures.md) — zawsze `mvn clean -pl app` przed `verify`, izolacja NIE jest dowodem "pre-existing"
 - [BE-133 social_message podpięta do partycji/retencji (EPIC-30)](project_be133_social_message_partition_retention.md) — TABLE_CATEGORIES/PARTITIONED_TABLES/PARTITION_AWARE_TABLES, bez czekania na BE-123, countEligibleMessages przestał liczyć social
 - [Shared-DB integration test partition leak łamie EXPLAIN gdzie indziej](feedback_shared_db_integration_test_partition_leak.md) — test "nonEmpty blocks DROP" musi DROP-ować partycję po asercjach (finally), inaczej psuje doesNotContain("Seq Scan") w innej klasie
+
+## BE-134 (2026-10-04)
+
+- [BE-134 email_message na kluczu złożonym](project_be134_email_message_composite_key.md) — @IdClass(id, messageAt), natywny INSERT/UPDATE, lookupy po id, V103 odłożona
+- [ON CONFLICT nie działa na constraint DEFERRABLE](feedback_native_insert_on_conflict_deferrable_unique.md) — WHERE NOT EXISTS + pg_advisory_xact_lock w natywnym INSERT
+- [EXPLAIN: Seq Scan na pustych partycjach](feedback_explain_empty_partitions_seq_scan.md) — asercjuj zapełnioną partycję; sonda planu = tymczasowy test Testcontainers
+- [Klucz czasowy: precyzja µs](feedback_timestamptz_microsecond_keys.md) — Instant z nanosekundami nie trafia w wiersz po kluczu; obcinaj u źródła

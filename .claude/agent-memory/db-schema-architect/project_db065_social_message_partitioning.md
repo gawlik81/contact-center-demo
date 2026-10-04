@@ -151,3 +151,5 @@ Powiazane: [[contact_center_project]] (wzorzec V085 online-swap, pulapka malych 
 (V100 potwierdzone jako wolne na wszystkich galeziach + zywej bazie), [[feedback_rls_testing]]
 (RLS przez tabele nadrzedna, partycje potomne relrowsecurity=f), [[project_db059_orphan_message_indexes]]
 (3 testy regresji ktore zlapaly ten problem).
+
+**Aktualizacja 2026-10-04 (V103):** `V103__revoke_social_message_partition_grants.sql` — REVOKE ALL FROM app_user na partycjach social_message (pętla po pg_inherits, w tym _default) + create_social_message_partition z REVOKE w gałęzi tworzenia (CREATE OR REPLACE, treść 1:1 z V100). V100 zastosowana w demo — nie edytowana. Wzorzec i pułapki: [[feedback_partition_grants_revoke]]. Numer V103 zajęty — kolejna migracja social/DROP DEFAULT dostaje pierwszy wolny numer po V103.

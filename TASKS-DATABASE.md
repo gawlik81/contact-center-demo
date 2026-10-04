@@ -3765,6 +3765,7 @@ i wydanie razem z BE-132 (nie tworzy cyklu: BE-132 zależy od DB-065, a zmiana `
 - **Regresja wykryta w pełnym `mvn verify` (6 failures) i naprawiona:** 3 pre-istniejące pliki testowe z DB-059/BE-127 (`OrphanMessagePurgeIndexesTest`, `SocialMessageOrphanPurgeIntegrationTest`, `SocialMessagePurgeIntegrationTest`) dopasowywały literalną nazwę indeksu w `EXPLAIN`/`pg_indexes` — po partycjonowaniu PostgreSQL tworzy indeksy potomne na każdej partycji z AUTO-wygenerowaną nazwą (np. `social_message_default_tenant_id_sent_at_idx`), nie z nazwą rodzica. Naprawione nowym, reużywalnym helperem `PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren()` (rozwiązuje przez `pg_inherits`, bezpieczny też dla tabel niepartycjonowanych) — **ten sam problem będzie czekał na DB-067 dla `email_message`**, helper jest gotowy do reużycia. Dodatkowo V100 nie odtworzyło `COMMENT ON INDEX idx_social_message_tenant_orphan_sent` z V097 — uzupełnione (komentarz ustawiony na nazwie `_new`, przeżywa późniejszy `RENAME` bo PostgreSQL wiąże komentarz z OID, nie nazwą).
 - Weryfikacja: `mvn verify -pl app` → **2188 testów, 0 failures, 0 errors, BUILD SUCCESS**.
 - (WP-4, local-demo) NIE wykonane — wymaga przebudowy obrazów Docker; poza zakresem jednej sesji.
+- **Aktualizacja 2026-10-04 — REVOKE na partycjach `social_message` (V103, decyzja właściciela):** `app_user` miał GRANT na każdej partycji `social_message_YYYY_MM` i na `social_message_default` (`ALTER DEFAULT PRIVILEGES`, V012), a partycje nie mają własnego RLS, więc zapytanie po nazwie partycji omijało politykę tenanta. Nowa migracja `V103__revoke_social_message_partition_grants.sql` (V100 zastosowana w demo, nie edytowana): `REVOKE ALL ... FROM app_user` na istniejących partycjach (pętla po `pg_inherits`), `CREATE OR REPLACE create_social_message_partition` (treść 1:1 z V100 + REVOKE w gałęzi tworzenia) i asercja końcowa. Dostęp przez tabelę nadrzędną z RLS zostaje. **Testy:** `SocialMessagePartitioningTest$DirectPartitionAccess` (3: `permission denied`/42501 dla SELECT i INSERT wprost oraz partycji z funkcji) i `$ViaParentAfterRevoke` (1: SELECT przez rodzica, obcy tenant niewidoczny); kontrola RED: bez REVOKE 3/3 bezpośrednich testów pada.
 
 ---
 
@@ -3793,10 +3794,71 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 5. Projekt załączników: kolejność Poziom 1 (S3 → wiersz) przed DROP, plan dla istniejących kluczy `s3_key` w JSONB (allow-lista prefiksu `email-attachments/{tenantId}/`, BE-125). **`pending/` to docelowe klucze załączników wysłanych wiadomości OUTBOUND, nie obiekty tymczasowe** (live 8 z 9 obiektów wskazuje wysłana wiadomość — BE-124 §3): lifecycle/TTL na prefiksie `pending/` jest zabroniony do czasu „promocji" do `{messageId}/` (BE-131 wariant A″); plan DROP partycji uwzględnia, że wiadomość OUTBOUND wskazuje na `pending/` niezależnie od `message_at`.
 
 **Kryteria akceptacji:**
-- [ ] Raport z liczbami z ≥ 1 środowiska, jednoznacznie oznaczony: prod / stage / demo / model; brak liczb prod → lista pytań do PO i status „bramka nierozstrzygnięta"
-- [ ] Decyzja go/no-go zapisana w notatce (G1–G4 z wartościami) i w DESIGN §3 D2 (aktualizacja ZAŁOŻENIA)
-- [ ] Wybór D4 (A/B) zapisany; przy B tickety DB-068/BE-136 przechodzą z [WARUNKOWY] do wymaganych; źródło wieku = czas zaobserwowany przez system (INTERNALDATE), nie nagłówek `Date`
-- [ ] (WP-4) Skrypty uruchamiane wyłącznie tylko-do-odczytu (`SET default_transaction_read_only = on`); (WP-3) pomiary na scratch z `SET max_parallel_maintenance_workers = 0; SET max_parallel_workers_per_gather = 0` przed VACUUM/CREATE INDEX
+- [x] Raport z liczbami z ≥ 1 środowiska, jednoznacznie oznaczony: prod / stage / demo / model; brak liczb prod → lista pytań do PO i status „bramka nierozstrzygnięta" *(spełnione 2026-10-04: liczby demo + model, pytania do PO poniżej, bramka nierozstrzygnięta)*
+- [ ] Decyzja go/no-go zapisana w notatce (G1–G4 z wartościami) i w DESIGN §3 D2 (aktualizacja ZAŁOŻENIA) *(notatka: go/no-go per scenariusz zapisany — **częściowo**; aktualizacja DESIGN §3 D2 — **nie wykonana**, poza zakresem tego kroku (pkt 7); ogólna decyzja nierozstrzygnięta)*
+- [ ] Wybór D4 (A/B) zapisany; przy B tickety DB-068/BE-136 przechodzą z [WARUNKOWY] do wymaganych; źródło wieku = czas zaobserwowany przez system (INTERNALDATE), nie nagłówek `Date` *(**otwarte**: D4 = A pozostaje założeniem roboczym do potwierdzenia przez PO; pomiar D4 wykonany — patrz notatka)*
+- [x] (WP-4) Skrypty uruchamiane wyłącznie tylko-do-odczytu (`SET default_transaction_read_only = on`); (WP-3) pomiary na scratch z `SET max_parallel_maintenance_workers = 0; SET max_parallel_workers_per_gather = 0` przed VACUUM/CREATE INDEX *(WP-4 spełnione: skrypt zaczyna się od `SET default_transaction_read_only = on`, zero DDL/DML, guard zweryfikowany; WP-3 nie dotyczy — w tym kroku nie wykonano VACUUM ani CREATE INDEX)*
+
+**Notatka z wykonania (2026-10-04):** bramka **NIEROZSTRZYGNIĘTA**. Brak danych produkcyjnych; status pozostaje ⬜ do decyzji PO.
+
+**Skrypt (tylko odczyt):** `scripts/epic-30/db-066-email-message-volume.sql`. Uruchomienie: `docker exec -i cc-postgres psql -U ccapp -d contact_center -X -v ON_ERROR_STOP=1 < scripts/epic-30/db-066-email-message-volume.sql`. Weryfikacja: dwa uruchomienia dają identyczny wynik; stan bazy nie zmieniony (count + md5 `email_message`, `retention_purge_log`, `tenant` przed i po); `CREATE TEMP TABLE` w tej samej sesji odrzucony (`read-only transaction`). **Wymaganie:** rola z BYPASSRLS lub superuser (`ccapp` w demo). Rola `app_user` bez GUC `app.current_tenant_id` dostaje 0 wierszy bez błędu, czyli wynik byłby cicho fałszywy.
+
+**Liczby z DEMO** (`demo`, n = 55 wierszy; próba zbyt mała, by rozstrzygać bramkę):
+
+| Metryka | Wartość (demo) |
+|---|---|
+| `pg_total_relation_size` | 237 568 B (232 kB): heap 40 960 B, TOAST 98 304 B, indeksy 73 728 B |
+| `count(*)` / `reltuples` | 55 (INBOUND 30, OUTBOUND 25) / 55; 1 tenant z e-mailem (tenantów łącznie 2) |
+| `pg_column_size` wiersza | śr. 1 049 B, p50 320 B, p95 2 645 B, max 14 536 B |
+| Treść nieskompresowana (`octet_length` body) | śr. 1 282 B, p95 3 996 B; wierszy bez treści 0 |
+| Rozkład miesięczny (UTC, `COALESCE(received_at, sent_at, created_at)`) | 2026-04: 16; 2026-05: 23; 2026-06: 16 |
+| Załączniki | 9/55 wiadomości (16,4 %); INBOUND 4/30 (13,3 %), OUTBOUND 5/25 (20 %); 14 obiektów; suma `size_bytes` 1 972 840 B; śr. 140 917 B, p95 324 169 B |
+| Klucze S3 | 14/14 z `s3_key`; 8 obiektów OUTBOUND w `pending/` |
+| `n_dead_tup` | 0; `pg_stat_user_tables` pokazuje `n_live_tup` = 0 mimo 55 wierszy (statystyki nieaktualne, brak autovacuum) |
+| `retention_purge_log` | 2 przebiegi, oba COMPLETED, `CONTACT_INTERACTIONS`; `rows_deleted` 133 i 0; czas 0,084 s i 0,072 s (poziom tenant × kategoria, nie batch) |
+| D4: INBOUND bez `received_at` | 0 / 30 |
+| D4: OUTBOUND bez `sent_at` | 0 / 25 |
+| D4: `received_at` ≪ `created_at` (> 1 dzień / > 30 dni) | 0 / 0; opóźnienie `created_at − received_at`: p50 26,6 s, p95 62,9 s, max 65,7 s (skrzynka niezmigrowana) |
+| D4: `received_at` > `created_at` + 1 min | 0 |
+| D4: `message_id_header` NULL / duplikat w tenancie | 0 / 0 |
+
+Fallback `now()` (brak INTERNALDATE) **nie jest mierzalny** na danych demo ani w bazie: kolumna nie niesie znacznika źródła, a `EmailPollingServiceImpl` (≈ linia 251) nie loguje tego przypadku.
+
+**Model wzrostu** (wszystko ZAŁOŻENIE, bo PO nie podał wejść): horyzont 365 dni; **bez purge** (domyślna retencja `CONTACT_INTERACTIONS` = 60 mies., `auto_purge_enabled = FALSE`, V082); bez marginesu bloatu; indeksy ≈ 200 B/wiersz (estymacja, nie pomiar — indeksy demo są zdominowane przez minimalne strony 8 kB); S3 (załączniki) poza G1. `r` = bajty wiersza w heap + TOAST: 1 049 B to pomiar demo (niska próba), 3 000 B i 6 000 B to założenia.
+
+| Scenariusz | T × E (e-maile/dzień/tenant, in+out) | wiersze/dzień | r + idx | wiersze po 12 mies. | rozmiar DB po 12 mies. | dni do G2 (2 mln) | dni do G1 (10 GiB) | G3 | Ocena |
+|---|---|---|---|---|---|---|---|---|---|
+| niski | 5 × 100 | 500 | 1 249 B | 182 500 | 0,21 GiB | ~4 000 | ~17 200 | nie | **NO-GO** (w 12 mies. poniżej G1 i G2) |
+| średni | 20 × 1 000 | 20 000 | 3 200 B | 7,3 mln | 21,8 GiB | ~100 | ~168 | tak | **GO** (G2 i G1 przekroczone w ~3–6 mies. od startu danych) |
+| wysoki | 50 × 3 000 | 150 000 | 6 200 B | 54,75 mln | 316 GiB | ~13 | ~12 | tak | **GO** (progi przekroczone w ciągu ~2 tygodni) |
+
+Ocena wszystkich scenariuszy względem progów (liczone od zera; dla istniejącego prod progi mogą być już spełnione): **G1** — tylko średni i wysoki w horyzoncie 12 mies.; **G2** — jak wyżej (w średnim scenariuszu G2 jest progiem pierwszym); **G3** — spełnione dla średniego i wysokiego; **G4** — **nie do oceny** na demo. Przy domyślnej retencji 60 mies. i wyłączonym auto-purge żaden wiersz nie kwalifikuje się do purge w pierwszym roku, więc objaw operacyjny G4 nie może wystąpić przed ok. 60. miesiącem, chyba że tenant skróci retencję. **Wynik ogólny: NIEROZSTRZYGNIĘTE**, bo wynik zależy od E i r, których nie znamy. Dla scenariusza średniego i wysokiego konwersja musi być zaplanowana przed osiągnięciem progów. Załączniki w S3 (poza G1; informacyjnie, po 12 mies.): ≈ 6 GB (niski), ≈ 0,24 TiB (średni), ≈ 1,8 TiB (wysoki).
+
+**Pytania do właściciela produktu:**
+1. Docelowa liczba **aktywnych** tenantów w 12 i 24 mies. (NFR-S03 mówi 50 × 100 agentów: czy 50 to limit, czy liczba aktywnych?).
+2. E-maile/dzień/tenant (in + out): średnia i szczyt. Jeśli łatwiej, podaj e-maile/agenta/dzień (przy 100 agentach).
+3. Udział wiadomości z załącznikami (%) i średni rozmiar załącznika (MB). Demo: 16 %, ≈ 141 kB (n = 14, niska próba).
+4. Średni rozmiar treści e-maila (`body_html` + `body_text`) w kB. Demo: ≈ 1,3 kB. Czy HTML z podpisami lub newsletterami to typowy przypadek?
+5. Horyzont oceny bramki: 12 czy 24 mies. (wpływa na zapas przed konwersją L).
+6. Czy skrzynki są migrowane historycznie (import IMAP przy onboardingu)? Jeśli tak: ile lat wstecz i ile wiadomości na skrzynkę. To wpływa na INTERNALDATE (`received_at` ≪ `created_at`) i daje skok G1/G2 od dnia pierwszego.
+7. Czy tenanci będą skracać retencję `CONTACT_INTERACTIONS` poniżej domyślnych 60 mies.? To decyduje o momencie pierwszego purge i o tym, czy G4 w ogóle wystąpi.
+8. **D4:** potwierdzić wariant A (`message_at` = czas zaobserwowany przez system, INTERNALDATE; fallback `now()` akceptowany, z ryzykiem niedeterministycznego `message_at` przy ponownym pobraniu) albo wskazać B (tabela `email_message_dedup`, DB-068 staje się wymagany).
+9. Czy da się uruchomić skrypt na stage lub prod (rola z BYPASSRLS, tylko odczyt) i przekazać wynik? To jedyny sposób na zamknięcie bramki liczbami rzeczywistymi.
+
+**Proponowane poprawki DESIGN §3 D2 (NIE wprowadzone w tym kroku):**
+- G2 = 2 mln wierszy jest osiągane w ~100 dni w scenariuszu średnim, ale 2 mln wierszy (rząd 2–3 GB) nie stanowi samo w sobie problemu wydajności. Propozycja: podnieść G2 do rzędu 10–20 mln albo oprzeć bramkę na G1 (np. ≥ 20–50 GiB).
+- G4 w pierwszym roku nie wystąpi przy domyślnej retencji 60 mies. Propozycja: dodać G5 „retencja skonfigurowana krócej niż wiek najstarszego wiersza" (pierwszy kwalifikujący się purge).
+- „p95 batcha DELETE > 5 s" nie da się zmierzyć z `retention_purge_log` (log na poziomie tenant × kategoria). Wymaga metryki, której dziś nie ma.
+- Doprecyzować, że G1 mierzy wyłącznie bazę (bez S3), a budżet S3 jest osobny.
+
+**Co nie zostało zrobione (i dlaczego):**
+- Brak liczb prod i stage: brak dostępu i danych w tym kroku. Bramka pozostaje nierozstrzygnięta.
+- DESIGN §3 D2/D4 nie zaktualizowany (pkt 7 zakresu); status ⬜ i PROGRESS.md nietknięte.
+- D4 nie zatwierdzony: wariant A to założenie robocze do potwierdzenia przez PO.
+- Fallback `now()` nieobserwowalny (brak logu i znacznika źródła w bazie). Wymagałoby to dodania logu lub metryki (poza zakresem).
+- p95 pojedynczego batcha purge nieznane (brak danych per batch).
+- Skrzynki zmigrowane: 0 wierszy w demo, więc ścieżka INTERNALDATE ≪ `created_at` nie jest zmierzona.
+- Brak zmian schematu i migracji; `.env.local-demo` nietknięty; hasła nie odczytywane.
 
 ---
 
@@ -3806,7 +3868,7 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 **Priorytet:** Should Have
 **Złożoność:** L (zgodnie z oceną zlecenia: klucz złożony, backfill, dedup)
 **Zależy od:** DB-066 (go), DB-064 ✅, DB-059 ✅, BE-127 ✅ (Poziom 1 działa)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ — DB-level zielone (2026-10-04); BE-134 ✅ tego samego dnia (8 testów Java naprawionych, zob. notatkę BE-134). Otwarte wyłącznie: wdrożenie w jednym wydaniu z BE-134 i backupem `pg_dump -Fc` przed pierwszym wdrożeniem produkcyjnym (decyzja właściciela). Migracja `DROP DEFAULT` na `message_at` NIE dodana w BE-134 — jej numer to pierwsza wolna wersja po V103 (V103 zajęta przez REVOKE partycji `social_message`, zob. DB-065); zob. notatkę BE-134.
 **Blokuje:** BE-134, DB-068
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -3825,14 +3887,39 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 5. **Źródło `message_at` (rozstrzygnięcie, BE-124 §7 / DESIGN D4):** czas zaobserwowany przez system — backfill `COALESCE(received_at, sent_at, created_at)` = INTERNALDATE (INBOUND) / `sentAt` (OUTBOUND) jest z nim zgodny; nowe wiersze: `getReceivedDate()` → `now()` (BE-134). Nagłówek `Date` nadawcy NIE jest źródłem (kontrolowany przez nadawcę: przeszłość = natychmiastowa kwalifikacja do purge, przyszłość = brak wygasania). Skrzynka zmigrowana z historycznym INTERNALDATE daje „stare" świeże wiadomości — obrona w BE-127 (`created_at < now() − 1 dzień`), nie tu.
 
 **Kryteria akceptacji:**
-- [ ] (WP-3) Numery wg reguły, `SET LOCAL lock_timeout`, scratch + pełny łańcuch Flyway; plan wycofania (RENAME z powrotem przed `DROP …_old`)
-- [ ] 100 % wierszy ma `message_at NOT NULL` = `COALESCE(received_at, sent_at, created_at)`; liczba wierszy przed == po (RAISE EXCEPTION w migracji); nagłówek `Date` nadawcy nie jest używany (BE-134: nowe INBOUND = `getReceivedDate()`)
-- [ ] (WP-1) Test Testcontainers: duplikat `(tenant_id, message_id_header, message_at)` odrzucony; ten sam nagłówek z innym `message_at` przechodzi (udokumentowane ograniczenie D4 — obroną jest dedup aplikacyjny BE-134)
-- [ ] (WP-4) RLS ALL + WITH CHECK + FORCE pod `SET ROLE app_user` przez tabelę nadrzędną; cross-tenant INSERT odrzucony
-- [ ] `EXPLAIN` zapytań `EmailMessageRepository` (`findByContactId`, `findFirstInboundByContactId`, `findByMessageIdHeader`, `findByThreadRootMessageId`, `findAll`) na scratch ≥ 500 tys. wierszy i 12 partycjach — czasy przed/po w notatce (zapytania bez klucza partycji skanują lokalne indeksy wszystkich partycji)
-- [ ] (WP-6) `create_next_month_partitions()` obejmuje wszystkie tabele partycjonowane; test `tableoid`: bieżący miesiąc → partycja miesięczna, nie `_default`; brak wykonywalnego `drop_old_email_message_partitions`
-- [ ] Wdrożenie w jednym wydaniu z BE-134; okno serwisowe; backup
-- [ ] Zakłada D2 (bramka przekroczona), D4 = A i D1 = A; przy D4 = B unikalność przenosi się do DB-068; przy D1 = B ticket do ponownej oceny
+- [x] (WP-3) Numery V101/V102 wg reguły (wolne na wszystkich gałęziach i w `flyway_schema_history`; najwyższa V100); `SET LOCAL lock_timeout = '10s'` w obu; scratch (PG 16.13, 500 tys. wierszy) + pełny łańcuch V001..V102 w Testcontainers (`EmailMessagePartitioningTest`). **Plan wycofania:** wszystko w jednej transakcji Flyway — wymuszony błąd, utrata wiersza i zmiana treści cofają całość (zweryfikowane na scratch, stan identyczny przed/po). **Odstępstwo:** RENAME z powrotem przed `DROP …_old` nie jest możliwy po COMMIT (DROP w tej samej transakcji); wycofanie po wdrożeniu = backup `pg_dump -Fc` (wymagany) albo procedura ręczna; okno obserwacji wymagałoby DROP w osobnej migracji — decyzja PO.
+- [x] 100 % wierszy ma `message_at = COALESCE(received_at, sent_at, created_at)`: backfill 500 000 wierszy, 0 NULL, 0 niezgodności; liczba wierszy i zawartość przed == po (V102: count + EXCEPT w obie strony, RAISE EXCEPTION); test pre/post `Backfill`. **Otwarte (BE-134):** nowe INBOUND ustawia `message_at = getReceivedDate()` jawnie; nagłówek `Date` nie jest używany w kodzie.
+- [x] (WP-1) Test Testcontainers: duplikat `(tenant_id, message_id_header, message_at)` odrzucony (SQLState 23505); ten sam nagłówek z innym `message_at` przechodzi — udokumentowane ograniczenie D4, obrona = dedup aplikacyjny BE-134 (`UniquenessD4`).
+- [x] (WP-4) RLS ALL + WITH CHECK + FORCE pod `SET ROLE app_user` przez tabelę nadrzędną: własny tenant CRUD; cross-tenant INSERT = 42501; cross-tenant SELECT/UPDATE/DELETE = 0 wierszy; bez GUC = 0 wierszy bez błędu (`RowLevelSecurity`). **Otwarte (decyzja PO):** obejście RLS po nazwie partycji — `app_user` ma GRANT na każdej partycji (zob. notatkę).
+- [x] `EXPLAIN` zapytań `EmailMessageRepository` na scratch (500 tys., 15 partycji miesięcznych + default) — czasy przed/po w notatce poniżej. Planów NIE asertowano w Testcontainers (niedeterministyczne na partycjach z 0–1 wierszem); zamiast tego `PartitionIndexes`: każdy indeks rodzica ma potomka na każdej partycji.
+- [x] (WP-6) `create_next_month_partitions()` obejmuje `email_message` (`PartitionFunctions`, w transakcji wycofywanej); `tableoid`: bieżący miesiąc → `email_message_YYYY_MM`, nie `_default` (`Routing`); brak `drop_old_email_message_partitions` (`Structure`).
+- [ ] Wdrożenie w jednym wydaniu z BE-134; okno serwisowe; backup — **BE-134 ✅ (2026-10-04); pozostaje zgoda właściciela na okno blokady i wykonanie wdrożenia**.
+- [x] Zakłada D2 (bramka przekroczona — decyzja właściciela 2026-10-04), D4 = A (**założenie robocze, NIE potwierdzone formalnie przez PO**) i D1 = A; przy D4 = B unikalność przenosi się do DB-068; przy D1 = B ticket do ponownej oceny.
+
+**Notatka z wykonania (2026-10-04, `db-schema-architect`):**
+- **Migracje:** `V101__email_message_add_message_at.sql` (ADD COLUMN; `SET DEFAULT now()` PRZED backfillem; backfill keyset po PK, partia 5000, `WHERE message_at IS NULL`; weryfikacja 0 NULL + 0 niezgodności; `SET NOT NULL`; COMMENT). `V102__partition_email_message.sql` (guard jednorazowości; `LOCK TABLE … ACCESS EXCLUSIVE`; `email_message_new` RANGE(message_at), PK `(message_id, message_at)`, UNIQUE DEFERRABLE D4 = A, FK tenant RESTRICT, CHECK-i; partycje miesięczne z danych + bieżący +2 + `email_message_default`; kopia jawnie po kolumnach; RENAME; weryfikacja count + EXCEPT w obie strony przed DROP; indeksy `contact`/`delivery`/orphan (na `message_at`)/`tenant_message_at`; RLS ALL+WITH CHECK+FORCE; trigger `BEFORE UPDATE OF message_at`; DROP VIEW `v_customer_timeline` → DROP `_old` → CREATE VIEW 1:1 z V100; `create_email_message_partition`; `create_next_month_partitions` = V100 + 1 linia; weryfikacja strukturalna; ANALYZE). Nagłówki obu migracji zawierają uzasadnienia i plan wycofania.
+- **Odstępstwa od ticketu (świadome):** (1) trigger `BEFORE INSERT` jako sieć bezpieczeństwa **zastąpiony** `DEFAULT now()` — trigger BEFORE ROW na tabeli partycjonowanej odpala się PO routingu; przy NULL w kluczu kończy się błędem `moving row to another partition…` (zweryfikowane PG 16.13). DEFAULT jest PRZEJŚCIOWY (do `DROP DEFAULT` po BE-134), bo cicho daje `now()` zamiast INTERNALDATE dla wierszy bez jawnego `message_at`. (2) V102 **nie jest idempotentna jako swap**: ponowne zastosowanie kończy się kontrolowanym błędem (`already partitioned`) PRZED jakąkolwiek zmianą — zweryfikowane: `pg_class`/`pg_proc`/ograniczenia/triggery/liczba wierszy identyczne przed i po. V101 jest idempotentna (ponowne uruchomienie = no-op). (3) Brak RENAME z powrotem po COMMIT (zob. AC WP-3). (4) `ACCESS EXCLUSIVE` na całym V102 blokuje też odczyty (w tym `v_customer_timeline`) do COMMIT.
+- **Zależności odkryte (pg_depend / pg_rewrite / pg_constraint / pg_policy na scratch):** jedyna zależność katalogowa to `v_customer_timeline` (`pg_rewrite`, zależność normalna, 2BP01 przy DROP) — obsłużona DROP/CREATE 1:1. Brak FK przychodzących, triggerów, widoków zmaterializowanych (`mv_*` nie czytają tabeli). Polityka `email_message_tenant_isolation` (V099) odtworzona. `v_rls_status` wymienia tabelę jako literał (`relname IN (…)`), nie zależność — bez zmian. Funkcje plpgsql (`anonymize_customer`, `export_customer_data`, `fn_customer_subject_ids`) odwołują się po nazwie — bez zmian. Indeksy: `idx_email_message_contact`, `idx_email_message_delivery` odtworzone 1:1; `idx_email_message_tenant_orphan_age` (V097) odtworzony na `(tenant_id, message_at) WHERE contact_id IS NULL`; nowy `idx_email_message_tenant_message_at`.
+- **Pomiar scratch (PG 16.13, 500 000 wierszy, 3 tenanty, 49 850 sierot, 15 partycji miesięcznych 2025-10…2026-12 + default):** backfill V101 ~18 s; swap V102 ~35 s; odcisk zawartości (md5 po `message_id`/header/czasie/attachments) przed == po. EXPLAIN ANALYZE, mediana z 3 przebiegów, `enable_parallel` wyłączone:
+
+| Zapytanie (`EmailMessageRepository`) | Przed (V100, 1 tabela) | Po (V102, 16 partycji) | Uwagi |
+|---|---|---|---|
+| `findByContactId` — strona 20 | 0,29 ms | 0,91 ms | klucz `contact_id` bez `message_at` → `Append` po 16 partycjach (koszt) |
+| `findByContactId` — COUNT | 0,19 ms | 0,65 ms | j.w. |
+| `findFirstInboundByContactId` | 0,11 ms | 0,69 ms | j.w. |
+| `findByMessageIdHeader` | 0,12 ms | 0,63 ms | `Index Scan` po unikalności na każdej partycji |
+| `findByThreadRootMessageId` — strona (OR `in_reply_to`, bez indeksu) | ~100 ms | ~60 ms (56–78) | seq scan; partycje mniejsze |
+| `findAll` — strona (sort po `created_at`, bez indeksu) | ~112 ms | ~172 ms (156–177) | sort po wszystkich partycjach — koszt bez klucza partycji |
+| sweep sierot wg `COALESCE(...)` (kształt BE-127 dziś) | ~16 ms | ~31 ms (21–43) | wyrażenie NIE pasuje do indeksu częściowego → BE-134 musi przejść na `message_at` |
+| sweep sierot wg `message_at < X` (nowy kształt) | — | ~10–17 ms | pruning: skan tylko partycji < X + default |
+
+- **Koszt bez klucza partycji (AC):** zapytania `EmailMessageRepository` bez `message_at` odpytują indeksy wszystkich 16 partycji (`Append`) — widoczne w planie; przy większym wolumenie rośnie liczba partycji, nie wielkość skanu. Rozwiązanie kosztowe (dodanie `message_at` do zapytań) należy do BE-134.
+- **Testy:** `EmailMessagePartitioningTest` (nowy, Testcontainers, własny kontener, pełny łańcuch V001..V102 + pre/post backfill): **27/27 zielone** (JDK 21). Pełny moduł `backend/app` (`mvn -o test`, 2290 testów): **8 niepowodzeń, 0 błędów** — wszystkie 8 to zamierzone konsekwencje zmiany schematu, których NIE naprawiano (zakres BE-134): `EmailMessagePurgeIntegrationTest$QueryPlans.explain_usesContactIndexAndPrimaryKey` (literalna nazwa `idx_email_message_contact` w EXPLAIN; plan używa potomka na partycji → `PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren`, jak w DB-065); `EmailMessageOrphanPurgeIntegrationTest$QueryPlans.explain_usesOrphanIndex` i `underAppUserRole_stillUsesIndex` (literalna nazwa + COALESCE); `OrphanMessagePurgeIndexesTest$IndexDefinitions.emailIndex_hasExpectedDefinition` i `bothIndexes_haveComment` (zamierzona zmiana definicji i komentarza na `message_at`); `OrphanMessagePurgeIndexesTest$OrphanSweepQueryPlan.emailOrphanSweep_usesNewIndex` i `underAppUserRole_emailOrphanSweep_stillUsesIndex` (COALESCE); `SocialMessagePartitioningTest$PartitionFunctions.createNextMonthPartitions_coversAllSevenPartitionedTables` (oczekiwano 7 tabel, jest 8 — `email_message` dodany do `create_next_month_partitions()`). Testy funkcjonalne purge/orphan/keyset/GDPR/RLS przechodzą bez zmian.
+- **Aktualizacja 2026-10-04 — REVOKE na partycjach (decyzja właściciela; zamyka ryzyko (a) poniżej):** `V102` dodaje (i) `REVOKE ALL ON TABLE <partycja> FROM app_user` w pętli po `pg_inherits` po swapie, w tym `email_message_default`; (ii) REVOKE w `create_email_message_partition` na nowo tworzonej partycji, bo `ALTER DEFAULT PRIVILEGES` (V012) nadaje GRANT przy każdym `CREATE TABLE` (zweryfikowane na scratch: nowa partycja bez REVOKE daje `has_table_privilege('app_user', …, 'SELECT') = t`); (iii) asercję w sekcji 12 (żadna partycja nie daje `app_user` uprawnień). Dostęp przez tabelę nadrzędną z RLS zostaje. **Weryfikacja** (PG 16.13, jednorazowy kontener scratch, nie `cc-postgres`): przed REVOKE pod GUC tenanta T2 `SELECT` po `email_message_2026_10` zwraca 3 wiersze (2 cudze), przez rodzica 1; po REVOKE przez rodzica działają SELECT, INSERT (routing do partycji i `_default`), UPDATE, DELETE, a bezpośredni dostęp po nazwie partycji daje `permission denied` (42501). REVOKE nie zakłada blokady na relacji (`pg_locks` puste). **Testy:** `EmailMessagePartitioningTest$DirectPartitionAccess` (4) i `$ViaParentAfterRevoke` (2); kontrola RED: bez REVOKE 4/4 bezpośrednich testów pada, testy przez rodzica pozostają zielone.
+- **Wdrożenie (wymóg, decyzja właściciela: jedna migracja + backup):** przed pierwszym wdrożeniem produkcyjnym wykonać `pg_dump -Fc`. `V102` robi `DROP email_message_old` w tej samej transakcji co swap; po COMMIT nie ma cofnięcia przez RENAME.
+- **Ryzyka wdrożeniowe i decyzje dla właściciela:** (a) **obejście RLS po nazwie partycji** — `app_user` ma GRANT na każdej partycji (`ALTER DEFAULT PRIVILEGES` ccapp); potwierdzone: pod GUC=T2 `SELECT … FROM email_message_2025_10` zwraca wiersze T1. ROZWIĄZANE 2026-10-04 (REVOKE w V102 dla `email_message`, V103 dla `social_message`; zob. aktualizację poniżej). REVOKE nie psuje dostępu przez tabelę nadrzędną (zweryfikowane na scratch). DB-073 obejmuje tylko `campaign_contact`. (b) Partycja `_default` blokuje tworzenie partycji miesiąca, w którym leżą wiersze w `_default` — monitorować (WP-5). (c) Okno serwisowe = czas kopii + budowy indeksów pod `ACCESS EXCLUSIVE`; dla produkcji zmierzyć na stage (scratch: ~35 s / 500 tys.). (d) Zdarzenia RabbitMQ i zapisy w locie: wiersze zapisywane podczas blokady kończą się błędem albo trafiają do swapu z `message_at = now()` — BE-134 musi być w tym samym wydaniu, a konsument z ponowieniem. (e) `ddl-auto: validate` w `application.yml` nie widzi `message_at` (niemapowane) — start aplikacji nie powinien się zmienić; potwierdzone przez `ContactCenterApplicationIT` w pełnym przebiegu.
+- **Do BE-134 (Java, osobny agent):** zapytania BE-127 (`ORPHAN_AGE_EXPR`) → `message_at`; `message_at` ustawiać jawnie (INBOUND = `Message#getReceivedDate()`, OUTBOUND = `sentAt`); naprawić 8 testów z listy powyżej; po wdrożeniu BE-134 usunąć DEFAULT (`ALTER TABLE email_message ALTER COLUMN message_at DROP DEFAULT`).
+- **Status:** ✅ — DB-level zielone; BE-134 ✅ (2026-10-04, `mvn -o clean verify -pl app`: 2307/0/0). Wdrożenie — jw.
 
 ---
 
@@ -3906,9 +3993,87 @@ HASH(`campaign_id`) działa z PK `(record_id, campaign_id)` i częściowym unika
 **ZAŁOŻENIE DO POTWIERDZENIA: A + sprostowanie dokumentacji (DB-077)**; B/C tylko przy dowodzie pomiarowym. Skrypt progu (count, rozmiar, plan zapytań dialera `idx_campaign_contact_dialer`) do uruchamiania przy przeglądach.
 
 **Kryteria akceptacji:**
-- [ ] ADR w notatce z dowodami: `pg_inherits`, `count(*)` (demo: 37), `EXPLAIN` zapytania dialera, koszt utrzymania każdej opcji
-- [ ] Decyzja właściciela zapisana; lista linii dokumentacji do poprawy przekazana do DB-077
-- [ ] Przy A: brak zmian schematu; przy C: opis kroków migracji (shadow HASH, kopia, RENAME, zachowanie `idx_campaign_contact_dialer`, RLS z DB-073, `lock_timeout`) — bez implementacji przed progiem
+- [x] ADR w notatce z dowodami: `pg_inherits`, `count(*)` (demo: 37), `EXPLAIN` zapytania dialera, koszt utrzymania każdej opcji (notatka 2026-10-04 poniżej)
+- [ ] Decyzja właściciela zapisana; lista linii dokumentacji do poprawy przekazana do DB-077 — **lista przekazana (§6 notatki); decyzja właściciela NIE zapisana: rekomendacja A, czeka na potwierdzenie właściciela**
+- [x] Przy A: brak zmian schematu (potwierdzone: 0 migracji, 0 DDL w sesji); przy C: opis kroków migracji (shadow HASH, kopia, RENAME, zachowanie `idx_campaign_contact_dialer`, RLS z DB-073, `lock_timeout`) — bez implementacji przed progiem (§4 notatki)
+
+**Notatka z wykonania (2026-10-04) — ADR DB-070:**
+
+**Status:** rekomendacja **A** (zostawić LIST z jedyną partycją DEFAULT, bez zmian schematu), **czeka na potwierdzenie właściciela**. Ticket pozostaje ⬜. Nie zmieniano migracji, `documentation/**`, `ARCHITECTURE.md`, `PROGRESS.md`.
+
+**Metoda.** Kod: `grep` i odczyt `backend/app/src/main/java` oraz `backend/src/main/resources/db/migration`. Baza demo `contact_center` (PG 16.13): `psql` wewnątrz kontenera `cc-postgres` (użytkownik i baza z env kontenera, bez odczytu `.env.local-demo`), sesja z `SET default_transaction_read_only = on`; wyłącznie `SELECT`, `EXPLAIN` bez ANALYZE (ANALYZE zapisuje statystyki, więc nie użyto). Liczby z bazy oznaczone **(demo)**. Brak bazy scratch w tej sesji — pomiaru `ACCESS EXCLUSIVE`, pruningu HASH i planu przy realnym wolumenie **nie powtórzono** (twierdzenia z DESIGN §2 U13 oznaczone „nie powtórzone"). Repo nie ma katalogu ADR; ADR-09…13 są inline w `ARCHITECTURE.md` §11, więc ten ADR zostaje w tickecie (bez nowego katalogu).
+
+**1. Weryfikacja założenia A — potwierdzone co do faktu, z jedną korektą kosztu**
+- **Kod:** `grep -rn "PARTITION OF" backend/app/src/main` = 0 (potwierdzone). Jedyny `PARTITION OF campaign_contact` w migracjach to `backend/src/main/resources/db/migration/V009__create_campaign.sql:193` (`campaign_contact_default … DEFAULT`). `PartitionMaintenanceJob.PARTITIONED_TABLES` (`backend/app/src/main/java/com/contactcenter/domain/retention/PartitionMaintenanceJob.java`, l. 82–90) nie zawiera `campaign_contact`. Nie ma DDL dla `campaign_contact_<uuid>`.
+- **Komentarz V009 (l. 186–188):** `-- UWAGA: Partycje list tworzone dynamicznie przez aplikacje przy tworzeniu kampanii.` — nieprawda. Migracja zastosowana: nie edytować (CLAUDE.md, reguła Flyway).
+- **Dokumentacja (nieprawda):** `documentation/tech/06-database.md:282` — „partycje tworzone **dynamicznie przez aplikację** przy tworzeniu kampanii: `CREATE TABLE campaign_contact_<uuid> PARTITION OF …`"; `ARCHITECTURE.md:503` — „partitions created dynamically by the application at campaign-creation time". Obie tezy są fałszywe.
+- **Baza (demo):** `pg_inherits` dla `campaign_contact` = jedna partycja `campaign_contact_default`, bound `DEFAULT`, `relkind = r`. `count(*)` = **37** (demo, wszystkie w DEFAULT). Kampanie z kontaktami = 30 (demo). Statusy (demo): NO_ANSWER 19, COMPLETED 14, NOT_REACHED 3, PENDING 1. `pg_total_relation_size`: rodzic = **0 B** (tabela partycjonowana nie ma własnego storage — sumować partycje), `campaign_contact_default` = 128 kB łącznie z indeksami, `campaign_contact_archive` = 1,2 MB przy **0** wierszach (demo).
+- **Korekta kosztu A:** A jest bez zmian schematu, ale **nie jest kosztem zerowym**. Demo: `app_user` ma SELECT/INSERT/UPDATE/DELETE bezpośrednio na `campaign_contact_default` (ACL identyczne jak na rodzicu), a partycja ma `relrowsecurity = f`. Po DB-073 (RLS na rodzicu) zapytanie wprost do `campaign_contact_default` pod `app_user` **ominie politykę rodzica**. DB-073 musi dodać `REVOKE ALL ON campaign_contact_default FROM app_user` (i pozostałym rolom poza właścicielem) albo RLS + politykę także na partycji DEFAULT; test pod `SET ROLE app_user` wprost na partycji, nie tylko przez rodzica.
+
+**2. Plan zapytań dialera (EXPLAIN bez ANALYZE, demo)**
+Zapytanie `ProgressiveDialerServiceImpl#fetchNextPendingContact` (SQL: `FROM` l. 423, `ORDER BY created_at` l. 428; `status IN ('PENDING','NO_ANSWER')`, `(next_attempt_at IS NULL OR next_attempt_at <= NOW())`, `LIMIT 1 FOR UPDATE SKIP LOCKED`) odtworzone z kampanią demo `f9981b6b-…` i tenantem `680dc6bb-…`:
+- **Plan domyślny:** `Limit → LockRows → Sort (created_at) → Seq Scan on campaign_contact_default`. Seq Scan jest oczekiwany przy 37 wierszach i nieanalizowanych statystykach (`reltuples` rodzica −1, partycji 29; `last_analyze` = NULL) — nie jest dowodem przeciwko indeksowi.
+- **Diagnostyka (`enable_seqscan = off`, tylko do sprawdzenia możliwości):** `Index Scan using campaign_contact_default_campaign_id_status_next_attempt_at_idx` — potomek `idx_campaign_contact_dialer`; `Index Cond` tylko `campaign_id`; `status`, `tenant_id`, `next_attempt_at` jako Filter; następnie Sort po `created_at`. Czyli `idx_campaign_contact_dialer` jest używalny.
+- **Uwaga 1 (kod vs indeks):** `ORDER BY created_at` nie jest obsługiwane przez indeks → sort wszystkich kwalifikujących się wierszy kampanii przy każdym wyborze dialera. Przy ~100 tys. PENDING na kampanię to koszt do zmierzenia na scratch z wolumenem (**przypuszczenie, nie zmierzone**). Dokumentacja (`06-database.md:292`) i komentarz V009 opisują `ORDER BY next_attempt_at` — rozjazd kodu z projektem indeksu (V033 zakładał `next_attempt_at` jako ostatnią kolumnę pod ORDER BY).
+- **Uwaga 2:** `idx_campaign_contact_dialer_tenant` (`WHERE status = 'PENDING'`, V033) **nie kwalifikuje się** do zapytania z `IN ('PENDING','NO_ANSWER')` (predykat częściowego indeksu nie jest implikowany) — planner go nie wybrał. Kandydat do audytu w stylu DB-055, nie decyzja tego ticketu (demo: `idx_scan = 0` nie jest dowodem, bo w demo nie ma ruchu).
+- **Pruning partycji:** nie do oceny — przy jednej partycji DEFAULT nie ma węzła Append ani czego przycinać. Zysk z pruningu dla C nie został zmierzony w tej sesji.
+- `findPendingByCampaignIds` (`CampaignContactRepository.java:440`, SQL `FROM` l. 456; IN bez LIMIT): Seq Scan na DEFAULT + Sort(`campaign_id`, `created_at`) — ten sam kształt.
+
+**3. Opcje i koszty**
+
+| Opcja | Zmiana schematu | Koszt wykonania | Ryzyko na ścieżce gorącej dialera | Zysk | Kiedy |
+|---|---|---|---|---|---|
+| **A** zostawić LIST + DEFAULT | brak | S: korekty docs (DB-077) + REVOKE/RLS na DEFAULT w DB-073 | brak nowych; ryzyko, że przyszły developer doda `PARTITION OF` (pomiar agenta z DESIGN U13: `ACCESS EXCLUSIVE` na rodzicu i DEFAULT — **nie powtórzone**) → zakaz w ADR i przy przeglądzie | 0 pruningu dziś; zachowany mylący model | **teraz** |
+| **B** zwykła tabela | nowa tabela + RENAME | M–L: shadow (PK, 3 FK, CHECK, unique częściowy, 2 indeksy dialera, trigger, grants, MV), kopia partiami, delta (dual-write albo pauza dialera), swap | krótki `ACCESS EXCLUSIVE` na RENAME; przy długich transakcjach dialera (`FOR UPDATE SKIP LOCKED`) żądanie blokady kolejkuje się za nimi i wstrzymuje nowe zapytania → obowiązkowy `lock_timeout` + retry | usuwa mylącą strukturę i pułapkę RLS-na-partycji (jedna tabela) | tylko na decyzję właściciela po DB-073; nie teraz |
+| **C** HASH(`campaign_id`), 16–32 partycji | nowa tabela partycjonowana | L: jak B + tworzenie partycji + pomiar pruningu + RLS na rodzicu + REVOKE na potomkach | jak B; dodatkowo odtworzenie `mv_campaign_stats` | pruning każdego zapytania dialera (`campaign_id` zawsze obecny); brak balansu rozmiaru (jedna duża kampania = jedna partycja); zapytania bez `campaign_id` (np. po `customer_id` w GDPR, `tenant_id`) skanują wszystkie partycje | **tylko** > ok. 50 mln wierszy lub pomiar problemu (vacuum, rozmiar indeksu, lock) |
+
+**4. Kroki migracji C (opis, bez implementacji)**
+1. Próg: `count`, suma `pg_total_relation_size` po partycjach (nie po rodzicu), `reltuples`, czas zapytania dialera (skrypt §7).
+2. Shadow `campaign_contact_h` `PARTITION BY HASH (campaign_id)`; PK `(record_id, campaign_id)` i unikalny częściowy `(campaign_id, phone) WHERE phone IS NOT NULL` zawierają klucz partycjonowania (zgodne); FK z partycjonowanej tabeli do `campaign`/`customer`/`tenant` (dozwolone); partycje `FOR VALUES WITH (MODULUS n, REMAINDER i)`.
+3. Indeksy: definicje 1:1 z `pg_indexes` (`idx_campaign_contact_dialer`, `idx_campaign_contact_status`, `idx_campaign_contact_phone_unique`, `idx_campaign_contact_dialer_tenant` — decyzja osobno). PK i indeksy na shadow z **tymczasowym sufiksem** (nazwy w schemacie muszą być unikalne przy współistnieniu); CHECK, trigger `trg_campaign_contact_updated_at` i polityki z nazwami finalnymi (unikalne per tabela). Nazwy finalne po DROP starej tabeli.
+4. Kopia partiami (keyset po `(record_id, campaign_id)`, `INSERT … SELECT … ON CONFLICT DO NOTHING`, commit na partię, `statement_timeout`), bez blokady starej tabeli.
+5. Delta: dialer nadal pisze do starej tabeli → trigger dual-write (koszt na każdym UPDATE dialera) albo okno z wstrzymanym dialerem (flaga). Walidacja: `count` per kampania, histogram statusów, `count` per partycja.
+6. Cutover w jednej transakcji: `SET lock_timeout = '3s'` z pętlą retry; `LOCK TABLE campaign_contact IN ACCESS EXCLUSIVE MODE`; dosync delty; `RENAME campaign_contact → campaign_contact_old`; `RENAME campaign_contact_h → campaign_contact`.
+7. Zależności: `mv_campaign_stats` zależy od `campaign_contact` (demo) — po RENAME wskazywałby na starą tabelę (**błędne dane**) → DROP + CREATE + REFRESH. `archive_completed_campaign_contacts()` (V015) ma `DROP TABLE IF EXISTS campaign_contact_<uuid>` — martwe, ale do sprawdzenia. Nowa tabela **nie dziedziczy GRANT** — odtworzyć dla `app_user`, `admin_user`, `ccapp`; na potomkach REVOKE.
+8. DB-073 na rodzicu: ENABLE + FORCE + polityka ALL + WITH CHECK; test pod `SET ROLE app_user`; `EXPLAIN` dialera pokazuje pruning do jednej partycji.
+9. Rollback: `campaign_contact_old` przechowywana przez ustalony okres, DROP po weryfikacji.
+10. Każdy DDL z `lock_timeout`; okno o niskim ruchu; podgląd `pg_locks` / `pg_stat_activity` przy cutover.
+
+**5. Rekomendacja: A (czeka na potwierdzenie właściciela)**
+- Uzasadnienie: 37 wierszy (demo), zysk pruningu dziś = 0 przy jednej partycji; B i C bez pomiaru niosą ryzyko na ścieżce gorącej dialera; próg C (~50 mln) jest odległy.
+- Warunki A: (a) poprawki DB-077 (§6); (b) DB-073 zamyka dostęp do partycji DEFAULT (REVOKE albo RLS na partycji); (c) zakaz `PARTITION OF campaign_contact` w ADR i przy przeglądach kodu; (d) skrypt progu (§7) przy przeglądach.
+- Poza DB-070 (do osobnego ticketu po pomiarze na scratch z wolumenem, nie wdrażać tutaj): indeks zgodny z `ORDER BY created_at` (kandydat np. częściowy `(campaign_id, created_at) WHERE status IN ('PENDING','NO_ANSWER')`) oraz audyt `idx_campaign_contact_dialer_tenant`.
+
+**6. Lista poprawek dla DB-077 (plik:linia → błąd → co napisać)**
+| Plik:linia | Co jest błędne | Co napisać |
+|---|---|---|
+| `documentation/tech/06-database.md:282–284` | „partycje tworzone dynamicznie przez aplikację … `CREATE TABLE campaign_contact_<uuid> PARTITION OF …`" | „`campaign_contact` jest deklaratywnie LIST po `campaign_id`, ale istnieje wyłącznie partycja `campaign_contact_default`; aplikacja nie tworzy partycji per kampania (decyzja DB-070)." |
+| `documentation/tech/06-database.md:277` | „Wypełniane przez `archive_completed_campaign_contacts()` (V015)" | „Funkcja V015 nie jest uruchamiana (pg_cron nieaktywne, 0 wywołań w Javie); archiwum puste (demo: 0 wierszy)." |
+| `documentation/tech/06-database.md:292` | `ORDER BY next_attempt_at ASC`, `next_attempt_at <= NOW()` | Kształt zgodny z kodem: `status IN ('PENDING','NO_ANSWER')`, `(next_attempt_at IS NULL OR next_attempt_at <= NOW())`, `ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED` (`ProgressiveDialerServiceImpl`). |
+| `documentation/tech/06-database.md:635` | „łatwe `DROP` partycji po archiwizacji kampanii" | „Deklaracja LIST bez praktycznego efektu (jedna partycja DEFAULT); archiwizacja kończy się DELETE, nie DROP partycji." |
+| `documentation/tech/06-database.md:638–639` | „tworzenie partycji 'na żądanie' przez aplikację (`campaign_contact_<uuid>`)" | Usunąć zdanie dla `campaign_contact`; zostawić tylko dla tabel, gdzie to prawda (`create_*_partition`). |
+| `documentation/tech/html/06-database.html:376–377, 383, 894, 898–899` | odpowiedniki powyższych | Nie edytować ręcznie — po edycji md uruchomić `node documentation/build-html.js`. |
+| `ARCHITECTURE.md:502–504` | „partitions created dynamically by the application at campaign-creation time; archived to `campaign_contact_archive` after completion" | „LIST-partitioned per `campaign_id`; only `campaign_contact_default` exists. Archiving to `campaign_contact_archive` is done by `archive_completed_campaign_contacts()` (V015), which has no scheduler now." |
+| `ARCHITECTURE.md:1071` | wiersz „pg_cron jobs": `archive campaign_contact` | Usunąć `archive campaign_contact` z listy aktywnych zadań pg_cron (pg_cron nieaktywne; funkcja bez wywołań). |
+| `ARCHITECTURE.md:463` | „LIST-partitioned per campaign" | Bez zmiany (prawda deklaratywna); opcjonalnie dopisać „(tylko DEFAULT)". |
+| `backend/src/main/resources/db/migration/V009__create_campaign.sql:186–188` | komentarz „Partycje tworzone dynamicznie" | **Nie edytować** (zastosowana migracja). Ewentualna korekta przez `COMMENT ON TABLE` w nowej migracji — to zmiana schematu, wymaga zgody właściciela; poza zakresem A. |
+| `DESIGN-data-retention-partitioning.md:14` i `:129` (poza zakresem DB-077: nie `documentation/` ani `ARCHITECTURE.md`) | „`campaign_contact` — LIST partycja po `campaign_id` … istnieje, wzorcowy" / „LIST po `campaign_id` … to już działa i dobrze pasuje" | Do decyzji właściciela: sprostować lub dopisać „tylko partycja DEFAULT". |
+
+**7. Skrypt progu (do przeglądów; tylko odczyt)**
+```sql
+SET default_transaction_read_only = on;
+SELECT count(*) AS rows_total FROM campaign_contact;
+SELECT pg_size_pretty(sum(pg_total_relation_size(i.inhrelid))) AS size_all_partitions  -- rodzic = 0 B, sumować partycje
+  FROM pg_inherits i WHERE i.inhparent = 'campaign_contact'::regclass;
+SELECT count(*) AS partitions FROM pg_inherits WHERE inhparent = 'campaign_contact'::regclass;  -- > 1 = ktoś utworzył partycje
+```
+Próg do rewizji: `rows_total` ≥ ok. 50 mln lub `partitions` > 1 (sygnał naruszenia ADR).
+
+**8. Czego nie zrobiono i dlaczego**
+- Brak pomiaru na scratch (`ACCESS EXCLUSIVE` przy `PARTITION OF`, pruning HASH, EXPLAIN przy realnym wolumenie) — sesja miała być wyłącznie odczytowa na demo; wyniki z DESIGN U13 oznaczono „nie powtórzone".
+- Brak `ANALYZE` (zapisuje statystyki) — dlatego plany na demo są szacunkowe.
+- Brak zmian w migracjach, `documentation/**`, `ARCHITECTURE.md`, `PROGRESS.md`; status ⬜; brak commitów.
+- Brak nowego katalogu ADR (konwencja repo: ADR inline w `ARCHITECTURE.md` §11).
 
 ---
 

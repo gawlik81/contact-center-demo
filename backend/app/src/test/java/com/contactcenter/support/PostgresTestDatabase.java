@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -106,5 +107,39 @@ public final class PostgresTestDatabase {
         UUID tenantId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (tenant_id, name) VALUES (?, ?)", tenantId, name);
         return tenantId;
+    }
+
+    /**
+     * Sprawdza, czy treść planu {@code EXPLAIN} wspomina podany indeks LUB jeden z jego
+     * fizycznych indeksów POTOMNYCH na partycjach (DB-065: od partycjonowania {@code social_message}
+     * — a od DB-067 również {@code email_message} — indeks na tabeli partycjonowanej propaguje się
+     * do każdej partycji jako ODRĘBNA relacja z AUTO-wygenerowaną nazwą, np.
+     * {@code social_message_2026_10_contact_id_sent_at_idx}, NIE z nazwą indeksu rodzica —
+     * {@code EXPLAIN} w planie wypisuje nazwę fizycznego indeksu partycji, nigdy nazwę rodzica.
+     * Literalne {@code plan.contains(parentIndexName)} więc nigdy nie zadziała na tabeli
+     * partycjonowanej, mimo że planner faktycznie używa tego indeksu (poprzez partycję).
+     *
+     * <p>Dla tabeli NIE partycjonowanej {@code pg_inherits} nie zwraca żadnych indeksów potomnych —
+     * metoda sprowadza się wtedy do prostego {@code plan.contains(parentIndexName)}, więc jest
+     * bezpieczna do użycia niezależnie od tego, czy tabela jest już partycjonowana.
+     *
+     * @param jdbc            połączenie do odpytania katalogu ({@code pg_inherits}/{@code pg_class}
+     *                        — tabele systemowe, czytelne niezależnie od RLS na tabelach domenowych,
+     *                        więc może to być zawsze połączenie superusera, nawet gdy {@code plan}
+     *                        pochodzi z innej sesji/roli)
+     * @param plan            treść planu {@code EXPLAIN} (sklejone wiersze)
+     * @param parentIndexName nazwa indeksu na tabeli nadrzędnej (rodzica)
+     * @return {@code true}, gdy plan wspomina rodzica albo któregokolwiek z jego indeksów potomnych
+     */
+    public static boolean explainUsesIndexOrItsPartitionChildren(
+            JdbcTemplate jdbc, String plan, String parentIndexName) {
+        if (plan.contains(parentIndexName)) {
+            return true;
+        }
+        List<String> childIndexNames = jdbc.queryForList("""
+                SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                WHERE i.inhparent = ?::regclass
+                """, String.class, parentIndexName);
+        return childIndexNames.stream().anyMatch(plan::contains);
     }
 }

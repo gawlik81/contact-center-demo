@@ -3,7 +3,6 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
-import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
@@ -52,20 +51,37 @@ import java.util.UUID;
  * <h2>BE-128 (EPIC-30) — wiadomości w {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS</h2>
  *
  * <p>{@link #countEligibleMessages(UUID)}, wołane WYŁĄCZNIE z {@link #persistSummaryAndMaybeAutoPurgeForTenant}
- * dla kategorii CONTACT_INTERACTIONS, dolicza wiadomości e-mail/social kwalifikujące się do
- * usunięcia (osierocone + powiązane z kontaktem, który sam się kwalifikuje) do liczby liczonej
- * przez {@link #scanPartitionAwareCategory} dla {@code contact}/{@code contact_event}. Ten
- * dodatkowy krok respektuje TEN SAM prekontrakt {@link TenantContext} co reszta metody — patrz
+ * dla kategorii CONTACT_INTERACTIONS, dolicza wiadomości e-mail kwalifikujące się do usunięcia
+ * (osierocone + powiązane z kontaktem, który sam się kwalifikuje) do liczby liczonej przez
+ * {@link #scanPartitionAwareCategory} dla {@code contact}/{@code contact_event}/{@code social_message}.
+ * Ten dodatkowy krok respektuje TEN SAM prekontrakt {@link TenantContext} co reszta metody — patrz
  * Javadoc {@link #countEligibleMessages(UUID)}.
+ *
+ * <p><strong>BE-133 (EPIC-30, 2026-10-01):</strong> do 2026-10-01 {@code countEligibleMessages}
+ * doliczał TAKŻE wiadomości {@code social_message} (osierocone + powiązane, JOIN/IN-subquery).
+ * Po przekonwertowaniu {@code social_message} na tabelę partycjonowaną (DB-065, V100) ten
+ * składnik przeniesiony do {@link #scanPartitionAwareCategory} (wpis w {@link #PARTITION_AWARE_TABLES})
+ * — pozostawienie OBU ścieżek jednocześnie podwajałoby liczbę wierszy {@code social_message} w
+ * {@code eligibleRowCount}. {@code email_message} pozostaje na starej ścieżce (JOIN/IN-subquery) do
+ * czasu BE-135 (po DB-067/BE-134).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
 
-    /** Kategorie partition-aware → lista tabel wchodzących w skład kategorii. */
+    /**
+     * Kategorie partition-aware → lista tabel wchodzących w skład kategorii.
+     *
+     * <p><strong>BE-133 (EPIC-30, 2026-10-01):</strong> {@code social_message} dołączona do
+     * {@code CONTACT_INTERACTIONS} po przekonwertowaniu na tabelę partycjonowaną (DB-065, V100) —
+     * jej wiersze w {@code eligibleRowCount} tej kategorii liczy odtąd WYŁĄCZNIE
+     * {@link #scanPartitionAwareCategory} (partycyjnie, tak jak {@code contact}/{@code contact_event}),
+     * NIE {@link #countEligibleMessages} (JOIN/IN-subquery) — patrz jego javadoc po pełne
+     * uzasadnienie zmiany semantyki z „dokładne" na „konserwatywne przybliżenie granicą partycji".
+     */
     private static final Map<RetentionDataCategory, List<String>> PARTITION_AWARE_TABLES = Map.of(
-            RetentionDataCategory.CONTACT_INTERACTIONS, List.of("contact", "contact_event"),
+            RetentionDataCategory.CONTACT_INTERACTIONS, List.of("contact", "contact_event", "social_message"),
             RetentionDataCategory.TRANSCRIPTS, List.of("contact_transcription", "contact_ai_summary")
     );
 
@@ -76,7 +92,6 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
     private final TenantRetentionPendingSummaryRepository summaryRepository;
     private final CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
     private final EmailMessageService emailMessageService;
-    private final SocialMessageService socialMessageService;
 
     /**
      * Ten sam bezpiecznik wdrożeniowy co {@code RetentionPurgeServiceImpl#deleteMessagesEnabled}
@@ -371,15 +386,25 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
     // =========================================================================
 
     /**
-     * Dolicza do {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS wiadomości e-mail/social
+     * Dolicza do {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS wiadomości e-mail
      * kwalifikujące się do usunięcia (BE-128, dashboard FE-105/badge FE-108): (a) OSIEROCONE
-     * ({@link EmailMessageService#countOrphansOlderThan}/{@link SocialMessageService#countOrphansOlderThan},
-     * reużycie BE-127) i (b) POWIĄZANE z kontaktem, który sam kwalifikuje się do usunięcia
-     * ({@link EmailMessageService#countLinkedToContactsOlderThan}/
-     * {@link SocialMessageService#countLinkedToContactsOlderThan}, nowość BE-128). OBA składniki są
-     * DOKŁADNE (nie oszacowanie) — patrz Javadoc {@link RetentionSummaryDto} po pełne uzasadnienie
-     * semantyki i kosztu, oraz notatka wykonania BE-128 w {@code TASKS-BACKEND.md} po dowód EXPLAIN
-     * ANALYZE (scratch DB, symulacja wielotenantowa).
+     * ({@link EmailMessageService#countOrphansOlderThan}, reużycie BE-127) i (b) POWIĄZANE z
+     * kontaktem, który sam kwalifikuje się do usunięcia ({@link EmailMessageService#countLinkedToContactsOlderThan},
+     * nowość BE-128). OBA składniki są DOKŁADNE (nie oszacowanie) — patrz Javadoc
+     * {@link RetentionSummaryDto} po pełne uzasadnienie semantyki i kosztu, oraz notatka wykonania
+     * BE-128 w {@code TASKS-BACKEND.md} po dowód EXPLAIN ANALYZE (scratch DB, symulacja wielotenantowa).
+     *
+     * <p><strong>BE-133 (EPIC-30, 2026-10-01) — {@code social_message} NIE jest już liczona tutaj:</strong>
+     * do 2026-10-01 ta metoda doliczała też {@code socialMessageService.countOrphansOlderThan}/
+     * {@code countLinkedToContactsOlderThan}. Po przekonwertowaniu {@code social_message} na tabelę
+     * partycjonowaną (DB-065, V100) ten składnik przeniesiony do {@link #scanPartitionAwareCategory}
+     * (wpis {@code "social_message"} w {@link #PARTITION_AWARE_TABLES}) — zostawienie obu ścieżek
+     * jednocześnie podwajałoby liczbę wierszy {@code social_message}. Konsekwencja zmiany semantyki:
+     * udział {@code social_message} w sumie {@code eligibleRowCount} przestaje być DOKŁADNY (wiersz
+     * po wierszu) i staje się KONSERWATYWNYM PRZYBLIŻENIEM granicą całej partycji miesięcznej —
+     * dokładnie tym samym trade-offem, jaki {@link RetentionSummaryDto} (BE128-02) już opisuje dla
+     * {@code contact}/{@code contact_event}. {@code email_message} zostaje na tej (dokładnej) ścieżce
+     * do czasu BE-135 (po DB-067/BE-134 — klucz złożony analogiczny do BE-132/{@code social_message}).
      *
      * <p>Cutoff liczony NIEZALEŻNIE od akumulatora partition-scan tej kategorii — DOKŁADNIE ten sam
      * wzorzec co {@link #evaluateCampaignDataForTenant} ({@link RetentionPolicyService#getRetentionMonths}
@@ -388,14 +413,9 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
      *
      * <p><strong>Prekontrakt:</strong> {@link TenantContext} musi być już ustawiony na
      * {@code tenantId} PRZEZ WYWOŁUJĄCEGO ({@link #persistSummaryAndMaybeAutoPurgeForTenant}) — ta
-     * metoda go NIE ustawia/czyści. {@code EmailMessageService}/{@code SocialMessageService} wołają
-     * {@code assertSameTenant} wewnątrz (regresja BE-112: pusty kontekst → {@code
-     * IllegalStateException}), identycznie jak {@code summaryRepository.upsert}.
-     *
-     * <p><strong>BE-133/BE-135 (po DB-065/DB-067):</strong> po skonwertowaniu {@code email_message}/
-     * {@code social_message} na tabele partycjonowane, ten składnik powinien przejść na
-     * {@link PartitionScanner} (jak {@code contact}/{@code contact_event} dziś), zamiast zapytania
-     * JOIN/IN-subquery użytego poniżej — NIE projektuj tej migracji teraz, poza zakresem BE-128.
+     * metoda go NIE ustawia/czyści. {@code EmailMessageService} woła {@code assertSameTenant}
+     * wewnątrz (regresja BE-112: pusty kontekst → {@code IllegalStateException}), identycznie jak
+     * {@code summaryRepository.upsert}.
      */
     private long countEligibleMessages(UUID tenantId) {
         int retentionMonths = retentionPolicyService.getRetentionMonths(
@@ -405,14 +425,12 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
 
         long orphanEmails = emailMessageService.countOrphansOlderThan(tenantId, cutoff);
         long linkedEmails = emailMessageService.countLinkedToContactsOlderThan(tenantId, cutoff);
-        long orphanSocial = socialMessageService.countOrphansOlderThan(tenantId, cutoff);
-        long linkedSocial = socialMessageService.countLinkedToContactsOlderThan(tenantId, cutoff);
-        long total = orphanEmails + linkedEmails + orphanSocial + linkedSocial;
+        long total = orphanEmails + linkedEmails;
 
-        log.debug("[RetentionEvaluationService] Wiadomości kwalifikujące się (CONTACT_INTERACTIONS): "
-                        + "tenant={}, cutoff={}, orphanEmails={}, linkedEmails={}, orphanSocial={}, "
-                        + "linkedSocial={}, total={}",
-                tenantId, cutoff, orphanEmails, linkedEmails, orphanSocial, linkedSocial, total);
+        log.debug("[RetentionEvaluationService] Wiadomości e-mail kwalifikujące się (CONTACT_INTERACTIONS): "
+                        + "tenant={}, cutoff={}, orphanEmails={}, linkedEmails={}, total={} "
+                        + "(social_message liczona partycyjnie przez scanPartitionAwareCategory od BE-133)",
+                tenantId, cutoff, orphanEmails, linkedEmails, total);
         return total;
     }
 

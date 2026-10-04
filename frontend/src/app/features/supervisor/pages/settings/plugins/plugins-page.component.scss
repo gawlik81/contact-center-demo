@@ -169,6 +169,53 @@
     background: var(--danger-soft);
     color: var(--danger-text);
   }
+
+  &__body {
+    p {
+      margin: 0;
+    }
+
+    p + p {
+      margin-top: 0.25rem;
+    }
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+}
+
+// ---- Overwrite toggle (upload) ----
+
+.pp-overwrite {
+  margin-bottom: 0.75rem;
+
+  &__label {
+    font-size: 0.875rem;
+    color: var(--text-1);
+  }
+
+  &__input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+
+  &__hint {
+    margin: 0.25rem 0 0 1.625rem;
+  }
 }
 
 // ---- Upload result ----

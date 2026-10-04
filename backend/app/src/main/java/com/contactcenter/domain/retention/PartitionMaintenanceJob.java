@@ -35,8 +35,10 @@ import java.util.stream.Collectors;
  * (deploy, incydent) trwającego nawet kilka tygodni, {@link #ensureFuturePartitions()} DODATKOWO
  * buduje samodzielnie bufor {@value #MONTHS_AHEAD} miesięcy do przodu, wywołując bezpośrednio
  * niskopoziomowe funkcje {@code create_<tabela>_partition(rok, miesiąc)} (patrz
- * {@link PartitionMaintenanceRepository}) dla ofsetów {@code 1..MONTHS_AHEAD} i wszystkich 6 tabel —
- * niezależnie od tego, ile faktycznie dokłada {@code create_next_month_partitions()}. Wywołanie tej
+ * {@link PartitionMaintenanceRepository}) dla ofsetów {@code 1..MONTHS_AHEAD} i wszystkich 7 tabel —
+ * niezależnie od tego, ile faktycznie dokłada {@code create_next_month_partitions()}. Od BE-133
+ * (EPIC-30, 2026-10-01) pętla bufora i {@code create_next_month_partitions()} obejmują 7 tabel —
+ * {@code social_message} dołączona jako siódma (migracja {@code V100}). Wywołanie tej
  * ostatniej jest zachowane osobno (patrz {@link PartitionMaintenanceRepository#createNextMonthPartitions()})
  * wyłącznie po to, by zachować wpis bookkeeping w {@code cron_log}/{@code scheduled_job} zgodny
  * z konwencją V014/V077/V088 — sama w sobie jest nadmiarowa względem pętli bufora (obie ścieżki są
@@ -57,7 +59,7 @@ import java.util.stream.Collectors;
  * <p><strong>Log podsumowania:</strong> ponieważ obie wywoływane funkcje SQL są {@code RETURNS VOID}
  * i nie zwracają informacji "ile/które partycje powstały", {@link #ensureFuturePartitions()} pobiera
  * listę partycji przez {@link PartitionScanner#listPartitions(String)} PRZED i PO wywołaniach SQL
- * (dla wszystkich 6 tabel) i loguje różnicę (nazwy nowo utworzonych partycji per tabela) — patrz
+ * (dla wszystkich 7 tabel) i loguje różnicę (nazwy nowo utworzonych partycji per tabela) — patrz
  * {@link #logSummary(Map, Map)}.
  */
 @Slf4j
@@ -73,8 +75,9 @@ class PartitionMaintenanceJob {
     static final int MONTHS_AHEAD = 3;
 
     /**
-     * Wszystkie tabele partycjonowane miesięcznie w projekcie (EPIC-29/DB-052, V088) — dokładnie
-     * ta sama lista 6 tabel, którą wewnętrznie obsługuje {@code create_next_month_partitions()}.
+     * Wszystkie tabele partycjonowane miesięcznie w projekcie (EPIC-29/DB-052, V088; {@code social_message}
+     * dołączona w EPIC-30/DB-065/BE-133, V100) — dokładnie ta sama lista 7 tabel, którą wewnętrznie
+     * obsługuje {@code create_next_month_partitions()}.
      */
     static final List<String> PARTITIONED_TABLES = List.of(
             "contact",
@@ -82,7 +85,8 @@ class PartitionMaintenanceJob {
             "plugin_invocation_log",
             "contact_event",
             "contact_transcription",
-            "contact_ai_summary"
+            "contact_ai_summary",
+            "social_message"
     );
 
     private final PartitionMaintenanceRepository partitionMaintenanceRepository;

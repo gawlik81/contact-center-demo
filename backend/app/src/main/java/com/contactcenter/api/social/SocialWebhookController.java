@@ -283,6 +283,20 @@ public class SocialWebhookController {
 
     /**
      * Parsuje zdarzenie messaging z payloadu Facebook.
+     *
+     * <p><strong>BE-132 (EPIC-30) – źródło {@code sentAt}:</strong> Messenger Platform (Meta Graph
+     * API) umieszcza w KAŻDYM elemencie {@code entry[].messaging[]} pole {@code timestamp} – czas
+     * zdarzenia w Unix epoch MILISEKUNDACH (w odróżnieniu od WhatsApp Cloud API, gdzie
+     * {@code messages[].timestamp} jest w SEKUNDACH – patrz {@link #parseWhatsAppMessage}), SIBLING
+     * węzła {@code message}, nie pole wewnątrz niego. Jest to ten sam, ustalony w chwili powstania
+     * zdarzenia czas, który Meta wysyła PONOWNIE przy redelivery tego samego {@code mid} – więc
+     * ekstrakcja go tutaj (zamiast {@code Instant.now()} w chwili przetworzenia webhooka) czyni
+     * {@code sentAt} deterministycznym, naprawiając ostrzeżenie z migracji V100 (DB-065): unikalność
+     * złożona {@code (tenant_id, external_message_id, sent_at)} wymagana na tabeli partycjonowanej
+     * łapie teraz redelivery Facebooka tak samo, jak już łapała WhatsApp. Fallback na
+     * {@code Instant.now()} TYLKO gdy pole jest nieobecne/nieprawidłowe (≤ 0) – udokumentowane
+     * ograniczenie: taki przypadek (nietypowy, nie zaobserwowany w standardowym payloadzie Meta)
+     * nadal nie jest chroniony przez unikalność złożoną, jedyną obroną pozostaje dedup aplikacyjny.
      */
     private void parseFacebookEvent(String pageId, JsonNode messagingEvent) {
         try {
@@ -302,6 +316,8 @@ public class SocialWebhookController {
                 return;
             }
 
+            Instant sentAt = extractMetaEventTimestamp(messagingEvent, "WebhookFB");
+
             IncomingSocialMessage incoming = new IncomingSocialMessage(
                     SocialPlatform.FACEBOOK,
                     pageId,
@@ -309,7 +325,7 @@ public class SocialWebhookController {
                     externalMessageId,
                     text,
                     null, // załączniki – uproszczenie dla stubu
-                    Instant.now()
+                    sentAt
             );
 
             socialMessagePublisher.publish(incoming);
@@ -321,6 +337,10 @@ public class SocialWebhookController {
 
     /**
      * Parsuje zdarzenie messaging z payloadu Instagram (analogiczny format do Facebook).
+     *
+     * <p><strong>BE-132:</strong> Instagram Messaging API jest zbudowane na tej samej infrastrukturze
+     * webhooków co Messenger Platform – identyczne pole {@code entry[].messaging[].timestamp}
+     * (Unix epoch milisekund). Patrz pełne uzasadnienie w {@link #parseFacebookEvent}.
      */
     private void parseInstagramEvent(String pageId, JsonNode messagingEvent) {
         try {
@@ -340,6 +360,8 @@ public class SocialWebhookController {
                 return;
             }
 
+            Instant sentAt = extractMetaEventTimestamp(messagingEvent, "WebhookIG");
+
             IncomingSocialMessage incoming = new IncomingSocialMessage(
                     SocialPlatform.INSTAGRAM,
                     pageId,
@@ -347,7 +369,7 @@ public class SocialWebhookController {
                     externalMessageId,
                     text,
                     null,
-                    Instant.now()
+                    sentAt
             );
 
             socialMessagePublisher.publish(incoming);
@@ -355,6 +377,29 @@ public class SocialWebhookController {
         } catch (Exception e) {
             log.error("[WebhookIG] Błąd parsowania zdarzenia messaging: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Wyciąga deterministyczny czas zdarzenia z pola {@code timestamp} węzła {@code messaging[]}
+     * payloadu Meta Graph API (Messenger Platform / Instagram Messaging API) – Unix epoch
+     * MILISEKUND (w odróżnieniu od WhatsApp Cloud API, które używa sekund – {@link #parseWhatsAppMessage}).
+     * Fallback na {@code Instant.now()} tylko gdy pole nieobecne/nieprawidłowe (BE-132).
+     *
+     * @param messagingEvent węzeł {@code entry[].messaging[]} (zawiera {@code timestamp} jako
+     *                        element SIBLING względem {@code sender}/{@code message})
+     * @param logPrefix       prefiks loggera wywołującej metody (do czytelnego WARN)
+     * @return deterministyczny czas zdarzenia, albo {@code Instant.now()} przy braku/nieprawidłowej wartości
+     */
+    private Instant extractMetaEventTimestamp(JsonNode messagingEvent, String logPrefix) {
+        long timestampMillis = messagingEvent.path("timestamp").asLong(0);
+        if (timestampMillis > 0) {
+            return Instant.ofEpochMilli(timestampMillis);
+        }
+        log.warn("[{}] Brak/nieprawidłowy timestamp w zdarzeniu messaging – używam Instant.now() "
+                + "(UWAGA: redelivery tego zdarzenia NIE będzie wykryte przez unikalność złożoną "
+                + "(tenant_id, external_message_id, sent_at), jedyną obroną pozostaje dedup aplikacyjny)",
+                logPrefix);
+        return Instant.now();
     }
 
     /**

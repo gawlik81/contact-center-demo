@@ -35,8 +35,9 @@ import static org.mockito.Mockito.when;
  * prawdziwym Postgresie, w {@code PartitionReclaimJobIntegrationTest}.
  *
  * <p>Domyślne stuby w {@link #setUp()}: {@code listPartitions} zwraca pustą listę dla
- * wszystkich 4 tabel, {@code findMaxRetentionMonths} zwraca 60 dla obu kategorii — żeby testy
- * skupione na jednej tabeli/kategorii nie musiały jawnie stubować pozostałych trzech tabel.
+ * wszystkich 5 tabel ({@code social_message} dołączona w BE-133/EPIC-30, {@code CONTACT_INTERACTIONS}),
+ * {@code findMaxRetentionMonths} zwraca 60 dla obu kategorii — żeby testy skupione na jednej
+ * tabeli/kategorii nie musiały jawnie stubować pozostałych czterech tabel.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -150,10 +151,11 @@ class PartitionReclaimJobTest {
         void callsFindMaxRetentionMonths_neverFindMin() {
             job.runReclaimJob();
 
-            // CONTACT_INTERACTIONS obejmuje 2 tabele (contact, contact_event), TRANSCRIPTS również
-            // 2 tabele (contact_transcription, contact_ai_summary) — próg liczony niezależnie per
-            // tabela, stąd 2 wywołania na kategorię (patrz javadoc PartitionReclaimJob).
-            verify(retentionPolicyService, org.mockito.Mockito.times(2))
+            // CONTACT_INTERACTIONS obejmuje 3 tabele (contact, contact_event, social_message od
+            // BE-133), TRANSCRIPTS 2 tabele (contact_transcription, contact_ai_summary) — próg
+            // liczony niezależnie per tabela, stąd 3/2 wywołania na kategorię (patrz javadoc
+            // PartitionReclaimJob).
+            verify(retentionPolicyService, org.mockito.Mockito.times(3))
                     .findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS);
             verify(retentionPolicyService, org.mockito.Mockito.times(2))
                     .findMaxRetentionMonths(RetentionDataCategory.TRANSCRIPTS);
@@ -209,9 +211,11 @@ class PartitionReclaimJobTest {
 
             job.runReclaimJob();
 
-            // Tabela "contact" zawiodła, ale "contact_event"/"contact_transcription"/"contact_ai_summary"
-            // wciąż zostały przetworzone niezależnie — dropPartition wywołany dla eligible partycji.
+            // Tabela "contact" zawiodła, ale "contact_event"/"social_message"/"contact_transcription"/
+            // "contact_ai_summary" wciąż zostały przetworzone niezależnie — dropPartition wywołany
+            // dla eligible partycji.
             verify(partitionScanner).listPartitions("contact_event");
+            verify(partitionScanner).listPartitions("social_message");
             verify(partitionScanner).listPartitions("contact_transcription");
             verify(partitionScanner).listPartitions("contact_ai_summary");
             verify(partitionScanner).dropPartition("contact_ai_summary_2015_01");
@@ -232,9 +236,10 @@ class PartitionReclaimJobTest {
             job.runReclaimJob();
 
             // Brak polityki dla CONTACT_INTERACTIONS -> reclaimTable() zwraca wcześnie, zanim
-            // listPartitions() w ogóle zostanie wywołane dla "contact"/"contact_event".
+            // listPartitions() w ogóle zostanie wywołane dla "contact"/"contact_event"/"social_message".
             verify(partitionScanner, never()).listPartitions("contact");
             verify(partitionScanner, never()).listPartitions("contact_event");
+            verify(partitionScanner, never()).listPartitions("social_message");
             verify(partitionScanner).dropPartition("contact_transcription_2015_01");
         }
     }
@@ -296,6 +301,60 @@ class PartitionReclaimJobTest {
                 jobLogger.detachAppender(appender);
                 appender.stop();
             }
+        }
+    }
+
+    // =========================================================================
+    // Scenariusz BE-133: social_message dziedziczy mechanizm BE-145 (ONLY_IF_EMPTY)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("social_message (BE-133) — dziedziczy blokadę DROP niepustej partycji z BE-145")
+    class SocialMessagePartitionReclaim {
+
+        @Test
+        @DisplayName("partycja social_message_* pusta, starsza niż globalny próg CONTACT_INTERACTIONS -> DROP WYKONANY")
+        void emptySocialMessagePartitionOlderThanThreshold_isDropped() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate cutoff = today.minusMonths(60);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("social_message_2015_01", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("social_message")).thenReturn(List.of(oldPartition));
+            when(partitionScanner.countRowsByTenant("social_message_2015_01")).thenReturn(List.of());
+
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("social_message_2015_01");
+        }
+
+        @Test
+        @DisplayName("partycja social_message_* niepusta, starsza niż globalny próg -> DROP POMINIĘTY (WARN), tak jak contact* (BE-145)")
+        void nonEmptySocialMessagePartitionOlderThanThreshold_dropIsSkipped() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate cutoff = today.minusMonths(60);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("social_message_2015_01", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("social_message")).thenReturn(List.of(oldPartition));
+            when(partitionScanner.countRowsByTenant("social_message_2015_01"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 7)));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("social_message_2015_01");
+        }
+
+        @Test
+        @DisplayName("social_message_default nigdy nie jest kandydatem do DROP, nawet gdyby zwrócony defensywnie")
+        void socialMessageDefaultPartition_isNeverDropped() {
+            LocalDate veryOldCutoff = LocalDate.of(1970, 1, 1);
+            PartitionScanner.PartitionInfo defaultPartition =
+                    new PartitionScanner.PartitionInfo("social_message_default", veryOldCutoff, veryOldCutoff.plusYears(1));
+
+            when(partitionScanner.listPartitions("social_message")).thenReturn(List.of(defaultPartition));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("social_message_default");
         }
     }
 }

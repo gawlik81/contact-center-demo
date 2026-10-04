@@ -3038,11 +3038,11 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > ```
 > Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
->           BE-141 ✅ → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startowały niezależnie
-> Grupa 2:  DB-064 → DB-065 → BE-132;   BE-126 ✅, DB-059 → DB-065
-> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
+>           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
+> Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
+> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
 > Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 → BE-139
+> Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 ✅ → BE-139
 > Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070, DB-076 → DB-077
 > ```
 
@@ -3680,7 +3680,7 @@ DDL w opisach DB-046..048 tego nie pokazuje, więc wykonawca czyta nazwy i defin
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-01) — patrz „Notatka z wykonania" poniżej
 **Blokuje:** DB-065, DB-067, BE-139
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -3703,6 +3703,15 @@ Lista ścieżek zapisu do przeglądu (w notatce): `EmailPollingServiceImpl` (sch
 - [ ] Konwersje DB-065/DB-067 odtwarzają polityki 1:1 (AC w tamtych ticketach)
 - [ ] (WP-4) Weryfikacja na żywo w local-demo: polling IMAP, odpowiedź e-mail i webhook social działają po przebudowie obrazów (uwaga: `ccapp` omija RLS — dowodem jest test pod `app_user`, nie demo)
 
+**Notatka z wykonania (2026-10-01, `db-schema-architect`):**
+- Migracja **V099** (`email_social_message_rls_write_policies.sql`, numer potwierdzony jako wolny — żywa baza dev ma już V098 z niezmergowanej gałęzi `feature/epic-30-be142-fe112`, która nie istnieje na tej gałęzi). Dla obu tabel: `DROP POLICY IF EXISTS pol_*_select` → `CREATE POLICY <tabela>_tenant_isolation FOR ALL USING/WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)` → `ALTER TABLE ... FORCE ROW LEVEL SECURITY`. Blok `DO $$...RAISE EXCEPTION$$` na końcu (wzorzec V090) weryfikuje 2 polityki ALL+WITH CHECK, zero starych `pol_*_select`, `relforcerowsecurity=true` dla obu — błąd cofa całą migrację.
+- Przegląd 6 ścieżek zapisu z Zakresu — **zero defektów**: wszystkie ustawiają `TenantContext`/GUC przed zapisem (jawnie w wątkach bez kontekstu HTTP, albo dziedzicząc z `TenantFilter` przy wywołaniu synchronicznym z kontrolera REST).
+- Nowy test `EmailSocialMessageRlsWritePoliciesTest` (Testcontainers, pełny Flyway, pod `SET ROLE app_user`, NIGDY `ccapp`): 10/10 zielone — `pg_class`/`pg_policies` po migracji, własny tenant INSERT/UPDATE/DELETE OK, cross-tenant INSERT odrzucony (42501), cross-tenant SELECT/UPDATE/DELETE = 0 wierszy (nie błąd), bez GUC = 0 wierszy + INSERT odrzucony.
+- **Poprawka regresyjna:** `AnonymizeCustomerExtensionTest` (DB-062/V096) kodował dosłownie STARĄ semantykę RLS (UPDATE `email_message`/`social_message` pod `app_user` = cicho 0 wierszy) — po V099 te UPDATE-y faktycznie trafiają; zaktualizowano asercje (`isZero()` → `isEqualTo(1)`) i nazwy/`DisplayName` testów z wyjaśnieniem, że to naprawa DB-064.
+- Weryfikacja: `mvn verify -pl app` → **2169 testów, 0 failures, 0 errors, BUILD SUCCESS**.
+- (WP-4, local-demo) NIE wykonane w tej sesji — wymaga przebudowy obrazów Docker; dowód RLS dostarcza test pod `app_user` (ticket sam zaznacza, że `ccapp` omija RLS, więc demo nie jest wiarygodnym dowodem).
+- **Do wiedzy przy scalaniu gałęzi EPIC-30:** plik `V098` z gałęzi `feature/epic-30-be142-fe112` musi trafić na wspólną bazę PRZED `V099` — znana pułapka numeracji migracji między równoległymi, niezmergowanymi gałęziami tego epiku (nie defekt tego ticketu).
+
 ---
 
 ### DB-065 – Partycjonowanie `social_message` (RANGE po `sent_at`)
@@ -3710,8 +3719,8 @@ Lista ścieżek zapisu do przeglądu (w notatce): `EmailPollingServiceImpl` (sch
 **Typ:** Schema migration (partycjonowanie online)
 **Priorytet:** Should Have
 **Złożoność:** M (0 wierszy = najtańsze okno na zmianę klucza; zgodnie z oceną zlecenia)
-**Zależy od:** BE-126 ✅ (Poziom 1 usuwa wiadomości), DB-059 ✅, DB-064
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** BE-126 ✅ (Poziom 1 usuwa wiadomości), DB-059 ✅, DB-064 ✅
+**Status:** ✅ Ukończone (2026-10-01) — patrz „Notatka z wykonania" poniżej
 **Blokuje:** BE-132
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -3746,6 +3755,16 @@ i wydanie razem z BE-132 (nie tworzy cyklu: BE-132 zależy od DB-065, a zmiana `
 - [ ] Warunek wejścia udokumentowany w notatce: źródło deterministycznego `sent_at` dla FB/IG (BE-132) albo wybrany zastępczy mechanizm dedup; DB-065 nie wchodzi na środowisko bez BE-132 w tym samym wydaniu
 - [ ] Wdrożenie w jednym wydaniu z BE-132; przy > 0 wierszy: backup i okno serwisowe
 - [ ] Zakłada D1 = A (Poziom 1 usuwa wiadomości przed DROP); przy D1 = B (anonimizacja) sens partycjonowania maleje — ticket do ponownej oceny
+
+**Notatka z wykonania (2026-10-01, `db-schema-architect`):**
+- Migracja **V100** (`partition_social_message.sql`, wzorzec online-swap 1:1 z V085/`contact_event`/DB-049): tabela bliźniacza `_new` → INSERT SELECT → RENAME → odtworzenie indeksów/RLS/komentarzy → weryfikacja COUNT → DROP starej → porządkowanie nazw. PK złożony `(message_id, sent_at)`, `UNIQUE (tenant_id, external_message_id, sent_at)`, partycje `social_message_2026_10/11/12` + `DEFAULT`, nowy indeks `idx_social_message_tenant_sent_at` pod purge (wzorzec DB-053).
+- **Odkrycie w dry-runie (nieprzewidziane w treści ticketu):** `v_customer_timeline` (V017/V025) ma `UNION ALL ... FROM social_message` — PostgreSQL rejestruje to jako twardą zależność `pg_depend` po OID tabeli, więc `DROP TABLE social_message_old` bez wcześniejszego `DROP VIEW`/`CREATE OR REPLACE VIEW` kończyłby się błędem `2BP01`. Naprawione tym samym wzorcem co V025. **Ta sama pułapka czeka na DB-067 (`email_message`, ten widok ma też `FROM email_message`)** — zapisane w pamięci agenta.
+- **Odkrycie architektoniczne:** `PartitionReclaimJob`/`PartitionScannerImpl` (BE-115/BE-145) już istnieją i są w 100% generyczne po nazwie tabeli (konwencja `<tabela>_YYYY_MM` już spełniona przez V100) — koszt BE-133 redukuje się do JEDNEJ linii w `TABLE_CATEGORIES`, nie nowego joba.
+- **Warunek wejścia (FB/IG `sent_at`) w pełni opisany** w nagłówku V100, w `COMMENT ON CONSTRAINT uq_social_message_external_id` (persystuje w katalogu, przeżyje kolejne sesje) i w teście `SocialMessagePartitioningTest.CompositeUniqueness`: WhatsApp ma deterministyczny `sent_at` (payload platformy), Facebook/Instagram NIE (`Instant.now()` w `SocialWebhookController.parseFacebookEvent`/`parseInstagramEvent`, potwierdzone w kodzie 2026-10-01) — BE-132 MUSI to naprawić w tym samym wydaniu.
+- Nowy test `SocialMessagePartitioningTest` (Testcontainers): 19/19 zielone — struktura, routing/pruning partycji, unikalność złożona (WhatsApp-OK/FB-słaba), RLS cross-tenant przez tabelę nadrzędną, funkcje rotacji.
+- **Regresja wykryta w pełnym `mvn verify` (6 failures) i naprawiona:** 3 pre-istniejące pliki testowe z DB-059/BE-127 (`OrphanMessagePurgeIndexesTest`, `SocialMessageOrphanPurgeIntegrationTest`, `SocialMessagePurgeIntegrationTest`) dopasowywały literalną nazwę indeksu w `EXPLAIN`/`pg_indexes` — po partycjonowaniu PostgreSQL tworzy indeksy potomne na każdej partycji z AUTO-wygenerowaną nazwą (np. `social_message_default_tenant_id_sent_at_idx`), nie z nazwą rodzica. Naprawione nowym, reużywalnym helperem `PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren()` (rozwiązuje przez `pg_inherits`, bezpieczny też dla tabel niepartycjonowanych) — **ten sam problem będzie czekał na DB-067 dla `email_message`**, helper jest gotowy do reużycia. Dodatkowo V100 nie odtworzyło `COMMENT ON INDEX idx_social_message_tenant_orphan_sent` z V097 — uzupełnione (komentarz ustawiony na nazwie `_new`, przeżywa późniejszy `RENAME` bo PostgreSQL wiąże komentarz z OID, nie nazwą).
+- Weryfikacja: `mvn verify -pl app` → **2188 testów, 0 failures, 0 errors, BUILD SUCCESS**.
+- (WP-4, local-demo) NIE wykonane — wymaga przebudowy obrazów Docker; poza zakresem jednej sesji.
 
 ---
 
@@ -3786,7 +3805,7 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 **Typ:** Schema migration (partycjonowanie online) — [BRAMKOWANY: wchodzi po „go" z DB-066]
 **Priorytet:** Should Have
 **Złożoność:** L (zgodnie z oceną zlecenia: klucz złożony, backfill, dedup)
-**Zależy od:** DB-066 (go), DB-064, DB-059 ✅, BE-127 ✅ (Poziom 1 działa)
+**Zależy od:** DB-066 (go), DB-064 ✅, DB-059 ✅, BE-127 ✅ (Poziom 1 działa)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-134, DB-068
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4074,7 +4093,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Schema migration (dane + DDL) — 2 osobne migracje
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-141 ✅ (ukończone 2026-10-01 — ticket odblokowany, gotowy do realizacji)
+**Zależy od:** BE-141
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

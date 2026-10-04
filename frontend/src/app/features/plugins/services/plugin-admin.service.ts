@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import {
   InstallPluginRequest,
   PluginConfigEntryDto,
@@ -29,11 +30,23 @@ export class PluginAdminService {
 
   /**
    * Wgrywa JAR pluginu do globalnego katalogu (multipart/form-data, pole "file").
+   *
+   * @param overwrite `true` dodaje query param `overwrite=true` — backend nadpisuje w miejscu
+   *   istniejącą wersję o tym samym numerze dla tenanta (ten sam id, instalacje zachowane).
+   *   `false` (domyślnie) nie dodaje parametru, więc ponowny upload tej samej wersji kończy się
+   *   HTTP 409.
+   *
+   * Żądanie ma `SKIP_ERROR_TOAST`: globalny interceptor nie czyta pola `detail` z ProblemDetail,
+   * więc jego ogólny toast nie pokazałby treści konfliktu — wołający sam obsługuje błędy.
    */
-  uploadJar(file: File): Observable<PluginVersionDto> {
+  uploadJar(file: File, overwrite = false): Observable<PluginVersionDto> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<PluginVersionDto>(this.base, formData);
+    const params = new HttpParams(overwrite ? { fromObject: { overwrite: 'true' } } : {});
+    return this.http.post<PluginVersionDto>(this.base, formData, {
+      params,
+      context: new HttpContext().set(SKIP_ERROR_TOAST, true),
+    });
   }
 
   /**

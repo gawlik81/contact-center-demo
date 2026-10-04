@@ -121,7 +121,7 @@ class EmailPollingServiceTest {
 
             // Zwróć zapisaną encję z ID
             EmailMessage savedMessage = buildNewMessage();
-            when(emailMessageRepository.save(any())).thenReturn(savedMessage);
+            when(emailMessageRepository.save(any())).thenReturn(Optional.of(savedMessage));
 
             Message mockMessage = mockImapMessage("<new@domain.com>", "Nowy temat",
                     "new@sender.com", "inbox@company.com");
@@ -215,6 +215,7 @@ class EmailPollingServiceTest {
                 .subject("Stary temat")
                 .messageIdHeader("<existing@domain.com>")
                 .receivedAt(Instant.now())
+                .messageAt(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS))
                 .build();
     }
 
@@ -228,6 +229,7 @@ class EmailPollingServiceTest {
                 .subject("Nowy temat")
                 .messageIdHeader("<new@domain.com>")
                 .receivedAt(Instant.now())
+                .messageAt(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS))
                 .build();
     }
 

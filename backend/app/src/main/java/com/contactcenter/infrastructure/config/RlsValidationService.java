@@ -28,6 +28,10 @@ public class RlsValidationService {
 
     private final JdbcTemplate jdbcTemplate;
 
+    // Uwaga BE-134 / DB-067: email_message jest partycjonowana RANGE po message_at. Polityka RLS siedzi
+    // na tabeli nadrzędnej; partycje (email_message_YYYY_MM) nie są w tej liście i nie mają własnych
+    // polityk — ich bezpośredni dostęp po nazwie omija RLS (GRANT-y domyślne, do decyzji właściciela,
+    // zob. raport DB-067). Walidacja poniżej sprawdza wyłącznie tabelę nadrzędną.
     @EventListener(ApplicationReadyEvent.class)
     public void validateRlsPolicies() {
         try {

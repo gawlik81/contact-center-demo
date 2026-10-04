@@ -66,15 +66,18 @@ class OrphanMessagePurgeIndexesTest {
     class IndexDefinitions {
 
         @Test
-        @DisplayName("idx_email_message_tenant_orphan_age: (tenant_id, COALESCE(received_at, sent_at, created_at)) WHERE contact_id IS NULL")
+        @DisplayName("idx_email_message_tenant_orphan_age: (tenant_id, message_at) WHERE contact_id IS NULL (V102, DB-067 — dawniej wyrażenie COALESCE z V097)")
         void emailIndex_hasExpectedDefinition() {
             String def = indexDef(EMAIL_INDEX);
 
+            // V102 odtworzył indeks na kolumnie message_at (NOT NULL): COALESCE zniknęło z definicji.
             assertThat(def)
                     .as("definicja %s", EMAIL_INDEX)
-                    .contains("USING btree (tenant_id, COALESCE(received_at, sent_at, created_at))")
+                    .contains("USING btree (tenant_id, message_at)")
+                    .doesNotContain("COALESCE")
                     .contains("WHERE (contact_id IS NULL)")
-                    .contains("ON public.email_message");
+                    // V102: tabela partycjonowana -> "ON ONLY public.email_message" (jak social_message w V100)
+                    .containsPattern("ON (ONLY )?public\\.email_message");
         }
 
         @Test
@@ -96,8 +99,8 @@ class OrphanMessagePurgeIndexesTest {
         @DisplayName("oba indeksy mają COMMENT ON INDEX odwołujący się do DB-059 / BE-127")
         void bothIndexes_haveComment() {
             assertThat(indexComment(EMAIL_INDEX)).contains("DB-059").contains("BE-127")
-                    .as("komentarz musi udokumentować, że wyrażenie COALESCE to definicja \"wieku wiadomości\"")
-                    .containsIgnoringCase("wiek");
+                    .as("komentarz musi udokumentować, że wiek wiadomości to message_at (V102/DB-067)")
+                    .contains("message_at");
             assertThat(indexComment(SOCIAL_INDEX)).contains("DB-059").contains("BE-127");
         }
 
@@ -119,20 +122,20 @@ class OrphanMessagePurgeIndexesTest {
 
     // =========================================================================================
     // Plan zapytania sweepu osieroconych (kształt BE-127 — jeszcze niezaimplementowany; wyrażenie
-    // COALESCE zgodne z BE-124 §7 / DESIGN §3 D1)
+    // predykat na message_at zgodny z BE-124 §7 / DESIGN §3 D1 — po BE-134)
     // =========================================================================================
 
     @Nested
-    @DisplayName("plan zapytania sweepu osieroconych (BE-127, jeszcze niezaimplementowany)")
+    @DisplayName("plan zapytania sweepu osieroconych (kształt BE-127 po BE-134: predykat na message_at)")
     class OrphanSweepQueryPlan {
 
-        /** Kształt przyszłego zapytania BE-127 dla email_message (DESIGN §3 D1 / BE-124 §7). */
+        /** Kształt zapytania sweepu BE-127 dla email_message po BE-134 (predykat na message_at, bez COALESCE). */
         private static final String EMAIL_ORPHAN_SWEEP_SQL = """
                 SELECT message_id
                 FROM email_message
                 WHERE tenant_id = CAST(:tenantId AS uuid)
                   AND contact_id IS NULL
-                  AND COALESCE(received_at, sent_at, created_at) < :cutoff
+                  AND message_at < :cutoff
                 """;
 
         /** Kształt przyszłego zapytania BE-127 dla social_message (sent_at NOT NULL, bez COALESCE). */
@@ -145,21 +148,22 @@ class OrphanMessagePurgeIndexesTest {
                 """;
 
         @Test
-        @DisplayName("email_message: sweep po COALESCE(received_at, sent_at, created_at) używa idx_email_message_tenant_orphan_age, bez Seq Scan")
+        @DisplayName("email_message: sweep po message_at używa idx_email_message_tenant_orphan_age, bez Seq Scan")
         void emailOrphanSweep_usesNewIndex() {
             UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant EXPLAIN DB-059 email " + UUID.randomUUID());
             try {
                 jdbc.update("""
                                 INSERT INTO email_message
                                     (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                                     attachments, received_at, sent_at, created_at)
+                                     attachments, received_at, sent_at, created_at, message_at)
                                 SELECT gen_random_uuid(), ?,
                                        CASE WHEN g % 5 = 0 THEN NULL ELSE gen_random_uuid() END,
                                        CASE WHEN g % 2 = 0 THEN 'INBOUND' ELSE 'OUTBOUND' END,
                                        'a@a.pl', 'b@b.pl', '[]'::jsonb,
                                        CASE WHEN g % 2 = 0 THEN now() - ((g % 200) || ' days')::interval ELSE NULL END,
                                        CASE WHEN g % 2 = 1 THEN now() - ((g % 200) || ' days')::interval ELSE NULL END,
-                                       now() - ((g % 200) || ' days')::interval
+                                       now() - ((g % 200) || ' days')::interval,
+                                    now() - ((g % 200) || ' days')::interval
                                 FROM generate_series(1, 30000) g
                                 """, tenant);
                 jdbc.execute("ANALYZE email_message");
@@ -170,7 +174,9 @@ class OrphanMessagePurgeIndexesTest {
 
                 String plan = explain(sql);
 
-                assertThat(plan).contains(EMAIL_INDEX).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, EMAIL_INDEX))
+                .as("plan używa %s albo jego potomka na partycji", EMAIL_INDEX).isTrue();
+        assertThat(plan).doesNotContain("Seq Scan");
                 System.out.println("[EXPLAIN email orphan sweep — DB-059/BE-127]\n" + plan);
             } finally {
                 jdbc.update("DELETE FROM email_message WHERE tenant_id = ?", tenant);
@@ -225,14 +231,15 @@ class OrphanMessagePurgeIndexesTest {
             jdbc.update("""
                             INSERT INTO email_message
                                 (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                                 attachments, received_at, sent_at, created_at)
+                                 attachments, received_at, sent_at, created_at, message_at)
                             SELECT gen_random_uuid(), ?,
                                    CASE WHEN g % 5 = 0 THEN NULL ELSE gen_random_uuid() END,
                                    CASE WHEN g % 2 = 0 THEN 'INBOUND' ELSE 'OUTBOUND' END,
                                    'a@a.pl', 'b@b.pl', '[]'::jsonb,
                                    CASE WHEN g % 2 = 0 THEN now() - ((g % 200) || ' days')::interval ELSE NULL END,
                                    CASE WHEN g % 2 = 1 THEN now() - ((g % 200) || ' days')::interval ELSE NULL END,
-                                   now() - ((g % 200) || ' days')::interval
+                                   now() - ((g % 200) || ' days')::interval,
+                                now() - ((g % 200) || ' days')::interval
                             FROM generate_series(1, 30000) g
                             """, tenant);
             jdbc.execute("ANALYZE email_message");
@@ -250,7 +257,9 @@ class OrphanMessagePurgeIndexesTest {
                             .replace(":cutoff", "(now() - interval '30 days')");
                     String plan = String.join("\n", restrictedJdbc.queryForList("EXPLAIN " + sql, String.class));
 
-                    assertThat(plan).contains(EMAIL_INDEX).doesNotContain("Seq Scan");
+                    assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, EMAIL_INDEX))
+                            .as("plan pod app_user używa %s albo jego potomka", EMAIL_INDEX).isTrue();
+                    assertThat(plan).doesNotContain("Seq Scan");
                     System.out.println("[EXPLAIN email orphan sweep pod app_user — DB-059]\n" + plan);
                 } finally {
                     restrictedJdbc.execute("ROLLBACK");

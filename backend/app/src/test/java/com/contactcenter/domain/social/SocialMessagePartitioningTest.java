@@ -10,6 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.dao.DuplicateKeyException;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -17,6 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Test integracyjny migracji V100 (DB-065): partycjonowanie RANGE tabeli {@code social_message}
@@ -376,6 +381,119 @@ class SocialMessagePartitioningTest {
     }
 
     // =========================================================================================
+    // Bezpośredni dostęp do partycji (DECYZJA WŁAŚCICIELA 2026-10-04, V103): app_user NIE ma
+    // uprawnień do partycji social_message, więc zapytanie po nazwie partycji (omijające RLS
+    // tabeli nadrzędnej) kończy się permission denied (42501).
+    // =========================================================================================
+
+    @Nested
+    @DisplayName("app_user: bezpośredni dostęp do partycji = permission denied (42501), V103")
+    class DirectPartitionAccess {
+
+        @Test
+        @DisplayName("SELECT wprost z social_message_2026_10 odrzucony (rola LOGIN członkiem app_user)")
+        void directSelect_onPartition_isPermissionDenied() {
+            String role = "cc_v103_direct";
+            String password = PostgresTestDatabase.createRestrictedLoginRole(jdbc, role);
+            try (HikariDataSource restrictedPool = PostgresTestDatabase.pool(role, password, 1)) {
+                JdbcTemplate restrictedJdbc = new JdbcTemplate(restrictedPool);
+                restrictedJdbc.execute("BEGIN");
+                try {
+                    restrictedJdbc.execute("SET LOCAL ROLE app_user");
+                    assertPermissionDenied(catchThrowable(() ->
+                            restrictedJdbc.execute("SELECT COUNT(*) FROM social_message_2026_10")));
+                } finally {
+                    restrictedJdbc.execute("ROLLBACK");
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("INSERT wprost do social_message_default odrzucony (42501), mimo poprawnego tenant_id")
+        void directInsert_onDefaultPartition_isPermissionDenied() {
+            String role = "cc_v103_direct_ins";
+            String password = PostgresTestDatabase.createRestrictedLoginRole(jdbc, role);
+            UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant V103 direct ins " + UUID.randomUUID());
+            try (HikariDataSource restrictedPool = PostgresTestDatabase.pool(role, password, 1)) {
+                JdbcTemplate restrictedJdbc = new JdbcTemplate(restrictedPool);
+                restrictedJdbc.execute("BEGIN");
+                try {
+                    restrictedJdbc.execute("SET LOCAL ROLE app_user");
+                    restrictedJdbc.queryForObject(
+                            "SELECT set_config('app.current_tenant_id', ?, true)", String.class, tenant.toString());
+                    assertPermissionDenied(catchThrowable(() -> restrictedJdbc.execute("""
+                            INSERT INTO social_message_default (tenant_id, platform, direction, external_message_id, sent_at)
+                            VALUES ('%s', 'WHATSAPP', 'INBOUND', 'ext-v103-direct-%s', '2026-10-15T10:00:00Z')
+                            """.formatted(tenant, UUID.randomUUID()))));
+                } finally {
+                    restrictedJdbc.execute("ROLLBACK");
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("partycja utworzona przez create_social_message_partition: brak uprawnień app_user + SELECT odrzucony")
+        void partitionCreatedByFunction_hasNoGrantForAppUser() throws Exception {
+            try (Connection c = pool.getConnection()) {
+                c.setAutoCommit(false);
+                try (Statement st = c.createStatement()) {
+                    st.execute("SELECT create_social_message_partition(2028, 1)");
+                    assertThat(scalarBoolean(st,
+                            "SELECT has_table_privilege('app_user', 'social_message_2028_01', 'SELECT, INSERT, UPDATE, DELETE')"))
+                            .isFalse();
+                    st.execute("SET ROLE app_user");
+                    assertPermissionDenied(catchThrowable(() ->
+                            st.execute("SELECT COUNT(*) FROM social_message_2028_01")));
+                } finally {
+                    c.rollback();
+                }
+            }
+        }
+    }
+
+    // =========================================================================================
+    // Dostęp przez tabelę nadrzędną po REVOKE na partycjach (regresja V103: RLS nadal działa,
+    // a REVOKE nie psuje zapytań przez rodzica).
+    // =========================================================================================
+
+    @Nested
+    @DisplayName("app_user przez tabelę nadrzędną po REVOKE na partycjach (V103)")
+    class ViaParentAfterRevoke {
+
+        @Test
+        @DisplayName("SELECT przez rodzica zwraca własny wiersz z partycji bez GRANT-u; wiersz obcego tenanta niewidoczny")
+        void selectThroughParent_returnsOwnRowOnly_fromPartitionWithoutGrant() {
+            String role = "cc_v103_via_parent";
+            String password = PostgresTestDatabase.createRestrictedLoginRole(jdbc, role);
+            UUID tenantA = PostgresTestDatabase.insertTenant(jdbc, "Tenant V103 via-parent A " + UUID.randomUUID());
+            UUID tenantB = PostgresTestDatabase.insertTenant(jdbc, "Tenant V103 via-parent B " + UUID.randomUUID());
+            Instant sentAt = Instant.parse("2026-10-15T10:00:00Z");
+            insertMessage(tenantA, "WHATSAPP", "ext-v103-a-" + UUID.randomUUID(), sentAt);
+            insertMessage(tenantB, "WHATSAPP", "ext-v103-b-" + UUID.randomUUID(), sentAt);
+
+            try (HikariDataSource restrictedPool = PostgresTestDatabase.pool(role, password, 1)) {
+                JdbcTemplate restrictedJdbc = new JdbcTemplate(restrictedPool);
+                restrictedJdbc.execute("BEGIN");
+                try {
+                    restrictedJdbc.execute("SET LOCAL ROLE app_user");
+                    restrictedJdbc.queryForObject(
+                            "SELECT set_config('app.current_tenant_id', ?, true)", String.class, tenantA.toString());
+
+                    Integer visible = restrictedJdbc.queryForObject(
+                            "SELECT COUNT(*) FROM social_message WHERE tenant_id IN (?, ?)", Integer.class, tenantA, tenantB);
+                    assertThat(visible).as("przez rodzica widoczny tylko wiersz tenanta A").isEqualTo(1);
+
+                    String partition = restrictedJdbc.queryForObject(
+                            "SELECT tableoid::regclass::text FROM social_message WHERE tenant_id = ?", String.class, tenantA);
+                    assertThat(partition).isEqualTo("social_message_2026_10");
+                } finally {
+                    restrictedJdbc.execute("ROLLBACK");
+                }
+            }
+        }
+    }
+
+    // =========================================================================================
     // Kryterium akceptacji 5: create_social_message_partition / create_next_month_partitions /
     // brak drop_old_social_message_partitions wykonywalnej
     // =========================================================================================
@@ -416,8 +534,8 @@ class SocialMessagePartitioningTest {
         }
 
         @Test
-        @DisplayName("create_next_month_partitions() obejmuje WSZYSTKIE 7 tabel partycjonowanych, w tym social_message")
-        void createNextMonthPartitions_coversAllSevenPartitionedTables() {
+        @DisplayName("create_next_month_partitions() obejmuje WSZYSTKIE 8 tabel partycjonowanych, w tym social_message i email_message (DB-067)")
+        void createNextMonthPartitions_coversAllEightPartitionedTables() {
             String body = jdbc.queryForObject(
                     "SELECT pg_get_functiondef('create_next_month_partitions()'::regprocedure)", String.class);
 
@@ -428,10 +546,11 @@ class SocialMessagePartitioningTest {
                     .contains("create_contact_event_partition")
                     .contains("create_contact_transcription_partition")
                     .contains("create_contact_ai_summary_partition")
-                    .contains("create_social_message_partition");
+                    .contains("create_social_message_partition")
+                    .contains("create_email_message_partition"); // DB-067 / V102
 
             long performCount = body.lines().filter(l -> l.trim().startsWith("PERFORM create_")).count();
-            assertThat(performCount).as("7 tabel partycjonowanych po DB-065").isEqualTo(7);
+            assertThat(performCount).as("8 tabel partycjonowanych po DB-067 (7 po DB-065 + email_message)").isEqualTo(8);
         }
 
         @Test
@@ -447,6 +566,28 @@ class SocialMessagePartitioningTest {
     // =========================================================================================
     // Pomocnicze
     // =========================================================================================
+
+    /** Oczekuje SQLState 42501 z komunikatem "permission denied" (SQLException w łańcuchu przyczyn). */
+    private static void assertPermissionDenied(Throwable error) {
+        assertThat(error).as("oczekiwano błędu permission denied").isNotNull();
+        SQLException sqlError = null;
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof SQLException se) {
+                sqlError = se;
+            }
+        }
+        // Rzutowanie: SQLException implementuje Iterable<Throwable>, bez niego assertThat jest dwuznaczne.
+        assertThat((Throwable) sqlError).as("SQLException w łańcuchu przyczyn").isNotNull();
+        assertThat(sqlError.getSQLState()).as("SQLState 42501 (insufficient_privilege)").isEqualTo("42501");
+        assertThat(sqlError.getMessage()).contains("permission denied");
+    }
+
+    private static boolean scalarBoolean(Statement st, String sql) throws SQLException {
+        try (ResultSet rs = st.executeQuery(sql)) {
+            rs.next();
+            return rs.getBoolean(1);
+        }
+    }
 
     private UUID insertMessage(UUID tenant, String platform, String externalMessageId, Instant sentAt) {
         UUID messageId = UUID.randomUUID();

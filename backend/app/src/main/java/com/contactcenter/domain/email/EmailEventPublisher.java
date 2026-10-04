@@ -59,6 +59,12 @@ class EmailEventPublisher {
 
     /**
      * Payload eventu email publikowanego na RabbitMQ.
+     *
+     * <p>{@code messageAt} (BE-134) to klucz partycjonowania wiadomości — z nim konsument robi lookup
+     * po pełnym kluczu {@code (message_id, message_at)}. Zdarzenia publikowane przed BE-134 nie mają
+     * tego pola: Jackson deserializuje je jako {@code null}, a konsument wtedy szuka po samym
+     * {@code messageId} (wolniejsze, ale poprawne). Pole jest na końcu rekordu, żeby nie przesuwać
+     * pozycji istniejących komponentów.
      */
     public record EmailEvent(
             EventType eventType,
@@ -71,7 +77,8 @@ class EmailEventPublisher {
             String subject,
             String direction,
             Instant timestamp,
-            Map<String, String> metadata
+            Map<String, String> metadata,
+            Instant messageAt
     ) {}
 
     // =========================================================================
@@ -158,7 +165,8 @@ class EmailEventPublisher {
                 message.getSubject(),
                 message.getDirection(),
                 Instant.now(),
-                null
+                null,
+                message.getMessageAt()
         );
     }
 }

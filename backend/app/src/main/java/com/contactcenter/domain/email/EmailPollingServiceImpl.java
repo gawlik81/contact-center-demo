@@ -18,9 +18,11 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -174,11 +176,14 @@ class EmailPollingServiceImpl implements EmailPollingService {
      * Przetwarza pojedynczą wiadomość IMAP: parsuje, deduplikuje, zapisuje w DB,
      * a następnie extrahuje i uploaduje załączniki do S3.
      *
+     * <p>Package-private (nie {@code private}), żeby test integracyjny mógł przepuścić wiadomość
+     * {@link jakarta.mail.Message} przez CAŁY przepływ INBOUND bez serwera IMAP (BE-134).
+     *
      * @param message wiadomość Jakarta Mail
      * @param tenant  tenant docelowy
      * @return true jeśli wiadomość została zapisana (nie była duplikatem), false dla duplikatów
      */
-    private boolean processMessage(Message message, Tenant tenant) throws MessagingException, IOException {
+    boolean processMessage(Message message, Tenant tenant) throws MessagingException, IOException {
         String messageIdHeader = getHeader(message, "Message-ID");
 
         // Deduplicacja: sprawdź czy wiadomość o tym Message-ID już istnieje
@@ -194,10 +199,16 @@ class EmailPollingServiceImpl implements EmailPollingService {
         }
 
         EmailMessage emailMessage = parseMessage(message, tenant.getId(), messageIdHeader);
-        EmailMessage saved = emailMessageRepository.save(emailMessage);
+        Optional<EmailMessage> savedOpt = emailMessageRepository.save(emailMessage);
+        if (savedOpt.isEmpty()) {
+            // Duplikat wykryty w DB (NOT EXISTS po nagłówku, pod advisory lockiem) — np. równoległy poller
+            log.info("[EmailPolling] Duplikat pominięty przy zapisie: messageIdHeader={}, tenant={}",
+                    messageIdHeader, tenant.getId());
+            return false;
+        }
 
         // Wyodrębnij i uploaduj załączniki do S3 po zapisaniu EmailMessage
-        saved = extractAndStoreAttachments(message, saved, tenant.getId());
+        EmailMessage saved = extractAndStoreAttachments(message, savedOpt.get(), tenant.getId());
 
         // Publikuj event received
         emailEventPublisher.publishReceived(saved);
@@ -210,6 +221,12 @@ class EmailPollingServiceImpl implements EmailPollingService {
 
     /**
      * Parsuje wiadomość Jakarta Mail do encji {@link EmailMessage}.
+     *
+     * <p><strong>Czas wiadomości (BE-134, DB-067 D4):</strong> {@code messageAt} = {@code receivedAt} =
+     * INTERNALDATE serwera IMAP ({@code Message#getReceivedDate()}) — czas zaobserwowany przez system.
+     * Nagłówek {@code Date} NIE jest źródłem: kontroluje go nadawca (przeszłość zaraz kwalifikowałaby
+     * wiadomość do purge, przyszłość blokowała wygasanie). {@code now()} tylko wtedy, gdy serwer nie
+     * podał INTERNALDATE. Wartość obcinana do mikrosekund (kontrakt {@code EmailMessageRepository#save}).
      *
      * @param message         wiadomość IMAP
      * @param tenantId        UUID tenanta
@@ -249,8 +266,8 @@ class EmailPollingServiceImpl implements EmailPollingService {
         }
 
         Instant receivedDate = message.getReceivedDate() != null
-                ? message.getReceivedDate().toInstant()
-                : Instant.now();
+                ? message.getReceivedDate().toInstant().truncatedTo(ChronoUnit.MICROS)
+                : Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         return EmailMessage.builder()
                 .tenantId(tenantId)
@@ -265,6 +282,7 @@ class EmailPollingServiceImpl implements EmailPollingService {
                 .messageIdHeader(messageIdHeader)
                 .inReplyTo(inReplyTo)
                 .receivedAt(receivedDate)
+                .messageAt(receivedDate) // BE-134: klucz partycji = czas zaobserwowany (INTERNALDATE)
                 .deliveryStatus(null) // INBOUND – brak delivery status
                 .build();
     }
@@ -307,7 +325,7 @@ class EmailPollingServiceImpl implements EmailPollingService {
         try {
             String json = objectMapper.writeValueAsString(attachmentMeta);
             saved.setAttachments(json);
-            saved = emailMessageRepository.save(saved);
+            saved = emailMessageRepository.update(saved); // BE-134: UPDATE po pełnym kluczu, nie INSERT
             log.info("[EmailPolling] Zapisano {} załącznik(ów) dla messageId={}",
                     attachmentMeta.size(), saved.getId());
         } catch (Exception e) {

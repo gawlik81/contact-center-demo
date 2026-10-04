@@ -819,6 +819,8 @@ class ContactServiceImpl implements ContactService {
             if (emailMsgIdObj instanceof String emailMsgIdStr && !emailMsgIdStr.isBlank()) {
                 try {
                     UUID emailMsgId = UUID.fromString(emailMsgIdStr);
+                    // BE-134: channelMetadata niesie tylko message_id (bez message_at) — lookup po samym id;
+                    // koszt: indeks PK każdej partycji email_message, dla podglądu jednego wiersza akceptowalny
                     message = emailMessageService.findById(emailMsgId).orElse(null);
                 } catch (IllegalArgumentException e) {
                     log.warn("[ContactService] Nieprawidłowy UUID w channelMetadata.emailMessageId: " +

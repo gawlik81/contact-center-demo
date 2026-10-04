@@ -3,7 +3,6 @@ package com.contactcenter.domain.email;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
@@ -12,8 +11,14 @@ import java.util.UUID;
 /**
  * Encja JPA mapująca tabelę {@code email_message} (schemat z V010__create_email_social.sql).
  *
- * <p>Kolumna PK to {@code message_id} (UUID). Nagłówek RFC 2822 Message-ID
- * przechowywany jest w kolumnie {@code message_id_header}.
+ * <p>Klucz główny jest ZŁOŻONY: {@code (message_id, message_at)} ({@link EmailMessageId}), bo tabela
+ * jest partycjonowana RANGE po {@code message_at} (V102, DB-067 / BE-134). {@code message_id} nadaje
+ * kod Java przed zapisem (natywny INSERT w {@link EmailMessageRepository#save}, bez
+ * {@code @GeneratedValue}). {@code message_at} jest ustawiane RAZ przy tworzeniu wiadomości:
+ * INBOUND = INTERNALDATE serwera IMAP ({@code Message#getReceivedDate()}), OUTBOUND = czas wysłania;
+ * nie ma settera zmieniającego wartość po zapisie (kolumna partycjonująca, niemodyfikowalna w DB).
+ *
+ * <p>Nagłówek RFC 2822 Message-ID przechowywany jest w kolumnie {@code message_id_header}.
  *
  * <p>Pola {@code to_address}, {@code cc_address} i {@code bcc_address} są TEXT –
  * mogą zawierać listę adresów rozdzielonych przecinkami (format RFC 2822).
@@ -23,6 +28,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "email_message")
+@IdClass(EmailMessageId.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,11 +36,22 @@ import java.util.UUID;
 @Builder
 public class EmailMessage {
 
+    /** Część klucza złożonego ({@link EmailMessageId}); nadawana w Java przed INSERT. */
     @Id
-    @GeneratedValue
-    @UuidGenerator
     @Column(name = "message_id", updatable = false, nullable = false)
     private UUID id;
+
+    /**
+     * Część klucza złożonego i klucz partycjonowania (V102). Ustawiane jawnie przy tworzeniu:
+     * INBOUND = {@code Message#getReceivedDate()} (INTERNALDATE), NIE nagłówek {@code Date} nadawcy;
+     * OUTBOUND = ten sam {@code Instant}, który trafia do {@code sent_at}. Brak settera — wartość
+     * jest niemodyfikowalna po zapisie (zmiana przeniosłaby wiersz między partycjami i złamała
+     * unikalność nagłówka D4).
+     */
+    @Id
+    @Setter(AccessLevel.NONE)
+    @Column(name = "message_at", nullable = false, updatable = false)
+    private Instant messageAt;
 
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
@@ -106,11 +123,11 @@ public class EmailMessage {
     @Builder.Default
     private String attachments = "[]";
 
-    /** Dla INBOUND: czas odebrania przez system. */
+    /** Dla INBOUND: czas odebrania przez system (INTERNALDATE = {@link #messageAt}). */
     @Column(name = "received_at")
     private Instant receivedAt;
 
-    /** Dla OUTBOUND: czas wysłania przez system. */
+    /** Dla OUTBOUND: czas wysłania przez system (= {@link #messageAt}). */
     @Column(name = "sent_at")
     private Instant sentAt;
 

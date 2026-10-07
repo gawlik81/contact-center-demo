@@ -85,13 +85,13 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     private int batchSize;
 
     /**
-     * Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — przyjęte do realizacji, ale bez wyraźnego
-     * potwierdzenia właściciela, patrz notatka BE-124/BE-125 w {@code TASKS-BACKEND.md}). Domyślnie
-     * {@code false}: {@link #purgeContactInteractionsLegacy} (odcięcie referencji, zachowanie
-     * IDENTYCZNE z dzisiejszym). {@code true}: {@link #purgeContactInteractionsWithMessageDeletion}
-     * (USUWANIE wiadomości e-mail/social wraz z obiektami S3, BE-125). NIE ustawiać {@code true} w
-     * żadnym profilu domyślnym (dev/local-demo/prod) bez świadomej decyzji — patrz
-     * {@code application.yml}.
+     * Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — potwierdzone przez właściciela
+     * 2026-09-30; WŁĄCZONE domyślnie decyzją właściciela 2026-10-07, patrz notatka BE-124/BE-125/
+     * BE-135 w {@code TASKS-BACKEND.md}). Domyślnie {@code true}:
+     * {@link #purgeContactInteractionsWithMessageDeletion} (USUWANIE wiadomości e-mail/social wraz
+     * z obiektami S3, BE-125). {@code false}: {@link #purgeContactInteractionsLegacy} (odcięcie
+     * referencji, zachowanie z czasów sprzed BE-126) — zachowane jako opcja wycofania przez ENV
+     * {@code RETENTION_PURGE_DELETE_MESSAGES}, patrz {@code application.yml}.
      */
     @Value("${retention.purge.delete-messages:false}")
     private boolean deleteMessagesEnabled;
@@ -210,11 +210,12 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * Usuwa dane kategorii CONTACT_INTERACTIONS: {@code contact} (+ odcięcie referencji
      * {@code email_message}/{@code social_message} dla usuniętych kontaktów) oraz {@code contact_event}.
      *
-     * <p><strong>Ścieżka domyślna</strong> ({@code retention.purge.delete-messages=false}) —
-     * zachowanie IDENTYCZNE z dzisiejszym (sprzed BE-126): purge kontaktu ODCINA referencję
+     * <p><strong>Ścieżka legacy / wycofania</strong> ({@code retention.purge.delete-messages=false}
+     * — od 2026-10-07 już NIE jest ścieżką domyślną, patrz {@code application.yml}) — zachowanie
+     * IDENTYCZNE z dzisiejszym (sprzed BE-126): purge kontaktu ODCINA referencję
      * ({@code detachContactReferences}), NIE usuwa wiadomości. PII wiadomości zostaje (DESIGN §2
-     * U1) — to jest znana, świadomie zachowana luka do czasu włączenia flagi
-     * {@link #deleteMessagesEnabled} po decyzji właściciela (D1, BE-124/BE-125).
+     * U1) — znana luka tej ścieżki, aktywna tylko gdy flaga {@link #deleteMessagesEnabled} zostanie
+     * jawnie wyłączona (np. wycofanie decyzji właściciela, D1, BE-124/BE-125).
      *
      * <p>Batche {@code contact} są przetwarzane najpierw, w całości, po czym następują batche
      * {@code contact_event} — kolejność nie ma znaczenia biznesowego (obie tabele identyfikują

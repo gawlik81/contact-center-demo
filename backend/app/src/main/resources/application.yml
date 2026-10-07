@@ -334,14 +334,15 @@ retention:
     # Liczba wierszy usuwanych w jednym batchu na tabelę (LIMIT w zapytaniu DELETE) –
     # ogranicza czas trzymania blokad na partycji współdzielonej przez innych tenantów.
     batch-size: ${RETENTION_PURGE_BATCH_SIZE:100}
-    # Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — przyjęte do realizacji, ale BEZ wyraźnego
-    # potwierdzenia właściciela, patrz notatka BE-124/BE-125 w TASKS-BACKEND.md). Domyślnie false:
-    # purge CONTACT_INTERACTIONS odcina referencje email_message/social_message do usuwanych
-    # kontaktów (detachContactReferences) – zachowanie identyczne ze sprzed BE-126. true: purge
-    # USUWA wiadomości e-mail/social wraz z obiektami S3 (BE-125). NIE WŁĄCZAĆ w żadnym profilu
-    # domyślnym (dev/local-demo/prod) bez świadomej decyzji właściciela o D1 – patrz Javadoc
-    # RetentionPurgeServiceImpl#deleteMessagesEnabled.
-    delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:false}
+    # WŁĄCZONE decyzją właściciela 2026-10-07 (D1 = A potwierdzone 2026-09-30) — purge
+    # CONTACT_INTERACTIONS faktycznie usuwa wiadomości e-mail/social wraz z obiektami S3 (BE-125),
+    # zamiast tylko odcinać referencje (detachContactReferences, zachowanie sprzed BE-126). Powód
+    # zmiany domyślnej wartości: przy false (bezpiecznik wdrożeniowy obowiązujący do 2026-10-07)
+    # partycje email_message/social_message nigdy się nie opróżniają, co powoduje, że
+    # PartitionReclaimJob (BE-135) zgłasza WARN bez końca – retencja treści wiadomości faktycznie
+    # nie działała. Można nadpisać na false przez ENV RETENTION_PURGE_DELETE_MESSAGES w razie
+    # potrzeby wycofania – patrz Javadoc RetentionPurgeServiceImpl#deleteMessagesEnabled.
+    delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:true}
   # Wyrażenie cron dla RetentionEvaluationJob (domyślnie: codziennie o 01:00 UTC, przed
   # RecordingRetentionJob o 02:00 UTC).
   evaluation-cron: ${RETENTION_EVALUATION_CRON:0 0 1 * * *}

@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
  * <p><strong>Test regresyjny kluczowy (BE-114 AC):</strong> {@link EnsureFuturePartitions#buildsThreeMonthBufferForAllSevenPartitionedTables()}
  * — potwierdza, że po jednym wywołaniu {@link PartitionMaintenanceJob#ensureFuturePartitions()}
  * partycja na "bieżący miesiąc + 3" (offset {@value PartitionMaintenanceJob#MONTHS_AHEAD}) zostaje
- * zażądana dla wszystkich 7 partycjonowanych tabel ({@code social_message} dołączona w BE-133/EPIC-30) —
+ * zażądana dla wszystkich 8 partycjonowanych tabel ({@code social_message} BE-133/EPIC-30, {@code email_message} BE-135) —
  * {@code create_next_month_partitions()} sama w sobie gwarantuje wyłącznie "+1" (patrz javadoc klasy
  * testowanej), więc bez pętli budującej bufor to kryterium akceptacji nie byłoby spełnione żadnym
  * pojedynczym wywołaniem SQL.
@@ -79,7 +79,7 @@ class PartitionMaintenanceJobTest {
         }
 
         @Test
-        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 7 partycjonowanych tabel")
+        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 8 partycjonowanych tabel")
         void buildsThreeMonthBufferForAllSevenPartitionedTables() {
             YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
             Set<YearMonth> expectedOffsets = java.util.stream.IntStream

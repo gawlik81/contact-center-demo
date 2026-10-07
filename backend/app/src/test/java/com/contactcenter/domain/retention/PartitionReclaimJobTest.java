@@ -35,9 +35,9 @@ import static org.mockito.Mockito.when;
  * prawdziwym Postgresie, w {@code PartitionReclaimJobIntegrationTest}.
  *
  * <p>Domyślne stuby w {@link #setUp()}: {@code listPartitions} zwraca pustą listę dla
- * wszystkich 5 tabel ({@code social_message} dołączona w BE-133/EPIC-30, {@code CONTACT_INTERACTIONS}),
+ * wszystkich tabel per-tenant ({@code social_message} BE-133, {@code email_message} BE-135 — {@code CONTACT_INTERACTIONS}),
  * {@code findMaxRetentionMonths} zwraca 60 dla obu kategorii — żeby testy skupione na jednej
- * tabeli/kategorii nie musiały jawnie stubować pozostałych czterech tabel.
+ * tabeli/kategorii nie musiały jawnie stubować pozostałych tabel.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -151,11 +151,11 @@ class PartitionReclaimJobTest {
         void callsFindMaxRetentionMonths_neverFindMin() {
             job.runReclaimJob();
 
-            // CONTACT_INTERACTIONS obejmuje 3 tabele (contact, contact_event, social_message od
-            // BE-133), TRANSCRIPTS 2 tabele (contact_transcription, contact_ai_summary) — próg
-            // liczony niezależnie per tabela, stąd 3/2 wywołania na kategorię (patrz javadoc
-            // PartitionReclaimJob).
-            verify(retentionPolicyService, org.mockito.Mockito.times(3))
+            // CONTACT_INTERACTIONS obejmuje 4 tabele (contact, contact_event, social_message od
+            // BE-133, email_message od BE-135), TRANSCRIPTS 2 tabele (contact_transcription,
+            // contact_ai_summary) — próg liczony niezależnie per tabela, stąd 4/2 wywołania na
+            // kategorię (patrz javadoc PartitionReclaimJob).
+            verify(retentionPolicyService, org.mockito.Mockito.times(4))
                     .findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS);
             verify(retentionPolicyService, org.mockito.Mockito.times(2))
                     .findMaxRetentionMonths(RetentionDataCategory.TRANSCRIPTS);
@@ -355,6 +355,107 @@ class PartitionReclaimJobTest {
             job.runReclaimJob();
 
             verify(partitionScanner, never()).dropPartition("social_message_default");
+        }
+    }
+
+    // =========================================================================
+    // Scenariusz BE-135: email_message — blokada DROP niepustej partycji (WP-5, obiekty S3)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("email_message (BE-135) — DROP tylko pustej partycji; obiekty S3 (WP-5) nigdy nie są osierocone przez DROP")
+    class EmailMessagePartitionReclaim {
+
+        @Test
+        @DisplayName("partycja email_message_* pusta, starsza niż globalny próg CONTACT_INTERACTIONS -> DROP WYKONANY")
+        void emptyEmailMessagePartitionOlderThanThreshold_isDropped() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("email_message_2015_01", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("email_message")).thenReturn(List.of(oldPartition));
+            when(partitionScanner.countRowsByTenant("email_message_2015_01")).thenReturn(List.of());
+
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("email_message_2015_01");
+        }
+
+        @Test
+        @DisplayName("partycja email_message_* z wierszem z załącznikiem (lub bez) po max retencji -> DROP POMINIĘTY, nawet gdy wiersz jest jeden")
+        void nonEmptyEmailMessagePartition_dropIsSkipped_evenForSingleRow() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("email_message_2015_01", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("email_message")).thenReturn(List.of(oldPartition));
+            when(partitionScanner.countRowsByTenant("email_message_2015_01"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 1)));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("email_message_2015_01");
+        }
+
+        @Test
+        @DisplayName("WARN: partycja email_message_* z wierszami -> log zawiera nazwę partycji, liczbę wierszy, liczbę tenantów i wskazówkę 'uruchom purge Poziom 1'")
+        void logsWarnWithRowCountTenantCountAndLevelOneHint() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
+                PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("email_message_2015_01", cutoff.minusMonths(6));
+
+                when(partitionScanner.listPartitions("email_message")).thenReturn(List.of(oldPartition));
+                when(partitionScanner.countRowsByTenant("email_message_2015_01"))
+                        .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 3),
+                                new PartitionScanner.TenantRowCount(TENANT_B, 2)));
+
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .anySatisfy(msg -> assertThat(msg)
+                                .contains("email_message_2015_01")
+                                .contains("5 wierszy")
+                                .contains("2 tenantów")
+                                .contains("POMIJAM DROP")
+                                .contains("uruchom purge Poziom 1"));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
+        }
+
+        @Test
+        @DisplayName("email_message_default nigdy nie jest kandydatem do DROP, nawet gdyby zwrócony defensywnie")
+        void emailMessageDefaultPartition_isNeverDropped() {
+            LocalDate veryOldCutoff = LocalDate.of(1970, 1, 1);
+            PartitionScanner.PartitionInfo defaultPartition =
+                    new PartitionScanner.PartitionInfo("email_message_default", veryOldCutoff, veryOldCutoff.plusYears(1));
+
+            when(partitionScanner.listPartitions("email_message")).thenReturn(List.of(defaultPartition));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("email_message_default");
+        }
+
+        @Test
+        @DisplayName("bufor: partycja email_message_* młodsza niż globalny próg (wewnątrz okna retencji) -> DROP NIE jest wykonywany, nawet gdy pusta")
+        void emptyEmailMessagePartitionWithinRetentionWindow_isNotDropped() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
+            // rangeEnd = próg + 1 miesiąc -> partycja jeszcze w oknie retencji
+            PartitionScanner.PartitionInfo youngPartition = partitionEndingAt("email_message_2020_06", cutoff.plusMonths(1));
+
+            when(partitionScanner.listPartitions("email_message")).thenReturn(List.of(youngPartition));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06")).thenReturn(List.of());
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("email_message_2020_06");
         }
     }
 }

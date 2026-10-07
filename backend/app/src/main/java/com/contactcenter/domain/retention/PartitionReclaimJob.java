@@ -33,8 +33,8 @@ import java.util.regex.Pattern;
  *
  * <p><strong>Zakres tabel/kategorii:</strong>
  * <ul>
- *   <li>{@code contact}, {@code contact_event}, {@code social_message} (BE-133, 2026-10-01) →
- *       {@link RetentionDataCategory#CONTACT_INTERACTIONS}</li>
+ *   <li>{@code contact}, {@code contact_event}, {@code social_message} (BE-133, 2026-10-01),
+ *       {@code email_message} (BE-135, 2026-10-07) → {@link RetentionDataCategory#CONTACT_INTERACTIONS}</li>
  *   <li>{@code contact_transcription}, {@code contact_ai_summary} → {@link RetentionDataCategory#TRANSCRIPTS}</li>
  * </ul>
  * Mapowanie identyczne jak w {@code RetentionPurgeServiceImpl} (BE-113) dla {@code contact}/
@@ -76,6 +76,15 @@ import java.util.regex.Pattern;
  * wyjątek (np. rozróżnienie przez {@code ThresholdSource}/{@code DropMode} z jego refaktoru)
  * TYLKO dla tego jednego wpisu — NIE usuwać blokady poniżej dla `contact*`/`social_message`.</p>
  *
+ * <p><strong>BE-135 (2026-10-07, EPIC-30) — {@code email_message} i obiekty S3 (WP-5):</strong> {@code DROP TABLE}
+ * NIE usuwa obiektów w S3, na które wskazują klucze w {@code attachments}. Dlatego partycja
+ * {@code email_message_YYYY_MM} zawierająca JAKIKOLWIEK wiersz (także z pustym/niepustym
+ * {@code attachments}) nigdy nie jest dropowana — ta sama blokada {@link #warnIfStillHasRows} co dla
+ * pozostałych tabel, bez wyjątku. Kolejność odzyskiwania to Poziom 1 (purge wierszowy z usunięciem
+ * obiektów S3 PRZED wierszem, {@code EmailMessageService}, BE-125/BE-127) → dopiero pusta partycja
+ * jest kandydatem do DROP w kolejnym przebiegu tego jobu. Wiersz z porażką S3 zostaje w tabeli,
+ * więc jego partycja też zostaje.</p>
+ *
  * <p><strong>BE-133 (2026-10-01, EPIC-30):</strong> ticket w {@code TASKS-BACKEND.md} formalnie
  * zależy od BE-123 ({@code ReclaimTarget}/{@code DropMode.ONLY_IF_EMPTY}) — decyzja product ownera:
  * BE-123 NIE jest zaimplementowane i NIE czekamy na nie. {@code social_message} jest podpięta
@@ -108,6 +117,9 @@ class PartitionReclaimJob {
         // BE-133 (EPIC-30, 2026-10-01): social_message podpięta pod istniejący mechanizm BE-145
         // (DROP TYLKO pustej partycji) — patrz javadoc klasy, sekcja "BE-133".
         TABLE_CATEGORIES.put("social_message", RetentionDataCategory.CONTACT_INTERACTIONS);
+        // BE-135 (EPIC-30, 2026-10-07): email_message — ta sama blokada DROP niepustej partycji
+        // (WP-5: DROP nie usuwa obiektów S3 z attachments). Patrz javadoc klasy, sekcja "BE-135".
+        TABLE_CATEGORIES.put("email_message", RetentionDataCategory.CONTACT_INTERACTIONS);
         TABLE_CATEGORIES.put("contact_transcription", RetentionDataCategory.TRANSCRIPTS);
         TABLE_CATEGORIES.put("contact_ai_summary", RetentionDataCategory.TRANSCRIPTS);
     }
@@ -238,9 +250,12 @@ class PartitionReclaimJob {
         long totalRows = rowCounts.stream().mapToLong(PartitionScanner.TenantRowCount::rowCount).sum();
         log.warn("[PartitionReclaimJob] Partycja {} kandyduje do DROP, ale wciąż zawiera {} wierszy "
                         + "({} tenantów) — POMIJAM DROP (BE-145): niespójność z Poziomem 1 "
-                        + "(RetentionPurgeService) wskazuje na możliwą awarię purge dla jednego z tenantów; "
-                        + "partycja zostanie ponownie oceniona przy następnym przebiegu jobu. Kategoria={}",
-                partition.partitionName(), totalRows, rowCounts.size(), category);
+                        + "(RetentionPurgeService) wskazuje na możliwą awarię purge dla jednego z tenantów. "
+                        + "Wskazówka: uruchom purge Poziom 1 dla kategorii {}. Wiersze wiadomości (email_message, "
+                        + "social_message) usuwa purge TYLKO przy retention.purge.delete-messages=true (BE-126); "
+                        + "bez tej flagi partycja nie opustoszeje i będzie pomijana. "
+                        + "Partycja zostanie ponownie oceniona przy następnym przebiegu jobu.",
+                partition.partitionName(), totalRows, rowCounts.size(), category, category);
         return true;
     }
 }

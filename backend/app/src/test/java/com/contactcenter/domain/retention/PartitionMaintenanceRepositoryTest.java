@@ -96,7 +96,7 @@ class PartitionMaintenanceRepositoryTest {
         }
 
         @Test
-        @DisplayName("dla każdej z 7 partycjonowanych tabel buduje poprawną nazwę funkcji SQL")
+        @DisplayName("dla każdej z 8 partycjonowanych tabel buduje poprawną nazwę funkcji SQL")
         void buildsCorrectFunctionNameForEachPartitionedTable() {
             when(entityManager.createNativeQuery(anyString())).thenReturn(mockQuery);
             when(mockQuery.setParameter(anyString(), any())).thenReturn(mockQuery);

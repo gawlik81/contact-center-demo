@@ -1265,17 +1265,19 @@ class RetentionPurgeServiceImplTest {
     }
 
     // =========================================================================
-    // BE-126: flaga delete-messages=false (domyślna) — regresja ścieżki legacy
+    // BE-126: flaga delete-messages=false (ścieżka legacy/wycofania, od 2026-10-07 już NIE domyślna)
     // =========================================================================
 
     @Nested
-    @DisplayName("flaga delete-messages=false (domyślna) — ścieżka legacy niezmieniona (BE-126)")
+    @DisplayName("flaga delete-messages=false (jawnie wyłączona w teście) — ścieżka legacy niezmieniona (BE-126)")
     class FlagDisabledRegression {
 
         @Test
         @DisplayName("findContactIdsOlderThan/deleteContacts NIGDY nie wywołane -- purgeContactsOlderThan/detachContactReferences jak dotychczas")
         void flagFalse_neverCallsNewMethods() {
-            // deleteMessagesEnabled domyślnie false (Java default dla pola boolean, nieustawianego w setUp())
+            // Od 2026-10-07 domyślny efektywny default (application.yml) to true -- ta ścieżka
+            // (legacy) musi być jawnie wyłączona, nie może już zależeć cicho od Java default dla boolean.
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", false);
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
                     .thenReturn(60);
             List<UUID> batch = uuids(3);

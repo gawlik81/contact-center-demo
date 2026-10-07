@@ -1,6 +1,5 @@
 package com.contactcenter.domain.retention;
 
-import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.dto.RetentionSummaryDto;
 import com.contactcenter.domain.tenant.Tenant;
@@ -18,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -48,22 +48,21 @@ import java.util.UUID;
  * sam bug co naprawiony w scheduler-owej ścieżce, patrz notatka BE-112 w {@code TASKS-BACKEND.md}
  * o naprawie {@code TenantContext} w wątku schedulera, tylko w przeciwnym kierunku).
  *
- * <h2>BE-128 (EPIC-30) — wiadomości w {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS</h2>
+ * <h2>Wiadomości (e-mail, social) w {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS</h2>
  *
- * <p>{@link #countEligibleMessages(UUID)}, wołane WYŁĄCZNIE z {@link #persistSummaryAndMaybeAutoPurgeForTenant}
- * dla kategorii CONTACT_INTERACTIONS, dolicza wiadomości e-mail kwalifikujące się do usunięcia
- * (osierocone + powiązane z kontaktem, który sam się kwalifikuje) do liczby liczonej przez
- * {@link #scanPartitionAwareCategory} dla {@code contact}/{@code contact_event}/{@code social_message}.
- * Ten dodatkowy krok respektuje TEN SAM prekontrakt {@link TenantContext} co reszta metody — patrz
- * Javadoc {@link #countEligibleMessages(UUID)}.
+ * <p>Wiadomości należą do {@code CONTACT_INTERACTIONS} WYŁĄCZNIE przez skan partycji
+ * ({@link #PARTITION_AWARE_TABLES}): {@code social_message} od BE-133, {@code email_message} od BE-135
+ * (EPIC-30, 2026-10-07). Dawna ścieżka JOIN/IN-subquery (BE-128, {@code countEligibleMessages}) została
+ * usunięta — jej równoległe utrzymanie podwajałoby liczbę wierszy wiadomości w {@code eligibleRowCount}.
+ * Konsekwencja: udział wiadomości jest KONSERWATYWNYM PRZYBLIŻENIEM granicą partycji miesięcznej
+ * (jak {@code contact}/{@code contact_event}), nie licznikiem wiersz-po-wierszu.
  *
- * <p><strong>BE-133 (EPIC-30, 2026-10-01):</strong> do 2026-10-01 {@code countEligibleMessages}
- * doliczał TAKŻE wiadomości {@code social_message} (osierocone + powiązane, JOIN/IN-subquery).
- * Po przekonwertowaniu {@code social_message} na tabelę partycjonowaną (DB-065, V100) ten
- * składnik przeniesiony do {@link #scanPartitionAwareCategory} (wpis w {@link #PARTITION_AWARE_TABLES})
- * — pozostawienie OBU ścieżek jednocześnie podwajałoby liczbę wierszy {@code social_message} w
- * {@code eligibleRowCount}. {@code email_message} pozostaje na starej ścieżce (JOIN/IN-subquery) do
- * czasu BE-135 (po DB-067/BE-134).
+ * <p><strong>Auto-purge a wiadomości (CR BE128-01, rozszerzone w BE-135):</strong> przy
+ * {@code retention.purge.delete-messages=false} legacy purge NIE usuwa wiadomości (odcina tylko
+ * referencje {@code contact_id}), więc ich wiersze nigdy nie znikają z partycji. Liczenie ich do decyzji
+ * auto-purge wywoływałoby pusty, powtarzający się co noc przebieg. {@link TenantAccumulator} śledzi
+ * więc osobno wiersze wiadomości, a {@link #persistSummaryAndMaybeAutoPurgeForTenant} odejmuje je od
+ * wartości przekazywanej do {@code maybeTriggerAutoPurge}. Dashboard nadal dostaje pełną liczbę.
  */
 @Slf4j
 @Service
@@ -74,16 +73,17 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
      * Kategorie partition-aware → lista tabel wchodzących w skład kategorii.
      *
      * <p><strong>BE-133 (EPIC-30, 2026-10-01):</strong> {@code social_message} dołączona do
-     * {@code CONTACT_INTERACTIONS} po przekonwertowaniu na tabelę partycjonowaną (DB-065, V100) —
-     * jej wiersze w {@code eligibleRowCount} tej kategorii liczy odtąd WYŁĄCZNIE
-     * {@link #scanPartitionAwareCategory} (partycyjnie, tak jak {@code contact}/{@code contact_event}),
-     * NIE {@link #countEligibleMessages} (JOIN/IN-subquery) — patrz jego javadoc po pełne
-     * uzasadnienie zmiany semantyki z „dokładne" na „konserwatywne przybliżenie granicą partycji".
+     * {@code CONTACT_INTERACTIONS}. <strong>BE-135 (EPIC-30, 2026-10-07):</strong> {@code email_message}
+     * dołączona analogicznie — jej wiersze liczy {@link #scanPartitionAwareCategory} (partycyjnie).
      */
     private static final Map<RetentionDataCategory, List<String>> PARTITION_AWARE_TABLES = Map.of(
-            RetentionDataCategory.CONTACT_INTERACTIONS, List.of("contact", "contact_event", "social_message"),
+            RetentionDataCategory.CONTACT_INTERACTIONS,
+            List.of("contact", "contact_event", "social_message", "email_message"),
             RetentionDataCategory.TRANSCRIPTS, List.of("contact_transcription", "contact_ai_summary")
     );
+
+    /** Tabele wiadomości w obrębie {@link #PARTITION_AWARE_TABLES} — patrz {@link TenantAccumulator#messageRowCount}. */
+    private static final Set<String> MESSAGE_TABLES = Set.of("social_message", "email_message");
 
     private final PartitionScanner partitionScanner;
     private final RetentionPolicyService retentionPolicyService;
@@ -91,13 +91,13 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
     private final TenantService tenantService;
     private final TenantRetentionPendingSummaryRepository summaryRepository;
     private final CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
-    private final EmailMessageService emailMessageService;
 
     /**
      * Ten sam bezpiecznik wdrożeniowy co {@code RetentionPurgeServiceImpl#deleteMessagesEnabled}
-     * (ta sama nazwa właściwości — jedna flaga steruje obiema klasami). Doliczenie wiadomości do
-     * {@code eligibleRowCount} (BE-128) nie może wpływać na DECYZJĘ auto-purge, gdy flaga jest
-     * {@code false} — {@code purgeContactInteractionsLegacy} (ścieżka domyślna) nic z tych
+     * (ta sama nazwa właściwości — jedna flaga steruje obiema klasami; WŁĄCZONA domyślnie decyzją
+     * właściciela 2026-10-07, patrz {@code application.yml}). Doliczenie wiadomości do
+     * {@code eligibleRowCount} (BE-128/BE-133/BE-135) nie może wpływać na DECYZJĘ auto-purge, gdy flaga jest
+     * {@code false} (ścieżka legacy/wycofania) — {@code purgeContactInteractionsLegacy} nic z tych
      * wiadomości nie usuwa, więc odpalanie auto-purge WYŁĄCZNIE z ich powodu byłoby pustym,
      * powtarzającym się co noc przebiegiem (nowy wiersz {@code retention_purge_log}/audytu bez
      * żadnego efektu — CR-BACKEND.md BE128-01). Dashboard/API (pole zapisywane przez
@@ -241,7 +241,7 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
 
                 for (PartitionScanner.TenantRowCount rowCount : rowCounts) {
                     try {
-                        accumulateIfEligibleForTenant(category, partition, rowCount, accumulators);
+                        accumulateIfEligibleForTenant(category, tableName, partition, rowCount, accumulators);
                     } catch (Exception e) {
                         log.error("[RetentionEvaluationService] Błąd przetwarzania tenanta={} w kategorii={}, partycji={}: {}",
                                 rowCount.tenantId(), category, partition.partitionName(), e.getMessage(), e);
@@ -258,7 +258,8 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
      * mieć dłuższą retencję niż globalne minimum wyznaczone w {@link #scanPartitionAwareCategory})
      * i jeśli tak — dodaje jej liczbę wierszy do akumulatora tego tenanta.
      */
-    private void accumulateIfEligibleForTenant(RetentionDataCategory category, PartitionScanner.PartitionInfo partition,
+    private void accumulateIfEligibleForTenant(RetentionDataCategory category, String tableName,
+                                                PartitionScanner.PartitionInfo partition,
                                                 PartitionScanner.TenantRowCount rowCount,
                                                 Map<UUID, TenantAccumulator> accumulators) {
         int tenantRetentionMonths = retentionPolicyService.getRetentionMonths(rowCount.tenantId(), category);
@@ -269,7 +270,7 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
         // faktycznie kwalifikuje się wg "< cutoff", tej samej definicji co RetentionPurgeServiceImpl.
         if (!partition.rangeEnd().isAfter(tenantCutoffDate)) {
             accumulators.computeIfAbsent(rowCount.tenantId(), id -> new TenantAccumulator())
-                    .add(rowCount.rowCount(), partition.rangeStart());
+                    .add(rowCount.rowCount(), partition.rangeStart(), MESSAGE_TABLES.contains(tableName));
         }
     }
 
@@ -344,94 +345,23 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
                                                             boolean triggerAutoPurge) {
         TenantAccumulator acc = accumulators.get(tenantId);
         long eligibleRowCount = acc != null ? acc.eligibleRowCount : 0L;
+        long messageRowCount = acc != null ? acc.messageRowCount : 0L;
         LocalDate oldest = acc != null ? acc.oldestPeriod : null;
         LocalDate newest = acc != null ? acc.newestPeriod : null;
-
-        // BE-128: dla CONTACT_INTERACTIONS dolicz wiadomości (patrz Javadoc countEligibleMessages).
-        // Prekontrakt TenantContext identyczny jak dla summaryRepository.upsert poniżej — wołane PO
-        // TenantContext.setTenantId w persistAndMaybeAutoPurge (scheduler) albo z już poprawnym
-        // kontekstem wątku HTTP (runForTenant), nigdy przed.
-        //
-        // Błąd liczenia wiadomości NIE może zablokować zapisu już poprawnie policzonego
-        // eligibleRowCount kontaktów/zdarzeń (ten sam duch izolacji błędów co reszta tej klasy —
-        // patrz np. ErrorIsolation w RetentionEvaluationServiceImplTest) — w najgorszym razie
-        // eligibleRowCount jest NIEDOSZACOWANY o wiadomości tego przebiegu, nie utracony całkowicie.
-        long messageCount = 0L;
-        if (category == RetentionDataCategory.CONTACT_INTERACTIONS) {
-            try {
-                messageCount = countEligibleMessages(tenantId);
-                eligibleRowCount += messageCount;
-            } catch (Exception e) {
-                log.error("[RetentionEvaluationService] Błąd liczenia wiadomości (BE-128) dla tenanta={}: {}",
-                        tenantId, e.getMessage(), e);
-            }
-        }
 
         summaryRepository.upsert(tenantId, category, eligibleRowCount, oldest, newest);
 
         if (triggerAutoPurge) {
-            // CR-BACKEND.md BE128-01: gdy deleteMessagesEnabled=false (domyślnie), legacy purge nie
-            // usuwa wiadomości — nie odpalaj auto-purge WYŁĄCZNIE z ich powodu (pusty, powtarzający
-            // się co noc przebieg bez żadnego efektu). Dashboard (upsert powyżej) nadal pokazuje
-            // pełną liczbę niezależnie od tej flagi.
+            // CR-BACKEND.md BE128-01 (rozszerzone BE-133/BE-135): gdy deleteMessagesEnabled=false
+            // (ścieżka legacy/wycofania, od 2026-10-07 już NIE domyślna), legacy purge NIE usuwa
+            // wiadomości — nie odpalaj auto-purge WYŁĄCZNIE z ich powodu (pusty, powtarzający się
+            // co noc przebieg bez żadnego efektu). Dashboard (upsert powyżej) nadal pokazuje pełną
+            // liczbę niezależnie od tej flagi.
             long triggerRowCount = (category == RetentionDataCategory.CONTACT_INTERACTIONS && !deleteMessagesEnabled)
-                    ? eligibleRowCount - messageCount
+                    ? eligibleRowCount - messageRowCount
                     : eligibleRowCount;
             maybeTriggerAutoPurge(tenantId, category, triggerRowCount);
         }
-    }
-
-    // =========================================================================
-    // BE-128: CONTACT_INTERACTIONS — dolicz wiadomości kwalifikujące się (EPIC-30)
-    // =========================================================================
-
-    /**
-     * Dolicza do {@code eligibleRowCount} kategorii CONTACT_INTERACTIONS wiadomości e-mail
-     * kwalifikujące się do usunięcia (BE-128, dashboard FE-105/badge FE-108): (a) OSIEROCONE
-     * ({@link EmailMessageService#countOrphansOlderThan}, reużycie BE-127) i (b) POWIĄZANE z
-     * kontaktem, który sam kwalifikuje się do usunięcia ({@link EmailMessageService#countLinkedToContactsOlderThan},
-     * nowość BE-128). OBA składniki są DOKŁADNE (nie oszacowanie) — patrz Javadoc
-     * {@link RetentionSummaryDto} po pełne uzasadnienie semantyki i kosztu, oraz notatka wykonania
-     * BE-128 w {@code TASKS-BACKEND.md} po dowód EXPLAIN ANALYZE (scratch DB, symulacja wielotenantowa).
-     *
-     * <p><strong>BE-133 (EPIC-30, 2026-10-01) — {@code social_message} NIE jest już liczona tutaj:</strong>
-     * do 2026-10-01 ta metoda doliczała też {@code socialMessageService.countOrphansOlderThan}/
-     * {@code countLinkedToContactsOlderThan}. Po przekonwertowaniu {@code social_message} na tabelę
-     * partycjonowaną (DB-065, V100) ten składnik przeniesiony do {@link #scanPartitionAwareCategory}
-     * (wpis {@code "social_message"} w {@link #PARTITION_AWARE_TABLES}) — zostawienie obu ścieżek
-     * jednocześnie podwajałoby liczbę wierszy {@code social_message}. Konsekwencja zmiany semantyki:
-     * udział {@code social_message} w sumie {@code eligibleRowCount} przestaje być DOKŁADNY (wiersz
-     * po wierszu) i staje się KONSERWATYWNYM PRZYBLIŻENIEM granicą całej partycji miesięcznej —
-     * dokładnie tym samym trade-offem, jaki {@link RetentionSummaryDto} (BE128-02) już opisuje dla
-     * {@code contact}/{@code contact_event}. {@code email_message} zostaje na tej (dokładnej) ścieżce
-     * do czasu BE-135 (po DB-067/BE-134 — klucz złożony analogiczny do BE-132/{@code social_message}).
-     *
-     * <p>Cutoff liczony NIEZALEŻNIE od akumulatora partition-scan tej kategorii — DOKŁADNIE ten sam
-     * wzorzec co {@link #evaluateCampaignDataForTenant} ({@link RetentionPolicyService#getRetentionMonths}
-     * jest odczytem polityki, nie skanem partycji, więc powtórne wywołanie jest tanie i nie
-     * duplikuje kosztownej pracy {@link #scanPartitionAwareCategory}).
-     *
-     * <p><strong>Prekontrakt:</strong> {@link TenantContext} musi być już ustawiony na
-     * {@code tenantId} PRZEZ WYWOŁUJĄCEGO ({@link #persistSummaryAndMaybeAutoPurgeForTenant}) — ta
-     * metoda go NIE ustawia/czyści. {@code EmailMessageService} woła {@code assertSameTenant}
-     * wewnątrz (regresja BE-112: pusty kontekst → {@code IllegalStateException}), identycznie jak
-     * {@code summaryRepository.upsert}.
-     */
-    private long countEligibleMessages(UUID tenantId) {
-        int retentionMonths = retentionPolicyService.getRetentionMonths(
-                tenantId, RetentionDataCategory.CONTACT_INTERACTIONS);
-        LocalDate cutoffDate = LocalDate.now(ZoneOffset.UTC).minusMonths(retentionMonths);
-        Instant cutoff = cutoffDate.atStartOfDay(ZoneOffset.UTC).toInstant();
-
-        long orphanEmails = emailMessageService.countOrphansOlderThan(tenantId, cutoff);
-        long linkedEmails = emailMessageService.countLinkedToContactsOlderThan(tenantId, cutoff);
-        long total = orphanEmails + linkedEmails;
-
-        log.debug("[RetentionEvaluationService] Wiadomości e-mail kwalifikujące się (CONTACT_INTERACTIONS): "
-                        + "tenant={}, cutoff={}, orphanEmails={}, linkedEmails={}, total={} "
-                        + "(social_message liczona partycyjnie przez scanPartitionAwareCategory od BE-133)",
-                tenantId, cutoff, orphanEmails, linkedEmails, total);
-        return total;
     }
 
     // =========================================================================
@@ -520,14 +450,22 @@ class RetentionEvaluationServiceImpl implements RetentionEvaluationService {
     // Akumulator wyniku per tenant
     // =========================================================================
 
-    /** Sumuje {@code eligibleRowCount} i śledzi min/max {@code rangeStart} dla jednego tenanta w obrębie kategorii. */
+    /**
+     * Sumuje {@code eligibleRowCount} i śledzi min/max {@code rangeStart} dla jednego tenanta w obrębie kategorii.
+     * {@link #messageRowCount} to podzbiór {@link #eligibleRowCount} pochodzący z tabel wiadomości
+     * ({@link #MESSAGE_TABLES}) — potrzebny wyłącznie do decyzji auto-purge (patrz Javadoc klasy).
+     */
     private static final class TenantAccumulator {
         private long eligibleRowCount;
+        private long messageRowCount;
         private LocalDate oldestPeriod;
         private LocalDate newestPeriod;
 
-        void add(long rowCount, LocalDate periodStart) {
+        void add(long rowCount, LocalDate periodStart, boolean messageTable) {
             eligibleRowCount += rowCount;
+            if (messageTable) {
+                messageRowCount += rowCount;
+            }
             oldestPeriod = (oldestPeriod == null || periodStart.isBefore(oldestPeriod)) ? periodStart : oldestPeriod;
             newestPeriod = (newestPeriod == null || periodStart.isAfter(newestPeriod)) ? periodStart : newestPeriod;
         }

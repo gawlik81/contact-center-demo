@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * NIE istnieją przed jego startem (inne klasy integracyjne/migracja V100 mogły je już utworzyć),
  * tylko że ISTNIEJĄ PO uruchomieniu jobu.
  */
-@DisplayName("PartitionMaintenanceJob – prawdziwa baza, bufor +3 miesiące dla wszystkich 7 tabel (BE-133)")
+@DisplayName("PartitionMaintenanceJob – prawdziwa baza, bufor +3 miesiące dla wszystkich 8 tabel (BE-133, BE-135)")
 class PartitionMaintenanceJobIntegrationTest {
 
     private static HikariDataSource pool;
@@ -67,12 +67,12 @@ class PartitionMaintenanceJobIntegrationTest {
     }
 
     // =========================================================================
-    // AC #1/WP-1/WP-6: bufor +3 miesiące dla WSZYSTKICH 7 tabel, w tym social_message
+    // AC #1/WP-1/WP-6: bufor +3 miesiące dla WSZYSTKICH 8 tabel, w tym social_message
     // =========================================================================
 
     @Test
-    @DisplayName("po ensureFuturePartitions() istnieją partycje bieżący..+3 dla wszystkich 7 tabel partycjonowanych (social_message dołączona w BE-133)")
-    void ensureFuturePartitions_createsCurrentPlusThreeMonthsForAllSevenTables() {
+    @DisplayName("po ensureFuturePartitions() istnieją partycje bieżący..+3 dla wszystkich 8 tabel partycjonowanych (social_message BE-133, email_message BE-135)")
+    void ensureFuturePartitions_createsCurrentPlusThreeMonthsForAllEightTables() {
         job.ensureFuturePartitions();
 
         YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
@@ -80,7 +80,9 @@ class PartitionMaintenanceJobIntegrationTest {
         assertThat(PartitionMaintenanceJob.PARTITIONED_TABLES)
                 .as("BE-133: social_message musi być w PARTITIONED_TABLES")
                 .contains("social_message")
-                .hasSize(7);
+                .as("BE-135: email_message musi być w PARTITIONED_TABLES")
+                .contains("email_message")
+                .hasSize(8);
 
         for (String tableName : PartitionMaintenanceJob.PARTITIONED_TABLES) {
             for (int offset = 1; offset <= PartitionMaintenanceJob.MONTHS_AHEAD; offset++) {
@@ -102,6 +104,17 @@ class PartitionMaintenanceJobIntegrationTest {
 
         YearMonth target = YearMonth.now(ZoneOffset.UTC).plusMonths(PartitionMaintenanceJob.MONTHS_AHEAD);
         String partitionName = "social_message_%04d_%02d".formatted(target.getYear(), target.getMonthValue());
+
+        assertThat(partitionExists(partitionName)).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-135: email_message_<bieżący_miesiąc+3> istnieje i nie wymaga ręcznego SQL (create_email_message_partition z V102)")
+    void emailMessagePartition_threeMonthsAhead_exists() {
+        job.ensureFuturePartitions();
+
+        YearMonth target = YearMonth.now(ZoneOffset.UTC).plusMonths(PartitionMaintenanceJob.MONTHS_AHEAD);
+        String partitionName = "email_message_%04d_%02d".formatted(target.getYear(), target.getMonthValue());
 
         assertThat(partitionExists(partitionName)).isTrue();
     }

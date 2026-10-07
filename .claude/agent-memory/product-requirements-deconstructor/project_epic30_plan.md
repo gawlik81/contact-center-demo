@@ -1,6 +1,6 @@
 ---
 name: project-epic30-plan
-description: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości — 51 ticketów, WSZYSTKIE Must Have zamknięte 2026-09-26 (BE-124, DB-060, BE-125, DB-079, BE-126, BE-143, DB-061, DB-062, BE-129, DB-059, BE-127 ✅) + BE-128 ✅ (Should Have, dashboard liczy wiadomości, 2026-09-26/27) + BE-144 ⬜/BE-145 ✅ poza epikiem (BE-145 zamyka łańcuch BE127-01, ukończony tego samego dnia); plan 2026-09-20, korekty po code review z 2026-09-21/22/24/26/27; projekt w DESIGN-message-retention-and-partitioning.md, założenia D1–D10, ryzyka R1–R11
+description: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości — 51 ticketów. Stan 2026-10-07 (tura 13): WSZYSTKIE Must Have ✅, email_message i social_message w pełni partycjonowane i podpięte (DB-064..067/080, BE-132..135), 5 ticketów 🚫 N/A (D1=C: DB-063/BE-130/FE-111; D4=B: DB-068/BE-136), delete-messages WŁĄCZONE domyślnie od 2026-10-07. KRYTYCZNE: BE-131/BE-141/BE-142 pokazują ⬜ w TASKS-BACKEND.md mimo zaimplementowanego kodu — regresja z commitu bdc5268, zob. [[project_be_tasks_backend_corruption_bdc5268]]. Projekt w DESIGN-message-retention-and-partitioning.md, założenia D1–D10, ryzyka R1–R11
 metadata:
   type: project
 ---
@@ -122,3 +122,46 @@ nawiasu warunkowego), TASKS-BACKEND.md (BE-142: tytuł, Priorytet, opis „Zakł
 DB-062, BE-129, FE-112 mają własne historyczne wzmianki „D9 = A"/„D9 = B" (opisujące zakres WEWNĄTRZ tych już ukończonych/niezaimplementowanego
 ticketów), świadomie NIE ruszone (analogicznie do tego, że BE-125..128 nie zostały dotknięte przy potwierdzeniu D1 — tylko ticket-ADR odpowiednik,
 tu żaden, bo D9 nie ma osobnego ADR-ticketu jak BE-124). Zero commitów/pushów (na wyraźne polecenie zlecającego).
+
+**Tura 12 (2026-10-01, poza moją obecnością — zrekonstruowane z git log przy weryfikacji tury 13, nie z pierwszej ręki):** trzy siostrzane gałęzie EPIC-30
+(`feature/epic-30-be142-fe112`, `feature/epic-30-be131-be141-be146`, `feature/epic-30-social-message-partitioning` — zob. `[[project_epic30_branch_fragmentation]]`)
+scalone do mainline w tej kolejności: PR#46 (merge `8db5b0b`, BE-142+FE-112) → PR#47 (merge `78726d4`, BE-131+BE-141+BE-146) → kilka commitów plugin/EPIC-28
+→ PR#48 (merge `f715f06`, DB-064/065/BE-132/133 — zawiera `bdc5268`). **FE-112** zrealizowane: podgląd D9 w modalu GDPR, lista klientów przepięta na jedną
+ścieżkę anonimizacji; code review 3.5/5. **BE-142** zrealizowane: maskowanie PII w `audit_log` przez `@Audited`; code review 4.5/5, poprawka BE142-01.
+**BE-131** zrealizowane: sweep `pending/` S3. **BE-141** zrealizowane: usunięcie `remote_address` z ETL do DW. **BE-146** zrealizowane: fix `entity_id`
+dla akcji CREATED w `AuditAspect` (ticket dodany ad hoc przy BE-142, 21 call site'ów `@Audited`). **DB-064/DB-065/BE-132/BE-133**: RLS ALL+WITH
+CHECK+FORCE na `email_message`/`social_message` (V099), partycjonowanie `social_message` RANGE po `sent_at` (V100), klucz złożony `SocialMessage`,
+podpięcie do maszynerii partycji/retencji — poprawnie odnotowane ✅ w `TASKS-*.md`/PROGRESS.md przez commit `bdc5268` (DB 60→62, BE 127→129, 89%).
+
+**REGRESJA W TYM SAMYM COMMICIE `bdc5268` (odkryta w turze 13, NIE naprawiona — zob. `[[project_be_tasks_backend_corruption_bdc5268]]` po pełny dowód):**
+`bdc5268` nadpisał CAŁY `TASKS-BACKEND.md` kopią pliku sprzed PR#46/#47, cofając status BE-131/BE-141/BE-142 z `✅` na `⬜` (pre-implementacyjny tekst,
+bez notatek wykonania) i usuwając jedyną wzmiankę o BE-146 z pliku całkowicie. `TASKS-FRONTEND.md` (FE-112) NIE był dotknięty — jego ✅ jest poprawne,
+tylko PROGRESS.md nigdy nie zaktualizował dla niego liczników (osobny, mniejszy lag, naprawiony w turze 13). Ten regres przetrwał merge `f715f06` i
+commity `c3ca6e6`/`bf6068f` (tura implementacyjna DB-066/067/070/080/BE-134/135/136) niezauważony do tury 13.
+
+**Tura 13 (2026-10-04..2026-10-07, implementacja realna: partycjonowanie `email_message`, hardening REVOKE, włączenie usuwania wiadomości):**
+**DB-066** ([BRAMKA] D2/D4 — zamknięta decyzją właściciela: D2 2026-10-04 „partycjonować przed wdrożeniem, bez pomiaru produkcyjnego — brak środowiska",
+skrypt `scripts/epic-30/db-066-email-message-volume.sql` zostaje do przyszłego pomiaru; D4 = A zatwierdzone 2026-10-07). **DB-067** (partycjonowanie
+`email_message` RANGE po `message_at`: V101 `ADD COLUMN` + backfill, V102 swap z PK złożonym `(message_id, message_at)`, unikalność DEFERRABLE D4=A,
+RLS ALL+WITH CHECK+FORCE, REVOKE na partycjach `app_user`; DB-level ✅ 2026-10-04, zastosowane na żywej bazie local-demo 2026-10-07). **DB-068** → 🚫 N/A
+(D4=B nie zaszło). **DB-070** (ADR `campaign_contact`: LIST z jedyną partycją DEFAULT — opcja A zatwierdzona 2026-10-07; B/C tylko przy dowodzie
+pomiarowym > ~50 mln wierszy; warunek (b) „zamknięcie dostępu do `campaign_contact_default`" przekazany do DB-073, NIE DB-080). **DB-080** (NOWY ticket,
+nie istniał przed tą sesją: REVOKE na partycjach 6 tabel tenantowych — `audit_log`, `contact`, `contact_transcription`, `contact_ai_summary`,
+`contact_event`, `plugin_invocation_log`; migracje V105–V110, `PartitionGrantsRevokeMigrationsTest` 61 testów, `contact_event.metadata` JSONB podniesione
+na ryzyko WYSOKIE po odkryciu PII — imiona agentów, numer telefonu w `target`). **BE-134** (`EmailMessage` → `@IdClass(EmailMessageId)` `(id, messageAt)`,
+INBOUND = INTERNALDATE, OUTBOUND = `sentAt`; 8 testów z DB-067 naprawione + 17 nowych). **BE-135** (`PARTITIONED_TABLES`/`TABLE_CATEGORIES`
+(`ONLY_IF_EMPTY`)/`PARTITION_AWARE_TABLES` += `email_message`; naprawiona regresja BE-133 w wyzwalaczu auto-purge — liczenie wiadomości teraz niezależne
+od flagi `retention.purge.delete-messages`). **BE-136** → 🚫 N/A (odpowiednik DB-068). **BE-126** (Status bez zmian ✅, dopisana notatka): decyzja
+właściciela 2026-10-07 włącza domyślnie `retention.purge.delete-messages` (`true`, `${RETENTION_PURGE_DELETE_MESSAGES:true}`) — bez tego purge
+`CONTACT_INTERACTIONS` nigdy nie usuwał `email_message`/`social_message`, więc ich partycje nigdy się nie opróżniały i BE-135 zgłaszał WARN bez końca.
+**BE-139** (Status bez zmian ⬜, dopisana notatka): decyzja o roli połączenia aplikacji (`ccapp`, BYPASSRLS) odłożona — pozostajemy przy `ccapp`.
+Migracje zastosowane na żywej bazie local-demo: V101, V102, V103, V105–V110 (V104 zarezerwowana, nieużyta, pod przyszły `DROP DEFAULT` na `message_at`).
+`mvn -o clean verify -pl app`: **2386 testów, 0 porażek** (stan po DB-080).
+
+**Rekoncyliacja wykonana w turze 13:** pola `**Zależy od:**` dostały ✅/🚫 przy DB-066/067/068/070/080, BE-134/135/136 wszędzie, gdzie są wymienione jako
+zależność (grep całych plików, nie tylko oczekiwanych miejsc) — DB-068 (własne pole), DB-077, BE-134 (własne pole), BE-135 (własne pole), BE-136 (własne
+pole) + preambuły grafów (Grupa 3/7 w TASKS-DATABASE.md, Grupa 3 w TASKS-BACKEND.md). Naprawiony formatowy defekt: BE-136 miał wiodącą spację przed
+`**Status:**` (łamała grep/skrypty, nie zmieniała treści statusu). PROGRESS.md przeliczony (pełne przeliczenie od zera, zweryfikowane jako zgodne z
+metodą delty — zob. `[[reference_tasks_backend_count_quirks]]`): DB 66/80 (12⬜,2🚫), BE 131/145 (12⬜,2🚫, z zastrzeżeniem o BE-131/141/142 — zob. wyżej),
+FE 110/112 (1⬜,1🚫, korekta FE-112 niezależna od zlecenia tej tury) — RAZEM 307/337 (91%). TASKS-FRONTEND.md NIE wymagał zmian poza samym PROGRESS.md
+(cała praca implementacyjna tej sesji była DB/BE). Zero commitów/pushów (na wyraźne polecenie zlecającego).

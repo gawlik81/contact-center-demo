@@ -90,12 +90,13 @@ razem z BE-126), wiadomość dziedziczy wiek kontaktu (`started_at`).
   wyłącznie jako historyczne uzasadnienie wyboru A, nie jako otwarta opcja.
 
 **D2 — wolumen i próg partycjonowania `email_message`.** Brak liczb w PRD. Opcje progu: niski (≈ 2 GB / 500 tys. wierszy), średni, wysoki.
+**STATUS: ZAMKNIĘTE decyzją właściciela 2026-10-04 (partycjonować przed wdrożeniem); progi bez zmian.** Produkcji jeszcze nie ma, więc bramka pomiarowa (DB-066) nie jest wymagana; progi G1–G4 poniżej pozostają bez zmian i nie są już warunkiem wejścia w konwersję.
 **ZAŁOŻENIE: wchodzimy w konwersję, gdy spełnione jest którekolwiek z:** G1 `pg_total_relation_size('email_message')` ≥ 10 GB (tabela + TOAST +
 indeksy); G2 ≥ 2 mln wierszy; G3 prognoza z tempa ostatnich 3 miesięcy przekracza G1 lub G2 w ≤ 12 miesięcy; G4 objaw operacyjny — p95 batcha
 DELETE w purge > 5 s albo udział martwych krotek > 20 % po VACUUM przez > 7 dni. Konwersja to L (klucz złożony, dedup, ~20 plików), więc
 potrzebuje 12 miesięcy zapasu. Próg jest **szacunkiem** (jak próg 50–100 mln dla archiwum), kalibrowanym przez DB-066 na danych środowiska
 docelowego. Wpływ: próg niższy → konwersja wcześniej (większy koszt, mniejszy zysk); wyższy → konwersja na produkcyjnej tabeli pod presją
-(backfill + blokady). Bez decyzji DB-067/BE-134/BE-135 pozostają w stanie „czeka na bramkę".
+(backfill + blokady). Decyzja 2026-10-04: DB-067/BE-134/BE-135 nie czekają na bramkę (partycjonowanie przed wdrożeniem produkcyjnym).
 
 **D3 — zakres RODO Art. 17/15.** Opcje: (A) rozszerzyć funkcje SQL i podłączyć je do `GdprServiceImpl`; (B) rozszerzyć tylko Javę;
 (C) zostawić stan obecny. **ZAŁOŻENIE: A** — jedna transakcyjna implementacja DB (`anonymize_customer`, `export_customer_data`) obejmująca
@@ -106,13 +107,13 @@ Wpływ: (B) — DB-061/062 sprowadzają się do audytu i naprawy STABLE, logika 
 **Korekty z DB-060/BE-124 (2026-09-20):** funkcja `anonymize_customer` jest dziś niedziałająca dla klienta z kontaktami (trigger V016, U4) — DB-062 zmienia kolejność instrukcji, DB-079 zawęża trigger; przepływ ma DWIE ścieżki REST (U2), więc BE-129 przekierowuje `DELETE /api/customers/{id}` na `GdprService`; zbiór danych podmiotu wyznacza **D9** (przy D9 = B luka z DB-060 F2 zostaje); PG `contacts_dw` (U9) i `audit_log` (D10) leżą poza funkcją — DB-078/BE-141 i BE-142.
 
 **D4 — deduplikacja e-mail po partycjonowaniu.** Opcje: (A) `message_at TIMESTAMPTZ NOT NULL` + unikalność `(tenant_id, message_id_header,
-message_at)`; (B) osobna niepartycjonowana tabela `email_message_dedup`. **ZAŁOŻENIE: A**, z `message_at` = **czas zaobserwowany przez system**: INBOUND =
+message_at)`; (B) osobna niepartycjonowana tabela `email_message_dedup`. **ZATWIERDZONE przez właściciela 2026-10-07: A** (formalne potwierdzenie; wcześniej założenie robocze), z `message_at` = **czas zaobserwowany przez system**: INBOUND =
 `Message#getReceivedDate()` (INTERNALDATE serwera IMAP — dokładnie dzisiejsze źródło `received_at`, zgodne z backfillem DB-067 `COALESCE(received_at, sent_at, created_at)`), `now()` tylko gdy brak INTERNALDATE;
 OUTBOUND = `sentAt` ustawiane raz, nigdy nie zmieniane. **Korekta (BE-124 §7, 2026-09-20):** wcześniejsze założenie „`getSentDate()` (nagłówek Date) przed `getReceivedDate()`" odrzucone — nagłówek `Date` jest kontrolowany
 przez nadawcę (data z przeszłości = natychmiastowa kwalifikacja do purge, z przyszłości = wiadomość nie wygasa) i rozjeżdża się z backfillem.
 Pozostały problem: fallback `now()` (brak INTERNALDATE) jest niedeterministyczny — ta sama wiadomość pobrana ponownie (awaria przed flagą SEEN) dostanie inne `message_at`
 (a na granicy miesiąca inną partycję), więc unikalność złożona jej nie wykryje; jedyną obroną zostaje `findByMessageIdHeader` bez daty, który nie
-jest wspierany globalnym constraintem (wyścig dwóch instancji pollujących = możliwy duplikat). Skrzynka zmigrowana z historycznym INTERNALDATE daje „stare" świeżo zapisane wiadomości — obrona w BE-127 (`created_at < now() − 1 dzień`). Wpływ (B): warunkowe DB-068/BE-136 — globalna unikalność w jednej transakcji z INSERT (`ON CONFLICT DO NOTHING`), ale tabela dedup **też potrzebuje retencji** (własny purge).
+jest wspierany globalnym constraintem (wyścig dwóch instancji pollujących = możliwy duplikat). Skrzynka zmigrowana z historycznym INTERNALDATE daje „stare" świeżo zapisane wiadomości — obrona w BE-127 (`created_at < now() − 1 dzień`). Wpływ (B, N/A od 2026-10-07 — D4 = A zatwierdzone; DB-068/BE-136 → 🚫): warunkowe DB-068/BE-136 — globalna unikalność w jednej transakcji z INSERT (`ON CONFLICT DO NOTHING`), ale tabela dedup **też potrzebuje retencji** (własny purge).
 
 **D5 — horyzont platformowy `audit_log`/`plugin_invocation_log`.** **ZAŁOŻENIE: 24 mies., konfigurowalny** (`retention.platform.audit-log-months`,
 `retention.platform.plugin-invocation-log-months`; zgodnie z `ARCHITECTURE.md:848` i DESIGN EPIC-29 §12.1: log platformowy, nie per-tenant).

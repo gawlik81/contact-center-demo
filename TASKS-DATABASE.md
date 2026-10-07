@@ -3030,7 +3030,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > otwarte gałęzie (`git ls-tree -r --name-only <gałąź> -- backend/src/main/resources/db/migration`) ORAZ `flyway_schema_history` żywej
 > bazy" (precedens: V092 zajęte przez gałąź `feature-socialmedia`, patrz DB-055). Jedna migracja na jedną zmianę; nigdy edycja
 > zastosowanej migracji.
-> **Numeracja:** DB-056…DB-079 (poprzedni najwyższy: DB-055). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
+> **Numeracja:** DB-056…DB-080 (poprzedni najwyższy: DB-079). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
 > Could = bramkowane lub warunkowe. Tickety oznaczone [WARUNKOWY] wchodzą do zakresu tylko przy wskazanej alternatywie decyzji;
 > [BRAMKOWANY] — dopiero po spełnieniu progu wolumenowego.
 >
@@ -3040,10 +3040,11 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 >           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
-> Grupa 3:  DB-066 (bramka) → DB-067 → BE-134;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067;   [DB-066, DB-067 → DB-068 → BE-136, tylko D4 = B]
-> Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
+> Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 ✅ → BE-139
-> Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070, DB-076 → DB-077
+> Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070 ✅, DB-076 → DB-077
+> Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > ```
 
 ### DB-056 – Zbatchowana funkcja `purge_campaign_contact_archive` (pojedynczy DELETE → partie)
@@ -3775,7 +3776,7 @@ i wydanie razem z BE-132 (nie tworzy cyklu: BE-132 zależy od DB-065, a zmiana `
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (zalecana kolejność: po wdrożeniu Poziomu 1, żeby mierzyć stan po nim)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Zamknięte — zamknięte decyzją właściciela 2026-10-04; pomiar na produkcji niemożliwy (brak środowiska); skrypt zostaje do przyszłego pomiaru
 **Blokuje:** DB-067, DB-068
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -3795,11 +3796,16 @@ Ten ticket dostarcza liczby i decyzje; sam niczego nie zmienia.
 
 **Kryteria akceptacji:**
 - [x] Raport z liczbami z ≥ 1 środowiska, jednoznacznie oznaczony: prod / stage / demo / model; brak liczb prod → lista pytań do PO i status „bramka nierozstrzygnięta" *(spełnione 2026-10-04: liczby demo + model, pytania do PO poniżej, bramka nierozstrzygnięta)*
-- [ ] Decyzja go/no-go zapisana w notatce (G1–G4 z wartościami) i w DESIGN §3 D2 (aktualizacja ZAŁOŻENIA) *(notatka: go/no-go per scenariusz zapisany — **częściowo**; aktualizacja DESIGN §3 D2 — **nie wykonana**, poza zakresem tego kroku (pkt 7); ogólna decyzja nierozstrzygnięta)*
-- [ ] Wybór D4 (A/B) zapisany; przy B tickety DB-068/BE-136 przechodzą z [WARUNKOWY] do wymaganych; źródło wieku = czas zaobserwowany przez system (INTERNALDATE), nie nagłówek `Date` *(**otwarte**: D4 = A pozostaje założeniem roboczym do potwierdzenia przez PO; pomiar D4 wykonany — patrz notatka)*
+- [ ] Decyzja go/no-go zapisana w notatce (G1–G4 z wartościami) i w DESIGN §3 D2 (aktualizacja ZAŁOŻENIA) *(notatka: go/no-go per scenariusz zapisany — **częściowo**; aktualizacja DESIGN §3 D2 — **wykonana 2026-10-07** (status ZAMKNIĘTE, progi bez zmian); **adnotacja 2026-10-07: kryterium NIE odhaczone** — go/no-go na liczbach G1–G4 nie zostało wykonane, bo brak danych produkcyjnych; decyzja właściciela 2026-10-04 zastępuje bramkę pomiarową)*
+- [x] Wybór D4 (A/B) zapisany; przy B tickety DB-068/BE-136 przechodzą z [WARUNKOWY] do wymaganych; źródło wieku = czas zaobserwowany przez system (INTERNALDATE), nie nagłówek `Date` *(zamknięte 2026-10-07: **D4 = A zatwierdzone przez właściciela**; DB-068 → 🚫 N/A, BE-136 → 🚫 N/A (do wpisu w TASKS-BACKEND.md); pomiar D4 wykonany — patrz notatka)*
 - [x] (WP-4) Skrypty uruchamiane wyłącznie tylko-do-odczytu (`SET default_transaction_read_only = on`); (WP-3) pomiary na scratch z `SET max_parallel_maintenance_workers = 0; SET max_parallel_workers_per_gather = 0` przed VACUUM/CREATE INDEX *(WP-4 spełnione: skrypt zaczyna się od `SET default_transaction_read_only = on`, zero DDL/DML, guard zweryfikowany; WP-3 nie dotyczy — w tym kroku nie wykonano VACUUM ani CREATE INDEX)*
 
 **Notatka z wykonania (2026-10-04):** bramka **NIEROZSTRZYGNIĘTA**. Brak danych produkcyjnych; status pozostaje ⬜ do decyzji PO.
+
+**Decyzje właściciela (aktualizacja, zapisana 2026-10-07):**
+- **D2 — ZAMKNIĘTE 2026-10-04:** `email_message` partycjonujemy PRZED wdrożeniem produkcyjnym; bramka pomiarowa nie jest wymagana, bo produkcji jeszcze nie ma. Progi G1–G4 bez zmian (decyzja: nie zmieniać). Skrypt `scripts/epic-30/db-066-email-message-volume.sql` zostaje do przyszłego pomiaru (np. na stage po wdrożeniu). Pomiar na produkcji niemożliwy (brak środowiska). Pytania 1–7 i 9 z listy poniżej przestały być warunkiem bramki; zachowane jako wejście do przyszłej kalibracji progów.
+- **D4 — ZATWIERDZONE 2026-10-07: A** (`message_at` = czas zaobserwowany przez system; unikalność `(tenant_id, message_id_header, message_at)` DEFERRABLE). DB-068 → 🚫 N/A, BE-136 → 🚫 N/A.
+- Status ticketu: ✅ (bramka zamknięta decyzją; nie oznacza wykonania konwersji — ta jest w DB-067, ✅ 2026-10-04).
 
 **Skrypt (tylko odczyt):** `scripts/epic-30/db-066-email-message-volume.sql`. Uruchomienie: `docker exec -i cc-postgres psql -U ccapp -d contact_center -X -v ON_ERROR_STOP=1 < scripts/epic-30/db-066-email-message-volume.sql`. Weryfikacja: dwa uruchomienia dają identyczny wynik; stan bazy nie zmieniony (count + md5 `email_message`, `retention_purge_log`, `tenant` przed i po); `CREATE TEMP TABLE` w tej samej sesji odrzucony (`read-only transaction`). **Wymaganie:** rola z BYPASSRLS lub superuser (`ccapp` w demo). Rola `app_user` bez GUC `app.current_tenant_id` dostaje 0 wierszy bez błędu, czyli wynik byłby cicho fałszywy.
 
@@ -3842,7 +3848,7 @@ Ocena wszystkich scenariuszy względem progów (liczone od zera; dla istniejące
 5. Horyzont oceny bramki: 12 czy 24 mies. (wpływa na zapas przed konwersją L).
 6. Czy skrzynki są migrowane historycznie (import IMAP przy onboardingu)? Jeśli tak: ile lat wstecz i ile wiadomości na skrzynkę. To wpływa na INTERNALDATE (`received_at` ≪ `created_at`) i daje skok G1/G2 od dnia pierwszego.
 7. Czy tenanci będą skracać retencję `CONTACT_INTERACTIONS` poniżej domyślnych 60 mies.? To decyduje o momencie pierwszego purge i o tym, czy G4 w ogóle wystąpi.
-8. **D4:** potwierdzić wariant A (`message_at` = czas zaobserwowany przez system, INTERNALDATE; fallback `now()` akceptowany, z ryzykiem niedeterministycznego `message_at` przy ponownym pobraniu) albo wskazać B (tabela `email_message_dedup`, DB-068 staje się wymagany).
+8. **D4:** potwierdzić wariant A (`message_at` = czas zaobserwowany przez system, INTERNALDATE; fallback `now()` akceptowany, z ryzykiem niedeterministycznego `message_at` przy ponownym pobraniu) albo wskazać B (tabela `email_message_dedup`, DB-068 staje się wymagany). **ROZSTRZYGNIĘTE 2026-10-07: A zatwierdzone przez właściciela.**
 9. Czy da się uruchomić skrypt na stage lub prod (rola z BYPASSRLS, tylko odczyt) i przekazać wynik? To jedyny sposób na zamknięcie bramki liczbami rzeczywistymi.
 
 **Proponowane poprawki DESIGN §3 D2 (NIE wprowadzone w tym kroku):**
@@ -3894,7 +3900,7 @@ Ocena wszystkich scenariuszy względem progów (liczone od zera; dla istniejące
 - [x] `EXPLAIN` zapytań `EmailMessageRepository` na scratch (500 tys., 15 partycji miesięcznych + default) — czasy przed/po w notatce poniżej. Planów NIE asertowano w Testcontainers (niedeterministyczne na partycjach z 0–1 wierszem); zamiast tego `PartitionIndexes`: każdy indeks rodzica ma potomka na każdej partycji.
 - [x] (WP-6) `create_next_month_partitions()` obejmuje `email_message` (`PartitionFunctions`, w transakcji wycofywanej); `tableoid`: bieżący miesiąc → `email_message_YYYY_MM`, nie `_default` (`Routing`); brak `drop_old_email_message_partitions` (`Structure`).
 - [ ] Wdrożenie w jednym wydaniu z BE-134; okno serwisowe; backup — **BE-134 ✅ (2026-10-04); pozostaje zgoda właściciela na okno blokady i wykonanie wdrożenia**.
-- [x] Zakłada D2 (bramka przekroczona — decyzja właściciela 2026-10-04), D4 = A (**założenie robocze, NIE potwierdzone formalnie przez PO**) i D1 = A; przy D4 = B unikalność przenosi się do DB-068; przy D1 = B ticket do ponownej oceny.
+- [x] Zakłada D2 (bramka zamknięta decyzją właściciela 2026-10-04: partycjonować przed wdrożeniem, bez pomiaru), D4 = A (**ZATWIERDZONE przez właściciela 2026-10-07**; wcześniej założenie robocze) i D1 = A; przy D4 = B unikalność przenosi się do DB-068; przy D1 = B ticket do ponownej oceny.
 
 **Notatka z wykonania (2026-10-04, `db-schema-architect`):**
 - **Migracje:** `V101__email_message_add_message_at.sql` (ADD COLUMN; `SET DEFAULT now()` PRZED backfillem; backfill keyset po PK, partia 5000, `WHERE message_at IS NULL`; weryfikacja 0 NULL + 0 niezgodności; `SET NOT NULL`; COMMENT). `V102__partition_email_message.sql` (guard jednorazowości; `LOCK TABLE … ACCESS EXCLUSIVE`; `email_message_new` RANGE(message_at), PK `(message_id, message_at)`, UNIQUE DEFERRABLE D4 = A, FK tenant RESTRICT, CHECK-i; partycje miesięczne z danych + bieżący +2 + `email_message_default`; kopia jawnie po kolumnach; RENAME; weryfikacja count + EXCEPT w obie strony przed DROP; indeksy `contact`/`delivery`/orphan (na `message_at`)/`tenant_message_at`; RLS ALL+WITH CHECK+FORCE; trigger `BEFORE UPDATE OF message_at`; DROP VIEW `v_customer_timeline` → DROP `_old` → CREATE VIEW 1:1 z V100; `create_email_message_partition`; `create_next_month_partitions` = V100 + 1 linia; weryfikacja strukturalna; ANALYZE). Nagłówki obu migracji zawierają uzasadnienia i plan wycofania.
@@ -3928,8 +3934,8 @@ Ocena wszystkich scenariuszy względem progów (liczone od zera; dla istniejące
 **Typ:** Schema migration
 **Priorytet:** Could Have (warunkowy)
 **Złożoność:** M
-**Zależy od:** DB-066 (wybór B), DB-067
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** DB-066 ✅ (wybór B — nie zaszło, D4 = A), DB-067 ✅
+**Status:** 🚫 N/A — D4 = A zatwierdzone przez właściciela 2026-10-07; ticket warunkowy (wymagany tylko przy D4 = B) nie wchodzi do zakresu. BE-136 → 🚫 N/A (wpis w `TASKS-BACKEND.md` do wykonania)
 **Blokuje:** BE-136
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -3979,7 +3985,7 @@ funkcje `create_campaign_contact_archive_partition`, `create_next_month_partitio
 **Priorytet:** Could Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Decyzja właściciela zapisana 2026-10-07: opcja A (zostawić LIST z jedyną partycją DEFAULT, bez zmian schematu). Szczegóły w notatce poniżej
 **Blokuje:** DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -3990,16 +3996,16 @@ a `documentation/tech/06-database.md:282` i `ARCHITECTURE.md:503` twierdzą inac
 HASH(`campaign_id`) działa z PK `(record_id, campaign_id)` i częściowym unikalnym `(campaign_id, phone)`, pruning działa.
 
 **Zakres — ADR z liczbami:** opcje (A) zostawić LIST z jedyną partycją DEFAULT, (B) uprościć do zwykłej tabeli (shadow + RENAME; ryzyko: ścieżka gorąca dialera, `ACCESS EXCLUSIVE`), (C) HASH(`campaign_id`) 16–32 partycji — dopiero przy > ok. 50 mln wierszy.
-**ZAŁOŻENIE DO POTWIERDZENIA: A + sprostowanie dokumentacji (DB-077)**; B/C tylko przy dowodzie pomiarowym. Skrypt progu (count, rozmiar, plan zapytań dialera `idx_campaign_contact_dialer`) do uruchamiania przy przeglądach.
+**ZATWIERDZONE przez właściciela 2026-10-07: A + sprostowanie dokumentacji (DB-077)**; B/C tylko przy dowodzie pomiarowym. Skrypt progu (count, rozmiar, plan zapytań dialera `idx_campaign_contact_dialer`) do uruchamiania przy przeglądach.
 
 **Kryteria akceptacji:**
 - [x] ADR w notatce z dowodami: `pg_inherits`, `count(*)` (demo: 37), `EXPLAIN` zapytania dialera, koszt utrzymania każdej opcji (notatka 2026-10-04 poniżej)
-- [ ] Decyzja właściciela zapisana; lista linii dokumentacji do poprawy przekazana do DB-077 — **lista przekazana (§6 notatki); decyzja właściciela NIE zapisana: rekomendacja A, czeka na potwierdzenie właściciela**
+- [x] Decyzja właściciela zapisana; lista linii dokumentacji do poprawy przekazana do DB-077 — **lista przekazana (§6 notatki); decyzja właściciela zapisana 2026-10-07: opcja A** (adnotacja: warunek (b) z listy warunków A — zamknięcie dostępu do `campaign_contact_default` — pozostaje otwarty jako zakres DB-073, NIE DB-080)
 - [x] Przy A: brak zmian schematu (potwierdzone: 0 migracji, 0 DDL w sesji); przy C: opis kroków migracji (shadow HASH, kopia, RENAME, zachowanie `idx_campaign_contact_dialer`, RLS z DB-073, `lock_timeout`) — bez implementacji przed progiem (§4 notatki)
 
 **Notatka z wykonania (2026-10-04) — ADR DB-070:**
 
-**Status:** rekomendacja **A** (zostawić LIST z jedyną partycją DEFAULT, bez zmian schematu), **czeka na potwierdzenie właściciela**. Ticket pozostaje ⬜. Nie zmieniano migracji, `documentation/**`, `ARCHITECTURE.md`, `PROGRESS.md`.
+**Status:** decyzja właściciela **A** (zostawić LIST z jedyną partycją DEFAULT, bez zmian schematu) **zapisana 2026-10-07**; ticket ✅. Wejściem do DB-077 jest lista z §6 poniżej. Nie zmieniano migracji, `documentation/**`, `ARCHITECTURE.md`, `PROGRESS.md`.
 
 **Metoda.** Kod: `grep` i odczyt `backend/app/src/main/java` oraz `backend/src/main/resources/db/migration`. Baza demo `contact_center` (PG 16.13): `psql` wewnątrz kontenera `cc-postgres` (użytkownik i baza z env kontenera, bez odczytu `.env.local-demo`), sesja z `SET default_transaction_read_only = on`; wyłącznie `SELECT`, `EXPLAIN` bez ANALYZE (ANALYZE zapisuje statystyki, więc nie użyto). Liczby z bazy oznaczone **(demo)**. Brak bazy scratch w tej sesji — pomiaru `ACCESS EXCLUSIVE`, pruningu HASH i planu przy realnym wolumenie **nie powtórzono** (twierdzenia z DESIGN §2 U13 oznaczone „nie powtórzone"). Repo nie ma katalogu ADR; ADR-09…13 są inline w `ARCHITECTURE.md` §11, więc ten ADR zostaje w tickecie (bez nowego katalogu).
 
@@ -4039,7 +4045,7 @@ Zapytanie `ProgressiveDialerServiceImpl#fetchNextPendingContact` (SQL: `FROM` l.
 9. Rollback: `campaign_contact_old` przechowywana przez ustalony okres, DROP po weryfikacji.
 10. Każdy DDL z `lock_timeout`; okno o niskim ruchu; podgląd `pg_locks` / `pg_stat_activity` przy cutover.
 
-**5. Rekomendacja: A (czeka na potwierdzenie właściciela)**
+**5. Rekomendacja: A — ZATWIERDZONA przez właściciela 2026-10-07**
 - Uzasadnienie: 37 wierszy (demo), zysk pruningu dziś = 0 przy jednej partycji; B i C bez pomiaru niosą ryzyko na ścieżce gorącej dialera; próg C (~50 mln) jest odległy.
 - Warunki A: (a) poprawki DB-077 (§6); (b) DB-073 zamyka dostęp do partycji DEFAULT (REVOKE albo RLS na partycji); (c) zakaz `PARTITION OF campaign_contact` w ADR i przy przeglądach kodu; (d) skrypt progu (§7) przy przeglądach.
 - Poza DB-070 (do osobnego ticketu po pomiarze na scratch z wolumenem, nie wdrażać tutaj): indeks zgodny z `ORDER BY created_at` (kandydat np. częściowy `(campaign_id, created_at) WHERE status IN ('PENDING','NO_ANSWER')`) oraz audyt `idx_campaign_contact_dialer_tenant`.
@@ -4092,6 +4098,8 @@ Próg do rewizji: `rows_total` ≥ ok. 50 mln lub `partitions` > 1 (sygnał naru
 DESIGN §2 U8/U9. Live: bez RLS — `campaign_contact`, `campaign_contact_archive` (PII), `contacts_dw`, `email_routing_rule`, `email_template`, `gdpr_processing_register`, `ivr_audio`, `plugin_version`, `refresh_token` (37 wierszy z `tenant_id` NULL = SUPER_ADMIN);
 polityka tylko-SELECT — `audit_log`, `ivr_tree`, `queue`, `app_user`, `email_message`, `social_message`; `customer`/`campaign` mają SELECT+INSERT+UPDATE bez DELETE, `contact` tylko SELECT+INSERT. Nie każda tabela jest tenantowa (katalogi globalne, `tenant`), a niektóre mają
 ścieżki pre-tenant (logowanie/`findByToken`, publiczne endpointy `TenantFilter.PUBLIC_PATH_PREFIXES`).
+
+**Otwarte: rola połączenia aplikacji (ccapp, BYPASSRLS) — decyzja odłożona 2026-10-07.** Pozostajemy przy `ccapp` (w local-demo superuser z BYPASSRLS; izolacja tenantów opiera się na logice aplikacji). Temat wraca do rozstrzygnięcia później; dotyczy BE-139 i DB-074 (nie zmienia zakresu tego raportu).
 
 **Zakres:** dla KAŻDEJ tabeli z kolumną `tenant_id` (`information_schema.columns` + `pg_class` + `pg_policies`): klasa TENANT (RLS wymagane) / GLOBAL (świadomie bez RLS + uzasadnienie) / MIXED (`tenant_id` NULL = globalne, np. `refresh_token`, `audit_log`);
 macierz komend SELECT/INSERT/UPDATE/DELETE × polityka (brak polityki = deny pod rolą ograniczoną); ścieżki bez kontekstu tenanta, które złamałoby RLS (auth, publiczne endpointy, `@Scheduled`, RabbitMQ, `EtlSyncServiceImpl`); proponowana polityka per tabela
@@ -4226,13 +4234,15 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122, BE-123, DB-070, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
+**Zależy od:** BE-120, BE-122, BE-123, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
 
 **Kontekst:** dokumentacja twierdzi rzeczy sprzeczne z faktami (DESIGN §2 U10, U13).
+
+**Wejście z DB-070 (decyzja A zatwierdzona 2026-10-07):** lista poprawek „plik:linia → błąd → co napisać" z notatki DB-070 §6 jest wejściem do tego ticketu (m.in. `campaign_contact` = wyłącznie partycja DEFAULT; `archive_completed_campaign_contacts()` bez schedulera). Poza zakresem DB-077: `DESIGN-data-retention-partitioning.md:14,129` (do decyzji właściciela: sprostować albo dopisać „tylko DEFAULT") oraz komentarz `V009:186–188` (zastosowana migracja — nie edytować).
 
 **Zakres (lokalizacje zweryfikowane 2026-09-20 — przed edycją sprawdź numery linii):** `documentation/tech/06-database.md`: ~196 (`refresh_token` „czyszczone przez pg_cron" → `RefreshTokenCleanupJob`), ~277 (archiwum: wypełniane przez job + flaga D8), ~282–284 (**„partycje tworzone dynamicznie przez aplikację" — nieprawda**: jedyna partycja `campaign_contact_default`, wg DB-070),
 ~372–380 (`cron_log` i „pg_cron (V014)" → Java `@Scheduled`: `PartitionMaintenanceJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, …), ~633 (retencja `audit_log` 2 lata → `PartitionReclaimJob` i konfigurowalny horyzont, BE-123), nowa sekcja o retencji treści wiadomości (Poziom 1/2, S3) i o klucz JSONB `attachments[*].s3_key` (a nie `s3_url`);
@@ -4358,3 +4368,67 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 - Przy ukrytej V094 czerwone jest **7 z 21** testów (było 6 z 19); z V094: 21/21 zielone.
 - **DB079-05 zostaje otwarte** (po stronie właściciela): na żywej bazie `flyway_schema_history` kończy się na V093, a `fn_contact_ref_integrity` to nadal wersja V016 — kryterium „WP-4, na żywo" powyżej pozostaje niezaznaczone (job `RecordingRetentionJob` jest destrukcyjny — najpierw dry-run i zgoda).
 - Niezależna weryfikacja końcowa (zlecający): `mvn clean verify -pl app` po poprawkach BE-125 i DB-079 — **Tests run: 1998, Failures: 0, Errors: 0, Skipped: 0, BUILD SUCCESS** (1918 w notatce wyżej to stan sprzed review).
+
+---
+
+### DB-080 – REVOKE na partycjach tabel tenantowych: `audit_log`, `contact`, `contact_transcription`, `contact_ai_summary`, `contact_event`, `plugin_invocation_log` (hardening, sześć osobnych migracji)
+
+**Typ:** Schema migration (hardening — bezpieczeństwo; bez zmiany danych ani polityk RLS)
+**Priorytet:** Should Have — **wymagane przed wdrożeniem produkcyjnym** (decyzja właściciela 2026-10-07)
+**Złożoność:** M
+**Zależy od:** DB-067 ✅ (wzorzec `email_message`: V102), DB-065 ✅ (wzorzec `social_message`: V103)
+**Status:** ✅ 2026-10-07 (migracje V105–V110 zastosowane w Testcontainers, `mvn verify -pl app` zielone: 2386/2386; `pg_dump -Fc` przed wdrożeniem produkcyjnym pozostaje jako warunek odrębny — zob. AC)
+**Blokuje:** brak (warunek wdrożenia produkcyjnego)
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Kontekst:**
+`ALTER DEFAULT PRIVILEGES` (V012) nadaje `app_user` SELECT/INSERT/UPDATE/DELETE na KAŻDEJ nowo utworzonej tabeli, także na partycji. Partycja nie ma własnego RLS, więc zapytanie po nazwie partycji (`SELECT … FROM audit_log_2026_10`) omija politykę tenanta. Mechanizm zmierzony na scratch dla `email_message` (V102) i `social_message` (V103); dla pozostałych partycjonowanych tabel tenantowych REVOKE dotąd nie został wykonany.
+
+**Decyzja właściciela 2026-10-07:** REVOKE dla WSZYSTKICH sześciu tabel, **osobnymi migracjami, w kolejności poniżej**. Poza zakresem tego ticketu: `email_message`, `social_message` (zrobione: V102/V103) oraz `campaign_contact` (DB-073; dotyczy też partycji `campaign_contact_default`).
+
+**Zakres — kolejność wykonania = kolejność migracji** (numery migracji nadaje się przy implementacji wg reguły z nagłówka sekcji, nie wpisuje w ticket):
+
+| # | Tabela | Migracje źródłowe (zweryfikowane w repo 2026-10-07) | Ryzyko (raport) | Do weryfikacji przed migracją |
+|---|---|---|---|---|
+| 1 | `audit_log` | V004 (tabela, partycje, `create_audit_log_partition` — jedyna definicja) | WYSOKIE | Polityka dziś tylko SELECT (INSERT pod `app_user` odrzucany przez RLS; DB-074 ją uzupełni). REVOKE nie może zmienić zachowania zapisu przez rodzica — potwierdzić testem. PII w `new_value` / `entity_id` (maskowanie: V098) |
+| 2 | `contact` | V007 (tabela, partycje, `create_contact_partition`) | WYSOKIE | Najczęstsze zapisy z aplikacji; polityki tylko SELECT + INSERT (DB-079). Job odzyskiwania miejsca robi `DROP` partycji i `SELECT … FROM ONLY <partycja>` (`PartitionReclaimJob`, `PartitionScannerImpl`) — patrz AC „ścieżki ownera" |
+| 3 | `contact_transcription` | V067 (tabela), V086 (partycjonowanie; `create_contact_transcription_partition` w V088) | WYSOKIE | Treść rozmowy (PII) |
+| 4 | `contact_ai_summary` | V068 (wydzielenie z `contact`), V087 (partycjonowanie; `create_contact_ai_summary_partition` w V088) | WYSOKIE | Treść rozmowy (PII; DESIGN D3) |
+| 5 | `contact_event` | V059 (tabela), V085 (partycjonowanie; `create_contact_event_partition` w V088) | **WYSOKIE** (podniesione z ŚREDNIEGO — zob. notatka wykonania) | Kolumna `metadata` JSONB: sprawdzić, czy niesie PII; jeśli tak — ryzyko podnieść do WYSOKIE |
+| 6 | `plugin_invocation_log` | V077 (tabela, partycje, `create_plugin_invocation_log_partition`) | ŚREDNIE (potwierdzone — zob. notatka wykonania) | `request_payload_redacted` (zamierzone bez PII wg komentarza kolumny) i `error_summary` TEXT: sprawdzić rzeczywistą zawartość |
+
+**Wzorzec (jak V102/V103), jedna migracja na tabelę:**
+1. Pętla po `pg_inherits` po WSZYSTKICH partycjach tabeli, także `_default`: `REVOKE ALL ON TABLE <partycja> FROM app_user`.
+2. `CREATE OR REPLACE` funkcji `create_<tabela>_partition(p_year, p_month)` = aktualna definicja z łańcucha Flyway + `REVOKE ALL … FROM app_user` na nowo utworzonej partycji (`ALTER DEFAULT PRIVILEGES` nadaje GRANT przy każdym `CREATE TABLE`).
+3. Asercja na końcu migracji: `RAISE EXCEPTION`, jeśli którakolwiek partycja tabeli nadal daje `app_user` uprawnienia (`has_table_privilege`). Przerywa całą migrację (jedna transakcja Flyway), bez częściowego efektu.
+4. Bez zmian: RLS, polityki i GRANT na tabeli nadrzędnej, dane, indeksy, właściciel obiektów.
+5. `SET LOCAL lock_timeout` (wzorzec V102/V103). Wg pomiaru DB-067 REVOKE nie zakłada blokady na relacji (`pg_locks` puste); timeout zostaje jako zabezpieczenie.
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Dla każdej z 6 tabel, pod `SET ROLE app_user` (Testcontainers, pełny łańcuch Flyway): bezpośredni SELECT i INSERT na partycji (także `_default`) → `permission denied` (SQLState 42501) — `PartitionGrantsRevokeMigrationsTest` (24 testy: `directSelect_onExistingPartition_isPermissionDenied`, `directInsert_onExistingPartition_isPermissionDenied`, `directSelect_onDefaultPartition_isPermissionDenied`, `directInsert_onDefaultPartition_isPermissionDenied`, × 6 tabel)
+- [x] Dla każdej z 6 tabel: dostęp przez tabelę nadrzędną pod `SET ROLE app_user` z GUC `app.current_tenant_id` działa tak samo jak przed migracją (test porównawczy pre/post na tych samych danych: te same wyniki, zero wierszy cudzego tenanta, INSERT cross-tenant → 42501); polityki RLS nie zmienione — `throughParent_rlsBehaves_asExpected` + `throughParent_andRlsCatalog_identicalToPreMigrationSnapshot` (12 testów)
+- [x] Partycja utworzona przez każdą z 6 funkcji `create_<tabela>_partition` nie ma uprawnień dla `app_user` (`has_table_privilege` = false) — `partitionCreatedByFunction_hasNoGrantForAppUser` (6 testów)
+- [x] Asercja w każdej migracji działa: test negatywny — ręczny GRANT na partycji przed uruchomieniem migracji → kontrolowany błąd, bez częściowego efektu — `publicGrantOnPartition_abortsMigration_withoutPartialEffect` (6 testów; GRANT przez `PUBLIC`, bo GRANT wprost do `app_user` jest zdjęty przez pętlę REVOKE i nie jest błędem — zob. notatka wykonania)
+- [x] Migracje idempotentne: podwójne zastosowanie (lub ponowne wywołanie funkcji) bez błędu i bez zmiany katalogu (`pg_class.relacl`, `pg_proc` przed == po — metoda jak V102/V103) — `reapplyingMigration_leavesCatalogUnchanged` (6 testów)
+- [x] Ścieżki ownera działają po zmianie: `PartitionReclaimJob` / `PartitionScannerImpl` (`DROP TABLE`, `SELECT … FROM ONLY`), `drop_old_*_partitions`, `rotate_*_partitions` oraz `PartitionMaintenanceJob` (tworzenie partycji) — pod rolą połączenia backendu (owner); test w Testcontainers albo jawne odnotowanie wyniku — `ownerPaths_workAfterRevoke` (6 testów: `FROM ONLY`, `create_*_partition`, `DROP TABLE`); `drop_old_*`/`rotate_*`/`PartitionMaintenanceJob` nie wykonane bezpośrednio (nie dotykają app_user) — jawnie odnotowane w notatce wykonania
+- [x] Grep po `backend/app/src/main/java` potwierdza, że żadna ścieżka aplikacji nie odwołuje się do partycji po nazwie pod rolą bez ownership; wynik zapisany w notatce — zero `SET ROLE` w kodzie backendu (grep), zob. notatka wykonania
+- [ ] Przed pierwszym wdrożeniem produkcyjnym: `pg_dump -Fc` (wymagany); okno serwisowe zgodne z DB-067 — **pozostaje otwarte** (brak produkcji; wymagane przed wdrożeniem)
+- [x] Brak regresji w `EmailMessagePartitioningTest` i `SocialMessagePartitioningTest`; `mvn verify -pl app` zielone (wzorzec testów: `DirectPartitionAccess` / `ViaParentAfterRevoke` z DB-067) — oba zielone (bez zmian), `mvn -o clean verify -pl app`: BUILD SUCCESS, Tests run: 2386, Failures: 0, Errors: 0 (bazowo 2325 + 61 nowych)
+- [x] Każda z 6 migracji to osobny plik (jedna zmiana = jedna migracja); kolejność wykonania jak w tabeli powyżej — V105 `audit_log`, V106 `contact`, V107 `contact_transcription`, V108 `contact_ai_summary`, V109 `contact_event`, V110 `plugin_invocation_log` (V104 pozostaje wolny pod przyszły `DROP DEFAULT`)
+
+**Notatka wykonania (2026-10-07):**
+- **Migracje:** V105 `audit_log`, V106 `contact`, V107 `contact_transcription`, V108 `contact_ai_summary`, V109 `contact_event`, V110 `plugin_invocation_log` (`backend/src/main/resources/db/migration/`). Numer V104 zweryfikowany grepem jako wolny na wszystkich lokalnych gałęziach (`git branch -a`) i w `flyway_schema_history` bazy dev (`cc-postgres`, top = V100) — **zostaje zarezerwowany, nieużyty**, pod przyszły `DROP DEFAULT`. Treść każdej funkcji `create_<tabela>_partition` zweryfikowana 1:1 (diff po odfiltrowaniu wyłącznie dodanego REVOKE) względem ostatniej definicji w łańcuchu: `create_audit_log_partition` (V004, jedyna), `create_contact_partition` (V007, jedyna), `create_contact_transcription_partition`/`create_contact_ai_summary_partition`/`create_contact_event_partition` (V088, jedyna), `create_plugin_invocation_log_partition` (V077, jedyna) — żadna nie była nadpisana później.
+- **Testy:** nowy `PartitionGrantsRevokeMigrationsTest` (`backend/app/src/test/java/com/contactcenter/infrastructure/config/`), wzorzec pre/post jak `EmailMessagePartitioningTest` (świeży kontener, Flyway `target()` do wersji tuż przed V105 wyznaczanej dynamicznie po opisie migracji, zasiew dwóch tenantów w partycjach `_2026_10`, zrzut zachowania przez rodzica + polityk RLS przed V105..V110, pełny `migrate()`, powtórny zrzut, porównanie). 61 testów (1 historia Flyway + 6 tabel × 10: 4× bezpośredni dostęp, 2× przez rodzica, 1× partycja z funkcji, 1× idempotencja, 1× negatywny, 1× ścieżka ownera).
+- **Kontrola RED:** kopie V105–V110 z wyłączonym REVOKE (`sed` → `NULL;`) i wyłączoną asercją (`IF FALSE`) → 36/61 testów pada (24× bezpośredni dostęp SELECT/INSERT, 6× `partitionCreatedByFunction_hasNoGrantForAppUser`, 6× negatywny), pozostałe 25 (przez rodzica, idempotencja, ścieżka ownera) przechodzą — zgodnie z oczekiwaniem (REVOKE nie zmienia zachowania przez rodzica). Pliki przywrócone z kopii zapasowej w scratchpadzie, zgodność `sha256sum -c` potwierdzona (6/6 OK) przed dalszą pracą.
+- **AC „test negatywny — ręczny GRANT":** doprecyzowanie względem treści ticketu — GRANT wprost `TO app_user` jest zdjęty przez pętlę REVOKE (sekcja 1 migracji) i NIE jest błędem (to zamierzone samo-naprawianie się stanu). Negatywny scenariusz zrealizowany jako `GRANT ... TO PUBLIC` na partycji: PUBLIC nie jest objęty REVOKE `FROM app_user`, więc `has_table_privilege('app_user', ...)` pozostaje `true` (PUBLIC action dotyczy każdej roli) → asercja w sekcji 3 migracji poprawnie przerywa transakcję (`RAISE EXCEPTION`, SQLState `P0001`), katalog bez zmian po `ROLLBACK` (zweryfikowane odciskiem `relacl`+`pg_proc` przed/po).
+- **Ryzyko `contact_event` podniesione na WYSOKIE:** zweryfikowano zawartość `metadata` JSONB w bazie demo (`cc-postgres`, read-only, 871 wierszy). Klucze: `agent_id`/`agent_name`, `queue_id`/`queue_name`, `ivr_tree_id`/`ivr_tree_name`, `target`/`target_type`, `target_agent_id`/`target_agent_name`, `target_queue_id`/`target_queue_name`, `transfer_type`. `target` niesie **numer telefonu** przy transferze/konsultacji na kontakt zewnętrzny (`ContactServiceImpl` ustawia `meta.put("target", req.phoneNumber())` dla `target_type = PHONE`; w demo 1 wiersz o kształcie numeru telefonu, pozostałe `target` to UUID agenta/kolejki lub identyfikatory ~34-znakowe zaczynające się literą — kształt zgodny z SID dostawcy telefonii, nieanalizowane dalej) oraz **imiona agentów** (`agent_name`, `target_agent_name` — PII pracownika) w ponad 260 wierszach. Brak mechanizmu redakcji na tej ścieżce (`PiiRedactor` dotyczy wyłącznie `plugin_invocation_log.request_payload_redacted`).
+- **Ryzyko `plugin_invocation_log` potwierdzone jako ŚREDNIE:** `request_payload_redacted` przechodzi przez `PiiRedactor` (rekurencyjna redakcja kluczy `phone`/`email`/`name`/`address`/`pesel`/... przed zapisem) — w demo zawiera wyłącznie identyfikatory UUID (`contactId`, `customerId`, `agentId`), kody i `parameters.pattern` (konfiguracja pluginu). `error_summary` (`e.getMessage()`) **NIE jest redagowany** — w demo 5 wierszy, komunikaty krótkie (57 i 82 znaki), bez adresów e-mail i ciągów ≥9 cyfr, ale mechanizm nie gwarantuje braku PII w przyszłości (wolny tekst wyjątku zewnętrznego pluginu). `related_contact_id` to tylko identyfikator.
+- **Joby retencji / sesje app_user (ustalenie, NIEBLOKUJĄCE):** grep `backend/app/src/main/java` — **zero wystąpień** `SET ROLE`/`SET LOCAL ROLE` w kodzie produkcyjnym (jedyne dopasowania to nazwa tabeli `app_user` w niepowiązanych zapytaniach HR/agentów). `PartitionScannerImpl#countRowsByTenant` (`SELECT … FROM ONLY "<partycja>"`) i `#dropPartition` (`DROP TABLE IF EXISTS`) oraz `PartitionMaintenanceJob`/`PartitionReclaimJob`/`RetentionEvaluationServiceImpl` wykonują zapytania przez `EntityManager`/`JdbcTemplate` połączenia aplikacji — **bez** `SET ROLE app_user`. REVOKE dotyczy wyłącznie roli `app_user`; `PartitionMaintenanceJob` nie działa jako `app_user` ani pod żadnym `SET ROLE`. Ścieżki ownera zweryfikowane w Testcontainers (`ownerPaths_workAfterRevoke`: `FROM ONLY` na partycji z GRANT zdjętym dla `app_user`, `create_<tabela>_partition`, `DROP TABLE`) — działają bez zmian. `drop_old_*_partitions`/`rotate_*_partitions` nie wywołane bezpośrednio w teście (są tym samym mechanizmem DROP/CREATE jako owner, bez odwołań do `app_user`) — ryzyko regresji oceniane jako brak, odnotowane jawnie zamiast dodatkowego testu.
+- **Warunek na przyszłość (nie dziś):** jeśli rola połączenia backendu zostanie kiedyś zmieniona na rolę bez ownership partycji (BE-139/DB-071), `PartitionReclaimJob`/`PartitionScannerImpl` zaczną failować niezależnie od DB-080 — poza zakresem tego ticketu, już odnotowane w sekcji Ryzyka poniżej.
+
+**Ryzyka:**
+- REVOKE dotyczy wyłącznie `app_user`. Rola `admin_user` (BYPASSRLS, migracje) i `ccapp` (owner; połączenie backendu w local-demo) nie są objęte i nie są zmieniane.
+- Właściciel obiektów się nie zmienia, więc `DROP` partycji i `FROM ONLY` w `PartitionScannerImpl` działają dla ownera. Jeśli przy zmianie roli połączenia (BE-139 / późniejsza decyzja, zob. DB-071) backend zostanie przeniesiony na rolę bez ownership, `PartitionReclaimJob` zacznie failować — wtedy potrzebny GRANT dla roli serwisowej albo funkcja `SECURITY DEFINER` (poza zakresem tego ticketu).
+- Partycje istniejące PRZED migracją muszą być objęte pętlą (w tym `_default`); partycje tworzone PO migracji dostają REVOKE z przebudowanej funkcji `create_*`. Obie ścieżki testowane.
+- Koszt liniowy: REVOKE per partycja; liczba partycji rośnie co miesiąc. Zmierzyć czas na scratch przed wdrożeniem produkcyjnym.

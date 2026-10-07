@@ -129,6 +129,8 @@
 - [BE-133 social_message podpięta do partycji/retencji (EPIC-30)](project_be133_social_message_partition_retention.md) — TABLE_CATEGORIES/PARTITIONED_TABLES/PARTITION_AWARE_TABLES, bez czekania na BE-123, countEligibleMessages przestał liczyć social
 - [Shared-DB integration test partition leak łamie EXPLAIN gdzie indziej](feedback_shared_db_integration_test_partition_leak.md) — test "nonEmpty blocks DROP" musi DROP-ować partycję po asercjach (finally), inaczej psuje doesNotContain("Seq Scan") w innej klasie
 
+- [Flip default retention.purge.delete-messages (2026-10-07)](project_be_delete_messages_default_flip.md) — true domyślnie, @Value SpEL fallback nieruszony (nieosiągalny), testy jawnie ustawiają false
+
 ## BE-134 (2026-10-04)
 
 - [BE-134 email_message na kluczu złożonym](project_be134_email_message_composite_key.md) — @IdClass(id, messageAt), natywny INSERT/UPDATE, lookupy po id, V103 odłożona

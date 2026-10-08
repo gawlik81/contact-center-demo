@@ -125,9 +125,14 @@ BE-120 zarchiwizuje zaległość (30 kampanii), jej zegar retencji startuje od d
 o wiek kampanii. Wpływ alternatywy: warunkowe DB-075 (kolumna `campaign_ended_at` w archiwum, backfill z `campaign.updated_at`, zmiana
 `purge_campaign_contact_archive` i indeksu) + BE-140 (`countEligible`/`purgeEligible`).
 
-**D7 — RLS dla `campaign_contact*` (PII).** **ZAŁOŻENIE: TAK** (DB-072, DB-073). Wpływ NIE: DB-072/073 znikają, izolację utrzymuje wyłącznie
-filtr `tenant_id` w kodzie/funkcjach (jak dziś, patrz V091) — rośnie znaczenie testów izolacji (WP-1). Uwaga: `campaign_contact` jest na ścieżce
-gorącej dialera (scheduler bez tenanta) — DB-073 wymaga przeglądu wszystkich ścieżek `@Scheduled`/`@Async`/RabbitMQ.
+**D7 — RLS dla `campaign_contact*` (PII).** **ZATWIERDZONE przez właściciela 2026-10-08: Opcja 1 — pełne RLS dla obu tabel**
+(ALL+WITH CHECK+FORCE, symetrycznie z `contact`/`email_message`), odrzucone: Opcja 2 (węższa polityka bez DELETE na `campaign_contact`) i
+Opcja 3 (odłożyć obie). Odblokowuje DB-072, DB-073. Znana, udokumentowana (nie blokująca) zależność: `archive_completed_campaign_contacts()`
+wstawia wiersze wielu tenantów w jednym wywołaniu — pod rolą bez BYPASSRLS klauzula `WITH CHECK` odrzuciłaby wiersze innych tenantów niż GUC;
+funkcja jest dziś martwa (pg_cron wyłączony, 0 wywołań z Javy, DB-070) i połączenie aplikacji (`ccapp`) ma BYPASSRLS, więc polityka nie zmienia
+dziś niczego w działającej aplikacji — ryzyko aktywuje się tylko gdy BE-120 przywróci funkcję I zapadnie decyzja o przełączeniu roli połączenia
+(odłożona, patrz §2). `campaign_contact` jest na ścieżce gorącej dialera (scheduler bez tenanta) — DB-073 wymaga przeglądu wszystkich ścieżek
+`@Scheduled`/`@Async`/RabbitMQ (lista kandydatów już zebrana w DB-071 §2).
 
 **D8 — archiwizacja kampanii zmienia widoczność (nowa, wynikła z weryfikacji U11).** **ZAŁOŻENIE: BE-120 dostarcza job za flagą
 `retention.campaign-archive.enabled` (domyślnie `false`)**; włączenie po potwierdzeniu, że UI/raporty nie potrzebują kontaktów kampanii > 30
@@ -163,14 +168,14 @@ nieaktualna** — zapis niżej zostaje wyłącznie jako historyczne uzasadnienie
 
 ## 4. Fazy i fale
 
-Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143; 2026-09-24 DB-061, DB-062 (V095/V096 w kodzie, niezastosowane na żywej bazie), BE-129 (integracja Javy, bez nowej migracji); 2026-09-25 DB-059 (V097 w kodzie, niezastosowana na żywej bazie); 2026-09-26 BE-127 (ostatni Must Have EPIC-30), BE-145 (poza epikiem, naprawa BE127-01), BE-128 (dashboard/badge liczą wiadomości); 2026-10-08 DB-071 (raport klasyfikacji RLS, D7 nierozstrzygnięte), BE-123 (horyzont platformowy, WP-4 local-demo otwarte) — **uwaga:** ta lista nie odnotowuje zamknięć z tury 2026-10-01..2026-10-07 (DB-064/065/066/067/070/080, BE-131/132/133/134/135/136/141/142/146, FE-112) — zob. PROGRESS.md/TASKS-*.md dla pełnego stanu, poza zakresem tej aktualizacji):
+Graf (A → B = kolejność wykonania, B zależy od A; ‖ = równolegle; ✅ = zamknięte: 2026-09-20 BE-124, DB-060; 2026-09-21 BE-125, DB-079 (V094 w kodzie, niezastosowana na żywej bazie); 2026-09-22 BE-126, BE-143; 2026-09-24 DB-061, DB-062 (V095/V096 w kodzie, niezastosowane na żywej bazie), BE-129 (integracja Javy, bez nowej migracji); 2026-09-25 DB-059 (V097 w kodzie, niezastosowana na żywej bazie); 2026-09-26 BE-127 (ostatni Must Have EPIC-30), BE-145 (poza epikiem, naprawa BE127-01), BE-128 (dashboard/badge liczą wiadomości); 2026-10-08 DB-071 (raport klasyfikacji RLS), BE-123 (horyzont platformowy, WP-4 local-demo otwarte), DB-072, DB-073 (D7 ZATWIERDZONE: Opcja 1, pełne RLS `campaign_contact*`, V111/V112) — **uwaga:** ta lista nie odnotowuje zamknięć z tury 2026-10-01..2026-10-07 (DB-064/065/066/067/070/080, BE-131/132/133/134/135/136/141/142/146, FE-112) — zob. PROGRESS.md/TASKS-*.md dla pełnego stanu, poza zakresem tej aktualizacji):
 
 ```
 Fala 0  BE-120, BE-122, BE-123 ✅, DB-057, DB-058 (niezależne)      DB-056 → BE-121      BE-144 (poza epikiem: obrazy MinIO, niezależne)      BE-145 ✅ (poza epikiem: PartitionReclaimJob nie DROP-uje już niepustej partycji contact*, ukończone 2026-09-26)
 Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅ → FE-110 (też BE-126 ✅ → FE-110)      BE-124 ✅ → DB-059 ✅ → BE-127 ✅
         DB-060 ✅ (audyt PII) → DB-061 ✅ (+ wspólna reguła D9) → DB-062 ✅ → BE-129 ✅ → FE-112      DB-079 ✅ (trigger V016) → DB-062 ✅, BE-129 ✅      BE-125 ✅ → BE-129 ✅
         BE-141 → DB-078 (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜)      [D1=C: BE-124 ✅ → DB-063 🚫 → BE-130 🚫 → FE-111 🚫 (zamknięte 2026-09-30, D1=A potwierdzone)]
-Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 ✅ → DB-072 ‖ DB-073 ‖ DB-074, BE-138, BE-139
+Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 ✅ → DB-072 ✅ ‖ DB-073 ✅ ‖ DB-074, BE-138, BE-139
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-076   DB-077 (dokumentacja, po falach 0–1)
 ```

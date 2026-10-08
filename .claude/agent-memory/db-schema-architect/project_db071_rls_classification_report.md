@@ -83,7 +83,9 @@ przy DB-074.
 - 10 innych `@RabbitListener` NIE zweryfikowanych linia-po-linii (poza budżetem S) — do potwierdzenia
   przy BE-139.
 
-**D7 (NIE rozstrzygnięte, pytanie dla właściciela):** dla `campaign_contact`/`campaign_contact_archive`
+**D7 — ROZSTRZYGNIĘTE 2026-10-08: Opcja 1 (pełne RLS), zob. [[project_db072_073_campaign_contact_rls]] (V111/V112, DB-072/DB-073 ✅).** Treść poniżej zostaje jako zapis historyczny stanu w chwili tego raportu.
+
+**D7 (było NIE rozstrzygnięte w chwili raportu):** dla `campaign_contact`/`campaign_contact_archive`
 — pełne RLS (ALL+WITH CHECK+FORCE) symetrycznie z `contact`/`email_message`, czy węższe (bez DELETE)
 dla `campaign_contact`? Dowód asymetrii: `campaign_contact` ma **0 wywołań DELETE w Javie** (jedyny
 `DELETE FROM campaign_contact` jest w martwej funkcji SQL `archive_completed_campaign_contacts()`,

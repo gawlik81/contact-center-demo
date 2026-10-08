@@ -20,4 +20,6 @@ metadata:
 
 **How to apply:** przy każdym ticketcie dotyczącym `campaign_contact` (DB-073, DB-077, przyszły indeks pod `ORDER BY created_at`) sprawdź najpierw, czy A nadal obowiązuje (skrypt progu: count, suma rozmiaru partycji, liczba partycji > 1 = naruszenie ADR). Jeśli właściciel zatwierdzi B/C — ADR wymaga pomiaru na scratch (ACCESS EXCLUSIVE, pruning, EXPLAIN przy wolumenie) przed implementacją.
 
-Powiązane: [[project_partitioning_candidates_2026_09]], [[feedback_rls_testing]], [[project_contact_center]], [[feedback_scratch_and_catalog_gotchas]]
+**Aktualizacja 2026-10-08 (DB-073/V112):** REVOKE na `campaign_contact_default` wykonane (warunek A(b) z tego ADR zamknięty). Potwierdzone grepem: brak funkcji `create_campaign_contact_partition` w całym repo — REVOKE jest tylko pętlą po `pg_inherits`, bez gałęzi "create" do patchowania. Szczegóły: [[project_db072_073_campaign_contact_rls]].
+
+Powiązane: [[project_partitioning_candidates_2026_09]], [[feedback_rls_testing]], [[project_contact_center]], [[feedback_scratch_and_catalog_gotchas]], [[project_db072_073_campaign_contact_rls]]

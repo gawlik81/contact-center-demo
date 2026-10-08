@@ -3041,8 +3041,8 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
-> Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 ✅ → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 ✅ → BE-138, BE-139;   DB-064 ✅ → BE-139
+> Grupa 4:  DB-056, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074;   DB-071 ✅ → BE-138, BE-139;   DB-064 ✅ → BE-139
 > Grupa 6:  BE-120, BE-122, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > ```
@@ -3957,7 +3957,7 @@ RLS ALL + WITH CHECK + FORCE (GUC `app.current_tenant_id`); indeks `(tenant_id, 
 **Typ:** Schema migration (partycjonowanie)
 **Priorytet:** Could Have — **nie wykonywać przed spełnieniem warunku wejścia**
 **Złożoność:** L
-**Zależy od:** DB-056, DB-072 (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
+**Zależy od:** DB-056, DB-072 ✅ (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-137
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4210,7 +4210,7 @@ Opcje dla właściciela:
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** DB-071 ✅, BE-120 (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Zrobione (2026-10-08, V111) — notatka wykonania poniżej
 **Blokuje:** DB-069, DB-073
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -4223,9 +4223,20 @@ albo pętla per tenant) musi być spójne z tą polityką.
 **Zakres:** jedna migracja: `ENABLE` + `FORCE` RLS, polityka ALL + WITH CHECK (GUC `app.current_tenant_id`); dostosowanie funkcji SQL wg decyzji z BE-120 (osobna migracja, jeśli wymagana).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1/WP-4) Test pod `SET ROLE app_user`: izolacja SELECT/INSERT/UPDATE/DELETE; `purge_campaign_contact_archive(tenant, cutoff, batch)` z GUC tenanta działa i nie rusza innych; rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`
-- [ ] Zachowanie `archive_completed_campaign_contacts()` pod rolą ograniczoną opisane i zgodne z decyzją BE-120; `export_customer_data`/`anonymize_customer` (DB-061/062) działają pod rolą z GUC
-- [ ] (WP-3) Jedna migracja, numer wg reguły; **zakłada D7 = TAK — przy D7 = NIE ticket anulowany**, a izolację utrzymuje wyłącznie filtr `tenant_id` (testy izolacji zyskują na wadze)
+- [x] (WP-1/WP-4) Test pod `SET ROLE app_user`: izolacja SELECT/INSERT/UPDATE/DELETE; `purge_campaign_contact_archive(tenant, cutoff, batch)` z GUC tenanta działa i nie rusza innych; rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`
+- [x] Zachowanie `archive_completed_campaign_contacts()` pod rolą ograniczoną opisane i zgodne z decyzją BE-120; `export_customer_data`/`anonymize_customer` (DB-061/062) działają pod rolą z GUC
+- [x] (WP-3) Jedna migracja, numer wg reguły; **zakłada D7 = TAK — przy D7 = NIE ticket anulowany**, a izolację utrzymuje wyłącznie filtr `tenant_id` (testy izolacji zyskują na wadze)
+
+**Notatka z wykonania (2026-10-08, V111, razem z DB-073/V112):**
+
+Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-partitioning.md` §3): **Opcja 1 — pełne RLS**, bez wyjątku na DELETE.
+
+- `V111__campaign_contact_archive_rls.sql`: `ENABLE` + `FORCE ROW LEVEL SECURITY`, polityka `campaign_contact_archive_tenant_isolation` `FOR ALL USING/WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)` — wzorzec 1:1 z V099 (`email_message`/`social_message`). Tabela nie jest partycjonowana (V015) — bez kroku REVOKE na partycjach.
+- **Weryfikacja na żywej bazie demo** (dry-run w transakcji z `ROLLBACK`, `cc-postgres`, `psql -U ccapp`): izolacja SELECT (tenant B 0 wierszy archiwum tenanta A), cross-tenant INSERT odrzucony (`42501`, "new row violates row-level security policy for table campaign_contact_archive"), `purge_campaign_contact_archive(tenant, cutoff)` pod `SET ROLE app_user` + GUC własnego tenanta działa identycznie jak pod superuserem (purge 1 wiersza, 0 pozostało) — druga warstwa izolacji nie koliduje z filtrem `WHERE tenant_id = p_tenant_id` już w funkcji.
+- **Test Testcontainers:** nowa klasa `CampaignContactRlsMigrationsTest` (`backend/app/src/test/java/com/contactcenter/infrastructure/config/`) — pełny łańcuch Flyway do najnowszej wersji (wzorzec „jedna świeża baza", nie pre/post — ta migracja DODAJE zdolność, nie zmienia zachowania na danych zastanych, zob. [[project_db064_email_social_message_rls_write_policies]]). Pokrywa: `pg_class`/`pg_policies`, własny tenant INSERT/UPDATE/DELETE, cross-tenant INSERT odrzucony (`42501`), cross-tenant SELECT/UPDATE/DELETE = 0 wierszy (nie błąd), bez GUC = SELECT 0 wierszy + INSERT odrzucony.
+- `CampaignContactArchivePurgeTenantIsolationTest` (V091/BE-119) **nie wymagał zmiany logiki** — łączy się rolą `cc_test` (superuser Testcontainers, zawsze `BYPASSRLS`), więc FORCE RLS nie wpływa na wynik; Javadoc klasy zaktualizowany (była tam nieaktualna już teza „NIE ma RLS wcale").
+- **Regresja:** `AnonymizeCustomerExtensionTest` (test C) miał asercję z komentarzem „campaign_contact_archive: brak RLS w ogóle" — licznik (`1`) się NIE zmienił (UPDATE w `anonymize_customer` filtruje `WHERE tenant_id = p_tenant_id`, a test ustawia GUC na tę samą wartość — RLS spełnione trywialnie), poprawiono tylko komentarz. `mvn verify -pl app`: **2421/2421 testów, 0 błędów, BUILD SUCCESS** (pełny przebieg, JDK 21).
+- `archive_completed_campaign_contacts()`: **bez zmian kodu** — udokumentowana, zaakceptowana, dormant zależność w nagłówku V111 i w DESIGN §3 D7: funkcja wstawia wiersze wielu tenantów jednym wywołaniem, co po przełączeniu roli połączenia na `app_user` (decyzja odłożona) wymagałoby pętli per-tenant albo `SECURITY DEFINER` (BE-120/R5) — dziś bez wpływu, `ccapp` ma `BYPASSRLS`, funkcja jest martwa (DB-070).
 
 ---
 
@@ -4234,8 +4245,8 @@ albo pętla per tenant) musi być spójne z tą polityką.
 **Typ:** Schema migration (bezpieczeństwo, PII)
 **Priorytet:** Should Have
 **Złożoność:** M (ścieżka gorąca dialera; przegląd wszystkich ścieżek bez kontekstu tenanta)
-**Zależy od:** DB-071 ✅, DB-072
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** DB-071 ✅, DB-072 ✅
+**Status:** ✅ Zrobione (2026-10-08, V112) — notatka wykonania poniżej
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `backend-dev-expert`, `test-suite-expert`)
@@ -4247,10 +4258,23 @@ albo pętla per tenant) musi być spójne z tą polityką.
 **przegląd ścieżek** (lista klas z oceną „ma kontekst / nie ma / wymaga pętli per tenant") w notatce; `EXPLAIN` zapytań dialera po dodaniu predykatu polityki.
 
 **Kryteria akceptacji:**
-- [ ] (WP-1/WP-4) Pod `SET ROLE app_user`: izolacja 4 komend; wszystkie ścieżki `@Scheduled`/`@Async`/RabbitMQ z przeglądu przetestowane pod rolą ograniczoną (BE-139) — brak cichej utraty wierszy
-- [ ] `EXPLAIN` zapytań dialera (`idx_campaign_contact_dialer`, `idx_campaign_contact_dialer_tenant`) bez regresji planu; czas przed/po na scratch
-- [ ] (WP-3) Jedna migracja, numer wg reguły, `lock_timeout` (ALTER … ENABLE RLS na tabeli partycjonowanej); (WP-4) dialer w local-demo działa po przebudowie (uwaga: `ccapp` omija RLS — dowodem jest test pod `app_user`)
-- [ ] **Zakłada D7 = TAK**; przy D7 = NIE ticket anulowany
+- [x] (WP-1/WP-4) Pod `SET ROLE app_user`: izolacja 4 komend; wszystkie ścieżki `@Scheduled`/`@Async`/RabbitMQ z przeglądu przetestowane pod rolą ograniczoną (BE-139) — brak cichej utraty wierszy
+- [x] `EXPLAIN` zapytań dialera (`idx_campaign_contact_dialer`, `idx_campaign_contact_dialer_tenant`) bez regresji planu; czas przed/po na scratch
+- [x] (WP-3) Jedna migracja, numer wg reguły, `lock_timeout` (ALTER … ENABLE RLS na tabeli partycjonowanej); (WP-4) dialer w local-demo działa po przebudowie (uwaga: `ccapp` omija RLS — dowodem jest test pod `app_user`)
+- [x] **Zakłada D7 = TAK**; przy D7 = NIE ticket anulowany
+
+**Notatka z wykonania (2026-10-08, V112, po V111/DB-072):**
+
+- **Weryfikacja stanu przed migracją** (psql read-only, `cc-postgres`): `campaign_contact`/`campaign_contact_archive`/`campaign_contact_default` wszystkie `relrowsecurity=f`; `app_user` miał `SELECT/INSERT/UPDATE/DELETE` GRANT na obie tabele I na partycję `campaign_contact_default` (ACL partycji = ACL rodzica z V012, jak przewidział ADR DB-070). **Brak funkcji `create_campaign_contact_partition`** w całym repo (zweryfikowane grepem po wszystkich migracjach) — potwierdza ADR DB-070: jedyna partycja to `campaign_contact_default` z V009, nic nie tworzy partycji per kampania.
+- `V112__campaign_contact_rls.sql`: (1) `ENABLE`+`FORCE ROW LEVEL SECURITY` na rodzicu + polityka `campaign_contact_tenant_isolation FOR ALL USING/WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::uuid)`; (2) `REVOKE ALL ON campaign_contact_default FROM app_user` przez pętlę po `pg_inherits` — wzorzec 1:1 z V102/V103/V105-V110 (REVOKE zamyka obejście RLS po nazwie partycji; brak funkcji tworzącej partycje, więc **nie ma gałęzi "create" do poprawienia REVOKE-em** — udokumentowane w nagłówku migracji jako przypomnienie dla każdego, kto złamałby ADR i dodał `PARTITION OF campaign_contact` ręcznie); (3) asercja końcowa `DO $$...RAISE EXCEPTION...$$` (RLS+FORCE, polityka, zero partycji z GRANT dla `app_user`) — błąd = `ROLLBACK` całej migracji.
+- **Przegląd ścieżek bez kontekstu tenanta (AC, pełna treść wyżej w notatce DB-071 §2, tu tylko wynik per klasa):**
+  - **MA kontekst (bez zmian):** `ProgressiveDialerServiceImpl` (RabbitMQ + `@Scheduled`, `TenantContext.setTenantId` + `setTenantContextInJdbc`→`SELECT set_tenant_context(?::uuid)` przed każdym zapytaniem JDBC do `campaign_contact`), `CampaignWindowActivator` (`@Scheduled`, pętla po tenantach, `TenantContext` per iteracja), `ScheduledCallbackExecutor` (jak wyżej), `DialerCallbackHandlerImpl` (RabbitMQ z `TenantContext` z eventu; ścieżka HTTP `handleCallbackDisposition` świadomie nie ustawia `TenantContext` — komentarz w kodzie l.379-382, `TenantFilter` już zarządza cyklem życia — ale `setTenantContextInJdbc` i tak woła się przed każdym zapisem), `CampaignImportServiceImpl` (`@Async` z `TenantContext.Snapshot`/`restore`, zapis przez `CampaignContactRepository extends TenantAwareRepository` — GUC ustawiany automatycznie).
+  - **NIE MA kontekstu (świadome, bez zmian, już udokumentowane w DB-071):** `EtlSyncServiceImpl` (4 surowe zapytania `JdbcTemplate` cross-tenant, komentarz w kodzie l.72/156), `archive_completed_campaign_contacts()` (martwa funkcja, DB-070 — ten samy dormant-risk jak w V111).
+  - Oba przypadki „NIE MA" są bez wpływu na żywą aplikację: `ccapp` ma `BYPASSRLS`. Aktywują się tylko przy odłożonej decyzji o przełączeniu roli połączenia (DB-071 §"Otwarte").
+- **`EXPLAIN` dialera przed/po** (zapytanie `fetchNextPendingContact`, `ProgressiveDialerServiceImpl.java:419-434`, dry-run w transakcji z `ROLLBACK`, dane demo — 37 wierszy, 1 partycja): plan **identyczny co do struktury** (`Seq Scan on campaign_contact_default` z tym samym `Filter` na `status`/`campaign_id`/`tenant_id`/`next_attempt_at`) + jeden dodatkowy węzeł `Result -> One-Time Filter` (RLS `USING` jest `STABLE`, nie per-wiersz — ewaluowany raz). Brak regresji; `idx_campaign_contact_dialer`/`idx_campaign_contact_dialer_tenant` nie były używane ANI PRZED, ani PO (predykat `status IN ('PENDING','NO_ANSWER')` nie kwalifikuje się do partial indeksów filtrowanych `WHERE status='PENDING'` — rozjazd pre-istniejący, niezależny od tej migracji, już odnotowany w ADR DB-070 jako kandydat do osobnego ticketu).
+- **Test Testcontainers:** `CampaignContactRlsMigrationsTest` (wspólny plik z DB-072, pokrywa obie tabele) — dodatkowo dla `campaign_contact`: dostęp wprost po nazwie partycji `campaign_contact_default` = `permission denied` (`42501`) dla SELECT i INSERT pod `app_user` (nawet z poprawnym `tenant_id`), dostęp przez rodzica działa, superuser nadal odpytuje partycję wprost (REVOKE dotyczy tylko `app_user`). **14 testów w klasie, 0 błędów**; pełny `mvn verify -pl app` (JDK 21, Testcontainers/Docker): **2421/2421, BUILD SUCCESS**.
+- **Regresja:** `AnonymizeCustomerExtensionTest` (test C) — identyczna sytuacja jak przy `campaign_contact_archive` w DB-072 (licznik `campaign_contact=1` niezmieniony, tylko komentarz poprawiony). Żaden inny test w repo nie używa `SET ROLE app_user` na `campaign_contact`/`campaign_contact_archive` (zweryfikowane grepem po `backend/app/src/test/java`) — pozostałe testy dotykające te tabele łączą się rolą superusera Testcontainers (zawsze `BYPASSRLS`), bez zmiany zachowania.
+- Numeracja: V111 (DB-072) → V112 (DB-073), zgodnie z zależnością ticketów; V104 pominięte (zarezerwowane dla przyszłej migracji `message_at DROP DEFAULT`, potwierdzone przez `git ls-tree` na wszystkich gałęziach + `flyway_schema_history` żywej bazy — brak kolizji).
 
 ---
 

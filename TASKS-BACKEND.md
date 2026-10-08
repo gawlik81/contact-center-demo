@@ -6803,13 +6803,13 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123
+> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123 ✅
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 → DB-078;   BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
-> Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123, BE-126 → BE-133 ✅
+> Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
 > Grupa 3:  DB-067 ✅ → BE-134 ✅ → BE-135 ✅;   BE-133 ✅, BE-125 ✅, BE-127 ✅ → BE-135 ✅;   [DB-068 🚫, BE-134 ✅ → BE-136 🚫, tylko D4 = B — N/A, D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 → BE-138;   DB-064 ✅, DB-071 → BE-139
+> Grupa 5:  DB-071 ✅ → BE-138;   DB-064 ✅, DB-071 ✅ → BE-139
 > ```
 > Wspólne wymagania (skrót; pełna treść w DESIGN §5): **WP-1** testy Testcontainers na pełnym łańcuchu Flyway dla każdej zmiany natywnego SQL/JPA (precedens:
 > `CampaignContactArchivePurgeTenantIsolationTest`; mocki `EntityManager` nie złapały błędu `resultClass`+enum, braku `TenantContext` w schedulerze, `Map.of().get(null)`);
@@ -6924,7 +6924,7 @@ Live: `refresh_token` 1333 wiersze, 1331 wygasłych, 1298 unieważnionych, 37 z 
 **Priorytet:** Should Have
 **Złożoność:** M (odbiega od oceny zlecenia „S": osobna ścieżka horyzontu, refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode`, rozszerzenie `PartitionScanner`, poprawka NPE dla `tenant_id` NULL, test na prawdziwej bazie)
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-08) — WP-4 (local-demo) jawnie POZA ZAKRESEM tej sesji, patrz notatka wykonania
 **Blokuje:** BE-133, DB-076, DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -6944,14 +6944,105 @@ log platformowy (DESIGN EPIC-29 §12.1) — więc rosną bez końca (najstarsza 
 6. `application.yml` (`retention.platform.*`) z komentarzem o wymaganym potwierdzeniu prawnym. Funkcji SQL `rotate_*`/`drop_old_*` nie usuwamy (backstop; uzgodnienie opisu w DB-076).
 
 **Kryteria akceptacji:**
-- [ ] `audit_log` i `plugin_invocation_log`: partycja `rangeEnd < now − 24 mies.` → DROP; 23-miesięczna nie; `_default` nigdy (test jednostkowy + (WP-1/WP-6) Testcontainers z realnymi partycjami z `create_audit_log_partition`)
-- [ ] Test Testcontainers: partycja `audit_log` z wierszami `tenant_id IS NULL` i z tenantami → brak NPE, DROP wykonany, INFO z liczbą wierszy (test zapisany tak, by PRZED poprawką padał NPE — udokumentuj)
-- [ ] `_default` niepusta → WARN (test z appenderem logów)
-- [ ] Ścieżka horyzontu nie zależy od `RetentionPolicyService` (test: usługa rzuca `ResourceNotFoundException`, `audit_log` nadal przetwarzany); błąd jednej tabeli nie przerywa pozostałych
-- [ ] Zachowanie `contact*` bez zmian (istniejące `PartitionReclaimJobTest` zielone bez zmiany asercji)
-- [ ] (WP-2) Javadoc: scheduler bez kontekstu, scanner cross-tenant z założenia
-- [ ] (WP-4) Local-demo: najstarsza partycja `audit_log_2026_03` ma < 24 mies., więc job niczego nie usunie — dowód: log INFO; test DROP z niskim horyzontem wyłącznie na kopii/po policzeniu wierszy i zgodzie (destrukcyjne)
-- [ ] `mvn verify -pl app`; DoD (WP-7)
+- [x] `audit_log` i `plugin_invocation_log`: partycja `rangeEnd < now − 24 mies.` → DROP; 23-miesięczna nie; `_default` nigdy (test jednostkowy + (WP-1/WP-6) Testcontainers z realnymi partycjami z `create_audit_log_partition`)
+- [x] Test Testcontainers: partycja `audit_log` z wierszami `tenant_id IS NULL` i z tenantami → brak NPE, DROP wykonany, INFO z liczbą wierszy (test zapisany tak, by PRZED poprawką padał NPE — udokumentuj)
+- [x] `_default` niepusta → WARN (test z appenderem logów)
+- [x] Ścieżka horyzontu nie zależy od `RetentionPolicyService` (test: usługa rzuca `ResourceNotFoundException`, `audit_log` nadal przetwarzany); błąd jednej tabeli nie przerywa pozostałych
+- [x] Zachowanie `contact*` bez zmian (istniejące `PartitionReclaimJobTest` zielone bez zmiany asercji)
+- [x] (WP-2) Javadoc: scheduler bez kontekstu, scanner cross-tenant z założenia
+- [ ] (WP-4) Local-demo: najstarsza partycja `audit_log_2026_03` ma < 24 mies., więc job niczego nie usunie — dowód: log INFO; test DROP z niskim horyzontem wyłącznie na kopii/po policzeniu wierszy i zgodzie (destrukcyjne) — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji (destrukcyjne, wymaga zgody właściciela)
+- [x] `mvn verify -pl app`; DoD (WP-7)
+
+**Notatka z wykonania (2026-10-08):**
+
+Zaimplementowano wszystkie 6 punktów Zakresu.
+
+1. **Refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`ThresholdSource`/`DropMode`** (`PartitionReclaimJob.java`):
+   `ThresholdSource` to `sealed interface` z dwoma rekordami — `CategoryMaxRetention(RetentionDataCategory category)`
+   (dzisiejsza ścieżka, `RetentionPolicyService#findMaxRetentionMonths`) i `PlatformHorizon(String propertyKey)`
+   (nowość). `DropMode` to enum `ONLY_IF_EMPTY`/`AFTER_CUTOFF`. `RECLAIM_TARGETS` (lista `record ReclaimTarget`)
+   zastąpiła `TABLE_CATEGORIES` — 6 wpisów `ONLY_IF_EMPTY` (`contact`, `contact_event`, `social_message`,
+   `email_message`, `contact_transcription`, `contact_ai_summary`, **bez zmiany semantyki** — zgodnie z uwagą
+   BE127-01 skorygowaną 2026-09-26: `contact*` to `ONLY_IF_EMPTY`, NIE `AFTER_CUTOFF` jak sugerował oryginalny
+   opis zakresu, bo BE-145 wdrożono pierwsze) + 2 nowe wpisy `AFTER_CUTOFF` (`audit_log`, `plugin_invocation_log`,
+   `ThresholdSource.PlatformHorizon`). `resolveThresholdMonths` (switch na rekordach, Java 21 record patterns)
+   deleguje do `RetentionPolicyService` TYLKO dla `CategoryMaxRetention` — `PlatformHorizon` nigdy go nie woła.
+2. **Nowy bean `PlatformRetentionProperties`** (`@ConfigurationProperties(prefix = "retention.platform")`, wzorzec
+   `PluginInvocationProperties`) — `auditLogMonths`/`pluginInvocationLogMonths`, domyślnie 24. `@PostConstruct
+   validate()`: wartość `< 1` → fallback do 24 + `log.warn` (NIE blokuje startu aplikacji — uzasadnienie w javadoc:
+   błąd tej konfiguracji dotyczy wyłącznie cotygodniowego joba, zablokowanie startu całej aplikacji byłoby
+   nieproporcjonalne). `monthsFor(String propertyKey)` rozwiązuje klucz logiczny na wartość.
+3. **`<tabela>_default` — WARN gdy niepusta, dla WSZYSTKICH 8 tabel:** `PartitionReclaimJob#checkDefaultPartitionNotPolluted`
+   (wywoływana na początku `reclaimTable`, niezależnie od wyniku reszty algorytmu, błąd łapany lokalnie — nie
+   przerywa przetwarzania partycji tej tabeli) + nowa metoda `PartitionScanner#countRows(String partitionTableName)`
+   (patrz punkt 5) wywołana z nazwą `<tabela>_default`.
+4. **`DropMode.AFTER_CUTOFF`** (`PartitionReclaimJob#logInfoIfHasRows`): dla `audit_log`/`plugin_invocation_log`
+   niepusta partycja-kandydat jest logowana na poziomie INFO (nie WARN) i `DROP` jest wykonywany NIEZALEŻNIE od
+   wyniku — w odróżnieniu od `ONLY_IF_EMPTY`, gdzie `warnIfStillHasRows` blokuje `DROP` (BE-145, bez zmian).
+5. **Bug NPE naprawiony DWOMA sposobami** (`PartitionScannerImpl.java`): (a) nowa metoda `countRows(String
+   partitionTableName)` — `SELECT count(*) FROM ONLY <partycja>` BEZ grupowania po `tenant_id`, więc zero
+   parsowania UUID — to jest metoda faktycznie użyta na ścieżce platformowej (`logInfoIfHasRows`) i dla `_default`
+   (punkt 3); dodatkowo sprawdza istnienie partycji w `pg_tables` PRZED `FROM ONLY` (zwraca `0` defensywnie, gdy
+   partycja nie istnieje, bez wyjątku „relation does not exist"); (b) `countRowsByTenant` naprawiona niezależnie/
+   defensywnie — `row[0] == null` → `TenantRowCount(null, rowCount)` zamiast `UUID.fromString(null.toString())`
+   (NPE) — ta metoda NIE jest wołana na ścieżce platformowej w produkcyjnym kodzie (zgodnie z treścią zlecenia:
+   „dla ścieżki platformowej potrzebne jest tylko `countRows`"), ale pozostaje generycznym, współdzielonym
+   narzędziem, więc naprawiono też ją. Dowód bugu PRZED poprawką: `PartitionScannerImplTest
+   .CountRowsByTenant#rowWithNullTenantId_isMappedWithNullTenantId_doesNotThrowNpe` (jednostkowy, dokumentuje w
+   `@DisplayName` że ten wiersz rzucał NPE przed poprawką) oraz `PartitionReclaimPlatformHorizonIntegrationTest
+   #auditLogPartition_withNullAndTenantRows_noNpe_isDroppedWithInfoLog` (Testcontainers — woła
+   `countRowsByTenant` DYREKTNIE na realnej partycji z wierszem `tenant_id IS NULL` jako dowód bezpośredni, a
+   następnie przebiegiem `job.runReclaimJob()` dowodzi, że produkcyjna ścieżka — `countRows` — jest bezpieczna
+   niezależnie od stanu naprawy `countRowsByTenant`).
+6. **`application.yml`:** nowa sekcja `retention.platform.*` (`audit-log-months`/`plugin-invocation-log-months`,
+   domyślnie 24 przez ENV `RETENTION_PLATFORM_AUDIT_LOG_MONTHS`/`RETENTION_PLATFORM_PLUGIN_INVOCATION_LOG_MONTHS`)
+   z komentarzem w tym samym stylu co `retention.purge.delete-messages`/`email.attachments.pending-sweep-delete-enabled`
+   — jawnie oznaczona jako D5, ZAŁOŻENIE DO POTWIERDZENIA PRAWNIE. Funkcje SQL `drop_old_audit_log_partitions`/
+   `drop_old_plugin_invocation_log_partitions`/`rotate_*` (V004/V077/V088) NIE usunięte (backstop bez wołającego,
+   uzgodnienie opisu pozostaje przy DB-076).
+
+**Zmienione/nowe pliki:**
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — refaktor (punkty 1, 3, 4).
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PlatformRetentionProperties.java` (NOWY, punkt 2).
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionScanner.java` — nowa metoda `countRows`,
+  javadoc `countRowsByTenant`/`TenantRowCount` (punkt 5).
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionScannerImpl.java` — implementacja
+  `countRows`, poprawka NPE w `countRowsByTenant` (punkt 5).
+- `backend/app/src/main/resources/application.yml` — sekcja `retention.platform.*` (punkt 6).
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobTest.java` — mock
+  `PlatformRetentionProperties`; nowe nested classes `PlatformHorizonReclaim` (7 testów),
+  `DefaultPartitionPollutedWarns` (3 testy).
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionScannerImplTest.java` — nowy test NPE w
+  `CountRowsByTenant`, nowa nested class `CountRows` (3 testy).
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimPlatformHorizonIntegrationTest.java`
+  (NOWY, Testcontainers, 7 testów) — wzorzec `PartitionReclaimJobIntegrationTest`/
+  `PartitionReclaimEmailMessageIntegrationTest`.
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobIntegrationTest.java`,
+  `PartitionReclaimEmailMessageIntegrationTest.java` — dodano `PlatformRetentionProperties.class` do kontekstu
+  testowego (nowa zależność konstruktora `PartitionReclaimJob`), zero zmian asercji.
+
+**Wyniki testów:** `mvn -o clean verify -pl app` (JDK 21): **BUILD SUCCESS**, `Tests run: 2407, Failures: 0,
+Errors: 0, Skipped: 0` (baza 2386 z poprzedniej sesji + 21 nowych: 10 w `PartitionReclaimJobTest`, 4 w
+`PartitionScannerImplTest`, 7 w `PartitionReclaimPlatformHorizonIntegrationTest`).
+
+**Odstępstwa i ryzyka:**
+- WP-4 (local-demo) świadomie POZA ZAKRESEM tej sesji — destrukcyjne (dotyka realnych partycji na środowisku
+  demo), wymaga zgody właściciela przed uruchomieniem `PartitionReclaimJob` poza Testcontainers.
+- Pułapka Mockito odkryta i naprawiona przy pisaniu `PartitionReclaimPlatformHorizonIntegrationTest`: `when(mock
+  .metoda(arg)).thenReturn(...)` WYKONUJE wywołanie `mock.metoda(arg)`, żeby je zarejestrować — jeśli WCZEŚNIEJSZY
+  test (na tym samym, statycznym mocku) zarejestrował `when(mock.metoda(any())).thenThrow(...)`, to wywołanie
+  rzuca wyjątek PRZED dotarciem do `.thenReturn(...)`, więc `setUp()` kolejnego testu pada na stubowaniu, nie na
+  logice testu. Naprawione przez `Mockito.reset(retentionPolicyService)` na początku `@BeforeEach`.
+- `monthsFor` w `PlatformRetentionProperties` jest package-private (nie `public`) — defensywny `IllegalArgumentException`
+  dla nieznanego klucza nie jest dziś osiągalny z zewnątrz pakietu `domain.retention` (oba klucze są
+  zdefiniowane statycznie w `PartitionReclaimJob.RECLAIM_TARGETS`), ale zostawiony jako bezpiecznik przy
+  przyszłych zmianach.
+
+**Zgłoszone, NIE wykonane w tym zadaniu (zgodnie z briefem):**
+- DB-076/DB-077 (dokumentacja silnika retencji) — mogą wymagać aktualizacji wzmianki o `TABLE_CATEGORIES`
+  (teraz `RECLAIM_TARGETS`/`ReclaimTarget`) i o nowym bezpieczniku `retention.platform.*` — do oceny przy
+  realizacji tych ticketów, `TASKS-DATABASE.md` nie było edytowane w tej sesji.
+- WP-4 (local-demo, patrz AC powyżej).
 
 ---
 
@@ -7695,7 +7786,7 @@ grep: brak `em.find(SocialMessage.class, id)` po samym id; `getRecentMessagesFor
 **Typ:** Backend implementation
 **Priorytet:** Should Have
 **Złożoność:** M (zgodnie z oceną zlecenia dla social; wprowadza `DropMode.ONLY_IF_EMPTY`)
-**Zależy od:** BE-132 ✅, BE-123 (NIE wymagane — patrz decyzja product ownera w notatce wykonania), BE-126 ✅
+**Zależy od:** BE-132 ✅, BE-123 ✅ (NIE wymagane — patrz decyzja product ownera w notatce wykonania), BE-126 ✅
 **Status:** ✅ Ukończone (2026-10-01) — patrz „Notatka z wykonania" poniżej
 **Blokuje:** BE-135
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7878,7 +7969,7 @@ ponowna weryfikacja BE-125/BE-127 na tabeli partycjonowanej (DELETE po `contact_
 **Typ:** Backend implementation (bezpieczeństwo, obserwowalność)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** DB-071
+**Zależy od:** DB-071 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -7899,7 +7990,7 @@ Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
 **Typ:** Testing / infrastruktura testowa
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** DB-064 ✅, DB-071
+**Zależy od:** DB-064 ✅, DB-071 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 

@@ -1,9 +1,15 @@
 ---
 name: project_be145_partition_reclaim_drop_guard
-description: BE-145 — PartitionReclaimJob blokuje DROP TABLE niepustej partycji (contact*); relacja z przyszłym BE-123 (horyzont platformowy audit_log/plugin_invocation_log)
+description: BE-145 — PartitionReclaimJob blokuje DROP TABLE niepustej partycji (contact*); BE-123 (horyzont platformowy audit_log/plugin_invocation_log) zaimplementowane 2026-10-08, patrz [[project_be123_platform_horizon_reclaim]]
 metadata:
   type: project
 ---
+
+**AKTUALIZACJA 2026-10-08:** BE-123 ukończone — patrz [[project_be123_platform_horizon_reclaim]]
+dla pełnego opisu refaktoru `TABLE_CATEGORIES` → `ReclaimTarget`/`ThresholdSource`/`DropMode`.
+Poniższa notatka (oryginalna, z 2026-09-26) jest zostawiona jako historyczny opis stanu PRZED
+tym refaktorem — przydatna do zrozumienia DLACZEGO `ThresholdSource`/`DropMode` nie istniały
+wcześniej i co BE-145 świadomie nie budowało "na zapas".
 
 BE-145 (2026-09-26, ✅, poza epikiem — jak DB-055/BE-144) naprawia `PartitionReclaimJob`
 (`backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java`):

@@ -3042,8 +3042,8 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056, DB-072 → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 → BE-138, BE-139;   DB-064 ✅ → BE-139
-> Grupa 6:  BE-120, BE-122, BE-123, DB-058 → DB-076;   BE-120, BE-122, BE-123, DB-070 ✅, DB-076 → DB-077
+> Grupa 5:  DB-071 ✅ → DB-072 (+ BE-120), DB-073, DB-074;   DB-071 ✅ → BE-138, BE-139;   DB-064 ✅ → BE-139
+> Grupa 6:  BE-120, BE-122, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > ```
 
@@ -4089,7 +4089,7 @@ Próg do rewizji: `rows_total` ≥ ok. 50 mln lub `partitions` > 1 (sygnał naru
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Raport kompletny (2026-10-08) — macierz klasyfikacji + macierz komend (zweryfikowana `EXPLAIN`) + lista ścieżek pre-tenant + pytanie D7 do właściciela. Szczegóły w notatce poniżej
 **Blokuje:** DB-072, DB-073, DB-074, BE-138, BE-139
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -4106,9 +4106,101 @@ macierz komend SELECT/INSERT/UPDATE/DELETE × polityka (brak polityki = deny pod
 (MIXED: odczyt `tenant_id IS NULL OR tenant_id = current_setting(…)`, wyjątek dla ścieżki auth); podział wykonania na DB-072 (archiwum), DB-073 (`campaign_contact`), DB-074 (reszta).
 
 **Kryteria akceptacji:**
-- [ ] Macierz kompletna (wszystkie tabele z `tenant_id`), każda z klasą i decyzją RLS tak/nie + uzasadnieniem; zapytanie źródłowe w notatce
-- [ ] Lista ścieżek pre-tenant/scheduler/RabbitMQ z odniesieniem do klas Javy
-- [ ] Decyzje do właściciela zebrane (D7 dla `campaign_contact*`); (WP-4) wyłącznie zapytania tylko-do-odczytu; notatka + pamięć agenta (WP-7)
+- [x] Macierz kompletna (wszystkie tabele z `tenant_id`), każda z klasą i decyzją RLS tak/nie + uzasadnieniem; zapytanie źródłowe w notatce
+- [x] Lista ścieżek pre-tenant/scheduler/RabbitMQ z odniesieniem do klas Javy
+- [x] Decyzje do właściciela zebrane (D7 dla `campaign_contact*`); (WP-4) wyłącznie zapytania tylko-do-odczytu; notatka + pamięć agenta (WP-7)
+
+**Notatka z wykonania (2026-10-08):**
+
+**Metoda.** Kod: `grep`/odczyt `backend/app/src/main/java`. Baza demo `contact_center` (PG 16.13), kontener `cc-postgres`, `psql -U ccapp`, sesja z `PGOPTIONS='-c default_transaction_read_only=on'` — wyłącznie `SELECT`/`EXPLAIN (COSTS OFF)` bez `ANALYZE`. Weryfikacja macierzy komend przez plan zapytania (nie przez modyfikację danych): `BEGIN; SET ROLE app_user; SELECT set_config('app.current_tenant_id', <uuid>, true); EXPLAIN (COSTS OFF) <SELECT|UPDATE|DELETE|INSERT> ...; ROLLBACK;` — `EXPLAIN` samego planu NIE wykonuje instrukcji (brak `ANALYZE`), więc jest bezpieczny nawet dla `UPDATE`/`DELETE`/`INSERT` w sesji tylko-do-odczytu. Zapytanie źródłowe klasyfikacji: `information_schema.columns` (`column_name='tenant_id'`) ⋈ `pg_class` (`relrowsecurity`/`relforcerowsecurity`, partycje potomne wykluczone przez `pg_inherits`) ⋈ `pg_policies`.
+
+**1. Macierz klasyfikacji — 39 tabel bazowych z `tenant_id` (+ 5 widoków, osobno niżej)**
+
+*A. TENANT, pełne pokrycie 4 komend (RLS OK, bez akcji w DB-074):* `agent_break`, `agent_group`, `contact_ai_summary`, `contact_event`, `contact_transcription`, `custom_disposition`, `disposition_set`, `disposition_set_item`, `email_message` (DB-064), `phone_number`, `phone_routing_rule`, `plugin_invocation_log`, `retention_purge_log`, `social_integration` (4 polityki osobne, nie `ALL`, ale pokrycie identyczne), `social_message`, `tenant_ai_config` (DB-054), `tenant_plugin_extension_binding`, `tenant_plugin_installation`, `tenant_retention_pending_summary`, `tenant_retention_policy`, `tenant_twilio_config` — **21 tabel**. Uzasadnienie klasy TENANT: `tenant_id NOT NULL`, FK lub semantyka 1:1 z najemcą, dane operacyjne/PII per-tenant.
+  - Wyjątek do odnotowania: `scheduled_callback` ma politykę `ALL` (pełne pokrycie), ale qual używa **1-argumentowego** `current_setting('app.current_tenant_id')` (bez `missing_ok`), podczas gdy wszystkie inne tabele używają 2-argumentowej formy (`..., true`). Dowód: `SELECT count(*) FROM scheduled_callback` pod `app_user` **bez ustawionego GUC** rzuca `ERROR: unrecognized configuration parameter "app.current_tenant_id"` (hard error), a nie ciche 0 wierszy jak w pozostałych tabelach. Nieszkodliwe dziś (GUC jest zawsze ustawiany przed zapytaniem przez `TenantAwareRepository`), ale inny tryb awarii niż reszta schematu — do ujednolicenia przy DB-074 (kosmetyczna poprawka qual, nie wymaga nowej migracji per się, ale wymaga `CREATE OR REPLACE POLICY`/`DROP+CREATE`).
+
+*B. TENANT, niepełne pokrycie komend (RLS ON, część komend bez polityki = odmowa) → DB-074:*
+
+| Tabela | Polityki obecne | Brakujące komendy | Dowód (EXPLAIN pod `app_user`) |
+|---|---|---|---|
+| `contact` | SELECT, INSERT | UPDATE, DELETE | `DELETE FROM contact WHERE contact_id=...` → `Delete on contact -> Result -> One-Time Filter: false` (zero wierszy, bez skanu). UPDATE: już ustalone w DB-079 (identyczny mechanizm) |
+| `campaign` | SELECT, INSERT, UPDATE | DELETE | `DELETE FROM campaign ...` → plan z `Filter: (false AND ...)` doklejonym do predykatu biznesowego |
+| `customer` | SELECT, INSERT, UPDATE | DELETE | analogicznie: `Filter: (false AND (customer_id=...) AND (tenant_id=GUC))` |
+| `queue` | SELECT | INSERT, UPDATE, DELETE | `UPDATE queue ...` → `Filter: (false AND (queue_id=...))` |
+| `ivr_tree` | SELECT | INSERT, UPDATE, DELETE | katalog pg_policies (nie powtórzono EXPLAIN — ten sam mechanizm jak `queue`) |
+
+Uwaga do UPDATE/DELETE: `EXPLAIN` dowodzi odmowy na poziomie planu (`One-Time Filter: false` lub `false AND ...` dociąganą do kwalifikatora) — silnik udowadnia zbiór pusty **bez wykonania** zapytania, co jest bezpieczne w sesji tylko-do-odczytu. Dla INSERT (np. `audit_log` niżej) `WITH CHECK` jest sprawdzany per-wiersz w executorze, nie jest widoczny jako stały `false` w planie `EXPLAIN` bez `ANALYZE` — ta część macierzy (INSERT na tabelach bez polityki INSERT) oparta jest na ustaleniu z wcześniejszego tiketu (`feedback_rls_insert_vs_update_semantics`: brak polityki INSERT = `ERROR 42501` w runtime, zweryfikowane empirycznie w DB-062), nie powtórzonym tu żeby nie pisać do bazy.
+
+*C. MIXED (`tenant_id` nullable, NULL = rekord globalny/platformowy):*
+
+| Tabela | NULL w demo | RLS | Stan |
+|---|---|---|---|
+| `audit_log` | tak (zdarzenia globalne) | ON, SELECT ma gałąź `tenant_id IS NULL OR tenant_id = GUC` (dowód EXPLAIN: `Append` po partycjach z `Filter: (tenant_id IS NULL) OR (tenant_id = GUC)`) | SELECT OK dla MIXED; INSERT/UPDATE/DELETE bez polityki → `AuditLogConsumer` (zdarzenia z `tenant_id=NULL`) pod rolą ograniczoną dostałby `42501` na INSERT |
+| `app_user` | tak (1/6 — konto SUPER_ADMIN) | ON, ale polityka SELECT **NIE MA** gałęzi `IS NULL` (`tenant_id = GUC` tylko) | Dowód EXPLAIN: `SELECT 1 FROM app_user WHERE tenant_id IS NULL` pod GUC jakiegokolwiek tenanta → `Filter: (tenant_id IS NULL) AND (tenant_id = GUC)` = zawsze `false`. **Konto SUPER_ADMIN jest dziś niewidoczne pod RLS niezależnie od GUC** — inaczej niż `audit_log`. Bez skutku dziś (ccapp = BYPASSRLS), ale błąd do naprawy razem z uzupełnieniem komend w DB-074 |
+| `refresh_token` | tak (40/1355 — tokeny SUPER_ADMIN) | **OFF** (brak RLS wcale) | Przykład z treści ticketu; `findByToken` (patrz §3) musi zostać wyjątkiem/działać przed ustaleniem GUC niezależnie od przyszłej polityki |
+| `gdpr_processing_register` | tak (2/2 w demo — wszystkie NULL) | **OFF** | Rejestr czynności przetwarzania (Art. 30 RODO) — metadane zgodności (`legal_basis`, `data_categories`, `recipients`), NIE dane osobowe klienta. Niższa pilność niż PII, ale wciąż MIXED wg schematu (kolumna nullable) |
+
+*D. TENANT bez RLS wcale (`relrowsecurity=f`) → DB-072/073/074:*
+
+| Tabela | PII? | Docelowy ticket |
+|---|---|---|
+| `campaign_contact` | TAK (phone, first_name, last_name, email) | **DB-073** (D7) — partycjonowana LIST, ścieżka gorąca dialera |
+| `campaign_contact_archive` | TAK (te same kolumny) | **DB-072** (D7) |
+| `contacts_dw` | TAK (`remote_address` — numer/e-mail klienta, DB-060 F6) — ale tylko fallback PG dev (`etl.dw.type=postgres`); prod/local-demo = ClickHouse (bez PII, DB-060) | DB-074, priorytet spada po DB-078 (drop `remote_address`) |
+| `email_routing_rule` | NIE (konfiguracja routingu adresów → kolejka) | DB-074 |
+| `email_template` | NIE (treść szablonu, nie dane klienta) | DB-074 |
+| `ivr_audio` | NIE (pliki/teksty TTS promptów IVR, nie dane klienta) | DB-074 |
+
+Dla wszystkich powyższych: `relrowsecurity=f` oznacza **brak jakiegokolwiek filtrowania** — nie "odmowa", ale pełna widoczność/zapis dla `app_user` na wszystkie 4 komendy (GRANT tabelowy z `ALTER DEFAULT PRIVILEGES`, V012, już istnieje). To jest odwrotność przypadku B — potwierdzone przez `EXPLAIN SELECT ... FROM campaign_contact` pod `app_user` z GUC ustawionym: plain `Seq Scan`, brak węzła `Filter`/`Append` w ogóle.
+
+*E. GLOBAL, świadomie bez RLS:*
+
+| Tabela | Uzasadnienie |
+|---|---|
+| `tenant` | Rejestr najemców platformy — `tenant_id` tu to PK encji, nie kolumna izolacji. Musi być czytelny PRZED ustaleniem kontekstu (strona logowania, `PublicController.listActiveTenants`) — klasyczny chicken-and-egg, GLOBAL jest poprawnym projektem |
+| `plugin_version` | Decyzja DB-042 ("globalny katalog pluginów, bez RLS"). `tenant_id NOT NULL` tu = który tenant **wgrał** tę wersję (ownership), nie izolacja widoczności — `findVersionsForTenant()` filtruje po tenancie (widok "moje wgrane wersje"), ale `findById(pluginVersionId)` (instalacja pluginu, `PluginRegistrationServiceImpl:43`) **nie filtruje** po tenancie — intencjonalnie, bo każdy tenant może zainstalować dowolną opublikowaną wersję z globalnego katalogu. Spójne z modelem marketplace, nie błąd |
+
+**2 widoki z `tenant_id`** (`v_active_contacts`, `v_customer_timeline`, `v_queue_available_agents`, `v_queue_realtime_stats`, `v_tenant_stats`) — Postgres nie ma RLS na widokach; bezpieczeństwo odczytu zależy **wyłącznie** od RLS tabel bazowych (`SECURITY INVOKER` domyślnie, potwierdzone braku `security_barrier`/`security_invoker` w definicji). `v_tenant_stats` czyta `tenant` (GLOBAL) ⋈ `app_user` (dziś SELECT-only, GUC) — widok jest więc węższy niż `tenant` sam, ale szerszy niż docelowy `app_user` MIXED. Brak akcji — konsekwencja napraw tabel bazowych, nie osobny ticket.
+
+**2. Ścieżki w kodzie bez kontekstu tenanta (złamałyby RLS pod rolą bez BYPASSRLS)**
+
+| Klasa:linia | Mechanizm | Ryzyko po ew. zmianie roli (BE-139) |
+|---|---|---|
+| `security/PublicPathsConfig.java:18-47` (`PUBLIC_PREFIXES`) | `TenantFilter` pomija JWT/TenantContext dla `/api/auth/login`, `/api/auth/refresh`, `/api/public/`, `/webhooks/`, `/api/telephony/webhook`, `/api/oauth/`, `/api/webhooks/`, `/ws`, `/api/logs` | Zdefiniowana lista wejść bez tenanta — punkt startowy audytu |
+| `security/SecurityConfig.java:118-153` | Spring Security `permitAll()` — zsynchronizowane 1:1 z `PublicPathsConfig` (komentarz w kodzie wymusza tę zgodność) | — |
+| `infrastructure/aspect/CrossTenantAspect.java:125-179, 193-197, 203-214` | **Już istniejący, samodokumentujący mechanizm**: `isAuthenticationBootstrapMethod` (whitelist: `UserServiceImpl.findAuthenticatableUser`/`findAuthenticatableGlobalUser`), `isExpectedPublicPath` (duplikat listy publicznej), gałąź "wątek async (RabbitMQ/@Scheduled) — brak TenantContext jest oczekiwany" | To jest GOTOWA mapa ścieżek pre-tenant/async w repo — każdy nowy przypadek powinien trafić do jednej z tych dwóch list, inaczej CrossTenantAspect zaloguje fałszywy ERROR |
+| `domain/user/AuthServiceImpl.java:99 (login), 186 (refresh), 187 (refreshTokenRepository.findByToken)` | `login(tenantId, email)` jawny parametr z requestu (nie GUC); `refresh()` szuka po samym tokenie, globalnie, przed poznaniem tenanta | **Krytyczne dla BE-139**: `UserServiceImpl.findAuthenticatableUser(tenantId, email)` (l.475-477, `appUserRepository.findByTenantIdAndEmailAndActiveTrue`) filtruje WHERE po `tenantId` z parametru, ale pod RLS ograniczonym GUC nie jest ustawiony w momencie logowania → polityka `pol_app_user_select` (`tenant_id = GUC`) zwróci 0 wierszy niezależnie od poprawnego `WHERE`, **logowanie przestałoby działać**. `findAuthenticatableGlobalUser(email)` (l.481-483, `tenant_id IS NULL`) jest dodatkowo zablokowane PERMANENTNIE (patrz MIXED/`app_user` wyżej) |
+| `domain/user/RefreshTokenRepository.java` (`findByToken`) | Lookup globalny po wartości tokenu | Dziś bez ryzyka — `refresh_token` nie ma RLS wcale (klasa D). Jeśli DB-074 doda RLS do `refresh_token`, ta metoda musi zostać wyjątkiem (analogicznie do `SocialIntegrationRepository` niżej) |
+| `domain/social/SocialIntegrationRepository.java:119-125` (`findByPlatformAndPageId`), `:144-145` (kontrola kolizji przy rejestracji integracji) | Komentarz w kodzie: *„Celowo bez `setTenantContextInDb()` – cross-tenant lookup dla webhook handler"* / *„zapytanie musi widzieć wiersze WSZYSTKICH tenantów"* | **Konkretny, już udokumentowany w kodzie przypadek pre-tenant lookup**: webhook Facebook/Instagram/WhatsApp dostaje tylko `(platform, pageId)` z platformy zewnętrznej — tenant jest NIEZNANY do czasu tego zapytania. `social_integration` ma dziś pełne pokrycie RLS (klasa A) tylko dzięki BYPASSRLS połączenia; pod rolą ograniczoną ten webhook przestałby działać całkowicie |
+| `domain/telephony/TwilioWebhookController.java:167` (`@RequestParam UUID tenantId`) | Tenant przekazywany w URL Voice/Status callback (per-tenant webhook URL), `TenantContext.setTenantId(tenantId)` ustawiany jawnie (l.191/320/411) | NIE jest to cross-tenant DB lookup — tenant znany z URL, nie z zapytania. `PhoneNumberRepository` nie ma metody `findByNumber` bez `tenantId` — brak analogicznej dziury jak w social. Bez ryzyka |
+| `domain/etl/EtlSyncServiceImpl.java:72-134` (4 zapytania `JdbcTemplate` — `SELECT_CONTACTS_FOR_ETL` z `contact`+`customer`, `SELECT_CAMPAIGN_CONTACTS_FOR_ETL` z `campaign_contact`+`campaign`, `SELECT_AGENTS_FOR_DIM` z `app_user`, `SELECT_QUEUES_FOR_DIM` z `queue`), `:159/172/185/198` (`@Scheduled`), komentarz l.72 *„Brak RLS – zapytanie systemowe, filtrujemy po tenant_id explicite w DW output"*, l.156 *„Wątek scheduler nie ma TenantContext – poprawne, bo zapytania są cross-tenant"* | **Największy pre-tenant surface w kodzie** — 4 surowe zapytania `JdbcTemplate` (nie `TenantAwareRepository`) cross-tenant po projekcie, zasilające ETL do DW. Pod rolą ograniczoną BEZ GUC wszystkie 4 zwróciłyby **0 wierszy** z `contact`/`campaign_contact` (klasa B/D — RLS by się włączył i GUC nigdy nie jest ustawiany tu), a `app_user`/`queue` również (klasa B, SELECT wymaga GUC). ETL przestałby synchronizować cokolwiek, po cichu (bez błędu — `COALESCE(...) > ?` po prostu nie znajdzie nowych wierszy) |
+| `domain/retention/PartitionMaintenanceJob.java:100 (@Scheduled), 127-164` (pętla po `PARTITIONED_TABLES`, nie po tenantach) | Tworzenie przyszłych partycji miesięcznych — operacja DDL, z natury cross-tenant (partycja = wszystkie tenanty) | Działa dziś na uprawnieniach właściciela tabeli (ccapp). Jeśli rola połączenia przestanie być ownerem (BE-139), potrzebna `SECURITY DEFINER` albo GRANT na funkcje `create_*_partition` — już odnotowane w DB-080 |
+| `domain/retention/PartitionReclaimJob.java:140 (@Scheduled), 148, 196` (pętla po tabelach/partycjach) | `DROP`/`DETACH` partycji po horyzoncie retencji — DDL, cross-tenant z natury | Jak wyżej (ownership, nie RLS) |
+| `domain/retention/RetentionEvaluationJob.java:34 (@Scheduled)` → `RetentionEvaluationService.runForAllActiveTenants()` | **Dwuetapowy, już poprawnie zaprojektowany wzorzec**: krok 1 (`PartitionScanner#countRowsByTenant`) skanuje partycję cross-tenant BEZ `TenantContext` (komentarz w javadoc: jawnie dokumentowane); krok 2 (upsert do `tenant_retention_pending_summary`) ustawia `TenantContext.setTenantId(tenantId)` per iteracja PRZED zapisem | Krok 1 zależy od uprawnień właściciela (jak partition joby); krok 2 jest już tenant-safe — **wzorcowy przykład**, nie wymaga zmian |
+| `domain/email/EmailPollingServiceImpl.java:60 (@Scheduled), 62 (tenantService.getActiveTenants()), 73-90 (TenantContext.Snapshot/restore per tenant)` | Poll IMAP w pętli po WSZYSTKICH aktywnych tenantach z `tenant` (GLOBAL), z jawnym `TenantContext` per iteracja | **Wzorcowy przykład tenant-loop** — brak ryzyka |
+| `domain/audit/AuditLogConsumer.java:64 (@RabbitListener), 69 (processWithTenant(event.tenantId(), ...))` → `TenantAwareConsumer.processWithTenant` | Dla `event.tenantId()==null` (zdarzenia globalne) `TenantContext` NIE jest ustawiany wcale (tylko WARN), zapis idzie przez `AuditLogRepository.insertAuditLog` | Pod rolą ograniczoną: `audit_log` nie ma polityki INSERT (klasa B/MIXED) → `42501` na KAŻDYM zapisie, nie tylko globalnym — już ustalone w `feedback_rls_insert_vs_update_semantics`, tu potwierdzony konkretny wywołujący |
+| Reszta `@RabbitListener` (`SocialMessageConsumer`, `PluginInvocationConsumer`, `EmailContactCreator`, `IvrCallListener`, `CallEventEnricher`, `DialerCallbackHandlerImpl`, `ProgressiveDialerServiceImpl`, `CustomerServiceImpl`, `RecordingServiceImpl`, `RoutingServiceImpl`) | Wszystkie poza `AuditLogConsumer`/`DeadLetterConsumer` dziedziczą po `TenantAwareConsumer` lub przyjmują `tenantId` z treści wiadomości i wołają `processWithTenant`/`TenantContext.setTenantId` jawnie (nie zweryfikowano każdej linia-po-linii — poza budżetem tego raportu S) | Niezweryfikowane w pełni — do potwierdzenia przy BE-139 (lista kandydatów, nie wyczerpująca weryfikacja) |
+
+**3. D7 — pytanie do właściciela (NIE rozstrzygnięte w tym raporcie)**
+
+Dla `campaign_contact` i `campaign_contact_archive` (dane kampanii — telefon/imię/nazwisko/e-mail kontaktu, mniej czułe niż np. treść rozmowy/e-maila, ale wciąż PII):
+
+> **Czy RLS ma być pełne (ALL + WITH CHECK + FORCE, jak `contact`/`email_message`), czy węższy zakres jest akceptowalny (np. SELECT + INSERT, bez DELETE)?**
+
+Dowód z grepu (asymetria między dwiema tabelami — ważna dla decyzji):
+- **`campaign_contact`**: **0 wystąpień** `DELETE`/`em.remove` w kodzie Java (`backend/app/src/main/java/com/contactcenter/domain/campaign/*.java`). Jedyny `DELETE FROM campaign_contact` w całym repo jest w funkcji SQL `archive_completed_campaign_contacts()` (`V015__campaign_contact_archive.sql:140`), która jest **martwa** dziś (pg_cron wyłączony, 0 wywołań w Javie — ustalone w DB-070/analiza 2026-09-20) i ma otwarty ticket BE-120 dotyczący modelu wykonania pod rolą ograniczoną. Węższa polityka (bez DELETE) **nie zepsułaby nic żywego dziś**, ale wymagałaby korekty, jeśli/gdy BE-120 przywróci tę funkcję.
+- **`campaign_contact_archive`**: DELETE jest **aktywnie używany** — `purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)` (V091, DB-056) wołany z `CampaignArchiveRetentionRepository` ← `RetentionPurgeServiceImpl` ← realny przepływ retencji. Węższa polityka bez DELETE **zepsułaby działający purge**.
+
+Opcje dla właściciela:
+- **Opcja 1 — pełne RLS dla obu** (ALL+WITH CHECK+FORCE), symetrycznie z `contact`/`email_message`. Najprostsze koncepcyjnie, zero specjalnych przypadków.
+- **Opcja 2 — pełne RLS dla `campaign_contact_archive`, węższe (bez DELETE) dla `campaign_contact`** — zgodne z dzisiejszym użyciem kodu; DELETE na `campaign_contact` wymagałby osobnej migracji przy BE-120, jeśli funkcja archiwizująca zostanie przywrócona.
+- **Opcja 3 — odłożyć obie** do czasu decyzji BE-120 (DB-072/DB-073 zostają ⬜, zależność już to odzwierciedla).
+
+**4. Czego NIE zweryfikowano i dlaczego**
+- **Runtime `WITH CHECK`/odmowa INSERT dla tabel klasy B** (np. `audit_log`, `ivr_tree`, `queue`) — `EXPLAIN` bez `ANALYZE` nie wykonuje instrukcji, więc nie pokazuje odmowy per-wiersz przy INSERT (widoczna tylko w runtime jako `42501`). Oparte na ustaleniu z wcześniejszego tiketu (DB-062/`feedback_rls_insert_vs_update_semantics`), nie powtórzone tu zgodnie z zakazem zapisu (WP-4).
+- **Pełna weryfikacja wszystkich 14 klas `@RabbitListener`** — zweryfikowano wzorzec (`TenantAwareConsumer`) i jeden konkretny wyjątek (`AuditLogConsumer` dla zdarzeń globalnych); reszta konsumentów nie została przeczytana linia po linii (poza budżetem S) — oznaczone jako "do potwierdzenia przy BE-139" w tabeli §2.
+- **Zachowanie `plugin_version` pod kątem widoczności cross-tenant w endpointach REST** (czy frontend/marketplace filtruje po statusie `PUBLISHED` przed pokazaniem wersji innego tenanta) — sprawdzono tylko warstwę repozytorium (`findById` bez filtra tenant), nie pełny przepływ REST → poza zakresem S tego raportu, nie blokuje klasyfikacji GLOBAL (decyzja DB-042 już istnieje).
+- **`gdpr_processing_register`** — tylko 2 wiersze w demo, oba `tenant_id=NULL`; nie zweryfikowano czy aplikacja kiedykolwiek zapisuje wiersz z `tenant_id` niepustym (brak repozytorium zapisującego tę tabelę znalezionego w szybkim grepie) — do potwierdzenia przy DB-074.
 
 ---
 
@@ -4117,7 +4209,7 @@ macierz komend SELECT/INSERT/UPDATE/DELETE × polityka (brak polityki = deny pod
 **Typ:** Schema migration (bezpieczeństwo, PII)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** DB-071, BE-120 (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
+**Zależy od:** DB-071 ✅, BE-120 (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** DB-069, DB-073
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4142,7 +4234,7 @@ albo pętla per tenant) musi być spójne z tą polityką.
 **Typ:** Schema migration (bezpieczeństwo, PII)
 **Priorytet:** Should Have
 **Złożoność:** M (ścieżka gorąca dialera; przegląd wszystkich ścieżek bez kontekstu tenanta)
-**Zależy od:** DB-071, DB-072
+**Zależy od:** DB-071 ✅, DB-072
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4167,7 +4259,7 @@ albo pętla per tenant) musi być spójne z tą polityką.
 **Typ:** Schema migration (bezpieczeństwo) — zbiorczy, wykonawca dzieli na migracje po tabeli/zmianie
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** DB-071
+**Zależy od:** DB-071 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4212,7 +4304,7 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Typ:** Schema migration (dane) / dokumentacja
 **Priorytet:** Could Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122, BE-123, DB-058
+**Zależy od:** BE-120, BE-122, BE-123 ✅, DB-058
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4234,7 +4326,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122, BE-123, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
+**Zależy od:** BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

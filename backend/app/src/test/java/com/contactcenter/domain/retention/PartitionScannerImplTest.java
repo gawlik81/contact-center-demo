@@ -211,6 +211,29 @@ class PartitionScannerImplTest {
         }
 
         @Test
+        @DisplayName("BE-123: wiersz z tenant_id NULL (zdarzenie globalne, np. audit_log) jest mapowany na "
+                + "TenantRowCount z tenantId=null — PRZED poprawką (pkt 5 BE-123) ten wiersz rzucał "
+                + "NullPointerException (UUID.fromString(null.toString()))")
+        void rowWithNullTenantId_isMappedWithNullTenantId_doesNotThrowNpe() {
+            when(entityManager.createNativeQuery(anyString())).thenReturn(mockQuery);
+            List<Object[]> rows = new java.util.ArrayList<>();
+            // tenant_id IS NULL -> zdarzenie globalne (audit_log.tenant_id nullable, V004) + jeden
+            // wiersz z tenantem, w tej samej partycji — dowodzi, że NPE nie pojawia się NIEZALEŻNIE
+            // od obecności innych, "normalnych" wierszy w tym samym wyniku zapytania.
+            rows.add(new Object[]{null, 7L});
+            rows.add(new Object[]{UUID.randomUUID(), 2L});
+            when(mockQuery.getResultList()).thenReturn(rows);
+
+            List<PartitionScanner.TenantRowCount> result = scanner.countRowsByTenant("audit_log_2024_01");
+
+            assertThat(result).hasSize(2);
+            assertThat(result).anySatisfy(row -> {
+                assertThat(row.tenantId()).isNull();
+                assertThat(row.rowCount()).isEqualTo(7L);
+            });
+        }
+
+        @Test
         @DisplayName("partycja pusta -> lista pusta")
         void emptyPartition_returnsEmptyList() {
             when(entityManager.createNativeQuery(anyString())).thenReturn(mockQuery);
@@ -225,6 +248,61 @@ class PartitionScannerImplTest {
         @DisplayName("nazwa partycji spoza bezpiecznego wzorca identyfikatora -> IllegalArgumentException, brak zapytania do DB")
         void unsafePartitionName_throwsBeforeQuerying() {
             assertThatThrownBy(() -> scanner.countRowsByTenant("contact_2026_05\"; DROP TABLE tenant; --"))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verify(entityManager, never()).createNativeQuery(anyString());
+        }
+    }
+
+    // =========================================================================
+    // countRows (BE-123) — liczenie BEZ grupowania po tenancie
+    // =========================================================================
+
+    @Nested
+    @DisplayName("countRows() (BE-123)")
+    class CountRows {
+
+        @Test
+        @DisplayName("partycja istnieje -> SELECT count(*) FROM ONLY <partycja>, bez grupowania (bez ryzyka NPE na tenant_id)")
+        void existingPartition_countsAllRowsWithoutGrouping() {
+            Query existsQuery = mock(Query.class);
+            Query countQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("FROM pg_tables"))))
+                    .thenReturn(existsQuery);
+            when(existsQuery.setParameter(anyString(), any())).thenReturn(existsQuery);
+            when(existsQuery.getSingleResult()).thenReturn(1L);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("FROM ONLY \"audit_log_2024_01\""))))
+                    .thenReturn(countQuery);
+            when(countQuery.getSingleResult()).thenReturn(5L);
+
+            long result = scanner.countRows("audit_log_2024_01");
+
+            assertThat(result).isEqualTo(5L);
+        }
+
+        @Test
+        @DisplayName("partycja NIE istnieje -> 0, bez wykonania zapytania FROM ONLY (defensywnie, np. _default usunięty)")
+        void nonExistingPartition_returnsZero_withoutQueryingFromOnly() {
+            Query existsQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("FROM pg_tables"))))
+                    .thenReturn(existsQuery);
+            when(existsQuery.setParameter(anyString(), any())).thenReturn(existsQuery);
+            when(existsQuery.getSingleResult()).thenReturn(0L);
+
+            long result = scanner.countRows("audit_log_default");
+
+            assertThat(result).isZero();
+            verify(entityManager, never()).createNativeQuery(
+                    argThat(sql -> sql != null && sql.contains("FROM ONLY")));
+        }
+
+        @Test
+        @DisplayName("nazwa partycji spoza bezpiecznego wzorca identyfikatora -> IllegalArgumentException, brak zapytania do DB")
+        void unsafePartitionName_throwsBeforeQuerying() {
+            assertThatThrownBy(() -> scanner.countRows("audit_log_2024_01\"; DROP TABLE tenant; --"))
                     .isInstanceOf(IllegalArgumentException.class);
 
             verify(entityManager, never()).createNativeQuery(anyString());

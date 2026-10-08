@@ -24,24 +24,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Testy jednostkowe dla {@link PartitionReclaimJob} (EPIC-29, BE-115).
+ * Testy jednostkowe dla {@link PartitionReclaimJob} (EPIC-29, BE-115; BE-123 EPIC-30).
  *
- * <p>{@link PartitionScanner} i {@link RetentionPolicyService} są mockowane — logika progowa
- * (MAX retencji -> globalny cutoff -> porównanie {@code rangeEnd}) jest czysto arytmetyczna, a
- * weryfikacja rzeczywistego SQL (DROP TABLE IF EXISTS, bezpiecznik identyfikatora) jest już
- * pokryta w {@code PartitionScannerImplTest}. <strong>UWAGA (BE-145):</strong> mock
- * {@link PartitionScanner} nie potwierdza, że pominięty {@code DROP} faktycznie NIE usunął
- * partycji z {@code pg_class}/{@code information_schema} — to jest weryfikowane osobno, na
- * prawdziwym Postgresie, w {@code PartitionReclaimJobIntegrationTest}.
+ * <p>{@link PartitionScanner}, {@link RetentionPolicyService} i {@link PlatformRetentionProperties}
+ * są mockowane — logika progowa (MAX retencji/horyzont platformowy -> globalny cutoff -> porównanie
+ * {@code rangeEnd}) jest czysto arytmetyczna, a weryfikacja rzeczywistego SQL (DROP TABLE IF EXISTS,
+ * bezpiecznik identyfikatora) jest już pokryta w {@code PartitionScannerImplTest}.
+ * <strong>UWAGA (BE-145):</strong> mock {@link PartitionScanner} nie potwierdza, że pominięty
+ * {@code DROP} faktycznie NIE usunął partycji z {@code pg_class}/{@code information_schema} — to
+ * jest weryfikowane osobno, na prawdziwym Postgresie, w {@code PartitionReclaimJobIntegrationTest}/
+ * {@code PartitionReclaimPlatformHorizonIntegrationTest} (BE-123).
  *
  * <p>Domyślne stuby w {@link #setUp()}: {@code listPartitions} zwraca pustą listę dla
- * wszystkich tabel per-tenant ({@code social_message} BE-133, {@code email_message} BE-135 — {@code CONTACT_INTERACTIONS}),
- * {@code findMaxRetentionMonths} zwraca 60 dla obu kategorii — żeby testy skupione na jednej
- * tabeli/kategorii nie musiały jawnie stubować pozostałych tabel.
+ * wszystkich tabel per-tenant ({@code social_message} BE-133, {@code email_message} BE-135 — {@code CONTACT_INTERACTIONS})
+ * oraz platformowych ({@code audit_log}/{@code plugin_invocation_log} — BE-123), {@code findMaxRetentionMonths}
+ * zwraca 60 dla obu kategorii, {@code platformRetentionProperties.monthsFor} zwraca 24 dla obu
+ * kluczy — żeby testy skupione na jednej tabeli/kategorii nie musiały jawnie stubować pozostałych.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-@DisplayName("PartitionReclaimJob – fizyczne odzyskanie miejsca, globalny próg MAX retencji (BE-115)")
+@DisplayName("PartitionReclaimJob – fizyczne odzyskanie miejsca, globalny próg MAX retencji / horyzont platformowy (BE-115, BE-123)")
 class PartitionReclaimJobTest {
 
     private static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -53,6 +55,9 @@ class PartitionReclaimJobTest {
     @Mock
     private RetentionPolicyService retentionPolicyService;
 
+    @Mock
+    private PlatformRetentionProperties platformRetentionProperties;
+
     @InjectMocks
     private PartitionReclaimJob job;
 
@@ -60,10 +65,13 @@ class PartitionReclaimJobTest {
     void setUp() {
         when(partitionScanner.listPartitions(anyString())).thenReturn(List.of());
         when(partitionScanner.countRowsByTenant(anyString())).thenReturn(List.of());
+        when(partitionScanner.countRows(anyString())).thenReturn(0L);
         when(retentionPolicyService.findMaxRetentionMonths(RetentionDataCategory.CONTACT_INTERACTIONS))
                 .thenReturn(60);
         when(retentionPolicyService.findMaxRetentionMonths(RetentionDataCategory.TRANSCRIPTS))
                 .thenReturn(60);
+        when(platformRetentionProperties.monthsFor("audit-log-months")).thenReturn(24);
+        when(platformRetentionProperties.monthsFor("plugin-invocation-log-months")).thenReturn(24);
     }
 
     private static PartitionScanner.PartitionInfo partitionEndingAt(String name, LocalDate rangeEnd) {
@@ -456,6 +464,241 @@ class PartitionReclaimJobTest {
             job.runReclaimJob();
 
             verify(partitionScanner, never()).dropPartition("email_message_2020_06");
+        }
+    }
+
+    // =========================================================================
+    // Scenariusz BE-123: audit_log/plugin_invocation_log — horyzont platformowy (AFTER_CUTOFF)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("audit_log/plugin_invocation_log (BE-123) — DropMode.AFTER_CUTOFF: DROP mimo niepustej partycji, INFO nie WARN")
+    class PlatformHorizonReclaim {
+
+        @Test
+        @DisplayName("audit_log: partycja starsza niż horyzont (24 mies.), PUSTA -> DROP WYKONANY")
+        void emptyAuditLogPartitionOlderThanHorizon_isDropped() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(24);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("audit_log_2015_01", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(oldPartition));
+            when(partitionScanner.countRows("audit_log_2015_01")).thenReturn(0L);
+
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("audit_log_2015_01");
+        }
+
+        @Test
+        @DisplayName("audit_log: partycja starsza niż horyzont, NIEPUSTA (wiersze tenant_id IS NULL i z tenantem) -> DROP WYKONANY, brak NPE (BE-123 pkt 5)")
+        void nonEmptyAuditLogPartitionOlderThanHorizon_isDroppedAnyway_noNpe() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(24);
+            PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("audit_log_2015_02", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(oldPartition));
+            // countRows (BEZ grupowania po tenancie) jest użyte dla ścieżki platformowej — nie
+            // countRowsByTenant, które PRZED BE-123 pkt 5 rzucałoby NullPointerException dla
+            // wiersza z tenant_id IS NULL (zdarzenie globalne audit_log). Patrz też
+            // PartitionScannerImplTest (jednostkowy dowód bugu na countRowsByTenant) i
+            // PartitionReclaimPlatformHorizonIntegrationTest (dowód na prawdziwej bazie).
+            when(partitionScanner.countRows("audit_log_2015_02")).thenReturn(2L);
+
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("audit_log_2015_02");
+            verify(partitionScanner, never()).countRowsByTenant("audit_log_2015_02");
+        }
+
+        @Test
+        @DisplayName("audit_log: INFO (nie WARN) zawiera nazwę partycji i liczbę wierszy, brak 'POMIJAM DROP'")
+        void logsInfoNotWarn_withRowCount() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(24);
+                PartitionScanner.PartitionInfo oldPartition = partitionEndingAt("audit_log_2015_03", cutoff.minusMonths(6));
+
+                when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(oldPartition));
+                when(partitionScanner.countRows("audit_log_2015_03")).thenReturn(5L);
+
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .filteredOn(e -> e.getFormattedMessage().contains("audit_log_2015_03"))
+                        .isNotEmpty()
+                        .allSatisfy(e -> assertThat(e.getLevel())
+                                .as("brak WARN dla partycji platformowej niepustej po horyzoncie (DropMode.AFTER_CUTOFF)")
+                                .isNotEqualTo(ch.qos.logback.classic.Level.WARN))
+                        .anySatisfy(e -> assertThat(e.getFormattedMessage())
+                                .contains("5 wierszy")
+                                .doesNotContain("POMIJAM DROP"));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
+        }
+
+        @Test
+        @DisplayName("audit_log: partycja młodsza niż horyzont (23 mies.) -> DROP NIE jest wykonywany")
+        void auditLogPartitionYoungerThanHorizon_isNotDropped() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(23);
+            PartitionScanner.PartitionInfo youngPartition = partitionEndingAt("audit_log_2024_11", cutoff.plusMonths(1));
+
+            when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(youngPartition));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("audit_log_2024_11");
+        }
+
+        @Test
+        @DisplayName("audit_log_default nigdy nie jest kandydatem do DROP, nawet gdyby zwrócony defensywnie")
+        void auditLogDefaultPartition_isNeverDropped() {
+            LocalDate veryOldCutoff = LocalDate.of(1970, 1, 1);
+            PartitionScanner.PartitionInfo defaultPartition =
+                    new PartitionScanner.PartitionInfo("audit_log_default", veryOldCutoff, veryOldCutoff.plusYears(1));
+
+            when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(defaultPartition));
+
+            job.runReclaimJob();
+
+            verify(partitionScanner, never()).dropPartition("audit_log_default");
+        }
+
+        @Test
+        @DisplayName("plugin_invocation_log: partycja starsza niż horyzont, PUSTA -> DROP WYKONANY; młodsza -> NIE")
+        void pluginInvocationLog_dropsOldEmpty_keepsYoung() {
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(24);
+            PartitionScanner.PartitionInfo oldPartition =
+                    partitionEndingAt("plugin_invocation_log_2015_01", cutoff.minusMonths(6));
+            PartitionScanner.PartitionInfo youngPartition =
+                    partitionEndingAt("plugin_invocation_log_2024_11", cutoff.plusMonths(1));
+
+            when(partitionScanner.listPartitions("plugin_invocation_log"))
+                    .thenReturn(List.of(oldPartition, youngPartition));
+            when(partitionScanner.countRows("plugin_invocation_log_2015_01")).thenReturn(0L);
+
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("plugin_invocation_log_2015_01");
+            verify(partitionScanner, never()).dropPartition("plugin_invocation_log_2024_11");
+        }
+
+        @Test
+        @DisplayName("ścieżka horyzontu platformowego NIE zależy od RetentionPolicyService — usługa rzuca wyjątek dla KAŻDEGO wywołania, audit_log i plugin_invocation_log są nadal przetwarzane")
+        void platformHorizonPath_isIndependentOfRetentionPolicyService() {
+            when(retentionPolicyService.findMaxRetentionMonths(org.mockito.ArgumentMatchers.any()))
+                    .thenThrow(new ResourceNotFoundException("brak polityki (symulacja awarii usługi)"));
+
+            LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusMonths(24);
+            PartitionScanner.PartitionInfo oldAuditLog = partitionEndingAt("audit_log_2015_04", cutoff.minusMonths(6));
+            PartitionScanner.PartitionInfo oldPluginLog =
+                    partitionEndingAt("plugin_invocation_log_2015_04", cutoff.minusMonths(6));
+
+            when(partitionScanner.listPartitions("audit_log")).thenReturn(List.of(oldAuditLog));
+            when(partitionScanner.listPartitions("plugin_invocation_log")).thenReturn(List.of(oldPluginLog));
+            when(partitionScanner.countRows("audit_log_2015_04")).thenReturn(0L);
+            when(partitionScanner.countRows("plugin_invocation_log_2015_04")).thenReturn(0L);
+
+            // Nie powinno wysadzić joba (RetentionPolicyService nigdy nie jest wołane dla
+            // ThresholdSource.PlatformHorizon — patrz PartitionReclaimJob#resolveThresholdMonths).
+            job.runReclaimJob();
+
+            verify(partitionScanner).dropPartition("audit_log_2015_04");
+            verify(partitionScanner).dropPartition("plugin_invocation_log_2015_04");
+            // Tabele per-tenant (CategoryMaxRetention) są tymi, które faktycznie zależą od usługi —
+            // brak polityki powoduje ich pominięcie w tym przebiegu (zachowanie bez zmian, BE-115).
+            verify(partitionScanner, never()).dropPartition(org.mockito.ArgumentMatchers.startsWith("contact_"));
+        }
+    }
+
+    // =========================================================================
+    // Scenariusz BE-123: partycja _default niepusta -> WARN (sygnał awarii rotacji), dla KAŻDEJ tabeli
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Partycja _default niepusta (BE-123, pkt 3) — WARN, sygnał awarii rotacji, DLA KAŻDEJ tabeli")
+    class DefaultPartitionPollutedWarns {
+
+        @Test
+        @DisplayName("contact_default z wierszami -> WARN z nazwą partycji i liczbą wierszy; DROP wciąż nie dotyka _default")
+        void nonEmptyDefaultPartition_logsWarn() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                when(partitionScanner.countRows("contact_default")).thenReturn(7L);
+
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .anySatisfy(msg -> assertThat(msg)
+                                .contains("contact_default")
+                                .contains("7 wierszy")
+                                .contains("DEFAULT")
+                                .contains("AWARII ROTACJI"));
+                assertThat(appender.list)
+                        .filteredOn(e -> e.getFormattedMessage().contains("contact_default"))
+                        .allSatisfy(e -> assertThat(e.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
+        }
+
+        @Test
+        @DisplayName("audit_log_default z wierszami -> WARN (ten sam mechanizm dla tabel platformowych)")
+        void nonEmptyAuditLogDefaultPartition_logsWarn() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                when(partitionScanner.countRows("audit_log_default")).thenReturn(3L);
+
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .anySatisfy(msg -> assertThat(msg)
+                                .contains("audit_log_default")
+                                .contains("3 wierszy")
+                                .contains("AWARII ROTACJI"));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
+        }
+
+        @Test
+        @DisplayName("wszystkie partycje _default puste (domyślny stub countRows=0) -> brak WARN o AWARII ROTACJI")
+        void allDefaultPartitionsEmpty_noWarn() {
+            ch.qos.logback.classic.Logger jobLogger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PartitionReclaimJob.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            jobLogger.addAppender(appender);
+            try {
+                job.runReclaimJob();
+
+                assertThat(appender.list)
+                        .extracting(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                        .noneMatch(msg -> msg.contains("AWARII ROTACJI"));
+            } finally {
+                jobLogger.detachAppender(appender);
+                appender.stop();
+            }
         }
     }
 }

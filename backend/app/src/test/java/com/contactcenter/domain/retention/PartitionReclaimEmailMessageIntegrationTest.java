@@ -116,6 +116,7 @@ class PartitionReclaimEmailMessageIntegrationTest {
                         Class.forName("com.contactcenter.domain.email.EmailMessageServiceImpl"),
                         Class.forName("com.contactcenter.domain.email.EmailAttachmentStorageServiceImpl"),
                         RecordingPartitionScanner.class,
+                        PlatformRetentionProperties.class,
                         PartitionReclaimJob.class},
                 c -> {
                     c.getBeanFactory().registerSingleton("s3Client", s3Client);

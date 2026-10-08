@@ -355,6 +355,28 @@ retention:
   # domyślnie: co niedzielę o 03:00 UTC — poza godzinami szczytu, po PartitionMaintenanceJob
   # (00:30 UTC, BE-114) i pozostałych jobach retencji).
   partition-reclaim-cron: ${RETENTION_PARTITION_RECLAIM_CRON:0 0 3 * * SUN}
+  # Horyzont retencji (miesiące) dla tabele PLATFORMOWE (BE-123, EPIC-30) – audit_log i
+  # plugin_invocation_log. W odróżnieniu od retention.purge/* powyżej, te tabele NIE mają kategorii
+  # RetentionDataCategory, NIE mają polityki per tenant (tenant_retention_policy) i NIE mają Poziomu 1
+  # (nic nie usuwa ich wierszy indywidualnie) – PartitionReclaimJob (DropMode.AFTER_CUTOFF) jest
+  # JEDYNYM mechanizmem usuwającym dane: partycja starsza niż ten horyzont jest dropowana NIEZALEŻNIE
+  # od liczby wierszy (log INFO, nie WARN – niepusta partycja platformowa po horyzoncie jest
+  # OCZEKIWANA, nie jest sygnałem awarii, patrz PartitionReclaimJob#logInfoIfHasRows).
+  platform:
+    # D5 (ZAŁOŻENIE DO POTWIERDZENIA PRAWNIE – ten sam status co retention.purge.delete-messages
+    # powyżej i email.attachments.pending-sweep-delete-enabled): 24 miesiące. Wartość już dziś
+    # zakładana przez istniejące funkcje SQL drop_old_audit_log_partitions/
+    # drop_old_plugin_invocation_log_partitions (p_retention_months DEFAULT 24, V004/V077) – ten
+    # ticket (BE-123) jedynie podaje tę samą wartość domyślną ścieżce Java. NIE WŁĄCZAĆ innej
+    # wartości w żadnym profilu domyślnym bez świadomej decyzji właściciela/potwierdzenia prawnego –
+    # patrz Javadoc PlatformRetentionProperties i notatka wykonania BE-123 w TASKS-BACKEND.md.
+    # Walidacja ≥ 1 przy starcie (PlatformRetentionProperties#validate, @PostConstruct) – wartość
+    # nieprawidłowa (np. 0 albo ujemna z ENV var) NIE blokuje startu aplikacji, tylko loguje WARN i
+    # wraca do domyślnych 24 mies. (uzasadnienie wyboru: błąd tej konfiguracji dotyczy wyłącznie
+    # cotygodniowego joba odzyskiwania miejsca, nie całej aplikacji – zablokowanie startu byłoby
+    # nieproporcjonalną reakcją; patrz javadoc klasy).
+    audit-log-months: ${RETENTION_PLATFORM_AUDIT_LOG_MONTHS:24}
+    plugin-invocation-log-months: ${RETENTION_PLATFORM_PLUGIN_INVOCATION_LOG_MONTHS:24}
 
 # =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)

@@ -318,6 +318,21 @@ app:
     secret: ${APP_ENCRYPTION_SECRET:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
 # =============================================================================
+# Walidacja polityk RLS przy starcie – RlsValidationService (BE-138, EPIC-30)
+# =============================================================================
+rls:
+  validation:
+    # Domyślnie false: naruszenia (pokrycie komend RLS niepełne, brak FORCE, rola połączenia
+    # omija RLS – superuser/BYPASSRLS) logują tylko WARN i NIE blokują startu (local-demo/dev/test
+    # łączą się dziś rolą BYPASSRLS – zob. DB-071/BE-139, decyzja odłożona 2026-10-07).
+    # Ustaw na true WYŁĄCZNIE gdy rola połączenia aplikacji na danym środowisku celowo NIE ma
+    # BYPASSRLS/superuser (docelowy stan prod) – wtedy wykrycie roli omijającej RLS rzuca
+    # IllegalStateException i PRZERYWA start (jedyny świadomy wyjątek od zasady "nie blokuj startu"
+    # w tym komponencie – patrz Javadoc RlsValidationService). NIE włączaj tej flagi, dopóki rola
+    # produkcyjna nadal ma BYPASSRLS, bo aplikacja nie wystartuje.
+    fail-on-bypass: ${RLS_VALIDATION_FAIL_ON_BYPASS:false}
+
+# =============================================================================
 # ETL – pipeline synchronizacji danych do Data Warehouse (BE-030)
 # =============================================================================
 etl:

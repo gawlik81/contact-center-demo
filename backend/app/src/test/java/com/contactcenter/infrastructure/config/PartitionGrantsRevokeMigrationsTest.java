@@ -153,6 +153,7 @@ class PartitionGrantsRevokeMigrationsTest {
                 .load();
 
         MigrationVersion firstNew = null;
+        MigrationVersion lastDb080 = null;
         for (MigrationInfo info : latest.info().all()) {
             if (FIRST_DB080_DESCRIPTION.equals(info.getDescription())) {
                 firstNew = info.getVersion();
@@ -160,6 +161,9 @@ class PartitionGrantsRevokeMigrationsTest {
             for (Target t : Target.values()) {
                 if (t.description.equals(info.getDescription())) {
                     SCRIPT_NAMES.put(t, info.getScript());
+                    if (lastDb080 == null || info.getVersion().compareTo(lastDb080) > 0) {
+                        lastDb080 = info.getVersion();
+                    }
                 }
             }
         }
@@ -167,6 +171,16 @@ class PartitionGrantsRevokeMigrationsTest {
             throw new IllegalStateException("Brak migracji DB-080 (V105..V110) w classpath: " + SCRIPT_NAMES);
         }
         final MigrationVersion first = firstNew;
+        // Wersja TUŻ PO ostatniej migracji DB-080 (V110) -- POST jest pinowany tutaj, NIE do
+        // "najnowszej" wersji na branchu. Powod (odkryte przy DB-074, V113-V124): pozniejsze,
+        // niezwiazane tickety RLS (V117 contact, V122 audit_log) UMYSLNIE dodaja nowe polityki na
+        // DWOCH z tych szesciu tabel -- gdyby POST byl pinowany do "latest", test
+        // throughParent_andRlsCatalog_identicalToPreMigrationSnapshot falszywie wykrylby to jako
+        // regresje DB-080 (ktora nigdy nie dotykala samych polityk, tylko ACL partycji). Pinowanie
+        // do V110 przywraca pierwotny, waski zakres tego testu (REVOKE na partycjach, nie "caly
+        // schemat RLS nigdy sie nie zmienia") i czyni go odpornym na KAZDY kolejny ticket RLS na
+        // tych samych tabelach, nie tylko DB-074.
+        final MigrationVersion lastDb080Version = lastDb080;
         MigrationVersion preTarget = null;
         for (MigrationInfo info : latest.info().all()) {
             MigrationVersion v = info.getVersion();
@@ -199,8 +213,14 @@ class PartitionGrantsRevokeMigrationsTest {
             PRE.put(t, snapshot(t));
         }
 
-        // 3. Dociągnięcie do pełnego łańcucha (V105..V110).
-        latest.migrate();
+        // 3. Dociągnięcie DOKŁADNIE do V110 (ostatniej migracji DB-080) -- NIE do najnowszej, patrz
+        //    uwaga przy lastDb080Version wyżej.
+        Flyway.configure()
+                .dataSource(POSTGRES.getJdbcUrl(), USER, PASSWORD)
+                .locations("classpath:db/migration")
+                .target(lastDb080Version)
+                .load()
+                .migrate();
 
         for (Target t : Target.values()) {
             POST.put(t, snapshot(t));

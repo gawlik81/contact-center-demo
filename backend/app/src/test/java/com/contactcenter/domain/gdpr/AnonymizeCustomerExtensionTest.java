@@ -576,15 +576,30 @@ class AnonymizeCustomerExtensionTest {
     //     tescie GUC == p_tenant_id (TENANT_A) -- RLS jest wiec spelnione trywialnie. Zmienia sie
     //     TYLKO powod, dla ktorego zapis dziala (polityka dopuszcza, nie brak RLS) -- komentarz
     //     przy asercji ponizej zaktualizowany.
+    //
+    //     AKTUALIZACJA DB-074 (V113-V124, 2026-10-08, klasyfikacja DB-071): dwie zmiany dotykaja
+    //     ten sam scenariusz testowy. (1) V117 dodalo brakujace polityki UPDATE/DELETE na contact
+    //     (wczesniej WYLACZNIE SELECT+INSERT od V012) -- UPDATE contact pod app_user TERAZ DZIALA
+    //     dla wlasnego tenanta, test (A) zaktualizowany z 0 na 1. (2) V122 dodalo polityke INSERT
+    //     na audit_log (galaz "tenant_id IS NULL OR tenant_id = GUC") -- INSERT INTO audit_log w
+    //     OSTATNIM kroku anonymize_customer uzywa tenant_id = p_tenant_id, a w tym tescie
+    //     GUC == p_tenant_id (TENANT_A), wiec WITH CHECK jest TERAZ spelnione -- caly przebieg
+    //     anonymize_customer pod app_user KONCZY SIE SUKCESEM, nie twardym bledem 42501/P0001 jak
+    //     przed V122. Test (B) przeksztalcony z "dowodu bledu" w "dowod naprawy" (byla to
+    //     przedistniejaca, znana od DB-062/DB-064 luka -- brak JAKIEJKOLWIEK polityki INSERT na
+    //     audit_log od V012, poza zakresem tamtych ticketow, domknieta tutaj). Test (C) nie
+    //     wymaga juz tymczasowego patcha polityki INSERT na audit_log (byl potrzebny WYLACZNIE do
+    //     izolacji tej jednej, przedistniejacej luki od reszty warstwy zapisu) -- usuniety;
+    //     licznik contact zmieniony z 0 na 1 z tego samego powodu co test (A).
     // =========================================================================================
 
     @Test
-    @DisplayName("RLS/app_user (A): UPDATE contact pod app_user nadal dopasowuje CICHO 0 wierszy (brak polityki UPDATE) -- UPDATE email_message/social_message TERAZ dziala (DB-064/V099: polityka ALL + WITH CHECK + FORCE)")
-    void rlsUnderAppUser_contactStillZero_emailSocialNowWriteable() throws Exception {
+    @DisplayName("RLS/app_user (A): DB-074/V117 dodalo polityke UPDATE na contact -- UPDATE wlasnego tenanta TERAZ dziala (wczesniej: cicho 0 wierszy); UPDATE email_message/social_message dziala od DB-064/V099 (polityka ALL + WITH CHECK + FORCE)")
+    void rlsUnderAppUser_contactNowWriteable_emailSocialWriteable() throws Exception {
         inRolledBackTx(DB, c -> {
             asAppUser(c, TENANT_A);
             assertThat(update(c, "UPDATE contact SET remote_address = NULL WHERE contact_id = ? AND tenant_id = ?", CONTACT_RLS, TENANT_A))
-                    .as("contact: brak polityki UPDATE -- 0 wierszy, bez bledu").isEqualTo(0);
+                    .as("contact: DB-074/V117 dodalo polityke UPDATE -- wlasny tenant dziala").isEqualTo(1);
             assertThat(update(c, "UPDATE email_message SET subject = '[ANONYMIZED]' WHERE message_id = ? AND tenant_id = ?", EMAIL_RLS, TENANT_A))
                     .as("email_message: DB-064/V099 dodalo polityke ALL+WITH CHECK+FORCE -- UPDATE wlasnego tenanta dziala").isEqualTo(1);
             assertThat(update(c, "UPDATE social_message SET content = 'x' WHERE message_id = ? AND tenant_id = ?", SOCIAL_RLS, TENANT_A))
@@ -594,39 +609,28 @@ class AnonymizeCustomerExtensionTest {
     }
 
     @Test
-    @DisplayName("RLS/app_user (B): INSERT INTO audit_log pod app_user KONCZY SIE TWARDYM BLEDEM (nie cicho) -- brak jakiejkolwiek polityki INSERT; caly przebieg anonymize_customer pod app_user przerywa sie na tym kroku i cofa WSZYSTKIE wczesniejsze zmiany (contact/callback/campaign_contact* dzialaly)")
-    void rlsUnderAppUser_auditLogInsertHardFails_wholeCallRollsBack() throws Exception {
+    @DisplayName("RLS/app_user (B): DB-074/V122 dodalo polityke INSERT na audit_log (galaz tenant_id = GUC) -- INSERT INTO audit_log w anonymize_customer TERAZ DZIALA dla wlasnego tenanta; caly przebieg konczy sie sukcesem (wczesniej: twardy blad 42501/P0001, caly call rollback -- przedistniejaca luka od V012, poza zakresem DB-062/DB-064, domknieta w DB-074)")
+    void rlsUnderAppUser_auditLogInsertNowWorks_wholeCallSucceeds() throws Exception {
         inRolledBackTx(DB, c -> {
             asAppUser(c, TENANT_A);
-            SQLException error = failureOfWithSavepointRecovery(c,
-                    "SELECT anonymize_customer(?, ?, ?, FALSE)", CUSTOMER_RLS, TENANT_A, UUID.randomUUID());
-            assertThat((Throwable) error).as("audit_log INSERT bez polityki -- caly przebieg musi rzucic pod app_user").isNotNull();
-            // Prawdziwy SQLState bledu RLS to 42501, ale funkcja ma blok EXCEPTION WHEN OTHERS (wzorzec
-            // V013), ktory lapie i PONOWNIE rzuca RAISE EXCEPTION 'Blad anonimizacji klienta %: %' --
-            // to opakowuje oryginalny blad w NOWY, z SQLState P0001 (generyczny raise_exception),
-            // zachowujac ORYGINALNA TRESC komunikatu (SQLERRM) w tekscie.
-            assertThat(error.getSQLState()).isEqualTo("P0001");
-            assertThat(error.getMessage()).containsIgnoringCase("row-level security").containsIgnoringCase("audit_log");
+            JsonNode result = scalarJson(c, "SELECT anonymize_customer(?, ?, ?, FALSE)", CUSTOMER_RLS, TENANT_A, UUID.randomUUID());
+            assertThat(result.get("counts").get("customer").asInt())
+                    .as("caly przebieg konczy sie sukcesem (nie rollbackiem) -- audit_log INSERT juz nie blokuje").isEqualTo(1);
 
-            // pelny ROLLBACK -- nawet zmiany na tabelach z dzialajaca polityka zapisu (scheduled_callback,
-            // campaign_contact, contact_transcription) sa cofniete, bo audit_log jest OSTATNIM krokiem
-            // przed RETURN, a caly wywolanie to jedna transakcja
             update(c, "RESET ROLE");
-            assertThat(scalar(c, "SELECT phone FROM scheduled_callback WHERE callback_id = ?", CALLBACK_RLS)).isNotEqualTo("ANONYMIZED");
-            assertThat(scalar(c, "SELECT count(*)::text FROM contact_transcription WHERE contact_id = ?", CONTACT_RLS)).isEqualTo("1");
+            assertThat(scalar(c, "SELECT phone FROM scheduled_callback WHERE callback_id = ?", CALLBACK_RLS)).isEqualTo("ANONYMIZED");
+            assertThat(scalar(c, "SELECT count(*)::text FROM contact_transcription WHERE contact_id = ?", CONTACT_RLS)).isEqualTo("0");
+            assertThat(scalar(c, "SELECT count(*)::text FROM audit_log WHERE entity_id = ? AND action = 'CUSTOMER_ANONYMIZED'", CUSTOMER_RLS))
+                    .as("audit_log: wiersz faktycznie wstawiony pod app_user (WITH CHECK tenant_id = GUC spelnione, bo p_tenant_id == GUC)")
+                    .isEqualTo("1");
             return null;
         });
     }
 
     @Test
-    @DisplayName("RLS/app_user (C): z tymczasowo dodana polityka INSERT na audit_log (izolacja luki audit_log od reszty warstwy zapisu) -- scheduled_callback/campaign_contact/campaign_contact_archive/contacts_dw/contact_transcription/contact_ai_summary/customer/email_message/social_message (DB-064/V099) faktycznie sie zmieniaja pod app_user; tylko contact pozostaje 0 (brak polityki UPDATE, liczniki to ujawniaja)")
-    void rlsUnderAppUser_withAuditLogPolicyPatchedForIsolation_revealsPerTableCounters() throws Exception {
+    @DisplayName("RLS/app_user (C): bez zadnego tymczasowego patcha polityk (DB-074 domyka ostatnia brakujaca -- audit_log INSERT) -- scheduled_callback/campaign_contact/campaign_contact_archive/contacts_dw/contact_transcription/contact_ai_summary/customer/contact/email_message/social_message WSZYSTKIE faktycznie sie zmieniaja pod app_user")
+    void rlsUnderAppUser_noPatchNeeded_revealsPerTableCounters() throws Exception {
         inRolledBackTx(DB, c -> {
-            // Patch TYLKO w tej transakcji testowej (cofniety razem z reszta) -- izoluje test WARSTWY
-            // ZAPISU DB-062 (nowo dotkniete tabele) od odrebnej, przedistniejacej luki audit_log (brak
-            // polityki INSERT od V012, poza zakresem DB-062 -- patrz test (B) wyzej i raport koncowy).
-            update(c, "CREATE POLICY tmp_audit_log_insert_for_test ON audit_log FOR INSERT WITH CHECK (true)");
-
             asAppUser(c, TENANT_A);
             JsonNode result = scalarJson(c, "SELECT anonymize_customer(?, ?, ?, FALSE)", CUSTOMER_RLS, TENANT_A, UUID.randomUUID());
             JsonNode counts = result.get("counts");
@@ -635,11 +639,11 @@ class AnonymizeCustomerExtensionTest {
             assertThat(counts.get("scheduled_callback").asInt()).as("scheduled_callback: polityka ALL (bez FORCE) dziala mimo braku FORCE").isEqualTo(1);
             assertThat(counts.get("campaign_contact").asInt()).as("campaign_contact: DB-073/V112 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
             assertThat(counts.get("campaign_contact_archive").asInt()).as("campaign_contact_archive: DB-072/V111 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
-            assertThat(counts.get("contacts_dw").asInt()).as("contacts_dw: brak RLS w ogole").isEqualTo(1);
+            assertThat(counts.get("contacts_dw").asInt()).as("contacts_dw: DB-074/V116 dodalo polityke ALL+WITH CHECK+FORCE -- dziala (tenant_id = GUC)").isEqualTo(1);
             assertThat(counts.get("contact_transcription").asInt()).as("contact_transcription: polityka ALL + FORCE dziala").isEqualTo(1);
             assertThat(counts.get("contact_ai_summary").asInt()).as("contact_ai_summary: polityka ALL + FORCE dziala").isEqualTo(1);
 
-            assertThat(counts.get("contact").asInt()).as("contact: brak polityki UPDATE -- cicho 0").isZero();
+            assertThat(counts.get("contact").asInt()).as("contact: DB-074/V117 dodalo polityke UPDATE -- dziala").isEqualTo(1);
             assertThat(counts.get("email_message").asInt()).as("email_message: DB-064/V099 polityka ALL+WITH CHECK+FORCE dziala").isEqualTo(1);
             assertThat(counts.get("social_message").asInt()).as("social_message: DB-064/V099 polityka ALL+WITH CHECK+FORCE dziala").isEqualTo(1);
             return null;

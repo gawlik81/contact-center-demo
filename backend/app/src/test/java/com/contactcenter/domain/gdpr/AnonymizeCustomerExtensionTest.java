@@ -567,6 +567,15 @@ class AnonymizeCustomerExtensionTest {
     //     UPDATE wlasnego tenanta pod app_user TERAZ dziala dla obu tabel. Testy (A) i (C) ponizej
     //     zaktualizowane, zeby odzwierciedlac ten fakt (byly czescia dowodu luki DB-060/DB-064
     //     przed migracja -- dzis dokumentuja naprawe).
+    //
+    //     AKTUALIZACJA DB-072/DB-073 (V111/V112, 2026-10-08, D7 Opcja 1): campaign_contact i
+    //     campaign_contact_archive mialy WCZESNIEJ brak RLS w ogole (relrowsecurity=false) --
+    //     pelny dostep niezaleznie od GUC. Od V111/V112 obie maja polityke ALL + WITH CHECK +
+    //     FORCE (ten sam wzorzec jak V099). Licznik w tescie (C) nizej NIE zmienia sie (nadal 1),
+    //     bo UPDATE w anonymize_customer juz filtruje WHERE tenant_id = p_tenant_id, a w tym
+    //     tescie GUC == p_tenant_id (TENANT_A) -- RLS jest wiec spelnione trywialnie. Zmienia sie
+    //     TYLKO powod, dla ktorego zapis dziala (polityka dopuszcza, nie brak RLS) -- komentarz
+    //     przy asercji ponizej zaktualizowany.
     // =========================================================================================
 
     @Test
@@ -624,8 +633,8 @@ class AnonymizeCustomerExtensionTest {
 
             assertThat(counts.get("customer").asInt()).as("customer: polityka UPDATE dziala").isEqualTo(1);
             assertThat(counts.get("scheduled_callback").asInt()).as("scheduled_callback: polityka ALL (bez FORCE) dziala mimo braku FORCE").isEqualTo(1);
-            assertThat(counts.get("campaign_contact").asInt()).as("campaign_contact: brak RLS w ogole -- pelny dostep").isEqualTo(1);
-            assertThat(counts.get("campaign_contact_archive").asInt()).as("campaign_contact_archive: brak RLS w ogole").isEqualTo(1);
+            assertThat(counts.get("campaign_contact").asInt()).as("campaign_contact: DB-073/V112 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
+            assertThat(counts.get("campaign_contact_archive").asInt()).as("campaign_contact_archive: DB-072/V111 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
             assertThat(counts.get("contacts_dw").asInt()).as("contacts_dw: brak RLS w ogole").isEqualTo(1);
             assertThat(counts.get("contact_transcription").asInt()).as("contact_transcription: polityka ALL + FORCE dziala").isEqualTo(1);
             assertThat(counts.get("contact_ai_summary").asInt()).as("contact_ai_summary: polityka ALL + FORCE dziala").isEqualTo(1);

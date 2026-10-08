@@ -6809,7 +6809,7 @@ działają niezależnie od tej decyzji.
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
 > Grupa 3:  DB-067 ✅ → BE-134 ✅ → BE-135 ✅;   BE-133 ✅, BE-125 ✅, BE-127 ✅ → BE-135 ✅;   [DB-068 🚫, BE-134 ✅ → BE-136 🚫, tylko D4 = B — N/A, D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 ✅ → BE-138;   DB-064 ✅, DB-071 ✅ → BE-139
+> Grupa 5:  DB-071 ✅ → BE-138 ✅ (2026-10-08);   DB-064 ✅, DB-071 ✅ → BE-139
 > ```
 > Wspólne wymagania (skrót; pełna treść w DESIGN §5): **WP-1** testy Testcontainers na pełnym łańcuchu Flyway dla każdej zmiany natywnego SQL/JPA (precedens:
 > `CampaignContactArchivePurgeTenantIsolationTest`; mocki `EntityManager` nie złapały błędu `resultClass`+enum, braku `TenantContext` w schedulerze, `Map.of().get(null)`);
@@ -7970,7 +7970,7 @@ ponowna weryfikacja BE-125/BE-127 na tabeli partycjonowanej (DELETE po `contact_
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** DB-071 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-08)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
@@ -7981,7 +7981,33 @@ ponowna weryfikacja BE-125/BE-127 na tabeli partycjonowanej (DELETE po `contact_
 Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers na pełnym Flyway: po DB-064/DB-074 zero naruszeń dla tabel TENANT; test negatywny: tabela z polityką SELECT-only → naruszenie raportowane; rola superuser → WARN; `mvn verify -pl app`; DoD (WP-7)
+- [x] (WP-1) Test Testcontainers na pełnym Flyway: po DB-064/DB-074 zero naruszeń dla tabel TENANT; test negatywny: tabela z polityką SELECT-only → naruszenie raportowane; rola superuser → WARN; `mvn verify -pl app`; DoD (WP-7)
+
+**Notatka z wykonania (2026-10-08):**
+
+**Lista tabel — zapytanie SQL, nie twarda lista.** `findTenantClassTables()`: `pg_class` ⋈ `pg_namespace` ⋈ `information_schema.columns` (`column_name='tenant_id'`, `is_nullable='NO'`), partycje potomne wykluczone przez `NOT EXISTS (… pg_inherits …)`, katalogi klasy GLOBAL wykluczone przez `relname NOT IN ('tenant','plugin_version')`. Klasa MIXED z DB-071 (`audit_log`, `app_user`, `refresh_token`, `gdpr_processing_register` — `tenant_id` nullable) jest wykluczona NATURALNIE przez `is_nullable='NO'`, bez potrzeby wymieniania jej po nazwie — rozwiązanie zbieżne z tym, jak DB-071 sam odróżniał klasę TENANT od MIXED.
+
+**Pokrycie komend + FORCE.** `findCommandCoverageViolations(tables)`: dla każdej tabeli `cmd='ALL'` ALBO komplet `SELECT/INSERT/UPDATE/DELETE` w `pg_policies` (`tablename = ANY(?)`, bind przez `createArrayOf("text", …)` — Spring `JdbcTemplate.query(sql, PreparedStatementSetter, RowCallbackHandler)`; przeciążenia `query(sql, PSS, RowCallbackHandler)` i `query(sql, PSS, ResultSetExtractor)` są AMBIGUOUS dla lambdy bez jawnego rzutowania typu — wymaga `(RowCallbackHandler) rs -> …`), plus `relrowsecurity`/`relforcerowsecurity` z `pg_class`. Rozszerzenie względem literalnej treści AC: sprawdzam też `relrowsecurity` (nie tylko `relforcerowsecurity`) — bez `ENABLE ROW LEVEL SECURITY` polityki istnieją w katalogu, ale nic nie jest wykonywane; bez tego dodatku tabela klasy D (zero RLS) pokazywałaby tylko "brak komend", nie przyczynę.
+
+**Rola połączenia + `rls.validation.fail-on-bypass`.** `checkConnectionRole()`: `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`. Decyzja o fladze (AC zostawiał to wykonawcy): `fail-on-bypass=true` + rola omija RLS → `IllegalStateException`, PRZERYWA start — jedyny świadomy wyjątek od reguły „nie blokuj startu" w tej klasie. Uzasadnienie w Javadoc: flaga ma sens WYŁĄCZNIE jako przełącznik produkcyjny; samo podniesienie poziomu logu nie dawałoby żadnej nowej gwarancji względem dzisiejszego WARN. Pozostałe naruszenia (pokrycie komend, FORCE) NIE rzucają nawet przy `fail-on-bypass=true`. Nowy klucz w `application.yml`: `rls.validation.fail-on-bypass: ${RLS_VALIDATION_FAIL_ON_BYPASS:false}`.
+
+**Wynik jako lista naruszeń.** `logViolations`: jeden `log.warn` per tabela (treść = `String.join("; ", issues)`), plus jeden zbiorczy WARN z licznikiem na końcu; `log.info` gdy zero naruszeń.
+
+**ODKRYCIE poza zakresem DB-071/DB-074 (do nowego ticketu DB, nie naprawiane tutaj — tylko walidacja, zero plików `.sql` dotkniętych):** 7 tabel klasy TENANT A z DB-071 („pełne pokrycie komend") NIE MA `FORCE ROW LEVEL SECURITY` (`relforcerowsecurity=false`) — `agent_break`, `agent_group`, `phone_number`, `phone_routing_rule`, `scheduled_callback`, `social_integration`, `tenant_twilio_config`. DB-071 sprawdzał wyłącznie pokrycie KOMEND, nie `relforcerowsecurity`, więc ta luka nigdy nie była raportowana — potwierdzone bezpośrednio w `pg_class` na Testcontainers (V012 ustawia `FORCE` tylko dla `customer`/`contact`/`campaign`/`queue`; `email_message`/`social_message` dostają `FORCE` później w V099; te 7 tabel nigdzie). Pod rolą bez BYPASSRLS, która jest WŁAŚCICIELEM tabeli (typowe dla roli migracyjnej Flyway), RLS byłby całkowicie omijany na tych 7 tabelach mimo kompletnych polityk. Proponowany fix (dla `db-schema-architect`, osobny ticket DB): `ALTER TABLE <tabela> FORCE ROW LEVEL SECURITY;` ×7, jedna migracja albo jedna per tabela wg konwencji repo.
+
+**Testy — `RlsValidationServiceIntegrationTest`** (`backend/app/src/test/java/com/contactcenter/infrastructure/config/`), Testcontainers + pełny Flyway, bez `JpaTestContext` (serwis używa wyłącznie `JdbcTemplate`, konstruktor wołany bezpośrednio `new RlsValidationService(jdbc)`, `ReflectionTestUtils.setField(service, "failOnBypass", …)` do testowania flagi):
+- `findTenantClassTables_…`: zawiera stabilne tabele TENANT, wyklucza GLOBAL/MIXED/partycje potomne (dowód przez `pg_inherits` w samym teście).
+- `commandCoverageViolations_matchesIndependentlyComputedLiveCatalogState`: NIE hardkoduje „zero naruszeń" — liczy oczekiwany wynik z ŻYWEGO stanu `pg_policies`/`pg_class` NIEZALEŻNYM zapytaniem w samym teście i porównuje z wynikiem serwisu (wykrywa regresję logiki niezależnie od stanu DB-074 w danym przebiegu).
+- `commandCoverageViolations_onlyKnownDb074PendingTablesMayViolate`: zbiór naruszeń na żywym schemacie musi być podzbiorem znanego zakresu DB-074 (9 tabel) UNIA z 7 tabelami odkrycia FORCE powyżej — każde naruszenie POZA tym zbiorem = prawdziwa regresja, nie stan przejściowy.
+- Test negatywny/pozytywny na tabelach tworzonych WEWNĄTRZ testu (`be138_test_*`, w pełni niezależne od czasowania równoległego agenta DB-074): polityka tylko-SELECT bez FORCE → naruszenie zgłasza brakujące komendy (bez SELECT) + brak FORCE, nie zgłasza braku ENABLE; brak RLS wcale → zgłasza brak ENABLE + wszystkie 4 komendy + brak FORCE; `ALL`+FORCE → brak naruszeń; 4 osobne polityki (bez `ALL`) +FORCE → brak naruszeń.
+- Rola: `checkConnectionRole` dla `cc_test` (superuser Testcontainers) → `bypassesRls()=true`; dla roli LOGIN bez BYPASSRLS (`PostgresTestDatabase.createRestrictedLoginRole`) → `false`.
+- `validateRlsPolicies`: `fail-on-bypass=false` (domyślnie) nie rzuca mimo superusera; `fail-on-bypass=true` + superuser → `IllegalStateException`; `fail-on-bypass=true` + rola bez BYPASSRLS → nie rzuca.
+
+**Pułapka kompilacji:** `JdbcTemplate.query(String, PreparedStatementSetter, X)` ma dwa przeciążenia (`RowCallbackHandler` i `ResultSetExtractor<T>`) — lambda bez jawnego rzutu `(RowCallbackHandler) rs -> …` jest AMBIGUOUS (błąd kompilacji, nie runtime).
+
+**Stan DB-074 w chwili tej pracy:** zaobserwowano RÓWNOLEGLE wylądowanie migracji `V113`-`V124` (cały zakres DB-074: `email_routing_rule`, `email_template`, `ivr_audio`, `contacts_dw`, `contact`, `campaign`, `customer`, `queue`, `ivr_tree`, `audit_log`, `app_user`, plus `scheduled_callback` — naprawa arności GUC) — żadnych plików `.sql` nie dotknięto z tej strony, tylko odczyt do weryfikacji.
+
+**`mvn verify -pl app`:** `RlsValidationServiceIntegrationTest` (12/12) i cały pozostały moduł zielone (2458 testów), POZA 5 metodami testowymi (6 przebiegów, licząc parametryzację) będącymi fallout'em równoległych migracji DB-074 (nowe polityki `pol_audit_log_*`/`pol_contact_update`/`pol_contact_delete` zmieniają stan, który te dwa pre-existing testy asercjonują jako stały) — `AnonymizeCustomerExtensionTest.rlsUnderAppUser_*` (3 metody) i `PartitionGrantsRevokeMigrationsTest.throughParent_*` (2 metody) — NIE dotyczy `RlsValidationService`, poza zakresem BE-138, naprawa należy do `db-schema-architect` (ten plik `AnonymizeCustomerExtensionTest.java` był już w trakcie edycji przez niego w chwili tej pracy, zob. `git status`). Potwierdzone powtórzeniem `mvn verify -pl app` po zwolnieniu równoległego procesu Mavena — wynik identyczny (deterministyczny, nie wyścig kompilacji) poza jednorazowym `GdprControllerTest` "Unable to find @SpringBootConfiguration" w PIERWSZYM przebiegu, który zniknął w drugim — to był klasyczny wyścig dwóch równoległych `mvn` (zob. pamięć agenta `feedback_maven_parallel_agents_stale_classes.md`).
 
 ---
 

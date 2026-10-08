@@ -3030,7 +3030,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > otwarte gałęzie (`git ls-tree -r --name-only <gałąź> -- backend/src/main/resources/db/migration`) ORAZ `flyway_schema_history` żywej
 > bazy" (precedens: V092 zajęte przez gałąź `feature-socialmedia`, patrz DB-055). Jedna migracja na jedną zmianę; nigdy edycja
 > zastosowanej migracji.
-> **Numeracja:** DB-056…DB-080 (poprzedni najwyższy: DB-079). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
+> **Numeracja:** DB-056…DB-081 (poprzedni najwyższy: DB-080). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
 > Could = bramkowane lub warunkowe. Tickety oznaczone [WARUNKOWY] wchodzą do zakresu tylko przy wskazanej alternatywie decyzji;
 > [BRAMKOWANY] — dopiero po spełnieniu progu wolumenowego.
 >
@@ -3042,9 +3042,10 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074;   DB-071 ✅ → BE-138, BE-139;   DB-064 ✅ → BE-139
+> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
 > Grupa 6:  BE-120, BE-122, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
+> Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
 > ```
 
 ### DB-056 – Zbatchowana funkcja `purge_campaign_contact_archive` (pojedynczy DELETE → partie)
@@ -4284,7 +4285,7 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 **Priorytet:** Should Have
 **Złożoność:** M
 **Zależy od:** DB-071 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Zrobione (2026-10-08, V113–V124) — notatka wykonania poniżej
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -4293,10 +4294,47 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 `contact` — bez UPDATE/DELETE; `customer`, `campaign` — bez DELETE). Uwaga na `audit_log`: `AuditLogConsumer` zapisuje zdarzenia globalne z `tenant_id` NULL → polityka INSERT `WITH CHECK (tenant_id IS NULL OR tenant_id = current_setting(…))`. Wyłączone: tabele MIXED wg klasyfikacji (np. `refresh_token`) — osobna decyzja.
 
 **Kryteria akceptacji:**
-- [ ] Lista tabel z klasyfikacji DB-071; każda migracja: polityki dla brakujących komend + WITH CHECK + FORCE tam, gdzie decyzja „tak"; ścieżki pre-tenant (auth, publiczne endpointy) sprawdzone i wyłączone/obsłużone
-- [ ] (WP-1/WP-4) Test pod `SET ROLE app_user` dla każdej tabeli (4 komendy, cross-tenant, bez GUC); dla `contact` udowodnione, że purge (`DELETE`) działa pod rolą ograniczoną (dziś: 0 usuniętych wierszy po cichu)
-- [ ] (WP-3) Jedna migracja na tabelę/zmianę, numery wg reguły, pełny łańcuch Flyway; `RlsValidationService` (BE-138) zaktualizowany listą
-- [ ] Zakłada D7 = TAK dla PII; pozostałe tabele wg klasyfikacji
+- [x] Lista tabel z klasyfikacji DB-071; każda migracja: polityki dla brakujących komend + WITH CHECK + FORCE tam, gdzie decyzja „tak"; ścieżki pre-tenant (auth, publiczne endpointy) sprawdzone i wyłączone/obsłużone
+- [x] (WP-1/WP-4) Test pod `SET ROLE app_user` dla każdej tabeli (4 komendy, cross-tenant, bez GUC); dla `contact` udowodnione, że UPDATE/DELETE (np. `ContactRepository.deleteContacts`, GDPR) działa pod rolą ograniczoną (dziś: 0 wierszy po cichu, naprawione tą migracją)
+- [x] (WP-3) Jedna migracja na tabelę/zmianę, numery wg reguły, pełny łańcuch Flyway; `RlsValidationService` (BE-138) — **NIE dotknięty w tej sesji** (wyłączna własność BE-138 w równoległej turze); BE-138 powinien dociągnąć finalną listę 11 tabel z tej notatki w kolejnej turze
+- [x] Zakłada D7 = TAK dla PII; pozostałe tabele wg klasyfikacji
+
+**Notatka z wykonania (2026-10-08, V113–V124):**
+
+**Numeracja.** V113–V124 zweryfikowane jako wolne przez `git ls-tree` na wszystkich gałęziach lokalnych/zdalnych (`main`, `develop`, `chore/epic-30-*`, `partycjonowanie-2`, `appmod/*`, `origin/*`) oraz `flyway_schema_history` żywej bazy demo (`cc-postgres`, najwyższa zastosowana: V112) — zgodnie z poprzednią sesją (V104 pozostaje zarezerwowany, nieużyty).
+
+**Lista 12 migracji (jedna zmiana = jedna migracja, wzorzec 1:1 z V099/V111/V112):**
+- **V113** `email_routing_rule_rls.sql` — klasa D, ENABLE+FORCE+policy `email_routing_rule_tenant_isolation` (ALL+WITH CHECK). Nie PII, nie partycjonowana.
+- **V114** `email_template_rls.sql` — klasa D, analogicznie.
+- **V115** `ivr_audio_rls.sql` — klasa D, analogicznie.
+- **V116** `contacts_dw_rls.sql` — klasa D, analogicznie. PII (`remote_address`) tylko w fallbacku dev PG (DB-078 nie czeka na nic z tej migracji).
+- **V117** `contact_rls_update_delete.sql` — klasa B, dopisane `pol_contact_update`/`pol_contact_delete` (konwencja `pol_<tabela>_<cmd>` z V012, nie wzorzec `_tenant_isolation`, bo `contact` już miał RLS). ENABLE/FORCE niezmienione (już `t` od V012).
+- **V118** `campaign_rls_delete.sql` — klasa B, dopisane `pol_campaign_delete`.
+- **V119** `customer_rls_delete.sql` — klasa B, dopisane `pol_customer_delete`.
+- **V120** `queue_rls_write_policies.sql` — klasa B, dopisane `pol_queue_insert/update/delete`.
+- **V121** `ivr_tree_rls_write_policies.sql` — klasa B, dopisane `pol_ivr_tree_insert/update/delete` **+ FORCE** (jedyna z klasy B, która nie miała FORCE od V012).
+- **V122** `audit_log_rls_write_policies.sql` — klasa C MIXED, dopisane `pol_audit_log_insert/update/delete` z gałęzią `tenant_id IS NULL OR tenant_id = GUC` **+ FORCE**.
+- **V123** `app_user_rls_fix_select_and_write_policies.sql` — klasa C MIXED, **naprawa buga** `pol_app_user_select` (DROP+CREATE, `tenant_id = GUC` → `tenant_id IS NULL OR tenant_id = GUC`) + dopisane INSERT/UPDATE/DELETE z tą samą gałęzią **+ FORCE**.
+- **V124** `scheduled_callback_fix_guc_arity.sql` — punkt D (opcjonalny, **wykonany**): DROP+CREATE `tenant_isolation_scheduled_callback`, `current_setting(..., )` 1-arg → `current_setting(..., TRUE)` 2-arg. FORCE **nie dotknięty** (nie było w AC, zostaje `f` jak przed migracją — poza zakresem).
+
+**Dowody.** Dry-run wszystkich 12 migracji w transakcji z `ROLLBACK` na żywej bazie demo (`cc-postgres`) — zero błędów składniowych, wszystkie bloki `DO $$ ... RAISE EXCEPTION` przeszły. Manualna weryfikacja behawioralna pod `SET ROLE app_user` (SAVEPOINT/ROLLBACK, wzorzec `feedback_rls_testing`) na dwóch realnych tenantach demo: izolacja SELECT/UPDATE/DELETE dla `email_routing_rule`/`queue`/`ivr_tree`/`contact`/`campaign`/`customer`, cross-tenant INSERT odrzucony (42501), `app_user` SELECT SUPER_ADMIN widoczny pod GUC OBU tenantów (dowód naprawy AND→OR), `audit_log` INSERT zdarzenia globalnego działa bez GUC. Pełny dowód formalny: nowa klasa Testcontainers `Db074RlsCompletionMigrationsTest` (`backend/app/src/test/java/com/contactcenter/infrastructure/config/`), wzorzec „jedna świeża baza do najnowszej wersji" — **25 testów**: katalog (`relrowsecurity`/`relforcerowsecurity` dla 11 tabel + qual `scheduled_callback`), pełne CRUD+cross-tenant+bez-GUC dla 4 tabel klasy D, nowe komendy + cross-tenant dla 5 tabel klasy B, `audit_log`/`app_user` (naprawa buga + nowe komendy + gałąź IS NULL), `scheduled_callback` (bez regresji + bez GUC = ciche 0 wierszy).
+
+**Odłożone (NIE wykonane, zgodnie z zakresem ticketu):** `gdpr_processing_register`, `refresh_token` — świadomie wyłączone z DB-074 (osobna decyzja, jak w zleceniu). `scheduled_callback` FORCE — nie było w AC D, nie dodane.
+
+**ZNALEZISKO 1 (ryzyko dla BE-139, NIE blokuje DB-074): custom GUC placeholder na połączeniu poolowanym zwraca `''` (pusty string), nie `NULL`, po pierwszym użyciu.** Odkryte przy manualnej weryfikacji V124. `current_setting('app.current_tenant_id', TRUE)` zwraca `NULL` TYLKO gdy GUC nigdy nie był referencjonowany na danej sesji/połączeniu fizycznym. Gdy GUC był ustawiony choćby raz (nawet `SET LOCAL`/`is_local=true`, transakcyjnie) i transakcja się zakończyła (COMMIT **lub** ROLLBACK), kolejne odwołanie do tego GUC-a (bez ponownego SET) zwraca **pusty string `''`**, nie `NULL` — zweryfikowane empirycznie (`set_config(..., true)` → `COMMIT`/`ROLLBACK` → `current_setting(..., true)` = `''`, zarówno dla 1-arg jak i 2-arg formy `current_setting`). Rzutowanie `''::uuid` rzuca **twardy błąd** `invalid input syntax for type uuid`, nie ciche `NULL`/0 wierszy. To dotyczy **całego schematu RLS** (każda tabela z `current_setting('app.current_tenant_id', ...)::uuid` w polityce), nie tylko tabel z DB-074 — jest to fundamentalna właściwość silnika PostgreSQL dla custom GUC placeholderów, nieznana wcześniej w tej serii ticketów. **DZIŚ bez skutku** (połączenie `ccapp` ma BYPASSRLS, qual RLS nigdy nie jest ewaluowany) i testy Testcontainers w tym repo nie są podatne (każdy `connect()` w testach RLS otwiera NOWE fizyczne połączenie JDBC przez `DriverManager`, nie pool — GUC zawsze faktycznie „świeży"). **Ryzyko realne dla produkcji z connection poolingiem (HikariCP)**: jeśli kiedyś połączenie aplikacji przestanie mieć `BYPASSRLS` (decyzja odłożona, DB-071 „Otwarte"), każdy request obsłużony przez pulę połączeń, na której WCZEŚNIEJ jakikolwiek inny request ustawił GUC (co jest normą — `TenantAwareRepository.setTenantContextInDb()` robi to przy KAŻDYM zapytaniu), a BIEŻĄCY request/job nie ustawia GUC wcale (np. `EtlSyncServiceImpl`, `AuditLogConsumer` dla zdarzeń globalnych, `AppUserRepository`/`AuditLogRepository` — obie extends `JpaRepository`, nie `TenantAwareRepository`, nigdy nie wołają `set_tenant_context()`) — dostałby **twardy błąd 500** (uuid cast), NIE ciche puste wyniki, jak zakładały wszystkie wcześniejsze notatki EPIC-30 (w tym ta sesja, V124). **BE-139 MUSI przeczytać to przed jakąkolwiek decyzją o przełączeniu roli połączenia** — rozwiązania: (a) każdy pre-tenant/cross-tenant path musi explicite `RESET app.current_tenant_id` lub ustawić wartość rozpoznawalną jako „brak" PRZED zapytaniem (nie pomaga — `RESET` też daje `''`, nie `NULL`, zweryfikowane), (b) polityki RLS powinny używać `NULLIF(current_setting(..., TRUE), '')::uuid` zamiast gołego rzutowania (odporne na `''`), (c) HikariCP `connectionInitSql`/`connection-reset` żeby fizycznie resetować sesję (`DISCARD ALL`) przy zwrocie do puli, (d) pozostać przy roli z `BYPASSRLS` (status quo). Żadna z tych opcji nie jest w zakresie DB-074 — czysto analityczne odkrycie do decyzji przy BE-139/DB-071 „Otwarte".
+
+**ZNALEZISKO 2 (nowy pre-tenant path, potwierdza i rozszerza DB-071 §2, NIE blokuje):** `PostgresDwWriter#upsert` (fallback ETL dev, `etl.dw.type=postgres`) pisze do `contacts_dw` surowym `JdbcTemplate`, wołany z `EtlSyncServiceImpl` (scheduler, `@Scheduled`, wiele tenantów w jednym `batchUpdate`) — **nigdy nie ustawia GUC**. Przed V116 nieszkodliwe (brak RLS na `contacts_dw` w ogóle); od V116 ten pisarz jest kolejnym (razem z `archive_completed_campaign_contacts()`/V111 i `EtlSyncServiceImpl` SELECT-ami) dormant-ryzykiem identycznej klasy co resztę już opisanych w DB-071 — udokumentowane w nagłówku V116, bez skutku dziś.
+
+**ZNALEZISKO 3 (potwierdzenie, nie nowe):** `AppUserRepository`/`AuditLogRepository` extends `JpaRepository` (NIE `TenantAwareRepository`) — ich własny javadoc explicite dokumentuje, że NIGDY nie wołają `set_tenant_context()` (bootstrap autentykacji dla `app_user`; filtr jawny `WHERE tenant_id` dla `audit_log`). Konsekwencja dla V123/V122: pod przyszłą rolą ograniczoną WSZYSTKIE zapisy do tych dwóch tabel przez te repozytoria zależałyby wyłącznie od tego, czy GUC jest PRZYPADKOWO ustawiony na danym pooled connection przez INNY, wcześniejszy request w tej samej transakcji/sesji — nie jest to nowa dziura wprowadzona przez DB-074 (politykę i tak trzeba było dodać wg AC), ale silniejszy argument za Znaleziskiem 1 powyżej.
+
+**Regresje testów naprawione (wzorzec z DB-064/DB-072/DB-073 — każda migracja zmieniająca EFEKTYWNE zachowanie RLS może zepsuć testy w innych plikach, nie tylko we własnym):**
+- `AnonymizeCustomerExtensionTest` (sekcja „10) RLS pod SET ROLE app_user", testy A/B/C) — zakładał starą semantykę: `contact` UPDATE cicho 0 (V117 to zmienia → 1), `audit_log` INSERT **zawsze** twardy błąd (V122 to zmienia → sukces dla `tenant_id = p_tenant_id = GUC`, bo `anonymize_customer` wstawia audit log z `p_tenant_id`, który w tym teście == GUC). Test (B) przepisany z „dowodu błędu" na „dowód naprawy" (cały `anonymize_customer` pod `app_user` teraz kończy się sukcesem, nie rollbackiem); test (C) nie wymaga już tymczasowego patcha polityki INSERT na `audit_log` (usunięty — V122 to zastępuje), licznik `contact` 0→1. `mvn test -Dtest=AnonymizeCustomerExtensionTest`: 14/14 zielone po poprawce.
+- `PartitionGrantsRevokeMigrationsTest` (DB-080) — `@BeforeAll` migrował POST-snapshot do „najnowszej" wersji (`latest.migrate()`), więc po dodaniu V117 (`contact`)/V122 (`audit_log`) test `throughParent_andRlsCatalog_identicalToPreMigrationSnapshot` fałszywie wykrywał to jako regresję DB-080 (która nigdy nie dotykała samych polityk, tylko ACL partycji) + `throughParent_rlsBehaves_asExpected[AUDIT_LOG]` (insert_own ERR→OK). **Naprawa bez zmiany logiki asercji**: POST teraz pinowany dynamicznie do wersji TUŻ PO ostatniej migracji DB-080 (V110, wyznaczanej z `Flyway#info()`, bez numerów na sztywno — analogicznie do istniejącego `preTarget`), nie do „latest" — przywraca pierwotny, wąski zakres testu i czyni go odpornym na KAŻDY kolejny ticket RLS na tych samych 6 tabelach, nie tylko DB-074. `mvn test -Dtest=PartitionGrantsRevokeMigrationsTest`: 61/61 zielone po poprawce.
+- Zweryfikowane BEZ regresji (bez zmian): `ContactRefIntegrityNarrowingTest`, `ExportCustomerDataSubjectHelperTest`, `CampaignContactRlsMigrationsTest`, `EmailSocialMessageRlsWritePoliciesTest`, `RlsValidationServiceIntegrationTest` (12/12 — nie koliduje, bo 4 nowe tabele klasy D nie są na jego hardkodowanej liście 11 tabel, a `RlsValidationService.java` sam nie był dotykany, zgodnie z poleceniem BE-138).
+
+**Status testów:** `mvn verify -pl app` (JDK 21, pełny pakiet): **Tests run: 2458, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS** (agregat z 781 plików `surefire-reports`, 2026-10-08). Wzrost względem ostatniego potwierdzonego pełnego przebiegu (2421, DB-072/073) w pełni wyjaśniony nowymi testami tej sesji: +25 (`Db074RlsCompletionMigrationsTest`), reszta różnicy to testy dodane w międzyczasie przez równoległe gałęzie/tury (BE-123 i inne commity widoczne w historii gita między sesjami).
+
+**Dla BE-138 (równoległa tura, `RlsValidationService.java` — NIE dotknięty tutaj):** finalna lista 11 tabel klasy TENANT z pełnym pokryciem RLS po tej migracji: `email_routing_rule`, `email_template`, `ivr_audio`, `contacts_dw` (nowe od V113-116), `contact`, `campaign`, `customer`, `queue`, `ivr_tree` (uzupełnione V117-121), `audit_log`, `app_user` (klasa MIXED, uzupełnione + naprawione V122-123). `scheduled_callback` ma FORCE=`f` (bez zmian, poza AC D) — jeśli `RlsValidationService` sprawdza też FORCE, to jedyny wyjątek do udokumentowania osobno.
 
 ---
 
@@ -4548,3 +4586,40 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 - Właściciel obiektów się nie zmienia, więc `DROP` partycji i `FROM ONLY` w `PartitionScannerImpl` działają dla ownera. Jeśli przy zmianie roli połączenia (BE-139 / późniejsza decyzja, zob. DB-071) backend zostanie przeniesiony na rolę bez ownership, `PartitionReclaimJob` zacznie failować — wtedy potrzebny GRANT dla roli serwisowej albo funkcja `SECURITY DEFINER` (poza zakresem tego ticketu).
 - Partycje istniejące PRZED migracją muszą być objęte pętlą (w tym `_default`); partycje tworzone PO migracji dostają REVOKE z przebudowanej funkcji `create_*`. Obie ścieżki testowane.
 - Koszt liniowy: REVOKE per partycja; liczba partycji rośnie co miesiąc. Zmierzyć czas na scratch przed wdrożeniem produkcyjnym.
+
+---
+
+### DB-081 – FORCE ROW LEVEL SECURITY na 7 tabelach klasy A bez FORCE (domknięcie historycznej dziury V012)
+
+**Typ:** Schema migration (bezpieczeństwo, hardening — jedna migracja mechaniczna, bez zmiany polityk/danych)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-071 ✅
+**Status:** ✅ Zrobione (2026-10-08, V125) — notatka wykonania poniżej
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** w trakcie równoległej realizacji BE-138 (generalizacja `RlsValidationService`) odkryto, że 7 tabel klasyfikowanych w raporcie DB-071 jako klasa A ("TENANT, pełne pokrycie 4 komend, RLS OK") ma politykę `ALL`/komplet 4 komend z pełnym pokryciem, ALE **nigdy nie dostało `FORCE ROW LEVEL SECURITY`** (`relforcerowsecurity=false`): `agent_break`, `agent_group`, `phone_number`, `phone_routing_rule`, `scheduled_callback`, `social_integration`, `tenant_twilio_config`. Przyczyna historyczna: `V012` ustawiał FORCE tylko dla `customer`/`contact`/`campaign`/`queue`; `email_message`/`social_message` dostały FORCE później (V099/DB-064), `audit_log`/`app_user`/`ivr_tree` — w V121–V123 (DB-074); te 7 nigdy. Potwierdzone bezpośrednio w `pg_class` żywej bazy demo (`cc-postgres`) przed migracją: wszystkie 7 mają `relrowsecurity=true, relforcerowsecurity=false`.
+
+**Dlaczego to ma znaczenie** (mimo że `ccapp` dziś ma `BYPASSRLS` i to nic nie zmienia w ruchu produkcyjnym): `FORCE ROW LEVEL SECURITY` kontroluje, czy polityka RLS obowiązuje również **właściciela tabeli** (gdy ten właściciel NIE ma `BYPASSRLS`). Bez `FORCE`, przyszła rola migracyjna/serwisowa będąca właścicielem tych tabel ale bez `BYPASSRLS` całkowicie omijałaby RLS na tych 7 tabelach, mimo kompletnych polityk — ten sam typ dziury jak "obejście po nazwie partycji" naprawiany w DB-080, tylko na poziomie FORCE, nie GRANT.
+
+**Kryteria akceptacji:**
+- [x] Jedna migracja: `ALTER TABLE <tabela> FORCE ROW LEVEL SECURITY;` dla wszystkich 7 tabel + asercja końcowa `DO $$ ... RAISE EXCEPTION $$` sprawdzająca `relforcerowsecurity=true` dla wszystkich 7 (ROLLBACK całej migracji przy błędzie)
+- [x] Numer migracji zweryfikowany jako wolny: `git ls-tree` na wszystkich gałęziach lokalnych/zdalnych ORAZ `flyway_schema_history` żywej bazy demo
+- [x] Test Testcontainers (pełny łańcuch Flyway) potwierdzający FORCE na tych 7 tabelach po migracji; brak regresji pokrycia komend (polityki nie dotknięte)
+- [x] `RlsValidationServiceIntegrationTest` (BE-138, równoległa tura) zweryfikowany — te 7 tabel mają `tenant_id NOT NULL`, więc są w zakresie `findTenantClassTables()`; sprawdzić, czy migracja psuje test, a nie tylko czy go dotyka
+- [x] `mvn verify -pl app` zielone
+- [x] `RlsValidationService.java` i jego test NIE dotknięte (wyłączna własność BE-138 w równoległej turze)
+
+**Notatka wykonania (2026-10-08, V125):**
+
+**Numeracja.** V125 zweryfikowane jako wolne: `git ls-tree -r --name-only` na `main`, `develop`, `chore/epic-30-*`, `partycjonowanie-2`, `appmod/*`, wszystkich `origin/*` — brak `V125` lub wyższych na żadnej gałęzi; `flyway_schema_history` żywej bazy demo (`cc-postgres`) ma najwyższą zastosowaną wersję V112 (V113–V124 z równoległej tury DB-074 jeszcze nie zastosowane na tym konkretnym kontenerze, ale zarezerwowane plikami w repo) — V125 pierwsza wolna liczba po V124 na dysku.
+
+**Migracja.** `V125__force_rls_seven_class_a_tenant_tables.sql` — 7× `ALTER TABLE ... FORCE ROW LEVEL SECURITY` (bez zmian w politykach, `relrowsecurity`, GRANT) + blok `DO $$ ... RAISE EXCEPTION $$` weryfikujący `relforcerowsecurity=true` dla wszystkich 7 na końcu. Zweryfikowane bezpośrednio w `pg_class` żywej bazy demo PRZED napisaniem migracji: `agent_break|t|f`, `agent_group|t|f`, `phone_number|t|f`, `phone_routing_rule|t|f`, `scheduled_callback|t|f`, `social_integration|t|f`, `tenant_twilio_config|t|f` — potwierdza opis zgłoszenia 1:1.
+
+**Testy.** Nowa klasa Testcontainers `Db081ForceRlsSevenTenantATablesMigrationTest` (`backend/app/src/test/java/com/contactcenter/infrastructure/config/`, wzorzec „jedna świeża baza do najnowszej wersji" z `Db074RlsCompletionMigrationsTest`) — 3 testy: katalog (`relrowsecurity`+`relforcerowsecurity` dla 7 tabel), pokrycie komend RLS niezmienione (dowód, że migracja nie dotyka polityk), `scheduled_callback` pod `SET ROLE app_user` (CRUD własnego tenanta + odmowa cross-tenant 42501) bez regresji — `app_user` nigdy nie jest właścicielem tabeli, więc FORCE nie zmienia jej zachowania; dowód behawioralny z zamianą właściciela (`OWNER TO` na rolę bez BYPASSRLS) świadomie NIE wykonany — nie jest wzorcem żadnego istniejącego testu RLS w tym repo (ani `RlsValidationServiceIntegrationTest`, ani `Db074RlsCompletionMigrationsTest`), a sam mechanizm FORCE jest już pokryty katalogowo identycznie jak w V099/V121-V123.
+
+**Interakcja z BE-138 (`RlsValidationServiceIntegrationTest`, równoległa tura) — zweryfikowana, BRAK regresji.** `RlsValidationService#findTenantClassTables()` wylicza zakres dynamicznie z `information_schema.columns`/`pg_class` (tenant_id NOT NULL, bez partycji, bez klasy GLOBAL) — potwierdzone odczytem kodu i zapytaniem na żywej bazie, że wszystkie 7 tabel MAJĄ `tenant_id NOT NULL`, więc BYŁY już w zakresie walidacji PRZED tą migracją (zgłaszane jako naruszenie „brak FORCE"). Test `commandCoverageViolations_onlyKnownDb074PendingTablesMayViolate` sprawdza `violatingTables.isSubsetOf(allowedToStillViolate)`, gdzie `allowedToStillViolate` jawnie zawiera tych 7 nazw (komentarz w teście literalnie odnotowuje potrzebę „osobnego ticketu DB-XXX" — to jest ten ticket) — migracja V125 jedynie ZMNIEJSZA `violatingTables` (te 7 tabel znikają z naruszeń), co pozostaje podzbiorem `allowedToStillViolate` niezależnie od tego, czy są obecne czy nie. Drugi test, `commandCoverageViolations_matchesIndependentlyComputedLiveCatalogState`, liczy oczekiwany wynik niezależnie z żywego katalogu po OBU stronach porównania — również odporny. **Zweryfikowane uruchomieniem** `mvn test -Dtest=RlsValidationServiceIntegrationTest` po zastosowaniu V125: wszystkie testy zielone, zero zmian w pliku. `RlsValidationService.java` i jego test pozostały niedotknięte, zgodnie z poleceniem.
+
+**Status testów:** `mvn verify -pl app` (JDK 21): **Tests run: 2461, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS** (2026-10-08). +3 względem ostatniego potwierdzonego przebiegu DB-074 (2458) — wyłącznie nowa klasa `Db081ForceRlsSevenTenantATablesMigrationTest`, zero regresji gdzie indziej.

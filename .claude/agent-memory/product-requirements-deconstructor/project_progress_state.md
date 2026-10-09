@@ -1,9 +1,11 @@
 ---
 name: project_progress_state
-description: Stan 2026-10-09 (tura 23) — DB 75/81 (4⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 326/339 (96,17%); tura 23: DB-058 ✅ (V132 DROP widoków mv_*, niezastosowana); DB-076 gotowy do startu, DB-077 czeka tylko na DB-076; żywa baza ma V126, restart backendu zastosuje V127–V132 (destrukcyjne V128, V132); tury 16–22 w treści pliku; propozycje DB bez numerów (następny wolny DB-082) nie wchodzą do liczników
+description: Stan 2026-10-09 (tura 24) — DB 77/81 (2⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 328/339 (96,76%); tura 24: DB-076 ✅ (V133) i DB-077 ✅ (dokumentacja); otwarte EPIC-30: DB-069, DB-075, BE-137, BE-139, BE-140, BE-144; żywa baza ma V126, restart zastosuje V127–V133; tury 16–23 w treści pliku
 metadata:
   type: project
 ---
+
+**Tura 24 (2026-10-09, DB-076+DB-077):** delta względem tury 23: oba `⬜→✅` (DB 75→77, RAZEM 326→328, ⬜ 8→6; EPIC-30 DB 4→2, ⬜ 7→5 z 52). Skrypt zliczający widzi BE 138 ✅ / 144 nagłówków (BE-108/109 bez `###`) — porównuj deltę, nie wartość bezwzględną. Konwencje potwierdzone: pole `Blokuje` NIE dostaje ✅ (tylko `Zależy od` zależnego); ostrzeżenie o zgodzie właściciela (DB-078 WP-4) rozszerzane o każdą nową niezastosowaną migrację (teraz V127–V133); status ✅ mimo otwartych kryteriów operacyjnych (pg_dump -s, klikalne linki HTML). Decyzja właściciela 2026-10-09: CampaignArchiveJob zostaje is_active=TRUE w scheduled_job mimo domyślnie wyłączonej flagi. Joby bez wpisu w scheduled_job: RecordingRetentionJob, PendingAttachmentSweepJob, PartitionReclaimJob. Poza zakresem: DESIGN-data-retention-partitioning.md:14,129 i komentarz V009. Pozostałe otwarte: DB-069 (bramka progiem wolumenowym archiwum) → BE-137; DB-075 → BE-140 (warunkowe D6 = koniec kampanii); BE-139 (RLS przełączenie roli połączenia bez BYPASSRLS, ZNALEZISKO GUC ''); BE-144 (porządkowy, MinIO quay.io).
 
 Stan na **2026-10-08 (tura 18)**, przeliczony metodą delty względem tury 17 (DB-074 i BE-138 `⬜→✅`; DB-081 **NOWY ticket**, wchodzi od razu jako `✅`) z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`:
 **DB 71/81 (8⬜, 2🚫), BE 136/146 (8⬜, 2🚫), FE 110/112 (1⬜, 1🚫) — RAZEM 317/339 (94%)**. Korupcja `bdc5268` (tura 12) jest od tury 15 **W PEŁNI naprawiona** (BE-131/BE-146 w turze 14, BE-141 w turze 15 — zob. `[[project_be_tasks_backend_corruption_bdc5268]]`), więc liczby BE w `TASKS-BACKEND.md` są wiarygodne bez zastrzeżeń.

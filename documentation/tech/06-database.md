@@ -295,7 +295,7 @@ Zapytanie dialera: `WHERE campaign_id=? AND status IN ('PENDING','NO_ANSWER') AN
 - `campaign.all_agents = TRUE` → dialer/panel manualny dostępny dla wszystkich agentów tenanta.
 - `all_agents = FALSE` → tylko agenci z `campaign_agent` i/lub `campaign_agent_group`
   (przez `agent_group_member`). Indeksy `INCLUDE` dla efektywnego `UNION`
-  (`idx_campaign_agent_group_lookup`, `idx_campaign_agent_member_lookup`).
+  (`idx_campaign_agent_group_lookup`, `idx_agent_group_member_lookup`).
 
 **Disposition (V069–V072):**
 

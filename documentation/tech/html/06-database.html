@@ -386,7 +386,7 @@ przy tworzeniu kampanii: <code>CREATE TABLE campaign_contact_&lt;uuid&gt; PARTIT
 <li><code>campaign.all_agents = TRUE</code> → dialer/panel manualny dostępny dla wszystkich agentów tenanta.</li>
 <li><code>all_agents = FALSE</code> → tylko agenci z <code>campaign_agent</code> i/lub <code>campaign_agent_group</code>
 (przez <code>agent_group_member</code>). Indeksy <code>INCLUDE</code> dla efektywnego <code>UNION</code>
-(<code>idx_campaign_agent_group_lookup</code>, <code>idx_campaign_agent_member_lookup</code>).</li>
+(<code>idx_campaign_agent_group_lookup</code>, <code>idx_agent_group_member_lookup</code>).</li>
 </ul>
 <p><strong>Disposition (V069–V072):</strong></p>
 <table>

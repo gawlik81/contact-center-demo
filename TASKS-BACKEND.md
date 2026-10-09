@@ -6823,7 +6823,7 @@ działają niezależnie od tej decyzji.
 **Priorytet:** Should Have
 **Złożoność:** S (ocena zlecenia potwierdzona; ryzyko RLS opisane niżej — jeśli okaże się wymagać refaktoru funkcji, wykonawca dopisuje osobny ticket DB)
 **Zależy od:** brak
-**Status:** ✅ Ukończone (2026-10-09) — job dostarczony ZA FLAGĄ `retention.campaign-archive.enabled=false`; zgoda właściciela na włączenie flagi (część kryterium inwentaryzacji) oraz WP-4 (local-demo) NIE uzyskane/NIE wykonane, kryteria pozostają otwarte, patrz notatka wykonania
+**Status:** ✅ Ukończone (2026-10-09) — job dostarczony ZA FLAGĄ `retention.campaign-archive.enabled=false`; zgoda właściciela na włączenie flagi (część kryterium inwentaryzacji) oraz WP-4 (local-demo) NIE uzyskane/NIE wykonane (tura 22: backend przebudowany poza tą pracą 2026-10-09 — flaga domyślnie `false`, WP-4 nie zaznaczone), kryteria pozostają otwarte, patrz notatka wykonania
 **Blokuje:** DB-072, DB-075, DB-076, DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -6876,7 +6876,7 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — dlatego pętla kończy się dopiero na wyniku 0, a NIE na `n == batchSize`; patrz notatka wykonania)
-**Status:** ✅ Ukończone (2026-10-09) — pętla batchowa w kodzie, `mvn verify -pl app` zielone; ODCHYLENIE od ticketu (warunek końca = wynik 0, nie `n == batchSize`) uzasadnione w notatce; samo WYDANIE razem z V126 (DB-056) do potwierdzenia — spełnione na poziomie kodu (obie zmiany na jednym branchu), wydanie nie nastąpiło
+**Status:** ✅ Ukończone (2026-10-09) — pętla batchowa w kodzie, `mvn verify -pl app` zielone; ODCHYLENIE od ticketu (warunek końca = wynik 0, nie `n == batchSize`) uzasadnione w notatce; samo WYDANIE razem z V126 (DB-056) do potwierdzenia — spełnione na poziomie kodu (obie zmiany na jednym branchu); tura 22: V126 jest już zastosowana na żywej bazie (backend przebudowany 2026-10-09 14:47 poza tą pracą), ale czy obraz zawierał pętlę BE-121 — niezweryfikowane
 **Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma BE-121 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`

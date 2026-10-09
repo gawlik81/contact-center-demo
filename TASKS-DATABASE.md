@@ -3036,7 +3036,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057;   DB-058
+> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057 ✅ (V129–V131; brak zależności w obie strony);   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 >           BE-141 ✅ → DB-078 ✅ (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
@@ -3054,7 +3054,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (V091 zastosowane)
-**Status:** ✅ Ukończone (2026-10-09) — migracja **V126** zweryfikowana w pełnym łańcuchu Flyway (Testcontainers); **NIE zastosowana na żywej bazie** (plik nowy, Flyway zastosuje ją przy starcie backendu po przebudowie obrazu); **EXPLAIN na scratch (≥ 500 tys. wierszy) NIE wykonany** i wydanie razem z BE-121 pozostają otwarte, patrz notatka wykonania
+**Status:** ✅ Ukończone (2026-10-09) — migracja **V126** zweryfikowana w pełnym łańcuchu Flyway (Testcontainers); **V126 ZASTOSOWANA na żywej bazie** `cc-postgres` (odczyt `flyway_schema_history` w turze 22: max version = 126, instalacja 2026-10-09 14:47 — backend z tego brancha został przebudowany/zrestartowany poza tą pracą; WP-4 w tym sensie częściowo wykonane zewnętrznie, ale NIE zweryfikowane i NIE zaznaczone jako zrobione); **EXPLAIN na scratch (≥ 500 tys. wierszy) NIE wykonany** i wydanie razem z BE-121 pozostają otwarte, patrz notatka wykonania
 **Blokuje:** BE-121, DB-069, DB-075
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (test Testcontainers: `test-suite-expert`)
@@ -3081,7 +3081,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - [x] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
 - [x] Brak wpisu w `cron_log` przy wyniku 0
 - [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji
-- [x] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **SPEŁNIONE NA POZIOMIE KODU (2026-10-09)** — BE-121 ✅ (pętla batchowa) jest na tym samym branchu co V126; **samo wydanie razem — do potwierdzenia** (żadne wydanie jeszcze nie nastąpiło)
+- [x] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **SPEŁNIONE NA POZIOMIE KODU (2026-10-09)** — BE-121 ✅ (pętla batchowa) jest na tym samym branchu co V126; **samo wydanie razem — do potwierdzenia** (tura 22: V126 jest już na żywej bazie po zewnętrznej przebudowie backendu; czy obraz zawierał też BE-121 — niezweryfikowane)
 - [x] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7) — notatka poniżej; commit poza zakresem tej sesji
 
 **Ryzyka:** zmiana semantyki wartości zwracanej (dotąd całość, teraz partia); jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121).
@@ -3094,7 +3094,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - **RLS:** `SECURITY INVOKER`, jawny filtr po `p_tenant_id` (jak V091). Pod `SET ROLE app_user` (FORCE RLS z V111) bez GUC = cichy wynik 0, z GUC = tylko wiersze własnego tenanta.
 - **Zmiana semantyki wartości zwracanej** (dotąd całość, teraz jedna partia) — udokumentowana w nagłówku migracji; jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121). Do czasu BE-121 pojedyncze wywołanie usuwa tylko pierwszą partię (10 000), dlatego V126 i BE-121 muszą iść w jednym wydaniu.
 - **Testy:** `CampaignContactArchivePurgeTenantIsolationTest` rozszerzony do 9 testów (3 dotychczasowe bez zmian asercji + 6 nowych: 5 wierszy/batch 2 → 2,2,1,0 z tenantem B i wierszami nowszymi nietkniętymi oraz asercją 3 wpisów `cron_log` i braku wpisu przy 0; kolejność od najstarszych; wywołanie 2-argumentowe przez DEFAULT; `p_batch_size` poza zakresem/NULL → 22023; jedyna sygnatura 3-argumentowa w `pg_proc`; pod `SET ROLE app_user` z GUC partiami tylko własny tenant, bez GUC cichy 0). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty (ręczny perf BE-120), BUILD SUCCESS.
-- **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) ~~wydanie razem z BE-121~~ — od tury 21 BE-121 ✅ w kodzie na tym samym branchu (spełnione na poziomie kodu); samo wydanie do potwierdzenia.
+- **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) ~~wydanie razem z BE-121~~ — od tury 21 BE-121 ✅ w kodzie na tym samym branchu (spełnione na poziomie kodu); samo wydanie do potwierdzenia. **Tura 22:** V126 zastosowana na żywej bazie 2026-10-09 14:47 (przebudowa backendu poza tą pracą) — fakt odnotowany, nie jako wykonanie WP-4.
 - **Odblokowane:** BE-121 (`DB-056 ✅` dopisane w `Zależy od`), DB-069 i DB-075 (`DB-056 ✅`; DB-069 jest ponadto bramkowany wolumenem, DB-075 warunkowy D6).
 
 ---
@@ -3104,8 +3104,8 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 **Typ:** Schema migration / performance (dług techniczny)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** brak (grep 2026-10-09: żaden ticket nie ma DB-057 w `Zależy od`/`Blokuje`)
+**Status:** ✅ Ukończone (2026-10-09) — V129, V130, V131 zweryfikowane w pełnym łańcuchu Flyway (Testcontainers, 12 testów); **NIE zastosowane na żywej bazie** (ostatnia zastosowana = V126; zostaną zastosowane automatycznie przy kolejnym restarcie backendu); OTWARTE: diff `pg_dump -s` (zastąpiony testem równości sygnatur `pg_index`/`indexdef`), pomiar na dużym scratchu, wdrożenie poza szczytem; **DECYZJA DO POTWIERDZENIA PRZEZ WŁAŚCICIELA: V131** (można wyciąć bez wpływu na V129/V130)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -3128,13 +3128,24 @@ definicję `(tenant_id, scheduled_at) WHERE status = 'PENDING' AND is_deleted = 
    Zostają: PK, `idx_cca_tenant_archived_at`, `idx_cca_tenant_customer` (guard). W przeciwnym razie migracja 3 pominięta z notatką.
 
 **Kryteria akceptacji:**
-- [ ] (WP-3) Każda migracja: numer wg reguły „następna wolna", `SET LOCAL lock_timeout`, guard (DO $$ — indeks-zwycięzca istnieje, inaczej `RAISE EXCEPTION`), `DROP INDEX IF EXISTS`, `COMMENT ON INDEX` zwycięzcy; idempotentna
-- [ ] Definicje porównane strukturalnie w `pg_index` (kolumny, `indoption`, opclass, collation, predykat, AM), nie po nazwie
-- [ ] Dowód braku regresji: `EXPLAIN` zapytań `ScheduledCallbackExecutor`/`ScheduledCallbackRepository` (callbacki) i wyszukiwania grup agenta pod `SET ROLE app_user` z GUC — przed/po ten sam indeks-zwycięzca (scratch)
-- [ ] Diff `pg_dump -s` przed/po = wyłącznie zamierzone DROP + komentarze
-- [ ] (WP-1) Pełny łańcuch Flyway (Testcontainers) zielony; bez zmian w kodzie Javy
-- [ ] Migracja 3: wyniki grepów w notatce; decyzja „usunięte/pominięte" z uzasadnieniem
-- [ ] Wdrożenie poza szczytem (DROP INDEX bierze ACCESS EXCLUSIVE — tabele niepartycjonowane, krótko)
+- [x] (WP-3) Każda migracja: numer wg reguły „następna wolna", `SET LOCAL lock_timeout`, guard (DO $$ — indeks-zwycięzca istnieje, inaczej `RAISE EXCEPTION`), `DROP INDEX IF EXISTS`, `COMMENT ON INDEX` zwycięzcy; idempotentna
+- [x] Definicje porównane strukturalnie w `pg_index` (kolumny, `indoption`, opclass, collation, predykat, AM), nie po nazwie
+- [x] Dowód braku regresji: `EXPLAIN` zapytań `ScheduledCallbackExecutor`/`ScheduledCallbackRepository` (callbacki) i wyszukiwania grup agenta pod `SET ROLE app_user` z GUC — przed/po ten sam indeks-zwycięzca (scratch)
+- [ ] Diff `pg_dump -s` przed/po = wyłącznie zamierzone DROP + komentarze — **NIEWYKONANE**: zastąpione testem równości sygnatur `pg_index`/`indexdef` pozostałych indeksów przed/po (kryterium formalnie otwarte)
+- [x] (WP-1) Pełny łańcuch Flyway (Testcontainers) zielony; bez zmian w kodzie Javy (`mvn verify -pl app`: 2511 testów, 0 błędów, 1 pominięty — ręczny perf, BUILD SUCCESS)
+- [x] Migracja 3: wyniki grepów w notatce; decyzja „usunięte/pominięte" z uzasadnieniem
+- [ ] Wdrożenie poza szczytem (DROP INDEX bierze ACCESS EXCLUSIVE — tabele niepartycjonowane, krótko) — **OTWARTE**, nie wykonane (migracje nie zastosowane na żywej bazie)
+
+**Notatka z wykonania (2026-10-09, tura 22):**
+
+- **Migracje (3, po jednej na tabelę):** `V129__drop_duplicate_scheduled_callback_index.sql` (zostaje `idx_scheduled_callback_due`, usunięty `idx_callback_ready` — wg nazewnictwa: 8 z 11 indeksów tabeli ma prefiks `idx_scheduled_callback_*`); `V130__drop_duplicate_agent_group_member_index.sql` (zostaje `idx_agent_group_member_lookup` z V044, usunięty `idx_campaign_agent_member_lookup` z V062; zaktualizowane odwołanie w `documentation/tech/06-database.md` i `html/06-database.html`); `V131__drop_unused_campaign_contact_archive_indexes.sql` (usunięte `idx_cca_campaign` i `idx_cca_archived_at` z V015; zostają PK, `idx_cca_tenant_archived_at`, `idx_cca_tenant_customer`). Każda: `SET LOCAL lock_timeout = '10s'`, guard `DO $$` (zwycięzca istnieje i jest strukturalnie identyczny w `pg_index`), `DROP INDEX IF EXISTS`, `COMMENT ON INDEX`, idempotentna.
+- **V131 — warunki z zakresu pkt 3:** (a) 0 czytelników (grep `backend/`, `voicebot/`, `frontend/`, `pg_proc`, `pg_views`/`pg_matviews` — tabela tylko w `CampaignArchiveRetentionRepository` (count/min/max po `tenant_id` + `archived_at`) i funkcjach używających PK / `idx_cca_tenant_archived_at` / `idx_cca_tenant_customer`); (b) D8 — czytelnicy archiwum po kampanii poza zakresem EPIC-30, flaga BE-120 `retention.campaign-archive.enabled=false`; (c) DB-075 (warunkowy) potrzebuje `(tenant_id, campaign_ended_at)`, nie tych dwóch. Decyzja: **usunięte**. **DECYZJA DO POTWIERDZENIA PRZEZ WŁAŚCICIELA** — V131 można wyciąć z wydania bez wpływu na V129/V130; ścieżka odwrotna (`CREATE INDEX` z V015) opisana w nagłówku migracji. Status ✅ mimo otwartej decyzji: konwencja jak w turach 20–21 (DB-056, DB-078, BE-120; kod i testy zielone, brak otwartej pracy deweloperskiej; otwarte pozostają kryteria operacyjne/akceptacyjne wymienione niżej).
+- **Test `Db057IndexCleanupMigrationsTest` (12, Flyway target API):** pary identyczne przed migracjami; 4 testy guardów na klonach `TEMPLATE`; usunięte dokładnie 4 indeksy, a sygnatury `pg_index`/`indexdef` pozostałych identyczne; komentarze; idempotencja; 4 testy `EXPLAIN` pod `SET ROLE app_user` z GUC.
+- **Ustalenie z EXPLAIN:** `ScheduledCallbackRepository#findDueCallbacks` używa `idx_callback_scheduled` (nie `due`/`ready` — żaden kod Javy nie filtruje `is_deleted`), więc brak regresji; `idx_scheduled_callback_due` testowany osobno na kształcie z `is_deleted = false`.
+- **Raport-tylko (bez zmian, do osobnej oceny):** `idx_callback_scheduled` ma redundantny `status` w kluczu; `idx_scheduled_callback_agent_calendar` pokrywa `agent_manual`; `idx_agent_group_member_agent` pokryty przez covering-indeks `(agent_id) INCLUDE (group_id)`; `idx_agent_group_member_group` prefiksem PK.
+- **NIEWYKONANE / OTWARTE:** diff `pg_dump -s` przed/po (zastąpiony testem sygnatur), pomiar na dużym scratchu, wdrożenie poza szczytem. Bez zmian w produkcyjnym kodzie Javy.
+- **Stan żywej bazy:** V129–V131 niezastosowane (ostatnia = V126); zostaną zastosowane automatycznie przy kolejnym restarcie backendu — łącznie z V127/V128 (DB-078, destrukcyjne dla PII). Zob. OSTRZEŻENIE w DB-078.
+- **Zależności:** `Zależy od: brak`, `Blokuje: brak` — zweryfikowane grepem 2026-10-09 (DB-057 występuje tylko w nagłówku własnym, grafie Fazy 0 preambuły, DESIGN §2 U14/§4 i PROGRESS); nic nie odblokowano.
 
 ---
 
@@ -4434,7 +4445,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-141 ✅ (ukończone 2026-10-01; jedyna zależność — brak innych blokerów)
-**Status:** ✅ Ukończone (2026-10-09) — migracje **V127** (sweep) i **V128** (drop) zweryfikowane w pełnym łańcuchu Flyway (Testcontainers, 7 testów); **NIE zastosowane na żywej bazie demo** (ostatnia zastosowana = V125; V126–V128 czekają na przebudowę obrazu i zgodę); OTWARTE: diff `pg_dump -s` na scratch, M1 pod rolą bez BYPASSRLS, WP-4 local-demo (130 wierszy, zgoda właściciela — destrukcyjne dla danych DW)
+**Status:** ✅ Ukończone (2026-10-09) — migracje **V127** (sweep) i **V128** (drop) zweryfikowane w pełnym łańcuchu Flyway (Testcontainers, 7 testów); **V127/V128 NIE zastosowane na żywej bazie demo** (odczyt z tury 22: ostatnia zastosowana = V126, 2026-10-09 14:47; V127+ zostaną zastosowane automatycznie przy kolejnym restarcie backendu z nowym obrazem — patrz OSTRZEŻENIE w notatce); OTWARTE: diff `pg_dump -s` na scratch, M1 pod rolą bez BYPASSRLS, WP-4 local-demo (130 wierszy, zgoda właściciela — destrukcyjne dla danych DW)
 **Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma DB-078 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
@@ -4467,7 +4478,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 - **M2 — `V128__drop_contacts_dw_remote_address.sql`:** `SET LOCAL lock_timeout = '10s'`; guard `pg_depend` (widoki/obiekty zależne od kolumny) oraz guard funkcji PL/pgSQL, których ciało wymienia kolumnę bez własnego guardu istnienia (np. `v_has_contacts_dw_remote_address`) — blokują DROP; `ALTER TABLE contacts_dw DROP COLUMN IF EXISTS remote_address`. Osobne migracje zgodnie z regułą „jedna zmiana = jedna migracja".
 - **Zweryfikowane w kodzie:** `PostgresDwWriter#UPSERT_SQL` i `ContactDwRow` bez `remoteAddress` (BE-141 ✅); `EtlSyncServiceImpl`, `ClickHouseDwWriter` i `dw/migrations` nie dotykają kolumny; **0 czytelników** w `backend/`, `frontend/`, `voicebot/`, `dw/`; `anonymize_customer` (V096/V098) ma guard istnienia kolumny (krok `contacts_dw.remote_address = NULL`), więc drop go nie psuje.
 - **Testy:** nowy `ContactsDwRemoteAddressDropMigrationTest` (7, Flyway target API: stan przed M1 / po M1 / po M2; guardy V128 blokują przy widoku zależnym i przy funkcji bez guardu; indeksy i RLS bez zmian; upsert i `anonymize_customer` działają po M2); poprawiony `AnonymizeCustomerExtensionTest` (kolumna nieobecna, licznik `contacts_dw` 1→0) i Javadoc `PostgresDwWriterIntegrationTest`. `mvn verify -pl app`: **2499 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
-- **NIE zastosowane na żywej bazie demo:** ostatnia zastosowana migracja = V125; V126, V127, V128 czekają na przebudowę obrazu backendu / zgodę właściciela.
+- **V127/V128 NIE zastosowane na żywej bazie demo:** ostatnia zastosowana migracja = **V126** (odczyt `flyway_schema_history` w turze 22; wcześniej błędnie podawano V125). **OSTRZEŻENIE (tura 22):** kolejna przebudowa/restart backendu z obrazem z tego brancha ZASTOSUJE AUTOMATYCZNIE V127/V128 (destrukcyjny drop kolumny PII `contacts_dw.remote_address`, 130 wierszy do zamiatania) oraz V129–V131 (drop 4 indeksów, DB-057) — wymaga zgody właściciela w ramach WP-4 DB-078; nie restartuj backendu z tym obrazem bez tej zgody.
 - **OTWARTE:** (1) diff `pg_dump -s` na bazie scratch po M2 (oczekiwany wyłącznie `DROP COLUMN`) — nie wykonany; (2) M1 pod rolą bez BYPASSRLS (sprawdzono z BYPASSRLS + `row_security=off`) — nie wykonane; (3) WP-4 local-demo — 130 wierszy z `remote_address`, wymaga zgody właściciela, destrukcyjne dla danych DW (nie wykonane).
 - **Odblokowane:** nic — grep 2026-10-09: żaden ticket nie ma DB-078 w `Zależy od`. Ticket DB-062 (notatka ~l. 3574) wspomina guard istnienia kolumny „(kolumna znika w DB-078)" — guard pozostaje poprawny po M2, bez zmian.
 

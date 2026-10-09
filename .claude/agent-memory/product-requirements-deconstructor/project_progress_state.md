@@ -1,12 +1,19 @@
 ---
 name: project_progress_state
-description: Stan 2026-10-09 (tura 21) — DB 73/81 (6⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 324/339 (95,58%); tura 21: BE-121 + DB-078 ✅ (V127/V128, niezastosowane na żywej bazie); tury 16–20 w treści pliku; nowe propozycje DB bez numerów (następny wolny DB-082) nie wchodzą do liczników
+description: Stan 2026-10-09 (tura 22) — DB 74/81 (5⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 325/339 (95,87%); tura 22: DB-057 ✅ (V129–V131 niezastosowane; V131 do potwierdzenia przez właściciela); żywa baza ma V126 (nie V125!), restart backendu zastosuje V127–V131; tury 16–21 w treści pliku; propozycje DB bez numerów (następny wolny DB-082) nie wchodzą do liczników
 metadata:
   type: project
 ---
 
 Stan na **2026-10-08 (tura 18)**, przeliczony metodą delty względem tury 17 (DB-074 i BE-138 `⬜→✅`; DB-081 **NOWY ticket**, wchodzi od razu jako `✅`) z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`:
 **DB 71/81 (8⬜, 2🚫), BE 136/146 (8⬜, 2🚫), FE 110/112 (1⬜, 1🚫) — RAZEM 317/339 (94%)**. Korupcja `bdc5268` (tura 12) jest od tury 15 **W PEŁNI naprawiona** (BE-131/BE-146 w turze 14, BE-141 w turze 15 — zob. `[[project_be_tasks_backend_corruption_bdc5268]]`), więc liczby BE w `TASKS-BACKEND.md` są wiarygodne bez zastrzeżeń.
+
+## Tura 22 (2026-10-09) — DB-057 ✅ (V129/V130/V131)
+
+Stan po turze: **DB 74/81 (5 ⬜: DB-058/069/075/076/077; 2 🚫), BE 140/146, FE 111/112 — RAZEM 325/339**; EPIC-30 ⬜: DB 5, BE 3 = 8 z 52. Skrypt od zera: DB 74/5/2, BE 138/4/2 (+BE-108/109 bez nagłówka = 140), FE 111/0/1; zgodność PROGRESS vs TASKS per ticket: 0 rozbieżności.
+- **DB-057** ✅ z adnotacją: 3 migracje (V129 drop `idx_callback_ready`, V130 drop `idx_campaign_agent_member_lookup`, V131 drop `idx_cca_campaign`+`idx_cca_archived_at`), test 12, mvn verify 2511. Otwarte: diff `pg_dump -s` (zastąpiony testem sygnatur), pomiar na dużym scratchu, wdrożenie poza szczytem; **V131 = decyzja właściciela** (wycinalna bez wpływu na V129/V130). Zależy od/Blokuje: brak, grep potwierdził (DB-057 tylko w preambule grafu DB, DESIGN §2 U14/§4, PROGRESS; BE/FE preambuły go nie wymieniają).
+- **KOREKTA stanu żywej bazy:** koordynator odczytał `flyway_schema_history` — max = **V126** (zainstalowana 2026-10-09 14:47 przez zewnętrzny rebuild backendu); wcześniejsze "ostatnia zastosowana = V125" (tura 21) było błędne i poprawione w DB-056/DB-078/BE-120/BE-121/PROGRESS. WP-4 DB-056 NIE zaznaczone — tylko fakt. **Ostrzeżenie wpisane w DB-078 i PROGRESS:** kolejny restart backendu zastosuje V127/V128 (drop PII `contacts_dw.remote_address`) i V129–V131 — wymaga zgody właściciela.
+- Lekcja: twierdzenia o stanie żywej bazy ("ostatnia zastosowana") starzeją się w godzinach (zewnętrzne rebuilde) — zawsze oznaczaj datę/źródło odczytu i nie kopiuj ich między turami bez ponownej weryfikacji. Skrypty edycji z dużymi tekstami PL: pisz teksty do plików przez Write i czytaj je w skrypcie (heredoc w heredocu zepsuł cudzysłowy).
 
 ## Tura 21 (2026-10-09) — BE-121 ✅, DB-078 ✅
 

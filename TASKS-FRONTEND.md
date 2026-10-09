@@ -5873,7 +5873,7 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
@@ -5881,7 +5881,7 @@ nie konstruowało literalnie).
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-126 ✅, BE-128 ✅, BE-119 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-09) — WP-4 (local-demo) NIE wykonane, kryterium pozostaje otwarte, patrz notatka wykonania
 **Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -5901,11 +5901,18 @@ Administrator musi to widzieć w tabeli polityk, na kartach dashboardu i w modal
    odblokuj przycisk „Usuń teraz" dla `CAMPAIGN_DATA` (zostaje disabled dla `RECORDINGS` z `purgeUnsupportedHint`), popraw komentarze i testy komponentu.
 
 **Kryteria akceptacji:**
-- [ ] Klucze i18n kompletne w 4 językach (porównanie zbiorów kluczy w PR); opisy widoczne w tabeli polityk, na kartach i w modalu potwierdzenia
-- [ ] Przycisk „Usuń teraz": aktywny dla `CONTACT_INTERACTIONS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`; disabled z podpowiedzią dla `RECORDINGS` (test komponentu Vitest)
-- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); brak zmian kontraktu API; dostępność (aria) zachowana
-- [ ] (WP-4) Local-demo po przebudowie obrazu frontendu: strona `/supervisor/settings/data-retention` pokazuje opisy w każdym języku, modal potwierdzenia zawiera informację o wiadomościach; notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą
+- [x] Klucze i18n kompletne w 4 językach (porównanie zbiorów kluczy w PR); opisy widoczne w tabeli polityk, na kartach i w modalu potwierdzenia
+- [x] Przycisk „Usuń teraz": aktywny dla `CONTACT_INTERACTIONS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`; disabled z podpowiedzią dla `RECORDINGS` (test komponentu Vitest)
+- [x] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); brak zmian kontraktu API; dostępność (aria) zachowana
+- [ ] (WP-4) Local-demo po przebudowie obrazu frontendu: strona `/supervisor/settings/data-retention` pokazuje opisy w każdym języku, modal potwierdzenia zawiera informację o wiadomościach; notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji
 
+**Notatka z wykonania (2026-10-09):**
+
+- **i18n (pl/en/de/uk):** `supervisor.settings.dataRetention.categoryDescription.{CONTACT_INTERACTIONS,RECORDINGS,TRANSCRIPTS,CAMPAIGN_DATA}` (tabela polityk + karty dashboardu); tooltipy `summaryEligibleCountHint` (suma różnych typów rekordów) i `history.columnRowsDeletedHint`; akapit `purgeModal.contactInteractionsNote` w modalu purge dla `CONTACT_INTERACTIONS` (wiadomości + nieodwracalność usunięcia załączników w S3).
+- **Dryf po BE-119:** `UNSUPPORTED_PURGE_CATEGORIES` = wyłącznie `RECORDINGS` (zweryfikowane w `RetentionController` / `RetentionPurgeServiceImpl`: 501 tylko dla `RECORDINGS`); „Usuń teraz" odblokowane dla `CAMPAIGN_DATA`. Brak zmian kontraktu API.
+- **Testy:** nowy `data-retention.component.spec.ts` (5 testów). `npm run lint` 0 błędów, `format:check` czysto, `npm run build` OK, `npm test` 21 plików / 264 testy.
+- **Zauważone, NIE naprawione (dryf i18n niezwiązany z FE-110):** brak 4 kluczy `supervisor.customerDetail.contactStatusLabels.{ASSIGNED,ERROR,NOT_REACHED,TRANSFERRED}` w `de.json` i `uk.json` (w `pl.json`/`en.json` są) — kandydat na osobny drobny ticket.
+- **Poza zakresem tej sesji:** WP-4 (local-demo, przebudowa obrazu frontendu).
 ---
 
 ### FE-111 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w UI retencji

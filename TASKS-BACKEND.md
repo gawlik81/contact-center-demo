@@ -6803,7 +6803,7 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122;   BE-123 ✅
+> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122 ✅;   BE-123 ✅
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 → DB-078;   BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
@@ -6894,7 +6894,7 @@ więc repozytorium musi iterować. Wołający: `RetentionPurgeServiceImpl#purgeC
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-09) — WP-4 (local-demo) NIE wykonane, kryterium pozostaje otwarte, patrz notatka wykonania
 **Blokuje:** DB-076, DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -6910,12 +6910,20 @@ Live: `refresh_token` 1333 wiersze, 1331 wygasłych, 1298 unieważnionych, 37 z 
 - Bez `TenantContext` (tabela globalna, brak pętli per tenant) — jawny komentarz w Javadoc (WP-2). Log INFO z liczbą usuniętych. Przy dużych wolumenach (zmierz) batching natywnym DELETE po PK `token_id` (tabela zwykła, niepartycjonowana) w osobnych transakcjach.
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers z realnym JPQL: tokeny aktywny / wygasły < grace / wygasły > grace / unieważniony świeży / unieważniony stary / `tenant_id IS NULL` → usunięte dokładnie te przewidziane przez wybraną semantykę (mock nie wykryłby błędu warunku `OR`)
-- [ ] (WP-2) Job nie zależy od `TenantContext` — test z pustym kontekstem przechodzi; wyjątek nie crashuje schedulera
-- [ ] Istniejące testy `AuthServiceImpl` (refresh/logout/replay) zielone; test replay: token usunięty po grace → 401 jak nieistniejący
-- [ ] (WP-4) Local-demo: policz kandydatów (spodziewane ≈ 1331 wygasłych / 1298 unieważnionych, bez tokenów aktywnych), uzyskaj zgodę, uruchom; po: aktywne i w grace zostają, logowanie/refresh działa
-- [ ] `application.yml`: cron + `grace-days`; DoD (WP-7)
+- [x] (WP-1) Test Testcontainers z realnym JPQL: tokeny aktywny / wygasły < grace / wygasły > grace / unieważniony świeży / unieważniony stary / `tenant_id IS NULL` → usunięte dokładnie te przewidziane przez wybraną semantykę (mock nie wykryłby błędu warunku `OR`)
+- [x] (WP-2) Job nie zależy od `TenantContext` — test z pustym kontekstem przechodzi; wyjątek nie crashuje schedulera
+- [x] Istniejące testy `AuthServiceImpl` (refresh/logout/replay) zielone; test replay: token usunięty po grace → 401 jak nieistniejący (pokrywa istniejący `refresh_unknownToken_throwsInvalidTokenException`)
+- [ ] (WP-4) Local-demo: policz kandydatów (spodziewane ≈ 1331 wygasłych / 1298 unieważnionych, bez tokenów aktywnych), uzyskaj zgodę, uruchom; po: aktywne i w grace zostają, logowanie/refresh działa — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji (destrukcyjne, wymaga zgody właściciela)
+- [x] `application.yml`: cron + `grace-days`; DoD (WP-7)
 
+**Notatka z wykonania (2026-10-09):**
+
+- **Job:** nowy `domain/user/RefreshTokenCleanupJob` (package-private `@Component`), `@Scheduled(cron = "${auth.refresh-token-cleanup.cron:0 30 3 * * *}", zone = "UTC")`. Zamiast `@Transactional` użyty `TransactionTemplate` (metoda `@Modifying` w jawnej transakcji, wyjątek łapany i logowany — nie crashuje schedulera). Brak `TenantContext` (tabela globalna, jawnie w Javadoc, WP-2). Ujemne `grace-days` → fallback 7 + WARN.
+- **Semantyka (JPQL `RefreshTokenRepository#deleteExpiredAndRevoked`):** `expiresAt < :cutoff OR (revoked = true AND createdAt < :cutoff)`, `cutoff = now − grace-days` (domyślnie 7). **Zastrzeżenie:** unieważniony token jest oceniany po `createdAt`, bo tabela nie ma kolumny `revoked_at` — to przybliżenie (token unieważniony niedawno, ale utworzony dawno, może zostać usunięty od razu). Ewentualna kolumna `revoked_at` = osobny ticket.
+- **Konfiguracja:** `application.yml` sekcja `auth.refresh-token-cleanup` (`cron`, `grace-days`; zmienne środowiskowe `AUTH_REFRESH_TOKEN_CLEANUP_CRON` / `AUTH_REFRESH_TOKEN_CLEANUP_GRACE_DAYS`).
+- **Batching pominięty** (~1,3 tys. wierszy, tabela niepartycjonowana) — uzasadnienie w Javadoc joba; do ponownej oceny, gdyby wolumen wzrósł o rzędy wielkości.
+- **Testy:** `RefreshTokenCleanupJobIntegrationTest` (4 testy, Testcontainers, 7 tokenów: aktywny / wygasły w grace / wygasły po grace / unieważniony świeży / unieważniony stary / 2× `tenant_id` NULL). `mvn verify -pl app` (JDK 21): 2465 testów, 0 błędów, BUILD SUCCESS.
+- **Poza zakresem tej sesji:** WP-4 (local-demo). Odblokowuje formalnie DB-076 i DB-077 (pole `Zależy od`).
 ---
 
 ### BE-123 – `audit_log` i `plugin_invocation_log` w `PartitionReclaimJob` (horyzont platformowy, D5)

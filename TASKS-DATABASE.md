@@ -3043,7 +3043,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
-> Grupa 6:  BE-120, BE-122, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
+> Grupa 6:  BE-120, BE-122 ✅, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
 > ```
@@ -4366,7 +4366,7 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Typ:** Schema migration (dane) / dokumentacja
 **Priorytet:** Could Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122, BE-123 ✅, DB-058
+**Zależy od:** BE-120, BE-122 ✅, BE-123 ✅, DB-058
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4388,7 +4388,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122, BE-123 ✅, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
+**Zależy od:** BE-120, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

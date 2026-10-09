@@ -2364,6 +2364,7 @@
         "summaryNotComputed": "Not yet computed",
         "summaryZeroEligible": "No data to delete",
         "summaryEligibleCount": "{{ count }} records eligible for deletion",
+        "summaryEligibleCountHint": "The number is a sum of different record types (e.g. contacts, events, and messages).",
         "summaryOldestPeriod": "Oldest eligible period",
         "summaryComputedAt": "Last computed",
         "errorLoadSummary": "Failed to load the deletion summary.",
@@ -2386,7 +2387,8 @@
           "confirmLabel": "To confirm, type",
           "confirmHint": "Type exactly: USUŃ",
           "confirmButton": "Delete data",
-          "confirmButtonAria": "Confirm data deletion for category {{ category }}"
+          "confirmButtonAria": "Confirm data deletion for category {{ category }}",
+          "contactInteractionsNote": "The count also includes e-mail and social media messages and their attachments. Attachments will also be permanently deleted from file storage (S3) and cannot be recovered."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Contact interactions",
@@ -2394,12 +2396,19 @@
           "TRANSCRIPTS": "Call transcripts",
           "CAMPAIGN_DATA": "Campaign data"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Contacts, processing events, and e-mail and social media messages (content, addresses, attachments) linked to contacts",
+          "RECORDINGS": "Call recordings together with audio files in file storage",
+          "TRANSCRIPTS": "Call transcripts and AI-generated summaries",
+          "CAMPAIGN_DATA": "Outbound campaign contact records, including the archive"
+        },
         "history": {
           "title": "Deletion history",
           "errorLoad": "Failed to load the deletion history.",
           "columnCategory": "Category",
           "columnTrigger": "Trigger",
           "columnRowsDeleted": "Rows deleted",
+          "columnRowsDeletedHint": "Total of deleted records of different types (e.g. contacts, events, messages).",
           "columnStatus": "Status",
           "columnStartedAt": "Started",
           "columnCompletedAt": "Completed",

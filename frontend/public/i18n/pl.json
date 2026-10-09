@@ -2364,6 +2364,7 @@
         "summaryNotComputed": "Jeszcze nie przeliczono",
         "summaryZeroEligible": "Brak danych do usunięcia",
         "summaryEligibleCount": "{{ count }} rekordów kwalifikuje się do usunięcia",
+        "summaryEligibleCountHint": "Liczba jest sumą różnych typów rekordów (np. kontakty, zdarzenia i wiadomości).",
         "summaryOldestPeriod": "Najstarszy kwalifikujący się okres",
         "summaryComputedAt": "Ostatnio przeliczono",
         "errorLoadSummary": "Nie udało się załadować danych kwalifikujących się do usunięcia.",
@@ -2386,7 +2387,8 @@
           "confirmLabel": "Aby potwierdzić, wpisz",
           "confirmHint": "Wpisz dokładnie: USUŃ",
           "confirmButton": "Usuń dane",
-          "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}"
+          "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}",
+          "contactInteractionsNote": "Liczba obejmuje także wiadomości e-mail i social media oraz ich załączniki. Załączniki zostaną trwale usunięte również z magazynu plików (S3) i nie będzie można ich odzyskać."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Interakcje z kontaktami",
@@ -2394,12 +2396,19 @@
           "TRANSCRIPTS": "Transkrypcje rozmów",
           "CAMPAIGN_DATA": "Dane kampanii"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami",
+          "RECORDINGS": "Nagrania rozmów wraz z plikami audio w magazynie plików",
+          "TRANSCRIPTS": "Transkrypcje rozmów oraz podsumowania wygenerowane przez AI",
+          "CAMPAIGN_DATA": "Rekordy kontaktów kampanii wychodzących, w tym archiwum"
+        },
         "history": {
           "title": "Historia operacji usuwania",
           "errorLoad": "Nie udało się załadować historii operacji usuwania.",
           "columnCategory": "Kategoria",
           "columnTrigger": "Wyzwolenie",
           "columnRowsDeleted": "Usunięto rekordów",
+          "columnRowsDeletedHint": "Suma usuniętych rekordów różnych typów (np. kontakty, zdarzenia, wiadomości).",
           "columnStatus": "Status",
           "columnStartedAt": "Rozpoczęto",
           "columnCompletedAt": "Zakończono",

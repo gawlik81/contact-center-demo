@@ -45,17 +45,15 @@ const CATEGORY_ORDER: RetentionDataCategory[] = [
 ];
 
 /**
- * `RetentionPurgeService.purge()` (backend) rzuca `UnsupportedOperationException` (HTTP 501) dla
- * tych dwóch kategorii — obsługa to przyszłe BE-116 (RECORDINGS → `RecordingRetentionJob`) i
- * BE-119 (CAMPAIGN_DATA → `purge_campaign_contact_archive`), jeszcze nieukończone. Przycisk „Usuń
- * teraz" jest dla nich disabled (z tooltipem wyjaśniającym), nie ukryty — użytkownik widzi kartę i
+ * `RetentionController#purge` zwraca 501 (`UnsupportedOperationException` z
+ * `RetentionPurgeServiceImpl#validateSupportedCategory`) WYŁĄCZNIE dla `RECORDINGS` — tę kategorię
+ * obsługuje `RecordingRetentionJob` (BE-116), nie `RetentionPurgeService`. `CAMPAIGN_DATA` jest
+ * obsługiwane od BE-119 (`purge_campaign_contact_archive`). Przycisk „Usuń teraz" jest dla
+ * `RECORDINGS` disabled (z tooltipem wyjaśniającym), nie ukryty — użytkownik widzi kartę i
  * `eligibleRowCount` (o ile `computed`), ale nie może wywołać akcji gwarantowanie kończącej się
  * błędem.
  */
-const UNSUPPORTED_PURGE_CATEGORIES: ReadonlySet<RetentionDataCategory> = new Set([
-  'RECORDINGS',
-  'CAMPAIGN_DATA',
-]);
+const UNSUPPORTED_PURGE_CATEGORIES: ReadonlySet<RetentionDataCategory> = new Set(['RECORDINGS']);
 
 /** Interwał odpytywania statusu purge — 1:1 z `POLLING_INTERVAL_MS` w `CampaignImportComponent`. */
 const PURGE_POLLING_INTERVAL_MS = 3_000;
@@ -257,6 +255,13 @@ export class DataRetentionComponent implements OnInit {
       });
   }
 
+  /** Opis zakresu kategorii (FE-110) — pokazywany pod nazwą w tabeli polityk i na kartach. */
+  categoryDescription(category: RetentionDataCategory): string {
+    return this.transloco.translate(
+      'supervisor.settings.dataRetention.categoryDescription.' + category,
+    );
+  }
+
   categoryLabel(category: RetentionDataCategory): string {
     return this.transloco.translate('supervisor.settings.dataRetention.category.' + category);
   }
@@ -341,7 +346,7 @@ export class DataRetentionComponent implements OnInit {
 
   // ---- Akcja "Usuń teraz" (FE-106) ----
 
-  /** RECORDINGS/CAMPAIGN_DATA: backend rzuca 501, patrz {@link UNSUPPORTED_PURGE_CATEGORIES}. */
+  /** RECORDINGS: backend zwraca 501, patrz {@link UNSUPPORTED_PURGE_CATEGORIES}. */
   isPurgeUnsupported(category: RetentionDataCategory): boolean {
     return UNSUPPORTED_PURGE_CATEGORIES.has(category);
   }

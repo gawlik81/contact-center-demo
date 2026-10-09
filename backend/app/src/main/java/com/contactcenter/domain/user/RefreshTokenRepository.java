@@ -39,11 +39,23 @@ interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
     int revokeByToken(@Param("token") String token);
 
     /**
-     * Usuń wygasłe tokeny (cleanup job).
-     * Wywoływane przez scheduled task (nie zaimplementowany w BE-003, ale metoda gotowa).
+     * Usuń tokeny, które przestały być potrzebne (cleanup job, BE-122 -
+     * {@link RefreshTokenCleanupJob}).
+     *
+     * <p>Semantyka z okresem karencji ({@code cutoff = now - grace-days}):
+     * <ul>
+     *   <li>wygasły token ({@code expires_at < cutoff}) - usuwany niezależnie od flagi revoked,</li>
+     *   <li>unieważniony token ({@code is_revoked = true}) - usuwany dopiero gdy został wystawiony
+     *       przed {@code cutoff} ({@code created_at < cutoff}); świeżo unieważnione tokeny (rotacja,
+     *       logout) zostają, aby ponowne użycie starego tokenu (replay) było nadal rozpoznawane
+     *       w {@code AuthServiceImpl#refresh} jako "unieważniony", a nie "nieznany".</li>
+     * </ul>
+     * Tabela jest globalna (bez RLS) - zapytanie obejmuje też tokeny z {@code tenant_id IS NULL}
+     * (SUPER_ADMIN).
      */
     @Modifying(clearAutomatically = true)
-    @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff OR rt.revoked = true")
+    @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff "
+            + "OR (rt.revoked = true AND rt.createdAt < :cutoff)")
     int deleteExpiredAndRevoked(@Param("cutoff") Instant cutoff);
 
     /** Policz aktywne tokeny użytkownika (do monitoringu/audit). */

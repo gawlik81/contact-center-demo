@@ -2360,6 +2360,7 @@
         "summaryNotComputed": "Noch nicht berechnet",
         "summaryZeroEligible": "Keine Daten zum Löschen",
         "summaryEligibleCount": "{{ count }} Datensätze zur Löschung vorgesehen",
+        "summaryEligibleCountHint": "Die Zahl ist die Summe verschiedener Datensatztypen (z. B. Kontakte, Ereignisse und Nachrichten).",
         "summaryOldestPeriod": "Ältester betroffener Zeitraum",
         "summaryComputedAt": "Zuletzt berechnet",
         "errorLoadSummary": "Die Löschübersicht konnte nicht geladen werden.",
@@ -2382,7 +2383,8 @@
           "confirmLabel": "Geben Sie zur Bestätigung ein",
           "confirmHint": "Geben Sie genau ein: USUŃ",
           "confirmButton": "Daten löschen",
-          "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen"
+          "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen",
+          "contactInteractionsNote": "Die Anzahl umfasst auch E-Mail- und Social-Media-Nachrichten sowie deren Anhänge. Anhänge werden auch dauerhaft aus dem Dateispeicher (S3) gelöscht und können nicht wiederhergestellt werden."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Kontaktinteraktionen",
@@ -2390,12 +2392,19 @@
           "TRANSCRIPTS": "Gesprächstranskripte",
           "CAMPAIGN_DATA": "Kampagnendaten"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Kontakte, Verarbeitungsereignisse sowie E-Mail- und Social-Media-Nachrichten (Inhalt, Adressen, Anhänge), die mit Kontakten verknüpft sind",
+          "RECORDINGS": "Gesprächsaufzeichnungen samt Audiodateien im Dateispeicher",
+          "TRANSCRIPTS": "Gesprächstranskripte und KI-generierte Zusammenfassungen",
+          "CAMPAIGN_DATA": "Kontaktdatensätze ausgehender Kampagnen, einschließlich Archiv"
+        },
         "history": {
           "title": "Löschverlauf",
           "errorLoad": "Der Löschverlauf konnte nicht geladen werden.",
           "columnCategory": "Kategorie",
           "columnTrigger": "Auslöser",
           "columnRowsDeleted": "Gelöschte Datensätze",
+          "columnRowsDeletedHint": "Summe der gelöschten Datensätze verschiedener Typen (z. B. Kontakte, Ereignisse, Nachrichten).",
           "columnStatus": "Status",
           "columnStartedAt": "Gestartet",
           "columnCompletedAt": "Abgeschlossen",

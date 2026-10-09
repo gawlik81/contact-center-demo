@@ -39,7 +39,10 @@
           <tbody>
             @for (row of rows(); track row.category) {
               <tr>
-                <td class="dr-table__category">{{ categoryLabel(row.category) }}</td>
+                <td class="dr-table__category">
+                  {{ categoryLabel(row.category) }}
+                  <span class="dr-category-description">{{ categoryDescription(row.category) }}</span>
+                </td>
                 <td>
                   <div class="dr-field">
                     <input
@@ -175,6 +178,7 @@
               </span>
               <h3 class="dr-summary-card__category">{{ categoryLabel(entry.dataCategory) }}</h3>
             </div>
+            <p class="dr-category-description">{{ categoryDescription(entry.dataCategory) }}</p>
 
             @if (!entry.computed) {
               <p class="dr-summary-card__status">
@@ -185,7 +189,10 @@
                 {{ 'supervisor.settings.dataRetention.summaryZeroEligible' | transloco }}
               </p>
             } @else {
-              <p class="dr-summary-card__count">
+              <p
+                class="dr-summary-card__count"
+                [title]="'supervisor.settings.dataRetention.summaryEligibleCountHint' | transloco"
+              >
                 {{
                   'supervisor.settings.dataRetention.summaryEligibleCount'
                     | transloco: { count: entry.eligibleRowCount }
@@ -266,7 +273,9 @@
             <tr>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCategory' | transloco }}</th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnTrigger' | transloco }}</th>
-              <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnRowsDeleted' | transloco }}</th>
+              <th scope="col" [title]="'supervisor.settings.dataRetention.history.columnRowsDeletedHint' | transloco">
+                {{ 'supervisor.settings.dataRetention.history.columnRowsDeleted' | transloco }}
+              </th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStatus' | transloco }}</th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStartedAt' | transloco }}</th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCompletedAt' | transloco }}</th>

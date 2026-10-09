@@ -574,3 +574,12 @@
     transform: rotate(360deg);
   }
 }
+
+.dr-category-description {
+  display: block;
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-2, var(--text-1));
+}

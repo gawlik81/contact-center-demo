@@ -219,6 +219,18 @@ jwt:
   refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
 
 # =============================================================================
+# Czyszczenie refresh tokenów (BE-122, RefreshTokenCleanupJob)
+# =============================================================================
+auth:
+  refresh-token-cleanup:
+    # Domyślnie codziennie 03:30 UTC (wolny slot względem jobów 00:30/01:00/02:00/04:00).
+    cron: ${AUTH_REFRESH_TOKEN_CLEANUP_CRON:0 30 3 * * *}
+    # Okres karencji w dniach: usuwane są tokeny wygasłe oraz unieważnione wystawione
+    # wcześniej niż (teraz - grace-days). Świeżo unieważnione tokeny zostają, aby replay
+    # starego tokenu po rotacji dalej był logowany jako "unieważniony" (diagnostyka).
+    grace-days: ${AUTH_REFRESH_TOKEN_CLEANUP_GRACE_DAYS:7}
+
+# =============================================================================
 # Super Admin – bootstrap globalnego administratora platformy przy starcie
 # (SuperAdminBootstrapRunner, refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT)
 # Uruchamiany we wszystkich profilach. W dev: fallback gdy zmienne puste.

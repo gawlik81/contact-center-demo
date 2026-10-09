@@ -23,6 +23,11 @@
             | transloco: { count: target().eligibleRowCount, category: target().categoryLabel }
         }}
       </p>
+      @if (target().category === 'CONTACT_INTERACTIONS') {
+        <p class="purge-dialog__message" data-testid="purge-contact-interactions-note">
+          {{ 'supervisor.settings.dataRetention.purgeModal.contactInteractionsNote' | transloco }}
+        </p>
+      }
       <p class="purge-dialog__warning">
         {{ 'supervisor.settings.dataRetention.purgeModal.warning' | transloco }}
       </p>

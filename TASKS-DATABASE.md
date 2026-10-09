@@ -3036,9 +3036,9 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   DB-056 ✅ → BE-121;   DB-057;   DB-058
+> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057;   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
->           BE-141 ✅ → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
+>           BE-141 ✅ → DB-078 ✅ (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -3081,7 +3081,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - [x] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
 - [x] Brak wpisu w `cron_log` przy wyniku 0
 - [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji
-- [ ] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **samo wydanie razem z BE-121 (⬜) POZOSTAJE OTWARTE**
+- [x] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **SPEŁNIONE NA POZIOMIE KODU (2026-10-09)** — BE-121 ✅ (pętla batchowa) jest na tym samym branchu co V126; **samo wydanie razem — do potwierdzenia** (żadne wydanie jeszcze nie nastąpiło)
 - [x] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7) — notatka poniżej; commit poza zakresem tej sesji
 
 **Ryzyka:** zmiana semantyki wartości zwracanej (dotąd całość, teraz partia); jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121).
@@ -3094,7 +3094,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - **RLS:** `SECURITY INVOKER`, jawny filtr po `p_tenant_id` (jak V091). Pod `SET ROLE app_user` (FORCE RLS z V111) bez GUC = cichy wynik 0, z GUC = tylko wiersze własnego tenanta.
 - **Zmiana semantyki wartości zwracanej** (dotąd całość, teraz jedna partia) — udokumentowana w nagłówku migracji; jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121). Do czasu BE-121 pojedyncze wywołanie usuwa tylko pierwszą partię (10 000), dlatego V126 i BE-121 muszą iść w jednym wydaniu.
 - **Testy:** `CampaignContactArchivePurgeTenantIsolationTest` rozszerzony do 9 testów (3 dotychczasowe bez zmian asercji + 6 nowych: 5 wierszy/batch 2 → 2,2,1,0 z tenantem B i wierszami nowszymi nietkniętymi oraz asercją 3 wpisów `cron_log` i braku wpisu przy 0; kolejność od najstarszych; wywołanie 2-argumentowe przez DEFAULT; `p_batch_size` poza zakresem/NULL → 22023; jedyna sygnatura 3-argumentowa w `pg_proc`; pod `SET ROLE app_user` z GUC partiami tylko własny tenant, bez GUC cichy 0). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty (ręczny perf BE-120), BUILD SUCCESS.
-- **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) wydanie razem z BE-121.
+- **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) ~~wydanie razem z BE-121~~ — od tury 21 BE-121 ✅ w kodzie na tym samym branchu (spełnione na poziomie kodu); samo wydanie do potwierdzenia.
 - **Odblokowane:** BE-121 (`DB-056 ✅` dopisane w `Zależy od`), DB-069 i DB-075 (`DB-056 ✅`; DB-069 jest ponadto bramkowany wolumenem, DB-075 warunkowy D6).
 
 ---
@@ -4433,9 +4433,9 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Schema migration (dane + DDL) — 2 osobne migracje
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-141 ✅ (ukończone 2026-10-01; jedyna zależność — brak innych blokerów, ticket gotowy do realizacji)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** brak
+**Zależy od:** BE-141 ✅ (ukończone 2026-10-01; jedyna zależność — brak innych blokerów)
+**Status:** ✅ Ukończone (2026-10-09) — migracje **V127** (sweep) i **V128** (drop) zweryfikowane w pełnym łańcuchu Flyway (Testcontainers, 7 testów); **NIE zastosowane na żywej bazie demo** (ostatnia zastosowana = V125; V126–V128 czekają na przebudowę obrazu i zgodę); OTWARTE: diff `pg_dump -s` na scratch, M1 pod rolą bez BYPASSRLS, WP-4 local-demo (130 wierszy, zgoda właściciela — destrukcyjne dla danych DW)
+**Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma DB-078 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
 
@@ -4451,15 +4451,25 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 3. Wiersze `contacts_dw` bez kontaktu źródłowego zostają (statystyki DW bez PII); retencja samej tabeli DW jest osobnym tematem (poza zakresem).
 
 **Kryteria akceptacji:**
-- [ ] (WP-3) M1 i M2 jako osobne migracje: numery wg reguły „następna wolna wersja" (develop, otwarte gałęzie, `flyway_schema_history`), idempotentne (`IF EXISTS`), `SET LOCAL lock_timeout`; scratch (`pg_dump -s`) + pełny łańcuch Flyway; diff `pg_dump -s` po M2 = wyłącznie `DROP COLUMN`
-- [ ] Po M1: `count(*) FILTER (WHERE remote_address IS NOT NULL)` = 0; po M2: kolumna nie istnieje (`information_schema.columns`), pozostałe kolumny i indeksy (`pk_contacts_dw`, `idx_contacts_dw_*`) nietknięte, brak zależnych obiektów (`pg_depend`)
-- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: `PostgresDwWriter#upsert` (po BE-141) zapisuje wiersz na schemacie PRZED M2 (kolumna obecna, nullable) i PO M2 (kolumna nieobecna) — kolejność wdrożenia BE-141 → DB-078 jest bezpieczna
-- [ ] Grep w `backend/`, `frontend/`, `voicebot/`, `dw/` potwierdza 0 czytelników `contacts_dw.remote_address` (wynik w notatce)
-- [ ] (WP-4, destrukcyjne dla danych DW) Local-demo: policz wiersze (oczekiwane 130 z `remote_address`), uzyskaj zgodę właściciela; po przebudowie obrazów sprawdź `etl_sync_state` i działanie ETL dla obu wartości `etl.dw.type`
-- [ ] Zakłada, że kolumna nie jest potrzebna analityce (ClickHouse jej nie ma); przy sprzeciwie PO wariant: pseudonimizacja (hash z solą per tenant) zamiast DROP — osobna decyzja
-- [ ] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7)
+- [ ] (WP-3) M1 i M2 jako osobne migracje (V127, V128 — ✅), idempotentne (`IF EXISTS`), `SET LOCAL lock_timeout` (V128: 10 s; ✅), pełny łańcuch Flyway (✅); **scratch (`pg_dump -s`) i diff po M2 = wyłącznie `DROP COLUMN` — NIE wykonane, POZOSTAJE OTWARTE**
+- [x] Po M1: `count(*) FILTER (WHERE remote_address IS NOT NULL)` = 0; po M2: kolumna nie istnieje (`information_schema.columns`), pozostałe kolumny i indeksy (`pk_contacts_dw`, `idx_contacts_dw_*`) nietknięte, brak zależnych obiektów (`pg_depend`) — `ContactsDwRemoteAddressDropMigrationTest` (`sweepClearsAllValues`, `dropRemovesOnlyTheColumn`, guardy); M1 sprawdzone na roli z BYPASSRLS — wariant bez BYPASSRLS OTWARTY
+- [x] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway (Flyway target API: przed M1 / po M1 / po M2): `PostgresDwWriter#upsert` (po BE-141) zapisuje wiersz na schemacie PRZED M2 i PO M2 (`writerWorksBeforeDrop`, `writerWorksAfterDrop`) — kolejność wdrożenia BE-141 → DB-078 jest bezpieczna
+- [x] Grep w `backend/`, `frontend/`, `voicebot/`, `dw/` potwierdza 0 czytelników `contacts_dw.remote_address` (wynik w notatce)
+- [ ] (WP-4, destrukcyjne dla danych DW) **POZOSTAJE OTWARTE** — Local-demo: policz wiersze (oczekiwane 130 z `remote_address`), uzyskaj zgodę właściciela; po przebudowie obrazów sprawdź `etl_sync_state` i działanie ETL dla obu wartości `etl.dw.type`
+- [x] Zakłada, że kolumna nie jest potrzebna analityce (ClickHouse jej nie ma); przy sprzeciwie PO wariant: pseudonimizacja (hash z solą per tenant) zamiast DROP — osobna decyzja (brak sprzeciwu; wariant nie użyty)
+- [x] Notatka w pliku zadań (poniżej), pamięć agenta w `.claude/agent-memory/` (`project_db078_contacts_dw_remote_address.md`) — commit poza zakresem tej sesji (WP-7)
 
 **Ryzyka:** (i) drop przed BE-141 zepsuje `PostgresDwWriter` (stąd zależność); (ii) prod domyślnie `clickhouse` (`application-prod.yml`), więc ticket dotyczy głównie dev/PG-fallback — konfiguracja na żywym prodzie niezweryfikowana; (iii) `contacts_dw` nie ma RLS (DB-071/DB-074) — po usunięciu PII pilność klasyfikacji tej tabeli spada.
+
+**Notatka z wykonania (2026-10-09):**
+
+- **M1 — `V127__sweep_contacts_dw_remote_address.sql`:** `UPDATE contacts_dw SET remote_address = NULL WHERE remote_address IS NOT NULL`, idempotentna; `SET LOCAL row_security = off`, bo `contacts_dw` ma FORCE RLS (V116) i zwykły UPDATE bez GUC nie trafiłby w żaden wiersz (migracja idzie jako rola z BYPASSRLS; rola bez BYPASSRLS dostaje głośny błąd zamiast cichego `UPDATE 0`); kontrola 0 wierszy po UPDATE (wyjątek, jeśli zostały). Idempotencja: gdy kolumny już nie ma (np. V128 zastosowane na kopii), blok jest no-op z `NOTICE`.
+- **M2 — `V128__drop_contacts_dw_remote_address.sql`:** `SET LOCAL lock_timeout = '10s'`; guard `pg_depend` (widoki/obiekty zależne od kolumny) oraz guard funkcji PL/pgSQL, których ciało wymienia kolumnę bez własnego guardu istnienia (np. `v_has_contacts_dw_remote_address`) — blokują DROP; `ALTER TABLE contacts_dw DROP COLUMN IF EXISTS remote_address`. Osobne migracje zgodnie z regułą „jedna zmiana = jedna migracja".
+- **Zweryfikowane w kodzie:** `PostgresDwWriter#UPSERT_SQL` i `ContactDwRow` bez `remoteAddress` (BE-141 ✅); `EtlSyncServiceImpl`, `ClickHouseDwWriter` i `dw/migrations` nie dotykają kolumny; **0 czytelników** w `backend/`, `frontend/`, `voicebot/`, `dw/`; `anonymize_customer` (V096/V098) ma guard istnienia kolumny (krok `contacts_dw.remote_address = NULL`), więc drop go nie psuje.
+- **Testy:** nowy `ContactsDwRemoteAddressDropMigrationTest` (7, Flyway target API: stan przed M1 / po M1 / po M2; guardy V128 blokują przy widoku zależnym i przy funkcji bez guardu; indeksy i RLS bez zmian; upsert i `anonymize_customer` działają po M2); poprawiony `AnonymizeCustomerExtensionTest` (kolumna nieobecna, licznik `contacts_dw` 1→0) i Javadoc `PostgresDwWriterIntegrationTest`. `mvn verify -pl app`: **2499 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
+- **NIE zastosowane na żywej bazie demo:** ostatnia zastosowana migracja = V125; V126, V127, V128 czekają na przebudowę obrazu backendu / zgodę właściciela.
+- **OTWARTE:** (1) diff `pg_dump -s` na bazie scratch po M2 (oczekiwany wyłącznie `DROP COLUMN`) — nie wykonany; (2) M1 pod rolą bez BYPASSRLS (sprawdzono z BYPASSRLS + `row_security=off`) — nie wykonane; (3) WP-4 local-demo — 130 wierszy z `remote_address`, wymaga zgody właściciela, destrukcyjne dla danych DW (nie wykonane).
+- **Odblokowane:** nic — grep 2026-10-09: żaden ticket nie ma DB-078 w `Zależy od`. Ticket DB-062 (notatka ~l. 3574) wspomina guard istnienia kolumny „(kolumna znika w DB-078)" — guard pozostaje poprawny po M2, bez zmian.
 
 ---
 

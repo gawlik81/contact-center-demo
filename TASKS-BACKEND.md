@@ -6803,9 +6803,9 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121;   BE-122 ✅;   BE-123 ✅
+> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 ✅ → DB-078;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
+>           BE-141 ✅ → DB-078 ✅;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
 > Grupa 3:  DB-067 ✅ → BE-134 ✅ → BE-135 ✅;   BE-133 ✅, BE-125 ✅, BE-127 ✅ → BE-135 ✅;   [DB-068 🚫, BE-134 ✅ → BE-136 🚫, tylko D4 = B — N/A, D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -6875,9 +6875,9 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 **Typ:** Backend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — warunek `n == batchSize` zakończy pętlę wcześniej, reszta zostanie przy następnym przebiegu)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** brak
+**Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — dlatego pętla kończy się dopiero na wyniku 0, a NIE na `n == batchSize`; patrz notatka wykonania)
+**Status:** ✅ Ukończone (2026-10-09) — pętla batchowa w kodzie, `mvn verify -pl app` zielone; ODCHYLENIE od ticketu (warunek końca = wynik 0, nie `n == batchSize`) uzasadnione w notatce; samo WYDANIE razem z V126 (DB-056) do potwierdzenia — spełnione na poziomie kodu (obie zmiany na jednym branchu), wydanie nie nastąpiło
+**Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma BE-121 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
 
@@ -6892,11 +6892,21 @@ więc repozytorium musi iterować. Wołający: `RetentionPurgeServiceImpl#purgeC
 - `rowsDeleted` = suma partii; sygnatura `purgeEligible` bez zmian (`RetentionPurgeServiceImpl` nietknięty).
 
 **Kryteria akceptacji:**
-- [ ] (WP-1) Test Testcontainers: 25 000 wierszy tenanta A i 10 000 tenanta B (batch 10 000) → A usunięte całkowicie, B nietknięty; liczba wywołań funkcji = 4 (3 pełne + końcowa 0)
-- [ ] Każda partia w osobnej transakcji: awaria w 2. partii nie cofa 1. (test); `retention_purge_log` kończy się `FAILED` z komunikatem, częściowy postęp zostaje
-- [ ] (WP-2) Repozytorium nie woła `TenantContext.clear()`; test z pustym `TenantContext` → `IllegalStateException` z `assertSameTenant` (wzorzec `TenantRetentionPendingSummaryRepositoryTest`)
-- [ ] Guard nieskończonej pętli przetestowany; `CampaignArchiveRetentionRepositoryTest` (mock) zaktualizowany, `CampaignContactArchivePurgeTenantIsolationTest` zielony
-- [ ] `mvn verify -pl app`; DoD (WP-7); wdrożenie razem z DB-056
+- [x] (WP-1) Test Testcontainers: 25 000 wierszy tenanta A i 10 000 tenanta B (batch 10 000) → A usunięte całkowicie, B nietknięty; liczba wywołań funkcji = 4 (3 pełne + końcowa 0) — `CampaignArchiveRetentionRepositoryBatchIntegrationTest#purgesAllOfTenantA_leavesTenantB` (asercja po 3 wpisach `cron_log`: wpis powstaje tylko dla partii > 0, więc czwarte wywołanie (0) śladu nie zostawia)
+- [x] Każda partia w osobnej transakcji: awaria w 2. partii nie cofa 1. (test `failureInSecondBatch_keepsFirstBatchCommitted`, trigger BEFORE DELETE); `retention_purge_log` kończy się `FAILED` z komunikatem, częściowy postęp zostaje — część `FAILED` pokrywają istniejące `RetentionPurgeServiceImplTest` (`purgeAsync` łapie wyjątek repozytorium), nie nowy test
+- [x] (WP-2) Repozytorium nie woła `TenantContext.clear()`; test z pustym `TenantContext` → `IllegalStateException` z `assertSameTenant` (`CampaignArchiveRetentionRepositoryTest`: `doesNotClearTenantContext`, `emptyTenantContext_throwsIllegalState`, `crossTenantMismatch_throwsBeforeAnyQuery`)
+- [x] Guard nieskończonej pętli przetestowany (`guard_stopsAfterMaxBatches` mock + `maxBatchesGuard_stopsAndNextRunFinishes` Testcontainers); `CampaignArchiveRetentionRepositoryTest` (mock) przepisany, `CampaignContactArchivePurgeTenantIsolationTest` zielony
+- [x] `mvn verify -pl app` (2499 testów, 0 błędów, 1 pominięty — ręczny perf, BUILD SUCCESS); DoD (WP-7); wdrożenie razem z DB-056 — SPEŁNIONE NA POZIOMIE KODU (V126 i BE-121 na tym samym branchu `feature/epic-30-email-message-partitioning`); **samo wydanie razem — do potwierdzenia**
+
+**Notatka z wykonania (2026-10-09):**
+
+- **Pętla:** `CampaignArchiveRetentionRepository#purgeEligible` iteruje `SELECT purge_campaign_contact_archive(:tenantId, :cutoff, :batchSize)` (V126); **każda partia w osobnej transakcji** (`TransactionTemplate` z `PROPAGATION_REQUIRES_NEW`), a `setTenantContextInDb` jest wołane **w KAŻDEJ partii** (GUC `app.current_tenant_id` jest lokalny dla transakcji — V023 — więc nie przetrwa do następnej partii). `assertSameTenant` na starcie, **bez `TenantContext.clear()`** (kontekstem wątku zarządza `purgeAsync`, WP-2). Sygnatura `purgeEligible` bez zmian, `RetentionPurgeServiceImpl` nietknięty.
+- **ODCHYLENIE od ticketu (świadome):** warunek końca pętli = **wynik 0**, a NIE `n == batchSize` z opisu ticketu. Powód: `FOR UPDATE SKIP LOCKED` z V126 (DB-056) może zwrócić partię mniejszą niż limit przy blokadzie wierszy przez inną sesję, a `n == batchSize` przerwałby wtedy purge przedwcześnie. Koszt: jedno dodatkowe, tanie wywołanie na końcu (wynik 0, bez wpisu w `cron_log`). Testy: `partialBatch_doesNotStopLoop`, `loopsUntilZero_returnsSum`.
+- **Guard:** `retention.campaign-archive.purge-max-batches` (domyślnie 10 000, zmienna `RETENTION_CAMPAIGN_ARCHIVE_PURGE_MAX_BATCHES`); po przekroczeniu WARN i zwrot dotychczasowej sumy — purge kończy się wtedy `COMPLETED` (nie `FAILED`), resztę zabierze następny przebieg. Właściwość `retention.campaign-archive.purge-batch-size` (domyślnie 10 000, `RETENTION_CAMPAIGN_ARCHIVE_PURGE_BATCH_SIZE`) w `application.yml`; **walidacja konfiguracji w konstruktorze** (batch 1..100000, spójnie z walidacją SQL w V126, max-batches > 0).
+- **Testy:** `CampaignArchiveRetentionRepositoryTest` przepisany (mock, w tym pętla, partia częściowa, GUC w każdej partii, guard, brak `clear()`, pusty kontekst, niezgodny tenant, walidacja konstruktora) oraz nowy `CampaignArchiveRetentionRepositoryBatchIntegrationTest` (4, Testcontainers z pełnym Flyway): (1) 25 000 wierszy A + 10 000 B → A usunięty, B nietknięty, 3 wpisy `cron_log`; (2) awaria w 2. partii (trigger BEFORE DELETE) zostawia zatwierdzoną 1.; (3) guard max-batches, następny przebieg dokańcza; (4) **rola bez BYPASSRLS** usuwa własne 250 wierszy w 3 partiach, a obcych 120 nie rusza. `mvn verify -pl app`: **2499 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
+- **Do poprawy poza zakresem (drobny follow-up, NIE założony jako ticket):** Javadoc `RetentionPurgeServiceImpl#purgeCampaignData` nadal mówi o braku batchowania i braku RLS — nieaktualny po BE-121/DB-056/DB-072.
+- **Wydanie:** BE-121 + V126 (DB-056) muszą iść w jednym wydaniu (stara wersja Javy z V126 usuwałaby tylko pierwszą partię; nowa Java ze starą funkcją 2-argumentową nie zadziała, bo wołanie jest 3-argumentowe) — spełnione na poziomie kodu (jeden branch), faktyczne wydanie do potwierdzenia.
+- **Odblokowane (pola `Zależy od`):** nic — grep 2026-10-09: żaden ticket nie ma BE-121 w `Zależy od` ani `Czeka na`; BE-123 wymienia `purgeEligible (BE-121)` tylko jako opis „Poziomu 1" reclaim.
 
 ---
 

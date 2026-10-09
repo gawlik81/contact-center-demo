@@ -3036,14 +3036,14 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057 ✅ (V129–V131; brak zależności w obie strony);   DB-058
+> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057 ✅ (V129–V131; brak zależności w obie strony);   DB-058 ✅ (V132, wariant A = DROP, 2026-10-09)
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 >           BE-141 ✅ → DB-078 ✅ (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 → BE-140, tylko D6 = koniec kampanii]
 > Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
-> Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 → DB-076;   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
+> Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ → DB-076 (gotowy do startu, brak otwartych blokerów);   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
 > ```
@@ -3144,7 +3144,7 @@ definicję `(tenant_id, scheduled_at) WHERE status = 'PENDING' AND is_deleted = 
 - **Ustalenie z EXPLAIN:** `ScheduledCallbackRepository#findDueCallbacks` używa `idx_callback_scheduled` (nie `due`/`ready` — żaden kod Javy nie filtruje `is_deleted`), więc brak regresji; `idx_scheduled_callback_due` testowany osobno na kształcie z `is_deleted = false`.
 - **Raport-tylko (bez zmian, do osobnej oceny):** `idx_callback_scheduled` ma redundantny `status` w kluczu; `idx_scheduled_callback_agent_calendar` pokrywa `agent_manual`; `idx_agent_group_member_agent` pokryty przez covering-indeks `(agent_id) INCLUDE (group_id)`; `idx_agent_group_member_group` prefiksem PK.
 - **NIEWYKONANE / OTWARTE:** diff `pg_dump -s` przed/po (zastąpiony testem sygnatur), pomiar na dużym scratchu, wdrożenie poza szczytem. Bez zmian w produkcyjnym kodzie Javy.
-- **Stan żywej bazy:** V129–V131 niezastosowane (ostatnia = V126); zostaną zastosowane automatycznie przy kolejnym restarcie backendu — łącznie z V127/V128 (DB-078, destrukcyjne dla PII). Zob. OSTRZEŻENIE w DB-078.
+- **Stan żywej bazy:** V129–V131 niezastosowane (ostatnia = V126); zostaną zastosowane automatycznie przy kolejnym restarcie backendu — łącznie z V127/V128 (DB-078, destrukcyjne dla PII) i V132 (DB-058, tura 23). Zob. OSTRZEŻENIE w DB-078.
 - **Zależności:** `Zależy od: brak`, `Blokuje: brak` — zweryfikowane grepem 2026-10-09 (DB-057 występuje tylko w nagłówku własnym, grafie Fazy 0 preambuły, DESIGN §2 U14/§4 i PROGRESS); nic nie odblokowano.
 
 ---
@@ -3154,8 +3154,8 @@ definicję `(tenant_id, scheduled_at) WHERE status = 'PENDING' AND is_deleted = 
 **Typ:** Schema migration / decyzja (dług techniczny)
 **Priorytet:** Could Have
 **Złożoność:** S
-**Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** brak (grep 2026-10-09: DB-058 nie czeka na nic)
+**Status:** ✅ Ukończone (2026-10-09, wariant A = DROP, V132) — zweryfikowane w pełnym łańcuchu Flyway (Testcontainers, 8 testów); **V132 NIE zastosowana na żywej bazie** (ostatnia zastosowana = V126; zostanie zastosowana automatycznie przy kolejnym restarcie backendu — razem z destrukcyjną V128); OTWARTE: diff `pg_dump -s` na żywej bazie (zastąpiony testem katalogu przed/po)
 **Blokuje:** DB-076
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (wariant B: + `backend-dev-expert`)
@@ -3174,10 +3174,23 @@ indeksy (`uq_mv_*`), więc `REFRESH … CONCURRENTLY` byłby możliwy. Widoki ma
 - Migracja A: `DROP MATERIALIZED VIEW IF EXISTS mv_agent_daily_stats, mv_campaign_stats` + `DROP FUNCTION IF EXISTS refresh_materialized_views()` (jeśli bez innych zależności).
 
 **Kryteria akceptacji:**
-- [ ] Notatka z dowodami (grep, `pg_depend`, statystyki, odpowiedź właściciela) i wybranym wariantem
-- [ ] (WP-3) Jedna migracja, idempotentna (`IF EXISTS`), numer wg reguły; pełny łańcuch Flyway zielony (WP-1)
-- [ ] `pg_matviews` bez usuniętych widoków; brak błędów zależności; diff `pg_dump -s` tylko zamierzony
-- [ ] Wpis `scheduled_job.refresh_materialized_views` uzgodniony w DB-076 (nie w tej migracji)
+- [x] Notatka z dowodami (grep, `pg_depend`, statystyki, odpowiedź właściciela) i wybranym wariantem
+- [x] (WP-3) Jedna migracja, idempotentna (`IF EXISTS`), numer wg reguły; pełny łańcuch Flyway zielony (WP-1) — V132, `mvn verify -pl app` 2519 testów, 0 błędów
+- [x] `pg_matviews` bez usuniętych widoków; brak błędów zależności (test; `pg_dump -s` — patrz następne kryterium)
+- [ ] Diff `pg_dump -s` na żywej bazie = tylko zamierzone DROP — **NIEWYKONANE**: zastąpiony testem porównującym katalog przed/po (`Db058DropMaterializedViewsMigrationTest`); kryterium formalnie otwarte
+- [x] Wpis `scheduled_job.refresh_materialized_views` uzgodniony w DB-076 (nie w tej migracji) — migracja go NIE rusza (test), rekomendacja zapisana w DB-076 jako wejście
+
+**Notatka z wykonania (2026-10-09, tura 23):**
+
+- **Decyzja:** wariant A = **DROP** potwierdzony przez właściciela 2026-10-09 (odpowiedź na zapytanie o BI/raporty: brak zewnętrznych czytelników). Wariant B (harmonogram w Javie) odrzucony — brak ticketu BE.
+- **Migracja `V132__drop_unused_materialized_views.sql`:** `SET LOCAL lock_timeout = '10s'`; guard `DO $$` (zależności `pg_depend` typu `n`, zwykłe widoki w `pg_views`, inne funkcje w `pg_proc.prosrc`, obiekty zależne od funkcji, `cron.job` jeśli istnieje); `DROP FUNCTION IF EXISTS refresh_materialized_views()`; `DROP MATERIALIZED VIEW IF EXISTS mv_agent_daily_stats` i `mv_campaign_stats` — **bez `CASCADE`** (niewykryta zależność przerwie migrację błędem). Nagłówek: uzasadnienie, dowody, ścieżka odwrotna (definicje z V011 §4, V025 §9, V053 §4).
+- **Dowody:** grep `backend/`, `frontend/`, `voicebot/`, `dw/` — zero referencji poza migracjami V011/V014/V025/V026/V053; `EtlSyncServiceImpl` nie czyta widoków. Żywa baza (odczyt): `seq_scan` = 0 i `idx_scan` = 0 dla widoków i 4 indeksów, `pg_depend` tylko zależności wewnętrzne/auto, `pg_cron` nieobecny, `cron_log` 0 wpisów dla `refresh_materialized_views`, rozmiary 48 kB/16 kB.
+- **Test `Db058DropMaterializedViewsMigrationTest` (8):** przed migracją obiekty istnieją; po pełnym łańcuchu `pg_matviews` puste, funkcji brak, typy wierszy zniknęły; pozostałe obiekty `public` nietknięte; wpis `scheduled_job.refresh_materialized_views` nietknięty; idempotencja; 4 testy guardu. `mvn verify -pl app`: **2519 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
+- **Stan żywej bazy:** V132 NIEZASTOSOWANA (ostatnia = V126); kolejny restart backendu z tym obrazem zastosuje V127–V132 — w tym destrukcyjne V128 i V132. Zob. OSTRZEŻENIE w DB-078 (wymagana zgoda właściciela).
+- **NIEWYKONANE / OTWARTE:** diff `pg_dump -s` na żywej bazie (zastąpiony testem katalogu przed/po). Bez zmian w produkcyjnym kodzie Javy. Status ✅ mimo otwartego kryterium: konwencja jak DB-056/DB-057/DB-078 (kod i testy zielone, otwarte kryteria operacyjne).
+- **Rekomendacja dla DB-076 (wejście, zapisane też w DB-076):** wpis `scheduled_job.refresh_materialized_views` (`pg_function='refresh_materialized_views'`, `0 1 * * *`, `is_active=true`, `last_run_at` NULL) po V132 wskazuje na nieistniejącą funkcję; nic w Javie nie czyta `scheduled_job`; zalecany `DELETE` wpisu (albo `is_active=false` z opisem „usunięte w V132 / DB-058"); komentarz V014 o `cron.schedule('refresh_materialized_views')` nie powinien być opisywany jako aktywny.
+- **Lokalizacje dla DB-077 (dopisane do jego zakresu, nie edytowane tutaj):** zob. blok „Wejście z DB-058" w DB-077.
+- **Zależności:** `Zależy od: brak`; `Blokuje: DB-076` — zweryfikowane grepem 2026-10-09 (DB-058 występuje w: własnym nagłówku, `Zależy od` DB-076, preambule grafu Faza 0 i Grupa 6, DESIGN §2 U14/§4 i PROGRESS). **Odblokowano:** DB-076 nie ma już otwartych blokerów (BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅) — gotowy do startu; DB-077 czeka tylko na DB-076.
 
 ---
 
@@ -4388,8 +4401,8 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Typ:** Schema migration (dane) / dokumentacja
 **Priorytet:** Could Have
 **Złożoność:** S
-**Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅
+**Status:** ⬜ Nie rozpoczęte — **GOTOWY DO STARTU** (wszystkie zależności ✅ od 2026-10-09, tura 23; brak otwartych blokerów)
 **Blokuje:** DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -4397,11 +4410,14 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Kontekst:** `scheduled_job` (11 wpisów, V014/V077/V088) opisuje zadania „pg_cron", z których żadne nie jest wykonywane przez pg_cron; `last_run_at` ma tylko `create_next_month_partitions` (aktualizuje je funkcja wołana przez `PartitionMaintenanceJob`).
 Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last_run_at` NULL — to dokumentacja bez wykonania (DESIGN §2 U10).
 
+**Wejście z DB-058 (V132, 2026-10-09, wariant A = DROP):** widoki `mv_agent_daily_stats`/`mv_campaign_stats` i funkcja `refresh_materialized_views()` zostały USUNIĘTE. Wpis `scheduled_job.refresh_materialized_views` (`pg_function='refresh_materialized_views'`, `0 1 * * *`, `is_active=true`, `last_run_at` NULL) wskazuje więc na nieistniejącą funkcję; nic w Javie nie czyta `scheduled_job` (zweryfikowane w DB-058). **Rekomendacja:** `DELETE` wpisu (alternatywa: `is_active=false` z opisem „usunięte w V132 / DB-058"). Komentarz V014 o `cron.schedule('refresh_materialized_views')` nie może być opisywany jako aktywny.
+
 **Zakres:** jedna migracja (data-only, idempotentna): `UPDATE scheduled_job` — opis wskazuje faktycznego wykonawcę (`PartitionMaintenanceJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, `CampaignArchiveJob`, `RefreshTokenCleanupJob`) albo „brak (backstop SQL, nieaktywny)";
-`is_active = FALSE` dla wpisów bez wykonawcy (pg_cron nieobecny). Funkcje SQL zostają (backstop) — ewentualnie `COMMENT ON FUNCTION`. Bez nowych kolumn.
+`is_active = FALSE` dla wpisów bez wykonawcy (pg_cron nieobecny). Funkcje SQL zostają (backstop) — ewentualnie `COMMENT ON FUNCTION` — **z wyjątkiem `refresh_materialized_views()`, usuniętej w V132 (DB-058)**; wpis `refresh_materialized_views` usunąć albo dezaktywować wg rekomendacji z DB-058 (powyżej). Bez nowych kolumn.
 
 **Kryteria akceptacji:**
 - [ ] `SELECT job_name, is_active, description FROM scheduled_job` zgodne z rzeczywistością (tabela job → wykonawca w notatce); migracja idempotentna, nie zmienia funkcji; (WP-3) numer wg reguły
+- [ ] Wpis `refresh_materialized_views` usunięty (albo `is_active=false` z opisem „usunięte w V132 / DB-058"); żaden wpis nie wskazuje na nieistniejącą funkcję SQL (wejście z DB-058)
 
 ---
 
@@ -4420,12 +4436,15 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 
 **Wejście z DB-070 (decyzja A zatwierdzona 2026-10-07):** lista poprawek „plik:linia → błąd → co napisać" z notatki DB-070 §6 jest wejściem do tego ticketu (m.in. `campaign_contact` = wyłącznie partycja DEFAULT; `archive_completed_campaign_contacts()` bez schedulera). Poza zakresem DB-077: `DESIGN-data-retention-partitioning.md:14,129` (do decyzji właściciela: sprostować albo dopisać „tylko DEFAULT") oraz komentarz `V009:186–188` (zastosowana migracja — nie edytować).
 
+**Wejście z DB-058 (V132, 2026-10-09):** widoki `mv_agent_daily_stats`/`mv_campaign_stats` i `refresh_materialized_views()` zostały usunięte — dokumentacja nie może ich opisywać jako istniejących. Lokalizacje (numery linii z 2026-10-09, **zweryfikuj przed edycją**): `documentation/tech/06-database.md:390` i `documentation/tech/html/06-database.html:594` (opis `mv_campaign_stats`; HTML regeneruje `node documentation/build-html.js`), `ARCHITECTURE.md:1061` (`mv_campaign_stats` wśród widoków), `CR-DATABASE.md:23` i `:35` (można dopisać „zamknięte przez V132"), `DESIGN-message-retention-and-partitioning.md` wiersze U14 i U10 (dopisać wynik DB-058), `TASKS-DATABASE.md` ok. l. 315 i 1298 (stare zadania `[x]` o odświeżaniu widoków — adnotacja „usunięte w V132", bez zmiany statusu) oraz ok. l. 4066 (ADR DB-070 uznaje `mv_campaign_stats` za zależność przy RENAME — po V132 nieaktualne, adnotacja). Status zależności: DB-077 czeka **już tylko na DB-076**.
+
 **Zakres (lokalizacje zweryfikowane 2026-09-20 — przed edycją sprawdź numery linii):** `documentation/tech/06-database.md`: ~196 (`refresh_token` „czyszczone przez pg_cron" → `RefreshTokenCleanupJob`), ~277 (archiwum: wypełniane przez job + flaga D8), ~282–284 (**„partycje tworzone dynamicznie przez aplikację" — nieprawda**: jedyna partycja `campaign_contact_default`, wg DB-070),
 ~372–380 (`cron_log` i „pg_cron (V014)" → Java `@Scheduled`: `PartitionMaintenanceJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, …), ~633 (retencja `audit_log` 2 lata → `PartitionReclaimJob` i konfigurowalny horyzont, BE-123), nowa sekcja o retencji treści wiadomości (Poziom 1/2, S3) i o klucz JSONB `attachments[*].s3_key` (a nie `s3_url`);
 `ARCHITECTURE.md`: ~503–504 (dynamiczne partycje `campaign_contact`), 848 (`drop_old_audit_log_partitions()` przez pg_cron), 1071 (tabela „pg_cron jobs"). Po edycji: `node documentation/build-html.js` (regeneracja śledzonych `documentation/tech/html/*.html`).
 
 **Kryteria akceptacji:**
 - [ ] `grep -rn pg_cron documentation/ ARCHITECTURE.md` — każde wystąpienie zgodne z faktem albo oznaczone „nieaktywne, zastąpione przez …"; brak twierdzenia o dynamicznych partycjach `campaign_contact`
+- [ ] Brak twierdzeń o istnieniu/odświeżaniu widoków `mv_agent_daily_stats`/`mv_campaign_stats` w dokumentacji (wejście z DB-058, V132)
 - [ ] Wygenerowany HTML, linki do `DESIGN-message-retention-and-partitioning.md`; opis funkcji RODO zgodny z BE-129 (funkcje SQL wołane z Javy)
 
 **Uzupełnienie z BE-124/DB-060 (2026-09-20):**
@@ -4478,7 +4497,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 - **M2 — `V128__drop_contacts_dw_remote_address.sql`:** `SET LOCAL lock_timeout = '10s'`; guard `pg_depend` (widoki/obiekty zależne od kolumny) oraz guard funkcji PL/pgSQL, których ciało wymienia kolumnę bez własnego guardu istnienia (np. `v_has_contacts_dw_remote_address`) — blokują DROP; `ALTER TABLE contacts_dw DROP COLUMN IF EXISTS remote_address`. Osobne migracje zgodnie z regułą „jedna zmiana = jedna migracja".
 - **Zweryfikowane w kodzie:** `PostgresDwWriter#UPSERT_SQL` i `ContactDwRow` bez `remoteAddress` (BE-141 ✅); `EtlSyncServiceImpl`, `ClickHouseDwWriter` i `dw/migrations` nie dotykają kolumny; **0 czytelników** w `backend/`, `frontend/`, `voicebot/`, `dw/`; `anonymize_customer` (V096/V098) ma guard istnienia kolumny (krok `contacts_dw.remote_address = NULL`), więc drop go nie psuje.
 - **Testy:** nowy `ContactsDwRemoteAddressDropMigrationTest` (7, Flyway target API: stan przed M1 / po M1 / po M2; guardy V128 blokują przy widoku zależnym i przy funkcji bez guardu; indeksy i RLS bez zmian; upsert i `anonymize_customer` działają po M2); poprawiony `AnonymizeCustomerExtensionTest` (kolumna nieobecna, licznik `contacts_dw` 1→0) i Javadoc `PostgresDwWriterIntegrationTest`. `mvn verify -pl app`: **2499 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
-- **V127/V128 NIE zastosowane na żywej bazie demo:** ostatnia zastosowana migracja = **V126** (odczyt `flyway_schema_history` w turze 22; wcześniej błędnie podawano V125). **OSTRZEŻENIE (tura 22):** kolejna przebudowa/restart backendu z obrazem z tego brancha ZASTOSUJE AUTOMATYCZNIE V127/V128 (destrukcyjny drop kolumny PII `contacts_dw.remote_address`, 130 wierszy do zamiatania) oraz V129–V131 (drop 4 indeksów, DB-057) — wymaga zgody właściciela w ramach WP-4 DB-078; nie restartuj backendu z tym obrazem bez tej zgody.
+- **V127/V128 NIE zastosowane na żywej bazie demo:** ostatnia zastosowana migracja = **V126** (odczyt `flyway_schema_history` w turze 22; wcześniej błędnie podawano V125). **OSTRZEŻENIE (tura 22):** kolejna przebudowa/restart backendu z obrazem z tego brancha ZASTOSUJE AUTOMATYCZNIE V127/V128 (destrukcyjny drop kolumny PII `contacts_dw.remote_address`, 130 wierszy do zamiatania) oraz V129–V131 (drop 4 indeksów, DB-057) oraz **V132** (DROP 2 widoków materializowanych + funkcji `refresh_materialized_views()`, DB-058, destrukcyjny) — wymaga zgody właściciela w ramach WP-4 DB-078; nie restartuj backendu z tym obrazem bez tej zgody.
 - **OTWARTE:** (1) diff `pg_dump -s` na bazie scratch po M2 (oczekiwany wyłącznie `DROP COLUMN`) — nie wykonany; (2) M1 pod rolą bez BYPASSRLS (sprawdzono z BYPASSRLS + `row_security=off`) — nie wykonane; (3) WP-4 local-demo — 130 wierszy z `remote_address`, wymaga zgody właściciela, destrukcyjne dla danych DW (nie wykonane).
 - **Odblokowane:** nic — grep 2026-10-09: żaden ticket nie ma DB-078 w `Zależy od`. Ticket DB-062 (notatka ~l. 3574) wspomina guard istnienia kolumny „(kolumna znika w DB-078)" — guard pozostaje poprawny po M2, bez zmian.
 

@@ -1,12 +1,20 @@
 ---
 name: project_progress_state
-description: Stan 2026-10-09 (tura 22) — DB 74/81 (5⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 325/339 (95,87%); tura 22: DB-057 ✅ (V129–V131 niezastosowane; V131 do potwierdzenia przez właściciela); żywa baza ma V126 (nie V125!), restart backendu zastosuje V127–V131; tury 16–21 w treści pliku; propozycje DB bez numerów (następny wolny DB-082) nie wchodzą do liczników
+description: Stan 2026-10-09 (tura 23) — DB 75/81 (4⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 326/339 (96,17%); tura 23: DB-058 ✅ (V132 DROP widoków mv_*, niezastosowana); DB-076 gotowy do startu, DB-077 czeka tylko na DB-076; żywa baza ma V126, restart backendu zastosuje V127–V132 (destrukcyjne V128, V132); tury 16–22 w treści pliku; propozycje DB bez numerów (następny wolny DB-082) nie wchodzą do liczników
 metadata:
   type: project
 ---
 
 Stan na **2026-10-08 (tura 18)**, przeliczony metodą delty względem tury 17 (DB-074 i BE-138 `⬜→✅`; DB-081 **NOWY ticket**, wchodzi od razu jako `✅`) z pól `**Status:**` w `TASKS-DATABASE.md`/`TASKS-BACKEND.md`:
 **DB 71/81 (8⬜, 2🚫), BE 136/146 (8⬜, 2🚫), FE 110/112 (1⬜, 1🚫) — RAZEM 317/339 (94%)**. Korupcja `bdc5268` (tura 12) jest od tury 15 **W PEŁNI naprawiona** (BE-131/BE-146 w turze 14, BE-141 w turze 15 — zob. `[[project_be_tasks_backend_corruption_bdc5268]]`), więc liczby BE w `TASKS-BACKEND.md` są wiarygodne bez zastrzeżeń.
+
+## Tura 23 (2026-10-09) — DB-058 ✅ (V132, wariant A = DROP)
+
+Stan po turze: **DB 75/81 (4 ⬜: DB-069/075/076/077; 2 🚫), BE 140/146, FE 111/112 — RAZEM 326/339**; EPIC-30 ⬜: DB 4, BE 3 = 7 z 52. Skrypt od zera: DB 75/4/2, BE 140/4/2, FE 111/0/1; PROGRESS vs TASKS: 0 rozbieżności (322 wiersze porównane).
+- **DB-058** ✅: V132 (guard `DO $$`, `lock_timeout 10s`, DROP `refresh_materialized_views()` + `mv_agent_daily_stats`/`mv_campaign_stats`, bez CASCADE), test `Db058DropMaterializedViewsMigrationTest` (8), mvn verify 2519. Decyzja właściciela 2026-10-09: brak zewnętrznych czytelników. Otwarte: diff `pg_dump -s` (zastąpiony testem katalogu). V132 niezastosowana na żywej bazie (ostatnia V126); ostrzeżenie o zgodzie właściciela rozszerzone na V127–V132 (DB-078, PROGRESS, DB-057 note).
+- **Rekomendacja DB-076:** wpis `scheduled_job.refresh_materialized_views` po V132 wskazuje na nieistniejącą funkcję → DELETE (lub `is_active=false`); zapisana w DB-076 (Kontekst, Zakres, nowe AC). **DB-076 gotowy do startu** (BE-120/122/123 ✅, DB-058 ✅), status pozostaje ⬜. **DB-077 czeka tylko na DB-076**; lokalizacje opisów `mv_*` (06-database.md:390, html:594, ARCHITECTURE.md:1061, CR-DATABASE.md:23/35, DESIGN U10/U14, stare [x] w TASKS-DATABASE, ADR DB-070) dopisane do jego zakresu jako "Wejście z DB-058" — NIE edytowane.
+- Znaczniki ✅ DB-058: `Zależy od` DB-076, preambuły TASKS-DATABASE (Faza 0, Grupa 6), DESIGN §4 (Fala 0, Fala 4, legenda, U14); TASKS-BACKEND tylko notatka BE-120 (l. ~6869). TASKS-FRONTEND bez odwołań.
+- Metoda: scratchpad przetrwał (t22.py jako wzorzec); teksty długie przez Write do plików + skrypt `rep()` z asercją count==1 + backup katalogu `bak23`.
 
 ## Tura 22 (2026-10-09) — DB-057 ✅ (V129/V130/V131)
 

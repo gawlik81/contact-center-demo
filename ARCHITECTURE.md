@@ -460,7 +460,7 @@ TENANT (1) ───────────────────────
     |                  ├─ (N) EMAIL_MESSAGE  (channel=EMAIL)
     |                  └─ (N) SOCIAL_MESSAGE (channel=SOCIAL_*)
     |
-    ├─── (N) CAMPAIGN ── (N) CAMPAIGN_CONTACT (LIST-partitioned per campaign)
+    ├─── (N) CAMPAIGN ── (N) CAMPAIGN_CONTACT (LIST-partitioned per campaign; only the DEFAULT partition exists)
     |         ├─ dialer_type: PROGRESSIVE|PREDICTIVE|MANUAL
     |         ├─ M:N CAMPAIGN_AGENT / CAMPAIGN_AGENT_GROUP (or all_agents=TRUE)
     |         └─ queue_id (nullable FK -> QUEUE)
@@ -499,9 +499,13 @@ TENANT (1) ───────────────────────
   (composite PK `(contact_id, started_at)`). `agent_id`/`customer_id` are `ON DELETE SET NULL`
   to support GDPR erasure without losing aggregate history. `duration_seconds` is
   trigger-maintained.
-- **`campaign_contact`**: **LIST-partitioned per `campaign_id`**, partitions created
-  dynamically by the application at campaign-creation time; archived to
-  `campaign_contact_archive` after completion.
+- **`campaign_contact`**: declaratively **LIST-partitioned per `campaign_id`**, but only the
+  `campaign_contact_default` partition exists — nothing creates per-campaign partitions
+  (ADR DB-070, option A: leave as is; do not add `PARTITION OF` manually). Archiving to
+  `campaign_contact_archive` is done by `archive_completed_campaign_contacts()` (V015), called
+  by `CampaignArchiveJob` (04:00 UTC), which is **disabled by default**
+  (`retention.campaign-archive.enabled=false`). Message-content retention (EPIC-30):
+  `DESIGN-message-retention-and-partitioning.md`.
 - Secrets (`tenant_twilio_config`, `tenant_ai_config`) are encrypted at rest with
   AES-256-GCM via JPA `AttributeConverter`s, stored as `Base64(IV‖ciphertext)`.
 
@@ -845,7 +849,10 @@ audit_log (
 )
 ```
 
-Retention: 2 years, old partitions dropped via `drop_old_audit_log_partitions()` (pg_cron).
+Retention: 24 months by default (`retention.platform.audit-log-months`); old partitions are
+dropped by the Java `PartitionReclaimJob` (Sundays 03:00 UTC, BE-123). The SQL function
+`drop_old_audit_log_partitions()` remains only as an inactive backstop — `pg_cron` is not
+installed (see §8.6).
 
 ---
 
@@ -1058,7 +1065,7 @@ drafts is **not confirmed as implemented** — verify in code before relying on 
 
 The Redis-backed "queue routing state" and "report aggregates" caches from earlier drafts are
 **not the primary mechanism** — queue/agent availability and reporting read mostly from
-PostgreSQL views (`v_queue_available_agents`, `mv_campaign_stats`) and ClickHouse (via
+PostgreSQL views (`v_queue_available_agents`; the materialized views `mv_campaign_stats`/`mv_agent_daily_stats` were dropped in V132) and ClickHouse (via
 `EtlSyncService`). See §4.4/§4.5.
 
 ### 8.6 Background Jobs and Scheduling
@@ -1068,7 +1075,18 @@ PostgreSQL views (`v_queue_available_agents`, `mv_campaign_stats`) and ClickHous
 | `EtlSyncService` (contact/campaign-contact/agent-dim/queue-dim sync) | `@Scheduled(fixedDelayString="${etl.sync.fixed-delay-ms:60000}")` (60s) | Sync operational data to ClickHouse |
 | `WaitTimeEstimationService` | `@Scheduled` (~30s) | Recompute estimated wait time per queue, push via WebSocket |
 | `EmailPollingService` | `@Scheduled` (~60s, per-tenant mailbox config) | IMAP polling for inbound email |
-| pg_cron jobs (DB-side) | daily/periodic | create next-month `contact`/`audit_log` partitions, clean up `refresh_token`, archive `campaign_contact` |
+| `PartitionMaintenanceJob` | `@Scheduled` cron `0 30 0 * * *` UTC | Create next-month (and 3-month buffer) partitions for the 8 partitioned tables via `create_*_partition()` / `create_next_month_partitions()` |
+| `RetentionEvaluationJob` | `@Scheduled` cron `0 0 1 * * *` UTC | Per-tenant retention evaluation and auto-purge (Level 1 `DELETE`, incl. message content and the campaign archive) |
+| `RecordingRetentionJob` | `@Scheduled` cron `0 0 2 * * *` UTC | Delete recordings past retention (S3 + `recording_url`) |
+| `PendingAttachmentSweepJob` | `@Scheduled` cron `0 30 2 * * *` UTC | Sweep abandoned `email-attachments/{tenantId}/pending/` objects (dry-run by default) |
+| `RefreshTokenCleanupJob` | `@Scheduled` cron `0 30 3 * * *` UTC | Clean up expired/revoked `refresh_token` rows (BE-122) |
+| `PartitionReclaimJob` | `@Scheduled` cron `0 0 3 * * SUN` UTC | Level 2: `DROP` of expired partitions (BE-115/BE-123) |
+| `CampaignArchiveJob` | `@Scheduled` cron `0 0 4 * * *` UTC | Archive finished campaigns' contacts; **disabled by default** (`retention.campaign-archive.enabled=false`) |
+
+`pg_cron` is **not installed** (`postgres:16-alpine`), so no database-side scheduler exists: the
+`scheduled_job` table (V014, reconciled with these executors in V133/DB-076) is only a registry,
+and the SQL maintenance functions (`rotate_*`, `drop_old_*`, `cleanup_expired_refresh_tokens`) are
+inactive backstops. Design: `DESIGN-message-retention-and-partitioning.md`.
 
 All `@Scheduled` jobs that touch tenant-scoped data must follow the `TenantContext.snapshot()`/
 `restore()`/`clear()` pattern documented in `CLAUDE.md` and `documentation/tech/04-backend.md`,

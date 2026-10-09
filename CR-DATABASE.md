@@ -22,6 +22,8 @@ Dodatkowo: `DROP INDEX IF EXISTS` bez `CONCURRENTLY` — na dużej tabeli może 
 
 Brak RLS na `mv_campaign_stats` — widok zawiera `tenant_id` ale nie ma row-level security. Bezpieczeństwo w pełni po stronie aplikacji.
 
+> **Zamknięte przez V132 (DB-058, 2026-10-09):** widoki materializowane `mv_campaign_stats`/`mv_agent_daily_stats` i funkcja `refresh_materialized_views()` zostały usunięte.
+
 ---
 
 ### LOW
@@ -35,6 +37,8 @@ Indeks `(campaign_contact_record_id)` bez `tenant_id`. UUID może nie być globa
 #### [V053] Brak statusu SKIPPED w materialized view mv_campaign_stats
 
 `SKIPPED` jest prawidłowym statusem (CHECK constraint), ale nie ma kolumny `skipped_records` w MV. Dashboard nie wyświetli pominiętych rekordów.
+
+> **Zamknięte przez V132 (DB-058, 2026-10-09):** widok usunięty — uwaga nieaktualna.
 
 ---
 

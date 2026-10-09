@@ -116,7 +116,8 @@ public class EmailMessage {
 
     /**
      * Metadane załączników jako JSON.
-     * Format: [{"filename": "...", "content_type": "...", "size_bytes": N, "s3_url": "..."}]
+     * Format: [{"filename": "...", "content_type": "...", "size_bytes": N, "s3_key": "..."}]
+     * — klucz obiektu S3 to {@code s3_key} (nie {@code s3_url}); zob. {@code EmailAttachmentKeys}.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attachments", columnDefinition = "jsonb")

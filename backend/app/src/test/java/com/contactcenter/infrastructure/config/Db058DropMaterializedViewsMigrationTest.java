@@ -181,7 +181,9 @@ class Db058DropMaterializedViewsMigrationTest {
     @Order(10)
     @DisplayName("Pelny lancuch Flyway: znikaja dokladnie 2 widoki, 4 indeksy i funkcja; reszta katalogu nietknieta")
     void fullChainRemovesOnlyIntendedObjects() {
-        flyway(DB).load().migrate();
+        // Pin do migracji DB-058: pozniejsze migracje (np. DB-076/V133 usuwa wpis scheduled_job) nie moga
+        // zmieniac wyniku tego testu.
+        flyway(DB).target(migration).load().migrate();
         JdbcTemplate j = jdbc(DB);
 
         assertThat(matviews(j)).isEmpty();

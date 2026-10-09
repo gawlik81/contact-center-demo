@@ -235,7 +235,7 @@ tabela poniżej). Przed pisaniem <code>REFERENCES</code> zawsze zweryfikuj realn
 <li><code>idx_user_tenant_status</code> – <code>(tenant_id, status) WHERE is_deleted=FALSE</code> – routing (agenci AVAILABLE).</li>
 <li><code>idx_user_skills_gin</code> – GIN na <code>skills</code> (operator <code>@&gt;</code>/<code>?|</code>) – skill matching.</li>
 <li><code>uq_refresh_token_hash</code> – lookup po hashu przy odświeżaniu sesji.</li>
-<li><code>idx_refresh_token_cleanup</code> – <code>(expires_at, is_revoked)</code> (bez predykatu <code>WHERE NOW()...</code> – nie IMMUTABLE), czyszczone przez pg_cron.</li>
+<li><code>idx_refresh_token_cleanup</code> – <code>(expires_at, is_revoked)</code> (bez predykatu <code>WHERE NOW()...</code> – nie IMMUTABLE), czyszczone przez <code>RefreshTokenCleanupJob</code> (Java <code>@Scheduled</code>, codziennie 03:30 UTC, BE-122; usuwa wygasłe i unieważnione po karencji). Funkcja SQL <code>cleanup_expired_refresh_tokens()</code> (V014) zostaje jako nieaktywny backstop – pg_cron nie jest zainstalowany.</li>
 </ul>
 <p><strong>Enumy/statusy <code>app_user.status</code></strong> (po V019 jako VARCHAR + CHECK):
 <code>ACTIVE</code>, <code>INACTIVE</code> (konto), <code>AVAILABLE</code>, <code>BUSY</code>, <code>BREAK</code>, <code>AFTER_CONTACT</code>, <code>OFFLINE</code> (V021).</p>
@@ -265,8 +265,9 @@ tabela poniżej). Przed pisaniem <code>REFERENCES</code> zawsze zweryfikuj realn
 <p><strong>Funkcja <code>search_customers(tenant_id, query, limit)</code></strong> – <code>STABLE SQL</code>, łączy trigram
 similarity + exact match na <code>phone</code>/<code>email</code>, <code>ORDER BY similarity(...) DESC</code>. Poprawiona
 w <code>V024__fix_search_customers_prefix_search.sql</code>.</p>
-<p><strong>RODO:</strong> anonimizacja przez <code>anonymize_customer()</code> (V013/V017), eksport danych przez
-<code>export_customer_data()</code> (V017), widok historii klienta <code>v_customer_timeline</code> (UNION ALL
+<p><strong>RODO:</strong> anonimizacja przez <code>anonymize_customer()</code> (V013/V017, przebudowana w V096), eksport danych
+przez <code>export_customer_data()</code> (V017, przebudowany w V095) – obie wołane z Javy przez <code>GdprService</code>
+(szczegóły w sekcji 3.11), widok historii klienta <code>v_customer_timeline</code> (UNION ALL
 CONTACT + EMAIL + SOCIAL, V017).</p>
 <hr>
 <h3 id="33-contact--rdzeń-interakcji-v007-v040-v046-v054-v056-v058-v060-v061-v063-v065→v068-v073">3.3 Contact – rdzeń interakcji (V007, V040, V046, V054, V056, V058, V060, V061, V063, V065→V068, V073)</h3>
@@ -355,7 +356,7 @@ w <code>V007</code> i <code>V011</code>.</p>
 <tr>
 <td><code>campaign_contact_archive</code></td>
 <td>–</td>
-<td>Archiwum nie-partycjonowane (retencja domyślnie 5 lat). Wypełniane przez <code>archive_completed_campaign_contacts()</code> (V015).</td>
+<td>Archiwum nie-partycjonowane (retencja kategorii <code>CAMPAIGN_DATA</code>, domyślnie 60 mies.). Wypełniane funkcją SQL <code>archive_completed_campaign_contacts()</code> (V015) wołaną przez <code>CampaignArchiveJob</code> (04:00 UTC) – job jest <strong>domyślnie wyłączony</strong> flagą <code>retention.campaign-archive.enabled=false</code> (D8), więc archiwum jest puste (demo: 0 wierszy). RLS: pełna izolacja tenantów + <code>FORCE</code> (V111, DB-072); purge partiami – patrz niżej.</td>
 </tr>
 <tr>
 <td><code>scheduled_callback</code></td>
@@ -373,14 +374,30 @@ w <code>V007</code> i <code>V011</code>.</p>
 <td>M:N kampania ↔ grupa agentów (V062).</td>
 </tr>
 </tbody></table>
-<p><strong>Partycjonowanie LIST <code>campaign_contact</code>:</strong> partycje tworzone <strong>dynamicznie przez aplikację</strong>
-przy tworzeniu kampanii: <code>CREATE TABLE campaign_contact_&lt;uuid&gt; PARTITION OF campaign_contact FOR VALUES IN (&#39;&lt;campaign_uuid&gt;&#39;)</code>. <code>campaign_contact_default</code> jako fallback.</p>
+<p><strong>Partycjonowanie LIST <code>campaign_contact</code>:</strong> tabela jest deklaratywnie partycjonowana LIST po
+<code>campaign_id</code>, ale istnieje <strong>wyłącznie partycja <code>campaign_contact_default</code></strong>. Aplikacja ani żadna
+migracja nie tworzy partycji per kampania (brak <code>PARTITION OF</code> w kodzie; komentarz w V009 jest
+nieprawdziwy, ale migracji nie edytujemy) – decyzja DB-070 (opcja A, 2026-10-07): partycjonowanie
+zostaje bez zmian, nie jest dźwignią wydajności. Zakaz ręcznego <code>CREATE TABLE … PARTITION OF campaign_contact</code>; próg do rewizji: ≥ ok. 50 mln wierszy albo więcej niż 1 partycja. Szczegóły i
+skrypt progu: <code>TASKS-DATABASE.md</code> DB-070 oraz <code>DESIGN-message-retention-and-partitioning.md</code> (U13).</p>
+<p><strong>RLS i purge archiwum kampanii (EPIC-30):</strong> <code>campaign_contact_archive</code> (V111, DB-072) i
+<code>campaign_contact</code> (V112, DB-073) mają polityki <code>FOR ALL … WITH CHECK</code> po GUC
+<code>app.current_tenant_id</code> oraz <code>FORCE ROW LEVEL SECURITY</code>; partycja <code>campaign_contact_default</code> ma
+odebrany <code>GRANT</code> dla <code>app_user</code>. Retencja archiwum (kategoria <code>CAMPAIGN_DATA</code>) działa <strong>per tenant,
+partiami</strong>: <code>purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size DEFAULT 10000)</code>
+(V126, DB-056) usuwa najwyżej <code>p_batch_size</code> najstarszych wierszy tenanta (wybór po PK
+<code>(record_id, campaign_id)</code>, <code>FOR UPDATE SKIP LOCKED</code>, indeks <code>idx_cca_tenant_archived_at</code>) i zwraca
+liczbę usuniętych w tej partii; pętlę do wyniku 0 prowadzi Java
+(<code>CampaignArchiveRetentionRepository#purgeEligible</code>, każda partia w osobnej transakcji, parametry
+<code>retention.campaign-archive.purge-batch-size</code> / <code>purge-max-batches</code>), wywoływana z
+<code>RetentionPurgeService</code> po <code>RetentionEvaluationJob</code> (01:00 UTC). Funkcja jest <code>SECURITY INVOKER</code>
+i filtruje jawnie po <code>p_tenant_id</code> – pod rolą bez <code>BYPASSRLS</code> wymaga ustawionego GUC tenanta.</p>
 <p><strong>Krytyczny indeks dialera</strong> (naprawiony w V033 po regresji z V031):</p>
 <pre><code class="language-sql">CREATE INDEX idx_campaign_contact_dialer
     ON campaign_contact (campaign_id, status, next_attempt_at)
     WHERE status IN (&#39;PENDING&#39;, &#39;NO_ANSWER&#39;);  -- retry NO_ANSWER też w zasięgu dialera
 </code></pre>
-<p>Zapytanie dialera: <code>WHERE campaign_id=? AND status IN (&#39;PENDING&#39;,&#39;NO_ANSWER&#39;) AND next_attempt_at &lt;= NOW() ORDER BY next_attempt_at ASC LIMIT N</code>.</p>
+<p>Zapytanie dialera (<code>ProgressiveDialerServiceImpl</code>): <code>WHERE campaign_id=? AND status IN (&#39;PENDING&#39;,&#39;NO_ANSWER&#39;) AND (next_attempt_at IS NULL OR next_attempt_at &lt;= NOW()) ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED</code> (sortowanie po <code>created_at</code>, nie po <code>next_attempt_at</code>).</p>
 <p><strong>Trójpoziomowe przypisanie agentów (V062, wzorzec analogiczny do <code>queue_agent_group</code> z V043):</strong></p>
 <ul>
 <li><code>campaign.all_agents = TRUE</code> → dialer/panel manualny dostępny dla wszystkich agentów tenanta.</li>
@@ -487,7 +504,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 <tbody><tr>
 <td><code>email_message</code></td>
 <td><code>message_id</code> (UUID)</td>
-<td>Wiadomości email w ramach <code>contact</code> (1 contact = 1 wątek = N wiadomości). <code>contact_id</code> <strong>nullable od V028</strong> (np. email bez powiązanego kontaktu). <code>message_id_header</code>/<code>in_reply_to</code> (RFC 2822, deduplikacja IMAP – <code>UNIQUE(tenant_id, message_id_header) DEFERRABLE</code>). <code>attachments JSONB</code>, <code>delivery_status</code>.</td>
+<td>Wiadomości email w ramach <code>contact</code> (1 contact = 1 wątek = N wiadomości). <code>contact_id</code> <strong>nullable od V028</strong> (np. email bez powiązanego kontaktu). <code>message_id_header</code>/<code>in_reply_to</code> (RFC 2822, deduplikacja IMAP – <code>UNIQUE(tenant_id, message_id_header) DEFERRABLE</code>). <code>attachments JSONB</code> (klucz S3 w <code>s3_key</code>), <code>delivery_status</code>. <strong>Partycjonowana RANGE po <code>message_at</code>, miesięcznie (V101/V102, DB-067)</strong>; pełne RLS (<code>FOR ALL</code> + <code>WITH CHECK</code> + <code>FORCE</code>, V099).</td>
 </tr>
 <tr>
 <td><code>email_template</code></td>
@@ -507,7 +524,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 <tr>
 <td><code>social_message</code></td>
 <td><code>message_id</code> (UUID)</td>
-<td>Wiadomości social media, <code>contact_id</code> (FK do contact), <code>external_message_id</code> – idempotentność webhooków (<code>UNIQUE(tenant_id, external_message_id)</code>).</td>
+<td>Wiadomości social media, <code>contact_id</code> (FK do contact), <code>external_message_id</code> – idempotentność webhooków (<code>UNIQUE(tenant_id, external_message_id)</code>). <strong>Partycjonowana RANGE po <code>sent_at</code>, miesięcznie (V100, DB-065)</strong>; RLS jak <code>email_message</code> (V099); brak obiektów S3.</td>
 </tr>
 </tbody></table>
 <hr>
@@ -566,12 +583,17 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 <tbody><tr>
 <td><code>audit_log</code></td>
 <td><code>(log_id, created_at)</code></td>
-<td><strong>Partycjonowana RANGE po <code>created_at</code> (miesięcznie)</strong>. <code>tenant_id</code>/<code>user_id</code> nullable (operacje globalne/systemowe). <code>old_value</code>/<code>new_value JSONB</code> (GIN), retencja 2 lata (<code>drop_old_audit_log_partitions</code>).</td>
+<td><strong>Partycjonowana RANGE po <code>created_at</code> (miesięcznie)</strong>. <code>tenant_id</code>/<code>user_id</code> nullable (operacje globalne/systemowe). <code>old_value</code>/<code>new_value JSONB</code> (GIN). Brak retencji per tenant – partycje starsze niż horyzont platformowy (domyślnie 24 mies., <code>retention.platform.audit-log-months</code>) dropuje <code>PartitionReclaimJob</code> (BE-123, niedziela 03:00 UTC); funkcja <code>drop_old_audit_log_partitions()</code> to nieaktywny backstop. PII w <code>old_value</code>/<code>new_value</code> maskują <code>mask_audit_log_pii</code> (V098) i <code>AuditPiiKeys</code>.</td>
 </tr>
 <tr>
 <td><code>cron_log</code></td>
 <td><code>log_id</code> (BIGSERIAL)</td>
-<td>Log wykonań zadań pg_cron/maintenance.</td>
+<td>Log wykonań zadań maintenance (wpisy zapisują funkcje SQL wołane przez joby Java; pg_cron nie jest zainstalowany).</td>
+</tr>
+<tr>
+<td><code>scheduled_job</code></td>
+<td><code>job_id</code> (UUID)</td>
+<td>Rejestr zadań maintenance (V014) uzgodniony z rzeczywistymi wykonawcami w V133 (DB-076) – patrz niżej. Nic w Javie go nie czyta; <code>last_run_at</code> aktualizują tylko funkcje SQL <code>create_next_month_partitions()</code> i <code>archive_completed_campaign_contacts()</code>.</td>
 </tr>
 <tr>
 <td><code>etl_sync_state</code></td>
@@ -579,11 +601,62 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 <td>Stan synchronizacji ETL → ClickHouse (V036), rozszerzony o <code>campaign_contact</code> w V045.</td>
 </tr>
 </tbody></table>
-<p><strong>Funkcje GDPR (V013, V017):</strong> <code>anonymize_customer()</code>, <code>export_customer_data()</code>
-(rozszerzona o archiwum w V017), widok <code>v_customer_timeline</code> (historia klienta:
-CONTACT + EMAIL + SOCIAL przez <code>UNION ALL</code>).</p>
-<p><strong>pg_cron (V014):</strong> zadania okresowe – tworzenie partycji <code>audit_log</code>/<code>contact</code> na
-następny miesiąc, czyszczenie <code>refresh_token</code>, archiwizacja <code>campaign_contact</code>.</p>
+<p><strong>Funkcje GDPR (V013, V017, V095, V096):</strong> <code>anonymize_customer()</code> (zwraca JSONB, tryb <code>p_dry_run</code>),
+<code>export_customer_data()</code>, pomocnicza <code>fn_customer_subject_ids</code>, widok <code>v_customer_timeline</code> (historia
+klienta: CONTACT + EMAIL + SOCIAL przez <code>UNION ALL</code>). Funkcje są wołane z Javy (<code>GdprService</code>,
+BE-129) – opis ścieżek w sekcji 3.11.</p>
+<p><strong>Zadania okresowe (stan po EPIC-30; pg_cron – nieaktywne, zastąpione przez Java <code>@Scheduled</code>):</strong>
+rozszerzenie <code>pg_cron</code> <strong>nie jest zainstalowane</strong> (obraz <code>postgres:16-alpine</code>; wywołania
+<code>cron.schedule</code> w V014 są tylko w komentarzu), więc wpisy „pg_cron&quot; z V014 nigdy nie działały.
+Zadania wykonują klasy Java (czasy UTC, crony konfigurowalne przez <code>application.yml</code>); rejestr
+<code>scheduled_job</code> został uzgodniony z tym stanem w V133 (DB-076):</p>
+<table>
+<thead>
+<tr>
+<th>Zadanie (<code>scheduled_job.job_name</code> / wykonawca)</th>
+<th>Cron (UTC)</th>
+<th>Co robi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>create_next_month_partitions</code> → <code>PartitionMaintenanceJob</code></td>
+<td>codziennie 00:30</td>
+<td>tworzy partycje miesięczne 8 tabel (bufor 3 mies.): <code>contact</code>, <code>audit_log</code>, <code>plugin_invocation_log</code>, <code>contact_event</code>, <code>contact_transcription</code>, <code>contact_ai_summary</code>, <code>social_message</code>, <code>email_message</code></td>
+</tr>
+<tr>
+<td><code>purge_campaign_contact_archive</code> → <code>RetentionEvaluationJob</code> → <code>RetentionPurgeService</code></td>
+<td>codziennie 01:00</td>
+<td>purge Poziomu 1 per tenant (m.in. archiwum kampanii partiami, V126)</td>
+</tr>
+<tr>
+<td><em>(bez wpisu)</em> <code>RecordingRetentionJob</code>, <code>PendingAttachmentSweepJob</code></td>
+<td>02:00, 02:30</td>
+<td>nagrania S3; sweep porzuconych <code>pending/</code> (dry-run domyślnie)</td>
+</tr>
+<tr>
+<td><code>cleanup_expired_refresh_tokens</code> → <code>RefreshTokenCleanupJob</code></td>
+<td>codziennie 03:30</td>
+<td>czyszczenie <code>refresh_token</code> (BE-122)</td>
+</tr>
+<tr>
+<td><em>(bez wpisu)</em> <code>PartitionReclaimJob</code></td>
+<td>niedziela 03:00</td>
+<td>Poziom 2: <code>DROP</code> pustych partycji po horyzoncie retencji; <code>audit_log</code>/<code>plugin_invocation_log</code> dropowane po horyzoncie platformowym (domyślnie 24 mies., BE-123)</td>
+</tr>
+<tr>
+<td><code>archive_completed_campaign_contacts</code> → <code>CampaignArchiveJob</code></td>
+<td>codziennie 04:00</td>
+<td>archiwizacja kampanii COMPLETED/STOPPED &gt; 30 dni; <strong>domyślnie wyłączony</strong> (<code>retention.campaign-archive.enabled=false</code>)</td>
+</tr>
+<tr>
+<td><code>rotate_*_partitions</code> (6 wpisów)</td>
+<td>–</td>
+<td><strong>brak wykonawcy</strong> – nieaktywny backstop SQL (<code>is_active=FALSE</code>), zastąpiony przez <code>PartitionMaintenanceJob</code> + <code>PartitionReclaimJob</code></td>
+</tr>
+</tbody></table>
+<p>Wpis <code>refresh_materialized_views</code> został usunięty (V133) razem z funkcją i widokami (V132, DB-058).
+Funkcje SQL (<code>drop_old_*</code>, <code>rotate_*</code>, <code>cleanup_expired_refresh_tokens</code>) zostają jako backstop.
+Pełne uzasadnienie: <code>DESIGN-message-retention-and-partitioning.md</code> (U10).</p>
 <hr>
 <h3 id="310-widoki-diagnostyczne-i-raportowe-v011-v016">3.10 Widoki diagnostyczne i raportowe (V011, V016)</h3>
 <ul>
@@ -591,9 +664,57 @@ następny miesiąc, czyszczenie <code>refresh_token</code>, archiwizacja <code>c
 <li><code>v_queue_realtime_stats</code> – statystyki kolejek na żywo (przebudowany po V019).</li>
 <li><code>v_rls_status</code> – status RLS per tabela (diagnostyka administracyjna).</li>
 <li><code>v_index_health</code> – kondycja indeksów (bloat, usage – diagnostyka DBA).</li>
-<li><code>mv_campaign_stats</code> – <strong>materialized view</strong> statystyk kampanii (V011, przebudowany w V053
-o kolumny <code>not_reached_records</code>, <code>callback_records</code>).</li>
+<li><del><code>mv_campaign_stats</code> / <code>mv_agent_daily_stats</code></del> – widoki materializowane <strong>usunięte w V132</strong>
+(DB-058): nigdy nie były odświeżane (brak pg_cron), nikt ich nie czytał, a nie mogły mieć RLS.
+Funkcja <code>refresh_materialized_views()</code> również usunięta. Statystyki kampanii liczy aplikacja
+zapytaniami do <code>campaign_contact</code>.</li>
 </ul>
+<h3 id="311-retencja-treści-wiadomości-s3-i-rodo-epic-30">3.11 Retencja treści wiadomości, S3 i RODO (EPIC-30)</h3>
+<p>Pełny projekt, dowody i decyzje: <a href="../../DESIGN-message-retention-and-partitioning.md"><code>DESIGN-message-retention-and-partitioning.md</code></a>.
+Retencja ma dwa poziomy (wspólne z EPIC-29):</p>
+<ul>
+<li><strong>Poziom 1 – <code>DELETE</code> wierszy per tenant</strong> (<code>RetentionPurgeService</code>, uruchamiany przez
+<code>RetentionEvaluationJob</code> 01:00 UTC). Kategoria <code>CONTACT_INTERACTIONS</code> (domyślnie 60 mies.) usuwa
+<code>contact</code>, <code>contact_event</code> oraz – przy <code>retention.purge.delete-messages=true</code> (domyślnie od
+2026-10-07, D1 = A) – wiadomości <code>email_message</code>/<code>social_message</code> usuniętych kontaktów <strong>wraz z
+obiektami S3</strong> załączników e-mail, a także wiadomości osierocone (<code>contact_id IS NULL</code>) starsze niż
+cutoff (indeksy częściowe V097). Kategoria <code>TRANSCRIPTS</code> (domyślnie 3 mies.) obejmuje
+<code>contact_transcription</code> <strong>i <code>contact_ai_summary</code></strong>. Kategoria <code>CAMPAIGN_DATA</code> – archiwum kampanii
+(patrz 3.4). Kategoria <code>RECORDINGS</code> – nagrania S3 (<code>RecordingRetentionJob</code>, 02:00 UTC).</li>
+<li><strong>Poziom 2 – <code>DROP</code> partycji</strong> (<code>PartitionReclaimJob</code>, niedziela 03:00 UTC): odzyskuje miejsce po
+Poziomie 1. Dla tabel per tenant (<code>contact</code>, <code>contact_event</code>, <code>social_message</code>, <code>email_message</code>,
+<code>contact_transcription</code>, <code>contact_ai_summary</code>) <code>DROP</code> jest <strong>zablokowany, gdy partycja nie jest
+pusta</strong> (WARN – sygnał, że Poziom 1 nie zadziałał); <code>DROP</code> nie usuwa obiektów S3, dlatego wiersze
+muszą zniknąć wcześniej. Tabele platformowe (<code>audit_log</code>, <code>plugin_invocation_log</code>) nie mają
+Poziomu 1 – partycje po horyzoncie (domyślnie 24 mies.) są dropowane niezależnie od liczby wierszy.</li>
+</ul>
+<p><strong>Semantyka obiektów S3 (zweryfikowana w kodzie, BE-124):</strong></p>
+<ul>
+<li><code>email-attachments/{tenantId}/pending/{uuid}/…</code> to <strong>docelowe klucze załączników wysłanych
+wiadomości OUTBOUND</strong> (uploadowanych przez agenta), a nie obiekty tymczasowe – wiadomość odwołuje
+się do klucza <code>pending/</code> w <code>attachments[*].s3_key</code> bez przenoszenia obiektu. Dlatego
+<code>PendingAttachmentSweepJob</code> (02:30 UTC; domyślnie dry-run,
+<code>email.attachments.pending-sweep-delete-enabled=false</code>) nigdy nie usuwa klucza wciąż wskazywanego
+przez jakąkolwiek wiadomość.</li>
+<li>Klucz załącznika w JSONB to <strong><code>s3_key</code></strong>, nie <code>s3_url</code> (komentarz kolumny poprawiony w V102).</li>
+<li>Kontakt e-mail ma w <code>contact.recording_url</code> klucz <strong>pełnej kopii wiadomości w formacie EML</strong>
+(<code>{tenantId}/{rrrr}/{MM}/{contactId}.eml</code>, treść + załączniki); należy do kategorii <code>RECORDINGS</code>
+i jest sprzątany jak nagranie (nie przez Poziom 1 wiadomości) – ryzyko osieroconych EML opisuje
+DESIGN (R6).</li>
+<li>Domena social (<code>social_message</code>) <strong>nie ma obiektów S3</strong> – tylko URL-e platformy w <code>attachments</code>.</li>
+</ul>
+<p><strong>RODO – anonimizacja i eksport (BE-129):</strong> obie ścieżki REST anonimizacji –
+<code>POST /api/customers/{id}/gdpr/anonymize</code> i <code>DELETE /api/customers/{id}</code> – wołają <strong>tę samą
+implementację</strong> <code>GdprService#anonymizeCustomer</code>, czyli funkcję SQL
+<code>anonymize_customer(…, p_dry_run)</code> (V096, DB-062) w jednej transakcji, a po <code>COMMIT</code> best-effort
+usuwają wskazane obiekty S3 (nagrania, EML, załączniki e-mail/social). Funkcja zapisuje <strong>jeden wpis
+audytu</strong> <code>CUSTOMER_ANONYMIZED</code> atomowo z anonimizacją (Java nie publikuje własnego). Podgląd:
+<code>GET …/gdpr/anonymize/preview</code> (<code>p_dry_run = TRUE</code>, bez efektów ubocznych). Eksport
+(<code>export_customer_data</code>, V095) i anonimizacja korzystają z tej samej funkcji pomocniczej zbioru
+podmiotu <code>fn_customer_subject_ids</code> (dopasowanie kluczem obcym <strong>oraz</strong> znormalizowanym
+telefonem/e-mailem). Rekord „w toku&quot; (<code>campaign_contact</code> w <code>DIALING</code>, <code>scheduled_callback</code> w
+<code>PROCESSING</code>) kończy rzeczywistą anonimizację HTTP 409. Funkcje <code>anonymize_customer</code>/
+<code>export_customer_data</code> nie są martwe – są wołane z Javy.</p>
 <hr>
 <h2 id="4-diagramy-er-mermaid">4. Diagramy ER (Mermaid)</h2>
 <h3 id="41-campaign-+-dialer-+-contact">4.1 Campaign + Dialer + Contact</h3>
@@ -838,8 +959,13 @@ do wybranych encji.</li>
 <td>CHECK: <code>nodes</code> array + <code>entry_node_id</code> istnieje</td>
 </tr>
 <tr>
-<td><code>email_message.attachments</code> / <code>social_message.attachments</code></td>
-<td><code>[{&quot;filename&quot;/&quot;type&quot;,&quot;content_type&quot;/&quot;url&quot;,&quot;size_bytes&quot;,...}]</code></td>
+<td><code>email_message.attachments</code></td>
+<td><code>[{&quot;filename&quot;,&quot;content_type&quot;,&quot;size_bytes&quot;,&quot;s3_key&quot;}]</code> – klucz obiektu S3 to <strong><code>s3_key</code></strong> (nie <code>s3_url</code>; komentarz V010 jest nieaktualny, kolumna ma poprawny komentarz od V102)</td>
+<td><code>jsonb_typeof = &#39;array&#39;</code></td>
+</tr>
+<tr>
+<td><code>social_message.attachments</code></td>
+<td><code>[{&quot;type&quot;,&quot;url&quot;,...}]</code> – URL-e platformy; <strong>brak obiektów S3</strong> dla social</td>
 <td><code>jsonb_typeof = &#39;array&#39;</code></td>
 </tr>
 <tr>
@@ -891,12 +1017,23 @@ projekcie powinna być od razu <code>VARCHAR + CHECK</code>, nie <code>CREATE TY
 <tr>
 <td><code>campaign_contact</code></td>
 <td>LIST po <code>campaign_id</code></td>
-<td>Izolacja dużych list (do 100k/kampania), łatwe <code>DROP</code> partycji po archiwizacji kampanii.</td>
+<td>Deklaracja bez praktycznego efektu: istnieje tylko <code>campaign_contact_default</code>; archiwizacja kończy się <code>DELETE</code>, nie <code>DROP</code> partycji (decyzja DB-070, opcja A).</td>
+</tr>
+<tr>
+<td><code>contact_event</code>, <code>contact_transcription</code>, <code>contact_ai_summary</code>, <code>plugin_invocation_log</code></td>
+<td>RANGE miesięcznie (V085–V087, V077)</td>
+<td>Retencja per tenant (Poziom 1 <code>DELETE</code>) + odzysk miejsca (Poziom 2 <code>DROP</code>).</td>
+</tr>
+<tr>
+<td><code>social_message</code> (V100), <code>email_message</code> (V101/V102)</td>
+<td>RANGE po <code>sent_at</code> / <code>message_at</code>, miesięcznie</td>
+<td>Retencja treści wiadomości (EPIC-30) – patrz sekcja 3.11.</td>
 </tr>
 </tbody></table>
-<p>Każda strategia ma funkcję pomocniczą do tworzenia partycji (<code>create_audit_log_partition</code>,
-<code>create_contact_partition</code>) lub tworzenie partycji &quot;na żądanie&quot; przez aplikację
-(<code>campaign_contact_&lt;uuid&gt;</code>). Wszystkie mają partycję <code>*_default</code> jako fallback.</p>
+<p>Tabele RANGE mają funkcję pomocniczą <code>create_&lt;tabela&gt;_partition(rok, miesiąc)</code> wołaną przez
+<code>PartitionMaintenanceJob</code> (Java, nie pg_cron) i partycję <code>*_default</code> jako fallback. Dla
+<code>campaign_contact</code> <strong>nie istnieje</strong> funkcja tworząca partycje i aplikacja nie tworzy partycji
+&quot;na żądanie&quot; – patrz 3.4.</p>
 <hr>
 <h2 id="6-anti-pattern-zakaz-przeciążonych-kolumn-overloaded-columns">6. Anti-pattern: zakaz przeciążonych kolumn (overloaded columns)</h2>
 <blockquote>

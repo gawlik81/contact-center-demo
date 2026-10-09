@@ -188,7 +188,8 @@ class AnonymizeCustomerExtensionTest {
             assertThat(counts.get("contact_ai_summary").asInt()).isEqualTo(1);
             assertThat(counts.get("email_message").asInt()).isEqualTo(3);
             assertThat(counts.get("social_message").asInt()).isEqualTo(2);
-            assertThat(counts.get("contacts_dw").asInt()).isEqualTo(1);
+            // DB-078/V128: kolumna contacts_dw.remote_address usunieta -- guard w funkcji => 0.
+            assertThat(counts.get("contacts_dw").asInt()).isZero();
 
             List<String> s3Keys = jsonArrayToStrings(result.get("s3_keys"));
             assertThat(s3Keys).containsExactlyInAnyOrder(
@@ -246,8 +247,9 @@ class AnonymizeCustomerExtensionTest {
             assertThat(scalar(c, "SELECT sender_external_id FROM social_message WHERE message_id = ?", SOCIAL_1)).isEqualTo("ANONYMIZED");
             assertThat(scalar(c, "SELECT attachments::text FROM social_message WHERE message_id = ?", SOCIAL_1)).isEqualTo("[]");
 
-            // --- contacts_dw
-            assertThat(scalar(c, "SELECT remote_address IS NULL FROM contacts_dw WHERE contact_id = ?", CONTACT_MP3)).isEqualTo("true");
+            // --- contacts_dw: od DB-078/V128 bez kolumny remote_address (brak PII do zerowania)
+            assertThat(scalar(c, "SELECT count(*) FROM information_schema.columns "
+                    + "WHERE table_name = 'contacts_dw' AND column_name = 'remote_address'")).isEqualTo("0");
 
             // --- customer
             assertThat(scalar(c, "SELECT is_deleted FROM customer WHERE customer_id = ?", CUSTOMER_MAIN)).isEqualTo("true");
@@ -639,7 +641,7 @@ class AnonymizeCustomerExtensionTest {
             assertThat(counts.get("scheduled_callback").asInt()).as("scheduled_callback: polityka ALL (bez FORCE) dziala mimo braku FORCE").isEqualTo(1);
             assertThat(counts.get("campaign_contact").asInt()).as("campaign_contact: DB-073/V112 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
             assertThat(counts.get("campaign_contact_archive").asInt()).as("campaign_contact_archive: DB-072/V111 polityka ALL+WITH CHECK+FORCE dziala (tenant_id = GUC)").isEqualTo(1);
-            assertThat(counts.get("contacts_dw").asInt()).as("contacts_dw: DB-074/V116 dodalo polityke ALL+WITH CHECK+FORCE -- dziala (tenant_id = GUC)").isEqualTo(1);
+            assertThat(counts.get("contacts_dw").asInt()).as("contacts_dw: od DB-078/V128 bez kolumny remote_address -- guard => 0").isZero();
             assertThat(counts.get("contact_transcription").asInt()).as("contact_transcription: polityka ALL + FORCE dziala").isEqualTo(1);
             assertThat(counts.get("contact_ai_summary").asInt()).as("contact_ai_summary: polityka ALL + FORCE dziala").isEqualTo(1);
 
@@ -651,14 +653,14 @@ class AnonymizeCustomerExtensionTest {
     }
 
     // =========================================================================================
-    // 11) Guard contacts_dw -- kolumna remote_address usunieta (symulacja DB-078) nie psuje funkcji
+    // 11) Guard contacts_dw -- kolumna remote_address usunieta (DB-078/V128) nie psuje funkcji
     // =========================================================================================
 
     @Test
-    @DisplayName("guard contacts_dw: po ALTER TABLE contacts_dw DROP COLUMN remote_address (symulacja DB-078) funkcja dziala bez bledu, contacts_dw = 0 w obu trybach, reszta tabel zanonimizowana normalnie")
+    @DisplayName("guard contacts_dw: po usunieciu kolumny remote_address (V128, DB-078) funkcja dziala bez bledu, contacts_dw = 0 w obu trybach, reszta tabel zanonimizowana normalnie")
     void contactsDwGuard_survivesColumnAbsence() throws Exception {
         inRolledBackTx(DB, c -> {
-            update(c, "ALTER TABLE contacts_dw DROP COLUMN remote_address");
+            // kolumna nie istnieje juz w schemacie po V128 -- nie trzeba jej usuwac symulacyjnie
 
             JsonNode dryRun = scalarJson(c, "SELECT anonymize_customer(?, ?, ?, TRUE)", CUSTOMER_MAIN, TENANT_A, UUID.randomUUID());
             assertThat(dryRun.get("counts").get("contacts_dw").asInt()).isZero();
@@ -706,9 +708,9 @@ class AnonymizeCustomerExtensionTest {
         update(c, "INSERT INTO contact_ai_summary (ai_summary_id, contact_id, tenant_id, summary, model, generated_at) "
                         + "VALUES (gen_random_uuid(), ?, ?, 'podsumowanie', 'gpt-test', now())", CONTACT_MP3, TENANT_A);
 
-        update(c, "INSERT INTO contacts_dw (contact_id, tenant_id, channel, direction, status, started_at, queued_at, remote_address) "
-                        + "VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', now() - interval '2 days', now() - interval '2 days', ?)",
-                CONTACT_MP3, TENANT_A, MAIN_PHONE);
+        update(c, "INSERT INTO contacts_dw (contact_id, tenant_id, channel, direction, status, started_at, queued_at) "
+                        + "VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', now() - interval '2 days', now() - interval '2 days')",
+                CONTACT_MP3, TENANT_A);
 
         update(c, "INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'DB-062 Main 1')", CAMPAIGN_MAIN_1, TENANT_A);
         update(c, "INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'DB-062 Main 2')", CAMPAIGN_MAIN_2, TENANT_A);
@@ -927,9 +929,9 @@ class AnonymizeCustomerExtensionTest {
                         + "sender_external_id, content, sent_at) VALUES (?, ?, ?, 'WHATSAPP', 'INBOUND', 'wa-ext-rls-1', "
                         + "'wa-sender-rls-1', 'tresc rls', now())",
                 SOCIAL_RLS, TENANT_A, CONTACT_RLS);
-        update(c, "INSERT INTO contacts_dw (contact_id, tenant_id, channel, direction, status, started_at, queued_at, remote_address) "
-                        + "VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', now(), now(), ?)",
-                CONTACT_RLS, TENANT_A, RLS_PHONE);
+        update(c, "INSERT INTO contacts_dw (contact_id, tenant_id, channel, direction, status, started_at, queued_at) "
+                        + "VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', now(), now())",
+                CONTACT_RLS, TENANT_A);
     }
 
     // =========================================================================================

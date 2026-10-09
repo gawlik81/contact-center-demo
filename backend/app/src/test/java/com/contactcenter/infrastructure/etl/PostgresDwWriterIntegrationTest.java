@@ -32,10 +32,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * zapisanego wiersza, w tym explicite sprawdzenie, że {@code remote_address} zostaje {@code NULL}
  * (writer nigdy się do niej nie odwołuje – nie ma w SQL żadnego bind parametru na tę kolumnę).
  *
- * <p><strong>Pokrycie wariantu „po DB-078"</strong> (kolumna {@code remote_address} fizycznie
- * usunięta z {@code contacts_dw}) zostaje odłożone do tamtego ticketu — dopisanie tam analogicznego
- * testu na schemacie po migracji drop (ten writer nie zmieni zachowania, bo już dziś nie wiąże
- * żadnego parametru na tę kolumnę).
+ * <p><strong>Od DB-078 (V127/V128)</strong> kolumna {@code remote_address} nie istnieje w pełnym łańcuchu
+ * Flyway, więc ten test działa już na schemacie „po". Wariant „przed M2" (kolumna obecna) oraz sweep/drop
+ * pokrywa {@code ContactsDwRemoteAddressDropMigrationTest} (baza budowana przez Flyway target API).
  */
 @DisplayName("PostgresDwWriter#upsert – zapis contacts_dw bez remote_address (BE-141)")
 class PostgresDwWriterIntegrationTest {

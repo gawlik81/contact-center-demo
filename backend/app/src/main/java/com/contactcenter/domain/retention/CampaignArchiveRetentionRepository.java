@@ -2,7 +2,11 @@ package com.contactcenter.domain.retention;
 
 import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -32,6 +36,39 @@ import java.util.UUID;
 @Slf4j
 @Repository
 class CampaignArchiveRetentionRepository extends TenantAwareRepository {
+
+    /** Zakres {@code p_batch_size} akceptowany przez {@code purge_campaign_contact_archive} (V126). */
+    static final int MIN_BATCH_SIZE = 1;
+    static final int MAX_BATCH_SIZE = 100_000;
+
+    private final int purgeBatchSize;
+    private final int purgeMaxBatches;
+    private final TransactionTemplate batchTransaction;
+
+    /**
+     * @param transactionManager menedżer transakcji (osobna transakcja na partię purge)
+     * @param purgeBatchSize     {@code retention.campaign-archive.purge-batch-size} (1..100000, domyślnie 10000)
+     * @param purgeMaxBatches    {@code retention.campaign-archive.purge-max-batches} — guard pętli (domyślnie
+     *                           10000 partii = 100 mln wierszy przy domyślnej partii)
+     */
+    CampaignArchiveRetentionRepository(
+            PlatformTransactionManager transactionManager,
+            @Value("${retention.campaign-archive.purge-batch-size:10000}") int purgeBatchSize,
+            @Value("${retention.campaign-archive.purge-max-batches:10000}") int purgeMaxBatches) {
+        if (purgeBatchSize < MIN_BATCH_SIZE || purgeBatchSize > MAX_BATCH_SIZE) {
+            throw new IllegalArgumentException(
+                    "retention.campaign-archive.purge-batch-size musi być w zakresie " + MIN_BATCH_SIZE + ".."
+                            + MAX_BATCH_SIZE + " (zakres funkcji SQL), otrzymano " + purgeBatchSize);
+        }
+        if (purgeMaxBatches < 1) {
+            throw new IllegalArgumentException(
+                    "retention.campaign-archive.purge-max-batches musi być >= 1, otrzymano " + purgeMaxBatches);
+        }
+        this.purgeBatchSize = purgeBatchSize;
+        this.purgeMaxBatches = purgeMaxBatches;
+        this.batchTransaction = new TransactionTemplate(transactionManager);
+        this.batchTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     /**
      * Liczy rekordy tenanta starsze niż {@code cutoff} (kwalifikujące się do usunięcia wg
@@ -83,46 +120,81 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
-    // Usuwanie (BE-119)
+    // Usuwanie (BE-119, BE-121)
     // =========================================================================
 
     /**
-     * Usuwa rekordy tenanta starsze niż {@code cutoff} — deleguje do funkcji SQL
-     * {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} (V091, BE-119).
+     * Usuwa rekordy tenanta starsze niż {@code cutoff} — woła w pętli funkcję SQL
+     * {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size)} (V126, DB-056),
+     * która od V126 usuwa NAJWYŻEJ {@code p_batch_size} wierszy na wywołanie.
      *
-     * <p><strong>Dlaczego jedno wywołanie SQL, nie batchowanie jak CONTACT_INTERACTIONS/
-     * TRANSCRIPTS</strong> ({@code RetentionPurgeServiceImpl}): {@code campaign_contact_archive}
-     * NIE jest partycjonowana, a indeks {@code idx_cca_tenant_archived_at} (V089, DB-053) jest
-     * zaprojektowany dokładnie pod ten wzorzec {@code WHERE tenant_id = ? AND archived_at < ?} —
-     * pojedynczy DELETE jest tu efektywny nawet dla dużych wolumenów, bez potrzeby batchowania
-     * po stronie Javy.
+     * <p><strong>Warunek końca pętli: wynik 0</strong>, a nie {@code n < batchSize}/{@code n == batchSize}.
+     * Funkcja wybiera partię przez {@code FOR UPDATE SKIP LOCKED}, więc przy blokadach innej sesji
+     * (np. równoległy purge na innym nodzie) może zwrócić partię mniejszą niż limit, mimo że w tabeli
+     * zostały kwalifikujące się wiersze. Zakończenie pętli przy partii niepełnej zostawiałoby dane
+     * (a purge ma realizować retencję RODO w całości). Koszt: jedno dodatkowe wywołanie zwracające 0
+     * (indeks {@code idx_cca_tenant_archived_at} czyni je tanim). Wynik 0 oznacza: brak kwalifikujących
+     * się wierszy ALBO wszystkie pozostałe są zablokowane przez inną sesję — w drugim przypadku
+     * zablokowane wiersze obsłuży tamta sesja lub następny przebieg (purge jest idempotentny).
      *
-     * <p><strong>Dlaczego {@code p_cutoff_date} jako {@code TIMESTAMPTZ}, nie lata:</strong>
-     * {@code RetentionPurgeServiceImpl#purgeAsync} wylicza {@code Instant cutoff} jednolicie dla
-     * WSZYSTKICH kategorii przed dyspatchem do metody per-kategoria — przekazanie go tu wprost
-     * unika stratnej konwersji {@code retentionMonths} (z {@code tenant_retention_policy}) na
-     * lata w dwie strony, którą wymagałaby stara sygnatura funkcji SQL sprzed V091.
+     * <p><strong>Każda partia w OSOBNEJ transakcji</strong> ({@link TransactionTemplate} z
+     * {@code PROPAGATION_REQUIRES_NEW}, a nie {@code @Transactional} na metodzie — self-invocation
+     * omijałaby proxy, patrz BE-113): krótkie blokady i WAL, a awaria w n-tej partii nie cofa
+     * partii 1..n-1 (wyjątek propaguje do {@code RetentionPurgeServiceImpl#purgeAsync}, który oznacza
+     * purge jako FAILED; częściowy postęp zostaje). Metoda celowo NIE jest {@code @Transactional}.
+     * {@code set_tenant_context} jest transaction-local ({@code set_config(..., TRUE)}), więc
+     * jest ustawiany wewnątrz KAŻDEJ partii.
+     *
+     * <p><strong>Guardy:</strong> limit {@code purgeMaxBatches} iteracji (WARN i przerwanie — dalszą
+     * część dokończy następny przebieg) oraz walidacja rozmiaru partii 1..100000 (zakres funkcji SQL).
+     * Metoda NIE woła {@code TenantContext.clear()} — kontekstem wątku zarządza {@code purgeAsync}.
      *
      * @param tenantId UUID tenanta
      * @param cutoff   granica czasowa — rekordy z {@code archived_at < cutoff} są usuwane
-     * @return liczba usuniętych wierszy
+     * @return suma usuniętych wierszy ze wszystkich partii
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     * @throws IllegalStateException gdy brak TenantContext
      */
-    @Transactional
     long purgeEligible(UUID tenantId, Instant cutoff) {
         assertSameTenant(tenantId);
-        setTenantContextInDb(tenantId);
 
-        Number deleted = (Number) em.createNativeQuery(
-                        "SELECT purge_campaign_contact_archive(CAST(:tenantId AS uuid), :cutoff)")
-                .setParameter("tenantId", tenantId.toString())
-                .setParameter("cutoff", cutoff)
-                .getSingleResult();
+        long totalDeleted = 0;
+        int batches = 0;
+        while (true) {
+            if (batches >= purgeMaxBatches) {
+                log.warn("[CampaignArchiveRetentionRepo] Purge przerwany po {} partiach (limit): tenant={}, "
+                                + "cutoff={}, usunięto={} — pozostałe rekordy obsłuży następny przebieg",
+                        batches, tenantId, cutoff, totalDeleted);
+                break;
+            }
+            long deleted = purgeSingleBatch(tenantId, cutoff);
+            batches++;
+            if (deleted <= 0) {
+                break;
+            }
+            totalDeleted += deleted;
+            log.debug("[CampaignArchiveRetentionRepo] Partia {}: tenant={}, usunięto={}, razem={}",
+                    batches, tenantId, deleted, totalDeleted);
+        }
 
-        long rowsDeleted = deleted.longValue();
-        log.info("[CampaignArchiveRetentionRepo] Purge: tenant={}, cutoff={}, usunięto={}",
-                tenantId, cutoff, rowsDeleted);
-        return rowsDeleted;
+        log.info("[CampaignArchiveRetentionRepo] Purge: tenant={}, cutoff={}, usunięto={}, partie={}",
+                tenantId, cutoff, totalDeleted, batches);
+        return totalDeleted;
+    }
+
+    /** Jedna partia w osobnej transakcji (commit po każdej partii). */
+    private long purgeSingleBatch(UUID tenantId, Instant cutoff) {
+        Long deleted = batchTransaction.execute(status -> {
+            setTenantContextInDb(tenantId);
+            Number result = (Number) em.createNativeQuery(
+                            "SELECT purge_campaign_contact_archive(CAST(:tenantId AS uuid), :cutoff, :batchSize)")
+                    .setParameter("tenantId", tenantId.toString())
+                    .setParameter("cutoff", cutoff)
+                    .setParameter("batchSize", purgeBatchSize)
+                    .getSingleResult();
+            return result.longValue();
+        });
+        return deleted == null ? 0L : deleted;
     }
 
     /**

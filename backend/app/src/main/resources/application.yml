@@ -392,6 +392,13 @@ retention:
     # pierwsze uruchomienie archiwizuje całą zaległość (zegar archived_at startuje od tego dnia, D6).
     # Wymaga roli DB widzącej wszystkie tenanty (BYPASSRLS) – patrz Javadoc CampaignArchiveJob.
     enabled: ${RETENTION_CAMPAIGN_ARCHIVE_ENABLED:false}
+    # Purge archiwum (CAMPAIGN_DATA, BE-121): CampaignArchiveRetentionRepository#purgeEligible woła
+    # purge_campaign_contact_archive (V126) w pętli, każda partia w osobnej transakcji. Rozmiar partii
+    # musi mieścić się w 1..100000 (walidacja funkcji SQL). Nie mylić z retention.purge.batch-size (100,
+    # DELETE po PK na tabelach partycjonowanych).
+    purge-batch-size: ${RETENTION_CAMPAIGN_ARCHIVE_PURGE_BATCH_SIZE:10000}
+    # Guard pętli: maksymalna liczba partii na jedno wywołanie (WARN i przerwanie; reszta w następnym przebiegu).
+    purge-max-batches: ${RETENTION_CAMPAIGN_ARCHIVE_PURGE_MAX_BATCHES:10000}
   # Horyzont retencji (miesiące) dla tabele PLATFORMOWE (BE-123, EPIC-30) – audit_log i
   # plugin_invocation_log. W odróżnieniu od retention.purge/* powyżej, te tabele NIE mają kategorii
   # RetentionDataCategory, NIE mają polityki per tenant (tenant_retention_policy) i NIE mają Poziomu 1

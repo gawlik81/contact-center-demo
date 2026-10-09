@@ -6803,9 +6803,9 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120;   DB-056 → BE-121;   BE-122 ✅;   BE-123 ✅
+> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121;   BE-122 ✅;   BE-123 ✅
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
->           BE-141 → DB-078;   BE-142 (D10 potwierdzone 2026-09-30, wciąż ⬜);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
+>           BE-141 ✅ → DB-078;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
 > Grupa 3:  DB-067 ✅ → BE-134 ✅ → BE-135 ✅;   BE-133 ✅, BE-125 ✅, BE-127 ✅ → BE-135 ✅;   [DB-068 🚫, BE-134 ✅ → BE-136 🚫, tylko D4 = B — N/A, D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 → BE-140, tylko D6 = koniec kampanii]
@@ -6823,7 +6823,7 @@ działają niezależnie od tej decyzji.
 **Priorytet:** Should Have
 **Złożoność:** S (ocena zlecenia potwierdzona; ryzyko RLS opisane niżej — jeśli okaże się wymagać refaktoru funkcji, wykonawca dopisuje osobny ticket DB)
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-09) — job dostarczony ZA FLAGĄ `retention.campaign-archive.enabled=false`; zgoda właściciela na włączenie flagi (część kryterium inwentaryzacji) oraz WP-4 (local-demo) NIE uzyskane/NIE wykonane, kryteria pozostają otwarte, patrz notatka wykonania
 **Blokuje:** DB-072, DB-075, DB-076, DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -6847,14 +6847,26 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 - Pierwsze uruchomienie = jedna transakcja na wszystkie zaległe kampanie: zmierz na scratch (np. 30 kampanii × 10 tys. rekordów) czas, WAL i blokady `campaign_contact`; > 30 s → wariant per kampania (ticket DB).
 
 **Kryteria akceptacji:**
-- [ ] Job `@Scheduled` (UTC, konfigurowalny cron), flaga `enabled` domyślnie `false`; przy `false` zero wywołań SQL (test jednostkowy: `verifyNoInteractions`)
-- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: kampania `COMPLETED` z `updated_at` > 30 dni i 3 rekordami → rekordy w archiwum (`archived_at` ustawione), znikają z `campaign_contact`; kampania `RUNNING` i `COMPLETED` < 30 dni nietknięte; kwalifikująca się kampania drugiego tenanta też zarchiwizowana — asercje po wartościach
-- [ ] Idempotencja: drugie uruchomienie bez zmian i bez błędu
-- [ ] Wyjątek funkcji SQL nie zatrzymuje schedulera (try/catch, log ERROR); test
-- [ ] Zachowanie pod `SET ROLE app_user` bez GUC zmierzone i opisane w Javadoc jobu (zero kampanii); decyzja przekazana do DB-072/BE-139
-- [ ] Inwentaryzacja czytelników `campaign_contact` (lista klas/endpointów) w notatce: co zobaczy użytkownik po archiwizacji; zgoda właściciela na włączenie flagi zapisana
-- [ ] (WP-4) Local-demo po przebudowie obrazów: policz kwalifikujące się (spodziewane 30 kampanii/37 wierszy), uzyskaj zgodę, uruchom (flaga włączona tymczasowo), sprawdź `cron_log`, `scheduled_job.last_run_at` (aktualizuje je funkcja) i UI kampanii
-- [ ] `mvn verify -pl app`; DoD (WP-7)
+- [x] Job `@Scheduled` (UTC, konfigurowalny cron), flaga `enabled` domyślnie `false`; przy `false` zero wywołań SQL (test jednostkowy: `verifyNoInteractions`)
+- [x] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway: kampania `COMPLETED` z `updated_at` > 30 dni i 3 rekordami → rekordy w archiwum (`archived_at` ustawione), znikają z `campaign_contact`; kampania `RUNNING` i `COMPLETED` < 30 dni nietknięte; kwalifikująca się kampania drugiego tenanta też zarchiwizowana — asercje po wartościach
+- [x] Idempotencja: drugie uruchomienie bez zmian i bez błędu
+- [x] Wyjątek funkcji SQL nie zatrzymuje schedulera (try/catch, log ERROR); test
+- [x] Zachowanie pod `SET ROLE app_user` bez GUC zmierzone i opisane w Javadoc jobu (zero kampanii); decyzja przekazana do DB-072/BE-139
+- [ ] Inwentaryzacja czytelników `campaign_contact` (lista klas/endpointów) w notatce: co zobaczy użytkownik po archiwizacji; zgoda właściciela na włączenie flagi zapisana — inwentaryzacja WYKONANA (notatka niżej, Javadoc jobu); **zgoda właściciela NIE uzyskana — POZOSTAJE OTWARTE**, flaga zostaje `false`
+- [ ] (WP-4) Local-demo po przebudowie obrazów: policz kwalifikujące się (spodziewane 30 kampanii/37 wierszy), uzyskaj zgodę, uruchom (flaga włączona tymczasowo), sprawdź `cron_log`, `scheduled_job.last_run_at` (aktualizuje je funkcja) i UI kampanii — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji (destrukcyjne, wymaga zgody właściciela)
+- [x] `mvn verify -pl app`; DoD (WP-7) — `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS; commit/PR i pamięć agenta poza zakresem tej sesji
+
+**Notatka z wykonania (2026-10-09):**
+
+- **Job:** nowy `domain/retention/CampaignArchiveJob` (package-private `@Component`), `@Scheduled(cron = "${retention.campaign-archive-cron:0 0 4 * * *}", zone = "UTC")`; flaga `retention.campaign-archive.enabled` (domyślnie `false`, zmienna `RETENTION_CAMPAIGN_ARCHIVE_ENABLED`) — przy `false` INFO i zero interakcji z repozytorium; wyjątek łapany i logowany na ERROR (scheduler przeżywa, transakcja wycofana w całości). Bez `TenantContext` (WP-2, prekontrakt w Javadoc: rola DB musi widzieć wszystkie kampanie). `application.yml` sekcja `retention` (`campaign-archive-cron`, `campaign-archive.enabled`) z komentarzem o zgodzie właściciela.
+- **Repozytorium:** nowa klasa `CampaignArchiveJobRepository` (package-private) zamiast metody w `CampaignArchiveRetentionRepository` — tamto repozytorium jest per-tenant (`countEligible`/`purgeEligible`, dotyka go BE-121), a ta operacja ma przeciwny kontrakt (cross-tenant, bez `assertSameTenant`). `SELECT archive_completed_campaign_contacts()` w `TransactionTemplate` + odczyt `cron_log.rows_affected` w TEJ SAMEJ transakcji (funkcja jest `RETURNS VOID`, typ zwracany niezmieniony).
+- **Pomiar zachowania pod RLS (DESIGN R5, `SET ROLE app_user`):** (1) GUC nigdy nieustawiony → funkcja widzi 0 kampanii → 0 zarchiwizowanych wierszy, brak błędu, a funkcja mimo to zapisuje w `cron_log` wpis `SUCCESS` z 0 (**fałszywy sukces** — job loguje „zarchiwizowano 0"); (2) GUC ustawiony na `''` (połączenie z puli po wcześniejszym set/clear, por. znalezisko DB-074) → **błąd uuid** (`invalid input syntax for type uuid`), nie cichy no-op; (3) GUC = tenant A → archiwizowana wyłącznie kampania tenanta A, kampania tenanta B nietknięta (jedno wywołanie = jeden tenant); (4) rola z BYPASSRLS → wszyscy tenanci. Wniosek: dziś (`ccapp` z BYPASSRLS) job działa poprawnie; po przełączeniu roli połączenia na `app_user` (odłożone) zacznie po cichu nic nie robić albo rzucać błędem — patrz „Propozycje" niżej.
+- **Pierwsze uruchomienie (jedna transakcja, wszystkie kampanie):** 30 kampanii × 10 tys. = 300 tys. wierszy → **17,7 s, ok. 186 MB WAL** (Testcontainers; ręczny test perf `-Dbe120.perf=true`, domyślnie pomijany). Próg ticketu 30 s nie został przekroczony, więc wariant per kampania NIE jest wymagany; faktyczna zaległość na local-demo to 30 kampanii / 37 wierszy.
+- **Inwentaryzacja czytelników `campaign_contact` (znikną z widoku po archiwizacji kampanii > 30 dni):** `CampaignContactRepository#findByCampaign` (`GET /api/campaigns/{id}/contacts`), `#countByStatusGroupedByCampaign` (statystyki listy kampanii), `CampaignRepository#countContacts` (walidacja startu kampanii), dialer (`DialerController` `/api/dialer/manual/*`, `ScheduledCallbackExecutor`, `DialerCallbackHandlerImpl`), `EtlSyncServiceImpl` (ETL do DW), `GdprRepository` (guard rekordów w toku). Żaden nie czyta archiwum. `GET /api/campaigns/{id}/contacts/{recordId}/attempts` czyta tabelę `contact` i NIE jest dotknięty. Pełna lista także w Javadoc `CampaignArchiveJob`.
+- **Testy:** `CampaignArchiveJobTest` (3: flaga false = zero interakcji, flaga true = jedno wywołanie, wyjątek połknięty) i `CampaignArchiveJobIntegrationTest` (7, Testcontainers, pełny łańcuch Flyway: archiwizacja obu tenantów z nietkniętymi `RUNNING`/świeżymi `COMPLETED`; liczba wierszy z `cron_log`; idempotencja; flaga false; błąd funkcji SQL → rollback i brak wyjątku; R5 pod `app_user` w 4 wariantach; ręczny perf pomijany bez `-Dbe120.perf=true`). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty, BUILD SUCCESS.
+- **Poza zakresem / otwarte:** zgoda właściciela na włączenie flagi (D8) oraz WP-4 (local-demo) — flaga pozostaje `false`, więc po wdrożeniu job niczego nie archiwizuje. Wpływ D6: po włączeniu zegar `archived_at` zaległych kampanii startuje od dnia pierwszego uruchomienia.
+- **Propozycje nowych ticketów DB (NIE założone — brak nagłówków, liczniki PROGRESS bez zmian; następny wolny numer DB w chwili zapisu: DB-082, do ponownego sprawdzenia przy zakładaniu):** (a) `archive_completed_campaign_contacts()` w wariancie per tenant (`p_tenant_id`) albo `SECURITY DEFINER` — potrzebne dopiero przy przełączeniu roli połączenia na `app_user` (ścieżka rozstrzygana z BE-139/DB-071; dziś dormant, `ccapp` ma BYPASSRLS), więc bez priorytetu do tego czasu; (b) wykrywanie fałszywego `SUCCESS` w `cron_log` — gdy pod RLS widocznych jest 0 kampanii, funkcja powinna zapisać status ostrzegawczy (np. `NO_VISIBLE_CAMPAIGNS`) zamiast `SUCCESS` z 0 — niski koszt, wartościowe jako zabezpieczenie przed cichą awarią po zmianie roli, najlepiej razem z (a); (c) wariant per kampania dla dużej zaległości — **nie zakładać**: pomiar 17,7 s dla 300 tys. wierszy jest poniżej progu 30 s, a rzeczywista zaległość to 37 wierszy.
+- **Odblokowane (pola `Zależy od`):** DB-072 ✅ (już zamknięte), DB-075, DB-076, DB-077 — `BE-120 ✅` dopisane; DB-075 dodatkowo czeka na decyzję D6 (warunkowy), DB-076/DB-077 na DB-058 / DB-076.
 
 ---
 
@@ -6863,7 +6875,7 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 **Typ:** Backend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** DB-056
+**Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — warunek `n == batchSize` zakończy pętlę wcześniej, reszta zostanie przy następnym przebiegu)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

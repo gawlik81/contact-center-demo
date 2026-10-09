@@ -3036,14 +3036,14 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   DB-056 → BE-121;   DB-057;   DB-058
+> Faza 0:   DB-056 ✅ → BE-121;   DB-057;   DB-058
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
->           BE-141 → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 startują niezależnie
+>           BE-141 ✅ → DB-078 (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
-> Grupa 4:  DB-056, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120, DB-056 → DB-075 → BE-140, tylko D6 = koniec kampanii]
-> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
-> Grupa 6:  BE-120, BE-122 ✅, BE-123 ✅, DB-058 → DB-076;   BE-120, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
+> Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
+> Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 → DB-076;   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 → DB-077
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
 > ```
@@ -3054,7 +3054,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (V091 zastosowane)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-10-09) — migracja **V126** zweryfikowana w pełnym łańcuchu Flyway (Testcontainers); **NIE zastosowana na żywej bazie** (plik nowy, Flyway zastosuje ją przy starcie backendu po przebudowie obrazu); **EXPLAIN na scratch (≥ 500 tys. wierszy) NIE wykonany** i wydanie razem z BE-121 pozostają otwarte, patrz notatka wykonania
 **Blokuje:** BE-121, DB-069, DB-075
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (test Testcontainers: `test-suite-expert`)
@@ -3076,15 +3076,26 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - `SET LOCAL lock_timeout` niepotrzebne (brak DDL na tabeli) — funkcja tworzona `CREATE`, nie zmienia tabel.
 
 **Kryteria akceptacji:**
-- [ ] (WP-3) Numer migracji = następna wolna wersja (develop + otwarte gałęzie + `flyway_schema_history`); migracja idempotentna (`DROP FUNCTION IF EXISTS`); w `pg_proc` istnieje wyłącznie sygnatura 3-argumentowa
-- [ ] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway (rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`): 5 wierszy tenanta A starszych niż cutoff, `p_batch_size = 2` → wywołania zwracają 2, 2, 1, 0; tenant B (też stary) nietknięty; wiersze nowsze niż cutoff nietknięte
-- [ ] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
-- [ ] Brak wpisu w `cron_log` przy wyniku 0
-- [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce
-- [ ] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji
-- [ ] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7)
+- [x] (WP-3) Numer migracji = następna wolna wersja (develop + otwarte gałęzie + `flyway_schema_history`); migracja idempotentna (`DROP FUNCTION IF EXISTS`); w `pg_proc` istnieje wyłącznie sygnatura 3-argumentowa — V126; blok `DO` na końcu migracji (błąd = ROLLBACK) i test `purge_onlyThreeArgSignatureExists`
+- [x] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway (rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`): 5 wierszy tenanta A starszych niż cutoff, `p_batch_size = 2` → wywołania zwracają 2, 2, 1, 0; tenant B (też stary) nietknięty; wiersze nowsze niż cutoff nietknięte
+- [x] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
+- [x] Brak wpisu w `cron_log` przy wyniku 0
+- [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji
+- [ ] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **samo wydanie razem z BE-121 (⬜) POZOSTAJE OTWARTE**
+- [x] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7) — notatka poniżej; commit poza zakresem tej sesji
 
 **Ryzyka:** zmiana semantyki wartości zwracanej (dotąd całość, teraz partia); jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121).
+
+**Notatka z wykonania (2026-10-09):**
+
+- **Migracja:** `backend/src/main/resources/db/migration/V126__purge_campaign_contact_archive_batched.sql`. Numeracja: V125 = ostatnia wersja w repo; `V999__dev_seed.sql` leży w osobnym katalogu `db/seed/`, więc nie koliduje z `db/migration`. Jawny `DROP FUNCTION IF EXISTS purge_campaign_contact_archive(UUID, TIMESTAMPTZ)` (stara sygnatura z V091) + `CREATE FUNCTION … (p_tenant_id UUID, p_cutoff_date TIMESTAMPTZ, p_batch_size INT DEFAULT 10000) RETURNS INT`, `COMMENT ON FUNCTION`, końcowy blok `DO` sprawdzający `pg_proc` (dokładnie jedna sygnatura 3-argumentowa; błąd = ROLLBACK migracji).
+- **Zachowanie:** walidacja `p_batch_size` 1..100000 i NULL → `RAISE EXCEPTION` z SQLSTATE `22023`; partie wybierane po pełnym PK `(record_id, campaign_id)` (`ORDER BY archived_at LIMIT p_batch_size`, zgodne z `idx_cca_tenant_archived_at`), `DELETE … USING batch`. **`FOR UPDATE SKIP LOCKED` dodane przez wykonawcę** (nie było w opisie zakresu): równoległe wywołania biorą rozłączne wiersze i nie blokują się. Konsekwencja do uwzględnienia w BE-121: partia może być mniejsza niż limit, jeśli część wierszy jest zablokowana przez inną sesję.
+- **`cron_log`:** jeden wpis NA PARTIĘ i tylko gdy usunięto > 0 (wybór udokumentowany w nagłówku migracji: spójność z faktycznie usuniętymi wierszami w jednej transakcji, ślad diagnostyczny przerwanego purge; wynik 0 kończy pętlę Javy bez spamu).
+- **RLS:** `SECURITY INVOKER`, jawny filtr po `p_tenant_id` (jak V091). Pod `SET ROLE app_user` (FORCE RLS z V111) bez GUC = cichy wynik 0, z GUC = tylko wiersze własnego tenanta.
+- **Zmiana semantyki wartości zwracanej** (dotąd całość, teraz jedna partia) — udokumentowana w nagłówku migracji; jedyny wołający to `CampaignArchiveRetentionRepository#purgeEligible` (BE-121). Do czasu BE-121 pojedyncze wywołanie usuwa tylko pierwszą partię (10 000), dlatego V126 i BE-121 muszą iść w jednym wydaniu.
+- **Testy:** `CampaignContactArchivePurgeTenantIsolationTest` rozszerzony do 9 testów (3 dotychczasowe bez zmian asercji + 6 nowych: 5 wierszy/batch 2 → 2,2,1,0 z tenantem B i wierszami nowszymi nietkniętymi oraz asercją 3 wpisów `cron_log` i braku wpisu przy 0; kolejność od najstarszych; wywołanie 2-argumentowe przez DEFAULT; `p_batch_size` poza zakresem/NULL → 22023; jedyna sygnatura 3-argumentowa w `pg_proc`; pod `SET ROLE app_user` z GUC partiami tylko własny tenant, bez GUC cichy 0). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty (ręczny perf BE-120), BUILD SUCCESS.
+- **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) wydanie razem z BE-121.
+- **Odblokowane:** BE-121 (`DB-056 ✅` dopisane w `Zależy od`), DB-069 i DB-075 (`DB-056 ✅`; DB-069 jest ponadto bramkowany wolumenem, DB-075 warunkowy D6).
 
 ---
 
@@ -3958,7 +3969,7 @@ RLS ALL + WITH CHECK + FORCE (GUC `app.current_tenant_id`); indeks `(tenant_id, 
 **Typ:** Schema migration (partycjonowanie)
 **Priorytet:** Could Have — **nie wykonywać przed spełnieniem warunku wejścia**
 **Złożoność:** L
-**Zależy od:** DB-056, DB-072 ✅ (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
+**Zależy od:** DB-056 ✅, DB-072 ✅ (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-137
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4210,7 +4221,7 @@ Opcje dla właściciela:
 **Typ:** Schema migration (bezpieczeństwo, PII)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** DB-071 ✅, BE-120 (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
+**Zależy od:** DB-071 ✅, BE-120 ✅ (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
 **Status:** ✅ Zrobione (2026-10-08, V111) — notatka wykonania poniżej
 **Blokuje:** DB-069, DB-073
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4343,7 +4354,7 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 **Typ:** Schema migration
 **Priorytet:** Could Have (warunkowy)
 **Złożoność:** M
-**Zależy od:** BE-120, DB-056
+**Zależy od:** BE-120 ✅, DB-056 ✅
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-140
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4366,7 +4377,7 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Typ:** Schema migration (dane) / dokumentacja
 **Priorytet:** Could Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122 ✅, BE-123 ✅, DB-058
+**Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4388,7 +4399,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-120, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
+**Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
@@ -4422,7 +4433,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Typ:** Schema migration (dane + DDL) — 2 osobne migracje
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-141
+**Zależy od:** BE-141 ✅ (ukończone 2026-10-01; jedyna zależność — brak innych blokerów, ticket gotowy do realizacji)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości

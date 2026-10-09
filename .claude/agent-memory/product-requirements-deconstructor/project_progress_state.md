@@ -116,3 +116,11 @@ Pola `Zależy od`/`Blokuje` są symetryczne w całych trzech plikach (FE: `Czeka
 
 ## Nierozwiązana rozbieżność w BE-123 (do zgłoszenia, nie do samodzielnej edycji — tura 8)
 BE-123 (⬜, EPIC-30, `TASKS-BACKEND.md` ~l. 6921) ma kryterium akceptacji „Zachowanie `contact*` bez zmian (istniejące `PartitionReclaimJobTest` zielone bez zmiany asercji)" (~l. 6951) — to AC jest teraz FAKTYCZNIE NIEAKTUALNE, bo uwaga dopisana wyżej w tej samej sekcji (~l. 6940, skorygowana po BE-145) mówi explicite, że wykonawca BE-123 musi przyjąć `DropMode.ONLY_IF_EMPTY` dla `contact*`, czyli zachowanie SIĘ ZMIENIA względem stanu przed BE-145 (co jest zgodne z faktem, że `PartitionReclaimJobTest` już dostał nowe asercje w ramach BE-145 samego). Zlecający w turze 8 explicite polecił „nic więcej [w BE-123] nie zmieniaj" — więc AC nie zostało poprawione, tylko zgłoszone w raporcie tej tury. **Przy następnej turze dotykającej BE-123 (albo gdy ktoś zacznie go implementować): zaktualizować to jedno AC**, żeby nie wprowadzało w błąd przyszłego wykonawcy/testera.
+
+
+## Tura 20 (2026-10-09)
+- BE-120 i DB-056 ✅ (z otwartymi: zgoda właściciela na flagę + WP-4 w BE-120; EXPLAIN na scratch + wydanie z BE-121 w DB-056). Stan: DB 72/81, BE 139/146, FE 111/112 = 322 ✅ / 12 ⬜ / 5 🚫 = 339.
+- Rekoncyliacja BE od zera (skrypt parsujący `### XX-NNN` + pierwsze `**Status:**`, bez `BE-T*`/`FE-T*`): tura 19 miała BE 137 zamiast 138 — niedoliczony BE-142 (BE-141 był już policzony, nieaktualny był tylko jego wiersz). Walidacja wierszy PROGRESS: porównuj tylko wiersze, gdzie komórka 3 to ✅/⬜/🚫 (inne tabele mają inny układ kolumn).
+- Propozycje nowych ticketów (brak nagłówków) NIE zmieniają liczników; zapisz je w notatce wykonania i PROGRESS, podaj następny wolny numer (DB-082) z zastrzeżeniem ponownego sprawdzenia.
+- Uwaga dla BE-121: `FOR UPDATE SKIP LOCKED` w V126 może dać partię < limit; warunek `n == batchSize` kończy wtedy pętlę wcześniej (bezpieczne, reszta w następnym przebiegu).
+- Uwaga: skrypty tury w scratchpadzie (`count.py`, `edit_t20_*.py`) przetrwały w tej sesji, ale nie zakładaj tego w kolejnej.

@@ -165,6 +165,168 @@ class CampaignContactArchivePurgeTenantIsolationTest {
     }
 
     // =========================================================================
+    // DB-056 / V126: partie (p_batch_size)
+    // =========================================================================
+
+    @Test
+    @DisplayName("DB-056: 5 wierszy, batch=2 -> wywołania zwracają 2, 2, 1, 0; tenant B i wiersze nowsze nietknięte")
+    void purge_batched_returnsTwoTwoOneZero() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+
+            UUID tenantA = UUID.randomUUID();
+            UUID tenantB = UUID.randomUUID();
+            insertTenant(conn, tenantA, "Tenant A – DB-056 batch");
+            insertTenant(conn, tenantB, "Tenant B – DB-056 batch");
+            Instant old = Instant.now().minus(3000, ChronoUnit.DAYS);
+            Instant recent = Instant.now().minus(1, ChronoUnit.DAYS);
+            Instant cutoff = Instant.now().minus(1000, ChronoUnit.DAYS);
+
+            for (int i = 0; i < 5; i++) {
+                insertArchiveRow(conn, tenantA, old.plusSeconds(i));
+            }
+            UUID recentA = insertArchiveRow(conn, tenantA, recent);
+            UUID oldB1 = insertArchiveRow(conn, tenantB, old);
+            UUID oldB2 = insertArchiveRow(conn, tenantB, old);
+
+            long logBefore = cronLogCount(conn);
+
+            assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isEqualTo(2);
+            assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isEqualTo(2);
+            assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isEqualTo(1);
+            long logAfterThree = cronLogCount(conn);
+            assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isZero();
+
+            assertThat(logAfterThree - logBefore).as("jeden wpis cron_log na partię > 0").isEqualTo(3);
+            assertThat(cronLogCount(conn)).as("brak wpisu cron_log przy wyniku 0").isEqualTo(logAfterThree);
+            assertThat(countArchiveRows(conn, tenantA)).isEqualTo(1);
+            assertThat(archiveRowExists(conn, recentA)).isTrue();
+            assertThat(archiveRowExists(conn, oldB1)).isTrue();
+            assertThat(archiveRowExists(conn, oldB2)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("DB-056: najstarsze wiersze usuwane jako pierwsze (kolejność wg archived_at)")
+    void purge_batched_deletesOldestFirst() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            UUID tenant = UUID.randomUUID();
+            insertTenant(conn, tenant, "Tenant – DB-056 order");
+            Instant base = Instant.now().minus(3000, ChronoUnit.DAYS);
+            UUID newest = insertArchiveRow(conn, tenant, base.plusSeconds(100));
+            UUID oldest = insertArchiveRow(conn, tenant, base);
+            UUID middle = insertArchiveRow(conn, tenant, base.plusSeconds(50));
+
+            assertThat(callPurgeFunction(conn, tenant, Instant.now().minus(1000, ChronoUnit.DAYS), 2)).isEqualTo(2);
+
+            assertThat(archiveRowExists(conn, oldest)).isFalse();
+            assertThat(archiveRowExists(conn, middle)).isFalse();
+            assertThat(archiveRowExists(conn, newest)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("DB-056: wywołanie 2-argumentowe działa dzięki DEFAULT 10000")
+    void purge_twoArgCall_usesDefaultBatchSize() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            UUID tenant = UUID.randomUUID();
+            insertTenant(conn, tenant, "Tenant – DB-056 default");
+            Instant old = Instant.now().minus(3000, ChronoUnit.DAYS);
+            for (int i = 0; i < 3; i++) {
+                insertArchiveRow(conn, tenant, old);
+            }
+            // callPurgeFunction(conn, tenant, cutoff) = SELECT purge_campaign_contact_archive(?, ?)
+            assertThat(callPurgeFunction(conn, tenant, Instant.now().minus(1000, ChronoUnit.DAYS))).isEqualTo(3);
+        }
+    }
+
+    @Test
+    @DisplayName("DB-056: p_batch_size poza 1..100000 lub NULL -> błąd 22023, nic nie usunięte")
+    void purge_invalidBatchSize_raises() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            UUID tenant = UUID.randomUUID();
+            insertTenant(conn, tenant, "Tenant – DB-056 walidacja");
+            UUID row = insertArchiveRow(conn, tenant, Instant.now().minus(3000, ChronoUnit.DAYS));
+            Instant cutoff = Instant.now().minus(1000, ChronoUnit.DAYS);
+
+            for (Integer bad : new Integer[] {0, -1, 100001, null}) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT purge_campaign_contact_archive(?, ?, ?)")) {
+                    ps.setObject(1, tenant);
+                    ps.setTimestamp(2, Timestamp.from(cutoff));
+                    ps.setObject(3, bad, java.sql.Types.INTEGER);
+                    org.assertj.core.api.Assertions.assertThatThrownBy(ps::executeQuery)
+                            .isInstanceOfSatisfying(java.sql.SQLException.class,
+                                    e -> assertThat(e.getSQLState()).isEqualTo("22023"));
+                }
+            }
+            assertThat(archiveRowExists(conn, row)).isTrue();
+
+            // granice poprawne: 1 i 100000
+            assertThat(callPurgeFunction(conn, tenant, cutoff, 100000)).isEqualTo(1);
+            assertThat(callPurgeFunction(conn, tenant, cutoff, 1)).isZero();
+        }
+    }
+
+    @Test
+    @DisplayName("DB-056: w pg_proc istnieje wyłącznie sygnatura 3-argumentowa")
+    void purge_onlyThreeArgSignatureExists() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             PreparedStatement ps = conn.prepareStatement("""
+                     SELECT pg_get_function_identity_arguments(oid) FROM pg_proc
+                     WHERE proname = 'purge_campaign_contact_archive'
+                     """);
+             ResultSet rs = ps.executeQuery()) {
+            java.util.List<String> signatures = new java.util.ArrayList<>();
+            while (rs.next()) {
+                signatures.add(rs.getString(1));
+            }
+            assertThat(signatures).containsExactly(
+                    "p_tenant_id uuid, p_cutoff_date timestamp with time zone, p_batch_size integer");
+        }
+    }
+
+    @Test
+    @DisplayName("DB-056: pod SET ROLE app_user z GUC funkcja partiami usuwa tylko wiersze własnego tenanta (RLS V111), bez GUC cichy 0")
+    void purge_batched_underAppUserWithGuc() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            UUID tenantA = UUID.randomUUID();
+            UUID tenantB = UUID.randomUUID();
+            insertTenant(conn, tenantA, "Tenant A – DB-056 app_user");
+            insertTenant(conn, tenantB, "Tenant B – DB-056 app_user");
+            Instant old = Instant.now().minus(3000, ChronoUnit.DAYS);
+            Instant cutoff = Instant.now().minus(1000, ChronoUnit.DAYS);
+            for (int i = 0; i < 3; i++) {
+                insertArchiveRow(conn, tenantA, old);
+                insertArchiveRow(conn, tenantB, old);
+            }
+
+            try (java.sql.Statement st = conn.createStatement()) {
+                st.execute("SET ROLE app_user");
+                try {
+                    // GUC wskazuje tenanta B, a purge woła tenanta A -> RLS ukrywa wiersze A
+                    st.execute("SELECT set_config('app.current_tenant_id', '" + tenantB + "', false)");
+                    assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isZero();
+
+                    st.execute("SELECT set_config('app.current_tenant_id', '" + tenantA + "', false)");
+                    assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isEqualTo(2);
+                    assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isEqualTo(1);
+                    assertThat(callPurgeFunction(conn, tenantA, cutoff, 2)).isZero();
+                } finally {
+                    st.execute("RESET ROLE");
+                }
+            }
+            assertThat(countArchiveRows(conn, tenantA)).isZero();
+            assertThat(countArchiveRows(conn, tenantB)).isEqualTo(3);
+        }
+    }
+
+    // =========================================================================
     // Pomocnicze
     // =========================================================================
 
@@ -202,6 +364,39 @@ class CampaignContactArchivePurgeTenantIsolationTest {
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
+            }
+        }
+    }
+
+    private static int callPurgeFunction(Connection conn, UUID tenantId, Instant cutoff, int batchSize)
+            throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT purge_campaign_contact_archive(?, ?, ?)")) {
+            ps.setObject(1, tenantId);
+            ps.setTimestamp(2, Timestamp.from(cutoff));
+            ps.setInt(3, batchSize);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private static long cronLogCount(Connection conn) throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM cron_log WHERE job_name = 'purge_campaign_contact_archive'");
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    private static long countArchiveRows(Connection conn, UUID tenantId) throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM campaign_contact_archive WHERE tenant_id = ?")) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
             }
         }
     }

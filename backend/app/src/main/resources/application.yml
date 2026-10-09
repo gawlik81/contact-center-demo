@@ -382,6 +382,16 @@ retention:
   # domyślnie: co niedzielę o 03:00 UTC — poza godzinami szczytu, po PartitionMaintenanceJob
   # (00:30 UTC, BE-114) i pozostałych jobach retencji).
   partition-reclaim-cron: ${RETENTION_PARTITION_RECLAIM_CRON:0 0 3 * * SUN}
+  # Archiwizacja kontaktów zakończonych kampanii (BE-120, EPIC-30): CampaignArchiveJob woła funkcję SQL
+  # archive_completed_campaign_contacts() (V015) – kampanie COMPLETED/STOPPED starsze niż 30 dni trafiają
+  # z campaign_contact do campaign_contact_archive. Domyślnie 04:00 UTC (wpis w scheduled_job).
+  campaign-archive-cron: ${RETENTION_CAMPAIGN_ARCHIVE_CRON:0 0 4 * * *}
+  campaign-archive:
+    # DOMYŚLNIE WYŁĄCZONE (D8): po archiwizacji kontakty kampanii > 30 dni znikają z UI/statystyk/dialera
+    # (żaden czytelnik campaign_contact nie czyta archiwum). Włączenie WYMAGA ZGODY WŁAŚCICIELA PRODUKTU;
+    # pierwsze uruchomienie archiwizuje całą zaległość (zegar archived_at startuje od tego dnia, D6).
+    # Wymaga roli DB widzącej wszystkie tenanty (BYPASSRLS) – patrz Javadoc CampaignArchiveJob.
+    enabled: ${RETENTION_CAMPAIGN_ARCHIVE_ENABLED:false}
   # Horyzont retencji (miesiące) dla tabele PLATFORMOWE (BE-123, EPIC-30) – audit_log i
   # plugin_invocation_log. W odróżnieniu od retention.purge/* powyżej, te tabele NIE mają kategorii
   # RetentionDataCategory, NIE mają polityki per tenant (tenant_retention_policy) i NIE mają Poziomu 1

@@ -142,3 +142,4 @@
 
 - [BE-123 horyzont platformowy audit_log/plugin_invocation_log](project_be123_platform_horizon_reclaim.md) — ReclaimTarget/ThresholdSource/DropMode, PlatformRetentionProperties, poprawka NPE countRowsByTenant
 - [Mockito when().thenReturn() wykonuje stubowane wywołanie](feedback_mockito_when_thenreturn_executes_stubbed_call.md) — na static mocku, stary when(any()).thenThrow() przechwytuje ponowne stubowanie w setUp(); fix: reset(mock)
+- [BE-120 CampaignArchiveJob (EPIC-30)](project_be120_campaign_archive_job.md) — flaga false, pomiar RLS app_user (GUC '' = blad uuid), perf 30x10k=17.7s/186MB WAL

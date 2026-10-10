@@ -116,12 +116,15 @@ class CampaignArchiveJobIntegrationTest {
     @Test
     @DisplayName("repozytorium zwraca liczbę wierszy z cron_log")
     void repository_returnsRowCountFromCronLog() {
+        // baza jest współdzielona: najpierw zarchiwizuj zaległości zostawione przez inne testy,
+        // żeby kolejne asercje dotyczyły WYŁĄCZNIE danych tego testu
+        repository.archiveCompletedCampaigns();
+
         UUID c = campaign(tenantA, "COMPLETED", 60);
         contact(tenantA, c, "COMPLETED", "+48500000011", "A");
         contact(tenantA, c, "COMPLETED", "+48500000012", "B");
 
-        // inne testy mogą zostawić własne kwalifikujące się kampanie -> co najmniej nasze 2 wiersze
-        assertThat(repository.archiveCompletedCampaigns()).isGreaterThanOrEqualTo(2);
+        assertThat(repository.archiveCompletedCampaigns()).isEqualTo(2);
         assertThat(repository.archiveCompletedCampaigns()).isZero();
     }
 

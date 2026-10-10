@@ -45,6 +45,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * (ponowne wykonanie skryptow); (4) guardy przerywaja migracje i NIC nie usuwaja, gdy zwyciezcy brak
  * albo roznia sie strukturalnie; (5) EXPLAIN pod {@code SET ROLE app_user} z GUC: sciezki zapytan
  * nadal maja indeks.
+ *
+ * <p>Dodatkowo (V134, poprawka DB-R2): pelny lancuch obejmuje takze migracje korygujaca komentarz
+ * {@code idx_scheduled_callback_due}; test {@code v134CommentCorrected} sprawdza jej tresc.
+ *
+ * <p>UWAGA: testy sa SEKWENCYJNE ({@code @Order} + statyczna baza wspoldzielona: test 10 wykonuje pelny
+ * lancuch migracji, testy 11-23 (w tym V134 w tescie 12 przed idempotencja w 14, ktora ponownie wykonuje V129 i nadpisuje komentarz) zakladaja jego wynik). Nie wolno uruchamiac pojedynczych metod
+ * ({@code -Dtest=Klasa#metoda}) -- uruchamiaj cala klase.
  */
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -188,6 +195,19 @@ class Db057IndexCleanupMigrationsTest {
                 .contains("idx_cca_campaign", "idx_cca_archived_at");
     }
 
+    @Test
+    @Order(6)
+    @DisplayName("V131 guard: brak idx_cca_tenant_customer -> przerwanie, idx_cca_campaign/idx_cca_archived_at nietkniete")
+    void m3GuardCustomerIndexMissing() throws Exception {
+        String db = cloneDb("cc_db057_g5");
+        jdbc(db).execute("DROP INDEX idx_cca_tenant_customer");
+
+        assertThatThrownBy(() -> flyway(db).target(m3).load().migrate())
+                .hasMessageContaining("idx_cca_tenant_customer nie istnieje lub ma inna strukture");
+        assertThat(indexNames(jdbc(db), "campaign_contact_archive"))
+                .contains("idx_cca_campaign", "idx_cca_archived_at");
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Pelny lancuch
     // ---------------------------------------------------------------------------------------------
@@ -234,11 +254,29 @@ class Db057IndexCleanupMigrationsTest {
 
     @Test
     @Order(12)
-    @DisplayName("Idempotencja: ponowne wykonanie V129-V131 na bazie po migracji konczy sie sukcesem i nic nie zmienia")
+    @DisplayName("V134: komentarz idx_scheduled_callback_due mowi prawde (findDueCallbacks go NIE uzywa) i migracja jest idempotentna")
+    void v134CommentCorrected() throws Exception {
+        JdbcTemplate j = jdbc(DB);
+        String c = comment(j, "idx_scheduled_callback_due");
+        assertThat(c).contains("V134").contains("idx_callback_scheduled").contains("NIE uzywa")
+                .contains("is_deleted = false")
+                .doesNotContain("jedyny indeks")
+                .doesNotContain("callbacki gotowe do realizacji (findDueCallbacks");
+        Map<String, String> before = indexSignatures(j);
+        try (Connection conn = connect(DB); Statement st = conn.createStatement()) {
+            st.execute(readMigration("V134__"));
+        }
+        assertThat(indexSignatures(j)).isEqualTo(before);
+        assertThat(comment(j, "idx_scheduled_callback_due")).isEqualTo(c);
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("Idempotencja: ponowne wykonanie V129-V131 i V134 na bazie po migracji konczy sie sukcesem i nic nie zmienia")
     void migrationsAreIdempotent() throws Exception {
         JdbcTemplate j = jdbc(DB);
         Map<String, String> before = indexSignatures(j);
-        for (String prefix : List.of("V129__", "V130__", "V131__")) {
+        for (String prefix : List.of("V129__", "V130__", "V131__", "V134__")) {
             String script = readMigration(prefix);
             try (Connection c = connect(DB)) {
                 c.setAutoCommit(false);

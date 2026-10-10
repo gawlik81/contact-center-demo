@@ -44,6 +44,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * bez zmian; (3) po M2 kolumna nie istnieje, PK/indeksy/polityka RLS/pozostałe kolumny identyczne;
  * (4) guard V128 przerywa migrację, gdy coś zależy od kolumny (widok) albo funkcja PL/pgSQL jej używa
  * bez guardu; (5) {@code anonymize_customer} działa po drop (guard istnienia kolumny).
+ *
+ * <p>UWAGA: testy sa SEKWENCYJNE ({@code @Order} + statyczny stan wspoldzielonej bazy). Nie wolno
+ * uruchamiac pojedynczych metod ({@code -Dtest=Klasa#metoda}) -- uruchamiaj cala klase.
  */
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

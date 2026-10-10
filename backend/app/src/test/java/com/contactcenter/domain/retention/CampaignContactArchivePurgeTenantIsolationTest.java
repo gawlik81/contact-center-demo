@@ -22,8 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Test integracyjny na prawdziwym PostgreSQL (Testcontainers) dla funkcji SQL
- * {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} wprowadzonej migracją
- * V091 (BE-119).
+ * {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size)} — wprowadzonej
+ * migracją V091 (BE-119, wersja 2-argumentowa) i przebudowanej migracją V126 (DB-056: 3. argument
+ * {@code p_batch_size DEFAULT 10000}, usuwanie partiami, wpis {@code cron_log} per partia; stara
+ * sygnatura 2-argumentowa została usunięta, wywołanie 2-argumentowe działa dzięki DEFAULT).
  *
  * <p><strong>Dlaczego Testcontainers, nie mockowany {@code EntityManager}</strong> (w
  * odróżnieniu od pozostałych testów w tym pakiecie, patrz {@link CampaignArchiveRetentionRepositoryTest}):
@@ -50,7 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * wyłącznie na zachowaniu tej jednej funkcji.
  */
 @Testcontainers
-@DisplayName("purge_campaign_contact_archive(tenant_id, cutoff) – izolacja cross-tenant na prawdziwym Postgresie (V091, BE-119)")
+@DisplayName("purge_campaign_contact_archive(tenant_id, cutoff[, batch]) – izolacja cross-tenant na prawdziwym Postgresie (V091/V126, BE-119, DB-056)")
 class CampaignContactArchivePurgeTenantIsolationTest {
 
     static {
@@ -291,7 +293,7 @@ class CampaignContactArchivePurgeTenantIsolationTest {
     }
 
     @Test
-    @DisplayName("DB-056: pod SET ROLE app_user z GUC funkcja partiami usuwa tylko wiersze własnego tenanta (RLS V111), bez GUC cichy 0")
+    @DisplayName("DB-056: pod SET ROLE app_user z GUC funkcja partiami usuwa tylko wiersze własnego tenanta (RLS V111); GUC innego tenanta -> cichy 0")
     void purge_batched_underAppUserWithGuc() throws Exception {
         try (Connection conn = DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
@@ -323,6 +325,41 @@ class CampaignContactArchivePurgeTenantIsolationTest {
             }
             assertThat(countArchiveRows(conn, tenantA)).isZero();
             assertThat(countArchiveRows(conn, tenantB)).isEqualTo(3);
+        }
+    }
+
+    @Test
+    @DisplayName("DB-R5: pod app_user na NIEPUSTEJ tabeli: GUC nigdy nieustawiony (świeże połączenie) -> cichy 0; GUC '' (jak na połączeniu z puli po SET+COMMIT) -> błąd 22P02; nic nie usunięte")
+    void purge_underAppUserWithoutGuc_silentZeroOnFreshConnection_errorOnEmptyString() throws Exception {
+        UUID tenantA = UUID.randomUUID();
+        Instant old = Instant.now().minus(3000, ChronoUnit.DAYS);
+        Instant cutoff = Instant.now().minus(1000, ChronoUnit.DAYS);
+        try (Connection setup = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            insertTenant(setup, tenantA, "Tenant A – DB-R5 bez GUC");
+            for (int i = 0; i < 3; i++) {
+                insertArchiveRow(setup, tenantA, old);
+            }
+        }
+
+        // Świeże fizyczne połączenie: GUC app.current_tenant_id NIGDY nie był odwołany -> current_setting(..., true) = NULL
+        try (Connection fresh = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             java.sql.Statement st = fresh.createStatement()) {
+            st.execute("SET ROLE app_user");
+            assertThat(callPurgeFunction(fresh, tenantA, cutoff, 2)).as("bez GUC (NULL) -> cichy 0").isZero();
+
+            // Ta sama sesja po pierwszym odwołaniu GUC (jak połączenie z puli po SET + COMMIT/ROLLBACK):
+            // wartość to '' (nie NULL), a ''::uuid rzuca twardy błąd zamiast cichego 0.
+            st.execute("SELECT set_config('app.current_tenant_id', '', false)");
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> callPurgeFunction(fresh, tenantA, cutoff, 2))
+                    .isInstanceOfSatisfying(java.sql.SQLException.class,
+                            e -> assertThat(e.getSQLState()).isEqualTo("22P02"));
+            st.execute("RESET ROLE");
+        }
+        try (Connection verify = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            assertThat(countArchiveRows(verify, tenantA)).as("żadne wiersze nie zostały usunięte").isEqualTo(3);
         }
     }
 

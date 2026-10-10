@@ -347,6 +347,15 @@ export class DataRetentionComponent implements OnInit {
   // ---- Akcja "Usuń teraz" (FE-106) ----
 
   /** RECORDINGS: backend zwraca 501, patrz {@link UNSUPPORTED_PURGE_CATEGORIES}. */
+  /** Categories whose purge count is a sum of different record types (contacts + events + messages). */
+  isMultiTypeCategory(category: RetentionDataCategory): boolean {
+    return category === 'CONTACT_INTERACTIONS';
+  }
+
+  historyHasMultiTypeEntries(): boolean {
+    return this.historyEntries().some((e) => this.isMultiTypeCategory(e.dataCategory));
+  }
+
   isPurgeUnsupported(category: RetentionDataCategory): boolean {
     return UNSUPPORTED_PURGE_CATEGORIES.has(category);
   }

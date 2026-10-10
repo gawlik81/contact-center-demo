@@ -165,15 +165,25 @@ class CampaignArchiveRetentionRepositoryTest {
             return purgeQuery;
         }
 
+        /** Stubuje końcowy test EXISTS (czy zostały kwalifikujące się wiersze). */
+        private void stubExists(boolean remaining) {
+            Query existsQuery = mock(Query.class);
+            when(entityManager.createNativeQuery(contains("SELECT EXISTS"))).thenReturn(existsQuery);
+            when(existsQuery.setParameter(anyString(), any())).thenReturn(existsQuery);
+            when(existsQuery.getSingleResult()).thenReturn(remaining);
+        }
+
         @Test
         @DisplayName("wywołuje funkcję z tenantId, cutoff i batchSize; pętla do wyniku 0; zwraca sumę")
         void loopsUntilZero_returnsSum() {
             Query purgeQuery = stubPurge(10_000, 10_000, 5_000, 0);
+            stubExists(false);
             Instant cutoff = Instant.parse("2026-01-01T00:00:00Z");
 
-            long result = repository.purgeEligible(TENANT_A, cutoff);
+            CampaignArchiveRetentionRepository.PurgeOutcome result = repository.purgeEligible(TENANT_A, cutoff);
 
-            assertThat(result).isEqualTo(25_000L);
+            assertThat(result.deleted()).isEqualTo(25_000L);
+            assertThat(result.truncated()).isFalse();
             verify(purgeQuery, times(4)).getSingleResult();
             verify(purgeQuery, times(4)).setParameter("tenantId", TENANT_A.toString());
             verify(purgeQuery, times(4)).setParameter("cutoff", cutoff);
@@ -184,8 +194,9 @@ class CampaignArchiveRetentionRepositoryTest {
         @DisplayName("partia niepełna (SKIP LOCKED) NIE kończy pętli – kończy dopiero wynik 0")
         void partialBatch_doesNotStopLoop() {
             Query purgeQuery = stubPurge(10_000, 3_000, 7_000, 0);
+            stubExists(false);
 
-            assertThat(repository.purgeEligible(TENANT_A, Instant.now())).isEqualTo(20_000L);
+            assertThat(repository.purgeEligible(TENANT_A, Instant.now()).deleted()).isEqualTo(20_000L);
             verify(purgeQuery, times(4)).getSingleResult();
         }
 
@@ -193,8 +204,11 @@ class CampaignArchiveRetentionRepositoryTest {
         @DisplayName("brak rekordów -> jedno wywołanie, wynik 0")
         void nothingToDelete_singleCall() {
             Query purgeQuery = stubPurge(0);
+            stubExists(false);
 
-            assertThat(repository.purgeEligible(TENANT_A, Instant.now())).isZero();
+            CampaignArchiveRetentionRepository.PurgeOutcome result = repository.purgeEligible(TENANT_A, Instant.now());
+            assertThat(result.deleted()).isZero();
+            assertThat(result.truncated()).isFalse();
             verify(purgeQuery, times(1)).getSingleResult();
         }
 
@@ -202,10 +216,12 @@ class CampaignArchiveRetentionRepositoryTest {
         @DisplayName("ustawia kontekst RLS w KAŻDEJ partii (set_config jest transaction-local)")
         void setsTenantContextInEveryBatch() {
             stubPurge(5, 5, 0);
+            stubExists(false);
 
             repository.purgeEligible(TENANT_A, Instant.now());
 
-            verify(entityManager, times(3)).createNativeQuery(contains("set_tenant_context"));
+            // 3 partie + końcowy test EXISTS (też pod RLS)
+            verify(entityManager, times(4)).createNativeQuery(contains("set_tenant_context"));
         }
 
         @Test
@@ -213,11 +229,39 @@ class CampaignArchiveRetentionRepositoryTest {
         void guard_stopsAfterMaxBatches() {
             repository = newRepository(10_000, 3);
             Query purgeQuery = stubPurge(10_000);
+            stubExists(true);
 
-            long result = repository.purgeEligible(TENANT_A, Instant.now());
+            CampaignArchiveRetentionRepository.PurgeOutcome result = repository.purgeEligible(TENANT_A, Instant.now());
 
-            assertThat(result).isEqualTo(30_000L);
+            assertThat(result.deleted()).isEqualTo(30_000L);
+            assertThat(result.truncated()).as("limit osiągnięty i dane zostały -> truncated").isTrue();
             verify(purgeQuery, times(3)).getSingleResult();
+        }
+
+        @Test
+        @DisplayName("granica guarda: limit osiągnięty, ale nic nie zostało -> truncated=false (bez fałszywego WARN)")
+        void guard_exactBoundary_notTruncated() {
+            repository = newRepository(10_000, 2);
+            Query purgeQuery = stubPurge(10_000);
+            stubExists(false);
+
+            CampaignArchiveRetentionRepository.PurgeOutcome result = repository.purgeEligible(TENANT_A, Instant.now());
+
+            assertThat(result.deleted()).isEqualTo(20_000L);
+            assertThat(result.truncated()).isFalse();
+            verify(purgeQuery, times(2)).getSingleResult();
+        }
+
+        @Test
+        @DisplayName("wynik 0 (np. SKIP LOCKED), ale wiersze nadal istnieją -> truncated=true")
+        void zeroResultButRowsRemain_truncated() {
+            stubPurge(0);
+            stubExists(true);
+
+            CampaignArchiveRetentionRepository.PurgeOutcome result = repository.purgeEligible(TENANT_A, Instant.now());
+
+            assertThat(result.deleted()).isZero();
+            assertThat(result.truncated()).isTrue();
         }
 
         @Test
@@ -238,6 +282,7 @@ class CampaignArchiveRetentionRepositoryTest {
         @DisplayName("nie czyści TenantContext (WP-2) – zarządza nim purgeAsync")
         void doesNotClearTenantContext() {
             stubPurge(0);
+            stubExists(false);
 
             repository.purgeEligible(TENANT_A, Instant.now());
 

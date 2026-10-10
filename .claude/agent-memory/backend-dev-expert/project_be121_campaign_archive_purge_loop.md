@@ -9,3 +9,5 @@ metadata:
 
 **Why:** bez pętli purge usuwał tylko pierwsze 10 000 wierszy (RODO).
 **How to apply:** test integracyjny `CampaignArchiveRetentionRepositoryBatchIntegrationTest` (JpaTestContext + trigger-trucizna dla awarii w 2. partii; rola bez BYPASSRLS dowodzi GUC per partia). Javadoc `RetentionPurgeServiceImpl#purgeCampaignData` nadal opisuje "jedno wywołanie" - do poprawy poza BE-121.
+
+**Aktualizacja 2026-10-10 (CR):** `purgeEligible` zwraca `PurgeOutcome(deleted, truncated)`; `truncated` = tani `SELECT EXISTS` po pętli (pod GUC, osobna tx), bo wynik 0 jest niejednoznaczny (pusto vs SKIP LOCKED) i guard max-batches też mógł trafić dokładnie w koniec danych. `RetentionPurgeServiceImpl` mapuje `truncated` na `markCompleted(..., warning)` (ta sama ścieżka co s3Failures). Javadoc `purgeCampaignData` zaktualizowany; fallback `delete-messages` = true.

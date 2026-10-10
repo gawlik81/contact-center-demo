@@ -479,7 +479,8 @@ class RetentionPurgeServiceImplTest {
         void purgeCampaignData_delegatesToRepositoryAndRecordsResult() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(17L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(17L, false));
 
             service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
 
@@ -493,7 +494,8 @@ class RetentionPurgeServiceImplTest {
         void cutoff_passedDirectlyAsInstant_noYearConversion() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(0L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(0L, false));
 
             LocalDate expectedCutoffDate = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
             Instant expectedCutoffInstant = expectedCutoffDate.atStartOfDay(ZoneOffset.UTC).toInstant();
@@ -510,13 +512,31 @@ class RetentionPurgeServiceImplTest {
         void purgeForTenantA_neverTouchesTenantB() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(3L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(3L, false));
 
             service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
 
             verify(campaignArchiveRetentionRepository, never()).purgeEligible(eq(TENANT_B), any());
             verify(campaignArchiveRetentionRepository).purgeEligible(eq(TENANT_A), any());
             verify(purgeLogRepository, never()).markCompleted(any(), eq(TENANT_B), anyLong());
+        }
+
+        @Test
+        @DisplayName("truncated=true (limit partii / SKIP LOCKED) -> COMPLETED z ostrzeżeniem, nie ciche 'czyste' markCompleted")
+        void truncatedOutcome_marksCompletedWithWarning() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(30_000L, true));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            ArgumentCaptor<String> warning = ArgumentCaptor.forClass(String.class);
+            verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(30_000L), warning.capture());
+            assertThat(warning.getValue()).contains("niekompletny");
+            verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+            verify(purgeLogRepository, never()).markFailed(any(), any(), any(), anyLong());
         }
 
         @Test

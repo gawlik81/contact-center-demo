@@ -24,13 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link PostgresDwWriter#upsert(List)} (BE-141).
  *
  * <p><strong>Kontekst BE-141:</strong> ETL przestał kopiować {@code contact.remote_address}
- * (PII klienta – numer CLI / e-mail) do {@code contacts_dw} – {@link ContactDwRow} nie ma już
- * tego pola, a {@code UPSERT_SQL} tego writera nie wymienia kolumny {@code remote_address}.
- * Tabela {@code contacts_dw} (V036) wciąż MA tę kolumnę (nullable) — jej usunięcie to osobny
- * ticket DB-078, który zależy od tego zadania. Ten test dowodzi, że writer działa poprawnie na
- * DZISIEJSZYM schemacie (kolumna obecna, nigdy nie wypełniana) poprzez asercje na wartościach
- * zapisanego wiersza, w tym explicite sprawdzenie, że {@code remote_address} zostaje {@code NULL}
- * (writer nigdy się do niej nie odwołuje – nie ma w SQL żadnego bind parametru na tę kolumnę).
+ * (PII klienta – numer CLI / e-mail) do {@code contacts_dw} – {@link ContactDwRow} nie ma tego pola,
+ * a {@code UPSERT_SQL} tego writera nie wymienia kolumny {@code remote_address}. Kolumnę usunął DB-078
+ * (V127/V128), więc test dowodzi, że writer działa poprawnie na schemacie „po" poprzez asercje na
+ * wartościach zapisanego wiersza oraz brak klucza {@code remote_address} w wyniku {@code SELECT *}
+ * (a nie {@code get(...)==null}, które dla nieistniejącej kolumny jest tautologią).
  *
  * <p><strong>Od DB-078 (V127/V128)</strong> kolumna {@code remote_address} nie istnieje w pełnym łańcuchu
  * Flyway, więc ten test działa już na schemacie „po". Wariant „przed M2" (kolumna obecna) oraz sweep/drop
@@ -73,8 +71,8 @@ class PostgresDwWriterIntegrationTest {
     class NewRow {
 
         @Test
-        @DisplayName("zapisuje wszystkie pola ContactDwRow poprawnie, remote_address zostaje NULL")
-        void upsert_writesAllFields_remoteAddressStaysNull() {
+        @DisplayName("zapisuje wszystkie pola ContactDwRow poprawnie, contacts_dw nie ma kolumny remote_address")
+        void upsert_writesAllFields_noRemoteAddressColumn() {
             UUID contactId = UUID.randomUUID();
             UUID tenantId = UUID.randomUUID();
             UUID agentId = UUID.randomUUID();
@@ -110,11 +108,12 @@ class PostgresDwWriterIntegrationTest {
             assertThat(((java.sql.Timestamp) saved.get("queued_at")).toInstant()).isEqualTo(queuedAt);
             assertThat(saved.get("etl_synced_at")).isNotNull();
 
-            // Rdzeń BE-141: writer nie wiąże żadnego parametru na remote_address — kolumna
-            // (wciąż istniejąca w schemacie dzisiejszym, nullable) zostaje puста.
-            assertThat(saved.get("remote_address"))
-                    .as("remote_address nie jest zapisywany przez writer po BE-141")
-                    .isNull();
+            // Rdzeń BE-141/DB-078: kolumna remote_address (PII) nie istnieje w schemacie po V128.
+            // Map.get dla nieistniejącego klucza zwraca null, więc asercja na wartości byłaby
+            // tautologią — sprawdzamy brak KLUCZA (zabezpieczenie przed ponownym dodaniem kolumny).
+            assertThat(saved)
+                    .as("contacts_dw nie ma kolumny remote_address po V128")
+                    .doesNotContainKey("remote_address");
         }
 
         @Test
@@ -142,7 +141,7 @@ class PostgresDwWriterIntegrationTest {
             assertThat(saved.get("ended_at")).isNull();
             assertThat(saved.get("duration_sec")).isNull();
             assertThat(saved.get("disposition_code")).isNull();
-            assertThat(saved.get("remote_address")).isNull();
+            assertThat(saved).doesNotContainKey("remote_address");
         }
 
         @Test
@@ -214,7 +213,7 @@ class PostgresDwWriterIntegrationTest {
             assertThat(saved.get("disposition_code")).isEqualTo("SALE");
             assertThat(saved.get("duration_sec")).isEqualTo(300);
             assertThat(uuid(saved.get("agent_id"))).isEqualTo(secondVersion.agentId());
-            assertThat(saved.get("remote_address")).isNull();
+            assertThat(saved).doesNotContainKey("remote_address");
 
             Object secondSyncedAt = saved.get("etl_synced_at");
             assertThat(secondSyncedAt).as("etl_synced_at zaktualizowany przy drugim upsercie")

@@ -249,7 +249,8 @@ class AnonymizeCustomerExtensionTest {
 
             // --- contacts_dw: od DB-078/V128 bez kolumny remote_address (brak PII do zerowania)
             assertThat(scalar(c, "SELECT count(*) FROM information_schema.columns "
-                    + "WHERE table_name = 'contacts_dw' AND column_name = 'remote_address'")).isEqualTo("0");
+                    + "WHERE table_schema = 'public' AND table_name = 'contacts_dw' "
+                    + "AND column_name = 'remote_address'")).isEqualTo("0");
 
             // --- customer
             assertThat(scalar(c, "SELECT is_deleted FROM customer WHERE customer_id = ?", CUSTOMER_MAIN)).isEqualTo("true");

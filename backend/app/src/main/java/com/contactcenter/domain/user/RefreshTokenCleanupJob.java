@@ -25,7 +25,9 @@ import java.time.Instant;
  * {@link RefreshTokenRepository#deleteExpiredAndRevoked}). Natychmiastowe kasowanie wszystkich
  * unieważnionych gubiłoby ślad replay w {@code AuthServiceImpl#refresh} (stary token po rotacji ->
  * "unieważniony" zamiast "nieznany"). Po upływie karencji token znika i zachowuje się jak
- * nieistniejący (401 w obu przypadkach).
+ * nieistniejący (401 w obu przypadkach). Zastrzeżenie: ślad replay zostaje zachowany tylko gdy
+ * {@code grace-days} >= TTL refresh tokenu ({@code jwt.refresh-token-ttl-seconds}); przy mniejszej
+ * wartości unieważnione, a jeszcze niewygasłe tokeny starsze niż karencja znikają od razu.
  *
  * <p><strong>Wolumen:</strong> ok. 1,3 tys. wierszy na local-demo (tabela zwykła, niepartycjonowana),
  * dzienny DELETE to pojedyncza krótka transakcja - batching po PK nie jest potrzebny; do rozważenia

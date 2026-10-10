@@ -2400,7 +2400,7 @@
           "CONTACT_INTERACTIONS": "Contacts, processing events, and e-mail and social media messages (content, addresses, attachments) linked to contacts",
           "RECORDINGS": "Call recordings together with audio files in file storage",
           "TRANSCRIPTS": "Call transcripts and AI-generated summaries",
-          "CAMPAIGN_DATA": "Outbound campaign contact records, including the archive"
+          "CAMPAIGN_DATA": "Archived contact records of completed outbound campaigns (archive)"
         },
         "history": {
           "title": "Deletion history",
@@ -2408,7 +2408,7 @@
           "columnCategory": "Category",
           "columnTrigger": "Trigger",
           "columnRowsDeleted": "Rows deleted",
-          "columnRowsDeletedHint": "Total of deleted records of different types (e.g. contacts, events, messages).",
+          "columnRowsDeletedHint": "For “Contact interactions” rows, the number of deleted records is a total of different types (contacts, events, messages).",
           "columnStatus": "Status",
           "columnStartedAt": "Started",
           "columnCompletedAt": "Completed",

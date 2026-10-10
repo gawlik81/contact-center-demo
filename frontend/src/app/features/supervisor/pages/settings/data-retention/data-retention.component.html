@@ -191,13 +191,20 @@
             } @else {
               <p
                 class="dr-summary-card__count"
-                [title]="'supervisor.settings.dataRetention.summaryEligibleCountHint' | transloco"
+                [attr.aria-describedby]="
+                  isMultiTypeCategory(entry.dataCategory) ? 'dr-count-hint-' + entry.dataCategory : null
+                "
               >
                 {{
                   'supervisor.settings.dataRetention.summaryEligibleCount'
                     | transloco: { count: entry.eligibleRowCount }
                 }}
               </p>
+              @if (isMultiTypeCategory(entry.dataCategory)) {
+                <p class="dr-hint" [id]="'dr-count-hint-' + entry.dataCategory">
+                  {{ 'supervisor.settings.dataRetention.summaryEligibleCountHint' | transloco }}
+                </p>
+              }
               @if (entry.oldestEligiblePeriod) {
                 <p class="dr-summary-card__meta">
                   <span class="dr-summary-card__meta-label">
@@ -273,7 +280,7 @@
             <tr>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnCategory' | transloco }}</th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnTrigger' | transloco }}</th>
-              <th scope="col" [title]="'supervisor.settings.dataRetention.history.columnRowsDeletedHint' | transloco">
+              <th scope="col">
                 {{ 'supervisor.settings.dataRetention.history.columnRowsDeleted' | transloco }}
               </th>
               <th scope="col">{{ 'supervisor.settings.dataRetention.history.columnStatus' | transloco }}</th>
@@ -312,6 +319,11 @@
           </tbody>
         </table>
       </div>
+      @if (historyHasMultiTypeEntries()) {
+        <p class="dr-hint">
+          {{ 'supervisor.settings.dataRetention.history.columnRowsDeletedHint' | transloco }}
+        </p>
+      }
 
       <nav
         class="dr-pagination"

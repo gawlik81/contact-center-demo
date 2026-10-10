@@ -1423,7 +1423,11 @@
         "FAILED": "Fehlgeschlagen",
         "IVR": "Im IVR",
         "ON_HOLD": "In der Warteschleife",
-        "QUEUED": "In der Warteschlange"
+        "QUEUED": "In der Warteschlange",
+        "ASSIGNED": "Zugewiesen",
+        "ERROR": "Fehler",
+        "NOT_REACHED": "Nicht erreicht",
+        "TRANSFERRED": "Weitergeleitet"
       },
       "errorDelete": "Kunde konnte nicht gelöscht werden.",
       "errorLoad": "Kundendaten konnten nicht geladen werden.",
@@ -2396,7 +2400,7 @@
           "CONTACT_INTERACTIONS": "Kontakte, Verarbeitungsereignisse sowie E-Mail- und Social-Media-Nachrichten (Inhalt, Adressen, Anhänge), die mit Kontakten verknüpft sind",
           "RECORDINGS": "Gesprächsaufzeichnungen samt Audiodateien im Dateispeicher",
           "TRANSCRIPTS": "Gesprächstranskripte und KI-generierte Zusammenfassungen",
-          "CAMPAIGN_DATA": "Kontaktdatensätze ausgehender Kampagnen, einschließlich Archiv"
+          "CAMPAIGN_DATA": "Archivierte Kontaktdatensätze abgeschlossener ausgehender Kampagnen (Archiv)"
         },
         "history": {
           "title": "Löschverlauf",
@@ -2404,7 +2408,7 @@
           "columnCategory": "Kategorie",
           "columnTrigger": "Auslöser",
           "columnRowsDeleted": "Gelöschte Datensätze",
-          "columnRowsDeletedHint": "Summe der gelöschten Datensätze verschiedener Typen (z. B. Kontakte, Ereignisse, Nachrichten).",
+          "columnRowsDeletedHint": "Bei Zeilen der Kategorie „Kontaktinteraktionen“ ist die Zahl der gelöschten Datensätze die Summe verschiedener Typen (Kontakte, Ereignisse, Nachrichten).",
           "columnStatus": "Status",
           "columnStartedAt": "Gestartet",
           "columnCompletedAt": "Abgeschlossen",

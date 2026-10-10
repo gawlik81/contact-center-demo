@@ -2400,7 +2400,7 @@
           "CONTACT_INTERACTIONS": "Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami",
           "RECORDINGS": "Nagrania rozmów wraz z plikami audio w magazynie plików",
           "TRANSCRIPTS": "Transkrypcje rozmów oraz podsumowania wygenerowane przez AI",
-          "CAMPAIGN_DATA": "Rekordy kontaktów kampanii wychodzących, w tym archiwum"
+          "CAMPAIGN_DATA": "Zarchiwizowane rekordy kontaktów zakończonych kampanii wychodzących (archiwum)"
         },
         "history": {
           "title": "Historia operacji usuwania",
@@ -2408,7 +2408,7 @@
           "columnCategory": "Kategoria",
           "columnTrigger": "Wyzwolenie",
           "columnRowsDeleted": "Usunięto rekordów",
-          "columnRowsDeletedHint": "Suma usuniętych rekordów różnych typów (np. kontakty, zdarzenia, wiadomości).",
+          "columnRowsDeletedHint": "W wierszach kategorii „Interakcje z kontaktami” liczba usuniętych rekordów jest sumą różnych typów (kontakty, zdarzenia, wiadomości).",
           "columnStatus": "Status",
           "columnStartedAt": "Rozpoczęto",
           "columnCompletedAt": "Zakończono",

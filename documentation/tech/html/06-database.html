@@ -593,7 +593,7 @@ agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_act
 <tr>
 <td><code>scheduled_job</code></td>
 <td><code>job_id</code> (UUID)</td>
-<td>Rejestr zadań maintenance (V014) uzgodniony z rzeczywistymi wykonawcami w V133 (DB-076) – patrz niżej. Nic w Javie go nie czyta; <code>last_run_at</code> aktualizują tylko funkcje SQL <code>create_next_month_partitions()</code> i <code>archive_completed_campaign_contacts()</code>.</td>
+<td>Rejestr zadań maintenance (V014) uzgodniony z rzeczywistymi wykonawcami w V133 (DB-076) – patrz niżej. Nic w Javie go nie czyta; <code>last_run_at</code>/<code>last_run_status</code> aktualizują wyłącznie same funkcje SQL po <code>job_name</code>: <code>create_next_month_partitions()</code>, <code>archive_completed_campaign_contacts()</code>, <code>cleanup_expired_refresh_tokens()</code> oraz 6× <code>rotate_*_partitions()</code> (te ostatnie to nieaktywne backstopy – aktualizują wiersz tylko gdy ktoś je wywoła ręcznie). Wykonawcy Java (<code>@Scheduled</code>) wiersza nie dotykają.</td>
 </tr>
 <tr>
 <td><code>etl_sync_state</code></td>

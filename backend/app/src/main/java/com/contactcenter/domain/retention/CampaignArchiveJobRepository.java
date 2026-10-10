@@ -19,8 +19,9 @@ import java.util.List;
  * ({@code countEligible}/{@code purgeEligible}), a ta operacja ma przeciwny kontrakt.
  *
  * <p>Funkcja zwraca {@code VOID}, więc liczba przeniesionych wierszy jest odczytywana z wpisu
- * {@code cron_log.rows_affected}, który ta sama funkcja zapisuje na końcu — w TEJ SAMEJ transakcji
- * (deterministyczne: brak wyścigu z innym wywołaniem).
+ * {@code cron_log.rows_affected}, który ta sama funkcja zapisuje na końcu — w TEJ SAMEJ transakcji.
+ * To odczyt NAJNOWSZEGO wpisu, nie wpisu „własnego" wywołania — przy wielu instancjach (brak ShedLock)
+ * możliwy jest odczyt wpisu innej instancji; patrz {@link #archiveCompletedCampaigns()}.
  */
 @Slf4j
 @Repository
@@ -38,6 +39,16 @@ class CampaignArchiveJobRepository {
 
     /**
      * Uruchamia archiwizację (jedna transakcja dla wszystkich kwalifikujących się kampanii).
+     *
+     * <p><strong>Ograniczenia odczytu {@code cron_log}</strong> (BE-120): wpis jest wybierany jako
+     * NAJNOWSZY ({@code ORDER BY log_id DESC LIMIT 1}) dla {@link #JOB_NAME} — to NIE jest dowód, że
+     * należy do tego wywołania. W repo nie ma ShedLock/{@code @SchedulerLock}, więc przy wielu instancjach
+     * aplikacji job startuje na każdej; instancja A może odczytać wpis instancji B, jeśli B zatwierdziło
+     * wiersz z wyższym {@code log_id} między INSERT-em A a jej SELECT-em (READ COMMITTED). Skutek ogranicza
+     * się do mylącej liczby w logu (dane są bezpieczne dzięki idempotencji funkcji SQL). Dodatkowo
+     * „brak wpisu" i „zarchiwizowano 0" są nierozróżnialne (oba zwracają 0). Funkcja SQL (V015) przy
+     * wyjątku robi {@code RAISE} po zapisie wpisu ERROR, więc wpis cofany jest razem z transakcją —
+     * jedynym śladem awarii jest wyjątek/log aplikacji.
      *
      * @return liczba wierszy skopiowanych do archiwum wg {@code cron_log.rows_affected}
      *         (0, gdy brak wpisu — np. gdy {@code cron_log} jest niewidoczny dla roli)

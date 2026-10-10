@@ -1,6 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslocoTestingModule } from '@jsverse/transloco';
 import { of } from 'rxjs';
+import de from '../../../../../../../public/i18n/de.json';
+import en from '../../../../../../../public/i18n/en.json';
+import pl from '../../../../../../../public/i18n/pl.json';
+import uk from '../../../../../../../public/i18n/uk.json';
 import { DataRetentionComponent } from './data-retention.component';
 import { RetentionService } from '../../../services/retention.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
@@ -132,9 +136,23 @@ describe('DataRetentionComponent (FE-110)', () => {
     const descriptions = Array.from(el.querySelectorAll('.dr-category-description')).map((n) =>
       n.textContent?.trim(),
     );
-    // 4 in the policy table + 4 on the summary cards
-    expect(descriptions.filter((d) => d === 'Opis interakcji z wiadomościami').length).toBe(2);
-    expect(descriptions.length).toBe(8);
+    const expected = Object.values(
+      translations.supervisor.settings.dataRetention.categoryDescription,
+    );
+    // every category description is rendered twice: in the policy table and on its summary card
+    for (const text of expected) {
+      expect(descriptions.filter((d) => d === text).length).toBe(2);
+    }
+  });
+
+  it('shows the multi-type count hint only for CONTACT_INTERACTIONS', () => {
+    const hints = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.dr-summary-card .dr-hint'),
+    );
+    expect(hints.map((h) => h.id)).toEqual(['dr-count-hint-CONTACT_INTERACTIONS']);
+    expect(component.isMultiTypeCategory('CONTACT_INTERACTIONS')).toBe(true);
+    expect(component.isMultiTypeCategory('CAMPAIGN_DATA')).toBe(false);
+    expect(component.isMultiTypeCategory('TRANSCRIPTS')).toBe(false);
   });
 
   it('shows the messages/attachments note in the purge modal only for CONTACT_INTERACTIONS', () => {
@@ -148,5 +166,35 @@ describe('DataRetentionComponent (FE-110)', () => {
     component.openPurgeModal(summary('CAMPAIGN_DATA'));
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="purge-contact-interactions-note"]')).toBeNull();
+  });
+});
+
+describe('dataRetention i18n key parity', () => {
+  const bundles: Record<string, { supervisor: { settings: { dataRetention: unknown } } }> = {
+    pl,
+    en,
+    de,
+    uk,
+  };
+
+  function flatten(obj: unknown, prefix = ''): string[] {
+    if (obj === null || typeof obj !== 'object') {
+      return [prefix];
+    }
+    return Object.entries(obj as Record<string, unknown>).flatMap(([k, v]) =>
+      flatten(v, prefix ? prefix + '.' + k : k),
+    );
+  }
+
+  function keysOf(lang: string): string[] {
+    return flatten(bundles[lang].supervisor.settings.dataRetention).sort();
+  }
+
+  it('has identical supervisor.settings.dataRetention.* keys in pl, en, de and uk', () => {
+    const reference = keysOf('pl');
+    expect(reference.length).toBeGreaterThan(0);
+    for (const lang of ['en', 'de', 'uk']) {
+      expect(keysOf(lang), lang).toEqual(reference);
+    }
   });
 });

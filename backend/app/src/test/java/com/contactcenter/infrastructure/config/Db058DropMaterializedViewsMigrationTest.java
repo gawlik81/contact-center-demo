@@ -42,6 +42,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * obiekty, a reszta katalogu (relacje, indeksy, funkcje) jest nietknieta; wpis scheduled_job zostaje
  * (zakres DB-076); (3) idempotencja; (4) guard przerywa migracje i niczego nie usuwa, gdy pojawi sie
  * zalezny widok, funkcja lub obiekt zalezny od funkcji.
+ *
+ * <p>UWAGA: testy sa SEKWENCYJNE ({@code @Order} + statyczny stan wspoldzielonej bazy). Nie wolno
+ * uruchamiac pojedynczych metod ({@code -Dtest=Klasa#metoda}) -- uruchamiaj cala klase.
  */
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

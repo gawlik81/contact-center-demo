@@ -106,9 +106,10 @@ class CampaignArchiveRetentionRepositoryBatchIntegrationTest {
         long logBefore = cronLogEntries();
         TenantContext.setTenantId(tenantA);
 
-        long deleted = repo.purgeEligible(tenantA, CUTOFF);
+        CampaignArchiveRetentionRepository.PurgeOutcome outcome = repo.purgeEligible(tenantA, CUTOFF);
 
-        assertThat(deleted).isEqualTo(25_000L);
+        assertThat(outcome.deleted()).isEqualTo(25_000L);
+        assertThat(outcome.truncated()).as("tabela opróżniona do zera -> brak niekompletności").isFalse();
         assertThat(count(tenantA)).isZero();
         assertThat(count(tenantB)).isEqualTo(10_000L);
         assertThat(cronLogEntries() - logBefore).as("10000 + 10000 + 5000, wywołanie zwracające 0 nie loguje").isEqualTo(3);
@@ -161,11 +162,60 @@ class CampaignArchiveRetentionRepositoryBatchIntegrationTest {
         CampaignArchiveRetentionRepository repo = repository(PostgresTestDatabase.superuserPool(1), 100, 2);
         TenantContext.setTenantId(tenant);
 
-        assertThat(repo.purgeEligible(tenant, CUTOFF)).isEqualTo(200L);
+        CampaignArchiveRetentionRepository.PurgeOutcome first = repo.purgeEligible(tenant, CUTOFF);
+        assertThat(first.deleted()).isEqualTo(200L);
+        assertThat(first.truncated()).as("zostało 50 wierszy -> niekompletny").isTrue();
         assertThat(count(tenant)).isEqualTo(50L);
 
-        assertThat(repo.purgeEligible(tenant, CUTOFF)).isEqualTo(50L);
+        CampaignArchiveRetentionRepository.PurgeOutcome second = repo.purgeEligible(tenant, CUTOFF);
+        assertThat(second.deleted()).isEqualTo(50L);
+        assertThat(second.truncated()).isFalse();
         assertThat(count(tenant)).isZero();
+    }
+
+    @Test
+    @DisplayName("granica guarda: tabela opróżniona dokładnie w ostatniej dozwolonej partii -> truncated=false (brak fałszywego alarmu)")
+    void maxBatchesGuard_exactBoundary_notTruncated() {
+        UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant – BE-121 granica " + UUID.randomUUID());
+        seed(tenant, 200, 1);
+        CampaignArchiveRetentionRepository repo = repository(PostgresTestDatabase.superuserPool(1), 100, 2);
+        TenantContext.setTenantId(tenant);
+
+        CampaignArchiveRetentionRepository.PurgeOutcome outcome = repo.purgeEligible(tenant, CUTOFF);
+
+        assertThat(outcome.deleted()).isEqualTo(200L);
+        assertThat(outcome.truncated()).isFalse();
+        assertThat(count(tenant)).isZero();
+    }
+
+    @Test
+    @DisplayName("wiersze zablokowane przez inną sesję (SKIP LOCKED): wynik 0, ale truncated=true; po zwolnieniu blokady kolejny przebieg kończy")
+    void lockedRows_resultZeroButTruncated() throws Exception {
+        UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant – BE-121 lock " + UUID.randomUUID());
+        seed(tenant, 30, 1);
+        CampaignArchiveRetentionRepository repo = repository(PostgresTestDatabase.superuserPool(1), 100, 10);
+        TenantContext.setTenantId(tenant);
+
+        try (java.sql.Connection locker = superuserPool.getConnection()) {
+            locker.setAutoCommit(false);
+            try (java.sql.PreparedStatement ps = locker.prepareStatement(
+                    "SELECT record_id FROM campaign_contact_archive WHERE tenant_id = ? FOR UPDATE")) {
+                ps.setObject(1, tenant);
+                ps.executeQuery().close();
+
+                CampaignArchiveRetentionRepository.PurgeOutcome outcome = repo.purgeEligible(tenant, CUTOFF);
+
+                assertThat(outcome.deleted()).isZero();
+                assertThat(outcome.truncated()).as("wynik 0 przez blokady != 'pusto'").isTrue();
+                assertThat(count(tenant)).isEqualTo(30L);
+            } finally {
+                locker.rollback();
+            }
+        }
+
+        CampaignArchiveRetentionRepository.PurgeOutcome after = repo.purgeEligible(tenant, CUTOFF);
+        assertThat(after.deleted()).isEqualTo(30L);
+        assertThat(after.truncated()).isFalse();
     }
 
     @Test
@@ -180,7 +230,9 @@ class CampaignArchiveRetentionRepositoryBatchIntegrationTest {
                 repository(PostgresTestDatabase.pool("be121_app", password, 1), 100, 10_000);
         TenantContext.setTenantId(tenantA);
 
-        assertThat(repo.purgeEligible(tenantA, CUTOFF)).isEqualTo(250L);
+        CampaignArchiveRetentionRepository.PurgeOutcome outcome = repo.purgeEligible(tenantA, CUTOFF);
+        assertThat(outcome.deleted()).isEqualTo(250L);
+        assertThat(outcome.truncated()).isFalse();
 
         assertThat(count(tenantA)).isZero();
         assertThat(count(tenantB)).isEqualTo(120L);

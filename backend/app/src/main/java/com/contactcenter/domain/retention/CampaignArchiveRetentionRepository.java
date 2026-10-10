@@ -133,9 +133,19 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
      * (np. równoległy purge na innym nodzie) może zwrócić partię mniejszą niż limit, mimo że w tabeli
      * zostały kwalifikujące się wiersze. Zakończenie pętli przy partii niepełnej zostawiałoby dane
      * (a purge ma realizować retencję RODO w całości). Koszt: jedno dodatkowe wywołanie zwracające 0
-     * (indeks {@code idx_cca_tenant_archived_at} czyni je tanim). Wynik 0 oznacza: brak kwalifikujących
-     * się wierszy ALBO wszystkie pozostałe są zablokowane przez inną sesję — w drugim przypadku
-     * zablokowane wiersze obsłuży tamta sesja lub następny przebieg (purge jest idempotentny).
+     * (indeks {@code idx_cca_tenant_archived_at} czyni je tanim).
+     *
+     * <p><strong>Sygnał niekompletności ({@link PurgeOutcome#truncated()})</strong>: wynik 0 z funkcji
+     * jest niejednoznaczny — oznacza „brak kwalifikujących się wierszy" ALBO „wszystkie pozostałe są
+     * zablokowane przez inną sesję (SKIP LOCKED)"; podobnie po wyczerpaniu {@code purgeMaxBatches}
+     * mogło nic nie zostać albo zostać dużo. Dlatego po zakończeniu pętli (z dowolnego powodu) wykonywany
+     * jest jeden tani, indeksowany test {@code EXISTS} (te same warunki co funkcja SQL:
+     * {@code tenant_id}, {@code archived_at < cutoff}); {@code truncated = true} wtedy i tylko wtedy,
+     * gdy kwalifikujące się wiersze nadal istnieją. Zwykły {@code SELECT} nie respektuje blokad wierszy,
+     * więc widzi także wiersze zablokowane. Dzięki temu nie ma fałszywego alarmu, gdy tabela opróżniła się
+     * dokładnie w ostatniej dozwolonej partii. Ograniczenie: wiersze dopisane/odblokowane przez inną sesję
+     * między ostatnią partią a testem {@code EXISTS} mogą dać {@code truncated = true} — to bezpieczny
+     * kierunek błędu (purge idempotentny, kolejny przebieg dokończy).
      *
      * <p><strong>Każda partia w OSOBNEJ transakcji</strong> ({@link TransactionTemplate} z
      * {@code PROPAGATION_REQUIRES_NEW}, a nie {@code @Transactional} na metodzie — self-invocation
@@ -143,30 +153,25 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
      * partii 1..n-1 (wyjątek propaguje do {@code RetentionPurgeServiceImpl#purgeAsync}, który oznacza
      * purge jako FAILED; częściowy postęp zostaje). Metoda celowo NIE jest {@code @Transactional}.
      * {@code set_tenant_context} jest transaction-local ({@code set_config(..., TRUE)}), więc
-     * jest ustawiany wewnątrz KAŻDEJ partii.
+     * jest ustawiany wewnątrz KAŻDEJ partii (i w teście {@code EXISTS}).
      *
-     * <p><strong>Guardy:</strong> limit {@code purgeMaxBatches} iteracji (WARN i przerwanie — dalszą
-     * część dokończy następny przebieg) oraz walidacja rozmiaru partii 1..100000 (zakres funkcji SQL).
-     * Metoda NIE woła {@code TenantContext.clear()} — kontekstem wątku zarządza {@code purgeAsync}.
+     * <p><strong>Guardy:</strong> limit {@code purgeMaxBatches} iteracji (WARN tylko gdy faktycznie
+     * zostały dane; dalszą część dokończy następny przebieg) oraz walidacja rozmiaru partii 1..100000
+     * (zakres funkcji SQL). Metoda NIE woła {@code TenantContext.clear()} — kontekstem wątku zarządza
+     * {@code purgeAsync}.
      *
      * @param tenantId UUID tenanta
      * @param cutoff   granica czasowa — rekordy z {@code archived_at < cutoff} są usuwane
-     * @return suma usuniętych wierszy ze wszystkich partii
+     * @return suma usuniętych wierszy ze wszystkich partii oraz flaga niekompletności
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
      * @throws IllegalStateException gdy brak TenantContext
      */
-    long purgeEligible(UUID tenantId, Instant cutoff) {
+    PurgeOutcome purgeEligible(UUID tenantId, Instant cutoff) {
         assertSameTenant(tenantId);
 
         long totalDeleted = 0;
         int batches = 0;
-        while (true) {
-            if (batches >= purgeMaxBatches) {
-                log.warn("[CampaignArchiveRetentionRepo] Purge przerwany po {} partiach (limit): tenant={}, "
-                                + "cutoff={}, usunięto={} — pozostałe rekordy obsłuży następny przebieg",
-                        batches, tenantId, cutoff, totalDeleted);
-                break;
-            }
+        while (batches < purgeMaxBatches) {
             long deleted = purgeSingleBatch(tenantId, cutoff);
             batches++;
             if (deleted <= 0) {
@@ -177,9 +182,34 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
                     batches, tenantId, deleted, totalDeleted);
         }
 
-        log.info("[CampaignArchiveRetentionRepo] Purge: tenant={}, cutoff={}, usunięto={}, partie={}",
-                tenantId, cutoff, totalDeleted, batches);
-        return totalDeleted;
+        boolean truncated = hasEligible(tenantId, cutoff);
+        if (truncated) {
+            log.warn("[CampaignArchiveRetentionRepo] Purge NIEKOMPLETNY po {} partiach (limit={}): tenant={}, "
+                            + "cutoff={}, usunięto={} — pozostałe rekordy (limit partii lub blokady SKIP LOCKED) "
+                            + "obsłuży następny przebieg",
+                    batches, purgeMaxBatches, tenantId, cutoff, totalDeleted);
+        }
+        log.info("[CampaignArchiveRetentionRepo] Purge: tenant={}, cutoff={}, usunięto={}, partie={}, truncated={}",
+                tenantId, cutoff, totalDeleted, batches, truncated);
+        return new PurgeOutcome(totalDeleted, truncated);
+    }
+
+    /** Czy po pętli nadal istnieją kwalifikujące się wiersze (osobna tx + GUC; tani EXISTS po indeksie). */
+    private boolean hasEligible(UUID tenantId, Instant cutoff) {
+        Boolean exists = batchTransaction.execute(status -> {
+            setTenantContextInDb(tenantId);
+            Object result = em.createNativeQuery("""
+                            SELECT EXISTS (
+                                SELECT 1 FROM campaign_contact_archive
+                                WHERE tenant_id  = CAST(:tenantId AS uuid)
+                                  AND archived_at < :cutoff)
+                            """)
+                    .setParameter("tenantId", tenantId.toString())
+                    .setParameter("cutoff", cutoff)
+                    .getSingleResult();
+            return result instanceof Boolean b ? b : Boolean.valueOf(String.valueOf(result));
+        });
+        return Boolean.TRUE.equals(exists);
     }
 
     /** Jedna partia w osobnej transakcji (commit po każdej partii). */
@@ -203,4 +233,13 @@ class CampaignArchiveRetentionRepository extends TenantAwareRepository {
      * @param newestArchivedDate najnowsza data archiwizacji wśród kwalifikujących się rekordów (null gdy rowCount=0)
      */
     record EligibleSummary(long rowCount, LocalDate oldestArchivedDate, LocalDate newestArchivedDate) {}
+
+    /**
+     * Wynik {@link #purgeEligible}.
+     *
+     * @param deleted   suma usuniętych wierszy ze wszystkich partii
+     * @param truncated {@code true} gdy po zakończeniu pętli nadal istnieją kwalifikujące się wiersze
+     *                  (limit {@code purge-max-batches} albo blokady SKIP LOCKED) — purge NIEKOMPLETNY
+     */
+    record PurgeOutcome(long deleted, boolean truncated) {}
 }

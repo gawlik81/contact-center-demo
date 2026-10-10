@@ -93,7 +93,7 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * referencji, zachowanie z czasów sprzed BE-126) — zachowane jako opcja wycofania przez ENV
      * {@code RETENTION_PURGE_DELETE_MESSAGES}, patrz {@code application.yml}.
      */
-    @Value("${retention.purge.delete-messages:false}")
+    @Value("${retention.purge.delete-messages:true}")
     private boolean deleteMessagesEnabled;
 
     /**
@@ -175,7 +175,16 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
                     }
                 }
                 case TRANSCRIPTS -> rowsDeleted = purgeTranscripts(tenantId, cutoff);
-                case CAMPAIGN_DATA -> rowsDeleted = purgeCampaignData(tenantId, cutoff);
+                case CAMPAIGN_DATA -> {
+                    CampaignArchiveRetentionRepository.PurgeOutcome outcome = purgeCampaignData(tenantId, cutoff);
+                    rowsDeleted = outcome.deleted();
+                    if (outcome.truncated()) {
+                        // COMPLETED z ostrzeżeniem (nie FAILED) – ta sama ścieżka co s3Failures; częściowy
+                        // postęp jest trwały, a purge idempotentny.
+                        warningMessage = "Purge niekompletny — pozostały kwalifikujące się rekordy "
+                                + "(limit partii lub blokady innej sesji); kolejny purge je usunie";
+                    }
+                }
                 // Nieosiągalne w praktyce – validateSupportedCategory już odrzuciła tę wartość
                 // w purge(), zanim purgeAsync w ogóle wystartował. Zabezpieczenie defensywne.
                 case RECORDINGS -> throw new UnsupportedOperationException(
@@ -465,22 +474,19 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     }
 
     /**
-     * Usuwa dane kategorii CAMPAIGN_DATA: {@code campaign_contact_archive} (BE-119).
+     * Usuwa dane kategorii CAMPAIGN_DATA: {@code campaign_contact_archive} (BE-119, BE-121).
      *
-     * <p><strong>Dlaczego delegacja do funkcji SQL zamiast batchowania po stronie Javy</strong>
-     * (jak {@link #purgeContactInteractions} / {@link #purgeTranscripts}): {@code campaign_contact_archive}
-     * NIE jest partycjonowana i NIE ma włączonego RLS (w odróżnieniu od większości tabel domenowych)
-     * — patrz javadoc {@link CampaignArchiveRetentionRepository}. Indeks
-     * {@code idx_cca_tenant_archived_at} (V089) czyni jeden natywny DELETE efektywnym nawet dla
-     * dużych wolumenów, więc batchowanie po stronie Javy nie daje tu dodatkowej korzyści, jedynie
-     * zwiększa liczbę round-tripów do bazy.
+     * <p>Delegacja do {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size)}
+     * (V126) wołanej w PĘTLI partii przez {@link CampaignArchiveRetentionRepository#purgeEligible} —
+     * każda partia w osobnej transakcji, koniec pętli na wyniku 0, guard {@code purge-max-batches}.
+     * Tabela NIE jest partycjonowana (indeks {@code idx_cca_tenant_archived_at}, V089) i ma włączony
+     * RLS z {@code FORCE} (V111), dlatego repozytorium ustawia {@code set_tenant_context} w każdej partii;
+     * funkcja dodatkowo filtruje jawnie po {@code tenant_id} (druga warstwa izolacji).
      *
-     * <p>Delegacja do {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} (V091) —
-     * funkcja filtruje po {@code tenant_id} PRZED DELETE, co jest jedynym mechanizmem izolacji
-     * tenantów dla tej tabeli (brak RLS jako drugiej warstwy ochrony, w przeciwieństwie do
-     * większości pozostałych operacji purge w tym serwisie).
+     * <p>Wynik niesie flagę {@code truncated} (limit partii / wiersze zablokowane przez inną sesję) —
+     * {@link #purgeAsync} oznacza wtedy purge jako COMPLETED z {@code warningMessage}, a nie "czysty" sukces.
      */
-    private long purgeCampaignData(UUID tenantId, Instant cutoff) {
+    private CampaignArchiveRetentionRepository.PurgeOutcome purgeCampaignData(UUID tenantId, Instant cutoff) {
         return campaignArchiveRetentionRepository.purgeEligible(tenantId, cutoff);
     }
 

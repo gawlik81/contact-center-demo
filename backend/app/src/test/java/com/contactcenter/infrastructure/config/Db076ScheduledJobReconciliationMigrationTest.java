@@ -44,6 +44,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * zadna funkcja SQL nie zmienila definicji (zmieniaja sie tylko komentarze), funkcje dalej aktualizuja
  * {@code last_run_at} swojego wiersza, idempotencja, oraz cron wpisow == domyslny cron z {@code @Scheduled}
  * w zrodlach Javy.
+ *
+ * <p>UWAGA: testy sa SEKWENCYJNE ({@code @Order} + statyczny stan wspoldzielonej bazy: test 2 wykonuje
+ * migracje, kolejne zakladaja stan po niej). Nie wolno uruchamiac pojedynczych metod ({@code -Dtest=Klasa#metoda})
+ * -- uruchamiaj cala klase.
  */
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -191,14 +195,23 @@ class Db076ScheduledJobReconciliationMigrationTest {
 
     @Test
     @Order(6)
-    @DisplayName("Komentarze funkcji nie twierdza, ze wola je pg_cron")
+    @DisplayName("Komentarze WSZYSTKICH 11 funkcji V133: istnieja, bez twierdzen o pg_cron, z opisem wykonawcy/backstopu")
     void functionCommentsNoPgCronClaims() {
-        List<String> bad = jdbc(DB).queryForList("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
-                + "WHERE n.nspname = 'public' AND p.proname IN ('archive_completed_campaign_contacts','create_next_month_partitions',"
-                + "'cleanup_expired_refresh_tokens','drop_old_audit_log_partitions','drop_old_plugin_invocation_log_partitions') "
-                + "AND (obj_description(p.oid,'pg_proc') IS NULL OR obj_description(p.oid,'pg_proc') ~* 'Wywolywana przez pg_cron')",
-                String.class);
-        assertThat(bad).isEmpty();
+        List<String> signatures = List.of(
+                "archive_completed_campaign_contacts()", "create_next_month_partitions()",
+                "cleanup_expired_refresh_tokens()", "rotate_audit_log_partitions()",
+                "rotate_plugin_invocation_log_partitions()", "rotate_contact_partitions()",
+                "rotate_contact_event_partitions()", "rotate_contact_transcription_partitions()",
+                "rotate_contact_ai_summary_partitions()", "drop_old_audit_log_partitions(integer)",
+                "drop_old_plugin_invocation_log_partitions(integer)");
+        assertThat(signatures).hasSize(11);
+        JdbcTemplate j = jdbc(DB);
+        for (String sig : signatures) {
+            String c = j.queryForObject("SELECT obj_description(to_regprocedure(?)::oid, 'pg_proc')", String.class, sig);
+            assertThat(c).as("komentarz %s", sig).isNotBlank()
+                    .doesNotContainIgnoringCase("Wywolywana przez pg_cron")
+                    .containsAnyOf("Wolana przez", "Backstop SQL (nieaktywny)");
+        }
     }
 
     @Test
@@ -221,7 +234,7 @@ class Db076ScheduledJobReconciliationMigrationTest {
     @Order(8)
     @DisplayName("Spojnosc z kodem: cron wpisow == domyslny @Scheduled cron klasy Java (UTC)")
     void cronMatchesJavaScheduled() throws Exception {
-        Path base = Path.of("src/main/java/com/contactcenter/domain");
+        Path base = resolveMainJavaRoot().resolve("com/contactcenter/domain");
         Pattern p = Pattern.compile("@Scheduled\\(cron\\s*=\\s*\"\\$\\{[^:}]+:([^}]+)\\}\"");
         for (Map.Entry<String, String[]> e : JAVA_EXECUTED.entrySet()) {
             String src = Files.readString(base.resolve(e.getValue()[2]), StandardCharsets.UTF_8);
@@ -235,6 +248,26 @@ class Db076ScheduledJobReconciliationMigrationTest {
     }
 
     // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Katalog zrodel {@code src/main/java} modulu niezaleznie od cwd (backend/app, backend, repo root):
+     * najpierw wzgledem lokalizacji skompilowanych klas testowych ({@code target/test-classes}), potem
+     * kandydaci od {@code user.dir}.
+     */
+    private static Path resolveMainJavaRoot() throws Exception {
+        List<Path> candidates = new java.util.ArrayList<>();
+        Path testClasses = Path.of(Db076ScheduledJobReconciliationMigrationTest.class
+                .getProtectionDomain().getCodeSource().getLocation().toURI());
+        candidates.add(testClasses.resolve("../../src/main/java").normalize());
+        Path cwd = Path.of(System.getProperty("user.dir"));
+        candidates.add(cwd.resolve("src/main/java"));
+        candidates.add(cwd.resolve("app/src/main/java"));
+        candidates.add(cwd.resolve("backend/app/src/main/java"));
+        return candidates.stream()
+                .filter(p -> Files.isDirectory(p.resolve("com/contactcenter/domain")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Nie znaleziono src/main/java; sprawdzono: " + candidates));
+    }
 
     private static Map<String, Map<String, Object>> rows(JdbcTemplate j) {
         Map<String, Map<String, Object>> m = new TreeMap<>();

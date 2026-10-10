@@ -1497,3 +1497,39 @@ Oba ustalenia z sekcji „🐛 Bugs" oraz i18n-niespójność z „🏗️ Archi
 Zweryfikowane niezależnie po poprawkach: `npm run lint` (0 błędów), `npm run build` (sukces), `npm test` (247/247), `npx prettier --check` na zmienionych plikach (zgodne).
 
 Pozostałe ustalenia (minor/nit: brak `takeUntilDestroyed`, `previewBlockedHint` widoczny razem z błędem, brak rozróżnienia HTTP 409, brak etykiety `audit_log`, martwy `CustomerService#deleteCustomer`) świadomie NIE naprawione teraz — niski wpływ, udokumentowane wyżej jako kandydaci do przyszłej poprawki.
+
+---
+
+## Review: FE-110 — Ustawienia > Retencja danych: opisy kategorii, odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`, notka w modalu purge (`data-retention.component.{ts,html,scss,spec.ts}`, `purge-confirm-modal.component.html`, i18n pl/en/de/uk) — 2026-10-10
+
+### 🐛 Bugs / Critical Issues
+
+_Brak błędów blokujących. `prettier --check` (komponent + 4 pliki i18n) czysto; zbiory kluczy `dataRetention.*` identyczne w pl/en/de/uk (porównane skryptem; jedyne różnice de/uk to 4 znane, niezwiązane klucze `customerDetail.contactStatusLabels.*`, odnotowane w tickecie)._
+
+### ⚠️ Security Concerns
+
+_None identified._ (Odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA` nie omija potwierdzenia — nadal wymagany modal z frazą; autoryzacja po stronie backendu bez zmian.)
+
+### 🏗️ Architecture / Pattern Violations
+
+_None identified._ Standalone component, `OnPush`/signals zgodnie z istniejącym kodem, brak nowych subskrypcji.
+
+### 🔧 Improvements & Suggestions
+
+- **WAŻNE (treść, pewne) · `public/i18n/*.json` `categoryDescription.CAMPAIGN_DATA`** („Rekordy kontaktów kampanii wychodzących, w tym archiwum" / odpowiedniki). Purge `CAMPAIGN_DATA` usuwa WYŁĄCZNIE `campaign_contact_archive` (`purge_campaign_contact_archive`, por. `RetentionDataCategory`: „Zarchiwizowane dane kampanii"); aktywne rekordy `campaign_contact` nie są dotykane. Sformułowanie „kontaktów kampanii…, w tym archiwum" sugeruje szerszy zakres, a decyzja o nieodwracalnym usunięciu opiera się na tym opisie. Proponowana treść: „Zarchiwizowane rekordy kontaktów zakończonych kampanii wychodzących (archiwum)" (+ en/de/uk). Ponadto, dopóki `retention.campaign-archive.enabled=false` (BE-120), archiwum jest puste — opis/hint „Brak danych" jest wtedy poprawny, ale warto, by admin wiedział, skąd dane w archiwum się biorą (opcjonalnie).
+- **DROBNE (pewne) · `summaryEligibleCountHint` / `columnRowsDeletedHint`** — tekst „suma różnych typów rekordów (np. kontakty, zdarzenia i wiadomości)" jest pokazywany dla WSZYSTKICH kategorii, także `TRANSCRIPTS`/`CAMPAIGN_DATA`, gdzie liczba dotyczy jednego/dwóch typów — wprowadza w błąd. Pokazywać hint tylko dla `CONTACT_INTERACTIONS` (analogicznie do `contactInteractionsNote`) albo uczynić tekst neutralnym.
+- **DROBNE (a11y, pewne) · `data-retention.component.html` (`[title]` na `<p class="dr-summary-card__count">` i `<th>`)** — wskazówki dostępne wyłącznie przez natywny `title`: niedostępne z klawiatury, na urządzeniach dotykowych i dla części czytników ekranu. Zastąpić widoczną linią pomocniczą (`<small>`/`aria-describedby`) lub użyć istniejącego komponentu tooltipu projektu, jeśli jest.
+- **DROBNE (spekulacja o utrzymaniu) · `purgeModal.contactInteractionsNote`** — statyczne zdanie „Załączniki zostaną trwale usunięte również z magazynu plików (S3)" jest prawdziwe przy `retention.purge.delete-messages=true` (domyślne w `application.yml`), ale fałszywe po wycofaniu flagi ENV (`RETENTION_PURGE_DELETE_MESSAGES=false`, ścieżka legacy tylko odcina referencje). Udokumentowana opcja wycofania powoduje wtedy rozjazd UI↔zachowanie; akceptowalne, o ile wycofanie jest rzadkie — rozważyć wystawienie flagi w DTO/`/api/retention`.
+- **DROBNE (test) · `data-retention.component.spec.ts`** — `expect(descriptions.length).toBe(8)` jest kruche (dowolny nowy `.dr-category-description` łamie test); lepiej sprawdzać zawartość per kategoria. Tłumaczenia testowe nie zawierają kluczy `summaryEligibleCountHint`/`history.columnRowsDeletedHint` ani realnych plików JSON — brak testu parytetu kluczy 4 języków (obecnie tylko ręczne porównanie w PR); rozważyć prosty test Vitest porównujący zbiory kluczy `dataRetention.*` w `public/i18n/*.json`. Polyfill `HTMLDialogElement` w `beforeAll` jest poprawnie warunkowy.
+- **DROBNE (CSS) · `data-retention.component.scss`** — `color: var(--text-2, var(--text-1))` — fallback do ciemniejszego koloru przy braku zmiennej; zmienne `--text-1/--text-2` istnieją w pliku, więc fallback zbędny.
+
+### ✅ Positive Observations
+
+- Spójne, kompletne i18n w 4 językach z poprawnymi diakrytykami (pl/de/uk), brak dziedziczonego problemu z brakującymi polskimi znakami.
+- Dryf po BE-119 poprawnie wychwycony i naprawiony: `UNSUPPORTED_PURGE_CATEGORIES` = tylko `RECORDINGS` (zweryfikowane w `RetentionPurgeServiceImpl#validateSupportedCategory`), komentarze zaktualizowane.
+- Nowy spec testuje zachowanie (stan przycisków `[false,true,false,false]` w DOM, widoczność noty tylko dla `CONTACT_INTERACTIONS`), nie tylko wywołania.
+- Notatka w modalu poprawnie ostrzega o nieodwracalności usunięcia załączników z S3 przed potwierdzeniem.
+
+### Summary
+
+**Ocena: 4/5 ⭐** — czysta, kompletna zmiana zgodna z konwencjami (standalone, i18n 4 języków, prettier); do poprawy głównie treść opisu `CAMPAIGN_DATA` (sugeruje szerszy zakres niż faktycznie usuwany), ogólnikowe tooltipy dla kategorii jednotypowych i dostępność tooltipów opartych wyłącznie o `title`. Kryterium WP-4 (local-demo) pozostaje otwarte (zgodnie z ticketem).

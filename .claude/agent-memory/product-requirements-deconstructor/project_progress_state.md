@@ -1,9 +1,11 @@
 ---
 name: project_progress_state
-description: Stan 2026-10-09 (tura 24) — DB 77/81 (2⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 328/339 (96,76%); tura 24: DB-076 ✅ (V133) i DB-077 ✅ (dokumentacja); otwarte EPIC-30: DB-069, DB-075, BE-137, BE-139, BE-140, BE-144; żywa baza ma V126, restart zastosuje V127–V133; tury 16–23 w treści pliku
+description: Stan 2026-10-09 (tura 24) — DB 77/81 (2⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 328/339 (96,76%); tura 24: DB-076 ✅ (V133) i DB-077 ✅ (dokumentacja); otwarte EPIC-30: DB-069, DB-075, BE-137, BE-139, BE-140, BE-144; żywa baza ma V1–V133 (V127–V133 zastosowane 2026-10-09 21:00 przez zewnętrzną przebudowę — korekta tury 25), V134 (komentarz indeksu, poprawka DB-057) niezastosowana; tury 16–23 w treści pliku
 metadata:
   type: project
 ---
+
+**Tura 25 (2026-10-10, korekta stanu żywej bazy + poprawki po CR):** liczniki BEZ zmian (328/339). Zweryfikowane SELECT: max Flyway = 133 (V127–V133 zastosowane 2026-10-09 21:00:27–28, V104 brak w historii), `contacts_dw.remote_address` nie istnieje, cc-backend healthy z kodem BE-120/121/122; WP-4 NIE oznaczone jako wykonane. Ostrzeżenia z tur 21–24 oznaczone jako nieaktualne (dopiski „[korekta tury 25]”). Dodane adnotacje „uwagi z CR 2026-10-10” (BE-120/121/122, FE-110, DB-056/057/058/076/077/078); V134 = poprawka DB-057 (nie ticket); propozycja DB-082 (cron_log ERROR nie utrwala się w V015) NIE założona. Zob. [[feedback_verify_live_db_state]].
 
 **Tura 24 (2026-10-09, DB-076+DB-077):** delta względem tury 23: oba `⬜→✅` (DB 75→77, RAZEM 326→328, ⬜ 8→6; EPIC-30 DB 4→2, ⬜ 7→5 z 52). Skrypt zliczający widzi BE 138 ✅ / 144 nagłówków (BE-108/109 bez `###`) — porównuj deltę, nie wartość bezwzględną. Konwencje potwierdzone: pole `Blokuje` NIE dostaje ✅ (tylko `Zależy od` zależnego); ostrzeżenie o zgodzie właściciela (DB-078 WP-4) rozszerzane o każdą nową niezastosowaną migrację (teraz V127–V133); status ✅ mimo otwartych kryteriów operacyjnych (pg_dump -s, klikalne linki HTML). Decyzja właściciela 2026-10-09: CampaignArchiveJob zostaje is_active=TRUE w scheduled_job mimo domyślnie wyłączonej flagi. Joby bez wpisu w scheduled_job: RecordingRetentionJob, PendingAttachmentSweepJob, PartitionReclaimJob. Poza zakresem: DESIGN-data-retention-partitioning.md:14,129 i komentarz V009. Pozostałe otwarte: DB-069 (bramka progiem wolumenowym archiwum) → BE-137; DB-075 → BE-140 (warunkowe D6 = koniec kampanii); BE-139 (RLS przełączenie roli połączenia bez BYPASSRLS, ZNALEZISKO GUC ''); BE-144 (porządkowy, MinIO quay.io).
 

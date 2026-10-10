@@ -47,7 +47,8 @@
       <div class="purge-dialog__confirm-field">
         <label for="purge-confirm-input" class="purge-dialog__confirm-label">
           {{ 'supervisor.settings.dataRetention.purgeModal.confirmLabel' | transloco }}
-          <strong>USUŃ</strong>:
+          <strong>{{ confirmPhrase() }}</strong
+          >:
         </label>
         <input
           id="purge-confirm-input"
@@ -62,7 +63,7 @@
         />
         @if (confirmText().length > 0 && !isConfirmEnabled()) {
           <p class="purge-dialog__confirm-hint" role="alert" aria-live="polite">
-            {{ 'supervisor.settings.dataRetention.purgeModal.confirmHint' | transloco }}
+            {{ 'supervisor.settings.dataRetention.purgeModal.confirmHint' | transloco: { phrase: confirmPhrase() } }}
           </p>
         }
       </div>

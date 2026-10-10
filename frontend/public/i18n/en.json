@@ -1653,12 +1653,13 @@
         "s3Objects": "Files in storage (recordings, attachments)"
       },
       "confirmLabel": "To confirm, type",
-      "confirmHint": "Type exactly: ANONIMIZUJ",
+      "confirmPhrase": "ANONYMIZE",
+      "confirmHint": "Type exactly: {{ phrase }}",
       "confirmButton": "Confirm anonymization",
       "confirmButtonLabel": "Confirm customer data anonymization",
       "errorAnonymize": "Failed to anonymize customer data.",
       "successAnonymize": "Customer data anonymized.",
-      "confirmMismatch": "Type exactly: ANONYMIZE"
+      "confirmMismatch": "Type exactly: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2385,7 +2386,8 @@
           "message": "You are about to permanently delete {{ count }} records from category {{ category }}.",
           "rangeLabel": "Period range covered by the deletion",
           "confirmLabel": "To confirm, type",
-          "confirmHint": "Type exactly: USUŃ",
+          "confirmPhrase": "DELETE",
+          "confirmHint": "Type exactly: {{ phrase }}",
           "confirmButton": "Delete data",
           "confirmButtonAria": "Confirm data deletion for category {{ category }}",
           "contactInteractionsNote": "The count also includes e-mail and social media messages and their attachments. Attachments will also be permanently deleted from file storage (S3) and cannot be recovered."

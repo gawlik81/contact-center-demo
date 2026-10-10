@@ -171,6 +171,8 @@
 
 .dr-table {
   width: 100%;
+  // Safety net: below this width the wrapper (overflow-x: auto) scrolls instead of clipping.
+  min-width: 40rem;
   border-collapse: collapse;
   font-size: 0.9375rem;
 
@@ -201,9 +203,15 @@
     border-bottom: none;
   }
 
+  // Category cell holds the label plus a (long) description: it must wrap and stay narrow,
+  // otherwise `white-space: nowrap` stretches the column and pushes the remaining columns
+  // (retention months, auto-purge, save) out of the card.
   &__category {
     font-weight: 500;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 11rem;
+    max-width: 22rem;
+    overflow-wrap: anywhere;
   }
 }
 

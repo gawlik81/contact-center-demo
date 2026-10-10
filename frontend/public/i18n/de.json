@@ -1653,10 +1653,11 @@
         "s3Objects": "Dateien im Speicher (Aufzeichnungen, Anhänge)"
       },
       "confirmLabel": "Zur Bestätigung eingeben",
-      "confirmHint": "Geben Sie genau ein: ANONIMIZUJ",
+      "confirmPhrase": "ANONYMISIEREN",
+      "confirmHint": "Geben Sie genau ein: {{ phrase }}",
       "confirmButton": "Anonymisierung bestätigen",
       "confirmButtonLabel": "Anonymisierung der Kundendaten bestätigen",
-      "confirmMismatch": "Geben Sie genau ein: ANONYMISIEREN",
+      "confirmMismatch": "Geben Sie genau ein: {{ phrase }}",
       "errorAnonymize": "Kundendaten konnten nicht anonymisiert werden.",
       "successAnonymize": "Kundendaten wurden anonymisiert."
     },
@@ -2385,7 +2386,8 @@
           "message": "Sie sind dabei, {{ count }} Datensätze der Kategorie {{ category }} dauerhaft zu löschen.",
           "rangeLabel": "Von der Löschung betroffener Zeitraum",
           "confirmLabel": "Geben Sie zur Bestätigung ein",
-          "confirmHint": "Geben Sie genau ein: USUŃ",
+          "confirmPhrase": "LÖSCHEN",
+          "confirmHint": "Geben Sie genau ein: {{ phrase }}",
           "confirmButton": "Daten löschen",
           "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen",
           "contactInteractionsNote": "Die Anzahl umfasst auch E-Mail- und Social-Media-Nachrichten sowie deren Anhänge. Anhänge werden auch dauerhaft aus dem Dateispeicher (S3) gelöscht und können nicht wiederhergestellt werden."

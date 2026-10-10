@@ -1653,12 +1653,13 @@
         "s3Objects": "Pliki w magazynie (nagrania, załączniki)"
       },
       "confirmLabel": "Aby potwierdzić, wpisz",
-      "confirmHint": "Wpisz dokładnie: ANONIMIZUJ",
+      "confirmPhrase": "ANONIMIZUJ",
+      "confirmHint": "Wpisz dokładnie: {{ phrase }}",
       "confirmButton": "Potwierdź anonimizację",
       "confirmButtonLabel": "Potwierdź anonimizację danych klienta",
       "errorAnonymize": "Nie udało się zanonimizować danych klienta. Spróbuj ponownie.",
       "successAnonymize": "Dane klienta zostały zanonimizowane.",
-      "confirmMismatch": "Wpisz dokładnie: ANONIMIZUJ"
+      "confirmMismatch": "Wpisz dokładnie: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2385,7 +2386,8 @@
           "message": "Za chwilę trwale usuniesz {{ count }} rekordów z kategorii {{ category }}.",
           "rangeLabel": "Zakres okresów objętych usunięciem",
           "confirmLabel": "Aby potwierdzić, wpisz",
-          "confirmHint": "Wpisz dokładnie: USUŃ",
+          "confirmPhrase": "USUŃ",
+          "confirmHint": "Wpisz dokładnie: {{ phrase }}",
           "confirmButton": "Usuń dane",
           "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}",
           "contactInteractionsNote": "Liczba obejmuje także wiadomości e-mail i social media oraz ich załączniki. Załączniki zostaną trwale usunięte również z magazynu plików (S3) i nie będzie można ich odzyskać."

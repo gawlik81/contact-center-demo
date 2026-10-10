@@ -1653,12 +1653,13 @@
         "s3Objects": "Файли у сховищі (записи, вкладення)"
       },
       "confirmLabel": "Для підтвердження введіть",
-      "confirmHint": "Введіть точно: ANONIMIZUJ",
+      "confirmPhrase": "АНОНІМІЗУВАТИ",
+      "confirmHint": "Введіть точно: {{ phrase }}",
       "confirmButton": "Підтвердити анонімізацію",
       "confirmButtonLabel": "Підтвердити анонімізацію даних клієнта",
       "errorAnonymize": "Не вдалося анонімізувати дані клієнта.",
       "successAnonymize": "Дані клієнта анонімізовано.",
-      "confirmMismatch": "Введіть точно: ANONYMIZE"
+      "confirmMismatch": "Введіть точно: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2385,7 +2386,8 @@
           "message": "Ви збираєтеся остаточно видалити {{ count }} записів категорії {{ category }}.",
           "rangeLabel": "Період, що охоплюється видаленням",
           "confirmLabel": "Для підтвердження введіть",
-          "confirmHint": "Введіть точно: USUŃ",
+          "confirmPhrase": "ВИДАЛИТИ",
+          "confirmHint": "Введіть точно: {{ phrase }}",
           "confirmButton": "Видалити дані",
           "confirmButtonAria": "Підтвердити видалення даних категорії {{ category }}",
           "contactInteractionsNote": "Кількість охоплює також повідомлення електронної пошти та соціальних мереж і їхні вкладення. Вкладення буде остаточно видалено також із файлового сховища (S3), їх неможливо відновити."

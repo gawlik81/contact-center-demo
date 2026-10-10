@@ -48,8 +48,9 @@ class PartitionMaintenanceJobIntegrationTest {
         ctx = JpaTestContext.create(
                 pool,
                 new Class<?>[]{},
-                new Class<?>[]{PartitionMaintenanceRepository.class, PartitionScannerImpl.class, PartitionMaintenanceJob.class},
-                null);
+                new Class<?>[]{PartitionMaintenanceRepository.class, PartitionScannerImpl.class,
+                        CronFailureLogRepository.class, PartitionMaintenanceJob.class},
+                c -> c.getBeanFactory().registerSingleton("jdbcTemplate", jdbc));
         job = ctx.getBean(PartitionMaintenanceJob.class);
     }
 
@@ -57,6 +58,37 @@ class PartitionMaintenanceJobIntegrationTest {
     static void stopContext() {
         JpaTestContext.close(ctx);
         pool.close();
+    }
+
+    @org.junit.jupiter.api.Test
+    @DisplayName("DB-082: awaria create_next_month_partitions() zostawia trwały wiersz ERROR w cron_log i scheduled_job")
+    void failureOfCreateNextMonthPartitions_leavesDurableErrorRow() {
+        String prevStatus = jdbc.queryForObject(
+                "SELECT last_run_status FROM scheduled_job WHERE job_name = 'create_next_month_partitions'",
+                String.class);
+        PartitionMaintenanceRepository failing = org.mockito.Mockito.mock(PartitionMaintenanceRepository.class);
+        org.mockito.Mockito.doThrow(new RuntimeException("wrapper", new IllegalStateException("db082 forced")))
+                .when(failing).createNextMonthPartitions();
+        Integer before = jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = 'create_next_month_partitions' AND status = 'ERROR'",
+                Integer.class);
+        try {
+            new PartitionMaintenanceJob(failing, ctx.getBean(PartitionScannerImpl.class),
+                    ctx.getBean(CronFailureLogRepository.class)).ensureFuturePartitions();
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM cron_log WHERE job_name = 'create_next_month_partitions' "
+                            + "AND status = 'ERROR' AND message = 'db082 forced'", Integer.class))
+                    .isEqualTo(before + 1);
+            assertThat(jdbc.queryForObject(
+                    "SELECT last_run_status FROM scheduled_job WHERE job_name = 'create_next_month_partitions'",
+                    String.class)).isEqualTo("ERROR");
+        } finally {
+            jdbc.update("DELETE FROM cron_log WHERE job_name = 'create_next_month_partitions' "
+                    + "AND status = 'ERROR' AND message = 'db082 forced'");
+            jdbc.update("UPDATE scheduled_job SET last_run_status = ? WHERE job_name = 'create_next_month_partitions'",
+                    prevStatus);
+        }
     }
 
     private boolean partitionExists(String partitionName) {

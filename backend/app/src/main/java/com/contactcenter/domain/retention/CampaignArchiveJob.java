@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+
 /**
  * Cykliczna archiwizacja kontaktów zakończonych kampanii (BE-120, EPIC-30) — domknięcie martwego
  * harmonogramu: funkcja SQL {@code archive_completed_campaign_contacts()} (V015) dla każdej kampanii
@@ -69,7 +71,11 @@ import org.springframework.stereotype.Component;
  *
  * <h2>Odporność</h2>
  * Wyjątek (np. z funkcji SQL) jest łapany i logowany na ERROR — nie zatrzymuje schedulera;
- * transakcja jest wycofana w całości, a kolejny przebieg nastąpi następnej doby. Operacja jest
+ * transakcja jest wycofana w całości, a PO jej wycofaniu job zapisuje trwały ślad awarii
+ * ({@code cron_log} status ERROR + {@code scheduled_job.last_run_status='ERROR'}) przez
+ * {@link CronFailureLogRepository} w osobnej transakcji (DB-082/V135; wpis ERROR z handlera
+ * V015 byłby wycofany razem z transakcją). Awaria samego zapisu śladu jest tylko logowana (WARN).
+ * Kolejny przebieg nastąpi następnej doby. Operacja jest
  * idempotentna ({@code ON CONFLICT DO NOTHING}, kampanie bez wierszy nic nie zmieniają).
  */
 @Slf4j
@@ -77,11 +83,14 @@ import org.springframework.stereotype.Component;
 class CampaignArchiveJob {
 
     private final CampaignArchiveJobRepository repository;
+    private final CronFailureLogRepository cronFailureLog;
     private final boolean enabled;
 
     CampaignArchiveJob(CampaignArchiveJobRepository repository,
+                       CronFailureLogRepository cronFailureLog,
                        @Value("${retention.campaign-archive.enabled:false}") boolean enabled) {
         this.repository = repository;
+        this.cronFailureLog = cronFailureLog;
         this.enabled = enabled;
     }
 
@@ -92,11 +101,16 @@ class CampaignArchiveJob {
             log.info("[CampaignArchiveJob] Wyłączony (retention.campaign-archive.enabled=false) — pomijam");
             return;
         }
+        Instant startedAt = Instant.now();
         try {
             long rows = repository.archiveCompletedCampaigns();
             log.info("[CampaignArchiveJob] Zarchiwizowano {} wierszy campaign_contact", rows);
         } catch (RuntimeException e) {
             log.error("[CampaignArchiveJob] Archiwizacja kontaktów kampanii nie powiodła się", e);
+            // Transakcja repozytorium jest już wycofana — ślad ERROR zapisujemy w OSOBNEJ transakcji
+            // (DB-082); recordFailure nigdy nie rzuca, więc nie maskuje oryginalnego wyjątku.
+            cronFailureLog.recordFailure(CampaignArchiveJobRepository.JOB_NAME,
+                    CronFailureLogRepository.rootCauseMessage(e), startedAt);
         }
     }
 }

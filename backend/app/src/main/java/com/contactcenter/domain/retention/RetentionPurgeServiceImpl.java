@@ -67,6 +67,8 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     /** Domyślny rozmiar batcha gdy {@code retention.purge.batch-size} nie jest skonfigurowany. */
     static final int DEFAULT_BATCH_SIZE = 100;
 
+    /** Nazwa wpisu w scheduled_job (V133) dla purge CAMPAIGN_DATA (DB-082). */
+    private static final String CAMPAIGN_PURGE_JOB_NAME = "purge_campaign_contact_archive";
     private static final String AUDIT_ENTITY_TYPE = "RETENTION_PURGE";
     private static final String AUDIT_ACTION_COMPLETED = "RETENTION_PURGE_COMPLETED";
     private static final String AUDIT_ACTION_FAILED = "RETENTION_PURGE_FAILED";
@@ -80,6 +82,7 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     private final AuditLogService auditLogService;
     private final TenantRetentionPendingSummaryRepository summaryRepository;
     private final CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
+    private final CronFailureLogRepository cronFailureLogRepository;
 
     @Value("${retention.purge.batch-size:100}")
     private int batchSize;
@@ -176,7 +179,20 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
                 }
                 case TRANSCRIPTS -> rowsDeleted = purgeTranscripts(tenantId, cutoff);
                 case CAMPAIGN_DATA -> {
-                    CampaignArchiveRetentionRepository.PurgeOutcome outcome = purgeCampaignData(tenantId, cutoff);
+                    CampaignArchiveRetentionRepository.PurgeOutcome outcome;
+                    Instant purgeStartedAt = Instant.now();
+                    try {
+                        outcome = purgeCampaignData(tenantId, cutoff);
+                    } catch (RuntimeException e) {
+                        // DB-082: trwały ślad awarii purge_campaign_contact_archive (cron_log/scheduled_job),
+                        // jeden wpis na nieudany tenant. Wołane PO wyjściu z nieudanej transakcji partii
+                        // (REQUIRES_NEW w repozytorium), tylko dla CAMPAIGN_DATA; nie zmienia statusu FAILED —
+                        // wyjątek leci dalej do handleFailure. recordFailure nigdy nie rzuca.
+                        cronFailureLogRepository.recordFailure(CAMPAIGN_PURGE_JOB_NAME,
+                                "tenant=" + tenantId + ": " + CronFailureLogRepository.rootCauseMessage(e),
+                                purgeStartedAt);
+                        throw e;
+                    }
                     rowsDeleted = outcome.deleted();
                     if (outcome.truncated()) {
                         // COMPLETED z ostrzeżeniem (nie FAILED) – ta sama ścieżka co s3Failures; częściowy

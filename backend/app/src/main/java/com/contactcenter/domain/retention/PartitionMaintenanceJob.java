@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -48,6 +49,9 @@ import java.util.stream.Collectors;
  * {@code create_next_month_partitions()}, jak i pojedynczej pary tabela/miesiąc w pętli bufora)
  * jest logowany na poziomie ERROR i NIE przerywa przetwarzania pozostałych — wzorzec
  * {@code RetentionEvaluationJob} ("błąd przy jednej kategorii/tenancie nie przerywa reszty").
+ * Awaria {@code create_next_month_partitions()} dodatkowo zostawia trwały ślad ({@code cron_log}
+ * ERROR + {@code scheduled_job.last_run_status}) przez {@link CronFailureLogRepository} w osobnej
+ * transakcji (DB-082/V135) — wpis zapisany wewnątrz wycofanej transakcji by przepadł.
  * Job nigdy nie rzuca wyjątku na zewnątrz {@link #ensureFuturePartitions()} — planista Springa
  * uruchomi go ponownie przy następnym terminie cron niezależnie od wyniku dzisiejszego przebiegu.
  *
@@ -74,6 +78,9 @@ class PartitionMaintenanceJob {
      */
     static final int MONTHS_AHEAD = 3;
 
+    /** Nazwa wpisu w {@code scheduled_job} (V133) odpowiadającego {@code create_next_month_partitions()}. */
+    static final String CREATE_NEXT_MONTH_JOB_NAME = "create_next_month_partitions";
+
     /**
      * Wszystkie tabele partycjonowane miesięcznie w projekcie (EPIC-29/DB-052, V088; {@code social_message}
      * dołączona w EPIC-30/DB-065/BE-133, V100; {@code email_message} w EPIC-30/DB-067/BE-135, V102) —
@@ -92,6 +99,7 @@ class PartitionMaintenanceJob {
 
     private final PartitionMaintenanceRepository partitionMaintenanceRepository;
     private final PartitionScanner partitionScanner;
+    private final CronFailureLogRepository cronFailureLog;
 
     // =========================================================================
     // Scheduled job
@@ -104,11 +112,16 @@ class PartitionMaintenanceJob {
 
         Map<String, Set<String>> before = safeSnapshotPartitionNames();
 
+        Instant startedAt = Instant.now();
         try {
             partitionMaintenanceRepository.createNextMonthPartitions();
         } catch (Exception e) {
             log.error("[PartitionMaintenanceJob] Błąd wywołania create_next_month_partitions(): {}",
                     e.getMessage(), e);
+            // Transakcja repozytorium jest już wycofana — trwały ślad w osobnej transakcji (DB-082/V135);
+            // recordFailure nigdy nie rzuca. Dotyczy tylko create_next_month_partitions (nie pętli bufora).
+            cronFailureLog.recordFailure(CREATE_NEXT_MONTH_JOB_NAME,
+                    CronFailureLogRepository.rootCauseMessage(e), startedAt);
         }
 
         buildMonthsAheadBuffer();

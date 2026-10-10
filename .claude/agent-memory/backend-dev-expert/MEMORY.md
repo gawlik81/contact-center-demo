@@ -144,3 +144,4 @@
 - [Mockito when().thenReturn() wykonuje stubowane wywołanie](feedback_mockito_when_thenreturn_executes_stubbed_call.md) — na static mocku, stary when(any()).thenThrow() przechwytuje ponowne stubowanie w setUp(); fix: reset(mock)
 - [BE-120 CampaignArchiveJob (EPIC-30)](project_be120_campaign_archive_job.md) — flaga false, pomiar RLS app_user (GUC '' = blad uuid), perf 30x10k=17.7s/186MB WAL
 - [BE-121 pętla partii purge campaign_contact_archive](project_be121_campaign_archive_purge_loop.md) — koniec = wynik 0, REQUIRES_NEW per partia, guard max-batches
+- [DB-082 CronFailureLogRepository (Java)](project_db082_cron_failure_log_java.md) — REQUIRES_NEW ślad ERROR, wpięcie w 3 miejscach, purge tylko wokół purgeCampaignData

@@ -47,8 +47,10 @@ class CampaignArchiveJobRepository {
      * wiersz z wyższym {@code log_id} między INSERT-em A a jej SELECT-em (READ COMMITTED). Skutek ogranicza
      * się do mylącej liczby w logu (dane są bezpieczne dzięki idempotencji funkcji SQL). Dodatkowo
      * „brak wpisu" i „zarchiwizowano 0" są nierozróżnialne (oba zwracają 0). Funkcja SQL (V015) przy
-     * wyjątku robi {@code RAISE} po zapisie wpisu ERROR, więc wpis cofany jest razem z transakcją —
-     * jedynym śladem awarii jest wyjątek/log aplikacji.
+     * wyjątku robi {@code RAISE} po zapisie wpisu ERROR, więc ten wpis jest cofany razem z transakcją.
+     * Trwały ślad awarii zapisuje dopiero {@link CampaignArchiveJob} przez
+     * {@link CronFailureLogRepository#recordFailure} w osobnej transakcji (DB-082/V135), już po
+     * wycofaniu tej metody.
      *
      * @return liczba wierszy skopiowanych do archiwum wg {@code cron_log.rows_affected}
      *         (0, gdy brak wpisu — np. gdy {@code cron_log} jest niewidoczny dla roli)

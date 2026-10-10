@@ -36,6 +36,7 @@ class CampaignArchiveJobIntegrationTest {
     private static HikariDataSource pool;
     private static JdbcTemplate jdbc;
     private static CampaignArchiveJobRepository repository;
+    private static CronFailureLogRepository cronFailureLog;
 
     private UUID tenantA;
     private UUID tenantB;
@@ -45,6 +46,7 @@ class CampaignArchiveJobIntegrationTest {
         pool = PostgresTestDatabase.superuserPool(4);
         jdbc = new JdbcTemplate(pool);
         repository = new CampaignArchiveJobRepository(jdbc, new DataSourceTransactionManager(pool));
+        cronFailureLog = new CronFailureLogRepository(jdbc, new DataSourceTransactionManager(pool));
     }
 
     @AfterAll
@@ -65,7 +67,7 @@ class CampaignArchiveJobIntegrationTest {
     }
 
     private CampaignArchiveJob job() {
-        return new CampaignArchiveJob(repository, true);
+        return new CampaignArchiveJob(repository, cronFailureLog, true);
     }
 
     @Test
@@ -154,7 +156,7 @@ class CampaignArchiveJobIntegrationTest {
         UUID c = campaign(tenantA, "COMPLETED", 45);
         contact(tenantA, c, "COMPLETED", "+48500000031", "A");
 
-        new CampaignArchiveJob(repository, false).run();
+        new CampaignArchiveJob(repository, cronFailureLog, false).run();
 
         assertThat(liveCount(c)).isEqualTo(1);
         assertThat(archiveIds(c)).isEmpty();
@@ -165,6 +167,7 @@ class CampaignArchiveJobIntegrationTest {
     void sqlFunctionFailure_isSwallowedAndRolledBack() {
         UUID c = campaign(tenantA, "COMPLETED", 45);
         contact(tenantA, c, "COMPLETED", "+48500000041", "A");
+        Instant before = Instant.now().minusSeconds(5);
         // Wymuszony błąd w funkcji: kolumna z NOT NULL w archiwum + trigger rzucający wyjątek.
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION be120_fail() RETURNS trigger LANGUAGE plpgsql AS
@@ -182,10 +185,75 @@ class CampaignArchiveJobIntegrationTest {
         assertThat(liveCount(c)).isEqualTo(1);
         assertThat(archiveIds(c)).isEmpty();
 
+        // DB-082: trwały ślad awarii zapisany w OSOBNEJ transakcji, mimo wycofania zadania
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = ? AND status = 'ERROR' "
+                        + "AND message LIKE '%be120 forced failure%' AND finished_at >= ?",
+                Integer.class, CampaignArchiveJobRepository.JOB_NAME, java.sql.Timestamp.from(before)))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT last_run_status FROM scheduled_job WHERE job_name = ?",
+                String.class, CampaignArchiveJobRepository.JOB_NAME)).isEqualTo("ERROR");
+
         // po usunięciu przyczyny kolejny przebieg działa (scheduler "przeżył")
         job().run();
         assertThat(archiveIds(c)).hasSize(1);
         assertThat(liveCount(c)).isZero();
+    }
+
+    @Test
+    @DisplayName("DB-082: awaria samego recordFailure nie przerywa run() i nie zmienia wycofania danych")
+    void recordFailureFailure_doesNotBreakRun() {
+        UUID c = campaign(tenantA, "COMPLETED", 45);
+        contact(tenantA, c, "COMPLETED", "+48500000042", "A");
+        JdbcTemplate brokenJdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
+        org.mockito.Mockito.when(brokenJdbc.queryForObject(
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(Long.class),
+                        org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("log_cron_failure down"));
+        CronFailureLogRepository broken =
+                new CronFailureLogRepository(brokenJdbc, new DataSourceTransactionManager(pool));
+        Integer errorsBefore = jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = ? AND status = 'ERROR'",
+                Integer.class, CampaignArchiveJobRepository.JOB_NAME);
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION be120_fail() RETURNS trigger LANGUAGE plpgsql AS
+                $$ BEGIN RAISE EXCEPTION 'be120 forced failure 2'; END $$
+                """);
+        jdbc.execute("CREATE TRIGGER be120_fail_trg BEFORE INSERT ON campaign_contact_archive "
+                + "FOR EACH ROW WHEN (NEW.tenant_id = '" + tenantA + "') EXECUTE FUNCTION be120_fail()");
+        try {
+            assertThatNoException().isThrownBy(
+                    () -> new CampaignArchiveJob(repository, broken, true).run());
+            assertThatNoException().isThrownBy(
+                    () -> broken.recordFailure("x", "m", Instant.now()));
+        } finally {
+            jdbc.execute("DROP TRIGGER be120_fail_trg ON campaign_contact_archive");
+            jdbc.execute("DROP FUNCTION be120_fail()");
+        }
+
+        assertThat(liveCount(c)).isEqualTo(1);
+        assertThat(archiveIds(c)).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = ? AND status = 'ERROR'",
+                Integer.class, CampaignArchiveJobRepository.JOB_NAME)).isEqualTo(errorsBefore);
+    }
+
+    @Test
+    @DisplayName("DB-082: sukces nie zapisuje wiersza ERROR")
+    void success_doesNotWriteErrorRow() {
+        UUID c = campaign(tenantA, "COMPLETED", 46);
+        contact(tenantA, c, "COMPLETED", "+48500000043", "A");
+        Integer errorsBefore = jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = ? AND status = 'ERROR'",
+                Integer.class, CampaignArchiveJobRepository.JOB_NAME);
+
+        job().run();
+
+        assertThat(archiveIds(c)).hasSize(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM cron_log WHERE job_name = ? AND status = 'ERROR'",
+                Integer.class, CampaignArchiveJobRepository.JOB_NAME)).isEqualTo(errorsBefore);
     }
 
     /**

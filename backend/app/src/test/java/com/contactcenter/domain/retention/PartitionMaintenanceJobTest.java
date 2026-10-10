@@ -58,6 +58,9 @@ class PartitionMaintenanceJobTest {
     @Mock
     private PartitionScanner partitionScanner;
 
+    @Mock
+    private CronFailureLogRepository cronFailureLog;
+
     @InjectMocks
     private PartitionMaintenanceJob job;
 
@@ -69,6 +72,32 @@ class PartitionMaintenanceJobTest {
     @Nested
     @DisplayName("ensureFuturePartitions()")
     class EnsureFuturePartitions {
+
+        @Test
+        @DisplayName("DB-082: awaria create_next_month_partitions() -> recordFailure('create_next_month_partitions', root cause)")
+        void errorInCreateNextMonthPartitions_recordsFailureOnce() {
+            doThrow(new RuntimeException("wrapper", new IllegalStateException("root boom")))
+                    .when(partitionMaintenanceRepository).createNextMonthPartitions();
+
+            job.ensureFuturePartitions();
+
+            verify(cronFailureLog, times(1)).recordFailure(
+                    org.mockito.ArgumentMatchers.eq("create_next_month_partitions"),
+                    org.mockito.ArgumentMatchers.eq("root boom"),
+                    org.mockito.ArgumentMatchers.any(java.time.Instant.class));
+        }
+
+        @Test
+        @DisplayName("DB-082: sukces i awaria samej pętli bufora nie zapisują śladu")
+        void successOrBufferFailure_doesNotRecordFailure() {
+            doThrow(new RuntimeException("table boom")).when(partitionMaintenanceRepository)
+                    .createTablePartition(anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                            org.mockito.ArgumentMatchers.anyInt());
+
+            job.ensureFuturePartitions();
+
+            org.mockito.Mockito.verifyNoInteractions(cronFailureLog);
+        }
 
         @Test
         @DisplayName("woła create_next_month_partitions() dokładnie raz na uruchomienie (AC #1)")

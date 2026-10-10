@@ -121,6 +121,9 @@ class RetentionPurgeServiceImplTest {
     @Mock
     private CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
 
+    @Mock
+    private CronFailureLogRepository cronFailureLogRepository;
+
     @InjectMocks
     private RetentionPurgeServiceImpl service;
 
@@ -551,6 +554,53 @@ class RetentionPurgeServiceImplTest {
 
             verify(purgeLogRepository).markFailed(any(), eq(TENANT_A), eq("DB connection lost"), eq(0L));
             verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+            // DB-082: dokładnie jeden ślad awarii na nieudany tenant, z tenant id w komunikacie
+            ArgumentCaptor<String> msg = ArgumentCaptor.forClass(String.class);
+            verify(cronFailureLogRepository, times(1)).recordFailure(
+                    eq("purge_campaign_contact_archive"), msg.capture(), any(Instant.class));
+            assertThat(msg.getValue()).contains("tenant=" + TENANT_A).contains("DB connection lost");
+        }
+
+        @Test
+        @DisplayName("sukces i truncated nie zapisują śladu awarii (DB-082)")
+        void successAndTruncated_doNotRecordFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(5L, true));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verifyNoInteractions(cronFailureLogRepository);
+        }
+
+        @Test
+        @DisplayName("awaria po purge (markCompleted) nie zapisuje śladu cron — to nie awaria purge_campaign_contact_archive")
+        void failureAfterPurge_doesNotRecordCronFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(5L, false));
+            org.mockito.Mockito.doThrow(new RuntimeException("log write failed"))
+                    .when(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(5L));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verifyNoInteractions(cronFailureLogRepository);
+        }
+
+        @Test
+        @DisplayName("awaria innej kategorii (TRANSCRIPTS) -> FAILED, bez śladu cron (DB-082)")
+        void otherCategoryFailure_doesNotRecordCronFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.TRANSCRIPTS))
+                    .thenReturn(12);
+            when(contactService.purgeTranscriptionsOlderThan(eq(TENANT_A), any(), anyInt()))
+                    .thenThrow(new RuntimeException("boom"));
+
+            service.purge(TENANT_A, RetentionDataCategory.TRANSCRIPTS, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(purgeLogRepository).markFailed(any(), eq(TENANT_A), eq("boom"), eq(0L));
+            verifyNoInteractions(cronFailureLogRepository);
         }
     }
 

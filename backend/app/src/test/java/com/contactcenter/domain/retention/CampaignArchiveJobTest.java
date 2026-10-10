@@ -16,11 +16,12 @@ import static org.mockito.Mockito.when;
 class CampaignArchiveJobTest {
 
     private final CampaignArchiveJobRepository repository = mock(CampaignArchiveJobRepository.class);
+    private final CronFailureLogRepository cronFailureLog = mock(CronFailureLogRepository.class);
 
     @Test
     @DisplayName("flaga false: zero interakcji z repozytorium (zero wywołań SQL)")
     void disabled_doesNotCallRepository() {
-        new CampaignArchiveJob(repository, false).run();
+        new CampaignArchiveJob(repository, cronFailureLog, false).run();
 
         verifyNoInteractions(repository);
     }
@@ -30,7 +31,7 @@ class CampaignArchiveJobTest {
     void enabled_callsRepositoryOnce() {
         when(repository.archiveCompletedCampaigns()).thenReturn(3L);
 
-        new CampaignArchiveJob(repository, true).run();
+        new CampaignArchiveJob(repository, cronFailureLog, true).run();
 
         verify(repository, times(1)).archiveCompletedCampaigns();
     }
@@ -41,7 +42,22 @@ class CampaignArchiveJobTest {
         when(repository.archiveCompletedCampaigns())
                 .thenThrow(new DataAccessResourceFailureException("db down"));
 
-        assertThatNoException().isThrownBy(() -> new CampaignArchiveJob(repository, true).run());
+        assertThatNoException().isThrownBy(() -> new CampaignArchiveJob(repository, cronFailureLog, true).run());
         verify(repository, times(1)).archiveCompletedCampaigns();
+        verify(cronFailureLog).recordFailure(
+                org.mockito.ArgumentMatchers.eq("archive_completed_campaign_contacts"),
+                org.mockito.ArgumentMatchers.eq("db down"),
+                org.mockito.ArgumentMatchers.any(java.time.Instant.class));
+    }
+
+    @Test
+    @DisplayName("sukces i flaga false nie zapisują śladu awarii (DB-082)")
+    void successAndDisabled_doNotRecordFailure() {
+        when(repository.archiveCompletedCampaigns()).thenReturn(1L);
+
+        new CampaignArchiveJob(repository, cronFailureLog, true).run();
+        new CampaignArchiveJob(repository, cronFailureLog, false).run();
+
+        verifyNoInteractions(cronFailureLog);
     }
 }

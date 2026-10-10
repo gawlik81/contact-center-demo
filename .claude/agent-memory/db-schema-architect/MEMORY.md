@@ -42,3 +42,4 @@
 - [project_db058_drop_materialized_views.md](project_db058_drop_materialized_views.md) – DB-058 (2026-10-09) V132: DROP 2 matview + refresh_materialized_views(), guard pg_depend/pg_proc/cron, wpis scheduled_job dla DB-076
 - [project_db076_077_scheduled_job_docs.md](project_db076_077_scheduled_job_docs.md) – DB-076/V133 (2026-10-09) scheduled_job vs wykonawcy Java (tabela job→cron), DELETE refresh_materialized_views, COMMENT ON FUNCTION; DB-077 doc; pin w teście DB-058; V134 niepotrzebne (V102 już poprawił komentarz s3_key)
 - [project_db_cr_v134_comment_fix.md](project_db_cr_v134_comment_fix.md) — V134 komentarz indeksu po CR, pulapka kolejnosci testow Db057, pomiar braku GUC (cichy 0 vs 22P02)
+- [project_db082_log_cron_failure.md](project_db082_log_cron_failure.md) — DB-082/V135 (2026-10-10): helper log_cron_failure, martwy handler ERROR w V015, odrzucone B/dblink

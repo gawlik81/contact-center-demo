@@ -6803,7 +6803,7 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅
+> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅;   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅; tura 26, 2026-10-10)
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 ✅ → DB-078 ✅;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
@@ -6824,7 +6824,7 @@ działają niezależnie od tej decyzji.
 **Złożoność:** S (ocena zlecenia potwierdzona; ryzyko RLS opisane niżej — jeśli okaże się wymagać refaktoru funkcji, wykonawca dopisuje osobny ticket DB)
 **Zależy od:** brak
 **Status:** ✅ Ukończone (2026-10-09) — job dostarczony ZA FLAGĄ `retention.campaign-archive.enabled=false`; zgoda właściciela na włączenie flagi (część kryterium inwentaryzacji) oraz WP-4 (local-demo) NIE uzyskane/NIE wykonane (tura 22/25: backend przebudowany poza tą pracą 2026-10-09 ok. 21:00 UTC — obraz zawiera job (`app.jar`: `CampaignArchiveJob`, `CampaignArchiveJobRepository`), kontener healthy, flaga domyślnie `false`, WP-4 nie zaznaczone), kryteria pozostają otwarte, patrz notatka wykonania
-**Blokuje:** DB-072, DB-075, DB-076, DB-077
+**Blokuje:** DB-072, DB-075, DB-076, DB-077, DB-082, BE-147
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -6865,9 +6865,9 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 - **Inwentaryzacja czytelników `campaign_contact` (znikną z widoku po archiwizacji kampanii > 30 dni):** `CampaignContactRepository#findByCampaign` (`GET /api/campaigns/{id}/contacts`), `#countByStatusGroupedByCampaign` (statystyki listy kampanii), `CampaignRepository#countContacts` (walidacja startu kampanii), dialer (`DialerController` `/api/dialer/manual/*`, `ScheduledCallbackExecutor`, `DialerCallbackHandlerImpl`), `EtlSyncServiceImpl` (ETL do DW), `GdprRepository` (guard rekordów w toku). Żaden nie czyta archiwum. `GET /api/campaigns/{id}/contacts/{recordId}/attempts` czyta tabelę `contact` i NIE jest dotknięty. Pełna lista także w Javadoc `CampaignArchiveJob`.
 - **Testy:** `CampaignArchiveJobTest` (3: flaga false = zero interakcji, flaga true = jedno wywołanie, wyjątek połknięty) i `CampaignArchiveJobIntegrationTest` (7, Testcontainers, pełny łańcuch Flyway: archiwizacja obu tenantów z nietkniętymi `RUNNING`/świeżymi `COMPLETED`; liczba wierszy z `cron_log`; idempotencja; flaga false; błąd funkcji SQL → rollback i brak wyjątku; R5 pod `app_user` w 4 wariantach; ręczny perf pomijany bez `-Dbe120.perf=true`). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty, BUILD SUCCESS.
 - **Poza zakresem / otwarte:** zgoda właściciela na włączenie flagi (D8) oraz WP-4 (local-demo) — flaga pozostaje `false`, więc po wdrożeniu job niczego nie archiwizuje. Wpływ D6: po włączeniu zegar `archived_at` zaległych kampanii startuje od dnia pierwszego uruchomienia.
-- **Propozycje nowych ticketów DB (NIE założone — brak nagłówków, liczniki PROGRESS bez zmian; następny wolny numer DB w chwili zapisu: DB-082, do ponownego sprawdzenia przy zakładaniu):** (a) `archive_completed_campaign_contacts()` w wariancie per tenant (`p_tenant_id`) albo `SECURITY DEFINER` — potrzebne dopiero przy przełączeniu roli połączenia na `app_user` (ścieżka rozstrzygana z BE-139/DB-071; dziś dormant, `ccapp` ma BYPASSRLS), więc bez priorytetu do tego czasu; (b) wykrywanie fałszywego `SUCCESS` w `cron_log` — gdy pod RLS widocznych jest 0 kampanii, funkcja powinna zapisać status ostrzegawczy (np. `NO_VISIBLE_CAMPAIGNS`) zamiast `SUCCESS` z 0 — niski koszt, wartościowe jako zabezpieczenie przed cichą awarią po zmianie roli, najlepiej razem z (a); (c) wariant per kampania dla dużej zaległości — **nie zakładać**: pomiar 17,7 s dla 300 tys. wierszy jest poniżej progu 30 s, a rzeczywista zaległość to 37 wierszy.
+- **Propozycje nowych ticketów DB (stan z chwili zapisu: NIE założone; **tura 26: zamknięcie śladu awarii `ERROR` założone jako DB-082 ✅ + BE-147 ✅ — zob. uwagi CR niżej**; pozycje (a), (b) i (c) poniżej pozostają NIEZAŁOŻONE):** (a) `archive_completed_campaign_contacts()` w wariancie per tenant (`p_tenant_id`) albo `SECURITY DEFINER` — potrzebne dopiero przy przełączeniu roli połączenia na `app_user` (ścieżka rozstrzygana z BE-139/DB-071; dziś dormant, `ccapp` ma BYPASSRLS), więc bez priorytetu do tego czasu; (b) wykrywanie fałszywego `SUCCESS` w `cron_log` — gdy pod RLS widocznych jest 0 kampanii, funkcja powinna zapisać status ostrzegawczy (np. `NO_VISIBLE_CAMPAIGNS`) zamiast `SUCCESS` z 0 — niski koszt, wartościowe jako zabezpieczenie przed cichą awarią po zmianie roli, najlepiej razem z (a); (c) wariant per kampania dla dużej zaległości — **nie zakładać**: pomiar 17,7 s dla 300 tys. wierszy jest poniżej progu 30 s, a rzeczywista zaległość to 37 wierszy.
 - **Odblokowane (pola `Zależy od`):** DB-072 ✅ (już zamknięte), DB-075, DB-076, DB-077 — `BE-120 ✅` dopisane; DB-075 dodatkowo czeka na decyzję D6 (warunkowy), DB-076/DB-077 na DB-058 / DB-076 (tura 23: DB-058 ✅ — DB-076 gotowy do startu, DB-077 czeka tylko na DB-076).
-- **Uwagi z CR 2026-10-10 wprowadzone (tura 25, `CR-BACKEND.md` 4/5, brak blokerów):** komentarz o `cron_log` (odczyt nie jest deterministyczny; brak ShedLock; „brak wpisu” vs „0” nierozróżnialne), uodporniony test `repository_returnsRowCountFromCronLog`. **ZNALEZISKO (pre-existing):** wpis `ERROR` w `cron_log` i `scheduled_job.last_run_status='ERROR'` nigdy się nie utrwala w V015 (RAISE cofa transakcję) — propozycja ticketu DB (następny wolny numer wg `grep` 2026-10-10: DB-082; NIE założony, sprawdzić przy zakładaniu). **Przed włączeniem flagi `retention.campaign-archive.enabled`** sprawdzić, czy rola DB produkcji ma BYPASSRLS (pod `app_user` job po cichu archiwizuje 0). **Stan wdrożenia (tura 25):** obraz backendu z 2026-10-09 21:00 UTC (healthy) zawiera `CampaignArchiveJob`; flaga `false`; migracje V126–V133 zastosowane przez tę przebudowę; WP-4 nie wykonane. **Zależności:** `Zależy od` brak; `Blokuje` DB-072 ✅, DB-075, DB-076 ✅, DB-077 ✅.
+- **Uwagi z CR 2026-10-10 wprowadzone (tura 25, `CR-BACKEND.md` 4/5, brak blokerów):** komentarz o `cron_log` (odczyt nie jest deterministyczny; brak ShedLock; „brak wpisu” vs „0” nierozróżnialne), uodporniony test `repository_returnsRowCountFromCronLog`. **ZNALEZISKO (pre-existing):** wpis `ERROR` w `cron_log` i `scheduled_job.last_run_status='ERROR'` nigdy się nie utrwala w V015 (RAISE cofa transakcję) — propozycja ticketu DB — **ZAŁOŻONA i ZAMKNIĘTA w turze 26: DB-082 ✅ (V135 `log_cron_failure`, nie zastosowana na żywej bazie) + krok Javy BE-147 ✅ (`CronFailureLogRepository`, wpięcie w `CampaignArchiveJob`, `PartitionMaintenanceJob`, `RetentionPurgeServiceImpl`)**; **nadal otwarte:** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS (DB-072/BE-139, decyzja właściciela). **Przed włączeniem flagi `retention.campaign-archive.enabled`** sprawdzić, czy rola DB produkcji ma BYPASSRLS (pod `app_user` job po cichu archiwizuje 0). **Stan wdrożenia (tura 25):** obraz backendu z 2026-10-09 21:00 UTC (healthy) zawiera `CampaignArchiveJob`; flaga `false`; migracje V126–V133 zastosowane przez tę przebudowę; WP-4 nie wykonane. **Zależności:** `Zależy od` brak; `Blokuje` DB-072 ✅, DB-075, DB-076 ✅, DB-077 ✅.
 
 ---
 
@@ -6878,7 +6878,7 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 **Złożoność:** S
 **Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — dlatego pętla kończy się dopiero na wyniku 0, a NIE na `n == batchSize`; patrz notatka wykonania)
 **Status:** ✅ Ukończone (2026-10-09) — pętla batchowa w kodzie, `mvn verify -pl app` zielone; ODCHYLENIE od ticketu (warunek końca = wynik 0, nie `n == batchSize`) uzasadnione w notatce; samo WYDANIE razem z V126 (DB-056) do potwierdzenia — spełnione na poziomie kodu (obie zmiany na jednym branchu); tura 25: V126–V133 zastosowane na żywej bazie (przebudowa backendu poza tą pracą: V126 14:47, V127–V133 21:00 UTC); obraz działający od 2026-10-09 ok. 21:00 zawiera klasy BE-120/121/122 (`unzip -l app.jar`; treść pętli nie dekompilowana), kontener healthy
-**Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma BE-121 w `Zależy od`)
+**Blokuje:** BE-147 (tura 26; grep 2026-10-09 dawał „brak”, od tury 26 BE-147 ma BE-121 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
 
@@ -8521,3 +8521,34 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 - **Decyzja o wierszach historycznych (Zakres p.4):** bez implementacji — `entity_id` zapisany błędnie przed 2026-10-01 pozostaje błędny na stałe (setki wierszy `audit_log` na danych dev), brak jednorazowego sweepu. Potwierdzone w treści commitu `04c40d7`.
 - **Zmienione pliki (z `git show 04c40d7 --stat`):** `AuditAspect.java`, `Audited.java`, `AuditAspectTest.java` (+226 linii — nowe nested classes `EntityIdResultAccessor`, `RegressionExistingBehaviorUnchanged`), `ContactServiceImpl.java`, `CustomerServiceImpl.java`, `QueueServiceImpl.java`, `UserServiceImpl.java`.
 - **`mvn verify`:** nie zweryfikowany osobno dla tego commitu (część wspólnej gałęzi z BE-131/BE-141); pełny `mvn -o clean verify -pl app` dla BIEŻĄCEGO stanu repo (po przywróceniu tej notatki, czysta zmiana dokumentacji) wykonany w ramach tej sesji 2026-10-07 — wynik w raporcie koordynatora.
+
+---
+
+### BE-147 – Trwały ślad awarii zadań cyklicznych w Javie: `CronFailureLogRepository` + wpięcie w `CampaignArchiveJob`, `PartitionMaintenanceJob`, `RetentionPurgeServiceImpl`
+
+**Typ:** Backend implementation / Observability
+**Priorytet:** Should Have (konwencja repo)
+**Złożoność:** S
+**Zależy od:** DB-082 ✅ (V135 `log_cron_failure`), BE-120 ✅, BE-121 ✅
+**Status:** ✅ Ukończone (2026-10-10, tura 26) — `mvn verify -pl app`: **2549 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**; działa dopiero po zastosowaniu V135 na bazie (żywa baza: max = 133, V135 czeka na restart backendu — do tego czasu `recordFailure` loguje WARN i nie przerywa joba)
+**Blokuje:** brak (grep 2026-10-10: żaden ticket nie ma BE-147 w `Zależy od`)
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `backend-dev-expert` (+ test-suite)
+
+**Kontekst:** krok backendowy DB-082 — funkcja SQL `log_cron_failure` musi być wołana z Javy PO wycofaniu nieudanej transakcji joba, w osobnej transakcji, bo wpis `ERROR` zapisany wewnątrz transakcji wołającego cofa się razem z nią.
+
+**Zrobione:**
+- Nowa klasa `domain/retention/CronFailureLogRepository` (pakietowo-prywatna `@Repository`, bez `TenantAwareRepository` i bez `TenantContext` — tabele `cron_log`/`scheduled_job` są globalne, bez RLS): `recordFailure(jobName, message, startedAt)` = `SELECT log_cron_failure(?,?,?)` w `TransactionTemplate` `PROPAGATION_REQUIRES_NEW`; łapie `RuntimeException`, loguje WARN i **nigdy nie rzuca**; statyczne `rootCauseMessage(Throwable)` przez `NestedExceptionUtils.getMostSpecificCause`.
+- Wpięcie PO wycofaniu nieudanej transakcji: (1) `CampaignArchiveJob.run()` — job `archive_completed_campaign_contacts` (konstruktor `(repository, cronFailureLog, enabled)`); (2) `PartitionMaintenanceJob` — wyłącznie `catch` wokół `createNextMonthPartitions()`, job `create_next_month_partitions` (stała `CREATE_NEXT_MONTH_JOB_NAME`, nazwa zgodna z wpisem `scheduled_job` z V133; pętla bufora `createTablePartition` i snapshoty NIE zapisują śladu); (3) `RetentionPurgeServiceImpl#purgeAsync` — gałąź `case CAMPAIGN_DATA`, lokalny `try/catch RuntimeException` wokół samego `purgeCampaignData`: `recordFailure('purge_campaign_contact_archive', 'tenant=<uuid>: <root cause>', ...)` i `throw e`.
+- **DECYZJA WŁAŚCICIELA:** jeden wpis na nieudany tenant, z `tenant_id` w message; tylko dla `CAMPAIGN_DATA`; status `FAILED`/`handleFailure` bez zmian; ostrzeżenie `truncated` z BE-121, `TenantContext.restore/clear` i brak nowych wątków nietknięte; NIE wpięto w ogólny `catch` końca `purgeAsync` (awaria po udanym purge, np. `markCompleted`, nie jest awarią funkcji purge — test).
+- Zaktualizowany Javadoc `CampaignArchiveJobRepository` (sekcja `RAISE` po zapisie wpisu `ERROR`) i jobów.
+
+**Kryteria akceptacji:**
+- [x] `CampaignArchiveJobIntegrationTest`: `sqlFunctionFailure_isSwallowedAndRolledBack` (trigger; `run()` nie rzuca; dokładnie 1 wiersz `ERROR` w `cron_log` z komunikatem triggera, `last_run_status='ERROR'`, dane wycofane), `recordFailureFailure_doesNotBreakRun` (mock `JdbcTemplate` rzucający), `success_doesNotWriteErrorRow`
+- [x] `CampaignArchiveJobTest`: sukces i flaga `false` nie wołają `recordFailure`
+- [x] `PartitionMaintenanceJobTest`: `recordFailure('create_next_month_partitions', 'root boom', Instant)` raz; awaria pętli bufora nie woła; `PartitionMaintenanceJobIntegrationTest` (prawdziwa baza: trwały wiersz `ERROR`, sprzątanie i przywrócenie `last_run_status`; bean `CronFailureLogRepository` dodany do kontekstu)
+- [x] `RetentionPurgeServiceImplTest$CampaignDataPurge`: awaria → `recordFailure` raz z `tenant=<TENANT_A>` i tekstem błędu, `FAILED` bez zmian; sukces/`truncated`/awaria `markCompleted`/awaria `TRANSCRIPTS` → brak wołania
+- [x] Istniejące testy zaktualizowane pod nowe konstruktory; `mvn verify -pl app` zielone (2549/2549, 1 pominięty)
+- [ ] Osobny test jednostkowy samego `CronFailureLogRepository` poza testami integracyjnymi — NIEWYKONANE (pokryty pośrednio testami (a)/(b) powyżej)
+
+**Poza zakresem / otwarte:** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS (zależy od roli połączenia: DB-072/BE-139; zmiana kontraktu wymaga decyzji właściciela) — uwaga z CR zostaje otwarta. **Zależności:** `Zależy od` DB-082 ✅, BE-120 ✅, BE-121 ✅; nic nie zależy od BE-147.

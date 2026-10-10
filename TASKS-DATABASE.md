@@ -3030,13 +3030,13 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > otwarte gałęzie (`git ls-tree -r --name-only <gałąź> -- backend/src/main/resources/db/migration`) ORAZ `flyway_schema_history` żywej
 > bazy" (precedens: V092 zajęte przez gałąź `feature-socialmedia`, patrz DB-055). Jedna migracja na jedną zmianę; nigdy edycja
 > zastosowanej migracji.
-> **Numeracja:** DB-056…DB-081 (poprzedni najwyższy: DB-080). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
+> **Numeracja:** DB-056…DB-082 (poprzedni najwyższy: DB-081). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
 > Could = bramkowane lub warunkowe. Tickety oznaczone [WARUNKOWY] wchodzą do zakresu tylko przy wskazanej alternatywie decyzji;
 > [BRAMKOWANY] — dopiero po spełnieniu progu wolumenowego.
 >
 > Graf zależności warstwy DB (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   DB-056 ✅ → BE-121 ✅;   DB-057 ✅ (V129–V131; brak zależności w obie strony);   DB-058 ✅ (V132, wariant A = DROP, 2026-10-09)
+> Faza 0:   DB-056 ✅ → BE-121 ✅ → BE-147 ✅;   DB-057 ✅ (V129–V131; brak zależności w obie strony);   DB-058 ✅ (V132, wariant A = DROP, 2026-10-09)
 > Grupa 1:  BE-124 ✅ → DB-059 ✅ → BE-127 ✅;   DB-060 ✅ → DB-061 ✅ → DB-062 ✅ → BE-129;   DB-079 ✅ → DB-062 ✅, BE-129;   [BE-124 ✅ → DB-063 🚫 → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 >           BE-141 ✅ → DB-078 ✅ (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
@@ -3046,6 +3046,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ → DB-076 ✅ (V133, 2026-10-09, tura 24);   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 ✅ → DB-077 ✅ (dokumentacja, 2026-10-09, tura 24)
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
+> Grupa 9:  BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135 `log_cron_failure`, 2026-10-10, tura 26) → BE-147 ✅ (krok Javy; `BE-121 ✅` też w `Zależy od` BE-147)
 > ```
 
 ### DB-056 – Zbatchowana funkcja `purge_campaign_contact_archive` (pojedynczy DELETE → partie)
@@ -4406,7 +4407,7 @@ proxy końca to `updated_at` w chwili archiwizacji lub data z `schedule`.
 **Złożoność:** S
 **Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ (wszystkie zamknięte; brak otwartych blokerów — zweryfikowane 2026-10-09, tura 24)
 **Status:** ✅ Ukończone (2026-10-09, tura 24) — migracja **V133** (`V133__reconcile_scheduled_job_with_java_executors.sql`, data-only + `COMMENT ON FUNCTION`) zweryfikowana w pełnym łańcuchu Flyway (Testcontainers, 8 testów); **V133 ZASTOSOWANA na żywej bazie 2026-10-09 21:00:28** (korekta tury 25: max = 133; zastosowana przez zewnętrzną przebudowę backendu; wcześniejszy zapis „NIE zastosowana / ostatnia = V126 / zgoda właściciela” był nieaktualny); OTWARTE: diff `pg_dump -s` na żywej bazie (nie dotyczy zmiany funkcji — test porównuje `pg_get_functiondef` przed/po)
-**Blokuje:** DB-077
+**Blokuje:** DB-077, DB-082 (założony w turze 26)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
 
@@ -4430,7 +4431,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 - **Test `Db076ScheduledJobReconciliationMigrationTest` (8):** stan przed/po; tabela job → wykonawca; brak wpisów wskazujących na nieistniejącą funkcję; `pg_get_functiondef` identyczne przed/po; `create_next_month_partitions` nadal aktualizuje `last_run_at`; komentarze funkcji; idempotencja; zgodność crona wpisu z domyślnym `@Scheduled` w źródłach. Zmieniony `Db058DropMaterializedViewsMigrationTest` (dodany `target(migration)`, bo V133 usuwa wpis `refresh_materialized_views`). `mvn verify -pl app`: **2527 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**.
 - **Stan żywej bazy (korekta tury 25, odczyt `flyway_schema_history` 2026-10-10):** V133 ZASTOSOWANA 2026-10-09 21:00:28 (razem z V127–V132; odczyt `scheduled_job`: 4 aktywne wpisy z wykonawcą Java, 6 × `rotate_*` nieaktywnych, brak `refresh_materialized_views`) przez zewnętrzną przebudowę backendu; zapis z tury 24 „NIEZASTOSOWANA / ostatnia = V126 / wymaga zgody właściciela” był nieaktualny.
 - **Zależności:** `Zależy od` BE-120/BE-122/BE-123/DB-058 — wszystkie ✅; `Blokuje` DB-077 ✅ (zweryfikowane grepem 2026-10-09: DB-076 występuje w `Zależy od` wyłącznie DB-077; `TASKS-BACKEND.md` ma DB-076 tylko w polach `Blokuje` BE-120/BE-122/BE-123 (bez znaczników ✅ — konwencja: znaczniki tylko w `Zależy od` ticketu zależnego); `TASKS-FRONTEND.md` — brak odwołań). Nic nie jest zablokowane przez DB-076.
-- **Uwagi z CR 2026-10-10 wprowadzone (tura 25):** `Db076ScheduledJobReconciliationMigrationTest` (8) uodporniony na cwd, test komentarzy 11 funkcji; nagłówek V133 (zastosowana, nie edytować) pomija `cleanup_expired_refresh_tokens` — odnotowane. **Ustalenie powiązane z BE-120:** `ERROR` w `cron_log`/`last_run_status` nie utrwala się w V015 (RAISE cofa transakcję) — propozycja ticketu DB (DB-082, NIE założony). **Zależności:** `Zależy od` BE-120/BE-122/BE-123/DB-058 (✅); `Blokuje` DB-077 ✅.
+- **Uwagi z CR 2026-10-10 wprowadzone (tura 25):** `Db076ScheduledJobReconciliationMigrationTest` (8) uodporniony na cwd, test komentarzy 11 funkcji; nagłówek V133 (zastosowana, nie edytować) pomija `cleanup_expired_refresh_tokens` — odnotowane. **Ustalenie powiązane z BE-120:** `ERROR` w `cron_log`/`last_run_status` nie utrwala się w V015 (RAISE cofa transakcję) — propozycja ticketu DB — **założona w turze 26 jako DB-082 ✅ (V135 `log_cron_failure`) + krok Javy BE-147 ✅**. **Zależności:** `Zależy od` BE-120/BE-122/BE-123/DB-058 (✅); `Blokuje` DB-077 ✅.
 
 ---
 
@@ -4699,3 +4700,35 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Interakcja z BE-138 (`RlsValidationServiceIntegrationTest`, równoległa tura) — zweryfikowana, BRAK regresji.** `RlsValidationService#findTenantClassTables()` wylicza zakres dynamicznie z `information_schema.columns`/`pg_class` (tenant_id NOT NULL, bez partycji, bez klasy GLOBAL) — potwierdzone odczytem kodu i zapytaniem na żywej bazie, że wszystkie 7 tabel MAJĄ `tenant_id NOT NULL`, więc BYŁY już w zakresie walidacji PRZED tą migracją (zgłaszane jako naruszenie „brak FORCE"). Test `commandCoverageViolations_onlyKnownDb074PendingTablesMayViolate` sprawdza `violatingTables.isSubsetOf(allowedToStillViolate)`, gdzie `allowedToStillViolate` jawnie zawiera tych 7 nazw (komentarz w teście literalnie odnotowuje potrzebę „osobnego ticketu DB-XXX" — to jest ten ticket) — migracja V125 jedynie ZMNIEJSZA `violatingTables` (te 7 tabel znikają z naruszeń), co pozostaje podzbiorem `allowedToStillViolate` niezależnie od tego, czy są obecne czy nie. Drugi test, `commandCoverageViolations_matchesIndependentlyComputedLiveCatalogState`, liczy oczekiwany wynik niezależnie z żywego katalogu po OBU stronach porównania — również odporny. **Zweryfikowane uruchomieniem** `mvn test -Dtest=RlsValidationServiceIntegrationTest` po zastosowaniu V125: wszystkie testy zielone, zero zmian w pliku. `RlsValidationService.java` i jego test pozostały niedotknięte, zgodnie z poleceniem.
 
 **Status testów:** `mvn verify -pl app` (JDK 21): **Tests run: 2461, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS** (2026-10-08). +3 względem ostatniego potwierdzonego przebiegu DB-074 (2458) — wyłącznie nowa klasa `Db081ForceRlsSevenTenantATablesMigrationTest`, zero regresji gdzie indziej.
+
+---
+
+### DB-082 – Trwały ślad awarii zadań cyklicznych (`cron_log`/`scheduled_job`): funkcja `log_cron_failure`
+
+**Typ:** Bug / Observability (DB) — migracja: funkcja pomocnicza + komentarz ostrzegawczy
+**Priorytet:** Should Have (konwencja repo)
+**Złożoność:** S
+**Zależy od:** BE-120 ✅, DB-076 ✅ (V133)
+**Status:** ✅ Ukończone (2026-10-10, tura 26) — migracja **V135** (`V135__add_log_cron_failure_helper.sql`), test `Db082LogCronFailureMigrationTest` (5, Testcontainers); `mvn verify -pl app`: 2549 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS (razem z krokiem Javy BE-147). **V135 NIE zastosowana na żywej bazie** (odczyt `select max(version::int) from flyway_schema_history` 2026-10-10: **133**; V134 i V135 zastosuje następny restart backendu — obie bezpieczne: komentarz indeksu i nowa funkcja pomocnicza).
+**Blokuje:** BE-147
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst (CR 2026-10-10 do BE-120; ticket założony z propozycji zapisanej w notatce BE-120):** w `V015` funkcja `archive_completed_campaign_contacts()` ma blok `EXCEPTION WHEN OTHERS` zapisujący `cron_log` (`ERROR`) i `scheduled_job.last_run_status='ERROR'`, po którym następuje `RAISE`. Wyjątek cofa transakcję wołającego razem z tym wpisem, więc ślad `ERROR` nie utrwala się nigdy. `create_next_month_partitions` i `purge_campaign_contact_archive` w ogóle nie zapisują `ERROR`. Na żywej bazie `cron_log` miał 26 wierszy, wszystkie `SUCCESS`, 0 `ERROR`; po awarii zostawał wyłącznie log aplikacji.
+
+**Poza zakresem (jawnie):** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS — zależy od roli połączenia (DB-072/BE-139), zmiana kontraktu wymaga decyzji właściciela; pod `app_user` pokrywa istniejący `CampaignArchiveJobIntegrationTest` (`underAppUser_*`). Pozostaje otwarte (uwaga z CR zostaje).
+
+**Zakres:**
+- Migracja `V135__add_log_cron_failure_helper.sql`: funkcja `log_cron_failure(p_job_name VARCHAR, p_message TEXT, p_started_at TIMESTAMPTZ DEFAULT NULL) RETURNS BIGINT` — `INSERT` do `cron_log` ze statusem `ERROR` (message obcięty do 2000 znaków) + `UPDATE scheduled_job` (`last_run_at`, `last_run_status='ERROR'`); pusty/NULL `job_name` → SQLSTATE `22023`; nieznany job nie rzuca; `SECURITY INVOKER`; `COMMENT ON FUNCTION`. Dodatkowo `COMMENT ON FUNCTION archive_completed_campaign_contacts()` z ostrzeżeniem o martwym bloku `EXCEPTION`.
+- Definicje i kontrakty istniejących funkcji NIE zmienione (`V015` nieprzepisywana — martwy blok nieszkodliwy, jedna zmiana = jedna migracja). Funkcja ma być wołana PO wycofaniu nieudanej transakcji, w osobnej transakcji (krok Javy: BE-147).
+- Odrzucone opcje: (B) usunięcie `RAISE` (zmiana kontraktu — Java czytałaby stary `SUCCESS` z `cron_log`; nie rozwiązuje `create_next_month_partitions`/`purge`), (A) sam `REQUIRES_NEW` w Javie bez funkcji SQL (duplikacja SQL w 3 miejscach), (D) `dblink`/`pg_background` (rozszerzenia niedostępne w `postgres:16-alpine`).
+
+**Kryteria akceptacji:**
+- [x] Migracja V135 (numer zweryfikowany jako wolny; max zastosowana w żywej bazie = 133) tworzy funkcję `log_cron_failure` o podanej sygnaturze, `SECURITY INVOKER`, z komentarzem
+- [x] Analiza wołających: tylko `archive_completed_campaign_contacts` ma handler `EXCEPTION…RAISE` (martwy kod); realnie wołane z Javy: `archive_completed_campaign_contacts` (`CampaignArchiveJobRepository`), `create_next_month_partitions` (`PartitionMaintenanceRepository`), `purge_campaign_contact_archive` (`RetentionPurgeService`); NIE wołane: `rotate_*_partitions` (backstop, nieaktywne od V133) i `cleanup_expired_refresh_tokens` (`RefreshTokenCleanupJob` robi `DELETE` przez repozytorium)
+- [x] Test `Db082LogCronFailureMigrationTest` (5, Testcontainers; awaria wymuszona triggerem `BEFORE INSERT` na `campaign_contact_archive`): handler V015 nie utrwala śladu po rollbacku (wyjątek nadal dociera do wołającego); `log_cron_failure` po rollbacku na osobnej transakcji daje trwały wiersz `ERROR` i `last_run_status='ERROR'` przy wycofanych danych zadania; obcięcie 2000, `p_started_at`, nieznany job; pusty/NULL `job_name` odrzucany; działa pod `SET ROLE app_user`
+- [x] Definicje istniejących funkcji niezmienione (zero `CREATE OR REPLACE` na nich)
+- [x] `mvn verify -pl app` zielone (2549/2549, 1 pominięty)
+- [ ] Zastosowanie V135 na żywej bazie — czeka na restart backendu (poza zakresem tury; wymaga tylko restartu, bez zgody destrukcyjnej)
+
+**Notatka z wykonania (2026-10-10, tura 26):** numer V135 wolny (V134 = komentarz indeksu z poprawek CR tury 25, niezastosowana). Funkcja i test w repo jako nieśledzone pliki do commitu koordynatora. Krok backendowy (wpięcie w trzy joby po wycofaniu transakcji): **BE-147 ✅**. **Zależności:** `Zależy od` BE-120 ✅, DB-076 ✅; `Blokuje` BE-147 ✅ (zweryfikowane grepem 2026-10-10: DB-082 występuje w `Zależy od` wyłącznie BE-147; `TASKS-FRONTEND.md` — brak odwołań).

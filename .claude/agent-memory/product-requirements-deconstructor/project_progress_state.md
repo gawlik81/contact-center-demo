@@ -1,9 +1,11 @@
 ---
 name: project_progress_state
-description: Stan 2026-10-09 (tura 24) — DB 77/81 (2⬜+2🚫), BE 140/146 (4⬜+2🚫), FE 111/112 (0⬜+1🚫) — RAZEM 328/339 (96,76%); tura 24: DB-076 ✅ (V133) i DB-077 ✅ (dokumentacja); otwarte EPIC-30: DB-069, DB-075, BE-137, BE-139, BE-140, BE-144; żywa baza ma V1–V133 (V127–V133 zastosowane 2026-10-09 21:00 przez zewnętrzną przebudowę — korekta tury 25), V134 (komentarz indeksu, poprawka DB-057) niezastosowana; tury 16–23 w treści pliku
+description: Stan 2026-10-10 (tura 26) — DB 78/82, BE 141/147, FE 111/112 — RAZEM 330/341 (96,77%), ⬜ 6; poprzednio tura 24 — DB 77/81, BE 140/146 — 328/339; tura 24: DB-076 ✅ (V133) i DB-077 ✅ (dokumentacja); otwarte EPIC-30: DB-069, DB-075, BE-137, BE-139, BE-140, BE-144; żywa baza ma V1–V133 (V127–V133 zastosowane 2026-10-09 21:00 przez zewnętrzną przebudowę — korekta tury 25), V134 (komentarz indeksu, poprawka DB-057) niezastosowana; tury 16–23 w treści pliku
 metadata:
   type: project
 ---
+
+**Tura 26 (2026-10-10, NOWE tickety DB-082 + BE-147, ślad awarii cron):** DB 78/82 (2⬜+2🚫), BE 141/147 (4⬜+2🚫), FE 111/112 — RAZEM 330/341 (96,77%), ⬜ 6 bez zmian; EPIC-30 mianownik 52→54 (nowe tickety weszły już ✅, jak DB-081). DB-082 = V135 `log_cron_failure` (V015 ma martwy blok EXCEPTION…RAISE — wpis ERROR cofany), BE-147 = `CronFailureLogRepository` + wpięcie w CampaignArchiveJob/PartitionMaintenanceJob/RetentionPurgeServiceImpl (purge: wpis per tenant, tylko CAMPAIGN_DATA). SELECT 2026-10-10: max Flyway = 133 (V134, V135 niezastosowane). Otwarte nadal: fałszywy SUCCESS pod RLS (DB-072/BE-139). Skrypt count.py z nagłówków ### daje DB 78/82, BE 139/145 (+2 BE-108/109 inline = 141/147). Pole `Blokuje` we własnym nagłówku BEZ znaczników ✅ (własny błąd poprawiony w turze 26). Następny wolny: DB-083, BE-148. Nagłówek PROGRESS: tura 20 skrócona do jednej linii.
 
 **Tura 25 (2026-10-10, korekta stanu żywej bazy + poprawki po CR):** liczniki BEZ zmian (328/339). Zweryfikowane SELECT: max Flyway = 133 (V127–V133 zastosowane 2026-10-09 21:00:27–28, V104 brak w historii), `contacts_dw.remote_address` nie istnieje, cc-backend healthy z kodem BE-120/121/122; WP-4 NIE oznaczone jako wykonane. Ostrzeżenia z tur 21–24 oznaczone jako nieaktualne (dopiski „[korekta tury 25]”). Dodane adnotacje „uwagi z CR 2026-10-10” (BE-120/121/122, FE-110, DB-056/057/058/076/077/078); V134 = poprawka DB-057 (nie ticket); propozycja DB-082 (cron_log ERROR nie utrwala się w V015) NIE założona. Zob. [[feedback_verify_live_db_state]].
 

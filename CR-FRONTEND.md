@@ -1533,3 +1533,12 @@ _None identified._ Standalone component, `OnPush`/signals zgodnie z istniejącym
 ### Summary
 
 **Ocena: 4/5 ⭐** — czysta, kompletna zmiana zgodna z konwencjami (standalone, i18n 4 języków, prettier); do poprawy głównie treść opisu `CAMPAIGN_DATA` (sugeruje szerszy zakres niż faktycznie usuwany), ogólnikowe tooltipy dla kategorii jednotypowych i dostępność tooltipów opartych wyłącznie o `title`. Kryterium WP-4 (local-demo) pozostaje otwarte (zgodnie z ticketem).
+
+---
+
+## Follow-up: FE-110 / GdprAnonymizeModal — wspólny wzorzec frazy potwierdzenia dla modali destrukcyjnych — 2026-10-10 (tura 27, po WP-4)
+
+### 🔧 Improvements & Suggestions
+
+- **DROBNE (utrzymanie, pewne) · `purge-confirm-modal.component.ts`, `gdpr-anonymize-modal.component.ts`** — po poprawkach WP-4 oba modale niezależnie implementują tę samą logikę frazy potwierdzenia (tłumaczony klucz i18n, porównanie bez rozróżniania wielkości liter z `trim`, `confirmHint` z `{{ phrase }}`, blokada przycisku do zgodności). Każdy kolejny modal destrukcyjny będzie ją kopiował (i może powtórzyć błąd sztywnej frazy w jednym języku). Wyodrębnić wspólny komponent/dyrektywę (np. `cc-confirm-phrase-input` z inputem `phraseKey` i outputem `matches`) lub czystą funkcję `matchesConfirmPhrase(input, phrase)` w `shared/`, z jednym testem parytetu kluczy `*.confirmPhrase` w 4 językach. Follow-up, NIE założony jako ticket.
+- **DO POTWIERDZENIA W PRZEGLĄDARCE:** wizualna weryfikacja tabeli „Polityki retencji” (zwłaszcza DE/UK, długie opisy kategorii) i obu modali po poprawkach nie została jeszcze potwierdzona przez użytkownika.

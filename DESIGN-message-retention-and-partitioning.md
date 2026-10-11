@@ -13,7 +13,7 @@ od D1/D9 implementacja (`TASKS-BACKEND.md` BE-142) **jeszcze NIE ISTNIEJE**; to 
 ścieżka zmiany w §3.
 Analiza: 2026-09-20 (PostgreSQL 16.13, schemat po V093, baza demo 28 MB; tylko odczyt, bez zmian w bazie i repo).
 Powiązane: `DESIGN-data-retention-partitioning.md` (EPIC-29 — silnik retencji), `PRD.md` §6.5 (NFR-RODO01/02/03), `ARCHITECTURE.md` §4/§6.6,
-`documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079, `TASKS-BACKEND.md` BE-120…143 (+ BE-144 poza epikiem: porządki infrastruktury MinIO), `TASKS-FRONTEND.md` FE-110…112.
+`documentation/tech/06-database.md`. Tickety: `TASKS-DATABASE.md` DB-056…079 (+ DB-080…084 z kolejnych tur; DB-084 = okres archiwizacji kontaktów kampanii per tenant), `TASKS-BACKEND.md` BE-120…143 (+ BE-144 poza epikiem: porządki infrastruktury MinIO; BE-145…151 z kolejnych tur; BE-151 = API okresu archiwizacji), `TASKS-FRONTEND.md` FE-110…113 (FE-113 = pole okresu archiwizacji w GUI).
 
 ## 1. Cel
 
@@ -137,7 +137,7 @@ dziś niczego w działającej aplikacji — ryzyko aktywuje się tylko gdy BE-12
 **D8 — archiwizacja kampanii zmienia widoczność (nowa, wynikła z weryfikacji U11).** **ZAŁOŻENIE: BE-120 dostarcza job za flagą
 `retention.campaign-archive.enabled` (domyślnie `false`)**; włączenie po potwierdzeniu, że UI/raporty nie potrzebują kontaktów kampanii > 30
 dni, albo po dodaniu czytelników archiwum (poza zakresem EPIC-30). Wpływ: domyślnie `true` = czyści `campaign_contact` od razu (zgodnie z zamiarem
-V015), ale kontakty zakończonych kampanii znikają z UI i statystyk. **Stan 2026-10-09 (BE-120 ✅):** job dostarczony za flagą `false`; zgoda właściciela na włączenie NIE uzyskana; inwentaryzacja czytelników w notatce BE-120 (`TASKS-BACKEND.md`).
+V015), ale kontakty zakończonych kampanii znikają z UI i statystyk. **Stan 2026-10-09 (BE-120 ✅):** job dostarczony za flagą `false`; zgoda właściciela na włączenie NIE uzyskana; inwentaryzacja czytelników w notatce BE-120 (`TASKS-BACKEND.md`). **[Tura 35, 2026-10-11 — decyzja właściciela:** okres archiwizacji (dotąd 30 dni zaszyte w V015) staje się ustawieniem PER TENANT w GUI „Retencja danych”, domyślnie **180 dni**, zakres 30–730 (DB-084 → BE-151 → FE-113; zmiana zachowania 30 → 180 zapisana jako świadoma decyzja w DB-084 R1); flaga `retention.campaign-archive.enabled` w local-demo WYŁĄCZONA do czasu wdrożenia tych ticketów (cofa zgodę z tury 31). Zgoda właściciela na włączenie flagi w demo i na produkcji wymaga ponownego potwierdzenia po wdrożeniu.]**
 
 **D9 — zbiór danych podmiotu (Art. 17/15) (nowa, z DB-060 F2/F5).** Opcje: (A) dopasowanie także po identyfikatorze (telefon/e-mail klienta, znormalizowane: E.164, `lower()`, w obrębie tenanta) — kontakty, callbacki, rekordy kampanii i e-maile bez powiązania kluczowego —
 z licznikami `matched_by_link`/`matched_by_identifier` w wyniku i **trybem podglądu (dry-run)** przed anonimizacją; (B) tylko powiązania kluczowe (`customer_id`, `last_contact_id`, `contact.campaign_contact_record_id`, `origin_contact_id`).
@@ -178,6 +178,7 @@ Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 ✅ → DB-072 ✅ ‖ DB-073 ✅ ‖ DB-074 ✅, BE-138 ✅, BE-139 → BE-148 (tura 33, 2026-10-11: rola połączenia bez BYPASSRLS; + DB-072/073/074/081/082 ✅, BE-120/121/147 ✅ → BE-148 (parasol; WP-1 ✅ tura 34) → DB-083 → BE-149 ‖ BE-150)      DB-071 ✅ → DB-081 ✅ (FORCE RLS 7 tabel klasy A, odkrycie BE-138)
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6=archived_at ZATWIERDZONE 2026-10-11: DB-075 🚫 → BE-140 🚫 N/A]   DB-058 ✅ → DB-076 ✅ → DB-077 ✅ (dokumentacja, po falach 0–1)   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135, ślad awarii cron) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅)
+        BE-120 ✅, DB-082 ✅ → DB-084 (tura 35: okres archiwizacji kontaktów kampanii per tenant) → BE-151 → FE-113
 ```
 
 | Fala | Cel | Priorytet | Złożoność (vs ocena zlecenia) |

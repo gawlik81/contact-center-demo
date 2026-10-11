@@ -5870,10 +5870,10 @@ nie konstruowało literalnie).
 
 > Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20). Backend: BE-126 (usuwanie wiadomości w kategorii `CONTACT_INTERACTIONS`),
 > BE-129 (przepływ RODO), BE-130 (tylko D1 = osobna kategoria). Zakres frontendu jest mały — partycjonowanie i harmonogramy są dla UI przezroczyste; strony retencji pozostają ADMIN-only (kontrakt EPIC-29).
-> **Numeracja:** FE-110…FE-112 (poprzedni najwyższy: FE-109). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
+> **Numeracja:** FE-110…FE-113 (poprzedni najwyższy: FE-109; FE-113 założony w turze 35 — okres archiwizacji kontaktów kampanii per tenant). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`.
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 → BE-151 → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant).
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
@@ -6018,3 +6018,37 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
   - Niespójność i18n `supervisor.gdprAnonymize.confirmHint` w `de.json`/`uk.json` — podpowiedź instruowała operatora, by wpisał zlokalizowane słowo („ANONYMISIEREN"/„АНОНІМІЗУЙ"), którego kod nigdy nie zaakceptuje (`isConfirmEnabled()` porównuje zawsze z niełamanym na lokalizacje `'ANONIMIZUJ'`) — ujednolicone do `ANONIMIZUJ` we wszystkich 4 językach, zgodnie z etykietą pola.
 - **Pozostałe ustalenia (minor/nit — brak `takeUntilDestroyed` na subskrypcji podglądu, `previewBlockedHint` widoczny razem z komunikatem błędu, brak rozróżnienia HTTP 409 przy błędzie anonimizacji, brak etykiety i18n dla nowego klucza `audit_log` z BE-142/V098, martwy `CustomerService#deleteCustomer()`) — świadomie NIE naprawione teraz:** niski wpływ, udokumentowane w review jako kandydaci do przyszłej poprawki.
 - Zweryfikowane niezależnie po poprawkach: `npm run lint` (0 błędów), `npm run build` (sukces), `npm test` (247/247), `npx prettier --check` na zmienionych plikach (zgodne).
+
+### FE-113 – „Ustawienia > Retencja danych”: pole „Okres archiwizacji kontaktów kampanii (dni)”
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-151
+**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
+**Czeka na BE:** BE-151 (kształt pola/zasobu w endpointach polityk retencji — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** na stronie „Retencja danych” (`/supervisor/settings/data-retention`, komponent `features/supervisor/pages/settings/data-retention/data-retention.component.ts`, serwis `features/supervisor/services/retention.service.ts`, strony retencji pozostają ADMIN-only) dodać edytowalne pole **„Okres archiwizacji kontaktów kampanii (dni)”** — ustawienie PER TENANT (bez nadpisania per kampania), wartość domyślna 180, zakres 30–730. Okres to opóźnienie PRZED archiwizacją kontaktów zakończonych kampanii (`COMPLETED`/`STOPPED`) i NIE jest okresem retencji `CAMPAIGN_DATA` (miesiące, liczone od archiwizacji) — etykieta/opis muszą to rozróżniać, by operator nie mylił dwóch pól.
+
+**Zakres:**
+- Pole liczbowe (dni) przy kategorii „Dane kampanii” (`CAMPAIGN_DATA`) albo w osobnej, opisanej sekcji — lokalizacja wg kształtu API z BE-151; wartość początkowa z API (efektywna; przy braku jawnej — 180, z oznaczeniem „domyślna”); signal/computed zgodnie z regułami frontendu (standalone, `signal()`).
+- Walidacja klienta 30–730 (liczby całkowite): komunikaty błędu i blokada zapisu poza zakresem; obsługa błędu walidacji zwróconego przez backend (422/400) bez podwójnego toastu (wzorzec `SKIP_ERROR_TOAST` jak w FE-112).
+- Zapis przez ISTNIEJĄCY serwis (`RetentionService`; nowa metoda/rozszerzenie żądania zgodnie z BE-151), stan „zapisano/błąd”.
+- **Opis/tooltip w 4 językach (`frontend/public/i18n/{pl,en,de,uk}.json`, klucze pod `supervisor.settings.dataRetention.*`)** z OSTRZEŻENIEM: po archiwizacji kontakty kampanii znikają z UI, statystyk i dialera (nie ma widoku archiwum); skrócenie okresu powoduje, że przy najbliższym przebiegu zostaną zarchiwizowane kampanie zakończone dawniej niż nowy okres; zmiana nie przywraca już zarchiwizowanych kontaktów. Przy zapisie wartości SKRACAJĄCEJ okres — dodatkowe potwierdzenie (modal/confirm w istniejącym stylu strony).
+- Brak martwych/niezamieszczonych kluczy i18n (grep), komplet 4 języków.
+
+**Kryteria akceptacji:**
+- [ ] Pole widoczne dla ADMIN na stronie Retencja danych, pokazuje wartość z API (180 dla tenanta bez jawnej wartości), etykieta rozróżnia „okres archiwizacji (dni)” od „retencji danych kampanii (miesiące)”
+- [ ] Walidacja 30–730: wartości 29 i 731, puste i niecałkowite blokują zapis z komunikatem; 30, 180, 730 zapisują się (testy Vitest)
+- [ ] Zapis przez istniejący serwis (`RetentionService`); sukces i błąd backendu (w tym 422/400) pokazują jeden, spójny komunikat (test)
+- [ ] Tooltip/opis w pl/en/de/uk z ostrzeżeniem o znikaniu kontaktów z UI/statystyk/dialera po archiwizacji; skrócenie okresu wymaga potwierdzenia (test)
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); `npm run format:check` zgodne
+- [ ] (WP-4) sprawdzenie w local-demo po przebudowie obrazu: odczyt i zapis wartości na tenancie testowym; flaga archiwizacji w demo pozostaje wyłączona (nie włączać w ramach tego ticketu)
+- [ ] DoD: kod + testy Vitest, code review, notatka wykonania; pamięć agenta commitowana razem ze zmianą
+
+**Ryzyka:** (R1) kształt API zależny od modelu danych z DB-084 — nie zaczynać przed publikacją Swaggera BE-151; (R2) ryzyko pomylenia z retencją `CAMPAIGN_DATA` (miesiące) — etykiety i opisy muszą jednoznacznie rozdzielać jednostki.
+**Nie wchodzi w zakres:** backend/migracje (BE-151, DB-084), nadpisanie per kampania, widok archiwum kontaktów, włączanie flagi archiwizacji.
+**Zależności:** `Zależy od` BE-151 (`Czeka na BE` BE-151).

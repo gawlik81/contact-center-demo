@@ -5873,7 +5873,7 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-113 (poprzedni najwyższy: FE-109; FE-113 założony w turze 35 — okres archiwizacji kontaktów kampanii per tenant). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 → BE-151 → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant; tura 36: WP-1 DB-084 ✅, FE-113 obejmuje podgląd skutku skrócenia okresu).
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 ✅ → BE-151 → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant; tura 36: WP-1 DB-084 ✅, FE-113 obejmuje podgląd skutku skrócenia okresu).
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 

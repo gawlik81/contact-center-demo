@@ -6803,7 +6803,7 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅;   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅; tura 26, 2026-10-10);   BE-120 ✅, BE-121 ✅, BE-147 ✅, DB-082 ✅, BE-139 → BE-148 (tura 33, parasol, rola bez BYPASSRLS; WP-1 ✅ tura 34) → DB-083 → BE-149 ‖ BE-150 (tura 34, podział; + BE-139 → DB-083, BE-149, BE-150);   BE-120 ✅, DB-082 ✅ → DB-084 → BE-151 → FE-113 (tura 35, okres archiwizacji kontaktów kampanii per tenant; niezależne od BE-148/BE-139; **tura 36: DB-084 → DB-083, P6 — DB-084 PRZED DB-083**; WP-1 DB-084 ✅)
+> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅;   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅; tura 26, 2026-10-10);   BE-120 ✅, BE-121 ✅, BE-147 ✅, DB-082 ✅, BE-139 → BE-148 (tura 33, parasol, rola bez BYPASSRLS; WP-1 ✅ tura 34) → DB-083 → BE-149 ‖ BE-150 (tura 34, podział; + BE-139 → DB-083, BE-149, BE-150);   BE-120 ✅, DB-082 ✅ → DB-084 ✅ (tura 37) → BE-151 → FE-113 (tura 35, okres archiwizacji kontaktów kampanii per tenant; niezależne od BE-148/BE-139; **tura 36: DB-084 → DB-083, P6 — DB-084 PRZED DB-083**; WP-1 DB-084 ✅)
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 ✅ → DB-078 ✅;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
@@ -8731,8 +8731,8 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 **Typ:** Backend implementation (API + job)
 **Priorytet:** Should Have
 **Złożoność:** M/L (tura 36: korekta z M — dochodzi osobny zasób API, audyt do DODANIA i endpoint podglądu skutku zmiany okresu)
-**Zależy od:** DB-084
-**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
+**Zależy od:** DB-084 ✅ (ukończony 2026-10-11, tura 37 — migracje V136–V138; odblokowuje BE-151)
+**Status:** ⬜ Nie rozpoczęte (odblokowany w turze 37 — DB-084 ✅; założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
 **Blokuje:** FE-113
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -8764,4 +8764,4 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 
 **Ryzyka:** (R1) rozjazd kontraktu z FE-113 — kształt pola uzgodnić z FE przed startem (weryfikować przeciw Swaggerowi, nie tylko treści ticketu); (R2) kolizja z BE-150/BE-148 (te same `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmieniane pod rolą `cc_app`) — przy równoległej pracy uzgodnić kolejność merge, brak formalnej zależności; (R3) skrócenie okresu = masowa archiwizacja przy najbliższym przebiegu (patrz DB-084 R2) — komunikat ostrzegawczy w odpowiedzi/Swaggerze.
 **Wpływ P5 (tura 36):** ticket rośnie o ok. 1 endpoint + 1 zapytanie natywne + testy (propozycja złożoności M → M/L; jeśli wykonawca uzna, że całość mieści się w M, korekta w notatce wykonania). **Nie wchodzi w zakres:** migracje (DB-084), UI (FE-113), nadpisanie okresu per kampania, czytelniki archiwum, włączanie flag.
-**Zależności:** `Zależy od` DB-084; `Blokuje` FE-113.
+**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` FE-113. **Adnotacja (tura 37, 2026-10-11):** DB-084 ✅ (V136–V138, domyślnie 180 dni, zakres 30–730; model danych: tabela `tenant_campaign_archive_setting`, brak wiersza = 180; V136–V138 niezastosowane na żywej bazie local-demo). **Dodatkowo w zakresie BE-151 (z DB-084):** poprawić `scheduled_job.description` („> 30 dni” — wymaga nowej migracji lub osobnej decyzji, bo V133/V135 nie edytować), Javadoc `CampaignArchiveJob` i komentarz „30 dni” w `application.yml`.

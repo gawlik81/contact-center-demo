@@ -6918,7 +6918,7 @@ więc repozytorium musi iterować. Wołający: `RetentionPurgeServiceImpl#purgeC
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ✅ Ukończone (2026-10-09) — WP-4 (local-demo) NIE wykonane, kryterium pozostaje otwarte, patrz notatka wykonania
+**Status:** ✅ Ukończone (2026-10-09) — WP-4 (local-demo) wykonane 2026-10-11 (obserwacja przebiegu crona), patrz notatka wykonania
 **Blokuje:** DB-076, DB-077
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -6937,7 +6937,7 @@ Live: `refresh_token` 1333 wiersze, 1331 wygasłych, 1298 unieważnionych, 37 z 
 - [x] (WP-1) Test Testcontainers z realnym JPQL: tokeny aktywny / wygasły < grace / wygasły > grace / unieważniony świeży / unieważniony stary / `tenant_id IS NULL` → usunięte dokładnie te przewidziane przez wybraną semantykę (mock nie wykryłby błędu warunku `OR`)
 - [x] (WP-2) Job nie zależy od `TenantContext` — test z pustym kontekstem przechodzi; wyjątek nie crashuje schedulera
 - [x] Istniejące testy `AuthServiceImpl` (refresh/logout/replay) zielone; test replay: token usunięty po grace → 401 jak nieistniejący (pokrywa istniejący `refresh_unknownToken_throwsInvalidTokenException`)
-- [ ] (WP-4) Local-demo: policz kandydatów (spodziewane ≈ 1331 wygasłych / 1298 unieważnionych, bez tokenów aktywnych), uzyskaj zgodę, uruchom; po: aktywne i w grace zostają, logowanie/refresh działa — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji (destrukcyjne, wymaga zgody właściciela)
+- [x] (WP-4) Local-demo: policz kandydatów (spodziewane ≈ 1331 wygasłych / 1298 unieważnionych, bez tokenów aktywnych), uzyskaj zgodę, uruchom; po: aktywne i w grace zostają, logowanie/refresh działa — **WYKONANE 2026-10-11** (tura 29): przebieg zrealizował sam cron 03:30 UTC (bez ręcznego uruchomienia); stan tabeli po przebiegu zweryfikowany odczytem SELECT. **NIE sprawdzone:** logowanie/odświeżanie tokenu w przeglądarce (wymaga logowania użytkownika) — wniosek „3 aktywne tokeny nietknięte” jest pośredni (z zapytań do tabeli), nie z testu end-to-end; patrz notatka (WP-4, 2026-10-11)
 - [x] `application.yml`: cron + `grace-days`; DoD (WP-7)
 
 **Notatka z wykonania (2026-10-09):**
@@ -6949,6 +6949,7 @@ Live: `refresh_token` 1333 wiersze, 1331 wygasłych, 1298 unieważnionych, 37 z 
 - **Testy:** `RefreshTokenCleanupJobIntegrationTest` (4 testy, Testcontainers, 7 tokenów: aktywny / wygasły w grace / wygasły po grace / unieważniony świeży / unieważniony stary / 2× `tenant_id` NULL). `mvn verify -pl app` (JDK 21): 2465 testów, 0 błędów, BUILD SUCCESS.
 - **Poza zakresem tej sesji:** WP-4 (local-demo). Odblokowuje formalnie DB-076 i DB-077 (pole `Zależy od`).
 - **Uwagi z CR 2026-10-10 wprowadzone (tura 25):** dopisek Javadoc — ślad replay (odrzucony stary token) zostaje tylko przy grace-days ≥ TTL refresh tokenu; brak skutku bezpieczeństwa. Obraz backendu z 2026-10-09 21:00 UTC zawiera `RefreshTokenCleanupJob` (healthy); WP-4 nie wykonane. **Zależności:** `Zależy od` brak; `Blokuje` DB-076 ✅, DB-077 ✅.
+- **WP-4 local-demo (2026-10-11, tura 29):** cron odpalił się 03:30 UTC (05:30 czasu lokalnego); log: `[RefreshTokenCleanup] Usunięto 1350 refresh tokenów (cutoff=2026-10-04T03:30:00Z, graceDays=7)` — zgodnie z oczekiwaniem ≈1346 (różnica 4 = tokeny, które przekroczyły próg karencji od czasu liczenia). Brak ERROR/WARN związanych z refresh tokenami w logach backendu. Stan `refresh_token` po przebiegu (żywa baza `contact_center`, rola `ccapp`): 10 wierszy — 0 wygasłych dawniej niż 7 dni, 0 unieważnionych starszych niż 7 dni, 3 aktywne, 1 wygasły w oknie karencji (zostaje celowo), 0 z `tenant_id` NULL, 6 świeżo unieważnionych (<7 dni). **NIE wykonane:** logowanie/odświeżanie tokenu w przeglądarce (wymaga logowania użytkownika); „3 aktywne tokeny nietknięte” to wniosek pośredni. Uwaga: `scheduled_job.cleanup_expired_refresh_tokens` ma pusty `last_run_status` — oczekiwane (job robi DELETE przez repozytorium, nie przez funkcję SQL; zob. BE-147).
 ---
 
 ### BE-123 – `audit_log` i `plugin_invocation_log` w `PartitionReclaimJob` (horyzont platformowy, D5)

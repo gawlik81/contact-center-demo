@@ -17,3 +17,4 @@
 | reference_tasks_backend_count_quirks.md | reference | SKOROWANE 2026-10-07: duplikaty BE-001/BE-030 NIE potwierdzone na aktualnej gałęzi; prawdziwa różnica 149 vs 145 = tylko 4 placeholdery BE-T00x (jak FE-T00x, 116 vs 112). Pełne przeliczenie jest BEZPIECZNE dla DB/BE/FE gdy wykluczysz T-placeholdery, zrobisz .strip() przed "**Status:**", liczysz BE-067 "[x]" jako ✅. Status pola może być fałszywy po wadliwym merge — zob. corruption_bdc5268 |
 - [BE-148 parasol i podział (tura 34)](project_be148_split.md) — DB-083/BE-149/BE-150, decyzje właściciela, liczniki 330/345, ryzyko DDL w definerze
 - [Okres archiwizacji per tenant (tura 35)](project_archive_period_tura35.md) — DB-084/BE-151/FE-113, flaga demo cofnięta, liczniki 330/348
+- [WP-1 DB-084 (tura 36)](project_db084_wp1_tura36.md) — tabela ustawienia + ended_at, DB-084 przed DB-083, liczniki 330/348 bez zmian

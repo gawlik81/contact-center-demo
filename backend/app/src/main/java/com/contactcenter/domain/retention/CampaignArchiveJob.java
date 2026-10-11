@@ -10,15 +10,18 @@ import java.time.Instant;
 /**
  * Cykliczna archiwizacja kontaktów zakończonych kampanii (BE-120, EPIC-30) — domknięcie martwego
  * harmonogramu: funkcja SQL {@code archive_completed_campaign_contacts()} (V015) dla każdej kampanii
- * {@code COMPLETED}/{@code STOPPED} z {@code updated_at < now() - 30 dni} kopiuje
- * {@code campaign_contact} do {@code campaign_contact_archive}, usuwa je z tabeli operacyjnej,
- * zapisuje {@code cron_log} i {@code scheduled_job.last_run_at}. Pg_cron jest wyłączony (V014),
+ * {@code COMPLETED}/{@code STOPPED}, dla której {@code COALESCE(ended_at, updated_at)} jest starsze niż
+ * okres archiwizacji TENANTA (domyślnie 180 dni, zakres 30-730; tabela
+ * {@code tenant_campaign_archive_setting}, API {@code /api/tenants/{id}/retention/campaign-archive},
+ * BE-151/DB-084), kopiuje {@code campaign_contact} do {@code campaign_contact_archive}, usuwa je
+ * z tabeli operacyjnej, zapisuje {@code cron_log} i {@code scheduled_job.last_run_at}. Pg_cron jest wyłączony (V014),
  * więc dotąd nikt jej nie wołał.
  *
  * <h2>Flaga (D8) — domyślnie WYŁĄCZONY</h2>
  * {@code retention.campaign-archive.enabled=false} (domyślnie): job loguje INFO i NIE wykonuje
- * żadnego SQL. Powód: po archiwizacji kontakty zakończonych kampanii (&gt; 30 dni) znikają z UI i
- * statystyk — żaden czytelnik {@code campaign_contact} nie czyta archiwum (patrz niżej). Włączenie
+ * żadnego SQL. Powód: po archiwizacji kontakty zakończonych kampanii (starszych niż okres
+ * archiwizacji tenanta) znikają z UI i statystyk — żaden czytelnik {@code campaign_contact} nie czyta
+ * archiwum (patrz niżej). Włączenie
  * wymaga zgody właściciela produktu. Skutek uboczny (D6): pierwsze uruchomienie archiwizuje całą
  * zaległość, więc zegar {@code archived_at} (podstawa retencji CAMPAIGN_DATA) startuje od tego dnia.
  *

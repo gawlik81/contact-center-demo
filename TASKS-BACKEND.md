@@ -6803,13 +6803,13 @@ działają niezależnie od tej decyzji.
 >
 > Graf zależności warstwy BE (A → B = kolejność wykonania, B zależy od A):
 > ```
-> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅;   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅; tura 26, 2026-10-10)
+> Faza 0:   BE-120 ✅;   DB-056 ✅ → BE-121 ✅;   BE-122 ✅;   BE-123 ✅;   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅; tura 26, 2026-10-10);   BE-120 ✅, BE-121 ✅, BE-147 ✅, DB-082 ✅, BE-139 → BE-148 (tura 33, rola bez BYPASSRLS)
 > Grupa 1:  BE-124 ✅ → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-128 ✅;   DB-059 ✅ → BE-127 ✅;   DB-060 ✅, DB-061 ✅, DB-062 ✅, DB-079 ✅, BE-125 ✅ → BE-129 ✅;   BE-125 ✅ → BE-131;   BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`, niezależne od BE-126);
 >           BE-141 ✅ → DB-078 ✅;   BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30);   [DB-063 🚫, BE-126 ✅, BE-127 ✅, BE-128 ✅ → BE-130 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]
 > Grupa 2:  DB-065 ✅ → BE-132 ✅ → BE-133 ✅;   BE-123 ✅, BE-126 → BE-133 ✅
 > Grupa 3:  DB-067 ✅ → BE-134 ✅ → BE-135 ✅;   BE-133 ✅, BE-125 ✅, BE-127 ✅ → BE-135 ✅;   [DB-068 🚫, BE-134 ✅ → BE-136 🚫, tylko D4 = B — N/A, D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-069 (bramka) → BE-137;   [DB-075 🚫 → BE-140 🚫, tylko D6 = koniec kampanii — 🚫 N/A: D6 = `archived_at` zatwierdzone 2026-10-11]
-> Grupa 5:  DB-071 ✅ → BE-138 ✅ (2026-10-08);   DB-064 ✅, DB-071 ✅ → BE-139
+> Grupa 5:  DB-071 ✅ → BE-138 ✅ (2026-10-08);   DB-064 ✅, DB-071 ✅ → BE-139 → BE-148 (tura 33; + DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅, BE-120 ✅, BE-121 ✅, BE-147 ✅ → BE-148)
 > ```
 > Wspólne wymagania (skrót; pełna treść w DESIGN §5): **WP-1** testy Testcontainers na pełnym łańcuchu Flyway dla każdej zmiany natywnego SQL/JPA (precedens:
 > `CampaignContactArchivePurgeTenantIsolationTest`; mocki `EntityManager` nie złapały błędu `resultClass`+enum, braku `TenantContext` w schedulerze, `Map.of().get(null)`);
@@ -6824,7 +6824,8 @@ działają niezależnie od tej decyzji.
 **Złożoność:** S (ocena zlecenia potwierdzona; ryzyko RLS opisane niżej — jeśli okaże się wymagać refaktoru funkcji, wykonawca dopisuje osobny ticket DB)
 **Zależy od:** brak
 **Status:** ✅ Ukończone (2026-10-09) — job dostarczony ZA FLAGĄ `retention.campaign-archive.enabled=false`; **[tura 31, 2026-10-11: zgoda właściciela na włączenie flagi W LOCAL-DEMO UZYSKANA i WYKONANA — `RETENTION_CAMPAIGN_ARCHIVE_ENABLED=true` w lokalnym, niezacommitowanym `.env.local-demo`, backend zrestartowany (healthy); WP-4 OTWARTE do sprawdzenia po pierwszym przebiegu 2026-10-12 04:00 UTC; nie dotyczy produkcji — zob. notatka „Tura 31” niżej]** (stan wcześniejszy, zachowany historycznie: zgoda właściciela na włączenie flagi (część kryterium inwentaryzacji) oraz WP-4 (local-demo) NIE uzyskane/NIE wykonane (tura 22/25: backend przebudowany poza tą pracą 2026-10-09 ok. 21:00 UTC — obraz zawiera job (`app.jar`: `CampaignArchiveJob`, `CampaignArchiveJobRepository`), kontener healthy, flaga domyślnie `false`, WP-4 nie zaznaczone), kryteria pozostają otwarte, patrz notatka wykonania
-**Blokuje:** DB-072, DB-075, DB-076, DB-077, DB-082, BE-147
+**Blokuje:** DB-072, DB-075, DB-076, DB-077, DB-082, BE-147, BE-148
+**Adnotacja (tura 33, 2026-10-11):** włączenie `retention.campaign-archive.enabled` NA PRODUKCJI należy uzależnić od BE-148 (przejście na rolę bez BYPASSRLS + mechanizm dla jobów krzyżujących tenanty) ALBO od jawnej, zapisanej akceptacji ryzyka przez właściciela (na roli z BYPASSRLS job działa poprawnie, ale RLS nie chroni przed błędem aplikacji). To adnotacja warunku wdrożeniowego — nie zmienia statusu BE-120 ani zakresu; zgoda dla local-demo (tura 31) bez zmian, WP-4 dla BE-120 czeka na przebieg crona 2026-10-12 04:00 UTC.
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -6879,7 +6880,7 @@ Skutek uboczny D6: pierwsze uruchomienie archiwizuje zaległość, więc jej zeg
 **Złożoność:** S
 **Zależy od:** DB-056 ✅ (V126, 2026-10-09; uwaga: `FOR UPDATE SKIP LOCKED` w DB-056 może zwrócić partię mniejszą niż `p_batch_size` przy blokadach innej sesji — dlatego pętla kończy się dopiero na wyniku 0, a NIE na `n == batchSize`; patrz notatka wykonania)
 **Status:** ✅ Ukończone (2026-10-09) — pętla batchowa w kodzie, `mvn verify -pl app` zielone; ODCHYLENIE od ticketu (warunek końca = wynik 0, nie `n == batchSize`) uzasadnione w notatce; samo WYDANIE razem z V126 (DB-056) do potwierdzenia — spełnione na poziomie kodu (obie zmiany na jednym branchu); tura 25: V126–V133 zastosowane na żywej bazie (przebudowa backendu poza tą pracą: V126 14:47, V127–V133 21:00 UTC); obraz działający od 2026-10-09 ok. 21:00 zawiera klasy BE-120/121/122 (`unzip -l app.jar`; treść pętli nie dekompilowana), kontener healthy
-**Blokuje:** BE-147 (tura 26; grep 2026-10-09 dawał „brak”, od tury 26 BE-147 ma BE-121 w `Zależy od`)
+**Blokuje:** BE-147, BE-148 (tura 26; grep 2026-10-09 dawał „brak”, od tury 26 BE-147 ma BE-121 w `Zależy od`; tura 33: BE-148)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert`
 
@@ -8053,11 +8054,11 @@ Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
 **Złożoność:** M
 **Zależy od:** DB-064 ✅, DB-071 ✅
 **Status:** ⬜ Nie rozpoczęte (kod/testy) — kryterium „weryfikacja roli połączenia produkcyjnego” WYKONANE przez potwierdzenie właściciela 2026-10-11 (zob. niżej); pozostają: harness testowy pod rolą bez BYPASSRLS (≥ 6 scenariuszy) oraz raport/rekomendacja w `DEPLOYMENT.md`
-**Blokuje:** brak
+**Blokuje:** BE-148
 
 **USTALONY FAKT (potwierdzenie właściciela, 2026-10-11):** rola połączenia aplikacji na PRODUKCJI **MA BYPASSRLS / jest superuserem** (tak jak lokalnie `ccapp`); nazwa roli produkcyjnej nie została podana (w repo: `DB_USERNAME=ccapp` w `DEPLOYMENT.md` ≈ l. 685 — nie potwierdzone jako nazwa prod). Konsekwencje: (1) RLS z DB-072/DB-073/DB-074/DB-081 jest na produkcji WYŁĄCZNIE defense-in-depth i NIE chroni przed błędem aplikacji (izolacja tenantów = logika aplikacji: `TenantAwareRepository`, `assertSameTenant`, `TenantContext`); (2) uwaga „fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC” (BE-120/DB-082) **NIE dotyczy produkcji** — dotyczy wyłącznie roli bez BYPASSRLS (np. `app_user`); (3) joby krzyżujące tenantów (`archive_completed_campaign_contacts`, purge) działają na produkcji poprawnie, bo widzą wszystkie wiersze. Wcześniejsza decyzja 2026-10-07: pozostajemy przy `ccapp` (superuser z BYPASSRLS) — podtrzymana.
 
-**PROPOZYCJA DO DECYZJI WŁAŚCICIELA (NIE założony ticket):** przejście produkcji na rolę LOGIN bez BYPASSRLS (członek `app_user`, NOSUPERUSER NOBYPASSRLS) + osobna rola migracyjna (Flyway) + osobna rola albo funkcje `SECURITY DEFINER` / wariant per tenant dla jobów krzyżujących tenanty (`archive_completed_campaign_contacts`, purge itd.). Zysk: RLS zaczyna realnie chronić przed błędem aplikacji. Koszt/ryzyko: wszystkie joby i ścieżki pre-tenant muszą zostać przerobione i przetestowane (wynik harnessu z tego ticketu da listę defektów); do czasu decyzji zostaje stan obecny. Ticket NIE zakładany bez decyzji właściciela.
+**[Tura 33, 2026-10-11] DECYZJA WŁAŚCICIELA „tak, dodaj ticket” → ZAŁOŻONY ticket BE-148** (przejście produkcji na rolę połączenia aplikacji bez BYPASSRLS i bez superusera + osobna rola migracyjna + mechanizm dla jobów krzyżujących tenanty; wariant mechanizmu rozstrzyga pierwszy krok BE-148, nie ten ticket). Dawna „PROPOZYCJA” (tury 31) przestaje być propozycją. BE-139 pozostaje ⬜ i jest WARUNKIEM WSTĘPNYM BE-148 (harness testowy pod rolą bez BYPASSRLS jest narzędziem, którym BE-148 weryfikuje każdy job); wynik harnessu (lista defektów ścieżek pod rolą ograniczoną) zasila inwentarz BE-148.
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `test-suite-expert` (+ `backend-dev-expert` dla konfiguracji)
 
@@ -8547,7 +8548,7 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 **Złożoność:** S
 **Zależy od:** DB-082 ✅ (V135 `log_cron_failure`), BE-120 ✅, BE-121 ✅
 **Status:** ✅ Ukończone (2026-10-10, tura 26) — `mvn verify -pl app`: **2549 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS**; działa dopiero po zastosowaniu V135 na bazie (w chwili zapisu: max = 133, V135 czeka na restart backendu — `recordFailure` logował WARN i nie przerywał joba; **korekta tury 30: V135 ZASTOSOWANA na żywej bazie 2026-10-11 06:47:08 UTC, baza na wersji 135, `cc-backend` healthy; ścieżka produkcyjna Java→`log_cron_failure`→`cron_log` przy realnej awarii joba NIE była jeszcze zaobserwowana na żywej instancji — potwierdzają ją tylko testy integracyjne**)
-**Blokuje:** brak (grep 2026-10-10: żaden ticket nie ma BE-147 w `Zależy od`)
+**Blokuje:** BE-148 (tura 33; grep 2026-10-10 dawał „brak” — od tury 33 BE-148 ma BE-147 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `backend-dev-expert` (+ test-suite)
 
@@ -8567,4 +8568,51 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 - [x] Istniejące testy zaktualizowane pod nowe konstruktory; `mvn verify -pl app` zielone (2549/2549, 1 pominięty)
 - [ ] Osobny test jednostkowy samego `CronFailureLogRepository` poza testami integracyjnymi — NIEWYKONANE (pokryty pośrednio testami (a)/(b) powyżej)
 
-**Poza zakresem / otwarte:** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS (zależy od roli połączenia: DB-072/BE-139; zmiana kontraktu wymaga decyzji właściciela) — uwaga z CR zostaje otwarta. **Zależności:** `Zależy od` DB-082 ✅, BE-120 ✅, BE-121 ✅; nic nie zależy od BE-147.
+**Poza zakresem / otwarte:** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS (zależy od roli połączenia: DB-072/BE-139; zmiana kontraktu wymaga decyzji właściciela) — uwaga z CR zostaje otwarta. **Zależności:** `Zależy od` DB-082 ✅, BE-120 ✅, BE-121 ✅; od tury 33 zależy od niego BE-148 (rola bez BYPASSRLS: realny „fałszywy SUCCESS” i ślad awarii pod RLS).
+
+
+---
+
+### BE-148 – Przejście produkcji na rolę połączenia aplikacji BEZ BYPASSRLS i bez superusera (+ rola migracyjna + mechanizm dla jobów krzyżujących tenanty)
+
+**Typ:** Bezpieczeństwo / infrastruktura (backend + migracje ról/uprawnień + wdrożenie)
+**Priorytet:** Should Have
+**Złożoność:** L (proponowana; po WP-1 do ponownej oceny — jeśli wybrany wariant wymaga > 2 migracji lub funkcji SQL, WP-3 jest wydzielany do osobnego ticketu DB)
+**Zależy od:** BE-139 (⬜ — WARUNEK WSTĘPNY dla WP-4/WP-5, patrz niżej), DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅, BE-120 ✅, BE-121 ✅, BE-147 ✅
+**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 33, decyzja właściciela „tak, dodaj ticket”)
+**Blokuje:** brak (adnotacja warunku wdrożeniowego: włączenie `retention.campaign-archive.enabled` na produkcji — zob. BE-120; ticket nie blokuje formalnie żadnego innego ticketu)
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (uzasadnienie: ticket wynika bezpośrednio z grupy 5 RLS i z jobów retencji EPIC-30; rozszerza mianownik EPIC-30 z 54 do 55)
+**Wykonawca:** `backend-dev-expert` + `db-schema-architect` (+ właściciel/DevOps dla `DEPLOYMENT.md`, sekretów i okna wdrożenia; `test-suite-expert` dla WP-5)
+
+**Kontekst (ustalony fakt, tura 31):** rola połączenia aplikacji na PRODUKCJI ma BYPASSRLS / jest superuserem (jak lokalnie `ccapp`). RLS z DB-072/073/074/081 jest tam wyłącznie defense-in-depth i NIE chroni przed błędem aplikacji (izolacja = `TenantAwareRepository`, `assertSameTenant`, `TenantContext`). Po przejściu na rolę bez BYPASSRLS stają się REALNE dwie rzeczy opisane dotąd jako „nie dotyczy produkcji”: (1) „fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC” (BE-120/DB-082: funkcje krzyżujące tenanty widzą 0 kampanii i kończą się sukcesem z 0 wierszy) oraz (2) znalezisko DB-074: placeholder GUC na połączeniu z puli zwraca `''`, nie `NULL`, po pierwszym użyciu (ryzyko dla ścieżek bez kontekstu).
+
+**Dlaczego jeden ticket BE (rozstrzygnięcie):** zakres jest w przeważającej części operacyjno-backendowy (inwentarz jobów, osobny `DataSource`/pętla per tenant w Javie, `application-prod.yml`, `DEPLOYMENT.md`, test pod rolą). Migracje DB są potrzebne, ale ich treść (GRANT-y vs funkcje `SECURITY DEFINER` vs funkcje per tenant) zależy od wariantu wybranego w WP-1, a samo tworzenie ról z hasłami NIE może być w Flyway (sekrety) — jest krokiem operacyjnym w `DEPLOYMENT.md`. Dlatego numer DB NIE jest rezerwowany z góry; jeśli WP-1 wykaże ≥ 3 migracje/funkcje SQL, WP-3 zostaje wydzielony do osobnego ticketu DB (następny wolny numer; wówczas BE-148 zależy od niego dla WP-4/WP-6, a ticket DB zależy wyłącznie od decyzji WP-1 zapisanej w BE-148 jako notatka, nie od statusu BE-148 — wpis zależności należy wtedy ustawić tak, by nie powstał cykl).
+
+**Zakres (pakiety pracy):**
+1. **WP-1 — inwentarz i DECYZJA O WARIANCIE (pierwszy krok, nie przesądzać):**
+   - Inwentarz zapytań/jobów działających BEZ `TenantContext`/GUC (punkt wyjścia: macierz klasyfikacji RLS z DB-071 i tabela ścieżek pre-tenant w `TASKS-DATABASE.md`, ok. l. 4207–4222; uzupełnić grepem po `@Scheduled`, `@Async`, `@RabbitListener`, `JdbcTemplate`/`EntityManager` w `domain/**`): `archive_completed_campaign_contacts` (`CampaignArchiveJob`), `purge_campaign_contact_archive` / `RetentionEvaluationJob` + `RetentionPurgeService`, `RecordingRetentionJob`, `PendingAttachmentSweepJob`, `RefreshTokenCleanupJob` (`tenant_id` NULL / `refresh_token` bez tenantowej polityki), `PartitionMaintenanceJob`, `PartitionReclaimJob`, `PartitionScanner`, `CronFailureLogRepository` (`cron_log`/`scheduled_job` — tabele globalne), login/refresh (pre-tenant), konsumenci RabbitMQ bez kontekstu (np. `AuditLogConsumer` dla zdarzeń globalnych).
+   - Ocena wariantów w tabeli (koszt, ryzyko, powierzchnia ataku, testowalność, rollback): **(A)** osobna rola „batch” z BYPASSRLS tylko dla jobów + osobny `DataSource`/pula (najmniejsza zmiana kodu; ale druga rola z BYPASSRLS = ryzyko nadużycia przy błędzie routingu `DataSource`, wymaga twardej separacji beanów), **(B)** funkcje `SECURITY DEFINER` dla operacji krzyżujących tenanty (`SET search_path`, własny owner bez login, `REVOKE ALL … FROM PUBLIC`, `GRANT EXECUTE` tylko roli aplikacji; najmniejsze uprawnienia, ale każda funkcja = migracja i audyt; ryzyko eskalacji przy błędnym `search_path`), **(C)** iteracja per tenant w Javie z `set_config('app.current_tenant_id', …, true)` (bez wyjątków od RLS; koszt wydajności dla dużej liczby tenantów, nie obejmuje tabel bez `tenant_id`, np. `refresh_token`/`cron_log`), oraz **warianty mieszane** (np. C dla jobów z `p_tenant_id` + B dla partycji/globalnych). Dla każdego joba z inwentarza wskazać wybrany mechanizm.
+   - Wynik: notatka decyzyjna (sekcja w tym tickecie lub ADR w `DESIGN-message-retention-and-partitioning.md`) + rekomendacja do zatwierdzenia przez właściciela PRZED WP-3/WP-6; ponowna ocena złożoności i ewentualne wydzielenie ticketu DB.
+2. **WP-2 — konfiguracja ról (bez sekretów w repo):** docelowy model: (a) rola **migracyjna/owner** (Flyway, właściciel obiektów, DDL; nie używana w czasie pracy aplikacji), (b) rola **aplikacji** `LOGIN`, `NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`, członek `app_user` (V012) lub z bezpośrednimi GRANT-ami, (c) ewentualnie rola „batch” (tylko jeśli wariant A). Osobne zmienne środowiskowe dla Flyway (`SPRING_FLYWAY_USER/PASSWORD`) i dla `DataSource` aplikacji. **Uwaga o ownership:** `PartitionReclaimJob`/`PartitionMaintenanceJob` wykonują DDL (`CREATE/DROP` partycji) — rola bez ownera partycji nie może ich wykonać (zob. adnotacje w DB-080, `TASKS-DATABASE.md` ok. l. 4659–4663); rozstrzygnąć: DDL partycji jako `SECURITY DEFINER` w roli ownera albo osobny `DataSource` ownera tylko dla tych jobów.
+3. **WP-3 — migracje (Flyway, nowe pliki, bez edycji zastosowanych):** GRANT-y obiektowe dla roli aplikacji (`SELECT/INSERT/UPDATE/DELETE` na tabelach, `USAGE` na sekwencjach, `EXECUTE` na funkcjach, `ALTER DEFAULT PRIVILEGES` dla przyszłych tabel/partycji), funkcje wg wyniku WP-1 (`SECURITY DEFINER` z `SET search_path = pg_catalog, public`, albo wariant `p_tenant_id`), polityki RLS dla brakujących komend/tabel wykrytych przez harness BE-139 (np. DELETE po `contact`, `refresh_token`). Migracje idempotentne, `SET LOCAL lock_timeout`, brak tworzenia ról z hasłami.
+4. **WP-4 — kod backendu:** wdrożenie wybranego mechanizmu dla każdego joba z inwentarza; wszystkie ścieżki asynchroniczne z `TenantContext.snapshot()/restore()/clear()`; `CronFailureLogRepository.recordFailure` i `log_cron_failure` działają pod nową rolą (tabele globalne — GRANT, `SECURITY DEFINER` zachowany); **wykrywanie fałszywego `SUCCESS`**: job krzyżujący tenanty, który widzi 0 kampanii/tenantów przy niezerowej liczbie kandydatów (np. brak GUC/roli), kończy się statusem ostrzegawczym lub błędem, nie `SUCCESS` z 0 (zamyka propozycje (a)/(b) z BE-120); `RlsValidationService` (BE-138) raportuje rolę połączenia jako ostrzeżenie, gdy rola ma BYPASSRLS/superuser w profilu `prod`.
+5. **WP-5 — testy pod rolą bez BYPASSRLS (na harnessie BE-139):** dla KAŻDEGO joba cyklicznego z inwentarza test integracyjny (Testcontainers, rola `NOSUPERUSER NOBYPASSRLS`): job wykonuje swoją pracę na danych ≥ 2 tenantów (wynik > 0 wierszy, brak przecieku między tenantami), a bez wymaganego mechanizmu — jawny błąd/ostrzeżenie, nie cichy sukces; osobno testy `cron_log`/`scheduled_job` pod nową rolą (zapis `SUCCESS`, trwały wpis `ERROR` z `log_cron_failure`, brak „fałszywego `SUCCESS`”); test Flyway pod rolą migracyjną + start aplikacji pod rolą aplikacji (smoke: login, odczyt/zapis w kontekście tenanta, odmowa bez kontekstu).
+6. **WP-6 — wdrożenie i rollback (`DEPLOYMENT.md`):** plan: kolejność (utworzenie ról → GRANT-y → przełączenie `DB_USERNAME`/Flyway user → restart → smoke → obserwacja jobów po ich pierwszym przebiegu), okno i warunki go/no-go, **rollback** (powrót `DB_USERNAME` do dotychczasowej roli — rola dotychczasowa NIE jest usuwana przed końcem okresu obserwacji), lista kontrolna sekretów, weryfikacja `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user` po wdrożeniu. Sekrety i właściwe wdrożenie produkcyjne wykonuje właściciel/DevOps.
+7. **WP-7 — local-demo/CI:** przełączenie local-demo na nową rolę po stronie dev (`docker-compose.local-demo.yml`, skrypt inicjalizujący role) oraz CI na rolę bez BYPASSRLS. **KROK WYMAGAJĄCY ZGODY WŁAŚCICIELA:** zmiana sekretów/zmiennych w `.env.local-demo` (nie ruszać bez zgody; wcześniejszy incydent z sekretami 2026-09-30) — przygotować zmiany w plikach śledzonych i listę wartości do wpisania przez właściciela.
+
+**Kryteria akceptacji:**
+- [ ] Inwentarz zapytań/jobów działających bez `TenantContext` opublikowany w tym tickecie (z odniesieniem do macierzy DB-071), każda pozycja z przypisanym mechanizmem
+- [ ] Decyzja o wariancie (A/B/C/mieszany) zapisana z uzasadnieniem i zatwierdzona przez właściciela PRZED WP-3/WP-6; złożoność ponownie oceniona, ewentualny ticket DB wydzielony
+- [ ] Migracje ról/uprawnień (GRANT-y, funkcje) zastosowane na bazie testowej i local-demo; brak ról z hasłami w Flyway; zastosowane migracje nie edytowane
+- [ ] Rola aplikacji: `rolsuper = false`, `rolbypassrls = false`; osobna rola migracyjna/owner; potwierdzone zapytaniem w teście i w `DEPLOYMENT.md`
+- [ ] Test pod rolą bez BYPASSRLS dla KAŻDEGO joba cyklicznego z WP-1 (`CampaignArchiveJob`, `RetentionEvaluationJob`/purge archiwum, `RecordingRetentionJob`, `PendingAttachmentSweepJob`, `RefreshTokenCleanupJob`, `PartitionMaintenanceJob`, `PartitionReclaimJob`) — dane ≥ 2 tenantów, brak przecieku, wynik > 0
+- [ ] Testy `cron_log`/`scheduled_job` pod nową rolą: zapis `SUCCESS`, trwały wpis `ERROR` (`log_cron_failure`, BE-147) oraz brak „fałszywego `SUCCESS`” przy 0 widocznych kampanii
+- [ ] `mvn verify -pl app` zielone (w tym harness BE-139) oraz profil local-demo działa end-to-end pod nową rolą
+- [ ] `DEPLOYMENT.md`: plan wdrożenia, kryteria go/no-go, procedura rollbacku, weryfikacja roli po wdrożeniu
+- [ ] [WYMAGA ZGODY WŁAŚCICIELA] local-demo przełączone na nową rolę (zmiana `.env.local-demo`/sekretów wykonana tylko po zgodzie)
+- [ ] (WP-1/WP-4) wynik produkcyjny: po wdrożeniu rola produkcyjna bez BYPASSRLS, joby retencji przebiegły z wynikiem > 0 w `cron_log`; warunek włączenia `retention.campaign-archive.enabled` na produkcji spełniony przez ten ticket LUB jawną akceptację ryzyka (adnotacja w BE-120)
+- [ ] DoD (WP-7)
+
+**Ryzyka:** (R1) cicha utrata funkcji jobów (0 wierszy zamiast błędu) — mitygacja: WP-4 wykrywanie fałszywego `SUCCESS` + WP-5; (R2) DDL partycji pod rolą nie-ownerem; (R3) `refresh_token`/login (pre-tenant, `tenant_id` NULL) — wymaga osobnej polityki lub funkcji; (R4) GUC `''` zamiast `NULL` na poolu (DB-074); (R5) błędny `search_path` w `SECURITY DEFINER` = eskalacja uprawnień; (R6) rollback po zastosowaniu zmian uprawnień — tylko przez powrót `DB_USERNAME`, bez DROP ról.
+**Nie wchodzi w zakres:** zmiana modelu multi-tenancy, ponowne projektowanie polityk RLS poza lukami wykrytymi przez harness, wymiana sekretów produkcyjnych przez agenta, włączanie flag retencji na produkcji.
+**Zależności:** `Zależy od` BE-139 (warunek wstępny dla WP-5; WP-1 może ruszyć równolegle z BE-139, bo jego wynik zasila inwentarz), DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅, BE-120 ✅, BE-121 ✅, BE-147 ✅; nic nie zależy od BE-148 formalnie (warunek wdrożeniowy flagi w BE-120 jest adnotacją).

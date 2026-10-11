@@ -3042,7 +3042,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 🚫 → BE-140 🚫, tylko D6 = koniec kampanii — 🚫 N/A: D6 = `archived_at` zatwierdzone 2026-10-11]
-> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
+> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139;   BE-139 ⬜, DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅ → BE-148 (tura 33, rola połączenia bez BYPASSRLS; ewentualny ticket DB wydzielany po decyzji WP-1)
 > Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ → DB-076 ✅ (V133, 2026-10-09, tura 24);   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 ✅ → DB-077 ✅ (dokumentacja, 2026-10-09, tura 24)
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
@@ -4251,7 +4251,7 @@ Opcje dla właściciela:
 **Złożoność:** S
 **Zależy od:** DB-071 ✅, BE-120 ✅ (rozstrzygnięcie ścieżki `archive_completed_campaign_contacts()` pod rolą ograniczoną)
 **Status:** ✅ Zrobione (2026-10-08, V111) — notatka wykonania poniżej
-**Blokuje:** DB-069, DB-073
+**Blokuje:** DB-069, DB-073, BE-148
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
 
@@ -4287,7 +4287,7 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 **Złożoność:** M (ścieżka gorąca dialera; przegląd wszystkich ścieżek bez kontekstu tenanta)
 **Zależy od:** DB-071 ✅, DB-072 ✅
 **Status:** ✅ Zrobione (2026-10-08, V112) — notatka wykonania poniżej
-**Blokuje:** brak
+**Blokuje:** BE-148
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `backend-dev-expert`, `test-suite-expert`)
 
@@ -4325,7 +4325,7 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 **Złożoność:** M
 **Zależy od:** DB-071 ✅
 **Status:** ✅ Zrobione (2026-10-08, V113–V124) — notatka wykonania poniżej
-**Blokuje:** brak
+**Blokuje:** BE-148
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
 
@@ -4673,7 +4673,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Złożoność:** S
 **Zależy od:** DB-071 ✅
 **Status:** ✅ Zrobione (2026-10-08, V125) — notatka wykonania poniżej
-**Blokuje:** brak
+**Blokuje:** BE-148
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
 
@@ -4710,7 +4710,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Złożoność:** S
 **Zależy od:** BE-120 ✅, DB-076 ✅ (V133)
 **Status:** ✅ Ukończone (2026-10-10, tura 26) — migracja **V135** (`V135__add_log_cron_failure_helper.sql`), test `Db082LogCronFailureMigrationTest` (5, Testcontainers); `mvn verify -pl app`: 2549 testów, 0 błędów, 1 pominięty (ręczny perf), BUILD SUCCESS (razem z krokiem Javy BE-147). **V135 NIE zastosowana na żywej bazie** (odczyt `select max(version::int) from flyway_schema_history` 2026-10-10: **133**; V134 i V135 zastosuje następny restart backendu — obie bezpieczne: komentarz indeksu i nowa funkcja pomocnicza). **[Korekta tury 30: V134 i V135 ZASTOSOWANE 2026-10-11 06:47:08 UTC, `success=t`, baza na wersji 135; `cc-backend` healthy (start 37 s, brak ERROR). Smoke test `log_cron_failure` w transakcji z ROLLBACK: zwraca wartość, 0 wierszy w `cron_log` po rollbacku. Realne wywołanie z Javy przy awarii joba na żywej instancji NIE wystąpiło — potwierdzają je tylko testy integracyjne.]**
-**Blokuje:** BE-147
+**Blokuje:** BE-147, BE-148
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
 

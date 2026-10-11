@@ -3041,7 +3041,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 >           BE-141 ✅ → DB-078 ✅ (`contacts_dw`);   DB-079 ✅ (trigger V016) i BE-141 ✅ startują niezależnie
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
-> Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 → BE-140, tylko D6 = koniec kampanii]
+> Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 🚫 → BE-140 🚫, tylko D6 = koniec kampanii — 🚫 N/A: D6 = `archived_at` zatwierdzone 2026-10-11]
 > Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139
 > Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ → DB-076 ✅ (V133, 2026-10-09, tura 24);   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 ✅ → DB-077 ✅ (dokumentacja, 2026-10-09, tura 24)
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
@@ -4377,13 +4377,13 @@ Decyzja właściciela D7 (2026-10-08, zapisana w `DESIGN-message-retention-and-p
 
 ---
 
-### DB-075 – [WARUNKOWY: D6 = koniec kampanii] Baza czasowa `CAMPAIGN_DATA` w archiwum
+### DB-075 – [WARUNKOWY: D6 = koniec kampanii] Baza czasowa `CAMPAIGN_DATA` w archiwum (🚫 N/A)
 
 **Typ:** Schema migration
 **Priorytet:** Could Have (warunkowy)
 **Złożoność:** M
-**Zależy od:** BE-120 ✅, DB-056 ✅
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** BE-120 ✅, DB-056 ✅ (zamknięte; ticket i tak nie wchodzi do zakresu — D6 = `archived_at`)
+**Status:** 🚫 N/A — D6 = `archived_at` ZATWIERDZONE przez właściciela 2026-10-11: okres retencji `CAMPAIGN_DATA` liczony OD `archived_at` (obecne zachowanie), alternatywa „od końca kampanii” ODRZUCONA; ticket warunkowy (wymagany tylko przy D6 = koniec kampanii) nie wchodzi do zakresu. Skutek świadomie zaakceptowany: zaległa archiwizacja (BE-120, 30 kampanii) startuje zegar retencji PII od dnia pierwszego uruchomienia joba. BE-140 → 🚫 N/A. Brak zmian w schemacie (`campaign_ended_at` NIE powstaje, `idx_cca_*` bez zmian względem V131).
 **Blokuje:** BE-140
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`

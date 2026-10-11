@@ -120,7 +120,7 @@ jest wspierany globalnym constraintem (wyścig dwóch instancji pollujących = m
 Wpływ: inna wartość = zmiana konfiguracji, bez zmiany kodu; wymaganie per-tenant retencji audytu = osobny epik (kolumna `tenant_id` bywa NULL).
 Wymaga potwierdzenia prawnego (BE-123).
 
-**D6 — baza czasowa `CAMPAIGN_DATA`.** Opcje: `archived_at` vs koniec kampanii. **ZAŁOŻENIE: `archived_at`** (jak dziś). Skutek uboczny: gdy
+**D6 — baza czasowa `CAMPAIGN_DATA`.** **ZATWIERDZONE przez właściciela 2026-10-11: `archived_at` (jak dziś); alternatywa „od końca kampanii” ODRZUCONA — DB-075 i BE-140 → 🚫 N/A.** Opcje: `archived_at` vs koniec kampanii. (Dawne założenie: `archived_at`.) Skutek uboczny: gdy
 BE-120 zarchiwizuje zaległość (30 kampanii), jej zegar retencji startuje od dnia pierwszego uruchomienia — efektywna retencja PII wydłuża się
 o wiek kampanii. Wpływ alternatywy: warunkowe DB-075 (kolumna `campaign_ended_at` w archiwum, backfill z `campaign.updated_at`, zmiana
 `purge_campaign_contact_archive` i indeksu) + BE-140 (`countEligible`/`purgeEligible`).
@@ -177,7 +177,7 @@ Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-
         BE-141 ✅ → DB-078 ✅ (`contacts_dw`)      BE-125 ✅ → BE-143 ✅ (walidacja `s3Key`; niezależne od BE-126)      BE-142 ✅ (D10 potwierdzone 2026-09-30, ukończone 2026-09-30)      [D1=C: BE-124 ✅ → DB-063 🚫 → BE-130 🚫 → FE-111 🚫 (zamknięte 2026-09-30, D1=A potwierdzone)]
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 ✅ → DB-072 ✅ ‖ DB-073 ✅ ‖ DB-074 ✅, BE-138 ✅, BE-139      DB-071 ✅ → DB-081 ✅ (FORCE RLS 7 tabel klasy A, odkrycie BE-138)
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
-Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6≠archived_at: DB-075 → BE-140]   DB-058 ✅ → DB-076 ✅ → DB-077 ✅ (dokumentacja, po falach 0–1)   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135, ślad awarii cron) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅)
+Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6=archived_at ZATWIERDZONE 2026-10-11: DB-075 🚫 → BE-140 🚫 N/A]   DB-058 ✅ → DB-076 ✅ → DB-077 ✅ (dokumentacja, po falach 0–1)   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135, ślad awarii cron) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅)
 ```
 
 | Fala | Cel | Priorytet | Złożoność (vs ocena zlecenia) |

@@ -5,6 +5,8 @@ metadata:
   type: project
 ---
 
+**Tura 31 (2026-10-11):** D6 = `archived_at` ZATWIERDZONE (właściciel) → DB-075 i BE-140 🚫 N/A; liczniki DB 78/82 (1⬜+3🚫), BE 141/147 (3⬜+3🚫), FE 111/112 — RAZEM 330/341, ⬜ 4, N/A 7; mianownik 341 bez zmian (skrypt: nagłówki `###`, BE-108/109 bez nagłówka dają +2 do BE). Otwarte ⬜: DB-069, BE-137, BE-139, BE-144 (blokowany zewnętrznie: quay.io/Docker Hub niedostępne anonimowo). Właściciel potwierdził: rola prod ma BYPASSRLS (RLS tylko defense-in-depth; propozycja przejścia na rolę bez BYPASSRLS NIE jest ticketem). Flaga BE-120 włączona w local-demo (`.env.local-demo`, niezacommitowane), pierwszy przebieg 2026-10-12 04:00 UTC, WP-4 otwarte. Brak otwartych decyzji D1–D10.
+
 **Tura 30 (2026-10-11, korekta żywej bazy):** V134 i V135 zastosowane 2026-10-11 06:47:08 UTC, baza na wersji 135; liczniki bez zmian 330/341. Realny wpis ERROR przy awarii joba potwierdzają tylko testy integracyjne (na żywej instancji awaria nie zaszła).
 
 **Tura 26 (2026-10-10, NOWE tickety DB-082 + BE-147, ślad awarii cron):** DB 78/82 (2⬜+2🚫), BE 141/147 (4⬜+2🚫), FE 111/112 — RAZEM 330/341 (96,77%), ⬜ 6 bez zmian; EPIC-30 mianownik 52→54 (nowe tickety weszły już ✅, jak DB-081). DB-082 = V135 `log_cron_failure` (V015 ma martwy blok EXCEPTION…RAISE — wpis ERROR cofany), BE-147 = `CronFailureLogRepository` + wpięcie w CampaignArchiveJob/PartitionMaintenanceJob/RetentionPurgeServiceImpl (purge: wpis per tenant, tylko CAMPAIGN_DATA). SELECT 2026-10-10: max Flyway = 133 (V134, V135 niezastosowane). Otwarte nadal: fałszywy SUCCESS pod RLS (DB-072/BE-139). Skrypt count.py z nagłówków ### daje DB 78/82, BE 139/145 (+2 BE-108/109 inline = 141/147). Pole `Blokuje` we własnym nagłówku BEZ znaczników ✅ (własny błąd poprawiony w turze 26). Następny wolny: DB-083, BE-148. Nagłówek PROGRESS: tura 20 skrócona do jednej linii.
@@ -156,3 +158,6 @@ BE-123 (⬜, EPIC-30, `TASKS-BACKEND.md` ~l. 6921) ma kryterium akceptacji „Za
 - Propozycje nowych ticketów (brak nagłówków) NIE zmieniają liczników; zapisz je w notatce wykonania i PROGRESS, podaj następny wolny numer (DB-082) z zastrzeżeniem ponownego sprawdzenia.
 - Uwaga dla BE-121: `FOR UPDATE SKIP LOCKED` w V126 może dać partię < limit; warunek `n == batchSize` kończy wtedy pętlę wcześniej (bezpieczne, reszta w następnym przebiegu).
 - Uwaga: skrypty tury w scratchpadzie (`count.py`, `edit_t20_*.py`) przetrwały w tej sesji, ale nie zakładaj tego w kolejnej.
+
+
+**Tura 32 (2026-10-11):** próba AIStor dla BE-144 negatywna (obrazy `quay.io/minio/aistor/*` pobieralne, ale bez licencji S3 odrzucone, healthcheck nie przechodzi; test Minio dałby SKIPPED nie PASS). BE-144 nadal ⬜ blokowany; liczniki bez zmian (330/341, ⬜ 4, N/A 7). Skrypt liczący: skrypt widzi BE 139+3+3 = 145 nagłówków `###` (BE-108/109 bez nagłówka → +2 = 147).

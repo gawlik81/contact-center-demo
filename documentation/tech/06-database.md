@@ -273,9 +273,10 @@ w `V007` i `V011`.
 
 | Tabela | PK | Opis |
 |---|---|---|
-| `campaign` | `campaign_id` (UUID) | Kampanie wychodzące. `type` (`OUTBOUND_VOICE`/`OUTBOUND_EMAIL`), `dialer_type` (`PROGRESSIVE`/`PREDICTIVE`/`MANUAL`), `status` (`DRAFT/SCHEDULED/RUNNING/PAUSED/STOPPED/COMPLETED`) – ENUM→VARCHAR V026. `schedule JSONB` (daty, godziny, dni tygodnia, timezone), `disposition_codes JSONB`, `max_attempts`, `retry_delay_minutes`, `queue_id` (FK→queue), `caller_id` (V052, E.164, fallback do `tenant_twilio_config.phone_number`), `ring_timeout` (V055), `all_agents BOOLEAN` (V062). |
+| `campaign` | `campaign_id` (UUID) | Kampanie wychodzące. `type` (`OUTBOUND_VOICE`/`OUTBOUND_EMAIL`), `dialer_type` (`PROGRESSIVE`/`PREDICTIVE`/`MANUAL`), `status` (`DRAFT/SCHEDULED/RUNNING/PAUSED/STOPPED/COMPLETED`) – ENUM→VARCHAR V026. `schedule JSONB` (daty, godziny, dni tygodnia, timezone), `disposition_codes JSONB`, `max_attempts`, `retry_delay_minutes`, `queue_id` (FK→queue), `caller_id` (V052, E.164, fallback do `tenant_twilio_config.phone_number`), `ring_timeout` (V055), `all_agents BOOLEAN` (V062), `ended_at TIMESTAMPTZ` (V137, DB-084 – moment przejścia do `COMPLETED`/`STOPPED`, patrz „Okres archiwizacji kontaktów kampanii” niżej). |
 | `campaign_contact` | `(record_id, campaign_id)` | **Partycjonowana LIST po `campaign_id`** – lista kontaktów kampanii (do 100k/kampania). `status` (`PENDING/DIALING/CONNECTED/NO_ANSWER/FAILED/COMPLETED/SKIPPED` + `ERROR`, `NOT_REACHED`, `CALLBACK`, `ASSIGNED` – rozszerzane w V034/V046/V053). `attempt_count`, `next_attempt_at`, `custom_fields JSONB`, `last_contact_id`. |
-| `campaign_contact_archive` | – | Archiwum nie-partycjonowane (retencja kategorii `CAMPAIGN_DATA`, domyślnie 60 mies.). Wypełniane funkcją SQL `archive_completed_campaign_contacts()` (V015) wołaną przez `CampaignArchiveJob` (04:00 UTC) – job jest **domyślnie wyłączony** flagą `retention.campaign-archive.enabled=false` (D8), więc archiwum jest puste (demo: 0 wierszy). RLS: pełna izolacja tenantów + `FORCE` (V111, DB-072); purge partiami – patrz niżej. |
+| `campaign_contact_archive` | – | Archiwum nie-partycjonowane (retencja kategorii `CAMPAIGN_DATA`, domyślnie 60 mies.). Wypełniane funkcją SQL `archive_completed_campaign_contacts()` (V015; od V138 z progiem per tenant) wołaną przez `CampaignArchiveJob` (04:00 UTC) – job jest **domyślnie wyłączony** flagą `retention.campaign-archive.enabled=false` (D8), więc archiwum jest puste (demo: 0 wierszy). RLS: pełna izolacja tenantów + `FORCE` (V111, DB-072); purge partiami – patrz niżej. |
+| `tenant_campaign_archive_setting` | `tenant_id` (UUID, FK→`tenant` `ON DELETE CASCADE`) | Okres archiwizacji kontaktów zakończonych kampanii **per tenant** (V136, DB-084). `archive_after_days INT NOT NULL DEFAULT 180` z `CHECK` 30–730 (`chk_tcas_archive_after_days`), `updated_by` (FK→`app_user`, `ON DELETE SET NULL`), `created_at`/`updated_at`. **Brak wiersza = 180 dni** (bez backfillu). RLS po GUC `app.current_tenant_id` (`USING` + `WITH CHECK`) + `FORCE ROW LEVEL SECURITY`. |
 | `scheduled_callback` | `callback_id` (UUID) | Zaplanowane oddzwonienia (US-08-05). `status` (`PENDING/PROCESSING/COMPLETED/CANCELLED` + `NOT_REACHED`, V053). `campaign_id`/`agent_id`/`customer_id` nullable. `source`/`source_context` (V037/V038/V047 – pochodzenie: kampania, agent manual, inbound). `campaign_contact_record_id` (V054). |
 | `campaign_agent` | `(campaign_id, agent_id)` | M:N kampania ↔ agent bezpośrednio (V062). |
 | `campaign_agent_group` | `(campaign_id, group_id)` | M:N kampania ↔ grupa agentów (V062). |
@@ -300,6 +301,36 @@ liczbę usuniętych w tej partii; pętlę do wyniku 0 prowadzi Java
 `retention.campaign-archive.purge-batch-size` / `purge-max-batches`), wywoływana z
 `RetentionPurgeService` po `RetentionEvaluationJob` (01:00 UTC). Funkcja jest `SECURITY INVOKER`
 i filtruje jawnie po `p_tenant_id` – pod rolą bez `BYPASSRLS` wymaga ustawionego GUC tenanta.
+
+**Okres archiwizacji kontaktów kampanii per tenant (EPIC-30, DB-084: V136–V139):** od V138 próg
+archiwizacji nie jest już zaszyty w funkcji (wcześniej 30 dni od `updated_at`), tylko jest
+ustawieniem tenanta:
+
+- **V136** – tabela `tenant_campaign_archive_setting` (opis w tabeli wyżej; domyślne 180 dni żyje w trzech
+  miejscach: `DEFAULT` w DDL, `COALESCE(…, 180)` w funkcji i stała w Javie – spójność DDL ↔ funkcja
+  pilnuje test migracyjny).
+- **V137** – kolumna `campaign.ended_at` + trigger `trg_campaign_ended_at`
+  (`BEFORE UPDATE OF status`, funkcja `fn_campaign_set_ended_at()`): przy przejściu na
+  `COMPLETED`/`STOPPED` ustawia `ended_at = NOW()`, przy wyjściu ze stanu terminalnego zeruje;
+  reaguje tylko na zmianę statusu (wiersz wstawiony od razu jako terminalny ma `ended_at IS NULL`).
+  Backfill istniejących terminalnych kampanii: `ended_at = updated_at` (na czas backfillu wyłączany
+  jest `trg_campaign_updated_at`).
+- **V138** – `archive_completed_campaign_contacts()` (`CREATE OR REPLACE`): pętla po kampaniach
+  `COMPLETED`/`STOPPED` z `LEFT JOIN tenant_campaign_archive_setting` po `tenant_id` i warunkiem
+  `COALESCE(c.ended_at, c.updated_at) < NOW() - make_interval(days => COALESCE(s.archive_after_days, 180))`.
+  Reszta logiki bez zmian (kopia do `campaign_contact_archive` z `ON CONFLICT DO NOTHING`, `DELETE` z
+  `campaign_contact`, `DROP` ewentualnej partycji, `cron_log` + `scheduled_job`); komunikat w `cron_log`
+  zawiera dodatkowo minimalny/maksymalny użyty okres (dni). Join po `tenant_id` bez GUC – funkcja nadal
+  jest cross-tenant (działa pod rolą z `BYPASSRLS`; patrz BE-148/DB-083).
+- **V139** – korekta `scheduled_job.description` wpisu `archive_completed_campaign_contacts`
+  (V133 mówił „> 30 dni”; nowa treść wskazuje okres per tenant, domyślnie 180 dni, zakres 30–730).
+  Idempotentna (`REPLACE` fragmentu).
+
+**Uwaga – dwa różne „okresy”:** *okres archiwizacji* (`archive_after_days`, w **dniach**, liczony od
+zakończenia kampanii; po nim kontakty przechodzą z `campaign_contact` do archiwum i znikają z UI,
+statystyk i dialera) to coś innego niż *retencja `CAMPAIGN_DATA`* (w **miesiącach**, liczona od
+`archived_at`, po niej wiersze archiwum są usuwane – `purge_campaign_contact_archive`). Skrócenie okresu
+archiwizacji powoduje masową archiwizację przy najbliższym przebiegu joba.
 
 **Krytyczny indeks dialera** (naprawiony w V033 po regresji z V031):
 ```sql
@@ -409,7 +440,7 @@ Zadania wykonują klasy Java (czasy UTC, crony konfigurowalne przez `application
 | *(bez wpisu)* `RecordingRetentionJob`, `PendingAttachmentSweepJob` | 02:00, 02:30 | nagrania S3; sweep porzuconych `pending/` (dry-run domyślnie) |
 | `cleanup_expired_refresh_tokens` → `RefreshTokenCleanupJob` | codziennie 03:30 | czyszczenie `refresh_token` (BE-122) |
 | *(bez wpisu)* `PartitionReclaimJob` | niedziela 03:00 | Poziom 2: `DROP` pustych partycji po horyzoncie retencji; `audit_log`/`plugin_invocation_log` dropowane po horyzoncie platformowym (domyślnie 24 mies., BE-123) |
-| `archive_completed_campaign_contacts` → `CampaignArchiveJob` | codziennie 04:00 | archiwizacja kampanii COMPLETED/STOPPED > 30 dni; **domyślnie wyłączony** (`retention.campaign-archive.enabled=false`) |
+| `archive_completed_campaign_contacts` → `CampaignArchiveJob` | codziennie 04:00 | archiwizacja kampanii COMPLETED/STOPPED, gdy od zakończenia (`COALESCE(ended_at, updated_at)`) minął okres archiwizacji tenanta (domyślnie 180 dni, zakres 30–730; V136–V138); **domyślnie wyłączony** (`retention.campaign-archive.enabled=false`) |
 | `rotate_*_partitions` (6 wpisów) | – | **brak wykonawcy** – nieaktywny backstop SQL (`is_active=FALSE`), zastąpiony przez `PartitionMaintenanceJob` + `PartitionReclaimJob` |
 
 Wpis `refresh_materialized_views` został usunięty (V133) razem z funkcją i widokami (V132, DB-058).
@@ -497,7 +528,7 @@ erDiagram
     APP_USER ||--o{ AGENT_GROUP_MEMBER : ""
     CAMPAIGN_CONTACT }o--o| CUSTOMER : "customer_id (nullable)"
     CAMPAIGN_CONTACT ||--o| CONTACT : "last_contact_id"
-    CAMPAIGN_CONTACT ||--o{ CAMPAIGN_CONTACT_ARCHIVE : "po 30 dniach od COMPLETED/STOPPED"
+    CAMPAIGN_CONTACT ||--o{ CAMPAIGN_CONTACT_ARCHIVE : "po okresie archiwizacji tenanta od COMPLETED/STOPPED (domyślnie 180 dni)"
     CONTACT }o--o| SCHEDULED_CALLBACK : "callback_id"
     SCHEDULED_CALLBACK }o--o| CAMPAIGN : ""
     SCHEDULED_CALLBACK }o--o| APP_USER : "agent_id (sticky)"

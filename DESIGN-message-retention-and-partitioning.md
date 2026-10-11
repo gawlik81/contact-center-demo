@@ -178,7 +178,7 @@ Fala 1  BE-124 ✅ (ADR D1) → BE-125 ✅ → BE-126 ✅ → BE-127 ✅ → BE-
 Fala 2  DB-064 (RLS wiadomości) → DB-065 (social) → BE-132 → BE-133      BE-126 ✅ → DB-065      DB-071 ✅ → DB-072 ✅ ‖ DB-073 ✅ ‖ DB-074 ✅, BE-138 ✅, BE-139 → BE-148 (tura 33, 2026-10-11: rola połączenia bez BYPASSRLS; + DB-072/073/074/081/082 ✅, BE-120/121/147 ✅ → BE-148 (parasol; WP-1 ✅ tura 34) → DB-083 → BE-149 ‖ BE-150)      DB-071 ✅ → DB-081 ✅ (FORCE RLS 7 tabel klasy A, odkrycie BE-138)
 Fala 3  DB-066 (BRAMKA D2/D4) → [go] DB-067 (email) → BE-134 → BE-135      [D4=B: DB-068 → BE-136]
 Fala 4  DB-069 → BE-137 (bramkowane)   DB-070   [D6=archived_at ZATWIERDZONE 2026-10-11: DB-075 🚫 → BE-140 🚫 N/A]   DB-058 ✅ → DB-076 ✅ → DB-077 ✅ (dokumentacja, po falach 0–1)   BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135, ślad awarii cron) → BE-147 ✅ (+ BE-121 ✅ → BE-147 ✅)
-        BE-120 ✅, DB-082 ✅ → DB-084 (tura 35: okres archiwizacji kontaktów kampanii per tenant; WP-1 ✅ tura 36) → BE-151 → FE-113      DB-084 → DB-083 (tura 36, P6: DB-084 PRZED DB-083, `ALTER FUNCTION`)
+        BE-120 ✅, DB-082 ✅ → DB-084 ✅ (tura 35: okres archiwizacji kontaktów kampanii per tenant; WP-1 ✅ tura 36) → BE-151 ✅ → FE-113      DB-084 → DB-083 (tura 36, P6: DB-084 PRZED DB-083, `ALTER FUNCTION`)
 ```
 
 | Fala | Cel | Priorytet | Złożoność (vs ocena zlecenia) |

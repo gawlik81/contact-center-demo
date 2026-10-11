@@ -54,6 +54,9 @@ class Db082LogCronFailureMigrationTest {
     @BeforeEach
     void setUp() {
         tenant = PostgresTestDatabase.insertTenant(jdbc, "DB-082 " + UUID.randomUUID());
+        // DB-084: domyslny prog archiwizacji = 180 dni; kampania sprzed 40 dni wymaga jawnego progu 30 dni,
+        // inaczej petla funkcji nie wejdzie i wymuszona awaria nie wystapi.
+        jdbc.update("INSERT INTO tenant_campaign_archive_setting (tenant_id, archive_after_days) VALUES (?, 30)", tenant);
         failingCampaign = UUID.randomUUID();
         jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at) "
                         + "VALUES (?, ?, ?, 'COMPLETED', now() - interval '41 days', now() - interval '40 days')",

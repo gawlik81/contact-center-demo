@@ -59,6 +59,10 @@ class CampaignArchiveJobIntegrationTest {
         TenantContext.clear(); // WP-2: scheduler nie ma kontekstu tenanta
         tenantA = PostgresTestDatabase.insertTenant(jdbc, "BE-120 A " + UUID.randomUUID());
         tenantB = PostgresTestDatabase.insertTenant(jdbc, "BE-120 B " + UUID.randomUUID());
+        // DB-084: domyslny prog archiwizacji to 180 dni (brak wiersza); scenariusze BE-120 uzywaja kampanii
+        // sprzed 31-60 dni, wiec tenanci testowi dostaja jawnie prog 30 dni (dotychczasowe zachowanie V015).
+        setArchiveThresholdDays(tenantA, 30);
+        setArchiveThresholdDays(tenantB, 30);
     }
 
     @AfterEach
@@ -338,6 +342,12 @@ class CampaignArchiveJobIntegrationTest {
     }
 
     // ---- pomocnicze ----
+
+    private void setArchiveThresholdDays(UUID tenant, int days) {
+        jdbc.update("INSERT INTO tenant_campaign_archive_setting (tenant_id, archive_after_days) VALUES (?, ?) "
+                + "ON CONFLICT (tenant_id) DO UPDATE SET archive_after_days = EXCLUDED.archive_after_days",
+                tenant, days);
+    }
 
     private UUID campaign(UUID tenant, String status, int daysOld) {
         UUID id = UUID.randomUUID();

@@ -5873,7 +5873,7 @@ nie konstruowało literalnie).
 > **Numeracja:** FE-110…FE-113 (poprzedni najwyższy: FE-109; FE-113 założony w turze 35 — okres archiwizacji kontaktów kampanii per tenant). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
 > (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
 >
-> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 ✅ → BE-151 → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant; tura 36: WP-1 DB-084 ✅, FE-113 obejmuje podgląd skutku skrócenia okresu).
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 ✅ → BE-151 ✅ → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant; tura 36: WP-1 DB-084 ✅, FE-113 obejmuje podgląd skutku skrócenia okresu).
 
 ### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
 
@@ -6024,9 +6024,9 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Typ:** Frontend implementation
 **Priorytet:** Should Have
 **Złożoność:** S/M (tura 36: korekta z S — dochodzi podgląd skutku w potwierdzeniu skrócenia okresu)
-**Zależy od:** BE-151
-**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
-**Czeka na BE:** BE-151 (kształt pola/zasobu w endpointach polityk retencji — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
+**Zależy od:** BE-151 ✅ (ukończony 2026-10-11, tura 38, commit `760fb263`)
+**Status:** ⬜ Nie rozpoczęte (odblokowany w turze 38 — BE-151 ✅; założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
+**Czeka na BE:** BE-151 ✅ (kontrakt poniżej; przed startem zweryfikować przeciw Swaggerowi — dotąd NIE oglądany; kształt pola/zasobu w endpointach polityk retencji — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
 **Blokuje:** brak
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
 **Wykonawca:** `angular-frontend-expert`
@@ -6052,4 +6052,4 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 **Ryzyka:** (R1) kształt API zależny od modelu danych z DB-084 — nie zaczynać przed publikacją Swaggera BE-151; (R2) ryzyko pomylenia z retencją `CAMPAIGN_DATA` (miesiące) — etykiety i opisy muszą jednoznacznie rozdzielać jednostki.
 **Nie wchodzi w zakres:** backend/migracje (BE-151, DB-084), nadpisanie per kampania, widok archiwum kontaktów, włączanie flagi archiwizacji.
-**Zależności:** `Zależy od` BE-151 (`Czeka na BE` BE-151; w tym endpoint podglądu).
+**Zależności:** `Zależy od` BE-151 ✅ (`Czeka na BE` BE-151 ✅; w tym endpoint podglądu). **Adnotacja (tura 38, 2026-10-11):** BE-151 ✅ (`760fb263`). Kontrakt dla FE-113 (zgodny z DTO w kodzie; NIE weryfikowany przeciw Swagger UI): `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` -> `{ archiveAfterDays, isDefault, defaultDays, minDays, maxDays, updatedBy, updatedAt, warning }`; `GET .../preview?archiveAfterDays=N` -> `{ currentDays, newDays, campaignsToArchive, contactsToArchive, campaignsToArchiveAtCurrentDays, contactsToArchiveAtCurrentDays, additionalCampaigns, additionalContacts, shortensPeriod }` (`additional*` ujemne przy wydłużeniu okresu); błędy walidacji (poza 30–730, nie-całkowita, null) = 422. Uwagi: podgląd liczy tylko kampanie z wierszami w `campaign_contact` (kampanie już w pełni zarchiwizowane nie są liczone); `warning` w GET/PUT to tekst ostrzeżenia z backendu; podgląd bez limitu czasu na dużych wolumenach (FE: stan ładowania, nie blokować potwierdzenia przy błędzie). V136–V139 niezastosowane na żywej bazie local-demo (max 135) — WP-4 FE-113 wymaga restartu backendu (`flyway`) i uzgodnienia z właścicielem; flaga archiwizacji w demo pozostaje wyłączona. Blokuje WP-4 BE-120.

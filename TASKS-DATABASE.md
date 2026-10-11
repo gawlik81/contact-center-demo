@@ -3030,7 +3030,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > otwarte gałęzie (`git ls-tree -r --name-only <gałąź> -- backend/src/main/resources/db/migration`) ORAZ `flyway_schema_history` żywej
 > bazy" (precedens: V092 zajęte przez gałąź `feature-socialmedia`, patrz DB-055). Jedna migracja na jedną zmianę; nigdy edycja
 > zastosowanej migracji.
-> **Numeracja:** DB-056…DB-082 (poprzedni najwyższy: DB-081). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
+> **Numeracja:** DB-056…DB-083 (poprzedni najwyższy: DB-082; DB-083 założony w turze 34, wydzielony z parasola BE-148). **Priorytety:** Must = luka RODO (grupa 1), Should = harmonogramy/RLS/social,
 > Could = bramkowane lub warunkowe. Tickety oznaczone [WARUNKOWY] wchodzą do zakresu tylko przy wskazanej alternatywie decyzji;
 > [BRAMKOWANY] — dopiero po spełnieniu progu wolumenowego.
 >
@@ -3042,7 +3042,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 2:  DB-064 ✅ → DB-065 ✅ → BE-132 ✅;   BE-126 ✅, DB-059 → DB-065 ✅
 > Grupa 3:  DB-066 ✅ (bramka zamknięta 2026-10-04) → DB-067 ✅ → BE-134 ✅;   DB-064 ✅, DB-059 ✅, BE-127 ✅ → DB-067 ✅;   [DB-066 ✅, DB-067 ✅ → DB-068 🚫 → BE-136 🚫, tylko D4 = B — 🚫 N/A: D4 = A zatwierdzone 2026-10-07]
 > Grupa 4:  DB-056 ✅, DB-072 ✅ → DB-069 (bramka) → BE-137;   DB-070 ✅;   [BE-120 ✅, DB-056 ✅ → DB-075 🚫 → BE-140 🚫, tylko D6 = koniec kampanii — 🚫 N/A: D6 = `archived_at` zatwierdzone 2026-10-11]
-> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139;   BE-139 ⬜, DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅ → BE-148 (tura 33, rola połączenia bez BYPASSRLS; ewentualny ticket DB wydzielany po decyzji WP-1)
+> Grupa 5:  DB-071 ✅ → DB-072 ✅ (+ BE-120 ✅), DB-073 ✅ (D7 Opcja 1, 2026-10-08, V111/V112), DB-074 ✅ (V113–V124, 2026-10-08);   DB-071 ✅ → BE-138 ✅, BE-139;   DB-064 ✅ → BE-139;   BE-139 ⬜, DB-072 ✅, DB-073 ✅, DB-074 ✅, DB-081 ✅, DB-082 ✅ → BE-148 (tura 33, parasol, rola połączenia bez BYPASSRLS; WP-1 ✅ tura 34) → DB-083 (tura 34, wydzielony po WP-1) → BE-149, BE-150;   BE-139 → DB-083
 > Grupa 6:  BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-058 ✅ → DB-076 ✅ (V133, 2026-10-09, tura 24);   BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 ✅ → DB-077 ✅ (dokumentacja, 2026-10-09, tura 24)
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
@@ -4732,3 +4732,45 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 - [x] Zastosowanie V135 na żywej bazie — wykonane 2026-10-11 06:47:08 UTC przy restarcie backendu (korekta tury 30; odczyt `flyway_schema_history`: `success=t`, baza na wersji 135; smoke test funkcji z ROLLBACK OK). UWAGA: wpis `ERROR` przy realnej awarii joba na żywej instancji jeszcze niezaobserwowany — potwierdzają go tylko testy integracyjne
 
 **Notatka z wykonania (2026-10-10, tura 26):** numer V135 wolny (V134 = komentarz indeksu z poprawek CR tury 25, w chwili zapisu niezastosowana; korekta tury 30: V134 i V135 zastosowane 2026-10-11 06:47 UTC). Funkcja i test w repo jako nieśledzone pliki do commitu koordynatora. Krok backendowy (wpięcie w trzy joby po wycofaniu transakcji): **BE-147 ✅**. **Zależności:** `Zależy od` BE-120 ✅, DB-076 ✅; `Blokuje` BE-147 ✅ (zweryfikowane grepem 2026-10-10: DB-082 występuje w `Zależy od` wyłącznie BE-147; `TASKS-FRONTEND.md` — brak odwołań).
+
+
+---
+
+### DB-083 – Role i uprawnienia pod rolę aplikacji `cc_app` (bez BYPASSRLS): GRANT-y, funkcje `SECURITY DEFINER`, REVOKE na `flyway_schema_history`
+
+**Typ:** Bezpieczeństwo / infrastruktura (DB) — migracje ról `NOLOGIN`, GRANT-ów i funkcji `SECURITY DEFINER`
+**Priorytet:** Should Have
+**Złożoność:** L (proponowana: ok. 17+ funkcji wejściowych do przeglądu `SECURITY DEFINER`, nowe funkcje DDL/skanu partycji, 2–3 migracje, test pod rolą ograniczoną)
+**Zależy od:** BE-148 (decyzja WP-1 ✅ zapisana 2026-10-11, tura 34 — ticket-parasol pozostaje ⬜, patrz uwaga o cyklu w BE-148), BE-139 (⬜ — harness testowy pod rolą bez BYPASSRLS)
+**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 34, decyzja właściciela (b): podział BE-148)
+**Blokuje:** BE-149, BE-150
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 55 → 58 razem z BE-149 i BE-150)
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testów pod rolą; sekrety i tworzenie ról z hasłami: właściciel/DevOps)
+
+**Kontekst:** decyzja (a) właściciela, wariant MIESZANY (zob. BE-148, sekcja „TURA 34”). Podstawa faktów: `DESIGN-be148-wp1-analiza-db.md` (nie edytować). Numery migracji: KOLEJNE WOLNE po ostatnim zastosowanym/istniejącym pliku (stan zweryfikowany 2026-10-11: `select max(version::int) from flyway_schema_history` = 135 i ostatni plik w `backend/src/main/resources/db/migration` = V135) — numer sprawdzić ponownie tuż przed startem (żywa baza i wszystkie gałęzie), nie wpisywać na sztywno. Baza produkcyjna = własny PostgreSQL, `ccapp` = bootstrap-superuser (decyzja (c)); `ccapp` zostaje rolą migracyjną/właścicielem, BEZ `REASSIGN OWNED`.
+
+**Zakres:**
+0. **Krok wstępny (weryfikacja niezweryfikowanych punktów na Testcontainers/jednorazowej bazie, wynik zapisać w tym tickecie):** (i) czy `SECURITY DEFINER` z właścicielem `NOLOGIN NOSUPERUSER BYPASSRLS` wykona `CREATE TABLE … PARTITION OF` i `DROP TABLE` partycji na tabelach, których właścicielem jest `ccapp` — hipoteza: członkostwo definera w roli właściciela (`GRANT ccapp TO <definer>` z `INHERIT`; własność sprawdzana przez `has_privs_of_role`), a `BYPASSRLS` jako atrybut własny; (ii) `REVOKE … FROM app_user` na nowo tworzonej partycji wewnątrz definera; (iii) Flyway pod `ccapp` jako rolą migracyjną przy osobnym `spring.flyway.user`. **Jeśli (i) negatywne — STOP i eskalacja do właściciela** (alternatywa: osobny `DataSource` ownera dla jobów partycji, zmiana decyzji (a) należy do właściciela).
+1. **Role (w Flyway WYŁĄCZNIE `NOLOGIN`, bez haseł; precedens V012; warunkowo, `IF NOT EXISTS`):** (a) rola-właściciel funkcji definera (`NOLOGIN NOSUPERUSER BYPASSRLS`; nazwa do ustalenia, np. `cc_definer`); (b) rola ETL tylko-do-odczytu (`BYPASSRLS`, `SELECT` na tabelach ETL, `ALL` na `etl_sync_state`, `INSERT/UPDATE` na `contacts_dw`; `NOLOGIN` w Flyway, `LOGIN`+hasło ustawia krok operacyjny w `DEPLOYMENT.md` w BE-148). `cc_app` (`LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`) tworzy krok OPERACYJNY (hasło poza repo); migracja robi tylko warunkowe `GRANT app_user TO cc_app` (jeśli rola istnieje), tak by migracje przechodziły także w CI/Testcontainers bez `cc_app`.
+2. **GRANT-y/REVOKE:** `REVOKE ALL ON flyway_schema_history FROM app_user` (korekta 5 z BE-148); `ALTER DEFAULT PRIVILEGES` także dla sekwencji i funkcji (dziś default ACL obejmuje tylko tabele); weryfikacja, że partycje NIE dostają GRANT dla `app_user` (DB-080 bez zmian).
+3. **Funkcje `SECURITY DEFINER`** (każda: właściciel = rola z pkt 1a, `SET search_path = public, pg_temp`, nazwy kwalifikowane schematem, `REVOKE EXECUTE … FROM PUBLIC`, `GRANT EXECUTE` tylko dla `cc_app`; komentarz `COMMENT ON FUNCTION`): (i) **tenants-by-email** (zwraca minimum: `tenant_id`/nazwa, NIE całe wiersze `app_user`); (ii) **lookup webhooka social** `(platform, page_id)` → `tenant_id` (+ wariant do `existsByPlatformAndPageIdAndTenantIdNot`); (iii) **DDL partycji:** istniejące `create_next_month_partitions()`, `create_<tabela>_partition(y,m)` (8), `rotate_*_partitions()` (6), `drop_old_*_partitions(n)` (5) przestawione na definera (migracja `ALTER FUNCTION … SECURITY DEFINER SET … OWNER TO …`), plus NOWE funkcje dla operacji dziś wykonywanych z Javy: `DROP TABLE` partycji (`PartitionScannerImpl`) z walidacją — nazwa musi być partycją znanego rodzica w `pg_inherits` i pasować do wzorca `{tabela}_YYYY_MM` z białej listy 8 tabel (test negatywny: nie da się usunąć tabeli spoza listy); (iv) **skan partycji:** liczenie wierszy per tenant/partycja (`countRowsByTenant`, `countRowsInPartition`) jako funkcje z tą samą walidacją nazwy; (v) **archiwizacja kampanii:** `archive_completed_campaign_contacts()` jako definer (E9/D1: bez GUC archiwizuje wszystkie tenanty) + NOWA funkcja zwracająca liczbę kandydatów (niezależny czujnik fałszywego `SUCCESS` dla BE-150). Definicje istniejących funkcji INVOKER, które nie wymagają zmiany (`log_cron_failure`, `cleanup_expired_refresh_tokens`, `purge_campaign_contact_archive`), NIE są przepisywane.
+4. **Krok porządkowy `rls_probe` (decyzja (d)):** rola pozostaje; po ustaleniu pochodzenia (pytanie do właściciela) — osobna migracja/krok operacyjny `DROP ROLE rls_probe` albo udokumentowanie roli. NIE ruszać przed ustaleniem pochodzenia.
+5. **Rollback:** migracje są wstecznie zgodne z `ccapp` (superuser ignoruje GRANT/definer); powrót `DB_USERNAME` na `ccapp` w BE-148/WP-6; role `cc_*` nie są usuwane do końca okresu obserwacji.
+
+**Kryteria akceptacji:**
+- [ ] Krok wstępny (pkt 0) wykonany, wynik (hipoteza członkostwa w roli właściciela potwierdzona/obalona) zapisany w tickecie; przy wyniku negatywnym — eskalacja, brak dalszych migracji bez decyzji właściciela
+- [ ] Migracje (numery kolejne wolne po V135, zweryfikowane tuż przed startem; zastosowane migracje nie edytowane), idempotentne, `SET LOCAL lock_timeout`, brak ról z hasłami i brak ról `LOGIN` w Flyway; GRANT-y warunkowe tak, by łańcuch Flyway przechodził bez `cc_app`
+- [ ] Rola-właściciel definera: `rolsuper = false`, `rolbypassrls = true`, `rolcanlogin = false`; potwierdzone testem na `pg_roles`
+- [ ] Każda funkcja `SECURITY DEFINER`: `proconfig` zawiera `search_path=public, pg_temp`, `proacl` bez PUBLIC, `EXECUTE` tylko dla `cc_app`; test negatywny wywołania przez rolę bez GRANT (`permission denied for function`) oraz test shadowingu (`CREATE TEMP TABLE cron_log` przez wywołującego nie przekierowuje zapisu definera)
+- [ ] Funkcje DDL/skanu partycji: odrzucają nazwy spoza białej listy/wzorca (test negatywny), po utworzeniu partycji `app_user` nie ma na niej uprawnień (REVOKE zadziałał)
+- [ ] Test pod rolą `NOSUPERUSER NOBYPASSRLS` (harness BE-139) na danych ≥ 2 tenantów: archiwizacja kampanii przez definer widzi oba tenanty (wynik > 0), czujnik kandydatów zgodny z wynikiem, tenants-by-email i lookup webhooka social zwracają wynik bez GUC, `create_next_month_partitions()` tworzy brakujące partycje
+- [ ] `REVOKE` na `flyway_schema_history`: `has_table_privilege('app_user','flyway_schema_history','UPDATE') = false` (test)
+- [ ] Rola ETL: tylko odczyt wskazanych tabel (test: `INSERT/UPDATE/DELETE` poza `etl_sync_state`/`contacts_dw` odrzucone)
+- [ ] Plan rollbacku opisany w tickecie i przekazany do `DEPLOYMENT.md` (BE-148 WP-6); krok `rls_probe` odnotowany jako oczekujący na ustalenie pochodzenia
+- [ ] `mvn verify -pl app` zielone
+- [ ] Zastosowanie migracji na żywej bazie local-demo: poprzedzone odczytem `flyway_schema_history` i krótką informacją dla właściciela (migracje zastosuje restart backendu; nie zmieniają roli połączenia aplikacji — `.env.local-demo` nie jest ruszane)
+- [ ] DoD: kod/migracje + testy, code review, dokumentacja zaktualizowana
+
+**Ryzyka:** (R1) DDL partycji w definerze bez własności tabel (pkt 0 (i)) — mitygacja: krok wstępny + eskalacja; (R2) błędny `search_path` = eskalacja uprawnień (korekta 2 z BE-148); (R3) parametry funkcji jako powierzchnia ataku (skompromitowana aplikacja może wołać funkcje) — mitygacja: biała lista nazw, brak parametrów `tenant_id` tam, gdzie niepotrzebne, minimalny zwrot; (R4) `GRANT EXECUTE ON ALL FUNCTIONS` z V012 i domyślny `EXECUTE` dla PUBLIC trzeba odwołać per funkcja; (R5) rollback uprawnień tylko przez powrót `DB_USERNAME`, bez DROP ról.
+**Nie wchodzi w zakres:** tworzenie ról z hasłami, zmiana `.env.local-demo`/sekretów, `REASSIGN OWNED`, zmiany w Javie (BE-149/BE-150), włączanie flag retencji na produkcji.
+**Zależności:** `Zależy od` BE-148 (decyzja WP-1 ✅), BE-139 ⬜; `Blokuje` BE-149, BE-150 (korzystają z funkcji i ról).

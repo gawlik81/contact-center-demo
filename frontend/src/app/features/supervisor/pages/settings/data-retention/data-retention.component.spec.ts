@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslocoTestingModule } from '@jsverse/transloco';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 import de from '../../../../../../../public/i18n/de.json';
 import en from '../../../../../../../public/i18n/en.json';
 import pl from '../../../../../../../public/i18n/pl.json';
@@ -85,6 +85,7 @@ describe('DataRetentionComponent (FE-110)', () => {
         ),
       ),
       getSummary: vi.fn().mockReturnValue(of(CATEGORIES.map(summary))),
+      getCampaignArchiveSetting: vi.fn().mockReturnValue(NEVER),
       getHistory: vi
         .fn()
         .mockReturnValue(of({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 10 })),

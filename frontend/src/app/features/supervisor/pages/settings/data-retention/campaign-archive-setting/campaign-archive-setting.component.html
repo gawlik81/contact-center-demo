@@ -1,0 +1,165 @@
+<section class="cas-section" aria-labelledby="cas-title">
+  <h2 id="cas-title" class="cas-title">
+    {{ 'supervisor.settings.dataRetention.campaignArchive.title' | transloco }}
+  </h2>
+  <p class="cas-description">
+    {{ 'supervisor.settings.dataRetention.campaignArchive.description' | transloco }}
+  </p>
+
+  @if (loading()) {
+    <div class="cas-skeleton" aria-hidden="true"></div>
+  } @else if (loadError()) {
+    <div class="cas-alert cas-alert--error" role="alert">
+      {{ 'supervisor.settings.dataRetention.campaignArchive.errorLoad' | transloco }}
+      <button type="button" class="cas-btn cas-btn--ghost" (click)="load()">
+        {{ 'supervisor.settings.dataRetention.retry' | transloco }}
+      </button>
+    </div>
+  } @else if (setting(); as current) {
+    <div class="cas-card">
+      <div class="cas-field">
+        <label for="cas-input" class="cas-label">
+          {{ 'supervisor.settings.dataRetention.campaignArchive.label' | transloco }}
+        </label>
+        <div class="cas-row">
+          <input
+            id="cas-input"
+            type="number"
+            inputmode="numeric"
+            class="cas-input"
+            [class.cas-input--invalid]="showValidationError()"
+            [attr.min]="minDays()"
+            [attr.max]="maxDays()"
+            step="1"
+            [value]="inputValue()"
+            [disabled]="saving()"
+            [attr.aria-invalid]="showValidationError()"
+            [attr.aria-describedby]="'cas-help' + (showValidationError() ? ' cas-error' : '')"
+            (input)="onInput($any($event.target).value)"
+            (keydown.enter)="save()"
+          />
+          <span class="cas-unit">{{ 'supervisor.settings.dataRetention.campaignArchive.unit' | transloco }}</span>
+          @if (current.isDefault) {
+            <span class="cas-badge cas-badge--default" data-testid="cas-default-badge">
+              {{
+                'supervisor.settings.dataRetention.campaignArchive.defaultBadge'
+                  | transloco: { days: current.defaultDays }
+              }}
+            </span>
+          } @else {
+            <span class="cas-badge cas-badge--custom">
+              {{ 'supervisor.settings.dataRetention.campaignArchive.customBadge' | transloco }}
+            </span>
+          }
+          <button type="button" class="cas-btn cas-btn--primary" [disabled]="!canSave()" (click)="save()">
+            @if (saving()) {
+              <span class="cas-spinner" aria-hidden="true"></span>
+            }
+            {{ 'supervisor.settings.dataRetention.campaignArchive.saveButton' | transloco }}
+          </button>
+        </div>
+        <p id="cas-help" class="cas-hint">
+          {{
+            'supervisor.settings.dataRetention.campaignArchive.help'
+              | transloco: { min: minDays(), max: maxDays(), default: defaultDays() }
+          }}
+        </p>
+        @if (showValidationError()) {
+          <p id="cas-error" class="cas-error" role="alert" data-testid="cas-validation-error">
+            {{
+              'supervisor.settings.dataRetention.campaignArchive.validationError'
+                | transloco: { min: minDays(), max: maxDays() }
+            }}
+          </p>
+        }
+        @if (saveErrorKey(); as errorKey) {
+          <p class="cas-error" role="alert" data-testid="cas-save-error">
+            {{
+              'supervisor.settings.dataRetention.campaignArchive.' + errorKey
+                | transloco: { min: minDays(), max: maxDays() }
+            }}
+          </p>
+        }
+        @if (current.updatedAt) {
+          <p class="cas-hint">
+            {{ 'supervisor.settings.dataRetention.campaignArchive.lastChange' | transloco }}:
+            {{ current.updatedAt | date: 'dd.MM.yyyy HH:mm' }}
+          </p>
+        }
+      </div>
+
+      <p class="cas-warning">
+        {{ 'supervisor.settings.dataRetention.campaignArchive.warning' | transloco }}
+      </p>
+    </div>
+  }
+
+  @if (confirmOpen()) {
+    <dialog
+      #dialogEl
+      class="cas-dialog"
+      aria-labelledby="cas-dialog-title"
+      aria-describedby="cas-dialog-body"
+      (cancel)="onDialogCancel($event)"
+    >
+      <div class="cas-dialog__header">
+        <h2 id="cas-dialog-title" class="cas-dialog__title">
+          {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.title' | transloco }}
+        </h2>
+      </div>
+      <div id="cas-dialog-body" class="cas-dialog__body">
+        <p class="cas-dialog__text">
+          {{
+            'supervisor.settings.dataRetention.campaignArchive.confirmModal.intro'
+              | transloco: { from: setting()?.archiveAfterDays, to: parsedValue() }
+          }}
+        </p>
+
+        @switch (previewState()) {
+          @case ('loading') {
+            <p class="cas-dialog__status" role="status" data-testid="cas-preview-loading">
+              <span class="cas-spinner" aria-hidden="true"></span>
+              {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.previewLoading' | transloco }}
+            </p>
+          }
+          @case ('error') {
+            <p class="cas-dialog__status cas-dialog__status--error" role="alert" data-testid="cas-preview-error">
+              {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.previewError' | transloco }}
+            </p>
+          }
+          @case ('loaded') {
+            @if (nothingToArchive()) {
+              <p class="cas-dialog__status" data-testid="cas-preview-nothing">
+                {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.previewNothing' | transloco }}
+              </p>
+            } @else {
+              <p class="cas-dialog__status cas-dialog__status--impact" data-testid="cas-preview-result">
+                {{
+                  'supervisor.settings.dataRetention.campaignArchive.confirmModal.previewResult'
+                    | transloco: { campaigns: preview()?.campaignsToArchive, contacts: preview()?.contactsToArchive }
+                }}
+              </p>
+            }
+          }
+        }
+
+        <p class="cas-dialog__warning">
+          {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.irreversible' | transloco }}
+        </p>
+      </div>
+      <div class="cas-dialog__footer">
+        <button type="button" class="cas-btn cas-btn--ghost" (click)="cancelConfirm()" autofocus>
+          {{ 'common.cancel' | transloco }}
+        </button>
+        <button
+          type="button"
+          class="cas-btn cas-btn--danger"
+          data-testid="cas-confirm-button"
+          (click)="confirmShorten()"
+        >
+          {{ 'supervisor.settings.dataRetention.campaignArchive.confirmModal.confirmButton' | transloco }}
+        </button>
+      </div>
+    </dialog>
+  }
+</section>

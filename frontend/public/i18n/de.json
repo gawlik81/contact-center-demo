@@ -2425,6 +2425,34 @@
           "paginationLabel": "Seitennavigation des Löschverlaufs",
           "showing": "Anzeige",
           "ofEntries": "Einträge"
+        },
+        "campaignArchive": {
+          "title": "Archivierungsfrist für Kampagnenkontakte",
+          "label": "Archivierungsfrist für Kampagnenkontakte (Tage nach Kampagnenende)",
+          "description": "So viele Tage nach dem Ende einer Kampagne (COMPLETED/STOPPED) werden ihre Kontakte archiviert. Das ist nicht die Aufbewahrungsfrist der Kampagnendaten in der Tabelle oben (dort: Monate, ab Archivierung gerechnet).",
+          "unit": "Tage",
+          "defaultBadge": "Standard ({{ days }} Tage)",
+          "customBadge": "Manuell festgelegt",
+          "help": "Bereich: {{ min }}–{{ max }} Tage (ganze Zahl). Standard: {{ default }} Tage.",
+          "validationError": "Geben Sie eine ganze Zahl zwischen {{ min }} und {{ max }} ein.",
+          "saveButton": "Speichern",
+          "saved": "Die Archivierungsfrist für Kampagnenkontakte wurde gespeichert.",
+          "errorLoad": "Die Archivierungsfrist für Kampagnenkontakte konnte nicht geladen werden.",
+          "errorSaveValidation": "Wert vom Server abgelehnt — geben Sie eine ganze Zahl zwischen {{ min }} und {{ max }} Tagen ein.",
+          "errorForbidden": "Sie haben keine Berechtigung, die Archivierungsfrist für diesen Tenant zu ändern.",
+          "errorSave": "Die Archivierungsfrist für Kampagnenkontakte konnte nicht gespeichert werden.",
+          "lastChange": "Letzte Änderung",
+          "warning": "Nach der Archivierung verschwinden Kampagnenkontakte aus der Oberfläche, den Statistiken und dem Dialer (es gibt keine Archivansicht). Eine Verkürzung der Frist führt dazu, dass beim nächsten Durchlauf Kampagnen archiviert werden, die früher als die neue Frist beendet wurden. Die Änderung stellt bereits archivierte Kontakte nicht wieder her.",
+          "confirmModal": {
+            "title": "Verkürzung der Archivierungsfrist bestätigen",
+            "intro": "Sie verkürzen die Archivierungsfrist von {{ from }} auf {{ to }} Tage nach Kampagnenende.",
+            "previewLoading": "Auswirkungen der Änderung werden berechnet…",
+            "previewError": "Die Auswirkungen der Änderung konnten nicht berechnet werden. Sie können trotzdem bestätigen — Kampagnen, die früher als die neue Frist beendet wurden, werden beim nächsten Durchlauf archiviert.",
+            "previewNothing": "Mit dem neuen Wert wird nichts archiviert.",
+            "previewResult": "Beim nächsten Durchlauf werden {{ campaigns }} Kampagnen ({{ contacts }} Kontakte) archiviert.",
+            "irreversible": "Archivierte Kontakte verschwinden aus der Oberfläche, den Statistiken und dem Dialer; eine Änderung der Frist stellt sie nicht wieder her.",
+            "confirmButton": "Verkürzen und speichern"
+          }
         }
       }
     },

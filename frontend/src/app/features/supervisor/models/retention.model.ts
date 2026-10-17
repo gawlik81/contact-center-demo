@@ -104,3 +104,45 @@ export interface PurgeRequestDto {
 export interface PurgeAcceptedResponse {
   purgeId: string;
 }
+
+/**
+ * Odpowiada odpowiedzi `GET/PUT .../retention/campaign-archive` (BE-151). Okres archiwizacji
+ * kontaktów kampanii (dni OD ZAKOŃCZENIA kampanii, `campaign.ended_at`) — NIE jest to retencja
+ * `CAMPAIGN_DATA` (miesiące, liczone od archiwizacji).
+ *
+ * UWAGA: nazwa pola w JSON to `isDefault`; `updatedBy`/`updatedAt` są POMIJANE w JSON, gdy null
+ * (smoke-test BE-151, 2026-10-12) — dlatego opcjonalne, nie `| null`.
+ */
+export interface CampaignArchiveSettingDto {
+  archiveAfterDays: number;
+  isDefault: boolean;
+  defaultDays: number;
+  minDays: number;
+  maxDays: number;
+  /** Tekst ostrzeżenia z backendu — FE pokazuje własne, tłumaczone ostrzeżenie (4 języki). */
+  warning?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+/** Request body dla `PUT .../retention/campaign-archive`. */
+export interface UpdateCampaignArchiveRequest {
+  archiveAfterDays: number;
+}
+
+/**
+ * Odpowiada odpowiedzi `GET .../campaign-archive/preview?archiveAfterDays=N` (BE-151).
+ * `additional*` są UJEMNE przy wydłużeniu okresu. Podgląd liczy tylko kampanie z wierszami w
+ * `campaign_contact` (już w pełni zarchiwizowane nie są liczone).
+ */
+export interface CampaignArchivePreviewDto {
+  currentDays: number;
+  newDays: number;
+  campaignsToArchive: number;
+  contactsToArchive: number;
+  campaignsToArchiveAtCurrentDays: number;
+  contactsToArchiveAtCurrentDays: number;
+  additionalCampaigns: number;
+  additionalContacts: number;
+  shortensPeriod: boolean;
+}

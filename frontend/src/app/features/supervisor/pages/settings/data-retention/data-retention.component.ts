@@ -20,6 +20,7 @@ import {
   RetentionDataCategory,
   RetentionSummaryDto,
 } from '../../../models/retention.model';
+import { CampaignArchiveSettingComponent } from './campaign-archive-setting/campaign-archive-setting.component';
 import {
   PurgeConfirmModalComponent,
   PurgeConfirmTarget,
@@ -83,7 +84,7 @@ interface PolicyRowState {
 @Component({
   selector: 'app-data-retention',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, DatePipe, PurgeConfirmModalComponent],
+  imports: [TranslocoModule, DatePipe, PurgeConfirmModalComponent, CampaignArchiveSettingComponent],
   templateUrl: './data-retention.component.html',
   styleUrl: './data-retention.component.scss',
 })

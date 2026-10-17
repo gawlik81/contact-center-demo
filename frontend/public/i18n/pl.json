@@ -2425,6 +2425,34 @@
           "paginationLabel": "Nawigacja stron historii usuwania",
           "showing": "Wyświetlanie",
           "ofEntries": "operacji"
+        },
+        "campaignArchive": {
+          "title": "Okres archiwizacji kontaktów kampanii",
+          "label": "Okres archiwizacji kontaktów kampanii (dni od zakończenia kampanii)",
+          "description": "Po tylu dniach od zakończenia kampanii (COMPLETED/STOPPED) jej kontakty są archiwizowane. To nie jest okres retencji danych kampanii w tabeli powyżej (tam: miesiące, liczone od archiwizacji).",
+          "unit": "dni",
+          "defaultBadge": "Domyślne ({{ days }} dni)",
+          "customBadge": "Ustawione ręcznie",
+          "help": "Zakres: {{ min }}–{{ max }} dni (liczba całkowita). Domyślnie {{ default }} dni.",
+          "validationError": "Podaj liczbę całkowitą z zakresu {{ min }}–{{ max }}.",
+          "saveButton": "Zapisz",
+          "saved": "Okres archiwizacji kontaktów kampanii został zapisany.",
+          "errorLoad": "Nie udało się załadować okresu archiwizacji kontaktów kampanii.",
+          "errorSaveValidation": "Wartość odrzucona przez serwer — podaj liczbę całkowitą z zakresu {{ min }}–{{ max }} dni.",
+          "errorForbidden": "Brak uprawnień do zmiany okresu archiwizacji dla tego tenanta.",
+          "errorSave": "Nie udało się zapisać okresu archiwizacji kontaktów kampanii.",
+          "lastChange": "Ostatnia zmiana",
+          "warning": "Po archiwizacji kontakty kampanii znikają z interfejsu, statystyk i dialera (nie ma widoku archiwum). Skrócenie okresu powoduje, że przy najbliższym przebiegu zostaną zarchiwizowane kampanie zakończone dawniej niż nowy okres. Zmiana nie przywraca już zarchiwizowanych kontaktów.",
+          "confirmModal": {
+            "title": "Potwierdź skrócenie okresu archiwizacji",
+            "intro": "Skracasz okres archiwizacji z {{ from }} do {{ to }} dni od zakończenia kampanii.",
+            "previewLoading": "Obliczanie skutków zmiany…",
+            "previewError": "Nie udało się obliczyć skutków zmiany. Możesz mimo to potwierdzić — kampanie zakończone dawniej niż nowy okres zostaną zarchiwizowane przy najbliższym przebiegu.",
+            "previewNothing": "Przy nowej wartości nic nie zostanie zarchiwizowane.",
+            "previewResult": "Przy najbliższym przebiegu zostanie zarchiwizowanych: {{ campaigns }} kampanii ({{ contacts }} kontaktów).",
+            "irreversible": "Zarchiwizowane kontakty znikną z interfejsu, statystyk i dialera; zmiana okresu ich nie przywróci.",
+            "confirmButton": "Skróć i zapisz"
+          }
         }
       }
     },

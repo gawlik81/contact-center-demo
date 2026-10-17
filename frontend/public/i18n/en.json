@@ -2425,6 +2425,34 @@
           "paginationLabel": "Deletion history pagination",
           "showing": "Showing",
           "ofEntries": "entries"
+        },
+        "campaignArchive": {
+          "title": "Campaign contact archiving period",
+          "label": "Campaign contact archiving period (days after campaign end)",
+          "description": "This many days after a campaign ends (COMPLETED/STOPPED), its contacts are archived. This is not the campaign data retention period in the table above (there: months, counted from archiving).",
+          "unit": "days",
+          "defaultBadge": "Default ({{ days }} days)",
+          "customBadge": "Set manually",
+          "help": "Range: {{ min }}–{{ max }} days (whole number). Default is {{ default }} days.",
+          "validationError": "Enter a whole number between {{ min }} and {{ max }}.",
+          "saveButton": "Save",
+          "saved": "Campaign contact archiving period has been saved.",
+          "errorLoad": "Failed to load the campaign contact archiving period.",
+          "errorSaveValidation": "Value rejected by the server — enter a whole number between {{ min }} and {{ max }} days.",
+          "errorForbidden": "You do not have permission to change the archiving period for this tenant.",
+          "errorSave": "Failed to save the campaign contact archiving period.",
+          "lastChange": "Last change",
+          "warning": "After archiving, campaign contacts disappear from the UI, statistics and the dialer (there is no archive view). Shortening the period means campaigns that ended earlier than the new period will be archived on the next run. The change does not restore contacts that were already archived.",
+          "confirmModal": {
+            "title": "Confirm shortening the archiving period",
+            "intro": "You are shortening the archiving period from {{ from }} to {{ to }} days after campaign end.",
+            "previewLoading": "Calculating the impact of the change…",
+            "previewError": "Could not calculate the impact of the change. You can still confirm — campaigns that ended earlier than the new period will be archived on the next run.",
+            "previewNothing": "Nothing will be archived with the new value.",
+            "previewResult": "On the next run, {{ campaigns }} campaigns ({{ contacts }} contacts) will be archived.",
+            "irreversible": "Archived contacts will disappear from the UI, statistics and the dialer; changing the period will not restore them.",
+            "confirmButton": "Shorten and save"
+          }
         }
       }
     },

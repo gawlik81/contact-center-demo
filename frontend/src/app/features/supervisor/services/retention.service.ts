@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import {
   EMPTY,
   Observable,
@@ -12,15 +12,19 @@ import {
 } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../../environments/environment';
+import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { AuthService } from '../../../core/services/auth.service';
 import { PagedResponse } from '../../../core/models/paged-response.model';
 import {
+  CampaignArchivePreviewDto,
+  CampaignArchiveSettingDto,
   PurgeAcceptedResponse,
   PurgeRequestDto,
   PurgeResultDto,
   RetentionDataCategory,
   RetentionPolicyDto,
   RetentionSummaryDto,
+  UpdateCampaignArchiveRequest,
   UpdateRetentionPolicyRequest,
 } from '../models/retention.model';
 
@@ -200,5 +204,44 @@ export class RetentionService {
     return this.http.get<PagedResponse<PurgeResultDto>>(`${this.buildBaseUrl(tenantId)}/history`, {
       params,
     });
+  }
+
+  // ---- Okres archiwizacji kontaktów kampanii (FE-113, BE-151) ----
+  //
+  // Wszystkie trzy wywołania mają SKIP_ERROR_TOAST: komponent pokazuje własny, konkretny
+  // komunikat (422 zakres / 403 / ogólny), więc globalny interceptor nie może dodać drugiego.
+
+  private skipToast(): { context: HttpContext } {
+    return { context: new HttpContext().set(SKIP_ERROR_TOAST, true) };
+  }
+
+  /** GET .../retention/campaign-archive — efektywny okres archiwizacji (180 gdy brak jawnego). */
+  getCampaignArchiveSetting(): Observable<CampaignArchiveSettingDto> {
+    const tenantId = this.requireTenantId();
+    return this.http.get<CampaignArchiveSettingDto>(
+      `${this.buildBaseUrl(tenantId)}/campaign-archive`,
+      this.skipToast(),
+    );
+  }
+
+  /** PUT .../retention/campaign-archive — zapis okresu (30–730; 422 poza zakresem). */
+  updateCampaignArchiveSetting(archiveAfterDays: number): Observable<CampaignArchiveSettingDto> {
+    const tenantId = this.requireTenantId();
+    const request: UpdateCampaignArchiveRequest = { archiveAfterDays };
+    return this.http.put<CampaignArchiveSettingDto>(
+      `${this.buildBaseUrl(tenantId)}/campaign-archive`,
+      request,
+      this.skipToast(),
+    );
+  }
+
+  /** GET .../campaign-archive/preview?archiveAfterDays=N — skutek zmiany, bez zapisu. */
+  previewCampaignArchive(archiveAfterDays: number): Observable<CampaignArchivePreviewDto> {
+    const tenantId = this.requireTenantId();
+    const params = new HttpParams().set('archiveAfterDays', archiveAfterDays.toString());
+    return this.http.get<CampaignArchivePreviewDto>(
+      `${this.buildBaseUrl(tenantId)}/campaign-archive/preview`,
+      { params, ...this.skipToast() },
+    );
   }
 }

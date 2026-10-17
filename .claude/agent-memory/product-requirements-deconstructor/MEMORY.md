@@ -19,3 +19,4 @@
 - [Okres archiwizacji per tenant (tura 35)](project_archive_period_tura35.md) — DB-084/BE-151/FE-113, flaga demo cofnięta, liczniki 330/348
 - [WP-1 DB-084 (tura 36)](project_db084_wp1_tura36.md) — tabela ustawienia + ended_at, DB-084 przed DB-083, liczniki 330/348 bez zmian
 - [BE-151 zakończone (tura 38)](project_be151_tura38.md) — 332/348, FE-113 odblokowany, luka handlera 500 jako rekomendacja bez numeru
+- [Tura 40: EPIC-31, DB-085/086](project_tura40_epic31.md) — FE-113 ✅, 333/350, rozbieżność skryptu EPIC-30 (+2 stałe)

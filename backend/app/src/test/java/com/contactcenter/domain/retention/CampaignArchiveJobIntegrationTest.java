@@ -351,10 +351,14 @@ class CampaignArchiveJobIntegrationTest {
 
     private UUID campaign(UUID tenant, String status, int daysOld) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at) "
+        // DB-085: trigger ustawia ended_at=NOW() dla kampanii terminalnej wstawionej bez ended_at,
+        // wiec wiek kampanii terminalnej musi byc podany jawnie w ended_at (zegar archiwizacji).
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
                         + "VALUES (?, ?, ?, '" + status + "', now() - make_interval(days => ?), "
-                        + "now() - make_interval(days => ?))",
-                id, tenant, "BE-120 " + id, daysOld + 1, daysOld);
+                        + "now() - make_interval(days => ?), "
+                        + "CASE WHEN '" + status + "' IN ('COMPLETED', 'STOPPED') "
+                        + "THEN now() - make_interval(days => ?) END)",
+                id, tenant, "BE-120 " + id, daysOld + 1, daysOld, daysOld);
         return id;
     }
 

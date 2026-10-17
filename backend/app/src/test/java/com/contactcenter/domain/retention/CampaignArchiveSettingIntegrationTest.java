@@ -272,7 +272,7 @@ class CampaignArchiveSettingIntegrationTest {
     @DisplayName("COALESCE(ended_at, updated_at): ended_at STARE + updated_at SWIEZE -> archiwizowana/liczona; "
             + "ended_at SWIEZE + updated_at STARE -> NIE (wykrywa regresje do samego updated_at)")
     void endedAtBranch_ofCoalesce_decidesOverUpdatedAt() {
-        // ended_at wstawiane jawnie - trigger V137 dziala tylko na UPDATE statusu
+        // ended_at wstawiane jawnie - trigger (DB-085) respektuje jawna wartosc i nadaje NOW() tylko gdy NULL
         UUID oldEndedFreshUpdated = campaignEnded(tenantA, "COMPLETED", 100, 1);
         UUID freshEndedOldUpdated = campaignEnded(tenantA, "STOPPED", 1, 100);
         contacts(tenantA, oldEndedFreshUpdated, 2);
@@ -405,7 +405,7 @@ class CampaignArchiveSettingIntegrationTest {
                 Integer.class, tenant);
     }
 
-    /** Kampania terminalna z JAWNYM ended_at (trigger V137 dziala tylko na UPDATE statusu). */
+    /** Kampania terminalna z JAWNYM ended_at (trigger DB-085 respektuje jawna wartosc, NOW() tylko gdy NULL). */
     private UUID campaignEnded(UUID tenant, String status, int endedDaysAgo, int updatedDaysAgo) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
@@ -439,10 +439,14 @@ class CampaignArchiveSettingIntegrationTest {
 
     private UUID campaign(UUID tenant, String status, int daysOld) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at) "
+        // DB-085: trigger ustawia ended_at=NOW() dla kampanii terminalnej wstawionej bez ended_at,
+        // wiec wiek kampanii terminalnej musi byc podany jawnie w ended_at (zegar archiwizacji).
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
                         + "VALUES (?, ?, ?, '" + status + "', now() - make_interval(days => ?), "
-                        + "now() - make_interval(days => ?))",
-                id, tenant, "BE-151 " + id, daysOld + 1, daysOld);
+                        + "now() - make_interval(days => ?), "
+                        + "CASE WHEN '" + status + "' IN ('COMPLETED', 'STOPPED') "
+                        + "THEN now() - make_interval(days => ?) END)",
+                id, tenant, "BE-151 " + id, daysOld + 1, daysOld, daysOld);
         return id;
     }
 

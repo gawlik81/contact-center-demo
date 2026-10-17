@@ -58,8 +58,10 @@ class Db082LogCronFailureMigrationTest {
         // inaczej petla funkcji nie wejdzie i wymuszona awaria nie wystapi.
         jdbc.update("INSERT INTO tenant_campaign_archive_setting (tenant_id, archive_after_days) VALUES (?, 30)", tenant);
         failingCampaign = UUID.randomUUID();
-        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at) "
-                        + "VALUES (?, ?, ?, 'COMPLETED', now() - interval '41 days', now() - interval '40 days')",
+        // DB-085: trigger ustawia ended_at=NOW() gdy kampania terminalna ma NULL - wiek podajemy jawnie.
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
+                        + "VALUES (?, ?, ?, 'COMPLETED', now() - interval '41 days', now() - interval '40 days', "
+                        + "now() - interval '40 days')",
                 failingCampaign, tenant, "DB-082 " + failingCampaign);
         jdbc.update("INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status) "
                         + "VALUES (?, ?, ?, '+48700000001', 'Db082', 'COMPLETED')",

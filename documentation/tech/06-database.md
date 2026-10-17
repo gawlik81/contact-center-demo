@@ -302,7 +302,7 @@ liczbę usuniętych w tej partii; pętlę do wyniku 0 prowadzi Java
 `RetentionPurgeService` po `RetentionEvaluationJob` (01:00 UTC). Funkcja jest `SECURITY INVOKER`
 i filtruje jawnie po `p_tenant_id` – pod rolą bez `BYPASSRLS` wymaga ustawionego GUC tenanta.
 
-**Okres archiwizacji kontaktów kampanii per tenant (EPIC-30, DB-084: V136–V139):** od V138 próg
+**Okres archiwizacji kontaktów kampanii per tenant (EPIC-30, DB-084/DB-085/DB-086: V136–V141):** od V138 próg
 archiwizacji nie jest już zaszyty w funkcji (wcześniej 30 dni od `updated_at`), tylko jest
 ustawieniem tenanta:
 
@@ -312,7 +312,8 @@ ustawieniem tenanta:
 - **V137** – kolumna `campaign.ended_at` + trigger `trg_campaign_ended_at`
   (`BEFORE UPDATE OF status`, funkcja `fn_campaign_set_ended_at()`): przy przejściu na
   `COMPLETED`/`STOPPED` ustawia `ended_at = NOW()`, przy wyjściu ze stanu terminalnego zeruje;
-  reaguje tylko na zmianę statusu (wiersz wstawiony od razu jako terminalny ma `ended_at IS NULL`).
+  reaguje tylko na zmianę statusu (w wersji V137 wiersz wstawiony od razu jako terminalny miał
+  `ended_at IS NULL` – naprawione w V140).
   Backfill istniejących terminalnych kampanii: `ended_at = updated_at` (na czas backfillu wyłączany
   jest `trg_campaign_updated_at`).
 - **V138** – `archive_completed_campaign_contacts()` (`CREATE OR REPLACE`): pętla po kampaniach
@@ -325,6 +326,51 @@ ustawieniem tenanta:
 - **V139** – korekta `scheduled_job.description` wpisu `archive_completed_campaign_contacts`
   (V133 mówił „> 30 dni”; nowa treść wskazuje okres per tenant, domyślnie 180 dni, zakres 30–730).
   Idempotentna (`REPLACE` fragmentu).
+- **V140** (DB-085) – trzy zmiany:
+  - *Trigger `trg_campaign_ended_at`* jest od teraz `BEFORE INSERT OR UPDATE OF status` (funkcja
+    `fn_campaign_set_ended_at()`, przebudowa przez `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`). Reguły:
+    `INSERT` terminalny (`COMPLETED`/`STOPPED`) z `ended_at IS NULL` → `NOW()`, jawna wartość zostaje;
+    `INSERT` nieterminalny → `ended_at` zawsze `NULL` (także gdy podano jawnie); `UPDATE`
+    nieterminalny → terminalny → `NOW()`, chyba że ten sam `UPDATE` jawnie ustawia inny `ended_at` niż
+    poprzedni; `UPDATE` terminalny → terminalny zachowuje `ended_at`, a gdy jest `NULL` ustawia `NOW()`;
+    wyjście ze stanu terminalnego → `NULL` (jawny `ended_at` w tym `UPDATE` jest ignorowany);
+    `UPDATE` bez kolumny `status` w `SET` nie odpala triggera. Uchyla to ograniczenie V137 („trigger nie
+    obejmuje `INSERT`” i przejścia terminal → terminal).
+  - *Zegar archiwizacji* w funkcji `archive_completed_campaign_contacts()` to teraz
+    `COALESCE(ended_at, updated_at, created_at)` (wiersze z `updated_at IS NULL` nie są już „nigdy
+    archiwizowane”); z `SELECT` pętli usunięto nieużywane kolumny `status`, `updated_at`, `tenant_id`.
+    Pozostała treść funkcji bez zmian względem V138.
+  - *`tenant_campaign_archive_setting`*: trigger `trg_tenant_campaign_archive_setting_updated_at`
+    (`BEFORE UPDATE`, `fn_set_updated_at()`), jawny idempotentny
+    `GRANT SELECT, INSERT, UPDATE, DELETE … TO app_user` (nie zależy od `ALTER DEFAULT PRIVILEGES` roli
+    migrującej) oraz komentarz o świadomym wyjątku od niezmiennika `is_deleted` (ustawienie 1:1 z tenantem,
+    usunięcie wiersza = powrót do 180 dni).
+- **V141** (DB-086) – nowa wersja `archive_completed_campaign_contacts()` (`CREATE OR REPLACE` na bazie
+  V140) usuwająca z `campaign_contact` **wyłącznie wiersze mające w archiwum identyczną kopię**:
+  - `INSERT … SELECT … FOR UPDATE … ON CONFLICT (record_id, campaign_id) DO NOTHING` – wiersze źródłowe
+    są blokowane do końca transakcji funkcji (równoległy `UPDATE` czeka; dialer używa `SKIP LOCKED`).
+  - `DELETE FROM campaign_contact cc USING campaign_contact_archive a` po `(record_id, campaign_id)` **oraz**
+    z warunkiem równości stanu (`status`, `attempt_count`, `last_attempt_at`, `disposition_code`,
+    `last_contact_id`, `updated_at` – `IS NOT DISTINCT FROM`). Zastępuje to `DELETE … WHERE campaign_id`
+    oraz warunek `v_batch_count > 0 OR NOT EXISTS (…)` (który przy 0 wstawionych wierszy nie kasował nic,
+    a przy dopisanym w trakcie wierszu kasował go bez kopii). Wiersz dopisany po `INSERT`, zmieniony po
+    skopiowaniu albo z rozjechaną kopią zostaje w `campaign_contact`.
+  - `DROP` dedykowanej partycji LIST tylko gdy w `campaign_contact` nie został żaden wiersz tej kampanii
+    (dziś żadna taka partycja nie istnieje – ADR DB-070).
+  - `cron_log.message` zawiera dodatkowo `Usuniete: N`; `cron_log.rows_affected` nadal = liczba rekordów
+    **wstawionych** do archiwum (nie usuniętych) – Java czyta tylko to pole.
+  - Sygnatura bez parametrów, `RETURNS void`, blok `EXCEPTION WHEN OTHERS … RAISE` (kontrakt DB-082 /
+    `log_cron_failure`) bez zmian.
+
+  *Skutek uboczny:* wiersz z rozjechaną kopią w `campaign_contact_archive` zostaje w `campaign_contact`
+  (kampania jest przetwarzana co noc, ale dane nie giną) i **wymaga interwencji operatora** – odziedziczone
+  `ON CONFLICT DO NOTHING` świadomie nie nadpisuje kopii, aby nie ruszać `archived_at` (zegara retencji
+  `CAMPAIGN_DATA`).
+
+  *Uwaga dla DB-083 (EPIC-31):* `CREATE OR REPLACE` w V140 i V141 resetuje `SECURITY DEFINER` i
+  `SET search_path`; dziś funkcja jest `SECURITY INVOKER` bez `proconfig`. DB-083 musi użyć
+  `ALTER FUNCTION archive_completed_campaign_contacts() … SECURITY DEFINER` na wersji z V141 (nie
+  kolejnego `CREATE OR REPLACE` na starszej definicji).
 
 **Uwaga – dwa różne „okresy”:** *okres archiwizacji* (`archive_after_days`, w **dniach**, liczony od
 zakończenia kampanii; po nim kontakty przechodzą z `campaign_contact` do archiwum i znikają z UI,
@@ -440,7 +486,7 @@ Zadania wykonują klasy Java (czasy UTC, crony konfigurowalne przez `application
 | *(bez wpisu)* `RecordingRetentionJob`, `PendingAttachmentSweepJob` | 02:00, 02:30 | nagrania S3; sweep porzuconych `pending/` (dry-run domyślnie) |
 | `cleanup_expired_refresh_tokens` → `RefreshTokenCleanupJob` | codziennie 03:30 | czyszczenie `refresh_token` (BE-122) |
 | *(bez wpisu)* `PartitionReclaimJob` | niedziela 03:00 | Poziom 2: `DROP` pustych partycji po horyzoncie retencji; `audit_log`/`plugin_invocation_log` dropowane po horyzoncie platformowym (domyślnie 24 mies., BE-123) |
-| `archive_completed_campaign_contacts` → `CampaignArchiveJob` | codziennie 04:00 | archiwizacja kampanii COMPLETED/STOPPED, gdy od zakończenia (`COALESCE(ended_at, updated_at)`) minął okres archiwizacji tenanta (domyślnie 180 dni, zakres 30–730; V136–V138); **domyślnie wyłączony** (`retention.campaign-archive.enabled=false`) |
+| `archive_completed_campaign_contacts` → `CampaignArchiveJob` | codziennie 04:00 | archiwizacja kampanii COMPLETED/STOPPED, gdy od zakończenia (`COALESCE(ended_at, updated_at, created_at)`) minął okres archiwizacji tenanta (domyślnie 180 dni, zakres 30–730; V136–V141); **domyślnie wyłączony** (`retention.campaign-archive.enabled=false`) |
 | `rotate_*_partitions` (6 wpisów) | – | **brak wykonawcy** – nieaktywny backstop SQL (`is_active=FALSE`), zastąpiony przez `PartitionMaintenanceJob` + `PartitionReclaimJob` |
 
 Wpis `refresh_materialized_views` został usunięty (V133) razem z funkcją i widokami (V132, DB-058).

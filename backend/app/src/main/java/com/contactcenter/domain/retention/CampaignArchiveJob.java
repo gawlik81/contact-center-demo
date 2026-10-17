@@ -10,7 +10,7 @@ import java.time.Instant;
 /**
  * Cykliczna archiwizacja kontaktów zakończonych kampanii (BE-120, EPIC-30) — domknięcie martwego
  * harmonogramu: funkcja SQL {@code archive_completed_campaign_contacts()} (V015) dla każdej kampanii
- * {@code COMPLETED}/{@code STOPPED}, dla której {@code COALESCE(ended_at, updated_at)} jest starsze niż
+ * {@code COMPLETED}/{@code STOPPED}, dla której {@code COALESCE(ended_at, updated_at, created_at)} jest starsze niż
  * okres archiwizacji TENANTA (domyślnie 180 dni, zakres 30-730; tabela
  * {@code tenant_campaign_archive_setting}, API {@code /api/tenants/{id}/retention/campaign-archive},
  * BE-151/DB-084), kopiuje {@code campaign_contact} do {@code campaign_contact_archive}, usuwa je

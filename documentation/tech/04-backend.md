@@ -899,7 +899,7 @@ ale nie jest audytowany. **Audyt jest best-effort:** `AuditLogService#publishAud
 i połyka błędy brokera, więc zmiana może zostać zapisana bez wpisu w `audit_log` (utrata logowana na ERROR).
 
 **Semantyka podglądu:** `preview` liczy (`countArchivable`) kampanie `COMPLETED`/`STOPPED` tenanta z
-`COALESCE(ended_at, updated_at) < NOW() - N dni` – predykat zgodny z funkcją SQL, która od V140 używa dodatkowo trzeciego argumentu `created_at` (różnica tylko dla wierszy z `ended_at` i `updated_at` jednocześnie `NULL`; zapytanie Javy tego nie uwzględnia) – ale **tylko te,
+`COALESCE(ended_at, updated_at, created_at) < NOW() - N dni` – predykat zgodny z funkcją SQL `archive_completed_campaign_contacts()` od V140 (oba zapytania `countArchivable`: kampanie i kontakty; wiersze z `ended_at` i `updated_at` jednocześnie `NULL` są liczone wg `created_at`) – ale **tylko te,
 które mają jeszcze wiersze w `campaign_contact`** (kampanie już zarchiwizowane nie mają nic do przeniesienia
 i dawałyby wiecznie niezerowy wynik). Nic nie zapisuje i nie uruchamia archiwizacji.
 

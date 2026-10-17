@@ -295,6 +295,32 @@ class CampaignArchiveSettingIntegrationTest {
     }
 
     @Test
+    @DisplayName("COALESCE(ended_at, updated_at, created_at): terminalna kampania z ended_at i updated_at = NULL "
+            + "oraz starym created_at jest liczona w podgladzie (zgodnie z funkcja SQL od V140)")
+    void createdAtFallback_nullEndedAndUpdated_isCountedInPreview() throws Exception {
+        UUID id = UUID.randomUUID();
+        try (java.sql.Connection c = superuserPool.getConnection(); java.sql.Statement st = c.createStatement()) {
+            st.execute("SET session_replication_role = replica");
+            st.execute("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
+                    + "VALUES ('" + id + "', '" + tenantA + "', 'BE-151 null clock " + id + "', 'COMPLETED', "
+                    + "now() - interval '400 days', NULL, NULL)");
+            st.execute("RESET session_replication_role");
+        }
+        contacts(tenantA, id, 4);
+        TenantContext.setTenantId(tenantA);
+
+        CampaignArchivePreviewDto p = service.preview(tenantA, 30);
+        assertThat(p.campaignsToArchive()).isEqualTo(1);
+        assertThat(p.contactsToArchive()).isEqualTo(4);
+
+        // zgodnosc z funkcja SQL: job archiwizuje dokladnie to, co pokazal podglad
+        service.update(tenantA, 30, null);
+        assertThatNoException().isThrownBy(job::run);
+        assertThat(liveCount(id)).isZero();
+        assertThat(archiveCount(id)).isEqualTo(4);
+    }
+
+    @Test
     @DisplayName("odczyty (get/preview/repo) cudzego tenanta -> CrossTenantAccessException")
     void reads_crossTenant_rejected() {
         TenantContext.setTenantId(tenantB);

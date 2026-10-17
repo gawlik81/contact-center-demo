@@ -146,8 +146,8 @@ class TenantCampaignArchiveSettingRepository extends TenantAwareRepository {
      * Liczy kampanie {@code COMPLETED}/{@code STOPPED} tenanta kwalifikujące się do archiwizacji przy
      * okresie {@code days} oraz ich kontakty w {@code campaign_contact}. Tylko odczyt.
      *
-     * <p>Predykat IDENTYCZNY z pętlą funkcji {@code archive_completed_campaign_contacts()} (V138):
-     * {@code status IN ('COMPLETED','STOPPED') AND COALESCE(ended_at, updated_at) < NOW() -
+     * <p>Predykat IDENTYCZNY z pętlą funkcji {@code archive_completed_campaign_contacts()} (V138, zegar z trzecim argumentem created_at od V140):
+     * {@code status IN ('COMPLETED','STOPPED') AND COALESCE(ended_at, updated_at, created_at) < NOW() -
      * make_interval(days => N)}. Liczone są tylko kampanie, które mają jeszcze kontakty w
      * {@code campaign_contact} (funkcja przetwarza także kampanie już zarchiwizowane, bez kontaktów,
      * ale nie mają one nic do przeniesienia — liczenie ich dawałoby wiecznie niezerowy podgląd).
@@ -165,14 +165,14 @@ class TenantCampaignArchiveSettingRepository extends TenantAwareRepository {
                                   FROM campaign c
                                  WHERE c.tenant_id = CAST(:tenantId AS uuid)
                                    AND c.status IN ('COMPLETED', 'STOPPED')
-                                   AND COALESCE(c.ended_at, c.updated_at) < NOW() - make_interval(days => :days)
+                                   AND COALESCE(c.ended_at, c.updated_at, c.created_at) < NOW() - make_interval(days => :days)
                                    AND EXISTS (SELECT 1 FROM campaign_contact cc WHERE cc.campaign_id = c.campaign_id)),
                                (SELECT COUNT(*)
                                   FROM campaign_contact cc
                                   JOIN campaign c ON c.campaign_id = cc.campaign_id
                                  WHERE c.tenant_id = CAST(:tenantId AS uuid)
                                    AND c.status IN ('COMPLETED', 'STOPPED')
-                                   AND COALESCE(c.ended_at, c.updated_at) < NOW() - make_interval(days => :days))
+                                   AND COALESCE(c.ended_at, c.updated_at, c.created_at) < NOW() - make_interval(days => :days))
                         """)
                 .setParameter("tenantId", tenantId.toString())
                 .setParameter("days", days)

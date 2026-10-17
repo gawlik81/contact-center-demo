@@ -756,3 +756,57 @@ _Brak błędów krytycznych._ SQL jest poprawny, migracje przeszły na żywej ba
 ### Summary
 
 **Ocena: 4/5 ⭐ — zatwierdzić; brak blokerów, SQL poprawny i zastosowany na żywej bazie.** Migracje są czyste, idempotentne i dobrze przetestowane na realnym łańcuchu Flyway, ale (a) funkcja po cichu opiera się na BYPASSRLS (zaniżony próg zamiast awarii pod zwykłą rolą), (b) trigger `ended_at` nie obejmuje INSERT i przejścia terminal→terminal, (c) test kontraktu zablokuje DB-083, a odziedziczony warunek DELETE z V015 pozostaje jedyną ścieżką realnej utraty danych.
+
+---
+
+## Review: V140, V141, Db085Db086CampaignArchiveHardeningMigrationsTest + seedy w CampaignArchiveJob/CampaignArchiveSettingIntegrationTest, Db082LogCronFailureMigrationTest (DB-085, DB-086) — 2026-10-17
+
+Zakres: niezacommitowane zmiany (V140, V141 — nieuzyte na żywej bazie, `flyway_schema_history` kończy się na V139; V136–V139 niezmienione w `git status`). Zweryfikowano wykonaniem: `mvn test -pl app` dla Db085Db086…, Db082…, Db084…, Db076…, CampaignArchiveJobIntegrationTest, CampaignArchiveSettingIntegrationTest, CampaignArchiveJobTest — wszystko zielone (EXIT 0). Baza live (read-only): 0 kampanii terminalnych z `ended_at IS NULL` (30 szt.), archiwum puste, więc brak potrzeby backfillu i brak ryzyka dla V140/V141 na danych demo.
+
+### 🐛 Bugs / Critical Issues
+
+- **DB85-R1 (Major) — V141 zamyka tylko połowę ścieżki DB84-R4: dopisanie wiersza, ale NIE jego modyfikację w oknie INSERT→DELETE.** `DELETE … USING campaign_contact_archive` po `(record_id, campaign_id)` usuwa żywy wiersz, jeśli w archiwum jest kopia o tym samym kluczu — także gdy kopia jest starsza niż stan żywego wiersza (UPDATE `attempt_count`/`status`/`disposition_code` między `INSERT … SELECT` a `DELETE` w READ COMMITTED; albo kopia z wcześniejszego, częściowego przebiegu). `ON CONFLICT DO NOTHING` nie nadpisuje, więc zmiana ginie bez śladu. Nagłówek V141 opisuje to jako „zastrzeżenie, jak w V015", ale ticket DB-086 i komentarz `COMMENT ON FUNCTION` przedstawiają zmianę jako domknięcie „jedynej realnej ścieżki utraty danych". Co gorsza, V141 *rozszerza* zasięg: V138/V140 w przypadku `v_batch_count = 0` w ogóle nie kasowały (żywy wiersz zostawał), V141 kasuje je na podstawie potencjalnie nieaktualnej kopii. Okno jest wąskie (kampania ≥30 dni po zakończeniu; ale dosłany disposition po `STOPPED`/ponowne otwarcie są realne). Poprawka (tania): w `INSERT … SELECT` dodać `FOR UPDATE` na `campaign_contact` (blokuje równoległe UPDATE-y do końca transakcji; spójne z `SKIP LOCKED` dialera), albo dodać do `DELETE` warunek równości stanu (`cc.updated_at IS NOT DISTINCT FROM a.updated_at AND cc.status = a.status AND cc.attempt_count = a.attempt_count`) + `ON CONFLICT DO UPDATE … WHERE` dla rozjechanych wierszy (uwaga na `archived_at` — zegar retencji CAMPAIGN_DATA). Minimum przed commitem: albo poprawka, albo jawna decyzja właściciela „akceptujemy" zapisana w tickecie + test dokumentujący zachowanie, i korekta sformułowania „zamyka ścieżkę utraty danych" w tickecie/COMMENT.
+- **DB85-R2 (Minor, ścieżka dziś martwa) — `DROP TABLE` dedykowanej partycji po `DELETE` nadal kasuje niezarchiwizowane wiersze.** Jeśli istnieje partycja `campaign_contact_<uuid>`, to wiersz dopisany po `INSERT … SELECT` zostaje (dzięki V141) w partycji, ale `EXECUTE format('DROP TABLE …')` w tej samej iteracji usuwa go razem z partycją — czyli ta sama klasa utraty danych, której V141 miał zapobiec, pozostaje w gałęzi DROP. Dziś żadna partycja nie istnieje (ADR DB-070), stąd Minor. Poprawka: `DROP` warunkowo, tylko gdy `NOT EXISTS (SELECT 1 FROM campaign_contact WHERE campaign_id = v_campaign.campaign_id)` po `DELETE`.
+
+### ⚠️ Security Concerns
+
+- _None identified._ `GRANT` jawny, minimalny (SELECT/INSERT/UPDATE/DELETE, test potwierdza brak TRUNCATE/REFERENCES/TRIGGER); funkcje pozostają SECURITY INVOKER (bez eskalacji). Uwaga informacyjna (nie nowa): `DELETE … USING campaign_contact_archive` czyta archiwum pod FORCE RLS — pod `app_user` z GUC tenanta działa poprawnie (pętla i tak widzi tylko kampanie tego tenanta), bez GUC cały przebieg jest no-opem jak dotąd (DB84-R1/DB-083); testy działają na superuserze, więc tego nie dotykają (luka znana z DB84-R3).
+
+### 🏗️ Architecture / Pattern Violations
+
+- **DB85-R3 (Minor) — niedomknięcie specyfikacji triggera: `INSERT` nieterminalny z jawnym `ended_at` zostaje z niepustym `ended_at`.** Ticket: „INSERT nieterminalny → NULL"; trigger (gałąź INSERT) tylko uzupełnia NULL dla terminalnych, nie zeruje dla RUNNING/DRAFT/PAUSED. Spójność semantyczna (`ended_at` ≠ NULL ⇒ terminalny) jest egzekwowana w UPDATE (wyjście z terminalnego zeruje), ale nie w INSERT. Albo dodać `ELSIF … THEN NEW.ended_at := NULL` w INSERT, albo świadomie zostawić i zapisać w komentarzu/tickecie (seedy testowe). Test: brak.
+- **DB85-R4 (Info) — semantyka „jawna wartość" w przejściu nieterminalny→terminalny to heurystyka.** `NEW.ended_at IS NOT DISTINCT FROM OLD.ended_at` → NOW(): jawne ustawienie w tym samym UPDATE wartości równej poprzedniej (praktycznie tylko NULL→NULL, bo wyjście zeruje) jest nieodróżnialne od braku. Praktycznie nieszkodliwe; uzasadnione w komentarzu — OK. Jawny `ended_at` przy przejściu terminal→nieterminalny jest cicho ignorowany (zawsze NULL) — zgodne z V137, warto jedno zdanie w COMMENT.
+- Zgodność z regułami: V137–V139 niezmienione (nowe pliki V140/V141, brak edycji), `SET LOCAL lock_timeout = '10s'` w obu, `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` w jednej transakcji Flyway (brak luki bez triggera), `CREATE OR REPLACE FUNCTION` i `GRANT` idempotentne; `tenant_campaign_archive_setting` ma teraz trigger `updated_at` (`tgenabled='O'`, test), natywny SQL repozytorium z ręcznym `updated_at = NOW()` nie koliduje (test to dowodzi).
+
+### 🔧 Improvements & Suggestions
+
+- **DB85-R5 (Minor) — `cron_log.rows_affected`/komunikat nie pokazują liczby usuniętych.** Po V141 przebieg „sprzątający" (0 wstawionych, N usuniętych z `campaign_contact`) loguje `Rekordy: 0`, `rows_affected = 0` — a w tabeli operacyjnej zniknęło N wierszy; liczba trafia tylko do `RAISE NOTICE` (nieutrwalone). Decyzja „nie zmieniamy semantyki `rows_affected`" jest uzasadniona (Java czyta tylko to pole), ale można dopisać `Usunięte: %` do tekstu `message` (test sprawdza tylko `contains`). Obserwowalność operacji destrukcyjnej.
+- **DB85-R6 (Minor) — duplikacja ~100 linii funkcji w V140 i V141.** Zamierzone (zmiana pojedynczych tickets, V140 już nie stanie się „aktualna"), ale każda kolejna zmiana (DB-083) będzie wymagała trzeciej kopii; zostawić, tylko pilnować `pg_get_functiondef` jako bazy (jest w nagłówku — dobrze).
+- **DB85-R7 (Minor) — brak backfillu `ended_at` dla terminalnych kampanii z `ended_at IS NULL`** (wstawionych między V137 a V140). Na live zero takich wierszy, ale na innych środowiskach mogą istnieć (zegar spada na `updated_at`). Dla pewności: jednolinijkowy `UPDATE … SET ended_at = updated_at … WHERE terminal AND ended_at IS NULL` z `ALTER TABLE campaign DISABLE/ENABLE TRIGGER trg_campaign_updated_at` jak w V137, albo zapis w tickecie „nie dotyczy".
+- Dokumentacja (DoD): `documentation/tech/06-database.md` i status w `TASKS-DATABASE.md` (DB-085/DB-086 nadal „⬜") do aktualizacji po zatwierdzeniu.
+
+### Jakość testów
+
+- **Test wyścigu (`delete_rowAppendedBetweenInsertAndDeleteSurvives`) — WIARYGODNY dla przypadku INSERT.** Trigger AFTER INSERT na archiwum dopisuje wiersz do `campaign_contact` *w trakcie* `INSERT … SELECT` (snapshot tego statementu go nie widzi), a następne polecenie `DELETE` (nowy snapshot READ COMMITTED) go widzi. Na V140 (`DELETE WHERE campaign_id`) wiersz „Late" zostałby skasowany (`live(c)` = 0, asercja `isEqualTo(1)` pada); na V141 przeżywa. Bez sleepów, deterministyczny, `finally` sprzątający trigger — dobre. **Luka (powiązana z DB85-R1):** brak testu dla *modyfikacji* wiersza w oknie (analogiczny trigger AFTER INSERT robiący UPDATE istniejącego wiersza) — test pokazałby, że zmiana ginie (albo, po poprawce, że nie).
+- DB85-R8 (Minor) — `trigger_laterUpdatesDoNotMoveEndedAt` asertuje `updatedAt isAfterOrEqualTo(updatedBefore)` — zbyt słabo (kampania ma `updated_at` sprzed doby, test Db084 używa `isAfter`); zmienić na `isAfter`, inaczej regresja „trigger updated_at wyłączony" przejdzie. Display name `trigger_updateWithoutStatusDoesNotFire` („backfill V137 nietknięty") nie testuje backfillu — zmylić może przy czytaniu.
+- DB85-R9 (Minor) — display name `delete_rowsAlreadyInArchiveAreRemoved` obiecuje „rows_affected = 0", a test nie czyta `cron_log`. Dodać asercję albo poprawić nazwę. `migrations_areIdempotent` sprawdza tylko brak błędu i jeden trigger; nie asertuje, że funkcja po dwukrotnym V140+V141 ma zachowanie V141 (kolejność V140→V141 zostawia właściwy stan, ale to przypadek kolejności) — dodać krótki sanity (np. powtórzyć scenariusz „już w archiwum").
+- Pokrycie triggera dobre: INSERT terminalny/nieterminalny, jawny `ended_at`, terminal→terminal (NULL i ustawiony), jawny w przejściu, reopen→re-complete, UPDATE bez statusu, struktura `tgtype`/`tgenabled`, brak CHECK. Brakuje: terminal→nieterminalny z jawnym `ended_at`, INSERT RUNNING z jawnym `ended_at` (DB85-R3).
+- Seedy w 3 zmienionych testach poprawne: parametry (`daysOld+1`, `daysOld`, `daysOld`) w odpowiedniej kolejności, `CASE … IN ('COMPLETED','STOPPED')` daje NULL dla nieterminalnych; komentarze opisują nową rolę triggera. Brak innych testów/seedów wstawiających kampanie terminalne zależne od NULL (grep).
+
+### ✅ Positive Observations
+
+- Trigger: czytelna maszyna stanów (INSERT / nieterminalny→terminalny / terminal→terminal / wyjście), zachowuje zachowanie V137, odporny na Hibernate (UPDATE z `status` bez zmiany nie rusza `ended_at`) — udowodnione testami.
+- Funkcja archiwizacji: kontrakt (`RETURNS void`, brak parametrów, `EXCEPTION WHEN OTHERS … RAISE` zgodny z DB-082/`log_cron_failure`, `cron_log`, `scheduled_job`) zachowany bez zmian; `COALESCE(ended_at, updated_at, created_at)` naprawia R6; nagłówek uczciwie ostrzega o resecie `SECURITY DEFINER`.
+- Test pinuje migrację po opisie (nie po numerze) i sprawdza zachowanie, nie `prosrc` — zgodnie z uwagą DB84-R8; `function_contract` tolerancyjny wobec DB-083.
+- Dyscyplina migracji: nowe pliki, brak edycji V136–V139, lock_timeout, idempotencja dowiedziona testem.
+
+### Do poprawy PRZED commitem
+
+1. **DB85-R1** — decyzja + poprawka (`FOR UPDATE` w `INSERT … SELECT` lub warunek równości stanu) albo jawna akceptacja i korekta sformułowań w V141/tickecie/COMMENT; dodać test modyfikacji w oknie.
+2. **DB85-R2** — warunkowy `DROP` partycji (tania poprawka, spójna z celem V141) — albo zapis w tickecie jako świadomie odłożone (ścieżka martwa).
+3. **DB85-R3** — dopisać `NULL` dla INSERT nieterminalnego albo zapisać decyzję (spec ticketu mówi „INSERT nieterminalny → NULL").
+Pozostałe (R4–R9) — nieblokujące, mogą iść razem lub osobno.
+
+### Summary
+
+**Ocena: 4/5 ⭐ — migracje i testy dobre, trigger i zegar poprawne, kontrakt RAISE/log_cron_failure nienaruszony, test wyścigu faktycznie by padł na V140; zastrzeżenie: V141 nie zamyka całej ścieżki utraty danych DB84-R4 (modyfikacja wiersza w oknie i `DROP` partycji), a deklaracja „zamknięte" w tickecie jest szersza niż fakty.**

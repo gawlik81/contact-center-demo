@@ -3047,7 +3047,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 > Grupa 7:  DB-067 ✅, DB-065 ✅ → DB-080 ✅ (REVOKE na partycjach tabel tenantowych; wymagane przed wdrożeniem produkcyjnym)
 > Grupa 8:  DB-071 ✅ → DB-081 ✅ (FORCE RLS na 7 tabel klasy TENANT A bez FORCE od V012; odkrycie BE-138)
 > Grupa 9:  BE-120 ✅, DB-076 ✅ → DB-082 ✅ (V135 `log_cron_failure`, 2026-10-10, tura 26) → BE-147 ✅ (krok Javy; `BE-121 ✅` też w `Zależy od` BE-147)
-> Grupa 10: BE-120 ✅, DB-082 ✅ → DB-084 ✅ (tura 37: V136–V138) (tura 35, okres archiwizacji kontaktów kampanii per tenant; NIE czeka na BE-148/DB-083/BE-139; WP-1 ✅ tura 36) → BE-151 ✅ (tura 38) → FE-113;   DB-084 ✅ → DB-083 (tura 36, P6: kolejność — DB-084 PRZED DB-083; DB-083 pkt 3(v) przez `ALTER FUNCTION`)
+> Grupa 10: BE-120 ✅, DB-082 ✅ → DB-084 ✅ (tura 37: V136–V138) (tura 35, okres archiwizacji kontaktów kampanii per tenant; NIE czeka na BE-148/DB-083/BE-139; WP-1 ✅ tura 36) → BE-151 ✅ (tura 38) → FE-113;   DB-085 ✅ + DB-086 ✅ (tura 41, V140/V141) → DB-083;   DB-084 ✅ → DB-083 (tura 36, P6: kolejność — DB-084 PRZED DB-083; DB-083 pkt 3(v) przez `ALTER FUNCTION`)
 > ```
 
 ### DB-056 – Zbatchowana funkcja `purge_campaign_contact_archive` (pojedynczy DELETE → partie)
@@ -4744,6 +4744,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Złożoność:** L (proponowana: ok. 17+ funkcji wejściowych do przeglądu `SECURITY DEFINER`, nowe funkcje DDL/skanu partycji, 2–3 migracje, test pod rolą ograniczoną)
 **Zależy od:** BE-148 (decyzja WP-1 ✅ zapisana 2026-10-11, tura 34 — ticket-parasol pozostaje ⬜, patrz uwaga o cyklu w BE-148), BE-139 (⬜ — harness testowy pod rolą bez BYPASSRLS), **DB-084 ✅ (tura 36, P6 — kolejność: DB-084 PRZED DB-083; ukończony w turze 37; DB-083 pkt 3(v) po DB-084 używa `ALTER FUNCTION`)**
 **Zależy od (tura 40, dopisane):** **DB-085 i DB-086** (kolejność OBOWIĄZKOWA: DB-085/DB-086 PRZED DB-083 — oba przepisują `archive_completed_campaign_contacts()` przez `CREATE OR REPLACE`, które ZERUJE `SECURITY DEFINER` i `search_path`; DB-083 pkt 3(v) wykonuje `ALTER FUNCTION … SECURITY DEFINER SET search_path` na ostatniej wersji funkcji, nie kopiuje ciała) oraz **DB-084 ✅** (formalnie: DB84-R1 z code review 2026-10-17 — funkcja V138 po cichu polega na BYPASSRLS; rozwiązanie w DB-083: `ALTER FUNCTION … SECURITY DEFINER SET search_path`, guard `rolbypassrls` w funkcji, przepisanie testu `function_contract` z DB-084 na tolerujący oba stany `prosecdef` i egzekwujący definera po DB-083 [DB84-R3]).
+**Zależy od (tura 41, 2026-10-17):** DB-085 ✅ i DB-086 ✅ (V140/V141 zastosowane na żywej bazie 2026-10-17 11:09 UTC) — **DB-083 jest odblokowany względem DB-085/DB-086**. DB-083 pkt 3(v) MUSI użyć `ALTER FUNCTION archive_completed_campaign_contacts() SECURITY DEFINER SET search_path = public, pg_temp` na wersji funkcji z **V141** (nie kopiować ciała; `CREATE OR REPLACE` zeruje `SECURITY DEFINER`). Pozostałe zależności DB-083 (BE-148 parasol, BE-139) bez zmian.
 **Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 34, decyzja właściciela (b): podział BE-148)
 **Blokuje:** BE-149, BE-150
 **Epic:** EPIC-31 Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) (wydzielony z EPIC-30 w turze 40, decyzja właściciela 2026-10-17; numery ticketów zachowane) [wcześniej: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 55 → 58 razem z BE-149 i BE-150)]
@@ -4848,8 +4849,8 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Priorytet:** Should Have
 **Złożoność:** M
 **Zależy od:** DB-084 ✅ (V136–V138 zastosowane na żywej bazie 2026-10-11 17:44 UTC). Kolejność: DB-085 i DB-086 PRZED DB-083 (patrz **Blokuje**); DB-085 i DB-086 oba przepisują tę samą funkcję — NIE startować równolegle; drugi z nich bazuje na aktualnej definicji (`pg_get_functiondef`), nie na V138.
-**Status:** ⬜ Nie rozpoczęte (założony 2026-10-17, tura 40, decyzja właściciela „tak” po code review V136–V139)
-**Blokuje:** DB-083 (CREATE OR REPLACE funkcji zeruje `SECURITY DEFINER` — DB-083 pkt 3(v) musi wykonać `ALTER FUNCTION` na wersji po DB-085/DB-086)
+**Status:** ✅ Ukończone (2026-10-17, tura 41 — migracja V140 zacommitowana w `fa9820a5`, zastosowane na żywej bazie local-demo 2026-10-17 11:09 UTC (odczyt `flyway_schema_history`: V140 i V141 `success=t`, 0 oczekujących; backend zastosował je przy restarcie); założony 2026-10-17, tura 40; otwarte: wyłącznie dokumentacja `documentation/tech/06-database.md`)
+**Blokuje:** DB-083 (tura 41: DB-085 ✅ — odblokowany co do DB-085; CREATE OR REPLACE funkcji zeruje `SECURITY DEFINER` — DB-083 pkt 3(v) musi wykonać `ALTER FUNCTION` na wersji po DB-085/DB-086)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 po turze 40: 61 − 5 przeniesionych do EPIC-31 + DB-085 + DB-086 = 58)
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testów migracyjnych)
 
@@ -4862,17 +4863,19 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 4. Testy (Testcontainers, pełny łańcuch Flyway; rozszerzenie `Db084CampaignArchivePerTenantMigrationsTest` albo nowa klasa): `INSERT` kampanii od razu `COMPLETED` → `ended_at` ≠ NULL; `INSERT` `COMPLETED` z jawnym `ended_at` → wartość zachowana; `COMPLETED`→`STOPPED` ustawia `ended_at` gdy był NULL i zachowuje gdy był ustawiony; `INSERT` terminalny + późniejszy `UPDATE` (np. `all_agents`) NIE zmienia `ended_at`; `INSERT` `RUNNING` → NULL; backfill/wyjście ze stanu terminalnego nadal zeruje; funkcja z `updated_at IS NULL` i `created_at` starym → archiwizowana; `tgenabled` obu triggerów = 'O'.
 
 **Kryteria akceptacji:**
-- [ ] Nowa migracja (numer = kolejna wolna, sprawdzona grepem + żywa baza), V137/V138 nie edytowane; idempotentna; `SET LOCAL lock_timeout`
-- [ ] Trigger `BEFORE INSERT OR UPDATE`: INSERT terminalny i terminal→terminal ustawiają `ended_at` tylko gdy NULL; jawna wartość zachowana (testy jak w pkt 4)
-- [ ] Funkcja archiwizacji: `COALESCE(ended_at, updated_at, created_at)`, brak nieużywanych kolumn w pętli; sygnatura, kontrakt `RAISE`/`log_cron_failure` i `cron_log` bez zmian; test `CampaignArchiveJobIntegrationTest` i `Db082LogCronFailureMigrationTest` zielone
-- [ ] (opcjonalnie) trigger `updated_at` i jawny GRANT na `tenant_campaign_archive_setting` + test `has_table_privilege`; decyzja zapisana w notatce
-- [ ] `function_contract` w teście DB-084 nie zależy od formatowania `prosrc` w zmienianych miejscach (kontrakt sprawdzany zachowaniem); `mvn verify -pl app` zielone
-- [ ] Zastosowanie na żywej bazie local-demo poprzedzone odczytem `flyway_schema_history` (flaga archiwizacji w demo pozostaje WYŁĄCZONA)
-- [ ] DoD: migracja + testy, code review, dokumentacja (`documentation/tech/06-database.md`, sekcja archiwizacji)
+- [x] Nowa migracja (numer = kolejna wolna, sprawdzona grepem + żywa baza), V137/V138 nie edytowane; idempotentna; `SET LOCAL lock_timeout`
+- [x] Trigger `BEFORE INSERT OR UPDATE`: INSERT terminalny i terminal→terminal ustawiają `ended_at` tylko gdy NULL; jawna wartość zachowana (testy jak w pkt 4)
+- [x] Funkcja archiwizacji: `COALESCE(ended_at, updated_at, created_at)`, brak nieużywanych kolumn w pętli; sygnatura, kontrakt `RAISE`/`log_cron_failure` i `cron_log` bez zmian; test `CampaignArchiveJobIntegrationTest` i `Db082LogCronFailureMigrationTest` zielone
+- [x] (opcjonalnie) trigger `updated_at` i jawny GRANT na `tenant_campaign_archive_setting` + test `has_table_privilege`; decyzja zapisana w notatce
+- [x] `mvn verify -pl app` zielone (tura 41, niezależnie: BUILD SUCCESS, 2652 testy, 0 porażek, 1 pominięty — stary, w `CampaignArchiveJobIntegrationTest`); [ ] NIEZWERYFIKOWANE osobno w tej turze: czy `function_contract` w teście DB-084 jest już niezależny od formatowania `prosrc` (kontrakt sprawdzany zachowaniem) — przepisanie `function_contract` pod DB-083 pozostaje w DB-083 (DB84-R3)
+- [x] Zastosowanie na żywej bazie local-demo poprzedzone odczytem `flyway_schema_history` (flaga archiwizacji w demo pozostaje WYŁĄCZONA) — odczyt wykonany: V140/V141 `success=t`, 2026-10-17 11:09 UTC; stan flagi `retention.campaign-archive.enabled` w tej turze NIEZWERYFIKOWANY (zgodnie z wcześniejszym stanem: wyłączona)
+- [ ] DoD: migracja + testy ✅, code review ✅ (2026-10-17, `senior-code-reviewer`, `CR-DATABASE.md` sekcja DB85-R1..R9, ocena 4/5), dokumentacja (`documentation/tech/06-database.md`, sekcja archiwizacji) **NIE wykonana — zostanie zrobiona osobno; nie odhaczać bez faktycznej zmiany pliku**
 
 **Ryzyka:** (R1) dwa tickety przepisują jedną funkcję (DB-085, DB-086) a trzeci (DB-083) zmienia jej atrybuty — kolejność DB-085/DB-086 → DB-083 i bazowanie na `pg_get_functiondef`; (R2) trigger na INSERT zmienia wartość `ended_at` w seedach/testach wstawiających kampanie terminalne bez `ended_at` — sprawdzić grepem testy i seedy zależne od NULL.
 **Nie wchodzi w zakres:** poprawka `DELETE` w funkcji (DB-086), rola `cc_app`/`SECURITY DEFINER` (DB-083, EPIC-31), Java.
-**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` DB-083 (EPIC-31). Powiązane: DB-086 (ta sama funkcja; kolejność względem siebie dowolna, ale nie równolegle).
+**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` DB-083 (EPIC-31; tura 41: DB-085 ✅). Powiązane: DB-086 (ta sama funkcja; kolejność względem siebie dowolna, ale nie równolegle).
+
+**Notatka wykonania (tura 41, 2026-10-17):** migracja **V140** (commit `fa9820a5`): trigger `trg_campaign_ended_at` = `BEFORE INSERT OR UPDATE OF status` (status terminalny i `ended_at` NULL → `NOW()`; jawna wartość zachowana; INSERT nieterminalny i wyjście ze stanu terminalnego zerują `ended_at` także przy jawnej wartości — poprawka DB85-R3); funkcja archiwizacji z zegarem `COALESCE(ended_at, updated_at, created_at)`, bez nieużywanych kolumn pętli; trigger `updated_at` i jawny `GRANT` dla `app_user` na `tenant_campaign_archive_setting` (pkt 3 wykonany). Właściciel potwierdził 2026-10-17 uchylenie ograniczenia P2 (trigger na INSERT; `ended_at` w seedach/testach z NULL → `NOW()`). Test: `Db085Db086CampaignArchiveHardeningMigrationsTest`. **Code review (2026-10-17, 4/5, DB85-R1..R9):** poprawione R1 (Major), R2, R3, R4, R5, R8, R9; R6 (duplikacja funkcji w V140/V141) zamierzona; R7 (brak backfillu `ended_at` dla terminalnych kampanii z NULL między V137 a V140) — decyzja właściciela: NIE DOTYCZY (na bazie takich wierszy nie ma). Stan bazy: 30/30 kampanii terminalnych ma `ended_at`, archiwum puste, `campaign_contact` 37. **Otwarte:** dokumentacja `06-database.md`; stan flagi archiwizacji w demo niezweryfikowany w tej turze.
 
 ---
 
@@ -4882,8 +4885,8 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** DB-084 ✅. Kolejność: DB-086 i DB-085 PRZED DB-083; DB-085/DB-086 przepisują tę samą funkcję — NIE startować równolegle; drugi bazuje na aktualnej definicji (`pg_get_functiondef`).
-**Status:** ⬜ Nie rozpoczęte (założony 2026-10-17, tura 40, decyzja właściciela „tak” po code review V136–V139)
-**Blokuje:** DB-083 (jak DB-085: `CREATE OR REPLACE` zeruje `SECURITY DEFINER`; DB-083 używa `ALTER FUNCTION` po DB-085/DB-086)
+**Status:** ✅ Ukończone (2026-10-17, tura 41 — migracja V141 zacommitowana w `fa9820a5`, zastosowane na żywej bazie local-demo 2026-10-17 11:09 UTC (odczyt `flyway_schema_history`: V140 i V141 `success=t`, 0 oczekujących; backend zastosował je przy restarcie); założony 2026-10-17, tura 40; otwarte: wyłącznie dokumentacja `documentation/tech/06-database.md`)
+**Blokuje:** DB-083 (tura 41: DB-086 ✅ — odblokowany co do DB-086; jak DB-085: `CREATE OR REPLACE` zeruje `SECURITY DEFINER`; DB-083 używa `ALTER FUNCTION` po DB-085/DB-086)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 po turze 40: 58, razem z DB-085)
 **Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testów migracyjnych)
 
@@ -4894,13 +4897,15 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 2. Testy (Testcontainers, pełny łańcuch Flyway): (i) wiersze JUŻ w archiwum (0 wstawionych przez `ON CONFLICT`) są usuwane z `campaign_contact` i kampania nie jest „przetwarzana” w kolejnym przebiegu w nieskończoność; (ii) wiersz dopisany do `campaign_contact` PO `INSERT`, a przed `DELETE` (symulacja: transakcja pomocnicza/wstawienie w trakcie przez trigger testowy lub sekwencyjny scenariusz równoważny) NIE jest kasowany i nie trafia do archiwum; (iii) pełny przebieg zachowuje idempotencję (drugi przebieg niczego nie przenosi); (iv) test parytetu: liczba usuniętych = liczba obecnych w archiwum dla kampanii; (v) istniejące `CampaignArchiveJobIntegrationTest` i `Db082LogCronFailureMigrationTest` zielone.
 
 **Kryteria akceptacji:**
-- [ ] Nowa migracja (numer = kolejna wolna), zastosowane migracje nie edytowane; idempotentna
-- [ ] `DELETE` usuwa wyłącznie wiersze obecne w `campaign_contact_archive` (po `(record_id, campaign_id)`); test (i) i (ii) z zakresu pkt 2 zielone
-- [ ] Brak regresji kontraktu: sygnatura, `RETURNS void`, `RAISE`/`log_cron_failure`, `cron_log.rows_affected`, `DROP` dedykowanej partycji; `COMMENT ON FUNCTION` i komentarz w kodzie zgodne z faktycznym warunkiem
-- [ ] `mvn verify -pl app` zielone
-- [ ] Zastosowanie na żywej bazie local-demo poprzedzone odczytem `flyway_schema_history` (flaga archiwizacji w demo pozostaje WYŁĄCZONA)
-- [ ] DoD: migracja + testy, code review, dokumentacja (`documentation/tech/06-database.md`)
+- [x] Nowa migracja (numer = kolejna wolna), zastosowane migracje nie edytowane; idempotentna
+- [x] `DELETE` usuwa wyłącznie wiersze obecne w `campaign_contact_archive` (po `(record_id, campaign_id)`); test (i) i (ii) z zakresu pkt 2 zielone
+- [x] Brak regresji kontraktu: sygnatura, `RETURNS void`, `RAISE`/`log_cron_failure`, `cron_log.rows_affected`, `DROP` dedykowanej partycji; `COMMENT ON FUNCTION` i komentarz w kodzie zgodne z faktycznym warunkiem
+- [x] `mvn verify -pl app` zielone (tura 41: BUILD SUCCESS, 2652 testy, 0 porażek, 1 pominięty — stary, w `CampaignArchiveJobIntegrationTest`)
+- [x] Zastosowanie na żywej bazie local-demo poprzedzone odczytem `flyway_schema_history` (flaga archiwizacji w demo pozostaje WYŁĄCZONA) — odczyt wykonany: V140/V141 `success=t`, 2026-10-17 11:09 UTC; stan flagi `retention.campaign-archive.enabled` w tej turze NIEZWERYFIKOWANY
+- [ ] DoD: migracja + testy ✅, code review ✅ (2026-10-17, `senior-code-reviewer`, `CR-DATABASE.md` sekcja DB85-R1..R9, ocena 4/5), dokumentacja (`documentation/tech/06-database.md`) **NIE wykonana — zostanie zrobiona osobno; nie odhaczać bez faktycznej zmiany pliku**
 
 **Ryzyka:** (R1) wspólna funkcja z DB-085/DB-083 — kolejność i bazowanie na aktualnej definicji; (R2) test wyścigu w READ COMMITTED jest trudny do deterministycznego odtworzenia — użyć scenariusza sekwencyjnego równoważnego (wiersz wstawiony przed `DELETE` bez wiersza w archiwum), nie sleepów.
 **Nie wchodzi w zakres:** trigger `ended_at` (DB-085), rola `cc_app`/definer (DB-083, EPIC-31), Java, lock/blokada kampanii w pętli (DB84-R7, osobna decyzja jeśli pomiar wykaże potrzebę).
-**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` DB-083 (EPIC-31). Powiązane: DB-085 (ta sama funkcja).
+**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` DB-083 (EPIC-31; tura 41: DB-086 ✅). Powiązane: DB-085 (ta sama funkcja).
+
+**Notatka wykonania (tura 41, 2026-10-17):** migracja **V141** (commit `fa9820a5`): `INSERT … SELECT … FOR UPDATE` + `DELETE … USING campaign_contact_archive` po `(record_id, campaign_id)` z warunkiem równości stanu wiersza (`status`, `attempt_count`, `last_attempt_at`, `disposition_code`, `last_contact_id`, `updated_at`) — poprawka DB85-R1 (Major: zamyka też modyfikację wiersza w oknie INSERT→DELETE); `DROP` dedykowanej partycji tylko gdy pusta; `Usuniete: N` w `message` wpisu `cron_log` (`rows_affected` bez zmian = liczba wstawionych). **Skutek uboczny:** wiersz z rozjechaną kopią archiwalną zostaje w `campaign_contact` i wymaga interwencji operatora (dane nie giną). Odziedziczone z V015: `ON CONFLICT DO NOTHING` nie nadpisuje starszej kopii (`archived_at` = zegar retencji `CAMPAIGN_DATA` nie jest ruszany). Stan bazy: funkcja z `FOR UPDATE` i „Usuniete” obecna, archiwum puste. **Otwarte:** dokumentacja `06-database.md`; stan flagi archiwizacji w demo niezweryfikowany w tej turze.

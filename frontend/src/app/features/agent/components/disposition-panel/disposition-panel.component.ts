@@ -19,6 +19,7 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, EMPTY, filter, tap } from 'rxjs';
 import { ContactService } from '../../services/contact.service';
 import { AgentStatusService } from '../../services/agent-status.service';
+import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { DISPOSITION_CODES } from '../../models/disposition.model';
 import { AiSummaryPanelComponent } from '../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
@@ -57,6 +58,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   private readonly transloco = inject(TranslocoService);
   private readonly customDispositionService = inject(CustomDispositionService);
   private readonly wsService = inject(WebSocketService);
+  private readonly tabStore = inject(ContactTabStore);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -82,6 +84,16 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   protected readonly canSave = computed(() => this.selectedCode().length > 0 && !this.isSaving());
 
   readonly hasRecording = signal(false);
+
+  /**
+   * Chromium may close a modal <dialog> on a repeated Esc even though `cancel` was prevented
+   * (CloseWatcher: no user activation). The agent must not leave ACW without saving, so while the
+   * tab is still WRAPPING the dialog is shown again.
+   */
+  protected onDialogClose(): void {
+    const dialog = this.dialogRef().nativeElement;
+    if (!dialog.open && this.tabStore.wrappingTab() !== null) dialog.showModal();
+  }
 
   ngOnInit(): void {
     this.dialogRef().nativeElement.showModal();

@@ -1,4 +1,5 @@
 <dialog
+  (cancel)="onNativeCancel($event)"
   #dialogEl
   class="break-dialog"
   [attr.aria-labelledby]="isEditMode() ? 'break-dialog-title-edit' : 'break-dialog-title-add'"

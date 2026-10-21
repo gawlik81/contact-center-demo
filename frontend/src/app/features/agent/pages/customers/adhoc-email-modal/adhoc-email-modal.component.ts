@@ -20,6 +20,7 @@ import { EmailService, EmailTemplate, PendingAttachment } from '../../../service
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
 import { ResizableDialogDirective } from '../../../../../shared/directives/resizable-dialog.directive';
+import { rememberFocus } from '../../../../../shared/utils/focus.util';
 
 @Component({
   selector: 'app-adhoc-email-modal',
@@ -27,9 +28,6 @@ import { ResizableDialogDirective } from '../../../../../shared/directives/resiz
   imports: [TranslocoModule, ReactiveFormsModule, ResizableDialogDirective],
   templateUrl: './adhoc-email-modal.component.html',
   styleUrl: './adhoc-email-modal.component.scss',
-  host: {
-    '(document:keydown.escape)': 'onEscapeKey($event)',
-  },
 })
 export class AdHocEmailModalComponent implements AfterViewInit {
   readonly customer = input.required<CustomerSummary>();
@@ -44,6 +42,8 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
   readonly fileInputRef = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   readonly editorRef = viewChild<ElementRef<HTMLDivElement>>('editor');
 
@@ -301,14 +301,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
     this.visible.set(false);
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && dialog.open) dialog.close();
-  }
-
-  onEscapeKey(event: Event): void {
-    if (this.visible()) {
-      event.preventDefault();
-      this.close();
-      this.cancelled.emit();
-    }
+    this.restoreFocus();
   }
 
   onBackdropClick(event: MouseEvent): void {
@@ -317,6 +310,24 @@ export class AdHocEmailModalComponent implements AfterViewInit {
       this.close();
       this.cancelled.emit();
     }
+  }
+
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    // Esc must not silently throw away a draft; the explicit Cancel button still discards it.
+    if (this.hasDraft()) return;
+    this.cancel();
+  }
+
+  private hasDraft(): boolean {
+    const bodyText = this.bodyHtml()
+      .replace(/<[^>]*>|&nbsp;/g, '')
+      .trim();
+    return this.form.dirty || bodyText.length > 0 || this.pendingAttachments().length > 0;
   }
 
   protected cancel(): void {

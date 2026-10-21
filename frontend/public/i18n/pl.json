@@ -251,7 +251,10 @@
       "pluginPanelsLabel": "Panele pluginów",
       "pluginActionTimeout": "Akcja pluginu przekroczyła limit czasu (504). Spróbuj ponownie.",
       "pluginActionError": "Wywołanie akcji pluginu nie powiodło się.",
-      "pluginActionSuccess": "Akcja pluginu wykonana."
+      "pluginActionSuccess": "Akcja pluginu wykonana.",
+      "ringingAnnouncement": "Połączenie przychodzące: {{ who }}",
+      "ringingAnnouncementQueue": "Kolejka: {{ queue }}",
+      "ringingAnnouncementUnknown": "Połączenie przychodzące"
     },
     "softphone": {
       "incomingCall": "Połączenie przychodzące",
@@ -357,13 +360,16 @@
     },
     "incomingCall": {
       "label": "Przychodzące połączenie",
-      "goToDesktop": "Przejdź do pulpitu i odbierz",
-      "dismiss": "Zamknij",
       "limitMaxPhone": "Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.",
       "limitMaxAsync": "Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.",
       "limitMaxTotal": "Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.",
       "limitGeneral": "Osiągnąłeś limit aktywnych kontaktów.",
-      "systemNotificationTitle": "Przychodzące połączenie"
+      "systemNotificationTitle": "Przychodzące połączenie",
+      "labelAsync": "Nowy kontakt",
+      "goToContact": "Przejdź do kontaktu",
+      "hide": "Ukryj powiadomienie",
+      "inCall": "Rozmowa w toku",
+      "openDesktop": "Przejdź do pulpitu"
     },
     "addBreak": {
       "titleAdd": "Dodaj przerwę",
@@ -865,6 +871,17 @@
       "WRONG_NUMBER": "Błędny numer",
       "TECH_ISSUE": "Zgłoszenie techniczne",
       "OTHER": "Inne"
+    },
+    "shortcuts": {
+      "title": "Skróty klawiszowe",
+      "open": "Skróty klawiszowe",
+      "close": "Zamknij skróty klawiszowe",
+      "answer": "Odbierz połączenie",
+      "hangup": "Rozłącz aktywne połączenie lub odrzuć dzwoniące",
+      "mute": "Wycisz / włącz mikrofon",
+      "cheatSheet": "Pokaż / ukryj skróty",
+      "tabs": "Przechodzenie między zakładkami kontaktów",
+      "statusMenu": "Nawigacja w menu statusu"
     }
   },
   "supervisor": {

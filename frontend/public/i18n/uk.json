@@ -251,7 +251,10 @@
       "pluginPanelsLabel": "Панелі плагінів",
       "pluginActionTimeout": "Дію плагіна перевищено час очікування (504). Спробуйте ще раз.",
       "pluginActionError": "Не вдалося виконати дію плагіна.",
-      "pluginActionSuccess": "Дію плагіна виконано."
+      "pluginActionSuccess": "Дію плагіна виконано.",
+      "ringingAnnouncement": "Вхідний дзвінок: {{ who }}",
+      "ringingAnnouncementQueue": "Черга: {{ queue }}",
+      "ringingAnnouncementUnknown": "Вхідний дзвінок"
     },
     "softphone": {
       "incomingCall": "Вхідний дзвінок",
@@ -357,13 +360,16 @@
     },
     "incomingCall": {
       "label": "Вхідний дзвінок",
-      "goToDesktop": "Перейти до робочого столу та прийняти",
-      "dismiss": "Закрити",
       "limitMaxPhone": "Ви можете обробляти лише 1 телефонний дзвінок одночасно.",
       "limitMaxAsync": "Ви досягли ліміту 3 чат/email контактів.",
       "limitMaxTotal": "Ви досягли максимального ліміту 4 активних контактів.",
       "limitGeneral": "Ви досягли ліміту активних контактів.",
-      "systemNotificationTitle": "Вхідний дзвінок"
+      "systemNotificationTitle": "Вхідний дзвінок",
+      "labelAsync": "Новий контакт",
+      "goToContact": "Перейти до контакту",
+      "hide": "Приховати сповіщення",
+      "inCall": "Розмова триває",
+      "openDesktop": "Перейти до робочого столу"
     },
     "addBreak": {
       "titleAdd": "Додати перерву",
@@ -865,6 +871,17 @@
         "COMPLETED": "Завершена",
         "CANCELLED": "Скасована"
       }
+    },
+    "shortcuts": {
+      "title": "Комбінації клавіш",
+      "open": "Комбінації клавіш",
+      "close": "Закрити комбінації клавіш",
+      "answer": "Відповісти на дзвінок",
+      "hangup": "Завершити активний дзвінок або відхилити вхідний",
+      "mute": "Вимкнути / увімкнути мікрофон",
+      "cheatSheet": "Показати / сховати комбінації",
+      "tabs": "Перемикання між вкладками контактів",
+      "statusMenu": "Навігація в меню статусу"
     }
   },
   "supervisor": {

@@ -251,7 +251,10 @@
       "pluginPanelsLabel": "Plugin-Panels",
       "pluginActionTimeout": "Die Plugin-Aktion hat das Zeitlimit überschritten (504). Bitte erneut versuchen.",
       "pluginActionError": "Die Plugin-Aktion ist fehlgeschlagen.",
-      "pluginActionSuccess": "Plugin-Aktion abgeschlossen."
+      "pluginActionSuccess": "Plugin-Aktion abgeschlossen.",
+      "ringingAnnouncement": "Eingehender Anruf: {{ who }}",
+      "ringingAnnouncementQueue": "Warteschlange: {{ queue }}",
+      "ringingAnnouncementUnknown": "Eingehender Anruf"
     },
     "softphone": {
       "incomingCall": "Eingehender Anruf",
@@ -357,13 +360,16 @@
     },
     "incomingCall": {
       "label": "Eingehender Anruf",
-      "goToDesktop": "Zum Desktop gehen und annehmen",
-      "dismiss": "Schließen",
       "limitMaxPhone": "Sie können nur 1 Telefonanruf gleichzeitig bearbeiten.",
       "limitMaxAsync": "Sie haben das Limit von 3 Chat/E-Mail-Kontakten erreicht.",
       "limitMaxTotal": "Sie haben das Maximum von 4 aktiven Kontakten erreicht.",
       "limitGeneral": "Sie haben das Limit aktiver Kontakte erreicht.",
-      "systemNotificationTitle": "Eingehender Anruf"
+      "systemNotificationTitle": "Eingehender Anruf",
+      "labelAsync": "Neuer Kontakt",
+      "goToContact": "Zum Kontakt",
+      "hide": "Benachrichtigung ausblenden",
+      "inCall": "Gespräch läuft",
+      "openDesktop": "Zum Desktop"
     },
     "addBreak": {
       "titleAdd": "Pause hinzufügen",
@@ -865,6 +871,17 @@
         "COMPLETED": "Abgeschlossen",
         "CANCELLED": "Abgebrochen"
       }
+    },
+    "shortcuts": {
+      "title": "Tastenkürzel",
+      "open": "Tastenkürzel",
+      "close": "Tastenkürzel schließen",
+      "answer": "Anruf annehmen",
+      "hangup": "Aktiven Anruf beenden oder klingelnden ablehnen",
+      "mute": "Mikrofon stummschalten / aktivieren",
+      "cheatSheet": "Kürzel ein- / ausblenden",
+      "tabs": "Zwischen Kontakt-Tabs wechseln",
+      "statusMenu": "Im Statusmenü navigieren"
     }
   },
   "supervisor": {

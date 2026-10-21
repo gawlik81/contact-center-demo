@@ -2,26 +2,33 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   OnInit,
   ViewChild,
+  afterNextRender,
   computed,
   effect,
   inject,
   signal,
   untracked,
+  viewChild,
+  viewChildren,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { DatePipe, LowerCasePipe } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { catchError, filter, interval, of } from 'rxjs';
+import { catchError, interval, of } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
-import { IncomingCallAlertService } from '../../services/incoming-call-alert.service';
+import { AgentHotkeysService } from '../../services/agent-hotkeys.service';
+import { AGENT_SHORTCUTS } from '../../models/agent-shortcuts.model';
+import { isEditableElement } from '../../../../shared/utils/focus.util';
 import { QueueStateService } from '../../services/queue-state.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
@@ -42,14 +49,6 @@ import {
 } from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
-import {
-  WsEvent,
-  ContactAssignedPayload,
-  CallHangupPayload,
-  CallBridgeCompletePayload,
-  CallConsultCancelledPayload,
-  CallConsultAnsweredPayload,
-} from '../../models/ws-event.model';
 
 /** Manual action bound to its owning installation – flattened for toolbar rendering. */
 interface ToolbarManualAction {
@@ -80,6 +79,10 @@ interface ToolbarManualAction {
 })
 export class AgentDesktopComponent implements OnInit {
   @ViewChild(AgentCalendarComponent) private calendarRef?: AgentCalendarComponent;
+  private readonly softphoneRef = viewChild(SoftphoneComponent);
+  private readonly statusTrigger = viewChild<ElementRef<HTMLButtonElement>>('statusTrigger');
+  private readonly statusItems = viewChildren<ElementRef<HTMLButtonElement>>('statusItem');
+  private readonly tabButtons = viewChildren<ElementRef<HTMLButtonElement>>('tabBtn');
 
   private readonly ws = inject(WebSocketService);
   protected readonly statusService = inject(AgentStatusService);
@@ -87,12 +90,14 @@ export class AgentDesktopComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
-  private readonly incomingCallAlert = inject(IncomingCallAlertService);
   private readonly transloco = inject(TranslocoService);
   private readonly queueStateService = inject(QueueStateService);
   protected readonly authService = inject(AuthService);
   private readonly pluginAdminService = inject(PluginAdminService);
   private readonly http = inject(HttpClient);
+  private readonly injector = inject(Injector);
+  protected readonly hotkeys = inject(AgentHotkeysService);
+  protected readonly shortcuts = AGENT_SHORTCUTS;
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -137,7 +142,11 @@ export class AgentDesktopComponent implements OnInit {
   /** Active tab in ACW/WRAPPING state – drives DispositionPanelComponent visibility */
   protected readonly wrappingTab = this.tabStore.wrappingTab;
 
-  protected readonly tabLimitMessage = signal<string | null>(null);
+  /**
+   * Text of the assertive live region announcing a ringing call. Set once when the session
+   * enters RINGING and cleared when it leaves, so screen readers hear each ringing event once.
+   */
+  protected readonly ringingAnnouncement = signal('');
 
   /** Calendar tab visibility */
   protected readonly calendarTabActive = signal(false);
@@ -196,69 +205,62 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly currentTenantId = this.authService.currentTenantId;
 
   /**
-   * Derived signal that emits only the session state string (or null).
-   * Changes value only when the actual call state transitions (RINGING → ACTIVE → ENDED etc.),
-   * NOT when the duration counter increments every second. This prevents effects below
-   * from firing spuriously on every timer tick.
+   * Identifies one ringing event: the contactId while RINGING, null otherwise. Keyed on it (not on
+   * the state) so a second call ringing right after the first re-fires the effect below, while
+   * duration ticks and name enrichment do not.
    */
-  private readonly sessionState = computed(() => this.softphoneService.session()?.state ?? null);
+  private readonly ringingCallId = computed(() => {
+    const session = this.softphoneService.session();
+    return session?.state === 'RINGING' ? session.contactId : null;
+  });
 
   /**
-   * Monitors SoftphoneService session state.
-   * When a call transitions to ENDED, puts the active PHONE tab into WRAPPING state
-   * so the disposition panel appears automatically, and sets agent status to AFTER_CONTACT.
-   * Uses sessionState (not session()) to avoid re-triggering on every duration tick.
-   * tabStore.tabs() is read inside untracked() to prevent tab closure from re-triggering.
+   * The ringing moment must never be hidden: when a call starts ringing, leave the calendar
+   * view, activate the call's PHONE tab, announce it to assistive tech and move focus to
+   * "Odbierz" (unless the agent is typing, or a modal dialog has the page inert).
+   * The announcement uses the best-known label at that moment and is not updated afterwards, so
+   * the screen reader never repeats it when the customer name is enriched.
    */
-  private readonly softphoneEndedEffect = effect(() => {
-    const state = this.sessionState();
-    if (state === 'ENDED') {
-      untracked(() => {
-        // Status change always happens immediately
-        this.statusService
-          .changeStatus('AFTER_CONTACT')
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe();
+  private readonly ringingEffect = effect(() => {
+    const callId = this.ringingCallId();
+    untracked(() => {
+      if (callId === null) {
+        this.ringingAnnouncement.set('');
+        return;
+      }
+      this.calendarTabActive.set(false);
 
-        // Wrapping is deferred if callback modal is open — SoftphoneComponent
-        // will call markAsWrapping() itself when the modal is closed.
-        if (!this.softphoneService.callbackModalOpen()) {
-          const phoneTab = this.tabStore
-            .tabs()
-            .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
-          if (phoneTab) {
-            this.tabStore.markAsWrapping(phoneTab.id);
+      const session = this.softphoneService.session();
+      const phoneTabs = this.tabStore.tabs().filter((t) => t.type === 'PHONE');
+      const phoneTab = phoneTabs.find((t) => t.contactId === callId) ?? phoneTabs[0];
+      if (phoneTab) this.tabStore.setActiveTab(phoneTab.id);
+
+      const who = session?.customerName || session?.customerPhone || '';
+      let announcement = who
+        ? this.transloco.translate('agent.desktop.ringingAnnouncement', { who })
+        : this.transloco.translate('agent.desktop.ringingAnnouncementUnknown');
+      if (session?.queueName) {
+        announcement += `. ${this.transloco.translate('agent.desktop.ringingAnnouncementQueue', { queue: session.queueName })}`;
+      }
+      // Clear first so an identical text for a consecutive call is announced again.
+      this.ringingAnnouncement.set('');
+      afterNextRender(
+        () => {
+          if (this.ringingCallId() === callId) this.ringingAnnouncement.set(announcement);
+        },
+        { injector: this.injector },
+      );
+
+      afterNextRender(
+        () => {
+          const modalOpen = document.querySelector('dialog[open]') !== null;
+          if (!modalOpen && !isEditableElement(document.activeElement)) {
+            this.softphoneRef()?.focusAnswerButton();
           }
-        }
-      });
-    }
-  });
-
-  /**
-   * Dismisses the incoming call banner when the agent accepts the call
-   * and the session transitions to ACTIVE state.
-   */
-  private readonly incomingCallDismissEffect = effect(() => {
-    const state = this.sessionState();
-    if (state === 'ACTIVE') {
-      untracked(() => this.incomingCallAlert.dismissAlert());
-    }
-  });
-
-  /**
-   * When a call transitions to ACTIVE (agent answers), sets the agent status to BUSY
-   * so the backend dialer skips this agent during poll for available agents.
-   */
-  private readonly softphoneActiveEffect = effect(() => {
-    const state = this.sessionState();
-    if (state === 'ACTIVE') {
-      untracked(() => {
-        this.statusService
-          .changeStatus('BUSY')
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe();
-      });
-    }
+        },
+        { injector: this.injector },
+      );
+    });
   });
 
   ngOnInit(): void {
@@ -289,189 +291,6 @@ export class AgentDesktopComponent implements OnInit {
           this.activePluginPanelId.set(firstSidePanel.id);
         }
       });
-
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CONTACT_ASSIGNED'),
-      )
-      .subscribe((e) => {
-        const payload = e.payload as ContactAssignedPayload;
-        if (payload.type === 'PHONE') return; // handled by IncomingCallAlertService
-        const reason = this.tabStore.openFromContactAssigned(payload);
-        if (reason !== null) {
-          this.showLimitMessage(reason);
-        } else {
-          this.notifications.info(payload.customerName);
-        }
-      });
-
-    // Gdy klient rozłączy połączenie wychodzące (lub przychodzące) po stronie Twilio,
-    // backend wysyła CALL_HANGUP przez WebSocket. Przekazujemy to do softphoneService
-    // aby softphone przeszedł w stan ENDED i uruchomił panel dyspozycji (ACW).
-    //
-    // WAŻNE: Filtrujemy po contactId/callId aby nie czyścić sesji konsultacji (RINGING)
-    // gdy nadchodzi CALL_HANGUP dla innego połączenia (np. drugiej nogi attended transfer
-    // która była odrzucona przez agenta docelowego). Bez tego filtra race condition powoduje,
-    // że CALL_HANGUP wysłany do Agent1 (docelowego) czyści jego sesję RINGING zanim
-    // zdąży odebrać połączenie konsultacyjne.
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CALL_HANGUP'),
-      )
-      .subscribe((e: WsEvent) => {
-        const hangup = e.payload as CallHangupPayload;
-        const session = this.softphoneService.session();
-
-        // BUG #2 fix: jeśli CALL_HANGUP dotyczy nogi konsultacji (np. busy/unavailable),
-        // NIE kończymy głównej sesji agenta – tylko odrzucamy ten event.
-        const secondLegId = this.softphoneService.getSecondLegCallId();
-        if (secondLegId && hangup.callId === secondLegId) {
-          console.warn(
-            '[AgentDesktop] CALL_HANGUP dla nogi konsultacji (transfer nieudany) – zachowuję główną sesję:',
-            hangup.callId,
-          );
-          return;
-        }
-
-        // Jeśli mamy aktywną sesję, sprawdź czy CALL_HANGUP dotyczy jej.
-        // session.contactId może być UUID kontaktu (normalne połączenie) lub CA... SID
-        // (druga noga konsultacji — ustawiony przez handleCallTransferConsult).
-        // hangup.contactId to UUID z DB (może być null), hangup.callId to Twilio SID.
-        // Pasuje jeśli którykolwiek identyfikator się zgadza.
-        if (session !== null) {
-          const matchesContact = hangup.contactId != null && hangup.contactId === session.contactId;
-          const matchesCallId = hangup.callId != null && hangup.callId === session.contactId;
-          if (!matchesContact && !matchesCallId) {
-            // Ten hangup dotyczy innego połączenia (np. drugiej nogi konsultacji
-            // zwróconej przez Twilio przed odebraniem) — ignoruj.
-            console.log(
-              '[AgentDesktop] CALL_HANGUP ignorowany — nie dotyczy aktywnej sesji:',
-              hangup.callId,
-              '/ sesja:',
-              session.contactId,
-            );
-            return;
-          }
-        }
-
-        const wasRinging = session?.state === 'RINGING';
-        this.softphoneService.remoteHangup();
-        if (wasRinging) {
-          // remoteHangup() sets session to null immediately for RINGING state (no ACW needed),
-          // so softphoneEndedEffect never fires — close the PHONE tab manually here.
-          const phoneTab = this.tabStore.tabs().find((t) => t.type === 'PHONE');
-          if (phoneTab) {
-            this.tabStore.closeTab(phoneTab.id);
-          }
-        }
-      });
-
-    // When attended transfer bridge completes, Agent2's session gets a proper contact UUID.
-    // Update session.contactId, customerName (strip "[Konsultacja] " prefix) and the PHONE tab.
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CALL_BRIDGE_COMPLETE'),
-      )
-      .subscribe((e: WsEvent) => {
-        const payload = e.payload as CallBridgeCompletePayload;
-
-        // Find the PHONE tab with the consultation SID so we can read the customerName.
-        const phoneTab = this.tabStore
-          .tabs()
-          .find(
-            (t) =>
-              t.type === 'PHONE' &&
-              (t.contactId === payload.secondLegCallId || t.originalContactId !== undefined),
-          );
-
-        // BUG #1/#3 fix: strip "[Konsultacja] " prefix from customerName and
-        // use the tab's queueName (if any) when updating the softphone session.
-        const CONSULT_PREFIX = '[Konsultacja] ';
-        const rawName =
-          phoneTab?.customerName ?? this.softphoneService.session()?.customerName ?? '';
-        const cleanName = rawName.startsWith(CONSULT_PREFIX)
-          ? rawName.slice(CONSULT_PREFIX.length)
-          : rawName;
-        // Prefer queueName from the bridge event (copied from original contact by backend).
-        // Fall back to current session only when backend doesn't send it (old version).
-        const queueName = payload.queueName ?? this.softphoneService.session()?.queueName ?? '';
-
-        // Update softphone session: new contactId + clean customerName + queueName.
-        this.softphoneService.updateSessionAfterBridge(payload.newContactId, cleanName, queueName);
-
-        // Update the PHONE tab: new contactId + clean customerName.
-        if (phoneTab) {
-          this.tabStore.updateTabContactId(phoneTab.id, payload.newContactId, cleanName);
-        }
-      });
-
-    // Agent1 anulował konsultację (attended transfer) przed wykonaniem bridge.
-    // Agent2 powinien wrócić do stanu AVAILABLE bez ekranu dyspozycji (ACW).
-    // Backend już ustawia status Agent2 na AVAILABLE – frontend NIE wywołuje API zmiany statusu.
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CALL_CONSULT_CANCELLED'),
-      )
-      .subscribe((e: WsEvent) => {
-        const payload = e.payload as CallConsultCancelledPayload;
-        console.warn('[AgentDesktop] CALL_CONSULT_CANCELLED – anulowanie konsultacji:', payload);
-
-        // Wybierz strategię w zależności od roli agenta w konsultacji:
-        //   TRANSFERRING → jesteśmy inicjatorem; cel był niedostępny (busy/no-answer).
-        //     Noga konsultacyjna zakończona server-side — NIE rozłączamy urządzenia,
-        //     bo agent nadal uczestniczy w konferencji z klientem.
-        //   Inne stany → jesteśmy celem konsultacji; inicjator anulował przed bridge.
-        //     Brak aktywnego połączenia z klientem — czyścimy sesję bez ACW.
-        const currentSession = this.softphoneService.session();
-        if (currentSession?.state === 'TRANSFERRING') {
-          this.softphoneService.restoreToActiveAfterConsultCancel();
-        } else {
-          this.softphoneService.cancelConsultSession();
-        }
-
-        // Zamknij zakładkę PHONE reprezentującą konsultację.
-        // Identyfikujemy ją po contactId = secondLegCallId (CA_...) lub originalContactId.
-        const consultTab = this.tabStore
-          .tabs()
-          .find(
-            (t) =>
-              t.type === 'PHONE' &&
-              (t.contactId === payload.callId ||
-                t.contactId === payload.contactId ||
-                t.originalContactId !== undefined),
-          );
-
-        if (consultTab) {
-          this.tabStore.closeTab(consultTab.id);
-        } else {
-          // Fallback: zamknij dowolną zakładkę PHONE jeśli match nie znaleziony
-          const phoneTab = this.tabStore.tabs().find((t) => t.type === 'PHONE');
-          if (phoneTab) {
-            this.tabStore.closeTab(phoneTab.id);
-          }
-        }
-
-        // Krótkie powiadomienie dla agenta.
-        this.notifications.info(this.transloco.translate('agent.desktop.consultCancelled'));
-      });
-
-    // Cel konsultacji odebrał połączenie — odblokuj przycisk "Przekaż" u inicjatora.
-    // Emitujemy do SoftphoneService zamiast bezpośrednio do komponentu, żeby nie
-    // tworzyć zależności between desktop a softphone.component.
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CALL_CONSULT_ANSWERED'),
-      )
-      .subscribe((e: WsEvent) => {
-        const payload = e.payload as CallConsultAnsweredPayload;
-        console.warn('[AgentDesktop] CALL_CONSULT_ANSWERED – konsultacja odebrana:', payload);
-        this.softphoneService.markConsultAnswered();
-      });
   }
 
   protected openCalendarTab(): void {
@@ -492,16 +311,117 @@ export class AgentDesktopComponent implements OnInit {
   }
 
   protected changeStatus(status: AgentStatus): void {
-    this.statusMenuOpen.set(false);
+    this.closeStatusMenu(true);
     this.statusService.changeStatus(status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   protected toggleStatusMenu(): void {
-    this.statusMenuOpen.update((v) => !v);
+    if (this.statusMenuOpen()) {
+      this.closeStatusMenu(true);
+    } else {
+      this.openStatusMenu('current');
+    }
   }
 
-  protected closeStatusMenu(): void {
+  /** Closes the status menu; `returnFocus` puts focus back on the trigger (keyboard paths). */
+  protected closeStatusMenu(returnFocus = false): void {
     this.statusMenuOpen.set(false);
+    if (returnFocus) this.statusTrigger()?.nativeElement.focus();
+  }
+
+  /** Index the status menu should focus once rendered; nudged by repeated arrow presses. */
+  private pendingStatusFocus: number | null = null;
+
+  private openStatusMenu(target: 'current' | 'first' | 'last'): void {
+    const count = this.allStatuses.length;
+    const current = this.allStatuses.indexOf(this.statusService.currentStatus());
+    this.pendingStatusFocus =
+      target === 'first' ? 0 : target === 'last' ? count - 1 : Math.max(current, 0);
+    this.statusMenuOpen.set(true);
+    afterNextRender(
+      () => {
+        const index = this.pendingStatusFocus;
+        this.pendingStatusFocus = null;
+        if (index !== null) this.statusItems()[index]?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** WAI-ARIA menu button: Enter/Space/ArrowDown open on the first (or current) item, ArrowUp on the last. */
+  protected onStatusTriggerKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const count = this.allStatuses.length;
+    if (this.statusMenuOpen() && this.pendingStatusFocus !== null) {
+      // A second arrow press arrived before the menu rendered and took focus: move the target on.
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      this.pendingStatusFocus = (this.pendingStatusFocus + step + count) % count;
+      return;
+    }
+    this.openStatusMenu(event.key === 'ArrowDown' ? 'first' : 'last');
+  }
+
+  protected onStatusMenuKeydown(event: KeyboardEvent): void {
+    const items = this.statusItems().map((i) => i.nativeElement);
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number | null = null;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = (index + 1) % items.length;
+        break;
+      case 'ArrowUp':
+        next = (index - 1 + items.length) % items.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = items.length - 1;
+        break;
+      case 'Escape':
+        event.preventDefault();
+        this.closeStatusMenu(true);
+        return;
+      case 'Tab':
+        this.closeStatusMenu();
+        return;
+    }
+    if (next !== null) {
+      event.preventDefault();
+      items[next]?.focus();
+    }
+  }
+
+  /** WAI-ARIA tabs: roving tabindex, arrows wrap, Home/End jump; selection follows focus. */
+  protected onTabKeydown(event: KeyboardEvent, current: ContactTab): void {
+    // The close button is nested in the tab; only react to keys pressed on the tab itself.
+    if (event.target !== event.currentTarget) return;
+    const tabs = this.tabs();
+    const index = tabs.findIndex((t) => t.id === current.id);
+    let next: number | null = null;
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    if (next === null) return;
+
+    event.preventDefault();
+    const tab = tabs[next];
+    this.tabStore.setActiveTab(tab.id);
+    afterNextRender(
+      () =>
+        this.tabButtons()
+          .find((b) => b.nativeElement.id === 'tab-' + tab.id)
+          ?.nativeElement.focus(),
+      { injector: this.injector },
+    );
+  }
+
+  /** Roving tabindex: the active tab, or the first one when none is active, is the tab stop. */
+  protected isTabStop(tab: ContactTab): boolean {
+    const stopId = this.activeTab()?.id ?? this.tabs()[0]?.id;
+    return stopId === tab.id;
   }
 
   protected setActiveTab(tab: ContactTab): void {
@@ -660,17 +580,5 @@ export class AgentDesktopComponent implements OnInit {
     if (sent) {
       this.notifications.success(this.transloco.translate('agent.desktop.replySent'));
     }
-  }
-
-  private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {
-    const messages: Record<string, string> = {
-      MAX_PHONE: this.transloco.translate('agent.desktop.tabLimitPhone'),
-      MAX_ASYNC: this.transloco.translate('agent.desktop.tabLimitAsync'),
-      MAX_TOTAL: this.transloco.translate('agent.desktop.tabLimitTotal'),
-    };
-    this.tabLimitMessage.set(
-      messages[reason] ?? this.transloco.translate('agent.desktop.tabLimit'),
-    );
-    setTimeout(() => this.tabLimitMessage.set(null), 5_000);
   }
 }

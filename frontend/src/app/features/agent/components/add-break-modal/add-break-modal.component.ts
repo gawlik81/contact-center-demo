@@ -25,6 +25,7 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AgentCalendarService } from '../../services/agent-calendar.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentBreakRequest, BreakType, CalendarBreak } from '../../models/agent-calendar.model';
+import { rememberFocus } from '../../../../shared/utils/focus.util';
 
 function endAfterStartValidator(group: AbstractControl): ValidationErrors | null {
   const startDate = group.get('startDate')?.value as string;
@@ -82,6 +83,8 @@ export class AddBreakModalComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
 
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -250,8 +253,18 @@ export class AddBreakModalComponent implements OnInit {
     }
   }
 
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    this.close();
+  }
+
   protected close(): void {
     this.dialogRef().nativeElement.close();
+    this.restoreFocus();
     this.cancelled.emit();
   }
 
@@ -303,6 +316,7 @@ export class AddBreakModalComponent implements OnInit {
           : this.transloco.translate('common.success');
         this.notifications.success(msg);
         this.dialogRef().nativeElement.close();
+        this.restoreFocus();
         this.saved.emit();
       });
   }
@@ -336,6 +350,7 @@ export class AddBreakModalComponent implements OnInit {
         this.loading.set(false);
         this.notifications.success(this.transloco.translate('common.success'));
         this.dialogRef().nativeElement.close();
+        this.restoreFocus();
         this.breakCancelled.emit();
       });
   }

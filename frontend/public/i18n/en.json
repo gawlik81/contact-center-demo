@@ -251,7 +251,10 @@
       "pluginPanelsLabel": "Plugin panels",
       "pluginActionTimeout": "Plugin action timed out (504). Please try again.",
       "pluginActionError": "Plugin action failed.",
-      "pluginActionSuccess": "Plugin action completed."
+      "pluginActionSuccess": "Plugin action completed.",
+      "ringingAnnouncement": "Incoming call: {{ who }}",
+      "ringingAnnouncementQueue": "Queue: {{ queue }}",
+      "ringingAnnouncementUnknown": "Incoming call"
     },
     "softphone": {
       "incomingCall": "Incoming call",
@@ -357,13 +360,16 @@
     },
     "incomingCall": {
       "label": "Incoming call",
-      "goToDesktop": "Go to desktop and answer",
-      "dismiss": "Dismiss",
       "limitMaxPhone": "You can only handle 1 phone call at a time.",
       "limitMaxAsync": "You have reached the limit of 3 chat/email contacts.",
       "limitMaxTotal": "You have reached the maximum limit of 4 active contacts.",
       "limitGeneral": "You have reached the active contact limit.",
-      "systemNotificationTitle": "Incoming call"
+      "systemNotificationTitle": "Incoming call",
+      "labelAsync": "New contact",
+      "goToContact": "Go to contact",
+      "hide": "Hide notification",
+      "inCall": "Call in progress",
+      "openDesktop": "Go to desktop"
     },
     "addBreak": {
       "titleAdd": "Add break",
@@ -865,6 +871,17 @@
         "COMPLETED": "Completed",
         "CANCELLED": "Cancelled"
       }
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "open": "Keyboard shortcuts",
+      "close": "Close keyboard shortcuts",
+      "answer": "Answer the call",
+      "hangup": "Hang up the active call or reject a ringing one",
+      "mute": "Mute / unmute microphone",
+      "cheatSheet": "Show / hide shortcuts",
+      "tabs": "Move between contact tabs",
+      "statusMenu": "Navigate the status menu"
     }
   },
   "supervisor": {

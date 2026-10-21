@@ -4,9 +4,11 @@ import {
   Input,
   OnInit,
   OnDestroy,
+  ElementRef,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +18,8 @@ import { ContactTab } from '../../models/contact-tab.model';
 import { CallSession, TransferMode, TransferTargetType } from '../../models/call-session.model';
 import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
 import { ScheduledCallbackDto } from '../../models/callback.model';
+import { AGENT_SHORTCUTS } from '../../models/agent-shortcuts.model';
+import { CallLifecycleService } from '../../services/call-lifecycle.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
 import { TransferQueueListComponent } from '../transfer-queue-list/transfer-queue-list.component';
@@ -39,8 +43,12 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
 
   protected readonly softphone = inject(SoftphoneService);
   private readonly tabStore = inject(ContactTabStore);
+  private readonly calls = inject(CallLifecycleService);
 
   protected readonly session = this.softphone.session;
+  protected readonly shortcuts = AGENT_SHORTCUTS;
+
+  private readonly answerBtn = viewChild<ElementRef<HTMLButtonElement>>('answerBtn');
 
   protected readonly transferMode = signal<TransferMode>('BLIND');
   protected readonly transferTarget = signal<string>('');
@@ -108,12 +116,17 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   // auxiliary tick to force hold-timer re-evaluation in OnPush
   protected readonly _holdTick = signal(0);
 
+  /** Moves focus to "Odbierz" (called by the desktop when the call starts ringing). */
+  focusAnswerButton(): void {
+    this.answerBtn()?.nativeElement.focus();
+  }
+
   protected answer(): void {
     this.softphone.answerCall();
   }
 
   protected reject(): void {
-    this.softphone.rejectCall();
+    this.calls.rejectRingingCall();
   }
 
   protected hangup(): void {

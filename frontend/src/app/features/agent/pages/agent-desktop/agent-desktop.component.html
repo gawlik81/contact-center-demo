@@ -1,3 +1,6 @@
+<!-- Assertive announcement of a ringing call (the incoming-call banner is hidden on the desktop) -->
+<div class="sr-only" role="alert">{{ ringingAnnouncement() }}</div>
+
 <!-- Add Break Modal -->
 @if (addBreakOpen()) {
   <app-add-break-modal (saved)="onBreakSavedFromHeader()" (cancelled)="addBreakOpen.set(false)" />
@@ -32,16 +35,6 @@
   </div>
 }
 
-<!-- Tab limit warning -->
-@if (tabLimitMessage()) {
-  <div class="limit-banner" role="alert" aria-live="polite">
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-    </svg>
-    {{ tabLimitMessage() }}
-  </div>
-}
-
 <div class="desktop">
   <!-- ===== HEADER: status panel ===== -->
   <header class="desktop__header">
@@ -49,15 +42,17 @@
       <span class="status-panel__label">{{ 'agent.desktop.yourStatus' | transloco }}</span>
       <div class="status-panel__control">
         <button
+          #statusTrigger
           type="button"
           class="status-btn"
           [style.border-color]="currentStatusConfig().color"
           [style.color]="currentStatusConfig().color"
           [style.background-color]="currentStatusConfig().bgColor"
           [attr.aria-expanded]="statusMenuOpen()"
-          aria-haspopup="listbox"
+          aria-haspopup="menu"
           [attr.aria-label]="'agent.desktop.changeStatus' | transloco"
           (click)="toggleStatusMenu()"
+          (keydown)="onStatusTriggerKeydown($event)"
         >
           <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path [attr.d]="currentStatusConfig().icon" />
@@ -73,20 +68,18 @@
         </button>
 
         @if (statusMenuOpen()) {
-          <div
-            class="status-menu"
-            role="listbox"
-            [attr.aria-label]="'agent.desktop.selectStatus' | transloco"
-            (blur)="closeStatusMenu()"
-          >
+          <div class="status-menu" role="menu" [attr.aria-label]="'agent.desktop.selectStatus' | transloco">
             @for (status of allStatuses; track status) {
               <button
+                #statusItem
                 type="button"
                 class="status-menu__item"
-                role="option"
-                [attr.aria-selected]="statusService.currentStatus() === status"
+                role="menuitemradio"
+                tabindex="-1"
+                [attr.aria-checked]="statusService.currentStatus() === status"
                 [class.status-menu__item--active]="statusService.currentStatus() === status"
                 (click)="changeStatus(status)"
+                (keydown)="onStatusMenuKeydown($event)"
               >
                 <svg
                   class="status-menu__icon"
@@ -107,9 +100,29 @@
             }
           </div>
           <!-- Overlay to close menu on outside click -->
-          <div class="status-menu-overlay" (click)="closeStatusMenu()" aria-hidden="true"></div>
+          <div class="status-menu-overlay" (click)="closeStatusMenu(true)" aria-hidden="true"></div>
         }
       </div>
+
+      <button
+        type="button"
+        class="desktop__header-action-btn"
+        [class.desktop__header-action-btn--active]="hotkeys.cheatSheetOpen()"
+        data-cheat-sheet-trigger
+        aria-haspopup="dialog"
+        aria-controls="cheat-sheet-panel"
+        [attr.aria-expanded]="hotkeys.cheatSheetOpen()"
+        [attr.aria-keyshortcuts]="shortcuts.cheatSheet.aria"
+        [title]="('agent.shortcuts.open' | transloco) + ' (' + shortcuts.cheatSheet.label + ')'"
+        (click)="hotkeys.toggleCheatSheet()"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"
+          />
+        </svg>
+        <span>{{ 'agent.shortcuts.open' | transloco }}</span>
+      </button>
     </div>
 
     <div class="header-info">
@@ -267,9 +280,11 @@
               <div class="contact-tabs__bar" role="tablist" [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco">
                 @for (tab of tabs(); track trackByTabId($index, tab)) {
                   <button
+                    #tabBtn
                     type="button"
                     class="contact-tab"
                     role="tab"
+                    [attr.tabindex]="isTabStop(tab) ? 0 : -1"
                     [class.contact-tab--active]="tab.isActive"
                     [class.contact-tab--phone]="tab.type === 'PHONE'"
                     [class.contact-tab--chat]="tab.type === 'CHAT'"
@@ -279,6 +294,7 @@
                     [attr.aria-controls]="'tab-panel-' + tab.id"
                     [id]="'tab-' + tab.id"
                     (click)="setActiveTab(tab)"
+                    (keydown)="onTabKeydown($event, tab)"
                   >
                     <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                       <path [attr.d]="getTabTypeIcon(tab)" />

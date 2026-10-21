@@ -26,6 +26,7 @@ import { ManualCallbackService } from '../../../services/manual-callback.service
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
 import { ManualCallbackResponse } from '../../../models/manual-callback.model';
+import { rememberFocus } from '../../../../../shared/utils/focus.util';
 
 /** Custom validator: E.164 phone number format */
 function e164Validator(control: AbstractControl): ValidationErrors | null {
@@ -40,9 +41,6 @@ function e164Validator(control: AbstractControl): ValidationErrors | null {
   imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './manual-callback-modal.component.html',
   styleUrl: './manual-callback-modal.component.scss',
-  host: {
-    '(document:keydown.escape)': 'onEscapeKey($event)',
-  },
 })
 export class ManualCallbackModalComponent implements AfterViewInit {
   readonly customer = input.required<CustomerSummary>();
@@ -57,6 +55,8 @@ export class ManualCallbackModalComponent implements AfterViewInit {
   private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
 
   readonly loading = signal(false);
   readonly visible = signal(false);
@@ -202,14 +202,7 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     this.visible.set(false);
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && dialog.open) dialog.close();
-  }
-
-  onEscapeKey(event: Event): void {
-    if (this.visible()) {
-      event.preventDefault();
-      this.close();
-      this.cancelled.emit();
-    }
+    this.restoreFocus();
   }
 
   onBackdropClick(event: MouseEvent): void {
@@ -218,6 +211,15 @@ export class ManualCallbackModalComponent implements AfterViewInit {
       this.close();
       this.cancelled.emit();
     }
+  }
+
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    this.cancel();
   }
 
   protected cancel(): void {

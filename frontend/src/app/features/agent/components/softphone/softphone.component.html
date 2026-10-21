@@ -44,6 +44,8 @@
             type="button"
             class="softphone__btn softphone__btn--reject"
             [attr.aria-label]="'agent.softphone.rejectLabel' | transloco"
+            [attr.aria-keyshortcuts]="shortcuts.hangup.aria"
+            [title]="('agent.softphone.reject' | transloco) + ' (' + shortcuts.hangup.label + ')'"
             (click)="reject()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -56,8 +58,11 @@
 
           <button
             type="button"
+            #answerBtn
             class="softphone__btn softphone__btn--answer"
             [attr.aria-label]="'agent.softphone.answerLabel' | transloco"
+            [attr.aria-keyshortcuts]="shortcuts.answer.aria"
+            [title]="('agent.softphone.answer' | transloco) + ' (' + shortcuts.answer.label + ')'"
             (click)="answer()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -101,6 +106,13 @@
               s.isMuted ? ('agent.softphone.unmuteLabel' | transloco) : ('agent.softphone.muteLabel' | transloco)
             "
             [attr.aria-pressed]="s.isMuted"
+            [attr.aria-keyshortcuts]="shortcuts.mute.aria"
+            [title]="
+              (s.isMuted ? ('agent.softphone.unmute' | transloco) : ('agent.softphone.mute' | transloco)) +
+              ' (' +
+              shortcuts.mute.label +
+              ')'
+            "
             (click)="toggleMute()"
           >
             <span class="ctrl-icon-wrap" aria-hidden="true">
@@ -203,6 +215,8 @@
           type="button"
           class="softphone__hangup-btn"
           [attr.aria-label]="'agent.softphone.hangupLabel' | transloco"
+          [attr.aria-keyshortcuts]="shortcuts.hangup.aria"
+          [title]="('agent.softphone.hangup' | transloco) + ' (' + shortcuts.hangup.label + ')'"
           (click)="hangup()"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -464,6 +478,8 @@
           type="button"
           class="softphone__hangup-btn"
           [attr.aria-label]="'agent.softphone.hangupLabel' | transloco"
+          [attr.aria-keyshortcuts]="shortcuts.hangup.aria"
+          [title]="('agent.softphone.hangup' | transloco) + ' (' + shortcuts.hangup.label + ')'"
           (click)="hangup()"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">

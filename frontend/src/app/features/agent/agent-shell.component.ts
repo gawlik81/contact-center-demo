@@ -14,14 +14,20 @@ import { WebSocketService } from '../../core/services/websocket.service';
 import { AgentStatusService } from './services/agent-status.service';
 import { SoftphoneService } from './services/softphone.service';
 import { AgentRecoveryService } from './services/agent-recovery.service';
+import { AgentHotkeysService } from './services/agent-hotkeys.service';
+import { CallLifecycleService } from './services/call-lifecycle.service';
+import { AgentShortcutsCheatSheetComponent } from './components/agent-shortcuts-cheat-sheet/agent-shortcuts-cheat-sheet.component';
 
 @Component({
   selector: 'app-agent-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AppShellComponent, IncomingCallBannerComponent],
+  imports: [AppShellComponent, IncomingCallBannerComponent, AgentShortcutsCheatSheetComponent],
+  // Component-level provider: the global keydown listener lives only while the agent shell does.
+  providers: [AgentHotkeysService],
   template: `
     <cc-app-shell />
     <cc-incoming-call-banner />
+    <cc-agent-shortcuts-cheat-sheet />
   `,
 })
 export class AgentShellComponent implements OnInit, OnDestroy {
@@ -68,6 +74,13 @@ export class AgentShellComponent implements OnInit, OnDestroy {
    * 'OFFLINE' -> 'AVAILABLE' twice in quick succession during `initStatus()`).
    */
   private twilioDeviceInitInProgress = false;
+
+  constructor() {
+    // Instantiate the component-provided service so the shortcuts are active on every agent route.
+    inject(AgentHotkeysService);
+    // Root service owning call side effects (BUSY / ACW / WS call events) on every agent route.
+    inject(CallLifecycleService);
+  }
 
   ngOnInit(): void {
     this.ws.connect();

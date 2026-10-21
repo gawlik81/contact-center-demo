@@ -4,9 +4,12 @@
 
 .banner {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0 0 auto 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border: none;
+  overflow: visible;
   z-index: 9000;
   background: var(--danger);
   color: var(--accent-fg);
@@ -67,6 +70,24 @@
 
     &:hover {
       opacity: 0.9;
+    }
+  }
+
+  &__reject {
+    flex-shrink: 0;
+    background: transparent;
+    color: var(--accent-fg);
+    border: 1px solid var(--accent-fg);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 0.85;
     }
   }
 

@@ -1,4 +1,12 @@
-<dialog #dialogEl class="disposition-dialog" aria-labelledby="disposition-dialog-title">
+<dialog
+  #dialogEl
+  class="disposition-dialog"
+  (cancel)="$event.preventDefault()"
+  tabindex="-1"
+  (keydown.escape)="$event.preventDefault()"
+  (close)="onDialogClose()"
+  aria-labelledby="disposition-dialog-title"
+>
   <div class="disposition-dialog__backdrop"></div>
 
   <div class="disposition-dialog__panel">

@@ -1,6 +1,7 @@
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
+import { currentUrlSignal } from '../../../shared/utils/router-url.util';
 import { filter, take, takeUntil } from 'rxjs/operators';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
@@ -8,7 +9,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
-import { CallDirection } from '../models/contact-tab.model';
+import { CallDirection, ContactType } from '../models/contact-tab.model';
 import {
   CallIncomingPayload,
   CallOutboundPayload,
@@ -16,7 +17,19 @@ import {
   ContactAssignedPayload,
 } from '../models/ws-event.model';
 
+/**
+ * PHONE: the softphone session is RINGING and the agent can answer / reject it
+ *        (incoming call, outbound leg ringing for the agent, attended-transfer consult).
+ * ASYNC: a non-phone contact (email / chat / social) was assigned; nothing rings.
+ * IN_CALL: the PHONE call was answered without leaving the page (a modal was open); the banner
+ *          stays as a persistent pointer to the desktop.
+ */
+export type IncomingCallAlertKind = 'PHONE' | 'ASYNC' | 'IN_CALL';
+
 export interface IncomingCallAlert {
+  kind: IncomingCallAlertKind;
+  /** Channel of an ASYNC alert; undefined for PHONE alerts. */
+  channel?: ContactType;
   contactId: string;
   customerName: string;
   customerPhone: string;
@@ -39,6 +52,7 @@ export class IncomingCallAlertService implements OnDestroy {
   private readonly softphoneService = inject(SoftphoneService);
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
+  private readonly url = currentUrlSignal();
 
   private readonly destroy$ = new Subject<void>();
 
@@ -66,6 +80,23 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(null);
     this.stopAudio();
     this.closeSystemNotification();
+  }
+
+  /**
+   * The ringing call was answered while navigating to the desktop would destroy unsaved work
+   * (an open modal). Silences the ringtone but keeps the banner as a persistent, non-dismissable
+   * "call in progress" indicator until the call ends or the agent reaches the desktop.
+   */
+  markCallInProgress(): void {
+    const alert = this.pendingAlert();
+    if (alert?.kind !== 'PHONE') return;
+    this.stopAudio();
+    this.closeSystemNotification();
+    this.pendingAlert.set({ ...alert, kind: 'IN_CALL' });
+  }
+
+  private isOnDesktop(): boolean {
+    return this.url().startsWith('/agent/desktop');
   }
 
   // ── Initialization ─────────────────────────────────────────────────────────
@@ -116,6 +147,8 @@ export class IncomingCallAlertService implements OnDestroy {
           const payload = event.payload as ContactAssignedPayload;
           if (payload.type === 'PHONE') {
             this.handleContactAssigned(payload);
+          } else {
+            this.handleAsyncContactAssigned(payload);
           }
         }
       });
@@ -140,6 +173,7 @@ export class IncomingCallAlertService implements OnDestroy {
     this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
+      kind: 'PHONE',
       contactId: payload.contactId,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone,
@@ -183,6 +217,7 @@ export class IncomingCallAlertService implements OnDestroy {
     this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
+      kind: 'PHONE',
       contactId: payload.contactId,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone,
@@ -277,6 +312,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     const alert: IncomingCallAlert = {
+      kind: 'PHONE',
       contactId: payload.secondLegCallId,
       customerName,
       customerPhone: payload.customerPhone,
@@ -301,6 +337,7 @@ export class IncomingCallAlertService implements OnDestroy {
     this.lookupAndUpdateTabName(payload.customerIdentifier, payload.contactId);
 
     const alert: IncomingCallAlert = {
+      kind: 'PHONE',
       contactId: payload.contactId,
       customerName: payload.customerName,
       customerPhone: payload.customerIdentifier,
@@ -310,6 +347,43 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Non-phone contact (email / chat / social): nothing rings, so no audio and no system
+   * notification — only a banner when the agent is outside the desktop, with a shortcut to the
+   * contact. This service is the single owner of opening non-phone tabs, because the desktop
+   * component is not mounted on the other agent routes. On the desktop itself the new tab is
+   * visible, so only a toast is shown.
+   */
+  private handleAsyncContactAssigned(payload: ContactAssignedPayload): void {
+    const onDesktop = this.isOnDesktop();
+    const exists = this.tabStore.tabs().some((t) => t.contactId === payload.contactId);
+    if (exists) return; // re-delivery (e.g. WS reconnect) of a contact that is already open
+
+    const reason = this.tabStore.openFromContactAssigned(payload);
+    if (reason !== null) {
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      return;
+    }
+
+    // On the desktop the new tab is right there (and the banner is hidden): no alert needed.
+    // Never replace a ringing phone alert: the call must stay answerable.
+    if (onDesktop) {
+      this.notifications.info(payload.customerName);
+      return;
+    }
+    if (this.pendingAlert() !== null) return;
+
+    this.pendingAlert.set({
+      kind: 'ASYNC',
+      channel: payload.type,
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerIdentifier,
+      queueName: payload.queueName ?? '',
+      receivedAt: new Date(),
+    });
   }
 
   /**
@@ -341,6 +415,22 @@ export class IncomingCallAlertService implements OnDestroy {
     effect(() => {
       const session = this.softphoneService.session();
       const alert = this.pendingAlert();
+
+      if (alert?.kind === 'ASYNC') {
+        // Nothing to answer — drop the alert once its tab is gone, or once the agent is on the
+        // desktop with that contact's tab in front of them.
+        const tab = this.tabStore.tabs().find((t) => t.contactId === alert.contactId);
+        const seen = this.isOnDesktop() && tab?.isActive === true;
+        if (!tab || seen) this.dismissAlert();
+        return;
+      }
+
+      if (alert?.kind === 'IN_CALL') {
+        // Persistent until the call is over or the agent reaches the desktop.
+        const callOver = session === null || session.state === 'ENDED';
+        if (callOver || this.isOnDesktop()) this.dismissAlert();
+        return;
+      }
 
       if (session === null && alert !== null) {
         this.dismissAlert();

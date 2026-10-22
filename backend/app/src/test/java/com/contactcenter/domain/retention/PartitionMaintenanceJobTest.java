@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
  * <p><strong>Test regresyjny kluczowy (BE-114 AC):</strong> {@link EnsureFuturePartitions#buildsThreeMonthBufferForAllSevenPartitionedTables()}
  * — potwierdza, że po jednym wywołaniu {@link PartitionMaintenanceJob#ensureFuturePartitions()}
  * partycja na "bieżący miesiąc + 3" (offset {@value PartitionMaintenanceJob#MONTHS_AHEAD}) zostaje
- * zażądana dla wszystkich 7 partycjonowanych tabel ({@code social_message} dołączona w BE-133/EPIC-30) —
+ * zażądana dla wszystkich 8 partycjonowanych tabel ({@code social_message} BE-133/EPIC-30, {@code email_message} BE-135) —
  * {@code create_next_month_partitions()} sama w sobie gwarantuje wyłącznie "+1" (patrz javadoc klasy
  * testowanej), więc bez pętli budującej bufor to kryterium akceptacji nie byłoby spełnione żadnym
  * pojedynczym wywołaniem SQL.
@@ -58,6 +58,9 @@ class PartitionMaintenanceJobTest {
     @Mock
     private PartitionScanner partitionScanner;
 
+    @Mock
+    private CronFailureLogRepository cronFailureLog;
+
     @InjectMocks
     private PartitionMaintenanceJob job;
 
@@ -71,6 +74,32 @@ class PartitionMaintenanceJobTest {
     class EnsureFuturePartitions {
 
         @Test
+        @DisplayName("DB-082: awaria create_next_month_partitions() -> recordFailure('create_next_month_partitions', root cause)")
+        void errorInCreateNextMonthPartitions_recordsFailureOnce() {
+            doThrow(new RuntimeException("wrapper", new IllegalStateException("root boom")))
+                    .when(partitionMaintenanceRepository).createNextMonthPartitions();
+
+            job.ensureFuturePartitions();
+
+            verify(cronFailureLog, times(1)).recordFailure(
+                    org.mockito.ArgumentMatchers.eq("create_next_month_partitions"),
+                    org.mockito.ArgumentMatchers.eq("root boom"),
+                    org.mockito.ArgumentMatchers.any(java.time.Instant.class));
+        }
+
+        @Test
+        @DisplayName("DB-082: sukces i awaria samej pętli bufora nie zapisują śladu")
+        void successOrBufferFailure_doesNotRecordFailure() {
+            doThrow(new RuntimeException("table boom")).when(partitionMaintenanceRepository)
+                    .createTablePartition(anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                            org.mockito.ArgumentMatchers.anyInt());
+
+            job.ensureFuturePartitions();
+
+            org.mockito.Mockito.verifyNoInteractions(cronFailureLog);
+        }
+
+        @Test
         @DisplayName("woła create_next_month_partitions() dokładnie raz na uruchomienie (AC #1)")
         void callsCreateNextMonthPartitionsExactlyOnce() {
             job.ensureFuturePartitions();
@@ -79,7 +108,7 @@ class PartitionMaintenanceJobTest {
         }
 
         @Test
-        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 7 partycjonowanych tabel")
+        @DisplayName("KLUCZOWY: buduje bufor 'bieżący miesiąc + 3' dla wszystkich 8 partycjonowanych tabel")
         void buildsThreeMonthBufferForAllSevenPartitionedTables() {
             YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
             Set<YearMonth> expectedOffsets = java.util.stream.IntStream

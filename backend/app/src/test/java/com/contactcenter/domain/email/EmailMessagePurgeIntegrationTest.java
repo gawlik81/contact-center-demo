@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -149,8 +150,14 @@ class EmailMessagePurgeIntegrationTest {
     // Seedowanie i asercje
     // =========================================================================
 
-    /** Wiadomość zaseedowana w bazie wraz z kluczami S3 zapisanymi w jej JSONB. */
-    private record Seeded(UUID messageId, UUID contactId, List<String> keys) {
+    /**
+     * Klucz partycjonowania (BE-134) używany przez seedery — stała, bo testy purge są kontaktowe
+     * (nie wiekowe). Mikrosekundy, jak wymaga {@code EmailMessageRepository#save}.
+     */
+    private static final Instant MESSAGE_AT = Instant.parse("2026-10-01T10:00:00Z");
+
+    /** Wiadomość zaseedowana w bazie wraz z kluczami S3 zapisanymi w jej JSONB oraz kluczem partycji. */
+    private record Seeded(UUID messageId, Instant messageAt, UUID contactId, List<String> keys) {
     }
 
     private UUID insertMessage(UUID tenant, UUID contact, String direction, String attachmentsJson) {
@@ -161,11 +168,11 @@ class EmailMessagePurgeIntegrationTest {
         jdbc.update("""
                         INSERT INTO email_message
                             (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                             subject, body_text, attachments, received_at)
+                             subject, body_text, attachments, received_at, message_at)
                         VALUES (?, ?, ?, ?, 'klient@example.com', 'biuro@example.com',
-                                'Temat PII', 'Treść PII', CAST(? AS jsonb), now())
+                                'Temat PII', 'Treść PII', CAST(? AS jsonb), now(), CAST(? AS timestamptz))
                         """,
-                messageId, tenant, contact, direction, attachmentsJson);
+                messageId, tenant, contact, direction, attachmentsJson, MESSAGE_AT.toString());
         return messageId;
     }
 
@@ -176,13 +183,13 @@ class EmailMessagePurgeIntegrationTest {
                 .map(f -> EmailAttachmentKeys.inboundKey(tenant, messageId, f))
                 .toList();
         insertMessage(messageId, tenant, contact, "INBOUND", attachments(keys.toArray(String[]::new)));
-        return new Seeded(messageId, contact, keys);
+        return new Seeded(messageId, MESSAGE_AT, contact, keys);
     }
 
     /** OUTBOUND z podanymi kluczami (dane od klienta — mogą wskazywać dowolny obiekt). */
     private Seeded seedOutbound(UUID tenant, UUID contact, String... keys) {
         UUID messageId = insertMessage(tenant, contact, "OUTBOUND", attachments(keys));
-        return new Seeded(messageId, contact, List.of(keys));
+        return new Seeded(messageId, MESSAGE_AT, contact, List.of(keys));
     }
 
     private static String attachments(String... keys) {
@@ -438,7 +445,7 @@ class EmailMessagePurgeIntegrationTest {
                     .isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> repository.findAttachmentsByContactIds(tenantA, List.of(m.contactId())))
                     .isInstanceOf(IllegalStateException.class);
-            assertThatThrownBy(() -> repository.deleteByIds(tenantA, List.of(m.messageId())))
+            assertThatThrownBy(() -> repository.deleteByIds(tenantA, List.of(new EmailMessageId(m.messageId(), m.messageAt()))))
                     .isInstanceOf(IllegalStateException.class);
 
             assertThat(s3.deleteCalls).isEmpty();
@@ -511,7 +518,7 @@ class EmailMessagePurgeIntegrationTest {
     class QueryPlans {
 
         @Test
-        @DisplayName("SELECT po contact_id IN korzysta z idx_email_message_contact, a DELETE po message_id IN z pk_email_message (bez Seq Scan)")
+        @DisplayName("SELECT po contact_id IN korzysta z idx_email_message_contact (lub jego potomka na partycji), a DELETE po pełnym kluczu z pk_email_message (bez Seq Scan)")
         void explain_usesContactIndexAndPrimaryKey() {
             UUID tenant = PostgresTestDatabase.insertTenant(jdbc, "Tenant EXPLAIN " + UUID.randomUUID());
             try {
@@ -529,17 +536,45 @@ class EmailMessagePurgeIntegrationTest {
                 String select = EmailMessageRepository.FIND_ATTACHMENTS_SQL
                         .replace(":tenantId", "'" + tenant + "'")
                         .replace("(:contactIds)", contactsIn);
+                // BE-134: DELETE identyfikuje wiersze pełnym kluczem (message_id, message_at) przez
+                // jsonb_to_recordset — parametr :rows zastępujemy literałem JSON zbudowanym przez produkcyjny helper
+                String keysJson = EmailMessageRepository.toKeyJson(List.of(
+                        new EmailMessageId(UUID.randomUUID(), MESSAGE_AT),
+                        new EmailMessageId(UUID.randomUUID(), MESSAGE_AT)));
                 String delete = EmailMessageRepository.DELETE_BY_IDS_SQL
                         .replace(":tenantId", "'" + tenant + "'")
-                        .replace("(:messageIds)", "('" + UUID.randomUUID() + "', '" + UUID.randomUUID() + "')");
+                        .replace(":rows", "'" + keysJson + "'");
 
                 String selectPlan = explain(select);
                 String deletePlan = explain(delete);
 
-                assertThat(selectPlan).contains("idx_email_message_contact").doesNotContain("Seq Scan");
-                assertThat(deletePlan).contains("pk_email_message").doesNotContain("Seq Scan");
+                // Partycja z danymi testu (now() → bieżący miesiąc). Planner NIE przycina partycji w tych
+                // zapytaniach (brak warunku na message_at po stronie SELECT, klucz łączenia po stronie DELETE),
+                // więc wymienia też PUSTE partycje (_11, _12, _default; koszt 0 — artefakt statystyk 0-stronicowych).
+                // Plany na pustych partycjach są niedeterministyczne (zob. notatkę DB-067), dlatego asertujemy
+                // miarodajny warunek: ZAPEŁNIONA partycja jest czytana indeksem, nie Seq Scan.
+                String populated = jdbc.queryForObject(
+                        "SELECT tableoid::regclass::text FROM email_message WHERE tenant_id = ? LIMIT 1",
+                        String.class, tenant);
+
+                // Nazwy indeksów na partycjach są generowane (np. email_message_2026_10_pkey), więc
+                // sprawdzamy rodzica albo jego potomka (patrz PostgresTestDatabase#explainUsesIndexOrItsPartitionChildren).
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(
+                        jdbc, selectPlan, "idx_email_message_contact"))
+                        .as("SELECT po contact_id: plan używa idx_email_message_contact lub potomka").isTrue();
+                assertThat(selectPlan).as("SELECT: zapełniona partycja %s czytana indeksem", populated)
+                        .containsPattern("Index (Only )?Scan using \\S+ on " + populated)
+                        .doesNotContain("Seq Scan on " + populated);
+
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(
+                        jdbc, deletePlan, "pk_email_message"))
+                        .as("DELETE po pełnym kluczu: plan używa pk_email_message lub potomka; plan:%n%s", deletePlan)
+                        .isTrue();
+                assertThat(deletePlan).as("DELETE: zapełniona partycja %s czytana indeksem", populated)
+                        .containsPattern("Index (Only )?Scan using \\S+ on " + populated)
+                        .doesNotContain("Seq Scan on " + populated);
                 System.out.println("[EXPLAIN SELECT contact_id IN]\n" + selectPlan);
-                System.out.println("[EXPLAIN DELETE message_id IN]\n" + deletePlan);
+                System.out.println("[EXPLAIN DELETE (message_id, message_at) via jsonb]\n" + deletePlan);
             } finally {
                 jdbc.update("DELETE FROM email_message WHERE tenant_id = ?", tenant);
             }
@@ -555,7 +590,8 @@ class EmailMessagePurgeIntegrationTest {
             // \b: samo „ctid" jako słowo — nazwa parametru :contactIds zawiera podciąg "ctId"
             assertThat(EmailMessageRepository.FIND_ATTACHMENTS_SQL).doesNotContainPattern("(?i)\\bctid\\b");
             assertThat(EmailMessageRepository.DELETE_BY_IDS_SQL).doesNotContainPattern("(?i)\\bctid\\b")
-                    .contains("message_id IN").contains("tenant_id");
+                    .contains("em.message_id = k.message_id").contains("em.message_at = k.message_at")
+                    .contains("tenant_id");
         }
     }
 
@@ -591,7 +627,7 @@ class EmailMessagePurgeIntegrationTest {
 
             // Hibernate oddaje w Object[] prawdziwe null dla kolumny NULL — to, na co polega toUuid(null)
             assertThat(rows).hasSize(1);
-            assertThat(rows.get(0)[1]).isNull();
+            assertThat(rows.get(0)[2]).isNull(); // kolumna 2 = contact_id (po message_id, message_at)
 
             List<EmailMessageRepository.AttachmentsRow> mapped = rows.stream()
                     .map(EmailMessageRepository::toAttachmentsRow)

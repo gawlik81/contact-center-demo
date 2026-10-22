@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,7 +112,7 @@ class EmailSendServiceTest {
             when(encryptionService.decrypt(anyString())).thenReturn("smtp-plaintext-password");
 
             EmailMessage saved = buildSavedMessage();
-            when(emailMessageRepository.save(any(EmailMessage.class))).thenReturn(saved);
+            when(emailMessageRepository.save(any(EmailMessage.class))).thenReturn(Optional.of(saved));
 
             // Spy: pomiń rzeczywiste wywołanie SMTP
             EmailSendServiceImpl spy = spy(emailSendService);
@@ -153,7 +154,7 @@ class EmailSendServiceTest {
             Tenant tenant = buildTenantWithSmtpConfig();
             when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
-            when(emailMessageRepository.save(any())).thenReturn(buildSavedMessage());
+            when(emailMessageRepository.save(any())).thenReturn(Optional.of(buildSavedMessage()));
 
             EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
@@ -316,7 +317,7 @@ class EmailSendServiceTest {
             Tenant tenant = buildTenantWithSmtpConfig();
             when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
-            when(emailMessageRepository.save(any())).thenReturn(buildSavedMessage());
+            when(emailMessageRepository.save(any())).thenReturn(Optional.of(buildSavedMessage()));
 
             String ownKey = "email-attachments/" + TENANT_ID + "/pending/" + UUID.randomUUID() + "/plik.pdf";
             EmailReplyRequest.PendingAttachment attachment = new EmailReplyRequest.PendingAttachment(
@@ -375,7 +376,7 @@ class EmailSendServiceTest {
             Tenant tenant = buildTenantWithSmtpConfig();
             when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
-            when(emailMessageRepository.save(any())).thenReturn(buildSavedMessage());
+            when(emailMessageRepository.save(any())).thenReturn(Optional.of(buildSavedMessage()));
 
             String ownKey = "email-attachments/" + TENANT_ID + "/" + UUID.randomUUID() + "/zalacznik.pdf";
             EmailReplyRequest.PendingAttachment attachment = new EmailReplyRequest.PendingAttachment(
@@ -432,6 +433,7 @@ class EmailSendServiceTest {
                 .bodyHtml(BODY_HTML)
                 .messageIdHeader("<" + UUID.randomUUID() + "@example.com>")
                 .deliveryStatus("SENT")
+                .messageAt(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS))
                 .build();
     }
 }

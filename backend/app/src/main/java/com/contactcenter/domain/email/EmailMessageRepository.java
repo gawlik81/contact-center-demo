@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -37,28 +38,225 @@ class EmailMessageRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
-     * Zapisuje nową wiadomość email.
+     * SQL zapisu — natywny INSERT (BE-134, EPIC-30). Zastępuje dawne {@code em.merge}, które nie
+     * wspiera klucza złożonego {@code (message_id, message_at)} wymuszonego partycjonowaniem
+     * (V102, DB-067) — wzorzec 1:1 z {@code SocialMessageRepository#INSERT_SQL} (BE-132).
      *
-     * @param message encja do zapisania – {@code tenantId} musi być ustawione
-     * @return zapisana encja z wygenerowanym {@code id}
+     * <p><strong>Deduplikacja nagłówka Message-ID — dlaczego {@code WHERE NOT EXISTS}, a NIE
+     * {@code ON CONFLICT}:</strong> constraint {@code uq_email_message_id_header} jest
+     * {@code DEFERRABLE INITIALLY DEFERRED} (V102), a PostgreSQL odrzuca {@code ON CONFLICT ON
+     * CONSTRAINT} wskazujący constraint odroczalny („ON CONFLICT does not support deferrable unique
+     * constraints/exclusion constraints as arbiters"). Dlatego duplikat wykrywa {@code NOT EXISTS} po
+     * {@code (tenant_id, message_id_header)} — ten sam klucz, co dedup aplikacyjny
+     * {@link #findByMessageIdHeader} (D4 = A: dedup bez daty). Wyścig dwóch równoległych zapisów tego
+     * samego nagłówka rozstrzyga {@link #ADVISORY_LOCK_SQL} (lock transakcyjny per tenant+nagłówek),
+     * więc drugi INSERT widzi już zatwierdzony wiersz i nie dochodzi do błędu odroczonego
+     * constraintu w COMMIT. Brak {@code catch DataIntegrityViolationException} w transakcji
+     * (BE-132: złapany wyjątek z natywnego zapytania oznaczyłby transakcję jako rollback-only).
+     *
+     * <p>Wszystkie parametry w {@code SELECT} są jawnie rzutowane: w {@code INSERT … SELECT} typ
+     * {@code unknown} zostałby zresolwowany do {@code text} i nie przypisałby się do kolumny
+     * {@code timestamptz}/{@code uuid}/{@code jsonb}.
+     */
+    static final String INSERT_SQL = """
+            INSERT INTO email_message
+                (message_id, tenant_id, contact_id, direction, from_address, to_address, cc_address,
+                 bcc_address, subject, body_html, body_text, message_id_header, in_reply_to, attachments,
+                 received_at, sent_at, delivery_status, created_at, message_at)
+            SELECT CAST(:messageId AS uuid), CAST(:tenantId AS uuid), CAST(:contactId AS uuid),
+                   CAST(:direction AS varchar), CAST(:fromAddress AS varchar), CAST(:toAddress AS text),
+                   CAST(:ccAddress AS text), CAST(:bccAddress AS text), CAST(:subject AS varchar),
+                   CAST(:bodyHtml AS text), CAST(:bodyText AS text), CAST(:messageIdHeader AS varchar),
+                   CAST(:inReplyTo AS varchar), CAST(:attachments AS jsonb),
+                   CAST(:receivedAt AS timestamptz), CAST(:sentAt AS timestamptz),
+                   CAST(:deliveryStatus AS varchar), CAST(:createdAt AS timestamptz),
+                   CAST(:messageAt AS timestamptz)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM email_message e
+                WHERE e.tenant_id = CAST(:tenantId AS uuid)
+                  AND e.message_id_header = CAST(:messageIdHeader AS varchar)
+            )
+            RETURNING message_id
+            """;
+
+    /**
+     * Transakcyjny advisory lock na parę (tenant, nagłówek Message-ID) — serializuje równoległe
+     * INSERT-y tego samego nagłówka, żeby {@link #INSERT_SQL} nie przepuścił duplikatu (patrz Javadoc
+     * {@link #INSERT_SQL}). Zwalniany automatycznie na COMMIT/ROLLBACK. Klucz blokady to hash, więc
+     * kolizja dwóch różnych nagłówków tylko je serializuje — poprawności to nie narusza.
+     */
+    static final String ADVISORY_LOCK_SQL =
+            "SELECT pg_advisory_xact_lock(hashtextextended(:lockKey, 0))";
+
+    /**
+     * SQL aktualizacji — natywny UPDATE po pełnym kluczu {@code (message_id, message_at)} (BE-134).
+     * Zapisuje wszystkie kolumny mutowalne (tak jak dawny {@code em.merge}); {@code tenant_id},
+     * {@code created_at} i {@code message_at} NIE są zapisywane (niemodyfikowalne). Wskazanie
+     * {@code message_at} w WHERE pozwala PostgreSQL przyciąć wyszukiwanie do jednej partycji.
+     */
+    static final String UPDATE_SQL = """
+            UPDATE email_message SET
+                contact_id        = CAST(:contactId AS uuid),
+                direction         = CAST(:direction AS varchar),
+                from_address      = CAST(:fromAddress AS varchar),
+                to_address        = CAST(:toAddress AS text),
+                cc_address        = CAST(:ccAddress AS text),
+                bcc_address       = CAST(:bccAddress AS text),
+                subject           = CAST(:subject AS varchar),
+                body_html         = CAST(:bodyHtml AS text),
+                body_text         = CAST(:bodyText AS text),
+                message_id_header = CAST(:messageIdHeader AS varchar),
+                in_reply_to       = CAST(:inReplyTo AS varchar),
+                attachments       = CAST(:attachments AS jsonb),
+                received_at       = CAST(:receivedAt AS timestamptz),
+                sent_at           = CAST(:sentAt AS timestamptz),
+                delivery_status   = CAST(:deliveryStatus AS varchar)
+            WHERE tenant_id  = CAST(:tenantId AS uuid)
+              AND message_id = CAST(:messageId AS uuid)
+              AND message_at = CAST(:messageAt AS timestamptz)
+            """;
+
+    /**
+     * Zapisuje nową wiadomość email natywnym INSERT-em (BE-134).
+     *
+     * <p>Przed zapisem: {@code messageId} nadawany w Java, gdy brak ({@code UUID.randomUUID()});
+     * {@code messageAt} MUSI być ustawione przez wołającego (INBOUND = INTERNALDATE, OUTBOUND = czas
+     * wysłania) — brak wartości to błąd programisty, a NIE cicha podmiana na {@code now()} (dlatego
+     * DEFAULT z V101 nie jest tu używany). {@code createdAt} i {@code attachments} dostają wartości
+     * domyślne (zastępują {@code @PrePersist}, którego natywny INSERT nie wywołuje).
+     *
+     * @param message encja do zapisania — {@code tenantId}, {@code messageAt} i pola NOT NULL muszą być ustawione
+     * @return {@code Optional} z zapisaną encją — {@code empty} gdy wiadomość o tym samym
+     *         {@code message_id_header} już istnieje w tenancie (duplikat; wołający traktuje to jako
+     *         idempotentny no-op, NIE jako błąd)
+     * @throws IllegalArgumentException gdy {@code messageAt} jest null albo ma precyzję wyższą niż mikrosekundy
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId niezgodny z kontekstem
      */
-    public EmailMessage save(EmailMessage message) {
+    public Optional<EmailMessage> save(EmailMessage message) {
         assertSameTenant(message.getTenantId());
         setTenantContextInDb();
-        return em.merge(message);
+        requireStorableMessageAt(message.getMessageAt());
+
+        if (message.getId() == null) {
+            message.setId(UUID.randomUUID());
+        }
+        if (message.getCreatedAt() == null) {
+            message.setCreatedAt(Instant.now());
+        }
+        if (message.getAttachments() == null) {
+            message.setAttachments("[]");
+        }
+
+        if (message.getMessageIdHeader() != null) {
+            em.createNativeQuery(ADVISORY_LOCK_SQL)
+                    .setParameter("lockKey", message.getTenantId() + "|" + message.getMessageIdHeader())
+                    .getSingleResult();
+        }
+
+        log.debug("[EmailMessageRepo] Zapisuję wiadomość: messageId={}, messageAt={}, direction={}, tenant={}",
+                message.getId(), message.getMessageAt(), message.getDirection(), message.getTenantId());
+
+        List<?> returned = em.createNativeQuery(INSERT_SQL)
+                .setParameter("messageId", message.getId().toString())
+                .setParameter("tenantId", message.getTenantId().toString())
+                .setParameter("contactId", toStringOrNull(message.getContactId()))
+                .setParameter("direction", message.getDirection())
+                .setParameter("fromAddress", message.getFromAddress())
+                .setParameter("toAddress", message.getToAddress())
+                .setParameter("ccAddress", message.getCcAddress())
+                .setParameter("bccAddress", message.getBccAddress())
+                .setParameter("subject", message.getSubject())
+                .setParameter("bodyHtml", message.getBodyHtml())
+                .setParameter("bodyText", message.getBodyText())
+                .setParameter("messageIdHeader", message.getMessageIdHeader())
+                .setParameter("inReplyTo", message.getInReplyTo())
+                .setParameter("attachments", message.getAttachments())
+                .setParameter("receivedAt", message.getReceivedAt())
+                .setParameter("sentAt", message.getSentAt())
+                .setParameter("deliveryStatus", message.getDeliveryStatus())
+                .setParameter("createdAt", message.getCreatedAt())
+                .setParameter("messageAt", message.getMessageAt())
+                .getResultList();
+
+        if (returned.isEmpty()) {
+            log.info("[EmailMessageRepo] Duplikat nagłówka Message-ID — INSERT pominięty: tenant={}, header={}",
+                    message.getTenantId(), message.getMessageIdHeader());
+            return Optional.empty();
+        }
+
+        log.debug("[EmailMessageRepo] Wiadomość zapisana: messageId={}, messageAt={}",
+                message.getId(), message.getMessageAt());
+        return Optional.of(message);
     }
 
     /**
-     * Aktualizuje istniejącą wiadomość email.
+     * Aktualizuje istniejącą wiadomość email natywnym UPDATE-em po pełnym kluczu (BE-134).
      *
-     * @param message encja do aktualizacji
-     * @return zaktualizowana encja
+     * <p>Wiersz identyfikowany przez {@code (message_id, message_at)} — {@code messageAt} z encji, który
+     * jest niemodyfikowalny, więc zawsze wskazuje ten sam wiersz co przy zapisie.
+     *
+     * @param message encja do aktualizacji (pochodząca z {@link #findById(UUID, Instant)} lub z {@link #save})
+     * @return ta sama encja (po zapisie)
+     * @throws IllegalStateException gdy żaden wiersz nie został zaktualizowany (brak wiersza albo RLS
+     *                               ukrywa go przed bieżącym tenantem — zapis NIE może się cicho nie powieść)
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId niezgodny z kontekstem
      */
     public EmailMessage update(EmailMessage message) {
         assertSameTenant(message.getTenantId(), message.getId());
         setTenantContextInDb();
-        return em.merge(message);
+        if (message.getMessageAt() == null) {
+            throw new IllegalArgumentException("EmailMessage.messageAt jest wymagane do UPDATE (klucz partycji)");
+        }
+
+        int updated = em.createNativeQuery(UPDATE_SQL)
+                .setParameter("tenantId", message.getTenantId().toString())
+                .setParameter("messageId", message.getId().toString())
+                .setParameter("messageAt", message.getMessageAt())
+                .setParameter("contactId", toStringOrNull(message.getContactId()))
+                .setParameter("direction", message.getDirection())
+                .setParameter("fromAddress", message.getFromAddress())
+                .setParameter("toAddress", message.getToAddress())
+                .setParameter("ccAddress", message.getCcAddress())
+                .setParameter("bccAddress", message.getBccAddress())
+                .setParameter("subject", message.getSubject())
+                .setParameter("bodyHtml", message.getBodyHtml())
+                .setParameter("bodyText", message.getBodyText())
+                .setParameter("messageIdHeader", message.getMessageIdHeader())
+                .setParameter("inReplyTo", message.getInReplyTo())
+                .setParameter("attachments", message.getAttachments() != null ? message.getAttachments() : "[]")
+                .setParameter("receivedAt", message.getReceivedAt())
+                .setParameter("sentAt", message.getSentAt())
+                .setParameter("deliveryStatus", message.getDeliveryStatus())
+                .executeUpdate();
+
+        if (updated != 1) {
+            throw new IllegalStateException("email_message: UPDATE dotknął " + updated + " wierszy (oczekiwano 1): "
+                    + "messageId=" + message.getId() + ", messageAt=" + message.getMessageAt()
+                    + " — brak wiersza albo ukryty przez RLS");
+        }
+        return message;
+    }
+
+    /**
+     * Wymusza kontrakt {@link #save}: {@code messageAt} ustawione i o precyzji mikrosekund.
+     *
+     * <p>PostgreSQL przechowuje {@code timestamptz} z dokładnością do mikrosekund. Wartość z
+     * nanosekundami zapisana w bazie wróciłaby zaokrąglona, a późniejszy lookup/UPDATE po kluczu
+     * {@code message_at} nie trafiałby w wiersz (albo event RabbitMQ niósłby inną wartość niż baza).
+     * Dlatego źródła {@code messageAt} MUSZĄ obcinać do mikrosekund ({@code truncatedTo(MICROS)}).
+     */
+    static void requireStorableMessageAt(Instant messageAt) {
+        if (messageAt == null) {
+            throw new IllegalArgumentException("EmailMessage.messageAt jest wymagane (klucz partycji, DB-067)");
+        }
+        if (!messageAt.equals(messageAt.truncatedTo(ChronoUnit.MICROS))) {
+            throw new IllegalArgumentException(
+                    "EmailMessage.messageAt ma precyzję wyższą niż mikrosekundy (PostgreSQL): " + messageAt);
+        }
+    }
+
+    private static String toStringOrNull(UUID value) {
+        return value != null ? value.toString() : null;
     }
 
     // =========================================================================
@@ -112,33 +310,52 @@ class EmailMessageRepository extends TenantAwareRepository {
     /** Maksymalna liczba elementów listy w jednym {@code IN (...)} (limit 32767 parametrów PostgreSQL JDBC). */
     private static final int IN_LIST_CHUNK_SIZE = 1000;
 
-    /** SQL fazy 1 — package-private, żeby test integracyjny mógł zrobić {@code EXPLAIN} dokładnie tego zapytania. */
+    /**
+     * SQL fazy 1 — package-private, żeby test integracyjny mógł zrobić {@code EXPLAIN} dokładnie tego zapytania.
+     * Projekcja zawiera {@code message_at} (BE-134): faza 3 usuwa wiersze pełnym kluczem złożonym.
+     */
     static final String FIND_ATTACHMENTS_SQL = """
-            SELECT message_id, contact_id, CAST(attachments AS text)
+            SELECT message_id, message_at, contact_id, CAST(attachments AS text)
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IN (:contactIds)
             """;
 
-    /** SQL fazy 3 — package-private z tego samego powodu co {@link #FIND_ATTACHMENTS_SQL}. */
+    /**
+     * SQL fazy 3 — package-private z tego samego powodu co {@link #FIND_ATTACHMENTS_SQL}.
+     *
+     * <p>BE-134: wiersze identyfikowane PEŁNYM kluczem {@code (message_id, message_at)}. Parametr
+     * {@code :rows} to JSON {@code [{"message_id": "...", "message_at": "..."}]} zbudowany w Java
+     * ({@link #toKeyJson}); {@code jsonb_to_recordset} daje typowane kolumny, więc SQL pozostaje
+     * stały (jeden plan, bez dynamicznego doklejania placeholderów). Warunek {@code message_at} pozwala
+     * PostgreSQL skierować każdy wiersz do właściwej partycji. NIGDY {@code ctid} (DB-067: nie jest
+     * unikalny między partycjami — zob. {@code ContactRepository#deleteBatchOlderThan}).
+     */
     static final String DELETE_BY_IDS_SQL = """
-            DELETE FROM email_message
-            WHERE tenant_id = CAST(:tenantId AS uuid)
-              AND message_id IN (:messageIds)
-            RETURNING message_id
+            DELETE FROM email_message em
+            USING jsonb_to_recordset(CAST(:rows AS jsonb)) AS k(message_id uuid, message_at timestamptz)
+            WHERE em.tenant_id = CAST(:tenantId AS uuid)
+              AND em.message_id = k.message_id
+              AND em.message_at = k.message_at
+            RETURNING em.message_id, em.message_at
             """;
 
     /**
-     * Wiersz do fazy S3 purge: klucz główny wiadomości, kontakt (do {@code contactIdsBlocked}; może
-     * być {@code null} dla wiadomości osieroconych — BE-127) oraz surowy JSONB {@code attachments}
-     * jako tekst.
+     * Wiersz do fazy S3 purge: pełny klucz wiadomości ({@code messageId}, {@code messageAt}), kontakt
+     * (do {@code contactIdsBlocked}; może być {@code null} dla wiadomości osieroconych — BE-127) oraz
+     * surowy JSONB {@code attachments} jako tekst.
      *
-     * <p>Po partycjonowaniu {@code email_message} (DB-067/BE-134) PK staje się złożony
-     * ({@code message_id, message_at}) — wtedy rekord musi nieść także {@code messageAt}, a
-     * {@link #deleteByIds} identyfikować wiersze pełnym kluczem (wzorzec
+     * <p>BE-134: rekord niesie {@code messageAt}, bo po partycjonowaniu (DB-067) PK jest złożony i
+     * {@link #deleteByIds} identyfikuje wiersze pełnym kluczem (wzorzec
      * {@code ContactRepository#deleteBatchOlderThan}).
      */
-    record AttachmentsRow(UUID messageId, UUID contactId, String attachmentsJson) {}
+    record AttachmentsRow(UUID messageId, Instant messageAt, UUID contactId, String attachmentsJson) {
+
+        /** Pełny klucz wiadomości — do mapy „zlecone do usunięcia" i porównania z potwierdzeniem RETURNING. */
+        EmailMessageId key() {
+            return new EmailMessageId(messageId, messageAt);
+        }
+    }
 
     /**
      * Faza 1 purge „S3 przed wierszem": zwraca wiadomości tenanta powiązane z podanymi kontaktami
@@ -147,14 +364,14 @@ class EmailMessageRepository extends TenantAwareRepository {
      * <p><strong>Natywny SQL z projekcją skalarną</strong> ({@code Object[]}), nie
      * {@code createNativeQuery(sql, EmailMessage.class)} — w tym projekcie natywne zapytania z
      * {@code resultClass} i kolumnami enum kończyły się {@code ClassCastException} (EPIC-29), a do
-     * fazy S3 potrzebne są tylko trzy kolumny. JSONB jest rzutowany na tekst po stronie SQL;
+     * fazy S3 potrzebne są tylko cztery kolumny. JSONB jest rzutowany na tekst po stronie SQL;
      * parsowanie i odporność na uszkodzone dane: {@code EmailAttachmentKeys#extractS3Keys}.
      *
      * <p><strong>Indeks:</strong> {@code contact_id IN (...)} korzysta z
      * {@code idx_email_message_contact (contact_id, received_at DESC)}; filtr {@code tenant_id}
      * to dodatkowa bariera izolacji (obok RLS). Zapytanie po {@code contact_id} bez klucza
      * partycji działa też na tabeli partycjonowanej (DB-067) — PostgreSQL odpyta indeksy
-     * poszczególnych partycji.
+     * poszczególnych partycji (koszt: liczba partycji).
      *
      * <p>Transakcja tylko-do-odczytu jest krótka i kończy się PRZED wywołaniami S3 (nie trzymamy
      * połączenia z puli przez I/O).
@@ -194,64 +411,79 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     /**
-     * Faza 3 purge „S3 przed wierszem": usuwa wskazane wiadomości tenanta i zwraca ID wierszy
-     * FAKTYCZNIE usunięte ({@code DELETE … RETURNING message_id}).
+     * Faza 3 purge „S3 przed wierszem": usuwa wskazane wiadomości tenanta (pełny klucz
+     * {@code (message_id, message_at)}) i zwraca klucze FAKTYCZNIE usunięte ({@code DELETE … RETURNING}).
      *
      * <p>Wywołujący przekazuje wyłącznie wiadomości, których wszystkie obiekty S3 zostały już
-     * usunięte. Wiersze identyfikowane pełnym kluczem głównym (dziś {@code message_id}); NIGDY
-     * {@code ctid} — na tabeli partycjonowanej (DB-067) {@code ctid} nie jest unikalny globalnie i
-     * DELETE po nim usuwa cudze wiersze (zweryfikowane empirycznie w BE-113, zob.
-     * {@code ContactRepository#deleteBatchOlderThan}).
-     * Filtr {@code tenant_id} zostaje jako bariera izolacji.
+     * usunięte. Filtr {@code tenant_id} zostaje jako bariera izolacji.
      *
-     * <p>Zwracanie faktycznie usuniętych ID (a nie liczby zleconych) jest istotne: pod rolą bez
+     * <p>Zwracanie faktycznie usuniętych kluczy (a nie liczby zleconych) jest istotne: pod rolą bez
      * BYPASSRLS DELETE bez polityki {@code FOR DELETE} usuwa 0 wierszy BEZ błędu (DESIGN §2 U8,
      * R1) — wołający zobaczy różnicę i nie usunie kontaktu, którego wiadomości zostały.
      *
-     * @param tenantId   UUID tenanta (musi zgadzać się z {@code TenantContext})
-     * @param messageIds klucze główne wiadomości do usunięcia — pusta kolekcja = pusty wynik
-     * @return zbiór {@code message_id} faktycznie usuniętych wierszy (nigdy {@code null})
+     * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
+     * @param keys     pełne klucze wiadomości do usunięcia — pusta kolekcja = pusty wynik
+     * @return zbiór kluczy FAKTYCZNIE usuniętych wierszy (nigdy {@code null})
      * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
      */
     @Transactional
-    public Set<UUID> deleteByIds(UUID tenantId, Collection<UUID> messageIds) {
+    public Set<EmailMessageId> deleteByIds(UUID tenantId, Collection<EmailMessageId> keys) {
         assertSameTenant(tenantId);
         setTenantContextInDb(tenantId);
 
-        Set<UUID> deleted = new HashSet<>();
-        if (messageIds == null || messageIds.isEmpty()) {
+        Set<EmailMessageId> deleted = new HashSet<>();
+        if (keys == null || keys.isEmpty()) {
             return deleted;
         }
 
-        List<UUID> ids = List.copyOf(messageIds);
-        for (int from = 0; from < ids.size(); from += IN_LIST_CHUNK_SIZE) {
-            List<UUID> chunk = ids.subList(from, Math.min(from + IN_LIST_CHUNK_SIZE, ids.size()));
+        List<EmailMessageId> all = List.copyOf(keys);
+        for (int from = 0; from < all.size(); from += IN_LIST_CHUNK_SIZE) {
+            List<EmailMessageId> chunk = all.subList(from, Math.min(from + IN_LIST_CHUNK_SIZE, all.size()));
 
             @SuppressWarnings("unchecked")
-            List<Object> returned = em.createNativeQuery(DELETE_BY_IDS_SQL)
+            List<Object[]> returned = em.createNativeQuery(DELETE_BY_IDS_SQL)
                     .setParameter("tenantId", tenantId.toString())
-                    .setParameter("messageIds", chunk)
+                    .setParameter("rows", toKeyJson(chunk))
                     .getResultList();
 
-            for (Object id : returned) {
-                deleted.add(toUuid(id));
+            for (Object[] row : returned) {
+                deleted.add(new EmailMessageId(toUuid(row[0]), toInstant(row[1])));
             }
         }
 
         log.info("[EmailMessageRepo] Usunięto wiadomości: tenant={}, zlecono={}, usunięto={}",
-                tenantId, ids.size(), deleted.size());
+                tenantId, all.size(), deleted.size());
         return deleted;
     }
 
     /**
-     * Mapuje wiersz projekcji {@code SELECT message_id, contact_id, CAST(attachments AS text)}
-     * ({@link #FIND_ATTACHMENTS_SQL}) na {@link AttachmentsRow}. {@code contact_id} bywa {@code NULL}
+     * Buduje parametr JSON dla {@link #DELETE_BY_IDS_SQL}: {@code [{"message_id":"…","message_at":"…"}]}.
+     * Wartości pochodzą wyłącznie z UUID i {@code Instant.toString()} (ISO-8601 bez znaków wymagających
+     * escapowania), więc nie ma tu wejścia od użytkownika do sklejenia.
+     */
+    static String toKeyJson(Collection<EmailMessageId> keys) {
+        StringBuilder json = new StringBuilder("[");
+        boolean first = true;
+        for (EmailMessageId key : keys) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append("{\"message_id\":\"").append(key.getId())
+                    .append("\",\"message_at\":\"").append(key.getMessageAt()).append("\"}");
+        }
+        return json.append(']').toString();
+    }
+
+    /**
+     * Mapuje wiersz projekcji {@link #FIND_ATTACHMENTS_SQL} ({@code message_id, message_at, contact_id,
+     * CAST(attachments AS text)}) na {@link AttachmentsRow}. {@code contact_id} bywa {@code NULL}
      * (wiadomość osierocona — BE-127 użyje tego samego mapowania) i wtedy trafia do rekordu jako
      * {@code null}. Package-private, żeby test jednostkowy pokrył ścieżkę {@code NULL} bez bazy.
      */
     static AttachmentsRow toAttachmentsRow(Object[] row) {
-        return new AttachmentsRow(toUuid(row[0]), toUuid(row[1]), (String) row[2]);
+        return new AttachmentsRow(toUuid(row[0]), toInstant(row[1]), toUuid(row[2]), (String) row[3]);
     }
 
     /** Konwersja wartości kolumny {@code uuid} z natywnego zapytania; {@code null} (kolumna NULL) → {@code null}. */
@@ -262,9 +494,21 @@ class EmailMessageRepository extends TenantAwareRepository {
         return value instanceof UUID uuid ? uuid : UUID.fromString(String.valueOf(value));
     }
 
-    /** Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania (BE-127). */
-    private static Instant toInstant(Object value) {
-        return value instanceof java.sql.Timestamp ts ? ts.toInstant() : (Instant) value;
+    /**
+     * Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania. Sterownik może zwrócić
+     * {@code java.sql.Timestamp}, {@code Instant} albo {@code OffsetDateTime} — wszystkie trzy obsługiwane.
+     */
+    static Instant toInstant(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof java.sql.Timestamp ts) {
+            return ts.toInstant();
+        }
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.toInstant();
+        }
+        return (Instant) value;
     }
 
     // =========================================================================
@@ -273,83 +517,82 @@ class EmailMessageRepository extends TenantAwareRepository {
 
     /**
      * Margines filtra resztkowego: wiadomość zapisana w ostatniej dobie NIGDY nie kwalifikuje się do
-     * sweepu sierot, nawet jeśli jej „wiek" ({@link #ORPHAN_AGE_EXPR}) wypada przed {@code cutoff}.
+     * sweepu sierot, nawet jeśli jej {@code message_at} wypada przed {@code cutoff}.
      *
      * <p><strong>Dlaczego to jest potrzebne</strong> (BE-124 §7, doprecyzowanie do DB-059): dla
-     * INBOUND „wiek" = INTERNALDATE serwera IMAP ({@code Message#getReceivedDate()}), NIE czas
-     * zapisu do bazy. Skrzynka zmigrowana z historycznym INTERNALDATE (albo email z nagłówkiem
-     * {@code Date} z przeszłości — mniej istotne, bo INBOUND korzysta z INTERNALDATE, nie z
-     * nagłówka) dałaby wiadomość „starą" wg {@code COALESCE(...)}, mimo że dopiero co trafiła do
-     * bazy i {@code EmailContactCreator}/{@code EmailRoutingService} może jeszcze nie zdążyć jej
-     * przypisać do kontaktu (routing jest asynchroniczny względem zapisu — BE-124 §2 U1). Bez tego
-     * filtra taka wiadomość zostałaby usunięta W TRAKCIE routingu.
+     * INBOUND {@code message_at} = INTERNALDATE serwera IMAP ({@code Message#getReceivedDate()}), NIE
+     * czas zapisu do bazy. Skrzynka zmigrowana z historycznym INTERNALDATE dałaby wiadomość „starą"
+     * mimo że dopiero co trafiła do bazy, a {@code EmailContactCreator}/{@code EmailRoutingService}
+     * mogą jeszcze nie zdążyć jej przypisać do kontaktu (routing jest asynchroniczny względem zapisu —
+     * BE-124 §2 U1). Bez tego filtra taka wiadomość zostałaby usunięta W TRAKCIE routingu.
      *
-     * <p>Filtr jest na {@code created_at} (czas zapisu do bazy, zawsze „teraz" w chwili INSERT-u —
-     * {@code EmailMessage#onCreate}), NIE na {@link #ORPHAN_AGE_EXPR} — inaczej filtrowałby to samo,
-     * co już filtruje {@code cutoff}, i nie chroniłby niczego.
+     * <p>Filtr jest na {@code created_at} (czas zapisu do bazy, zawsze „teraz" w chwili INSERT-u),
+     * NIE na {@code message_at} — inaczej filtrowałby to samo, co już filtruje {@code cutoff}.
      */
     static final Duration ORPHAN_RESIDUAL_MARGIN = Duration.ofDays(1);
 
     /**
-     * Wyrażenie „wieku wiadomości" — DOKŁADNIE jak w DB-059/V097 (dopasowanie predykatu częściowego
-     * indeksu {@code idx_email_message_tenant_orphan_age}, żeby planner faktycznie go użył). Używane
-     * identycznie w zapytaniu zliczającym i stronicowanym (patrz SQL-e poniżej).
+     * Kolumna „wieku wiadomości" dla sweepu sierot — BE-134 (DB-067/V102).
+     *
+     * <p>Do BE-134 wiek liczono wyrażeniem {@code COALESCE(received_at, sent_at, created_at)} (DB-059).
+     * Po partycjonowaniu kolumna {@code message_at} NOT NULL jest tym samym czasem (backfill V101 =
+     * {@code COALESCE(...)}, a nowe wiersze ustawiają ją jawnie), więc zapytania używają jej wprost.
+     * Efekt: predykat {@code message_at < :cutoff} jest zgodny z częściowym indeksem
+     * {@code idx_email_message_tenant_orphan_age ON (tenant_id, message_at) WHERE contact_id IS NULL}
+     * (V102). Wyrażenie {@code COALESCE} z poprzedniej wersji NIE pasowałoby do tego indeksu i planner
+     * robiłby Seq Scan (zmierzone na scratch, notatka DB-067).
      */
-    private static final String ORPHAN_AGE_EXPR = "COALESCE(received_at, sent_at, created_at)";
+    static final String ORPHAN_AGE_COLUMN = "message_at";
 
     /**
      * SQL dry-run/count — package-private, żeby test integracyjny mógł zrobić {@code EXPLAIN}
-     * dokładnie tego zapytania. Budowany z {@link #ORPHAN_AGE_EXPR} (nie skopiowany ręcznie), żeby
-     * wyrażenie „wieku" było MECHANICZNIE identyczne w tym zapytaniu, w
-     * {@link #FIND_ORPHANS_FIRST_PAGE_SQL}/{@link #FIND_ORPHANS_NEXT_PAGE_SQL} i w predykacie
-     * częściowego indeksu {@code idx_email_message_tenant_orphan_age} (DB-059/V097) — literalna
-     * zgodność jest wymogiem AC BE-127, nie tylko stylistyczną preferencją.
+     * dokładnie tego zapytania (predykat zgodny z częściowym indeksem {@code idx_email_message_tenant_orphan_age}).
      */
     static final String COUNT_ORPHANS_SQL = """
             SELECT COUNT(*)
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IS NULL
-              AND %1$s < :cutoff
+              AND message_at < :cutoff
               AND created_at < :residualCutoff
-            """.formatted(ORPHAN_AGE_EXPR);
+            """;
 
     /** SQL pierwszej strony sweepu sierot (brak kursora) — package-private dla testu EXPLAIN. */
     static final String FIND_ORPHANS_FIRST_PAGE_SQL = """
-            SELECT message_id, %1$s AS message_at, CAST(attachments AS text)
+            SELECT message_id, message_at, CAST(attachments AS text)
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IS NULL
-              AND %1$s < :cutoff
+              AND message_at < :cutoff
               AND created_at < :residualCutoff
-            ORDER BY %1$s, message_id
+            ORDER BY message_at, message_id
             LIMIT :batchSize
-            """.formatted(ORPHAN_AGE_EXPR);
+            """;
 
     /** SQL kolejnych stron sweepu sierot (kursor keyset) — package-private dla testu EXPLAIN. */
     static final String FIND_ORPHANS_NEXT_PAGE_SQL = """
-            SELECT message_id, %1$s AS message_at, CAST(attachments AS text)
+            SELECT message_id, message_at, CAST(attachments AS text)
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IS NULL
-              AND %1$s < :cutoff
+              AND message_at < :cutoff
               AND created_at < :residualCutoff
-              AND (%1$s, message_id) > (:cursorMessageAt, CAST(:cursorMessageId AS uuid))
-            ORDER BY %1$s, message_id
+              AND (message_at, message_id) > (:cursorMessageAt, CAST(:cursorMessageId AS uuid))
+            ORDER BY message_at, message_id
             LIMIT :batchSize
-            """.formatted(ORPHAN_AGE_EXPR);
+            """;
 
     /**
-     * Kandydat sierocy do fazy S3+DELETE ({@link EmailMessageServiceImpl#purgeRows}): pełne dane
-     * potrzebne do usunięcia ({@code messageId}, {@code attachmentsJson} — jak {@link AttachmentsRow},
-     * ale {@code contactId} jest zawsze {@code null} z definicji sierot) ORAZ wartość „wieku" do
+     * Kandydat sierocy do fazy S3+DELETE ({@link EmailMessageServiceImpl#purgeRows}): pełny klucz
+     * ({@code messageId}, {@code messageAt}) i {@code attachmentsJson} — jak {@link AttachmentsRow}, ale
+     * {@code contactId} jest zawsze {@code null} z definicji sierot. {@code messageAt} służy też do
      * zbudowania {@link EmailOrphanCursor} kolejnej strony.
      */
     record OrphanCandidate(UUID messageId, Instant messageAt, String attachmentsJson) {
 
         /** Konwersja do {@link AttachmentsRow} — wejście {@link EmailMessageServiceImpl#purgeRows}. */
         AttachmentsRow toAttachmentsRow() {
-            return new AttachmentsRow(messageId, null, attachmentsJson);
+            return new AttachmentsRow(messageId, messageAt, null, attachmentsJson);
         }
     }
 
@@ -360,7 +603,7 @@ class EmailMessageRepository extends TenantAwareRepository {
      * kolejny purge.
      *
      * @param tenantId UUID tenanta (musi zgadzać się z {@code TenantContext})
-     * @param cutoff   granica czasowa — kandydują wiadomości z „wiekiem" < {@code cutoff}
+     * @param cutoff   granica czasowa — kandydują wiadomości z {@code message_at} < {@code cutoff}
      * @return liczba kwalifikujących się wiadomości (nigdy ujemna)
      * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
@@ -385,24 +628,20 @@ class EmailMessageRepository extends TenantAwareRepository {
      * S3+DELETE przez {@link EmailMessageServiceImpl#purgeRows}.
      *
      * <p><strong>Strategia H-1</strong> (head-of-line blocking, jak w BE-126): porządek
-     * {@code ORDER BY <wiek>, message_id} jest deterministyczny i wspiera stronicowanie keyset —
+     * {@code ORDER BY message_at, message_id} jest deterministyczny i wspiera stronicowanie keyset —
      * strona zaczyna się ŚCIŚLE PO ostatnim kandydacie poprzedniej strony, niezależnie od tego, czy
      * jego wiadomość została faktycznie usunięta (porażka S3). Terminacja pętli wołającego zależy
      * wyłącznie od wyczerpania kandydatów ({@code page.size() < batchSize}), nie od liczby usunięć.
      *
      * <p>Filtr resztkowy {@code created_at < :residualCutoff} (patrz {@link #ORPHAN_RESIDUAL_MARGIN})
-     * jest {@code Filter}, nie {@code Index Cond} — nie zmienia planu (indeks z DB-059 nadal
+     * jest {@code Filter}, nie {@code Index Cond} — nie zmienia planu (indeks z DB-059/V102 nadal
      * używany), tylko zawęża wynik.
      *
-     * <p>Brak indeksu pokrywającego {@code (tenant_id, wiek, message_id)} bez dodatkowego filtra —
-     * identyczna sytuacja jak {@code ContactRepository#findContactIdsOlderThan} (indeks z DB-059 nie
-     * niesie {@code message_id}, więc porządek/tie-break dogrywa planner).
-     *
      * @param tenantId  UUID tenanta (musi zgadzać się z {@code TenantContext})
-     * @param cutoff    granica czasowa — kandydują wiadomości z „wiekiem" < {@code cutoff}
-     * @param cursor    ostatni kandydat poprzedniej strony ({@code null} dla pierwszej strony)
+     * @param cutoff    granica czasowa — kandydują wiadomości z {@code message_at} < {@code cutoff}
+     * @param cursor    kursor poprzedniej strony ({@code null} dla pierwszej strony)
      * @param batchSize maksymalna liczba kandydatów na stronę
-     * @return strona kandydatów posortowana rosnąco po {@code (wiek, message_id)} — pusta, gdy nie ma
+     * @return strona kandydatów posortowana rosnąco po {@code (message_at, message_id)} — pusta, gdy nie ma
      *         więcej kandydatów; {@code page.size() < batchSize} sygnalizuje ostatnią stronę
      * @throws IllegalStateException gdy {@code TenantContext} nie jest ustawiony
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
@@ -572,7 +811,16 @@ class EmailMessageRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
-     * Pobiera wiadomość po UUID (PK).
+     * Pobiera wiadomość po samym {@code message_id} — BEZ klucza partycji (BE-134).
+     *
+     * <p>Używane tam, gdzie wołający zna wyłącznie identyfikator: endpointy REST z {@code {id}} w URL,
+     * wysyłka odpowiedzi ({@code EmailSendService}), podgląd kontaktu z {@code channelMetadata} oraz
+     * zdarzenia RabbitMQ sprzed BE-134 (bez {@code messageAt}).
+     *
+     * <p><strong>Koszt:</strong> PostgreSQL nie zna partycji z samego {@code message_id}, więc odpytuje
+     * indeks PK ({@code pk_email_message}) KAŻDEJ partycji — {@code Append} po wszystkich partycjach
+     * miesięcznych i {@code _default}. Koszt rośnie z liczbą partycji, nie z wielkością tabeli. Wszędzie,
+     * gdzie znany jest {@code message_at}, używaj {@link #findById(UUID, Instant)} (partition pruning).
      *
      * @param messageId UUID wiadomości (kolumna message_id)
      * @return Optional z wiadomością lub empty
@@ -580,7 +828,26 @@ class EmailMessageRepository extends TenantAwareRepository {
     @Transactional(readOnly = true)
     public Optional<EmailMessage> findById(UUID messageId) {
         setTenantContextInDb();
-        return Optional.ofNullable(em.find(EmailMessage.class, messageId));
+        List<EmailMessage> results = em.createQuery(
+                        "SELECT m FROM EmailMessage m WHERE m.id = :id", EmailMessage.class)
+                .setParameter("id", messageId)
+                .setMaxResults(1)
+                .getResultList();
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
+     * Pobiera wiadomość po PEŁNYM kluczu {@code (message_id, message_at)} (BE-134) — jeden wiersz,
+     * partition pruning do partycji zawierającej {@code messageAt}.
+     *
+     * @param messageId UUID wiadomości
+     * @param messageAt klucz partycjonowania (ta sama wartość, która została zapisana)
+     * @return Optional z wiadomością lub empty
+     */
+    @Transactional(readOnly = true)
+    public Optional<EmailMessage> findById(UUID messageId, Instant messageAt) {
+        setTenantContextInDb();
+        return Optional.ofNullable(em.find(EmailMessage.class, new EmailMessageId(messageId, messageAt)));
     }
 
     /**

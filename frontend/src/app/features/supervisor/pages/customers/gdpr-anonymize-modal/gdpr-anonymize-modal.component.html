@@ -88,7 +88,8 @@
 
       <div class="anonymize-dialog__confirm-field">
         <label for="confirm-input" class="anonymize-dialog__confirm-label">
-          {{ 'supervisor.gdprAnonymize.confirmLabel' | transloco }} <strong>ANONIMIZUJ</strong>:
+          {{ 'supervisor.gdprAnonymize.confirmLabel' | transloco }} <strong>{{ confirmPhrase() }}</strong
+          >:
         </label>
         <input
           id="confirm-input"
@@ -100,11 +101,11 @@
           autocomplete="off"
           spellcheck="false"
           aria-required="true"
-          [attr.aria-invalid]="confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ'"
+          [attr.aria-invalid]="confirmText().length > 0 && !isPhraseMatching()"
         />
-        @if (confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ') {
+        @if (confirmText().length > 0 && !isPhraseMatching()) {
           <p class="anonymize-dialog__confirm-hint" role="alert" aria-live="polite">
-            {{ 'supervisor.gdprAnonymize.confirmHint' | transloco }}
+            {{ 'supervisor.gdprAnonymize.confirmHint' | transloco: { phrase: confirmPhrase() } }}
           </p>
         }
         @if (previewState() !== 'loaded') {

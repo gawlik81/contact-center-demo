@@ -1653,12 +1653,13 @@
         "s3Objects": "Pliki w magazynie (nagrania, załączniki)"
       },
       "confirmLabel": "Aby potwierdzić, wpisz",
-      "confirmHint": "Wpisz dokładnie: ANONIMIZUJ",
+      "confirmPhrase": "ANONIMIZUJ",
+      "confirmHint": "Wpisz dokładnie: {{ phrase }}",
       "confirmButton": "Potwierdź anonimizację",
       "confirmButtonLabel": "Potwierdź anonimizację danych klienta",
       "errorAnonymize": "Nie udało się zanonimizować danych klienta. Spróbuj ponownie.",
       "successAnonymize": "Dane klienta zostały zanonimizowane.",
-      "confirmMismatch": "Wpisz dokładnie: ANONIMIZUJ"
+      "confirmMismatch": "Wpisz dokładnie: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2364,6 +2365,7 @@
         "summaryNotComputed": "Jeszcze nie przeliczono",
         "summaryZeroEligible": "Brak danych do usunięcia",
         "summaryEligibleCount": "{{ count }} rekordów kwalifikuje się do usunięcia",
+        "summaryEligibleCountHint": "Liczba jest sumą różnych typów rekordów (np. kontakty, zdarzenia i wiadomości).",
         "summaryOldestPeriod": "Najstarszy kwalifikujący się okres",
         "summaryComputedAt": "Ostatnio przeliczono",
         "errorLoadSummary": "Nie udało się załadować danych kwalifikujących się do usunięcia.",
@@ -2384,9 +2386,11 @@
           "message": "Za chwilę trwale usuniesz {{ count }} rekordów z kategorii {{ category }}.",
           "rangeLabel": "Zakres okresów objętych usunięciem",
           "confirmLabel": "Aby potwierdzić, wpisz",
-          "confirmHint": "Wpisz dokładnie: USUŃ",
+          "confirmPhrase": "USUŃ",
+          "confirmHint": "Wpisz dokładnie: {{ phrase }}",
           "confirmButton": "Usuń dane",
-          "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}"
+          "confirmButtonAria": "Potwierdź usunięcie danych kategorii {{ category }}",
+          "contactInteractionsNote": "Liczba obejmuje także wiadomości e-mail i social media oraz ich załączniki. Załączniki zostaną trwale usunięte również z magazynu plików (S3) i nie będzie można ich odzyskać."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Interakcje z kontaktami",
@@ -2394,12 +2398,19 @@
           "TRANSCRIPTS": "Transkrypcje rozmów",
           "CAMPAIGN_DATA": "Dane kampanii"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami",
+          "RECORDINGS": "Nagrania rozmów wraz z plikami audio w magazynie plików",
+          "TRANSCRIPTS": "Transkrypcje rozmów oraz podsumowania wygenerowane przez AI",
+          "CAMPAIGN_DATA": "Zarchiwizowane rekordy kontaktów zakończonych kampanii wychodzących (archiwum)"
+        },
         "history": {
           "title": "Historia operacji usuwania",
           "errorLoad": "Nie udało się załadować historii operacji usuwania.",
           "columnCategory": "Kategoria",
           "columnTrigger": "Wyzwolenie",
           "columnRowsDeleted": "Usunięto rekordów",
+          "columnRowsDeletedHint": "W wierszach kategorii „Interakcje z kontaktami” liczba usuniętych rekordów jest sumą różnych typów (kontakty, zdarzenia, wiadomości).",
           "columnStatus": "Status",
           "columnStartedAt": "Rozpoczęto",
           "columnCompletedAt": "Zakończono",
@@ -2414,6 +2425,36 @@
           "paginationLabel": "Nawigacja stron historii usuwania",
           "showing": "Wyświetlanie",
           "ofEntries": "operacji"
+        },
+        "campaignArchive": {
+          "title": "Okres archiwizacji kontaktów kampanii",
+          "label": "Okres archiwizacji kontaktów kampanii (dni od zakończenia kampanii)",
+          "description": "Po tylu dniach od zakończenia kampanii (COMPLETED/STOPPED) jej kontakty są archiwizowane. To nie jest okres retencji danych kampanii w tabeli powyżej (tam: miesiące, liczone od archiwizacji).",
+          "unit": "dni",
+          "defaultBadge": "Domyślne ({{ days }} dni)",
+          "customBadge": "Ustawione ręcznie",
+          "help": "Zakres: {{ min }}–{{ max }} dni (liczba całkowita). Domyślnie {{ default }} dni.",
+          "validationError": "Podaj liczbę całkowitą z zakresu {{ min }}–{{ max }}.",
+          "saveButton": "Zapisz",
+          "saved": "Okres archiwizacji kontaktów kampanii został zapisany.",
+          "errorLoad": "Nie udało się załadować okresu archiwizacji kontaktów kampanii.",
+          "errorLoadForbidden": "Brak uprawnień do odczytu okresu archiwizacji dla tego tenanta.",
+          "errorSaveValidation": "Wartość odrzucona przez serwer — podaj liczbę całkowitą z zakresu {{ min }}–{{ max }} dni.",
+          "errorForbidden": "Brak uprawnień do zmiany okresu archiwizacji dla tego tenanta.",
+          "errorSave": "Nie udało się zapisać okresu archiwizacji kontaktów kampanii.",
+          "lastChange": "Ostatnia zmiana",
+          "warning": "Po archiwizacji kontakty kampanii znikają z interfejsu, statystyk i dialera (nie ma widoku archiwum). Skrócenie okresu powoduje, że przy najbliższym przebiegu zostaną zarchiwizowane kampanie zakończone dawniej niż nowy okres. Zmiana nie przywraca już zarchiwizowanych kontaktów.",
+          "confirmModal": {
+            "title": "Potwierdź skrócenie okresu archiwizacji",
+            "intro": "Skracasz okres archiwizacji z {{ from }} do {{ to }} dni od zakończenia kampanii.",
+            "previewLoading": "Obliczanie skutków zmiany…",
+            "previewError": "Nie udało się obliczyć skutków zmiany. Możesz mimo to potwierdzić — kampanie zakończone dawniej niż nowy okres zostaną zarchiwizowane przy najbliższym przebiegu.",
+            "previewNothing": "Ta zmiana nie spowoduje dodatkowej archiwizacji.",
+            "previewResult": "Dodatkowo zostanie zarchiwizowane — kampanie: {{ campaigns }}, kontakty: {{ contacts }}.",
+            "previewTotal": "Łącznie przy najbliższym przebiegu — kampanie: {{ campaigns }}, kontakty: {{ contacts }} (z czego przy obecnym okresie i tak: kampanie: {{ currentCampaigns }}, kontakty: {{ currentContacts }}).",
+            "irreversible": "Zarchiwizowane kontakty znikną z interfejsu, statystyk i dialera; zmiana okresu ich nie przywróci.",
+            "confirmButton": "Skróć i zapisz"
+          }
         }
       }
     },

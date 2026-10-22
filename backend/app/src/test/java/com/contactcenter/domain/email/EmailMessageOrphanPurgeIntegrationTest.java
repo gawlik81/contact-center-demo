@@ -140,17 +140,20 @@ class EmailMessageOrphanPurgeIntegrationTest {
     private UUID insertMessage(UUID tenant, UUID contact, Instant receivedAt, Instant sentAt,
             Instant createdAt, String attachmentsJson) {
         UUID messageId = UUID.randomUUID();
+        // BE-134: message_at = dawny wiek COALESCE(received_at, sent_at, created_at) — ta sama reguła co backfill V101
+        Instant messageAt = receivedAt != null ? receivedAt : sentAt != null ? sentAt : createdAt;
         jdbc.update("""
                         INSERT INTO email_message
                             (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                             subject, body_text, attachments, received_at, sent_at, created_at)
+                             subject, body_text, attachments, received_at, sent_at, created_at, message_at)
                         VALUES (?, ?, ?, ?, 'klient@example.com', 'biuro@example.com',
-                                'Temat PII', 'Treść PII', CAST(? AS jsonb), ?, ?, ?)
+                                'Temat PII', 'Treść PII', CAST(? AS jsonb), ?, ?, ?, ?)
                         """,
                 messageId, tenant, contact, receivedAt != null ? "INBOUND" : "OUTBOUND", attachmentsJson,
                 receivedAt != null ? Timestamp.from(receivedAt) : null,
                 sentAt != null ? Timestamp.from(sentAt) : null,
-                Timestamp.from(createdAt));
+                Timestamp.from(createdAt),
+                Timestamp.from(messageAt));
         return messageId;
     }
 
@@ -512,14 +515,15 @@ class EmailMessageOrphanPurgeIntegrationTest {
                 jdbc.update("""
                                 INSERT INTO email_message
                                     (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                                     attachments, received_at, sent_at, created_at)
+                                     attachments, received_at, sent_at, created_at, message_at)
                                 SELECT gen_random_uuid(), ?,
                                        CASE WHEN abs(hashtext('orphan-' || g)) % 5 = 0 THEN NULL ELSE gen_random_uuid() END,
                                        CASE WHEN g % 2 = 0 THEN 'INBOUND' ELSE 'OUTBOUND' END,
                                        'a@a.pl', 'b@b.pl', '[]'::jsonb,
                                        CASE WHEN g % 2 = 0 THEN now() - ((g % 400) || ' days')::interval ELSE NULL END,
                                        CASE WHEN g % 2 = 1 THEN now() - ((g % 400) || ' days')::interval ELSE NULL END,
-                                       now() - ((g % 400) || ' days')::interval - interval '2 days'
+                                       now() - ((g % 400) || ' days')::interval - interval '2 days',
+                                       now() - ((g % 400) || ' days')::interval
                                 FROM generate_series(1, 30000) g
                                 """, tenant);
                 jdbc.execute("ANALYZE email_message");
@@ -543,9 +547,15 @@ class EmailMessageOrphanPurgeIntegrationTest {
                 String firstPagePlan = explain(firstPageSql);
                 String nextPagePlan = explain(nextPageSql);
 
-                assertThat(countPlan).contains(EMAIL_ORPHAN_INDEX).doesNotContain("Seq Scan");
-                assertThat(firstPagePlan).contains(EMAIL_ORPHAN_INDEX).doesNotContain("Seq Scan");
-                assertThat(nextPagePlan).contains(EMAIL_ORPHAN_INDEX).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, countPlan, EMAIL_ORPHAN_INDEX))
+                        .as("plan countPlan używa EMAIL_ORPHAN_INDEX lub potomka").isTrue();
+                assertThat(countPlan).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, firstPagePlan, EMAIL_ORPHAN_INDEX))
+                        .as("plan firstPagePlan używa EMAIL_ORPHAN_INDEX lub potomka").isTrue();
+                assertThat(firstPagePlan).doesNotContain("Seq Scan");
+                assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, nextPagePlan, EMAIL_ORPHAN_INDEX))
+                        .as("plan nextPagePlan używa EMAIL_ORPHAN_INDEX lub potomka").isTrue();
+                assertThat(nextPagePlan).doesNotContain("Seq Scan");
                 System.out.println("[EXPLAIN BE-127 COUNT]\n" + countPlan);
                 System.out.println("[EXPLAIN BE-127 FIRST PAGE]\n" + firstPagePlan);
                 System.out.println("[EXPLAIN BE-127 NEXT PAGE]\n" + nextPagePlan);
@@ -563,14 +573,15 @@ class EmailMessageOrphanPurgeIntegrationTest {
             jdbc.update("""
                             INSERT INTO email_message
                                 (message_id, tenant_id, contact_id, direction, from_address, to_address,
-                                 attachments, received_at, sent_at, created_at)
+                                 attachments, received_at, sent_at, created_at, message_at)
                             SELECT gen_random_uuid(), ?,
                                    CASE WHEN abs(hashtext('orphan-' || g)) % 5 = 0 THEN NULL ELSE gen_random_uuid() END,
                                    CASE WHEN g % 2 = 0 THEN 'INBOUND' ELSE 'OUTBOUND' END,
                                    'a@a.pl', 'b@b.pl', '[]'::jsonb,
                                    CASE WHEN g % 2 = 0 THEN now() - ((g % 400) || ' days')::interval ELSE NULL END,
                                    CASE WHEN g % 2 = 1 THEN now() - ((g % 400) || ' days')::interval ELSE NULL END,
-                                   now() - ((g % 400) || ' days')::interval - interval '2 days'
+                                   now() - ((g % 400) || ' days')::interval - interval '2 days',
+                                now() - ((g % 400) || ' days')::interval
                             FROM generate_series(1, 30000) g
                             """, tenant);
             jdbc.execute("ANALYZE email_message");
@@ -590,7 +601,9 @@ class EmailMessageOrphanPurgeIntegrationTest {
                             .replace(":batchSize", "100");
                     String plan = String.join("\n", restrictedJdbc.queryForList("EXPLAIN " + sql, String.class));
 
-                    assertThat(plan).contains(EMAIL_ORPHAN_INDEX).doesNotContain("Seq Scan");
+                    assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(jdbc, plan, EMAIL_ORPHAN_INDEX))
+                            .as("plan pod app_user używa EMAIL_ORPHAN_INDEX lub potomka").isTrue();
+                    assertThat(plan).doesNotContain("Seq Scan");
                     System.out.println("[EXPLAIN BE-127 pod app_user]\n" + plan);
                 } finally {
                     restrictedJdbc.execute("ROLLBACK");

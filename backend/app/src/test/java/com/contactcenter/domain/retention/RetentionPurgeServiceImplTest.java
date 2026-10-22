@@ -121,6 +121,9 @@ class RetentionPurgeServiceImplTest {
     @Mock
     private CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
 
+    @Mock
+    private CronFailureLogRepository cronFailureLogRepository;
+
     @InjectMocks
     private RetentionPurgeServiceImpl service;
 
@@ -479,7 +482,8 @@ class RetentionPurgeServiceImplTest {
         void purgeCampaignData_delegatesToRepositoryAndRecordsResult() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(17L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(17L, false));
 
             service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
 
@@ -493,7 +497,8 @@ class RetentionPurgeServiceImplTest {
         void cutoff_passedDirectlyAsInstant_noYearConversion() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(0L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(0L, false));
 
             LocalDate expectedCutoffDate = LocalDate.now(ZoneOffset.UTC).minusMonths(60);
             Instant expectedCutoffInstant = expectedCutoffDate.atStartOfDay(ZoneOffset.UTC).toInstant();
@@ -510,13 +515,31 @@ class RetentionPurgeServiceImplTest {
         void purgeForTenantA_neverTouchesTenantB() {
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
                     .thenReturn(60);
-            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any())).thenReturn(3L);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(3L, false));
 
             service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
 
             verify(campaignArchiveRetentionRepository, never()).purgeEligible(eq(TENANT_B), any());
             verify(campaignArchiveRetentionRepository).purgeEligible(eq(TENANT_A), any());
             verify(purgeLogRepository, never()).markCompleted(any(), eq(TENANT_B), anyLong());
+        }
+
+        @Test
+        @DisplayName("truncated=true (limit partii / SKIP LOCKED) -> COMPLETED z ostrzeżeniem, nie ciche 'czyste' markCompleted")
+        void truncatedOutcome_marksCompletedWithWarning() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(30_000L, true));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            ArgumentCaptor<String> warning = ArgumentCaptor.forClass(String.class);
+            verify(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(30_000L), warning.capture());
+            assertThat(warning.getValue()).contains("niekompletny");
+            verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+            verify(purgeLogRepository, never()).markFailed(any(), any(), any(), anyLong());
         }
 
         @Test
@@ -531,6 +554,53 @@ class RetentionPurgeServiceImplTest {
 
             verify(purgeLogRepository).markFailed(any(), eq(TENANT_A), eq("DB connection lost"), eq(0L));
             verify(purgeLogRepository, never()).markCompleted(any(), any(), anyLong());
+            // DB-082: dokładnie jeden ślad awarii na nieudany tenant, z tenant id w komunikacie
+            ArgumentCaptor<String> msg = ArgumentCaptor.forClass(String.class);
+            verify(cronFailureLogRepository, times(1)).recordFailure(
+                    eq("purge_campaign_contact_archive"), msg.capture(), any(Instant.class));
+            assertThat(msg.getValue()).contains("tenant=" + TENANT_A).contains("DB connection lost");
+        }
+
+        @Test
+        @DisplayName("sukces i truncated nie zapisują śladu awarii (DB-082)")
+        void successAndTruncated_doNotRecordFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(5L, true));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verifyNoInteractions(cronFailureLogRepository);
+        }
+
+        @Test
+        @DisplayName("awaria po purge (markCompleted) nie zapisuje śladu cron — to nie awaria purge_campaign_contact_archive")
+        void failureAfterPurge_doesNotRecordCronFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA))
+                    .thenReturn(60);
+            when(campaignArchiveRetentionRepository.purgeEligible(eq(TENANT_A), any()))
+                    .thenReturn(new CampaignArchiveRetentionRepository.PurgeOutcome(5L, false));
+            org.mockito.Mockito.doThrow(new RuntimeException("log write failed"))
+                    .when(purgeLogRepository).markCompleted(any(), eq(TENANT_A), eq(5L));
+
+            service.purge(TENANT_A, RetentionDataCategory.CAMPAIGN_DATA, PurgeTriggerType.MANUAL, USER_ID);
+
+            verifyNoInteractions(cronFailureLogRepository);
+        }
+
+        @Test
+        @DisplayName("awaria innej kategorii (TRANSCRIPTS) -> FAILED, bez śladu cron (DB-082)")
+        void otherCategoryFailure_doesNotRecordCronFailure() {
+            when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.TRANSCRIPTS))
+                    .thenReturn(12);
+            when(contactService.purgeTranscriptionsOlderThan(eq(TENANT_A), any(), anyInt()))
+                    .thenThrow(new RuntimeException("boom"));
+
+            service.purge(TENANT_A, RetentionDataCategory.TRANSCRIPTS, PurgeTriggerType.MANUAL, USER_ID);
+
+            verify(purgeLogRepository).markFailed(any(), eq(TENANT_A), eq("boom"), eq(0L));
+            verifyNoInteractions(cronFailureLogRepository);
         }
     }
 
@@ -1265,17 +1335,19 @@ class RetentionPurgeServiceImplTest {
     }
 
     // =========================================================================
-    // BE-126: flaga delete-messages=false (domyślna) — regresja ścieżki legacy
+    // BE-126: flaga delete-messages=false (ścieżka legacy/wycofania, od 2026-10-07 już NIE domyślna)
     // =========================================================================
 
     @Nested
-    @DisplayName("flaga delete-messages=false (domyślna) — ścieżka legacy niezmieniona (BE-126)")
+    @DisplayName("flaga delete-messages=false (jawnie wyłączona w teście) — ścieżka legacy niezmieniona (BE-126)")
     class FlagDisabledRegression {
 
         @Test
         @DisplayName("findContactIdsOlderThan/deleteContacts NIGDY nie wywołane -- purgeContactsOlderThan/detachContactReferences jak dotychczas")
         void flagFalse_neverCallsNewMethods() {
-            // deleteMessagesEnabled domyślnie false (Java default dla pola boolean, nieustawianego w setUp())
+            // Od 2026-10-07 domyślny efektywny default (application.yml) to true -- ta ścieżka
+            // (legacy) musi być jawnie wyłączona, nie może już zależeć cicho od Java default dla boolean.
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", false);
             when(retentionPolicyService.getRetentionMonths(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS))
                     .thenReturn(60);
             List<UUID> batch = uuids(3);

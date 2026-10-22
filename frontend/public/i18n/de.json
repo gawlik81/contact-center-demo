@@ -1423,7 +1423,11 @@
         "FAILED": "Fehlgeschlagen",
         "IVR": "Im IVR",
         "ON_HOLD": "In der Warteschleife",
-        "QUEUED": "In der Warteschlange"
+        "QUEUED": "In der Warteschlange",
+        "ASSIGNED": "Zugewiesen",
+        "ERROR": "Fehler",
+        "NOT_REACHED": "Nicht erreicht",
+        "TRANSFERRED": "Weitergeleitet"
       },
       "errorDelete": "Kunde konnte nicht gelöscht werden.",
       "errorLoad": "Kundendaten konnten nicht geladen werden.",
@@ -1649,10 +1653,11 @@
         "s3Objects": "Dateien im Speicher (Aufzeichnungen, Anhänge)"
       },
       "confirmLabel": "Zur Bestätigung eingeben",
-      "confirmHint": "Geben Sie genau ein: ANONIMIZUJ",
+      "confirmPhrase": "ANONYMISIEREN",
+      "confirmHint": "Geben Sie genau ein: {{ phrase }}",
       "confirmButton": "Anonymisierung bestätigen",
       "confirmButtonLabel": "Anonymisierung der Kundendaten bestätigen",
-      "confirmMismatch": "Geben Sie genau ein: ANONYMISIEREN",
+      "confirmMismatch": "Geben Sie genau ein: {{ phrase }}",
       "errorAnonymize": "Kundendaten konnten nicht anonymisiert werden.",
       "successAnonymize": "Kundendaten wurden anonymisiert."
     },
@@ -2360,6 +2365,7 @@
         "summaryNotComputed": "Noch nicht berechnet",
         "summaryZeroEligible": "Keine Daten zum Löschen",
         "summaryEligibleCount": "{{ count }} Datensätze zur Löschung vorgesehen",
+        "summaryEligibleCountHint": "Die Zahl ist die Summe verschiedener Datensatztypen (z. B. Kontakte, Ereignisse und Nachrichten).",
         "summaryOldestPeriod": "Ältester betroffener Zeitraum",
         "summaryComputedAt": "Zuletzt berechnet",
         "errorLoadSummary": "Die Löschübersicht konnte nicht geladen werden.",
@@ -2380,9 +2386,11 @@
           "message": "Sie sind dabei, {{ count }} Datensätze der Kategorie {{ category }} dauerhaft zu löschen.",
           "rangeLabel": "Von der Löschung betroffener Zeitraum",
           "confirmLabel": "Geben Sie zur Bestätigung ein",
-          "confirmHint": "Geben Sie genau ein: USUŃ",
+          "confirmPhrase": "LÖSCHEN",
+          "confirmHint": "Geben Sie genau ein: {{ phrase }}",
           "confirmButton": "Daten löschen",
-          "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen"
+          "confirmButtonAria": "Datenlöschung für Kategorie {{ category }} bestätigen",
+          "contactInteractionsNote": "Die Anzahl umfasst auch E-Mail- und Social-Media-Nachrichten sowie deren Anhänge. Anhänge werden auch dauerhaft aus dem Dateispeicher (S3) gelöscht und können nicht wiederhergestellt werden."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Kontaktinteraktionen",
@@ -2390,12 +2398,19 @@
           "TRANSCRIPTS": "Gesprächstranskripte",
           "CAMPAIGN_DATA": "Kampagnendaten"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Kontakte, Verarbeitungsereignisse sowie E-Mail- und Social-Media-Nachrichten (Inhalt, Adressen, Anhänge), die mit Kontakten verknüpft sind",
+          "RECORDINGS": "Gesprächsaufzeichnungen samt Audiodateien im Dateispeicher",
+          "TRANSCRIPTS": "Gesprächstranskripte und KI-generierte Zusammenfassungen",
+          "CAMPAIGN_DATA": "Archivierte Kontaktdatensätze abgeschlossener ausgehender Kampagnen (Archiv)"
+        },
         "history": {
           "title": "Löschverlauf",
           "errorLoad": "Der Löschverlauf konnte nicht geladen werden.",
           "columnCategory": "Kategorie",
           "columnTrigger": "Auslöser",
           "columnRowsDeleted": "Gelöschte Datensätze",
+          "columnRowsDeletedHint": "Bei Zeilen der Kategorie „Kontaktinteraktionen“ ist die Zahl der gelöschten Datensätze die Summe verschiedener Typen (Kontakte, Ereignisse, Nachrichten).",
           "columnStatus": "Status",
           "columnStartedAt": "Gestartet",
           "columnCompletedAt": "Abgeschlossen",
@@ -2410,6 +2425,36 @@
           "paginationLabel": "Seitennavigation des Löschverlaufs",
           "showing": "Anzeige",
           "ofEntries": "Einträge"
+        },
+        "campaignArchive": {
+          "title": "Archivierungsfrist für Kampagnenkontakte",
+          "label": "Archivierungsfrist für Kampagnenkontakte (Tage nach Kampagnenende)",
+          "description": "So viele Tage nach dem Ende einer Kampagne (COMPLETED/STOPPED) werden ihre Kontakte archiviert. Das ist nicht die Aufbewahrungsfrist der Kampagnendaten in der Tabelle oben (dort: Monate, ab Archivierung gerechnet).",
+          "unit": "Tage",
+          "defaultBadge": "Standard ({{ days }} Tage)",
+          "customBadge": "Manuell festgelegt",
+          "help": "Bereich: {{ min }}–{{ max }} Tage (ganze Zahl). Standard: {{ default }} Tage.",
+          "validationError": "Geben Sie eine ganze Zahl zwischen {{ min }} und {{ max }} ein.",
+          "saveButton": "Speichern",
+          "saved": "Die Archivierungsfrist für Kampagnenkontakte wurde gespeichert.",
+          "errorLoad": "Die Archivierungsfrist für Kampagnenkontakte konnte nicht geladen werden.",
+          "errorLoadForbidden": "Sie haben keine Berechtigung, die Archivierungsfrist für diesen Tenant einzusehen.",
+          "errorSaveValidation": "Wert vom Server abgelehnt — geben Sie eine ganze Zahl zwischen {{ min }} und {{ max }} Tagen ein.",
+          "errorForbidden": "Sie haben keine Berechtigung, die Archivierungsfrist für diesen Tenant zu ändern.",
+          "errorSave": "Die Archivierungsfrist für Kampagnenkontakte konnte nicht gespeichert werden.",
+          "lastChange": "Letzte Änderung",
+          "warning": "Nach der Archivierung verschwinden Kampagnenkontakte aus der Oberfläche, den Statistiken und dem Dialer (es gibt keine Archivansicht). Eine Verkürzung der Frist führt dazu, dass beim nächsten Durchlauf Kampagnen archiviert werden, die früher als die neue Frist beendet wurden. Die Änderung stellt bereits archivierte Kontakte nicht wieder her.",
+          "confirmModal": {
+            "title": "Verkürzung der Archivierungsfrist bestätigen",
+            "intro": "Sie verkürzen die Archivierungsfrist von {{ from }} auf {{ to }} Tage nach Kampagnenende.",
+            "previewLoading": "Auswirkungen der Änderung werden berechnet…",
+            "previewError": "Die Auswirkungen der Änderung konnten nicht berechnet werden. Sie können trotzdem bestätigen — Kampagnen, die früher als die neue Frist beendet wurden, werden beim nächsten Durchlauf archiviert.",
+            "previewNothing": "Diese Änderung führt zu keiner zusätzlichen Archivierung.",
+            "previewResult": "Zusätzlich archiviert — Kampagnen: {{ campaigns }}, Kontakte: {{ contacts }}.",
+            "previewTotal": "Insgesamt beim nächsten Durchlauf — Kampagnen: {{ campaigns }}, Kontakte: {{ contacts }} (davon bereits bei der aktuellen Frist fällig: Kampagnen: {{ currentCampaigns }}, Kontakte: {{ currentContacts }}).",
+            "irreversible": "Archivierte Kontakte verschwinden aus der Oberfläche, den Statistiken und dem Dialer; eine Änderung der Frist stellt sie nicht wieder her.",
+            "confirmButton": "Verkürzen und speichern"
+          }
         }
       }
     },

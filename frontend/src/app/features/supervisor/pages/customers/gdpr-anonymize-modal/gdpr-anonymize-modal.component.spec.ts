@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TranslocoTestingModule } from '@jsverse/transloco';
+import { TranslocoService, TranslocoTestingModule } from '@jsverse/transloco';
 import { Subject, of, throwError } from 'rxjs';
 import { GdprAnonymizeModalComponent } from './gdpr-anonymize-modal.component';
 import { GdprService } from '../services/gdpr.service';
@@ -78,13 +78,22 @@ describe('GdprAnonymizeModalComponent', () => {
             pl: {
               supervisor: {
                 gdprAnonymize: {
+                  confirmPhrase: 'ANONIMIZUJ',
                   successAnonymize: 'Dane klienta zostały zanonimizowane.',
                   errorAnonymize: 'Nie udało się zanonimizować danych klienta. Spróbuj ponownie.',
                 },
               },
             },
+            de: {
+              supervisor: {
+                gdprAnonymize: {
+                  confirmPhrase: 'ANONYMISIEREN',
+                  confirmHint: 'Hint {{ phrase }}',
+                },
+              },
+            },
           },
-          translocoConfig: { availableLangs: ['pl'], defaultLang: 'pl' },
+          translocoConfig: { availableLangs: ['pl', 'de'], defaultLang: 'pl' },
         }),
       ],
       providers: [
@@ -171,7 +180,7 @@ describe('GdprAnonymizeModalComponent', () => {
 
     it('is false when the phrase is wrong, even after the preview has loaded', async () => {
       await createComponent();
-      component.confirmText.set('anonimizuj');
+      component.confirmText.set('anonimizuje');
       expect(component.isConfirmEnabled()).toBe(false);
     });
   });
@@ -296,6 +305,55 @@ describe('GdprAnonymizeModalComponent', () => {
 
       expect(preventDefaultSpy).toHaveBeenCalled();
       expect(cancelledEmitted).toBe(false);
+    });
+  });
+
+  describe('confirmation phrase per language', () => {
+    const setLang = (lang: string) => {
+      TestBed.inject(TranslocoService).setActiveLang(lang);
+      fixture.detectChanges();
+    };
+
+    beforeEach(() => {
+      const transloco = TestBed.inject(TranslocoService);
+      transloco.setTranslation(
+        {
+          supervisor: {
+            gdprAnonymize: { confirmPhrase: 'ANONYMISIEREN', confirmHint: 'Hint {{ phrase }}' },
+          },
+        },
+        'de',
+      );
+    });
+
+    it('DE: ANONYMISIEREN enables confirm, the Polish phrase does not', async () => {
+      await createComponent();
+      setLang('de');
+      expect(component.confirmPhrase()).toBe('ANONYMISIEREN');
+      component.confirmText.set('ANONIMIZUJ');
+      expect(component.isConfirmEnabled()).toBe(false);
+      component.confirmText.set('ANONYMISIEREN');
+      expect(component.isConfirmEnabled()).toBe(true);
+    });
+
+    it('is case-insensitive and trims whitespace', async () => {
+      await createComponent();
+      setLang('de');
+      component.confirmText.set('  anonymisieren ');
+      expect(component.isConfirmEnabled()).toBe(true);
+    });
+
+    it('renders the active phrase in the label and mismatch hint', async () => {
+      await createComponent();
+      setLang('de');
+      component.confirmText.set('x');
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('.anonymize-dialog__confirm-label strong').textContent,
+      ).toBe('ANONYMISIEREN');
+      expect(
+        fixture.nativeElement.querySelector('.anonymize-dialog__confirm-hint').textContent,
+      ).toContain('Hint ANONYMISIEREN');
     });
   });
 });

@@ -6,21 +6,25 @@ import java.util.UUID;
 
 /**
  * Odczyt struktury partycji miesięcznych tabel spartycjonowanych przez zakres dat, oraz
- * liczenie wierszy per tenant w obrębie pojedynczej partycji (EPIC-29, BE-112).
+ * liczenie wierszy (per tenant albo łącznie) w obrębie pojedynczej partycji (EPIC-29, BE-112;
+ * rozszerzone BE-123).
  *
- * <p>Używane wyłącznie przez {@link RetentionEvaluationJob} do partition-aware liczenia
- * "danych do usunięcia" — {@link #listPartitions} zwraca partycje posortowane rosnąco wg
- * nazwy (co odpowiada rosnącej granicy czasowej dla konwencji nazewnictwa
- * {@code <tabela>_YYYY_MM}), a {@link #countRowsByTenant} liczy wiersze WYŁĄCZNIE w obrębie
- * jednej, konkretnej partycji ({@code FROM ONLY <partycja>}) — nigdy całej tabeli nadrzędnej.
- * Dzięki temu job nigdy nie wykonuje pełnego skanu tabeli (np. {@code SELECT COUNT(*) FROM contact}).
+ * <p>Konsumenci: {@link RetentionEvaluationJob} (partition-aware liczenie "danych do usunięcia")
+ * oraz {@link PartitionReclaimJob} (Poziom 2, fizyczne {@code DROP TABLE}) — {@link #listPartitions}
+ * zwraca partycje posortowane rosnąco wg nazwy (co odpowiada rosnącej granicy czasowej dla
+ * konwencji nazewnictwa {@code <tabela>_YYYY_MM}), a {@link #countRowsByTenant}/{@link #countRows}
+ * liczą wiersze WYŁĄCZNIE w obrębie jednej, konkretnej partycji ({@code FROM ONLY <partycja>}) —
+ * nigdy całej tabeli nadrzędnej. Dzięki temu żaden konsument nie wykonuje pełnego skanu tabeli
+ * (np. {@code SELECT COUNT(*) FROM contact}).
  *
- * <p>Obsługiwane tabele: {@code contact}, {@code contact_event}, {@code contact_transcription},
- * {@code contact_ai_summary} — wszystkie partycjonowane miesięcznie wg konwencji nazw
- * {@code <tabela>_YYYY_MM} (partycja {@code <tabela>_default} jest celowo pomijana, patrz
- * {@link PartitionScannerImpl}). {@code campaign_contact_archive} (kategoria {@code CAMPAIGN_DATA})
- * NIE jest partycjonowana i celowo NIE przechodzi przez ten interfejs — patrz
- * {@link RetentionEvaluationJob} (liczenie bezpośrednim zapytaniem).
+ * <p>Interfejs jest generyczny po nazwie tabeli (każda metoda przyjmuje {@code tableName}/
+ * {@code partitionTableName}), więc obsługuje dowolną tabelę partycjonowaną miesięcznie wg
+ * konwencji {@code <tabela>_YYYY_MM} + {@code <tabela>_default} — dziś (BE-123, 2026-10-08)
+ * wszystkie 8 tabel z {@code PartitionMaintenanceJob#PARTITIONED_TABLES} (w tym {@code audit_log}/
+ * {@code plugin_invocation_log}, tabele platformowe BEZ kategorii {@link RetentionDataCategory}).
+ * {@code campaign_contact_archive} (kategoria {@code CAMPAIGN_DATA}) NIE jest partycjonowana i
+ * celowo NIE przechodzi przez ten interfejs — patrz {@link RetentionEvaluationJob} (liczenie
+ * bezpośrednim zapytaniem).
  */
 public interface PartitionScanner {
 
@@ -42,12 +46,43 @@ public interface PartitionScanner {
      * — {@code ONLY} wymusza skan wyłącznie tej partycji, nigdy całej tabeli nadrzędnej ani
      * pozostałych partycji.
      *
+     * <p><strong>BE-123:</strong> {@code tenant_id} może być {@code NULL} dla tabel ze
+     * zdarzeniami globalnymi (np. {@code audit_log} — operacje bez kontekstu tenanta, patrz
+     * {@code V004}). Taki wiersz jest zwracany jako {@link TenantRowCount} z {@code tenantId()
+     * == null}, NIE jest pomijany. Do 2026-10-08 (przed BE-123) ta metoda rzucała
+     * {@link NullPointerException} dla takiego wiersza ({@code UUID.fromString(null.toString())})
+     * — ścieżka horyzontu platformowego ({@code audit_log}/{@code plugin_invocation_log})
+     * w {@code PartitionReclaimJob} celowo używa zamiast tego {@link #countRows}, które nie
+     * grupuje po tenancie i nie ma tego problemu; ta metoda jest naprawiona niezależnie,
+     * defensywnie, bo pozostaje generycznym, współdzielonym narzędziem.
+     *
      * @param partitionTableName dokładna nazwa partycji (np. {@code "contact_event_2026_05"}),
      *                           pochodząca WYŁĄCZNIE z wyniku {@link #listPartitions}
-     * @return lista par (tenantId, liczba wierszy) — tylko dla tenantów obecnych w tej partycji
-     *         (tenant bez żadnego wiersza w tej partycji nie pojawia się w wyniku)
+     * @return lista par (tenantId, liczba wierszy) — tylko dla tenantów/grup obecnych w tej
+     *         partycji (tenant bez żadnego wiersza w tej partycji nie pojawia się w wyniku)
      */
     List<TenantRowCount> countRowsByTenant(String partitionTableName);
+
+    /**
+     * Liczy WSZYSTKIE wiersze w OBRĘBIE JEDNEJ partycji (lub partycji {@code <tabela>_default}),
+     * bez grupowania po tenancie — {@code SELECT count(*) FROM ONLY <partycja>}.
+     *
+     * <p><strong>BE-123:</strong> używana przez {@code PartitionReclaimJob} w dwóch miejscach:
+     * (1) ścieżka horyzontu platformowego ({@code audit_log}/{@code plugin_invocation_log},
+     * {@code DropMode.AFTER_CUTOFF}) — liczba wierszy do logu INFO, bez potrzeby znać tenantów
+     * (DROP wykonywany niezależnie od wyniku); (2) sprawdzenie pustości partycji
+     * {@code <tabela>_default} dla WSZYSTKICH tabel (sygnał awarii rotacji, EPIC-29/DB-052) — ta
+     * partycja nigdy nie jest kandydatem do {@code DROP}, ale niepusta oznacza, że
+     * {@code create_next_month_partitions}/{@code PartitionMaintenanceJob} nie dotrzymuje tempa.
+     * Celowo NIE używa {@link #countRowsByTenant} — prostsze zapytanie, zero parsowania
+     * {@code tenant_id} (w tym {@code NULL} dla zdarzeń globalnych), zero ryzyka
+     * {@link NullPointerException} opisanego w jego javadoc.
+     *
+     * @param partitionTableName dokładna nazwa partycji (np. {@code "audit_log_2024_01"} albo
+     *                           {@code "audit_log_default"})
+     * @return liczba wierszy (0, gdy partycja jest pusta lub — defensywnie — nie istnieje)
+     */
+    long countRows(String partitionTableName);
 
     /**
      * Fizycznie usuwa partycję ({@code DROP TABLE IF EXISTS <partycja>}) — nieodwracalna
@@ -72,10 +107,11 @@ public interface PartitionScanner {
     record PartitionInfo(String partitionName, LocalDate rangeStart, LocalDate rangeEnd) {}
 
     /**
-     * Liczba wierszy jednego tenanta w obrębie jednej partycji.
+     * Liczba wierszy jednego tenanta (albo zdarzeń globalnych) w obrębie jednej partycji.
      *
-     * @param tenantId UUID tenanta
-     * @param rowCount liczba wierszy tego tenanta w danej partycji
+     * @param tenantId UUID tenanta, albo {@code null} dla wierszy bez przypisanego tenanta
+     *                 (zdarzenia globalne, np. {@code audit_log.tenant_id IS NULL} — BE-123)
+     * @param rowCount liczba wierszy tego tenanta (albo grupy globalnej) w danej partycji
      */
     record TenantRowCount(UUID tenantId, long rowCount) {}
 }

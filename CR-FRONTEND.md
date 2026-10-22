@@ -1497,3 +1497,86 @@ Oba ustalenia z sekcji „🐛 Bugs" oraz i18n-niespójność z „🏗️ Archi
 Zweryfikowane niezależnie po poprawkach: `npm run lint` (0 błędów), `npm run build` (sukces), `npm test` (247/247), `npx prettier --check` na zmienionych plikach (zgodne).
 
 Pozostałe ustalenia (minor/nit: brak `takeUntilDestroyed`, `previewBlockedHint` widoczny razem z błędem, brak rozróżnienia HTTP 409, brak etykiety `audit_log`, martwy `CustomerService#deleteCustomer`) świadomie NIE naprawione teraz — niski wpływ, udokumentowane wyżej jako kandydaci do przyszłej poprawki.
+
+---
+
+## Review: FE-110 — Ustawienia > Retencja danych: opisy kategorii, odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`, notka w modalu purge (`data-retention.component.{ts,html,scss,spec.ts}`, `purge-confirm-modal.component.html`, i18n pl/en/de/uk) — 2026-10-10
+
+### 🐛 Bugs / Critical Issues
+
+_Brak błędów blokujących. `prettier --check` (komponent + 4 pliki i18n) czysto; zbiory kluczy `dataRetention.*` identyczne w pl/en/de/uk (porównane skryptem; jedyne różnice de/uk to 4 znane, niezwiązane klucze `customerDetail.contactStatusLabels.*`, odnotowane w tickecie)._
+
+### ⚠️ Security Concerns
+
+_None identified._ (Odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA` nie omija potwierdzenia — nadal wymagany modal z frazą; autoryzacja po stronie backendu bez zmian.)
+
+### 🏗️ Architecture / Pattern Violations
+
+_None identified._ Standalone component, `OnPush`/signals zgodnie z istniejącym kodem, brak nowych subskrypcji.
+
+### 🔧 Improvements & Suggestions
+
+- **WAŻNE (treść, pewne) · `public/i18n/*.json` `categoryDescription.CAMPAIGN_DATA`** („Rekordy kontaktów kampanii wychodzących, w tym archiwum" / odpowiedniki). Purge `CAMPAIGN_DATA` usuwa WYŁĄCZNIE `campaign_contact_archive` (`purge_campaign_contact_archive`, por. `RetentionDataCategory`: „Zarchiwizowane dane kampanii"); aktywne rekordy `campaign_contact` nie są dotykane. Sformułowanie „kontaktów kampanii…, w tym archiwum" sugeruje szerszy zakres, a decyzja o nieodwracalnym usunięciu opiera się na tym opisie. Proponowana treść: „Zarchiwizowane rekordy kontaktów zakończonych kampanii wychodzących (archiwum)" (+ en/de/uk). Ponadto, dopóki `retention.campaign-archive.enabled=false` (BE-120), archiwum jest puste — opis/hint „Brak danych" jest wtedy poprawny, ale warto, by admin wiedział, skąd dane w archiwum się biorą (opcjonalnie).
+- **DROBNE (pewne) · `summaryEligibleCountHint` / `columnRowsDeletedHint`** — tekst „suma różnych typów rekordów (np. kontakty, zdarzenia i wiadomości)" jest pokazywany dla WSZYSTKICH kategorii, także `TRANSCRIPTS`/`CAMPAIGN_DATA`, gdzie liczba dotyczy jednego/dwóch typów — wprowadza w błąd. Pokazywać hint tylko dla `CONTACT_INTERACTIONS` (analogicznie do `contactInteractionsNote`) albo uczynić tekst neutralnym.
+- **DROBNE (a11y, pewne) · `data-retention.component.html` (`[title]` na `<p class="dr-summary-card__count">` i `<th>`)** — wskazówki dostępne wyłącznie przez natywny `title`: niedostępne z klawiatury, na urządzeniach dotykowych i dla części czytników ekranu. Zastąpić widoczną linią pomocniczą (`<small>`/`aria-describedby`) lub użyć istniejącego komponentu tooltipu projektu, jeśli jest.
+- **DROBNE (spekulacja o utrzymaniu) · `purgeModal.contactInteractionsNote`** — statyczne zdanie „Załączniki zostaną trwale usunięte również z magazynu plików (S3)" jest prawdziwe przy `retention.purge.delete-messages=true` (domyślne w `application.yml`), ale fałszywe po wycofaniu flagi ENV (`RETENTION_PURGE_DELETE_MESSAGES=false`, ścieżka legacy tylko odcina referencje). Udokumentowana opcja wycofania powoduje wtedy rozjazd UI↔zachowanie; akceptowalne, o ile wycofanie jest rzadkie — rozważyć wystawienie flagi w DTO/`/api/retention`.
+- **DROBNE (test) · `data-retention.component.spec.ts`** — `expect(descriptions.length).toBe(8)` jest kruche (dowolny nowy `.dr-category-description` łamie test); lepiej sprawdzać zawartość per kategoria. Tłumaczenia testowe nie zawierają kluczy `summaryEligibleCountHint`/`history.columnRowsDeletedHint` ani realnych plików JSON — brak testu parytetu kluczy 4 języków (obecnie tylko ręczne porównanie w PR); rozważyć prosty test Vitest porównujący zbiory kluczy `dataRetention.*` w `public/i18n/*.json`. Polyfill `HTMLDialogElement` w `beforeAll` jest poprawnie warunkowy.
+- **DROBNE (CSS) · `data-retention.component.scss`** — `color: var(--text-2, var(--text-1))` — fallback do ciemniejszego koloru przy braku zmiennej; zmienne `--text-1/--text-2` istnieją w pliku, więc fallback zbędny.
+
+### ✅ Positive Observations
+
+- Spójne, kompletne i18n w 4 językach z poprawnymi diakrytykami (pl/de/uk), brak dziedziczonego problemu z brakującymi polskimi znakami.
+- Dryf po BE-119 poprawnie wychwycony i naprawiony: `UNSUPPORTED_PURGE_CATEGORIES` = tylko `RECORDINGS` (zweryfikowane w `RetentionPurgeServiceImpl#validateSupportedCategory`), komentarze zaktualizowane.
+- Nowy spec testuje zachowanie (stan przycisków `[false,true,false,false]` w DOM, widoczność noty tylko dla `CONTACT_INTERACTIONS`), nie tylko wywołania.
+- Notatka w modalu poprawnie ostrzega o nieodwracalności usunięcia załączników z S3 przed potwierdzeniem.
+
+### Summary
+
+**Ocena: 4/5 ⭐** — czysta, kompletna zmiana zgodna z konwencjami (standalone, i18n 4 języków, prettier); do poprawy głównie treść opisu `CAMPAIGN_DATA` (sugeruje szerszy zakres niż faktycznie usuwany), ogólnikowe tooltipy dla kategorii jednotypowych i dostępność tooltipów opartych wyłącznie o `title`. Kryterium WP-4 (local-demo) pozostaje otwarte (zgodnie z ticketem).
+
+---
+
+## Follow-up: FE-110 / GdprAnonymizeModal — wspólny wzorzec frazy potwierdzenia dla modali destrukcyjnych — 2026-10-10 (tura 27, po WP-4)
+
+### 🔧 Improvements & Suggestions
+
+- **DROBNE (utrzymanie, pewne) · `purge-confirm-modal.component.ts`, `gdpr-anonymize-modal.component.ts`** — po poprawkach WP-4 oba modale niezależnie implementują tę samą logikę frazy potwierdzenia (tłumaczony klucz i18n, porównanie bez rozróżniania wielkości liter z `trim`, `confirmHint` z `{{ phrase }}`, blokada przycisku do zgodności). Każdy kolejny modal destrukcyjny będzie ją kopiował (i może powtórzyć błąd sztywnej frazy w jednym języku). Wyodrębnić wspólny komponent/dyrektywę (np. `cc-confirm-phrase-input` z inputem `phraseKey` i outputem `matches`) lub czystą funkcję `matchesConfirmPhrase(input, phrase)` w `shared/`, z jednym testem parytetu kluczy `*.confirmPhrase` w 4 językach. Follow-up, NIE założony jako ticket.
+- **Weryfikacja wizualna POTWIERDZONA przez użytkownika 2026-10-10 (tura 28):** tabela „Polityki retencji” (wszystkie kolumny widoczne), tłumaczone frazy potwierdzenia w modalach purge i RODO oraz opisy kategorii działają.
+
+---
+
+## Review: FE-113 — okres archiwizacji kontaktów kampanii (commit 81c5561e: `campaign-archive-setting.component.{ts,html,scss,spec.ts}`, `retention.service.ts/.spec.ts`, `retention.model.ts`, `data-retention.component.{ts,html,spec.ts}`, i18n pl/en/de/uk) — 2026-10-18
+
+### Zgodność z CLAUDE.md i kontraktem
+- Standalone + `OnPush` + signals/`computed` + selektor `app-campaign-archive-setting` + brak NgModules: OK. `npx prettier --check` na zmienionych katalogach/plikach: czysto. Strona lazy i chroniona `roleGuard` (`roles: ['ADMIN']`), zgodnie z `@PreAuthorize("hasRole('ADMIN')")` kontrolera BE-151.
+- Kontrakt BE-151: `CampaignArchiveSettingDto` (archiveAfterDays, isDefault, defaultDays, minDays, maxDays, warning?, updatedBy?, updatedAt?) i `CampaignArchivePreviewDto` (wszystkie 9 pól) zgodne 1:1; `updatedBy/updatedAt` poprawnie opcjonalne (pomijane przy null). Endpointy, parametr `archiveAfterDays`, `SKIP_ERROR_TOAST` na wszystkich trzech wywołaniach (brak podwójnego toasta — poprzednio powtarzający się błąd, tu uniknięty).
+- i18n: 17 kluczy `campaignArchive.*` w pl/en/de/uk, test parzystości kluczy; `retry` i `common.cancel` istnieją we wszystkich 4 językach; polskie diakrytyki poprawne.
+
+### Ustalenia (numerowane: waga / opis)
+
+1. **[MAJOR] Polska (i angielska) pluralizacja w `confirmModal.previewResult`.** "{{ campaigns }} kampanii ({{ contacts }} kontaktów)" daje "1 kampanii", "1 kontaktów", "2 kampanii" (poprawnie "2 kampanie"), "3 kontaktów" ok, "22 kampanie" vs "22 kampanii" itd.; en: "1 campaigns". To powtarzający się antywzorzec projektu (patrz pamięć: Polish pluralization). Użyć ICU/pluralizacji Transloco (`messageformat`) albo sformułowania neutralnego, np. "Liczba kampanii: {{ campaigns }}, kontaktów: {{ contacts }}" (uk już ma taką formę "кампаній: N (контактів: M)" — spójne, bezpieczne). Dotyczy też `de` ("1 Kampagnen"). **[Poprawione w commicie `67c85f8c`.]**
+2. **[MAJOR] Podgląd pokazuje sumę, nie przyrost.** Komunikat "Przy najbliższym przebiegu zostanie zarchiwizowanych: N kampanii" używa `campaignsToArchive`/`contactsToArchive` (łącznie przy nowym okresie), choć DTO ma `campaignsToArchiveAtCurrentDays`, `additionalCampaigns`, `additionalContacts`, `shortensPeriod` — wszystkie nieużyte. Kampanie, które i tak zostałyby zarchiwizowane przy obecnym okresie (np. job jeszcze nie przebiegł), są wliczone w "skutek zmiany", co zawyża skutek skracania i nie odpowiada pytaniu użytkownika "co zmienia moja decyzja". Pokazać przyrost ("dodatkowo X kampanii / Y kontaktów") plus ewentualnie "z czego Z i tak czeka na archiwizację przy obecnym okresie". Przynajmniej użyć `additional*` w przypadku `nothingToArchive` (obecnie 0/0 liczone na sumie: gdy `campaignsToArchiveAtCurrentDays > 0`, a przyrost = 0, komunikat "nic nie zostanie zarchiwizowane" byłby nieprawdziwy — dziś nie wystąpi tylko dlatego, że suma ≥ obecne, ale jest to niejawne założenie). **[Poprawione w commicie `67c85f8c`.]**
+3. **[MAJOR, a11y] Dialog potwierdzenia — niedomknięte wymagania.** Dobre: natywny `<dialog>` + `showModal()` (pułapka fokusu, tło inert, Escape → `cancel` → `cancelConfirm()`), `aria-labelledby`/`aria-describedby`, `autofocus` na bezpiecznym "Anuluj". Braki: (a) wynik podglądu pojawia się przez podmianę węzła w `@switch` — `role="status"` jest tylko na stanie "loading", który znika; czytnik ekranu nie ogłosi wyniku. Zrobić jeden trwały kontener `aria-live="polite"` zawierający wszystkie stany podglądu; (b) destrukcyjne potwierdzenie bez `role="alertdialog"`; (c) brak testu Escape/fokusu (jsdom jest mockowany — patrz #7); (d) kliknięcie w backdrop nic nie robi (akceptowalne), ale warto świadomie to opisać. **[Poprawione w commicie `67c85f8c` (a11y: aria-live + alertdialog; brak dowodu przeglądarkowego dla Escape/fokusu).]**
+4. **[MEDIUM] Wyścig odpowiedzi podglądu.** `openConfirm()` nie anuluje poprzedniej subskrypcji. Scenariusz: Zapisz(90) → Anuluj przed odpowiedzią → zmiana na 60 → Zapisz → spóźniona odpowiedź dla 90 nadpisze `preview` dla 60 (dialog pokaże liczby z innego okresu przy tekście "do 60 dni"). Poprawka: trzymać `Subscription`/użyć `Subject` + `switchMap`, anulować w `closeConfirm()`, i/lub odrzucać odpowiedź, gdy `dto.newDays !== parsedValue()`. Komponent nigdy nie weryfikuje `newDays`/`currentDays` z podglądu względem pola — a `currentDays` z backendu mógł się zmienić (inny admin) między załadowaniem a zapisem; tekst "z {{ from }}" bierze stary `setting().archiveAfterDays`, a nie `preview.currentDays`. **[Poprawione w commicie `67c85f8c`.]**
+5. **[MEDIUM] `save()` nie jest idempotentne w trakcie otwierania dialogu.** `canSave` pozostaje true po pierwszym Enter/kliknięciu, więc szybkie podwójne wciśnięcie (`keydown.enter` na polu lub dwa kliknięcia przed renderem dialogu) wywoła `openConfirm()` dwa razy (dwa żądania podglądu, #4). Dodać `if (this.confirmOpen()) return;` w `save()`. **[Poprawione w commicie `67c85f8c`.]**
+6. **[MEDIUM] Obsługa błędów — luki.** (a) 400 mapowane na `errorSaveValidation` — ok, ale nie ma testu 400; (b) 403 na GET pokazuje ogólne "nie udało się załadować" z przyciskiem Ponów, który nie ma sensu przy 403 (strona jest ADMIN-only, więc ryzyko niskie — uzasadnione, ale rozważyć rozróżnienie); (c) błąd PUT po potwierdzeniu: dialog jest już zamknięty (`closeConfirm()` przed `persist()`), komunikat pojawia się inline w sekcji pod polem — OK, ale użytkownik nie jest o tym informowany z miejsca dialogu; poza ekranem przy długiej stronie (sekcja nie robi `focus`/`scrollIntoView`; `role="alert"` ogłosi, ale widoczność nie). (d) 401/sesja — obsługa globalna, bez uwag. **[Poprawione w commicie `67c85f8c`.]**
+7. **[MEDIUM, testy] Jakość specu.** Dobre: 12+ przypadków, `it.each` na wartości graniczne/nieprawidłowe, 422 i 403, brak toasta błędu, pokrycie stanu loading/error podglądu, parzystość kluczy i18n, spec serwisu sprawdza `SKIP_ERROR_TOAST`. Luki: (a) `HTMLDialogElement.showModal/close` zamockowane — nie testuje Escape (`cancel`), fokusu ani przywrócenia fokusu; (b) `component.save()` wołane bezpośrednio zamiast kliknięcia/Enter (nie testuje `keydown.enter` ani disabled przycisku w trakcie `saving`); (c) test "saves boundary/valid lengthening value" ma mylącą nazwę — dla `n=30` wpisuje 31 i oczekuje `toHaveBeenCalledWith(31)` przy odpowiedzi mocka `setting(30)`; przypadek `730` jest "wydłużeniem" tylko dzięki bazie 30; nie testuje górnej granicy jako skrócenia; (d) brak testów: stale-preview (#4), podwójne `save` (#5), 400, `updatedBy`, `warning` z API ignorowane; (e) test parzystości sprawdza tylko klucze, nie obecność placeholderów (`{{ min }}`, `{{ days }}`) w tłumaczeniach — literówka w parametrze w en/de/uk przeszłaby. **[Poprawione w commicie `67c85f8c` (testy komponentu 16→36).]**
+8. **[MINOR] Pole liczbowe.** `type="number"` + `inputmode="numeric"` + ręczne `$any($event.target).value`: przy `type=number` przeglądarka zwraca `''` dla niepoprawnego tekstu (sam regex działa, ale testy "abc" w jsdom nie odzwierciedlają realnego zachowania Chrome — w Chrome nie da się wpisać "abc"). `$any` omija kontrolę typów — użyć `($event.target as HTMLInputElement).value` w metodzie lub `(input)="onInput(input.value)"` ze zmienną szablonową. `"1e2"` jest poprawną liczbą dla `type=number`, a regex `^\d+$` odrzuci ją z komunikatem — akceptowalne, ale warto wiedzieć. **[Poprawione w commicie `67c85f8c`.]**
+9. **[MINOR] Format daty `'dd.MM.yyyy HH:mm'` zahardkodowany** niezależnie od języka (de/en/uk/pl) — sprawdzić zgodność z resztą aplikacji (data-retention.component używa jednego formatu?) i ewentualnie wydzielić wspólny pipe/format. `updatedBy` (UUID) nieprezentowane — świadome.
+10. **[MINOR] Duplikacja stałych FALLBACK_*** (30/730/180) w komponencie — drugie źródło prawdy obok `minDays/maxDays` z API; akceptowalne jako stan przed pierwszym odczytem, ale wartości używane są dopiero po `setting() !== null` (`showValidationError`, `canSave`), więc fallback jest w praktyce martwy — usunąć albo skomentować.
+11. **[MINOR] Pole `inputTouched` zadeklarowane po użyciu w `computed`** (`showValidationError` odwołuje się do `inputTouched` zdefiniowanego linię niżej). Działa (lazy), ale to pułapka przy refaktorze — przenieść deklarację wyżej.
+12. **[INFO]** Nieużywane pola API (`warning`, `shortensPeriod`, `additional*`) — decyzja udokumentowana w modelu (tłumaczone ostrzeżenie zamiast tekstu z BE), ale patrz #2 dla `additional*`.
+
+### Pozytywy
+- Jeden toast sukcesu, błędy inline, `SKIP_ERROR_TOAST` w serwisie z komentarzem uzasadniającym; wydłużenie zapisuje od razu, skrócenie wymaga podglądu i potwierdzenia — rozsądny UX dla operacji nieodwracalnej.
+- Błąd podglądu nie blokuje świadomego potwierdzenia, ale jest widoczny; `takeUntilDestroyed` na wszystkich subskrypcjach; `saving` blokuje podwójny zapis (`persist`/`confirmShorten`).
+- Walidacja zakresu spójna z BE (30-730, całkowite); `aria-invalid`/`aria-describedby`/`role="alert"` na błędach.
+- Test parzystości kluczy i18n w 4 językach, semantyka etykiety "dni od zakończenia" pilnowana w każdym języku.
+
+### Co przed zamknięciem FE-113
+- Wymagane: #1 (pluralizacja — albo forma neutralna), #2 (przyrost/spójność z `additional*`), #3a (live region dla wyniku podglądu), #4 + #5 (wyścig podglądu i podwójny `save`).
+- Zalecane: #6c, #7 (testy: Escape/`cancel`, Enter, stale-preview, placeholdery), #8.
+- Opcjonalne: #9-#11.
+
+### Summary
+**Ocena: 3.5/5** — czysta, zgodna z konwencjami i kontraktem BE-151 implementacja z dobrym UX potwierdzenia, ale komunikat skutku jest mylący (suma zamiast przyrostu, błędna pluralizacja), dialog nie ogłasza wyniku czytnikom ekranu, a asynchroniczny podgląd ma wyścig; testy nie pokrywają realnego zachowania `<dialog>`. Nie uruchamiałem testów ani przeglądarki (review statyczny).

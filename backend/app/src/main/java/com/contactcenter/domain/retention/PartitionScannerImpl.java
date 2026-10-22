@@ -32,11 +32,20 @@ import java.util.regex.Pattern;
  * wyrażeniu bywa niespójny między wersjami/ustawieniami PostgreSQL) — zamiast tego ufamy
  * konwencji nazewnictwa partycji, tak samo jak funkcje rotacji z V088.
  *
- * <p><strong>Bezpieczeństwo konkatenacji nazwy partycji w {@link #countRowsByTenant}:</strong>
- * nazwa partycji pochodzi WYŁĄCZNIE z {@link #listPartitions} (czyli z {@code pg_tables.tablename}),
- * nigdy z wejścia użytkownika, więc nie ma realnego ryzyka SQL injection — mimo to
- * {@link #assertSafeIdentifier} dodaje tani, defensywny bezpiecznik (biała lista znaków)
- * przed konkatenacją identyfikatora tabeli w zapytaniu {@code FROM ONLY}.
+ * <p><strong>Bezpieczeństwo konkatenacji nazwy partycji w {@link #countRowsByTenant}/{@link #countRows}:</strong>
+ * nazwa partycji pochodzi WYŁĄCZNIE z {@link #listPartitions} (czyli z {@code pg_tables.tablename})
+ * albo jest zbudowana przez wywołującego z nazwy tabeli + sufiksu {@code _default}
+ * ({@code PartitionReclaimJob}, BE-123) — nigdy z wejścia użytkownika, więc nie ma realnego ryzyka
+ * SQL injection — mimo to {@link #assertSafeIdentifier} dodaje tani, defensywny bezpiecznik
+ * (biała lista znaków) przed konkatenacją identyfikatora tabeli w zapytaniu {@code FROM ONLY}.
+ *
+ * <p><strong>BE-123 — {@link #countRows} vs. {@link #countRowsByTenant}:</strong> {@code countRows}
+ * NIE grupuje po {@code tenant_id} — używana dla tabel/wierszy gdzie grupowanie po tenancie jest
+ * niepotrzebne (ścieżka horyzontu platformowego: liczba wierszy do logu INFO, DROP wykonywany
+ * niezależnie od wyniku) albo wręcz problematyczne (parsowanie {@code tenant_id IS NULL} —
+ * zdarzenia globalne {@code audit_log} — rzucało {@link NullPointerException} w
+ * {@code countRowsByTenant} do 2026-10-08, patrz jego javadoc) oraz do sprawdzenia pustości
+ * partycji {@code <tabela>_default} (sygnał awarii rotacji, dla WSZYSTKICH 8 tabel).
  */
 @Slf4j
 @Repository
@@ -110,13 +119,50 @@ class PartitionScannerImpl implements PartitionScanner {
 
         List<TenantRowCount> counts = new ArrayList<>(rows.size());
         for (Object[] row : rows) {
-            UUID tenantId = row[0] instanceof UUID uuid ? uuid : UUID.fromString(row[0].toString());
+            // BE-123: row[0] == null dla wierszy bez przypisanego tenanta (zdarzenia globalne,
+            // np. audit_log.tenant_id IS NULL, V004) — do 2026-10-08 ta linia rzucała
+            // NullPointerException (UUID.fromString(null.toString())), patrz javadoc interfejsu.
+            UUID tenantId = row[0] == null
+                    ? null
+                    : (row[0] instanceof UUID uuid ? uuid : UUID.fromString(row[0].toString()));
             long rowCount = ((Number) row[1]).longValue();
             counts.add(new TenantRowCount(tenantId, rowCount));
         }
 
-        log.debug("[PartitionScanner] Partycja={}, tenantów z danymi={}", partitionTableName, counts.size());
+        log.debug("[PartitionScanner] Partycja={}, grup (tenant/globalne) z danymi={}", partitionTableName, counts.size());
         return counts;
+    }
+
+    // =========================================================================
+    // Liczenie wierszy BEZ grupowania po tenancie (BE-123)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countRows(String partitionTableName) {
+        assertSafeIdentifier(partitionTableName);
+
+        // Defensywnie: partycja (szczególnie <tabela>_default) może teoretycznie nie istnieć —
+        // sprawdzamy pg_tables PRZED "FROM ONLY", żeby nie wysadzać wywołującego (PartitionReclaimJob)
+        // wyjątkiem "relation does not exist" za coś, co i tak miałoby wynik "0 wierszy" w praktyce.
+        Long exists = (Long) em.createNativeQuery(
+                        "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename = :name")
+                .setParameter("name", partitionTableName)
+                .getSingleResult();
+        if (exists == null || exists == 0L) {
+            log.debug("[PartitionScanner] Partycja={} nie istnieje — countRows=0.", partitionTableName);
+            return 0L;
+        }
+
+        // FROM ONLY <partycja> — identycznie jak w countRowsByTenant (patrz jego javadoc) — bez
+        // GROUP BY, więc brak jakiegokolwiek parsowania tenant_id/UUID (zero ryzyka NPE dla
+        // wierszy z tenant_id IS NULL, np. audit_log — BE-123).
+        Object result = em.createNativeQuery("SELECT count(*) FROM ONLY \"" + partitionTableName + "\"")
+                .getSingleResult();
+        long rowCount = ((Number) result).longValue();
+
+        log.debug("[PartitionScanner] Partycja={}, wierszy (bez grupowania)={}", partitionTableName, rowCount);
+        return rowCount;
     }
 
     // =========================================================================

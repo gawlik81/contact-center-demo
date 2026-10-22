@@ -219,6 +219,18 @@ jwt:
   refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
 
 # =============================================================================
+# Czyszczenie refresh tokenów (BE-122, RefreshTokenCleanupJob)
+# =============================================================================
+auth:
+  refresh-token-cleanup:
+    # Domyślnie codziennie 03:30 UTC (wolny slot względem jobów 00:30/01:00/02:00/04:00).
+    cron: ${AUTH_REFRESH_TOKEN_CLEANUP_CRON:0 30 3 * * *}
+    # Okres karencji w dniach: usuwane są tokeny wygasłe oraz unieważnione wystawione
+    # wcześniej niż (teraz - grace-days). Świeżo unieważnione tokeny zostają, aby replay
+    # starego tokenu po rotacji dalej był logowany jako "unieważniony" (diagnostyka).
+    grace-days: ${AUTH_REFRESH_TOKEN_CLEANUP_GRACE_DAYS:7}
+
+# =============================================================================
 # Super Admin – bootstrap globalnego administratora platformy przy starcie
 # (SuperAdminBootstrapRunner, refaktor ról SUPER_ADMIN/ADMIN/SUPERVISOR/AGENT)
 # Uruchamiany we wszystkich profilach. W dev: fallback gdy zmienne puste.
@@ -318,6 +330,21 @@ app:
     secret: ${APP_ENCRYPTION_SECRET:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
 # =============================================================================
+# Walidacja polityk RLS przy starcie – RlsValidationService (BE-138, EPIC-30)
+# =============================================================================
+rls:
+  validation:
+    # Domyślnie false: naruszenia (pokrycie komend RLS niepełne, brak FORCE, rola połączenia
+    # omija RLS – superuser/BYPASSRLS) logują tylko WARN i NIE blokują startu (local-demo/dev/test
+    # łączą się dziś rolą BYPASSRLS – zob. DB-071/BE-139, decyzja odłożona 2026-10-07).
+    # Ustaw na true WYŁĄCZNIE gdy rola połączenia aplikacji na danym środowisku celowo NIE ma
+    # BYPASSRLS/superuser (docelowy stan prod) – wtedy wykrycie roli omijającej RLS rzuca
+    # IllegalStateException i PRZERYWA start (jedyny świadomy wyjątek od zasady "nie blokuj startu"
+    # w tym komponencie – patrz Javadoc RlsValidationService). NIE włączaj tej flagi, dopóki rola
+    # produkcyjna nadal ma BYPASSRLS, bo aplikacja nie wystartuje.
+    fail-on-bypass: ${RLS_VALIDATION_FAIL_ON_BYPASS:false}
+
+# =============================================================================
 # ETL – pipeline synchronizacji danych do Data Warehouse (BE-030)
 # =============================================================================
 etl:
@@ -334,14 +361,15 @@ retention:
     # Liczba wierszy usuwanych w jednym batchu na tabelę (LIMIT w zapytaniu DELETE) –
     # ogranicza czas trzymania blokad na partycji współdzielonej przez innych tenantów.
     batch-size: ${RETENTION_PURGE_BATCH_SIZE:100}
-    # Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — przyjęte do realizacji, ale BEZ wyraźnego
-    # potwierdzenia właściciela, patrz notatka BE-124/BE-125 w TASKS-BACKEND.md). Domyślnie false:
-    # purge CONTACT_INTERACTIONS odcina referencje email_message/social_message do usuwanych
-    # kontaktów (detachContactReferences) – zachowanie identyczne ze sprzed BE-126. true: purge
-    # USUWA wiadomości e-mail/social wraz z obiektami S3 (BE-125). NIE WŁĄCZAĆ w żadnym profilu
-    # domyślnym (dev/local-demo/prod) bez świadomej decyzji właściciela o D1 – patrz Javadoc
-    # RetentionPurgeServiceImpl#deleteMessagesEnabled.
-    delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:false}
+    # WŁĄCZONE decyzją właściciela 2026-10-07 (D1 = A potwierdzone 2026-09-30) — purge
+    # CONTACT_INTERACTIONS faktycznie usuwa wiadomości e-mail/social wraz z obiektami S3 (BE-125),
+    # zamiast tylko odcinać referencje (detachContactReferences, zachowanie sprzed BE-126). Powód
+    # zmiany domyślnej wartości: przy false (bezpiecznik wdrożeniowy obowiązujący do 2026-10-07)
+    # partycje email_message/social_message nigdy się nie opróżniają, co powoduje, że
+    # PartitionReclaimJob (BE-135) zgłasza WARN bez końca – retencja treści wiadomości faktycznie
+    # nie działała. Można nadpisać na false przez ENV RETENTION_PURGE_DELETE_MESSAGES w razie
+    # potrzeby wycofania – patrz Javadoc RetentionPurgeServiceImpl#deleteMessagesEnabled.
+    delete-messages: ${RETENTION_PURGE_DELETE_MESSAGES:true}
   # Wyrażenie cron dla RetentionEvaluationJob (domyślnie: codziennie o 01:00 UTC, przed
   # RecordingRetentionJob o 02:00 UTC).
   evaluation-cron: ${RETENTION_EVALUATION_CRON:0 0 1 * * *}
@@ -354,6 +382,47 @@ retention:
   # domyślnie: co niedzielę o 03:00 UTC — poza godzinami szczytu, po PartitionMaintenanceJob
   # (00:30 UTC, BE-114) i pozostałych jobach retencji).
   partition-reclaim-cron: ${RETENTION_PARTITION_RECLAIM_CRON:0 0 3 * * SUN}
+  # Archiwizacja kontaktów zakończonych kampanii (BE-120, EPIC-30): CampaignArchiveJob woła funkcję SQL
+  # archive_completed_campaign_contacts() (V015) – kampanie COMPLETED/STOPPED starsze niż okres archiwizacji
+  # tenanta (domyślnie 180 dni, zakres 30-730, tenant_campaign_archive_setting, BE-151) trafiają
+  # z campaign_contact do campaign_contact_archive. Domyślnie 04:00 UTC (wpis w scheduled_job).
+  campaign-archive-cron: ${RETENTION_CAMPAIGN_ARCHIVE_CRON:0 0 4 * * *}
+  campaign-archive:
+    # DOMYŚLNIE WYŁĄCZONE (D8): po archiwizacji kontakty kampanii starszych niż okres tenanta
+    # (domyślnie 180 dni) znikają z UI/statystyk/dialera (żaden czytelnik campaign_contact nie czyta
+    # archiwum). Włączenie WYMAGA ZGODY WŁAŚCICIELA PRODUKTU;
+    # pierwsze uruchomienie archiwizuje całą zaległość (zegar archived_at startuje od tego dnia, D6).
+    # Wymaga roli DB widzącej wszystkie tenanty (BYPASSRLS) – patrz Javadoc CampaignArchiveJob.
+    enabled: ${RETENTION_CAMPAIGN_ARCHIVE_ENABLED:false}
+    # Purge archiwum (CAMPAIGN_DATA, BE-121): CampaignArchiveRetentionRepository#purgeEligible woła
+    # purge_campaign_contact_archive (V126) w pętli, każda partia w osobnej transakcji. Rozmiar partii
+    # musi mieścić się w 1..100000 (walidacja funkcji SQL). Nie mylić z retention.purge.batch-size (100,
+    # DELETE po PK na tabelach partycjonowanych).
+    purge-batch-size: ${RETENTION_CAMPAIGN_ARCHIVE_PURGE_BATCH_SIZE:10000}
+    # Guard pętli: maksymalna liczba partii na jedno wywołanie (WARN i przerwanie; reszta w następnym przebiegu).
+    purge-max-batches: ${RETENTION_CAMPAIGN_ARCHIVE_PURGE_MAX_BATCHES:10000}
+  # Horyzont retencji (miesiące) dla tabele PLATFORMOWE (BE-123, EPIC-30) – audit_log i
+  # plugin_invocation_log. W odróżnieniu od retention.purge/* powyżej, te tabele NIE mają kategorii
+  # RetentionDataCategory, NIE mają polityki per tenant (tenant_retention_policy) i NIE mają Poziomu 1
+  # (nic nie usuwa ich wierszy indywidualnie) – PartitionReclaimJob (DropMode.AFTER_CUTOFF) jest
+  # JEDYNYM mechanizmem usuwającym dane: partycja starsza niż ten horyzont jest dropowana NIEZALEŻNIE
+  # od liczby wierszy (log INFO, nie WARN – niepusta partycja platformowa po horyzoncie jest
+  # OCZEKIWANA, nie jest sygnałem awarii, patrz PartitionReclaimJob#logInfoIfHasRows).
+  platform:
+    # D5 (ZAŁOŻENIE DO POTWIERDZENIA PRAWNIE – ten sam status co retention.purge.delete-messages
+    # powyżej i email.attachments.pending-sweep-delete-enabled): 24 miesiące. Wartość już dziś
+    # zakładana przez istniejące funkcje SQL drop_old_audit_log_partitions/
+    # drop_old_plugin_invocation_log_partitions (p_retention_months DEFAULT 24, V004/V077) – ten
+    # ticket (BE-123) jedynie podaje tę samą wartość domyślną ścieżce Java. NIE WŁĄCZAĆ innej
+    # wartości w żadnym profilu domyślnym bez świadomej decyzji właściciela/potwierdzenia prawnego –
+    # patrz Javadoc PlatformRetentionProperties i notatka wykonania BE-123 w TASKS-BACKEND.md.
+    # Walidacja ≥ 1 przy starcie (PlatformRetentionProperties#validate, @PostConstruct) – wartość
+    # nieprawidłowa (np. 0 albo ujemna z ENV var) NIE blokuje startu aplikacji, tylko loguje WARN i
+    # wraca do domyślnych 24 mies. (uzasadnienie wyboru: błąd tej konfiguracji dotyczy wyłącznie
+    # cotygodniowego joba odzyskiwania miejsca, nie całej aplikacji – zablokowanie startu byłoby
+    # nieproporcjonalną reakcją; patrz javadoc klasy).
+    audit-log-months: ${RETENTION_PLATFORM_AUDIT_LOG_MONTHS:24}
+    plugin-invocation-log-months: ${RETENTION_PLATFORM_PLUGIN_INVOCATION_LOG_MONTHS:24}
 
 # =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)

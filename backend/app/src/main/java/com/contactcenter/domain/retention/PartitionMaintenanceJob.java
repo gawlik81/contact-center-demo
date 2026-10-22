@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -35,9 +36,9 @@ import java.util.stream.Collectors;
  * (deploy, incydent) trwającego nawet kilka tygodni, {@link #ensureFuturePartitions()} DODATKOWO
  * buduje samodzielnie bufor {@value #MONTHS_AHEAD} miesięcy do przodu, wywołując bezpośrednio
  * niskopoziomowe funkcje {@code create_<tabela>_partition(rok, miesiąc)} (patrz
- * {@link PartitionMaintenanceRepository}) dla ofsetów {@code 1..MONTHS_AHEAD} i wszystkich 7 tabel —
+ * {@link PartitionMaintenanceRepository}) dla ofsetów {@code 1..MONTHS_AHEAD} i wszystkich 8 tabel —
  * niezależnie od tego, ile faktycznie dokłada {@code create_next_month_partitions()}. Od BE-133
- * (EPIC-30, 2026-10-01) pętla bufora i {@code create_next_month_partitions()} obejmują 7 tabel —
+ * (EPIC-30, 2026-10-01) pętla bufora i {@code create_next_month_partitions()} obejmują 8 tabel (BE-135: email_message) —
  * {@code social_message} dołączona jako siódma (migracja {@code V100}). Wywołanie tej
  * ostatniej jest zachowane osobno (patrz {@link PartitionMaintenanceRepository#createNextMonthPartitions()})
  * wyłącznie po to, by zachować wpis bookkeeping w {@code cron_log}/{@code scheduled_job} zgodny
@@ -48,6 +49,9 @@ import java.util.stream.Collectors;
  * {@code create_next_month_partitions()}, jak i pojedynczej pary tabela/miesiąc w pętli bufora)
  * jest logowany na poziomie ERROR i NIE przerywa przetwarzania pozostałych — wzorzec
  * {@code RetentionEvaluationJob} ("błąd przy jednej kategorii/tenancie nie przerywa reszty").
+ * Awaria {@code create_next_month_partitions()} dodatkowo zostawia trwały ślad ({@code cron_log}
+ * ERROR + {@code scheduled_job.last_run_status}) przez {@link CronFailureLogRepository} w osobnej
+ * transakcji (DB-082/V135) — wpis zapisany wewnątrz wycofanej transakcji by przepadł.
  * Job nigdy nie rzuca wyjątku na zewnątrz {@link #ensureFuturePartitions()} — planista Springa
  * uruchomi go ponownie przy następnym terminie cron niezależnie od wyniku dzisiejszego przebiegu.
  *
@@ -59,7 +63,7 @@ import java.util.stream.Collectors;
  * <p><strong>Log podsumowania:</strong> ponieważ obie wywoływane funkcje SQL są {@code RETURNS VOID}
  * i nie zwracają informacji "ile/które partycje powstały", {@link #ensureFuturePartitions()} pobiera
  * listę partycji przez {@link PartitionScanner#listPartitions(String)} PRZED i PO wywołaniach SQL
- * (dla wszystkich 7 tabel) i loguje różnicę (nazwy nowo utworzonych partycji per tabela) — patrz
+ * (dla wszystkich 8 tabel) i loguje różnicę (nazwy nowo utworzonych partycji per tabela) — patrz
  * {@link #logSummary(Map, Map)}.
  */
 @Slf4j
@@ -74,10 +78,13 @@ class PartitionMaintenanceJob {
      */
     static final int MONTHS_AHEAD = 3;
 
+    /** Nazwa wpisu w {@code scheduled_job} (V133) odpowiadającego {@code create_next_month_partitions()}. */
+    static final String CREATE_NEXT_MONTH_JOB_NAME = "create_next_month_partitions";
+
     /**
      * Wszystkie tabele partycjonowane miesięcznie w projekcie (EPIC-29/DB-052, V088; {@code social_message}
-     * dołączona w EPIC-30/DB-065/BE-133, V100) — dokładnie ta sama lista 7 tabel, którą wewnętrznie
-     * obsługuje {@code create_next_month_partitions()}.
+     * dołączona w EPIC-30/DB-065/BE-133, V100; {@code email_message} w EPIC-30/DB-067/BE-135, V102) —
+     * dokładnie ta sama lista 8 tabel, którą wewnętrznie obsługuje {@code create_next_month_partitions()}.
      */
     static final List<String> PARTITIONED_TABLES = List.of(
             "contact",
@@ -86,11 +93,13 @@ class PartitionMaintenanceJob {
             "contact_event",
             "contact_transcription",
             "contact_ai_summary",
-            "social_message"
+            "social_message",
+            "email_message"
     );
 
     private final PartitionMaintenanceRepository partitionMaintenanceRepository;
     private final PartitionScanner partitionScanner;
+    private final CronFailureLogRepository cronFailureLog;
 
     // =========================================================================
     // Scheduled job
@@ -103,11 +112,16 @@ class PartitionMaintenanceJob {
 
         Map<String, Set<String>> before = safeSnapshotPartitionNames();
 
+        Instant startedAt = Instant.now();
         try {
             partitionMaintenanceRepository.createNextMonthPartitions();
         } catch (Exception e) {
             log.error("[PartitionMaintenanceJob] Błąd wywołania create_next_month_partitions(): {}",
                     e.getMessage(), e);
+            // Transakcja repozytorium jest już wycofana — trwały ślad w osobnej transakcji (DB-082/V135);
+            // recordFailure nigdy nie rzuca. Dotyczy tylko create_next_month_partitions (nie pętli bufora).
+            cronFailureLog.recordFailure(CREATE_NEXT_MONTH_JOB_NAME,
+                    CronFailureLogRepository.rootCauseMessage(e), startedAt);
         }
 
         buildMonthsAheadBuffer();

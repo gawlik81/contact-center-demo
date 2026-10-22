@@ -19,7 +19,11 @@ import java.util.UUID;
 public interface EmailMessageService {
 
     /**
-     * Pobiera wiadomość po UUID (PK).
+     * Pobiera wiadomość po UUID ({@code message_id}) bez klucza partycji (BE-134).
+     *
+     * <p>Koszt: indeks PK każdej partycji {@code email_message} (liczba partycji × indeks PK) — zob. Javadoc
+     * {@link EmailMessageRepository#findById(UUID)}. Wołający, który zna {@code message_at}, powinien
+     * użyć wariantu pełnego klucza w repozytorium (partition pruning).
      *
      * @param messageId UUID wiadomości (kolumna message_id)
      * @return Optional z wiadomością lub empty

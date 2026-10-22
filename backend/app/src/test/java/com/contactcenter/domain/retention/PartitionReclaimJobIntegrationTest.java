@@ -61,7 +61,7 @@ class PartitionReclaimJobIntegrationTest {
         ctx = JpaTestContext.create(
                 pool,
                 new Class<?>[]{},
-                new Class<?>[]{PartitionScannerImpl.class, PartitionReclaimJob.class},
+                new Class<?>[]{PartitionScannerImpl.class, PlatformRetentionProperties.class, PartitionReclaimJob.class},
                 c -> c.getBeanFactory().registerSingleton("retentionPolicyService", retentionPolicyService));
         job = ctx.getBean(PartitionReclaimJob.class);
     }

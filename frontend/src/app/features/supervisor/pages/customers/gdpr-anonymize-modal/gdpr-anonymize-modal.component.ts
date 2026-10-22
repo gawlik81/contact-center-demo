@@ -12,6 +12,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, of, timeout } from 'rxjs';
 import { GdprService } from '../services/gdpr.service';
@@ -83,8 +84,20 @@ export class GdprAnonymizeModalComponent implements OnInit, AfterViewInit {
     }));
   });
 
+  /** Expected confirmation phrase in the active UI language (re-emits on language change). */
+  readonly confirmPhrase = toSignal(
+    this.transloco.selectTranslate<string>('supervisor.gdprAnonymize.confirmPhrase'),
+    { initialValue: '' },
+  );
+
+  /** Typed text matches the phrase (case-insensitive, trimmed); never true for an empty phrase. */
+  readonly isPhraseMatching = computed(() => {
+    const phrase = this.confirmPhrase().trim().toLocaleLowerCase();
+    return phrase.length > 0 && this.confirmText().trim().toLocaleLowerCase() === phrase;
+  });
+
   readonly isConfirmEnabled = () =>
-    this.confirmText() === 'ANONIMIZUJ' && !this.isLoading() && this.previewState() === 'loaded';
+    this.isPhraseMatching() && !this.isLoading() && this.previewState() === 'loaded';
 
   ngOnInit(): void {
     this.loadPreview();

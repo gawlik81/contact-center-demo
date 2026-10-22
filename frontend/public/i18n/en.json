@@ -1653,12 +1653,13 @@
         "s3Objects": "Files in storage (recordings, attachments)"
       },
       "confirmLabel": "To confirm, type",
-      "confirmHint": "Type exactly: ANONIMIZUJ",
+      "confirmPhrase": "ANONYMIZE",
+      "confirmHint": "Type exactly: {{ phrase }}",
       "confirmButton": "Confirm anonymization",
       "confirmButtonLabel": "Confirm customer data anonymization",
       "errorAnonymize": "Failed to anonymize customer data.",
       "successAnonymize": "Customer data anonymized.",
-      "confirmMismatch": "Type exactly: ANONYMIZE"
+      "confirmMismatch": "Type exactly: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2364,6 +2365,7 @@
         "summaryNotComputed": "Not yet computed",
         "summaryZeroEligible": "No data to delete",
         "summaryEligibleCount": "{{ count }} records eligible for deletion",
+        "summaryEligibleCountHint": "The number is a sum of different record types (e.g. contacts, events, and messages).",
         "summaryOldestPeriod": "Oldest eligible period",
         "summaryComputedAt": "Last computed",
         "errorLoadSummary": "Failed to load the deletion summary.",
@@ -2384,9 +2386,11 @@
           "message": "You are about to permanently delete {{ count }} records from category {{ category }}.",
           "rangeLabel": "Period range covered by the deletion",
           "confirmLabel": "To confirm, type",
-          "confirmHint": "Type exactly: USUŃ",
+          "confirmPhrase": "DELETE",
+          "confirmHint": "Type exactly: {{ phrase }}",
           "confirmButton": "Delete data",
-          "confirmButtonAria": "Confirm data deletion for category {{ category }}"
+          "confirmButtonAria": "Confirm data deletion for category {{ category }}",
+          "contactInteractionsNote": "The count also includes e-mail and social media messages and their attachments. Attachments will also be permanently deleted from file storage (S3) and cannot be recovered."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Contact interactions",
@@ -2394,12 +2398,19 @@
           "TRANSCRIPTS": "Call transcripts",
           "CAMPAIGN_DATA": "Campaign data"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Contacts, processing events, and e-mail and social media messages (content, addresses, attachments) linked to contacts",
+          "RECORDINGS": "Call recordings together with audio files in file storage",
+          "TRANSCRIPTS": "Call transcripts and AI-generated summaries",
+          "CAMPAIGN_DATA": "Archived contact records of completed outbound campaigns (archive)"
+        },
         "history": {
           "title": "Deletion history",
           "errorLoad": "Failed to load the deletion history.",
           "columnCategory": "Category",
           "columnTrigger": "Trigger",
           "columnRowsDeleted": "Rows deleted",
+          "columnRowsDeletedHint": "For “Contact interactions” rows, the number of deleted records is a total of different types (contacts, events, messages).",
           "columnStatus": "Status",
           "columnStartedAt": "Started",
           "columnCompletedAt": "Completed",
@@ -2414,6 +2425,36 @@
           "paginationLabel": "Deletion history pagination",
           "showing": "Showing",
           "ofEntries": "entries"
+        },
+        "campaignArchive": {
+          "title": "Campaign contact archiving period",
+          "label": "Campaign contact archiving period (days after campaign end)",
+          "description": "This many days after a campaign ends (COMPLETED/STOPPED), its contacts are archived. This is not the campaign data retention period in the table above (there: months, counted from archiving).",
+          "unit": "days",
+          "defaultBadge": "Default ({{ days }} days)",
+          "customBadge": "Set manually",
+          "help": "Range: {{ min }}–{{ max }} days (whole number). Default is {{ default }} days.",
+          "validationError": "Enter a whole number between {{ min }} and {{ max }}.",
+          "saveButton": "Save",
+          "saved": "Campaign contact archiving period has been saved.",
+          "errorLoad": "Failed to load the campaign contact archiving period.",
+          "errorLoadForbidden": "You do not have permission to view the archiving period for this tenant.",
+          "errorSaveValidation": "Value rejected by the server — enter a whole number between {{ min }} and {{ max }} days.",
+          "errorForbidden": "You do not have permission to change the archiving period for this tenant.",
+          "errorSave": "Failed to save the campaign contact archiving period.",
+          "lastChange": "Last change",
+          "warning": "After archiving, campaign contacts disappear from the UI, statistics and the dialer (there is no archive view). Shortening the period means campaigns that ended earlier than the new period will be archived on the next run. The change does not restore contacts that were already archived.",
+          "confirmModal": {
+            "title": "Confirm shortening the archiving period",
+            "intro": "You are shortening the archiving period from {{ from }} to {{ to }} days after campaign end.",
+            "previewLoading": "Calculating the impact of the change…",
+            "previewError": "Could not calculate the impact of the change. You can still confirm — campaigns that ended earlier than the new period will be archived on the next run.",
+            "previewNothing": "This change will not cause any additional archiving.",
+            "previewResult": "Additionally archived — campaigns: {{ campaigns }}, contacts: {{ contacts }}.",
+            "previewTotal": "Total on the next run — campaigns: {{ campaigns }}, contacts: {{ contacts }} (of which already pending with the current period: campaigns: {{ currentCampaigns }}, contacts: {{ currentContacts }}).",
+            "irreversible": "Archived contacts will disappear from the UI, statistics and the dialer; changing the period will not restore them.",
+            "confirmButton": "Shorten and save"
+          }
         }
       }
     },

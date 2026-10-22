@@ -111,7 +111,7 @@ class EmailMessageServiceImpl implements EmailMessageService {
         // klucz został usunięty (albo pominięty przez allow-listę — cudzego obiektu nie ruszamy,
         // ale PII wiadomości musi zniknąć).
         S3Phase s3 = new S3Phase(tenantId);
-        Map<UUID, AttachmentsRow> deletable = new LinkedHashMap<>();
+        Map<EmailMessageId, AttachmentsRow> deletable = new LinkedHashMap<>();
         Set<UUID> blockedContacts = new HashSet<>();
         for (AttachmentsRow row : rows) {
             boolean allObjectsGone = true;
@@ -121,14 +121,15 @@ class EmailMessageServiceImpl implements EmailMessageService {
                 }
             }
             if (allObjectsGone) {
-                deletable.put(row.messageId(), row);
+                deletable.put(row.key(), row);
             } else if (row.contactId() != null) {
                 blockedContacts.add(row.contactId());
             }
         }
 
-        // Faza 3: DELETE tylko wiadomości z usuniętymi obiektami; potwierdzenie przez RETURNING.
-        Set<UUID> deletedIds = deletable.isEmpty()
+        // Faza 3: DELETE tylko wiadomości z usuniętymi obiektami; potwierdzenie przez RETURNING
+        // (pełny klucz (message_id, message_at), BE-134).
+        Set<EmailMessageId> deletedIds = deletable.isEmpty()
                 ? Set.of()
                 : emailMessageRepository.deleteByIds(tenantId, deletable.keySet());
 
@@ -137,7 +138,7 @@ class EmailMessageServiceImpl implements EmailMessageService {
         // kontakt zostaje zablokowany, żeby wołający go nie usunął zostawiając wiadomość z PII.
         int unconfirmed = 0;
         for (AttachmentsRow row : deletable.values()) {
-            if (!deletedIds.contains(row.messageId())) {
+            if (!deletedIds.contains(row.key())) {
                 if (row.contactId() != null) {
                     blockedContacts.add(row.contactId());
                 }

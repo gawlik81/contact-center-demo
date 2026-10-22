@@ -67,6 +67,8 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     /** Domyślny rozmiar batcha gdy {@code retention.purge.batch-size} nie jest skonfigurowany. */
     static final int DEFAULT_BATCH_SIZE = 100;
 
+    /** Nazwa wpisu w scheduled_job (V133) dla purge CAMPAIGN_DATA (DB-082). */
+    private static final String CAMPAIGN_PURGE_JOB_NAME = "purge_campaign_contact_archive";
     private static final String AUDIT_ENTITY_TYPE = "RETENTION_PURGE";
     private static final String AUDIT_ACTION_COMPLETED = "RETENTION_PURGE_COMPLETED";
     private static final String AUDIT_ACTION_FAILED = "RETENTION_PURGE_FAILED";
@@ -80,20 +82,21 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     private final AuditLogService auditLogService;
     private final TenantRetentionPendingSummaryRepository summaryRepository;
     private final CampaignArchiveRetentionRepository campaignArchiveRetentionRepository;
+    private final CronFailureLogRepository cronFailureLogRepository;
 
     @Value("${retention.purge.batch-size:100}")
     private int batchSize;
 
     /**
-     * Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — przyjęte do realizacji, ale bez wyraźnego
-     * potwierdzenia właściciela, patrz notatka BE-124/BE-125 w {@code TASKS-BACKEND.md}). Domyślnie
-     * {@code false}: {@link #purgeContactInteractionsLegacy} (odcięcie referencji, zachowanie
-     * IDENTYCZNE z dzisiejszym). {@code true}: {@link #purgeContactInteractionsWithMessageDeletion}
-     * (USUWANIE wiadomości e-mail/social wraz z obiektami S3, BE-125). NIE ustawiać {@code true} w
-     * żadnym profilu domyślnym (dev/local-demo/prod) bez świadomej decyzji — patrz
-     * {@code application.yml}.
+     * Bezpiecznik wdrożeniowy (BE-126, EPIC-30, D1 = A — potwierdzone przez właściciela
+     * 2026-09-30; WŁĄCZONE domyślnie decyzją właściciela 2026-10-07, patrz notatka BE-124/BE-125/
+     * BE-135 w {@code TASKS-BACKEND.md}). Domyślnie {@code true}:
+     * {@link #purgeContactInteractionsWithMessageDeletion} (USUWANIE wiadomości e-mail/social wraz
+     * z obiektami S3, BE-125). {@code false}: {@link #purgeContactInteractionsLegacy} (odcięcie
+     * referencji, zachowanie z czasów sprzed BE-126) — zachowane jako opcja wycofania przez ENV
+     * {@code RETENTION_PURGE_DELETE_MESSAGES}, patrz {@code application.yml}.
      */
-    @Value("${retention.purge.delete-messages:false}")
+    @Value("${retention.purge.delete-messages:true}")
     private boolean deleteMessagesEnabled;
 
     /**
@@ -175,7 +178,29 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
                     }
                 }
                 case TRANSCRIPTS -> rowsDeleted = purgeTranscripts(tenantId, cutoff);
-                case CAMPAIGN_DATA -> rowsDeleted = purgeCampaignData(tenantId, cutoff);
+                case CAMPAIGN_DATA -> {
+                    CampaignArchiveRetentionRepository.PurgeOutcome outcome;
+                    Instant purgeStartedAt = Instant.now();
+                    try {
+                        outcome = purgeCampaignData(tenantId, cutoff);
+                    } catch (RuntimeException e) {
+                        // DB-082: trwały ślad awarii purge_campaign_contact_archive (cron_log/scheduled_job),
+                        // jeden wpis na nieudany tenant. Wołane PO wyjściu z nieudanej transakcji partii
+                        // (REQUIRES_NEW w repozytorium), tylko dla CAMPAIGN_DATA; nie zmienia statusu FAILED —
+                        // wyjątek leci dalej do handleFailure. recordFailure nigdy nie rzuca.
+                        cronFailureLogRepository.recordFailure(CAMPAIGN_PURGE_JOB_NAME,
+                                "tenant=" + tenantId + ": " + CronFailureLogRepository.rootCauseMessage(e),
+                                purgeStartedAt);
+                        throw e;
+                    }
+                    rowsDeleted = outcome.deleted();
+                    if (outcome.truncated()) {
+                        // COMPLETED z ostrzeżeniem (nie FAILED) – ta sama ścieżka co s3Failures; częściowy
+                        // postęp jest trwały, a purge idempotentny.
+                        warningMessage = "Purge niekompletny — pozostały kwalifikujące się rekordy "
+                                + "(limit partii lub blokady innej sesji); kolejny purge je usunie";
+                    }
+                }
                 // Nieosiągalne w praktyce – validateSupportedCategory już odrzuciła tę wartość
                 // w purge(), zanim purgeAsync w ogóle wystartował. Zabezpieczenie defensywne.
                 case RECORDINGS -> throw new UnsupportedOperationException(
@@ -210,11 +235,12 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
      * Usuwa dane kategorii CONTACT_INTERACTIONS: {@code contact} (+ odcięcie referencji
      * {@code email_message}/{@code social_message} dla usuniętych kontaktów) oraz {@code contact_event}.
      *
-     * <p><strong>Ścieżka domyślna</strong> ({@code retention.purge.delete-messages=false}) —
-     * zachowanie IDENTYCZNE z dzisiejszym (sprzed BE-126): purge kontaktu ODCINA referencję
+     * <p><strong>Ścieżka legacy / wycofania</strong> ({@code retention.purge.delete-messages=false}
+     * — od 2026-10-07 już NIE jest ścieżką domyślną, patrz {@code application.yml}) — zachowanie
+     * IDENTYCZNE z dzisiejszym (sprzed BE-126): purge kontaktu ODCINA referencję
      * ({@code detachContactReferences}), NIE usuwa wiadomości. PII wiadomości zostaje (DESIGN §2
-     * U1) — to jest znana, świadomie zachowana luka do czasu włączenia flagi
-     * {@link #deleteMessagesEnabled} po decyzji właściciela (D1, BE-124/BE-125).
+     * U1) — znana luka tej ścieżki, aktywna tylko gdy flaga {@link #deleteMessagesEnabled} zostanie
+     * jawnie wyłączona (np. wycofanie decyzji właściciela, D1, BE-124/BE-125).
      *
      * <p>Batche {@code contact} są przetwarzane najpierw, w całości, po czym następują batche
      * {@code contact_event} — kolejność nie ma znaczenia biznesowego (obie tabele identyfikują
@@ -464,22 +490,19 @@ class RetentionPurgeServiceImpl implements RetentionPurgeService {
     }
 
     /**
-     * Usuwa dane kategorii CAMPAIGN_DATA: {@code campaign_contact_archive} (BE-119).
+     * Usuwa dane kategorii CAMPAIGN_DATA: {@code campaign_contact_archive} (BE-119, BE-121).
      *
-     * <p><strong>Dlaczego delegacja do funkcji SQL zamiast batchowania po stronie Javy</strong>
-     * (jak {@link #purgeContactInteractions} / {@link #purgeTranscripts}): {@code campaign_contact_archive}
-     * NIE jest partycjonowana i NIE ma włączonego RLS (w odróżnieniu od większości tabel domenowych)
-     * — patrz javadoc {@link CampaignArchiveRetentionRepository}. Indeks
-     * {@code idx_cca_tenant_archived_at} (V089) czyni jeden natywny DELETE efektywnym nawet dla
-     * dużych wolumenów, więc batchowanie po stronie Javy nie daje tu dodatkowej korzyści, jedynie
-     * zwiększa liczbę round-tripów do bazy.
+     * <p>Delegacja do {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size)}
+     * (V126) wołanej w PĘTLI partii przez {@link CampaignArchiveRetentionRepository#purgeEligible} —
+     * każda partia w osobnej transakcji, koniec pętli na wyniku 0, guard {@code purge-max-batches}.
+     * Tabela NIE jest partycjonowana (indeks {@code idx_cca_tenant_archived_at}, V089) i ma włączony
+     * RLS z {@code FORCE} (V111), dlatego repozytorium ustawia {@code set_tenant_context} w każdej partii;
+     * funkcja dodatkowo filtruje jawnie po {@code tenant_id} (druga warstwa izolacji).
      *
-     * <p>Delegacja do {@code purge_campaign_contact_archive(p_tenant_id, p_cutoff_date)} (V091) —
-     * funkcja filtruje po {@code tenant_id} PRZED DELETE, co jest jedynym mechanizmem izolacji
-     * tenantów dla tej tabeli (brak RLS jako drugiej warstwy ochrony, w przeciwieństwie do
-     * większości pozostałych operacji purge w tym serwisie).
+     * <p>Wynik niesie flagę {@code truncated} (limit partii / wiersze zablokowane przez inną sesję) —
+     * {@link #purgeAsync} oznacza wtedy purge jako COMPLETED z {@code warningMessage}, a nie "czysty" sukces.
      */
-    private long purgeCampaignData(UUID tenantId, Instant cutoff) {
+    private CampaignArchiveRetentionRepository.PurgeOutcome purgeCampaignData(UUID tenantId, Instant cutoff) {
         return campaignArchiveRetentionRepository.purgeEligible(tenantId, cutoff);
     }
 

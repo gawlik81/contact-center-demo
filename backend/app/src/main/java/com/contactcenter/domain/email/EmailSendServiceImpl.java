@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +52,8 @@ class EmailSendServiceImpl implements EmailSendService {
                 attachments != null ? attachments : List.of();
         validateAttachmentKeys(tenantId, safeAttachments);
 
-        // 1. Pobierz oryginalną wiadomość
+        // 1. Pobierz oryginalną wiadomość (BE-134: lookup po samym id — API nie zna message_at;
+        //    koszt i uzasadnienie: Javadoc EmailMessageRepository#findById(UUID))
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wiadomość email nie istnieje: " + originalMessageId));
@@ -99,7 +101,8 @@ class EmailSendServiceImpl implements EmailSendService {
         // 6. Zbuduj JSON metadanych załączników dla OUTBOUND
         String attachmentsJson = buildAttachmentsJson(safeAttachments);
 
-        // 7. Zapisz jako OUTBOUND w DB
+        // 7. Zapisz jako OUTBOUND w DB. BE-134: messageAt = sentAt — ten sam Instant, ustawiany RAZ.
+        Instant sentAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         EmailMessage reply = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(original.getContactId())
@@ -111,11 +114,12 @@ class EmailSendServiceImpl implements EmailSendService {
                 .messageIdHeader(newMessageId)
                 .inReplyTo(original.getMessageIdHeader())
                 .attachments(attachmentsJson)
-                .sentAt(Instant.now())
+                .sentAt(sentAt)
+                .messageAt(sentAt)
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
                 .build();
 
-        EmailMessage saved = emailMessageRepository.save(reply);
+        EmailMessage saved = saveNewOutbound(reply);
 
         // 8. Publikuj event
         emailEventPublisher.publishSent(saved, agentId);
@@ -140,6 +144,7 @@ class EmailSendServiceImpl implements EmailSendService {
                 templateId, originalMessageId, tenantId, agentId);
 
         // Pobierz contactId z oryginalnej wiadomości, aby auto-uzupełnić predefiniowane zmienne
+        // (BE-134: lookup po samym id — koszt: Javadoc EmailMessageRepository#findById(UUID))
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wiadomość email nie istnieje: " + originalMessageId));
@@ -201,8 +206,9 @@ class EmailSendServiceImpl implements EmailSendService {
             throw new EmailSendException("Wysyłka SMTP nie powiodła się: " + e.getMessage(), e);
         }
 
-        // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc)
+        // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc). BE-134: messageAt = sentAt (jeden Instant).
         String attachmentsJson = buildAttachmentsJson(safeAttachments);
+        Instant sentAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         EmailMessage outbound = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(null)
@@ -212,12 +218,13 @@ class EmailSendServiceImpl implements EmailSendService {
                 .subject(subject)
                 .bodyHtml(bodyHtml)
                 .messageIdHeader(newMessageId)
-                .sentAt(Instant.now())
+                .sentAt(sentAt)
+                .messageAt(sentAt)
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
                 .attachments(attachmentsJson)
                 .build();
 
-        EmailMessage saved = emailMessageRepository.save(outbound);
+        EmailMessage saved = saveNewOutbound(outbound);
 
         // 5. Publikuj event email.sent
         emailEventPublisher.publishSent(saved, agentId);
@@ -430,6 +437,17 @@ class EmailSendServiceImpl implements EmailSendService {
             log.warn("[EmailSend] Nie można serializować metadanych załączników: {}", e.getMessage());
             return "[]";
         }
+    }
+
+    /**
+     * Zapis nowej wiadomości OUTBOUND. Nagłówek Message-ID jest generowany losowo, więc {@code empty}
+     * z {@link EmailMessageRepository#save} oznacza błąd programisty/kolizję UUID, nie zwykły duplikat —
+     * stąd wyjątek, a nie ciche pominięcie wysłanej wiadomości (wysyłka SMTP już się odbyła).
+     */
+    private EmailMessage saveNewOutbound(EmailMessage message) {
+        return emailMessageRepository.save(message).orElseThrow(() -> new IllegalStateException(
+                "Wysłana wiadomość OUTBOUND nie została zapisana (duplikat Message-ID): "
+                        + message.getMessageIdHeader()));
     }
 
     private String buildReplySubject(String originalSubject) {

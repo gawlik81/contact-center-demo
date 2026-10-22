@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -53,6 +54,8 @@ class EmailMessageServiceImplPurgeTest {
     private static final UUID MSG_3 = UUID.fromString("a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3");
     private static final UUID MSG_4 = UUID.fromString("a4a4a4a4-a4a4-a4a4-a4a4-a4a4a4a4a4a4");
 
+    /** Klucz partycjonowania (BE-134) — jedna wartość wystarcza: testy rozróżniają wiadomości po message_id. */
+    private static final Instant MSG_AT = Instant.parse("2026-10-01T10:00:00Z");
     private static final String PREFIX = "email-attachments/" + TENANT + "/";
 
     @Mock private EmailMessageRepository repository;
@@ -65,7 +68,7 @@ class EmailMessageServiceImplPurgeTest {
         service = new EmailMessageServiceImpl(repository, storage);
         // domyślnie DELETE potwierdza wszystkie zlecone wiersze
         when(repository.deleteByIds(eq(TENANT), anyCollection()))
-                .thenAnswer(inv -> Set.copyOf((Collection<UUID>) inv.getArgument(1)));
+                .thenAnswer(inv -> Set.copyOf((Collection<EmailMessageId>) inv.getArgument(1)));
     }
 
     private static String key(String name) {
@@ -77,7 +80,7 @@ class EmailMessageServiceImplPurgeTest {
         for (int i = 0; i < keys.length; i++) {
             json.append(i > 0 ? "," : "").append("{\"filename\":\"f\",\"s3_key\":\"").append(keys[i]).append("\"}");
         }
-        return new AttachmentsRow(msg, contact, json.append("]").toString());
+        return new AttachmentsRow(msg, MSG_AT, contact, json.append("]").toString());
     }
 
     private void givenRows(AttachmentsRow... rows) {
@@ -154,10 +157,10 @@ class EmailMessageServiceImplPurgeTest {
         @DisplayName("wiadomości bez załączników (puste/brakujące/uszkodzone attachments) są usuwane bez S3")
         void messagesWithoutObjects_areDeletedWithoutS3() {
             givenRows(
-                    new AttachmentsRow(MSG_1, CONTACT_1, "[]"),
-                    new AttachmentsRow(MSG_2, CONTACT_1, null),
-                    new AttachmentsRow(MSG_3, CONTACT_2, "{ to nie json"),
-                    new AttachmentsRow(MSG_4, CONTACT_2, "[{\"filename\":\"x\"},{\"s3_key\":\"\"},5]"));
+                    new AttachmentsRow(MSG_1, MSG_AT, CONTACT_1, "[]"),
+                    new AttachmentsRow(MSG_2, MSG_AT, CONTACT_1, null),
+                    new AttachmentsRow(MSG_3, MSG_AT, CONTACT_2, "{ to nie json"),
+                    new AttachmentsRow(MSG_4, MSG_AT, CONTACT_2, "[{\"filename\":\"x\"},{\"s3_key\":\"\"},5]"));
 
             PurgedMessages result = service.purgeByContactIds(TENANT, List.of(CONTACT_1, CONTACT_2));
 
@@ -193,9 +196,9 @@ class EmailMessageServiceImplPurgeTest {
 
             PurgedMessages result = service.purgeByContactIds(TENANT, List.of(CONTACT_1, CONTACT_2));
 
-            ArgumentCaptor<Collection<UUID>> deleted = ArgumentCaptor.forClass(Collection.class);
+            ArgumentCaptor<Collection<EmailMessageId>> deleted = ArgumentCaptor.forClass(Collection.class);
             verify(repository).deleteByIds(eq(TENANT), deleted.capture());
-            assertThat(deleted.getValue()).containsExactly(MSG_2);
+            assertThat(deleted.getValue()).containsExactly(new EmailMessageId(MSG_2, MSG_AT));
             assertThat(result).isEqualTo(new PurgedMessages(1, 1, 1, 0, Set.of(CONTACT_1)));
         }
 
@@ -250,7 +253,7 @@ class EmailMessageServiceImplPurgeTest {
                     row(MSG_2, CONTACT_1, key("2")),
                     row(MSG_3, CONTACT_2, key("3")),
                     row(MSG_4, CONTACT_3, key("4")),
-                    new AttachmentsRow(UUID.fromString("a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5"), CONTACT_3, "[]"));
+                    new AttachmentsRow(UUID.fromString("a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5"), MSG_AT, CONTACT_3, "[]"));
             doThrow(new EmailAttachmentException("down", null)).when(storage).delete(anyString());
 
             PurgedMessages result = service.purgeByContactIds(TENANT, List.of(CONTACT_1, CONTACT_2, CONTACT_3));
@@ -355,11 +358,11 @@ class EmailMessageServiceImplPurgeTest {
         @Test
         @DisplayName("null contactId nie powoduje NPE ani w blokadach (porażka S3), ani przy niepotwierdzonym DELETE")
         void nullContactId_isNeverAddedToBlockedContacts() {
-            AttachmentsRow failing = new AttachmentsRow(MSG_1, null, "[{\"s3_key\":\"" + key("bad.pdf") + "\"}]");
-            AttachmentsRow unconfirmed = new AttachmentsRow(MSG_2, null, "[]");
-            AttachmentsRow ok = new AttachmentsRow(MSG_3, null, "[]");
+            AttachmentsRow failing = new AttachmentsRow(MSG_1, MSG_AT, null, "[{\"s3_key\":\"" + key("bad.pdf") + "\"}]");
+            AttachmentsRow unconfirmed = new AttachmentsRow(MSG_2, MSG_AT, null, "[]");
+            AttachmentsRow ok = new AttachmentsRow(MSG_3, MSG_AT, null, "[]");
             doThrow(new EmailAttachmentException("boom", null)).when(storage).delete(key("bad.pdf"));
-            when(repository.deleteByIds(eq(TENANT), anyCollection())).thenReturn(Set.of(MSG_3));
+            when(repository.deleteByIds(eq(TENANT), anyCollection())).thenReturn(Set.of(new EmailMessageId(MSG_3, MSG_AT)));
 
             PurgedMessages result = service.purgeRows(TENANT, List.of(failing, unconfirmed, ok));
 
@@ -401,7 +404,7 @@ class EmailMessageServiceImplPurgeTest {
             givenRows(
                     row(MSG_1, CONTACT_1, key("a.pdf")),
                     row(MSG_2, CONTACT_2, key("b.pdf")));
-            when(repository.deleteByIds(eq(TENANT), anyCollection())).thenReturn(Set.of(MSG_2)); // MSG_1 „nie zniknęło"
+            when(repository.deleteByIds(eq(TENANT), anyCollection())).thenReturn(Set.of(new EmailMessageId(MSG_2, MSG_AT))); // MSG_1 „nie zniknęło"
 
             PurgedMessages result = service.purgeByContactIds(TENANT, List.of(CONTACT_1, CONTACT_2));
 

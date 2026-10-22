@@ -15,8 +15,8 @@ import java.util.regex.Pattern;
  * <p><strong>Dwie funkcje SQL, dwa różne cele:</strong>
  * <ul>
  *   <li>{@link #createNextMonthPartitions()} — woła zbiorczą funkcję {@code create_next_month_partitions()}
- *       (V014, rozszerzona {@code CREATE OR REPLACE} w V077/V088/V100 o wszystkie 7 tabel). Tworzy
- *       partycję WYŁĄCZNIE na miesiąc {@code teraz + 1} dla wszystkich 7 tabel na raz, oraz —
+ *       (V014, rozszerzona {@code CREATE OR REPLACE} w V077/V088/V100/V102 o wszystkie 8 tabel). Tworzy
+ *       partycję WYŁĄCZNIE na miesiąc {@code teraz + 1} dla wszystkich 8 tabel na raz, oraz —
  *       jako jedyna z dwóch metod — zapisuje wpis w {@code cron_log}/{@code scheduled_job}
  *       (bookkeeping zgodny z konwencją infrastruktury pg_cron z V014, mimo że samo pg_cron jest
  *       nieaktywne w tym środowisku). Wywoływana raz na uruchomienie joba (BE-114 AC #1).</li>
@@ -53,7 +53,7 @@ class PartitionMaintenanceRepository {
 
     /**
      * Woła {@code SELECT create_next_month_partitions()} — tworzy partycję na miesiąc
-     * {@code teraz + 1} dla wszystkich 7 tabel partycjonowanych na raz (V088, linie 622-648;
+     * {@code teraz + 1} dla wszystkich 8 tabel partycjonowanych na raz (V088, linie 622-648;
      * {@code social_message} dołączona w V100/BE-133), i zapisuje wpis bookkeeping w
      * {@code cron_log}/{@code scheduled_job}.
      */

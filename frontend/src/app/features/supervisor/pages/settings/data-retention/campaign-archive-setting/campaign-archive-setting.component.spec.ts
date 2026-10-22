@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TranslocoTestingModule } from '@jsverse/transloco';
-import { NEVER, Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, Subject, of, throwError } from 'rxjs';
 import de from '../../../../../../../../public/i18n/de.json';
 import en from '../../../../../../../../public/i18n/en.json';
 import pl from '../../../../../../../../public/i18n/pl.json';
@@ -126,19 +126,25 @@ describe('CampaignArchiveSettingComponent (FE-113)', () => {
     },
   );
 
-  it.each([30, 200, 730])(
-    'saves boundary/valid lengthening value %i directly without dialog',
-    async (n) => {
-      await setup(of(setting(30)));
-      service.updateCampaignArchiveSetting.mockReturnValue(of(setting(n)));
-      type(String(n === 30 ? 31 : n));
-      expect(component.canSave()).toBe(true);
-      component.save();
-      expect(service.previewCampaignArchive).not.toHaveBeenCalled();
-      expect(service.updateCampaignArchiveSetting).toHaveBeenCalledWith(n === 30 ? 31 : n);
-      expect(notifications.success).toHaveBeenCalledTimes(1);
-    },
-  );
+  it.each([31, 200, 730])('saves lengthening from 30 to %i directly without dialog', async (n) => {
+    await setup(of(setting(30)));
+    service.updateCampaignArchiveSetting.mockReturnValue(of(setting(n)));
+    type(String(n));
+    expect(component.canSave()).toBe(true);
+    component.save();
+    expect(service.previewCampaignArchive).not.toHaveBeenCalled();
+    expect(service.updateCampaignArchiveSetting).toHaveBeenCalledWith(n);
+    expect(notifications.success).toHaveBeenCalledTimes(1);
+  });
+
+  it('shortening from the upper boundary 730 goes through the dialog flow', async () => {
+    await setup(of(setting(730)));
+    service.previewCampaignArchive.mockReturnValue(of(preview({ currentDays: 730, newDays: 729 })));
+    type('729');
+    component.save();
+    expect(service.previewCampaignArchive).toHaveBeenCalledWith(729);
+    expect(service.updateCampaignArchiveSetting).not.toHaveBeenCalled();
+  });
 
   it('accepts the lower boundary 30 when shortening (dialog flow)', async () => {
     await setup();
@@ -162,8 +168,13 @@ describe('CampaignArchiveSettingComponent (FE-113)', () => {
     const dialog = el().querySelector<HTMLDialogElement>('dialog.cas-dialog')!;
     expect(dialog.hasAttribute('open')).toBe(true);
     const result = el().querySelector('[data-testid="cas-preview-result"]')!.textContent!;
-    expect(result).toContain('3 kampanii');
-    expect(result).toContain('41 kontaktów');
+    expect(result).toContain('Dodatkowo');
+    expect(result).toContain('kampanie: 3');
+    expect(result).toContain('kontakty: 41');
+    // brak oczekujących przy obecnym okresie -> brak linii z sumą
+    expect(el().querySelector('[data-testid="cas-preview-total"]')).toBeNull();
+    expect(dialog.getAttribute('role')).toBe('alertdialog');
+    expect(el().querySelector('.cas-dialog__preview')!.getAttribute('aria-live')).toBe('polite');
 
     el().querySelector<HTMLButtonElement>('[data-testid="cas-confirm-button"]')!.click();
     fixture.detectChanges();
@@ -176,13 +187,160 @@ describe('CampaignArchiveSettingComponent (FE-113)', () => {
   it('shows "nothing will be archived" for 0/0 preview', async () => {
     await setup();
     service.previewCampaignArchive.mockReturnValue(
-      of(preview({ campaignsToArchive: 0, contactsToArchive: 0 })),
+      of(
+        preview({
+          newDays: 150,
+          campaignsToArchive: 0,
+          contactsToArchive: 0,
+          additionalCampaigns: 0,
+          additionalContacts: 0,
+        }),
+      ),
     );
     type('150');
     component.save();
     fixture.detectChanges();
     expect(el().querySelector('[data-testid="cas-preview-nothing"]')).not.toBeNull();
     expect(el().querySelector('[data-testid="cas-preview-result"]')).toBeNull();
+  });
+
+  it('shows the increment and the total when part is already pending at the current period', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(
+      of(
+        preview({
+          campaignsToArchive: 5,
+          contactsToArchive: 60,
+          campaignsToArchiveAtCurrentDays: 2,
+          contactsToArchiveAtCurrentDays: 19,
+          additionalCampaigns: 3,
+          additionalContacts: 41,
+        }),
+      ),
+    );
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    const result = el().querySelector('[data-testid="cas-preview-result"]')!.textContent!;
+    expect(result).toContain('kampanie: 3');
+    expect(result).toContain('kontakty: 41');
+    const total = el().querySelector('[data-testid="cas-preview-total"]')!.textContent!;
+    expect(total).toContain('kampanie: 5');
+    expect(total).toContain('kontakty: 60');
+    expect(total).toContain('kampanie: 2');
+    expect(total).toContain('kontakty: 19');
+  });
+
+  it('says nothing extra is archived when the increment is 0 even if total is pending', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(
+      of(
+        preview({
+          campaignsToArchive: 2,
+          contactsToArchive: 10,
+          campaignsToArchiveAtCurrentDays: 2,
+          contactsToArchiveAtCurrentDays: 10,
+          additionalCampaigns: 0,
+          additionalContacts: 0,
+        }),
+      ),
+    );
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    expect(el().querySelector('[data-testid="cas-preview-nothing"]')).not.toBeNull();
+    expect(el().querySelector('[data-testid="cas-preview-result"]')).toBeNull();
+  });
+
+  it('takes "from" in the dialog intro from the preview currentDays', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(of(preview({ currentDays: 200 })));
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    expect(el().querySelector('.cas-dialog__text')!.textContent).toContain('z 200 do 90');
+  });
+
+  it('keeps the preview container (aria-live) mounted across state changes', async () => {
+    await setup();
+    const preview$ = new Subject<CampaignArchivePreviewDto>();
+    service.previewCampaignArchive.mockReturnValue(preview$);
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    const live = el().querySelector('.cas-dialog__preview');
+    preview$.next(preview());
+    fixture.detectChanges();
+    expect(el().querySelector('.cas-dialog__preview')).toBe(live);
+    expect(live!.querySelector('[data-testid="cas-preview-result"]')).not.toBeNull();
+  });
+
+  it('Escape (dialog cancel event) closes the dialog without saving', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(of(preview()));
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    const event = new Event('cancel', { cancelable: true });
+    el().querySelector('dialog')!.dispatchEvent(event);
+    fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true);
+    expect(el().querySelector('dialog')).toBeNull();
+    expect(service.updateCampaignArchiveSetting).not.toHaveBeenCalled();
+    expect(el().querySelector<HTMLInputElement>('#cas-input')!.value).toBe('90');
+  });
+
+  it('ignores a stale preview response that arrives after cancel and a new value', async () => {
+    await setup();
+    const first$ = new Subject<CampaignArchivePreviewDto>();
+    const second$ = new Subject<CampaignArchivePreviewDto>();
+    service.previewCampaignArchive.mockReturnValueOnce(first$).mockReturnValueOnce(second$);
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    component.cancelConfirm();
+    type('60');
+    component.save();
+    fixture.detectChanges();
+
+    first$.next(preview({ newDays: 90, additionalCampaigns: 9, campaignsToArchive: 9 }));
+    fixture.detectChanges();
+    expect(component.previewState()).toBe('loading');
+    expect(component.preview()).toBeNull();
+
+    second$.next(preview({ newDays: 60, additionalCampaigns: 1, campaignsToArchive: 1 }));
+    fixture.detectChanges();
+    expect(component.preview()!.newDays).toBe(60);
+    expect(first$.observed).toBe(false);
+  });
+
+  it('ignores a preview response whose newDays differs from the requested value', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(of(preview({ newDays: 75 })));
+    type('90');
+    component.save();
+    fixture.detectChanges();
+    expect(component.previewState()).toBe('loading');
+    expect(component.preview()).toBeNull();
+  });
+
+  it('double save does not fire a second preview request while the dialog is open', async () => {
+    await setup();
+    service.previewCampaignArchive.mockReturnValue(NEVER);
+    type('90');
+    component.save();
+    component.save();
+    saveButton().click();
+    expect(service.previewCampaignArchive).toHaveBeenCalledTimes(1);
+  });
+
+  it('double save does not fire a second PUT while saving', async () => {
+    await setup(of(setting(100)));
+    service.updateCampaignArchiveSetting.mockReturnValue(NEVER);
+    type('200');
+    component.save();
+    component.save();
+    expect(service.updateCampaignArchiveSetting).toHaveBeenCalledTimes(1);
   });
 
   it('shows a loading state while the preview is pending', async () => {
@@ -237,6 +395,35 @@ describe('CampaignArchiveSettingComponent (FE-113)', () => {
     expect(component.saving()).toBe(false);
   });
 
+  it('400 from PUT shows the validation message inline and moves focus to it', async () => {
+    await setup(of(setting(100)));
+    service.updateCampaignArchiveSetting.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 400 })),
+    );
+    document.body.appendChild(el());
+    type('200');
+    component.save();
+    fixture.detectChanges();
+    const err = el().querySelector<HTMLElement>('[data-testid="cas-save-error"]')!;
+    expect(err.textContent).toContain('30–730');
+    expect(err.getAttribute('role')).toBe('alert');
+    expect(document.activeElement).toBe(err);
+    el().remove();
+  });
+
+  it('403 on GET shows a permission message without a retry button', async () => {
+    await setup(throwError(() => new HttpErrorResponse({ status: 403 })));
+    const alert = el().querySelector('.cas-alert--error')!;
+    expect(alert.textContent).toContain('Brak uprawnień');
+    expect(alert.querySelector('button')).toBeNull();
+  });
+
+  it('400 on GET shows the generic load error with retry', async () => {
+    await setup(throwError(() => new HttpErrorResponse({ status: 400 })));
+    const alert = el().querySelector('.cas-alert--error')!;
+    expect(alert.querySelector('button')).not.toBeNull();
+  });
+
   it('403 from PUT shows the permission message', async () => {
     await setup(of(setting(100)));
     service.updateCampaignArchiveSetting.mockReturnValue(
@@ -273,6 +460,37 @@ describe('FE-113 i18n keys parity', () => {
     expect(keysOf(en)).toEqual(plKeys);
     expect(keysOf(de)).toEqual(plKeys);
     expect(keysOf(uk)).toEqual(plKeys);
+  });
+
+  it('has the same {{ placeholders }} for every campaignArchive key in pl/en/de/uk', () => {
+    const flat = (obj: unknown, prefix = ''): Record<string, string> =>
+      Object.entries(obj as Record<string, unknown>).reduce<Record<string, string>>(
+        (acc, [k, v]) =>
+          v && typeof v === 'object'
+            ? { ...acc, ...flat(v, `${prefix}${k}.`) }
+            : { ...acc, [`${prefix}${k}`]: String(v) },
+        {},
+      );
+    const section = (j: unknown) =>
+      flat(
+        (j as { supervisor: { settings: { dataRetention: { campaignArchive: unknown } } } })
+          .supervisor.settings.dataRetention.campaignArchive,
+      );
+    const placeholders = (text: string) =>
+      [...text.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]).sort();
+    const plSection = section(pl);
+    for (const [lang, json] of Object.entries({ en, de, uk })) {
+      const other = section(json);
+      for (const key of Object.keys(plSection)) {
+        expect(placeholders(other[key]), `${lang}:${key}`).toEqual(placeholders(plSection[key]));
+      }
+    }
+    expect(placeholders(plSection['confirmModal.previewTotal'])).toEqual([
+      'campaigns',
+      'contacts',
+      'currentCampaigns',
+      'currentContacts',
+    ]);
   });
 
   it('label contains "days after campaign end" semantics in every language', () => {

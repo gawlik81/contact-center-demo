@@ -2438,6 +2438,7 @@
           "saveButton": "Zapisz",
           "saved": "Okres archiwizacji kontaktów kampanii został zapisany.",
           "errorLoad": "Nie udało się załadować okresu archiwizacji kontaktów kampanii.",
+          "errorLoadForbidden": "Brak uprawnień do odczytu okresu archiwizacji dla tego tenanta.",
           "errorSaveValidation": "Wartość odrzucona przez serwer — podaj liczbę całkowitą z zakresu {{ min }}–{{ max }} dni.",
           "errorForbidden": "Brak uprawnień do zmiany okresu archiwizacji dla tego tenanta.",
           "errorSave": "Nie udało się zapisać okresu archiwizacji kontaktów kampanii.",
@@ -2448,8 +2449,9 @@
             "intro": "Skracasz okres archiwizacji z {{ from }} do {{ to }} dni od zakończenia kampanii.",
             "previewLoading": "Obliczanie skutków zmiany…",
             "previewError": "Nie udało się obliczyć skutków zmiany. Możesz mimo to potwierdzić — kampanie zakończone dawniej niż nowy okres zostaną zarchiwizowane przy najbliższym przebiegu.",
-            "previewNothing": "Przy nowej wartości nic nie zostanie zarchiwizowane.",
-            "previewResult": "Przy najbliższym przebiegu zostanie zarchiwizowanych: {{ campaigns }} kampanii ({{ contacts }} kontaktów).",
+            "previewNothing": "Ta zmiana nie spowoduje dodatkowej archiwizacji.",
+            "previewResult": "Dodatkowo zostanie zarchiwizowane — kampanie: {{ campaigns }}, kontakty: {{ contacts }}.",
+            "previewTotal": "Łącznie przy najbliższym przebiegu — kampanie: {{ campaigns }}, kontakty: {{ contacts }} (z czego przy obecnym okresie i tak: kampanie: {{ currentCampaigns }}, kontakty: {{ currentContacts }}).",
             "irreversible": "Zarchiwizowane kontakty znikną z interfejsu, statystyk i dialera; zmiana okresu ich nie przywróci.",
             "confirmButton": "Skróć i zapisz"
           }

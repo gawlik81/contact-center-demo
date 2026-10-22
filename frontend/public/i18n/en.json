@@ -2438,6 +2438,7 @@
           "saveButton": "Save",
           "saved": "Campaign contact archiving period has been saved.",
           "errorLoad": "Failed to load the campaign contact archiving period.",
+          "errorLoadForbidden": "You do not have permission to view the archiving period for this tenant.",
           "errorSaveValidation": "Value rejected by the server — enter a whole number between {{ min }} and {{ max }} days.",
           "errorForbidden": "You do not have permission to change the archiving period for this tenant.",
           "errorSave": "Failed to save the campaign contact archiving period.",
@@ -2448,8 +2449,9 @@
             "intro": "You are shortening the archiving period from {{ from }} to {{ to }} days after campaign end.",
             "previewLoading": "Calculating the impact of the change…",
             "previewError": "Could not calculate the impact of the change. You can still confirm — campaigns that ended earlier than the new period will be archived on the next run.",
-            "previewNothing": "Nothing will be archived with the new value.",
-            "previewResult": "On the next run, {{ campaigns }} campaigns ({{ contacts }} contacts) will be archived.",
+            "previewNothing": "This change will not cause any additional archiving.",
+            "previewResult": "Additionally archived — campaigns: {{ campaigns }}, contacts: {{ contacts }}.",
+            "previewTotal": "Total on the next run — campaigns: {{ campaigns }}, contacts: {{ contacts }} (of which already pending with the current period: campaigns: {{ currentCampaigns }}, contacts: {{ currentContacts }}).",
             "irreversible": "Archived contacts will disappear from the UI, statistics and the dialer; changing the period will not restore them.",
             "confirmButton": "Shorten and save"
           }

@@ -20,3 +20,4 @@
 - [WP-1 DB-084 (tura 36)](project_db084_wp1_tura36.md) — tabela ustawienia + ended_at, DB-084 przed DB-083, liczniki 330/348 bez zmian
 - [BE-151 zakończone (tura 38)](project_be151_tura38.md) — 332/348, FE-113 odblokowany, luka handlera 500 jako rekomendacja bez numeru
 - [Tura 40: EPIC-31, DB-085/086](project_tura40_epic31.md) — FE-113 ✅, 333/350, rozbieżność skryptu EPIC-30 (+2 stałe)
+- [Tura 43: zamknięcie EPIC-30](project_tura43_epic30_closure.md) — warunkowe, DB-087/V142, 337/352, odłożone DB-069/BE-137

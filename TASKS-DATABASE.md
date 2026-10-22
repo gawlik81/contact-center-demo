@@ -3056,7 +3056,7 @@ Rodzic `contact` po V093 też bez redundancji prefiksowej.
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (V091 zastosowane)
-**Status:** ✅ Ukończone (2026-10-09) — migracja **V126** zweryfikowana w pełnym łańcuchu Flyway (Testcontainers); **V126 ZASTOSOWANA na żywej bazie** `cc-postgres` (odczyt `flyway_schema_history` w turze 22: max version = 126, instalacja 2026-10-09 14:47 — backend z tego brancha został przebudowany/zrestartowany poza tą pracą; WP-4 w tym sensie częściowo wykonane zewnętrznie, ale NIE zweryfikowane i NIE zaznaczone jako zrobione; tura 25: ta sama przebudowa zastosowała też V127–V133, max = 133); **EXPLAIN na scratch (≥ 500 tys. wierszy) NIE wykonany** i wydanie razem z BE-121 pozostają otwarte, patrz notatka wykonania
+**Status:** ✅ Ukończone (2026-10-09) — migracja **V126** zweryfikowana w pełnym łańcuchu Flyway (Testcontainers); **V126 ZASTOSOWANA na żywej bazie** `cc-postgres` (odczyt `flyway_schema_history` w turze 22: max version = 126, instalacja 2026-10-09 14:47 — backend z tego brancha został przebudowany/zrestartowany poza tą pracą; WP-4 w tym sensie częściowo wykonane zewnętrznie, ale NIE zweryfikowane i NIE zaznaczone jako zrobione; tura 25: ta sama przebudowa zastosowała też V127–V133, max = 133); **EXPLAIN na scratch WYKONANY 2026-10-18 (tura 43): wybór partii poprawny (`idx_cca_tenant_archived_at`), ale `DELETE … USING batch` miał Seq Scan całej tabeli — naprawione w DB-087 (V142, commit `9c800c81`)**; wydanie razem z BE-121 zrealizowane (obraz backendu z 2026-10-09 21:00 UTC), patrz notatka wykonania
 **Blokuje:** BE-121, DB-069, DB-075
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect` (test Testcontainers: `test-suite-expert`)
@@ -3082,7 +3082,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - [x] (WP-1) Test Testcontainers na pełnym łańcuchu Flyway (rozszerzenie `CampaignContactArchivePurgeTenantIsolationTest`): 5 wierszy tenanta A starszych niż cutoff, `p_batch_size = 2` → wywołania zwracają 2, 2, 1, 0; tenant B (też stary) nietknięty; wiersze nowsze niż cutoff nietknięte
 - [x] Wywołanie dwuargumentowe (bez `p_batch_size`) nadal działa dzięki DEFAULT i usuwa ≤ 10 000 wierszy — istniejący test izolacji zielony bez zmian asercji
 - [x] Brak wpisu w `cron_log` przy wyniku 0
-- [ ] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce — **POZOSTAJE OTWARTE**, nie wykonane w tej sesji
+- [x] (WP-3) `EXPLAIN` partii na bazie scratch (kopia `pg_dump -s`, ≥ 500 tys. wierszy, 20 tenantów): użyty `idx_cca_tenant_archived_at`, bez Seq Scan; czas partii 10 000 wierszy w notatce — **WYKONANE 2026-10-18 (tura 43)** na scratch 600 tys. wierszy (20 tenantów × 30 tys.): wybór partii (SELECT … ORDER BY archived_at LIMIT) używa `idx_cca_tenant_archived_at` — kryterium w części „wybór partii” SPEŁNIONE; ale `DELETE … USING batch` w V126 był planowany jako Hash Join z **Seq Scan całej tabeli** (partia 10 000 = 490–720 ms, koszt rośnie z rozmiarem tabeli) — kryterium „bez Seq Scan” w części DELETE NIESPEŁNIONE przez V126, **naprawione w DB-087 (V142)**: Nested Loop + Index Scan `pk_campaign_contact_archive`, partia 10 000 = 78–105 ms
 - [x] Wdrożenie razem z BE-121 (jedno wydanie): do czasu pętli w Javie pojedyncze wywołanie usuwa tylko pierwszą partię — udokumentowane w nagłówku migracji V126 (część dokumentacyjna ✅); **SPEŁNIONE NA POZIOMIE KODU (2026-10-09)** — BE-121 ✅ (pętla batchowa) jest na tym samym branchu co V126; **samo wydanie razem — do potwierdzenia** (tura 22: V126 jest już na żywej bazie po zewnętrznej przebudowie backendu; tura 25: obraz backendu z 2026-10-09 21:00 UTC zawiera klasy BE-120/121/122 — wydanie razem faktycznie nastąpiło; kryterium pozostaje spełnione na poziomie kodu)
 - [x] Notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą (WP-7) — notatka poniżej; commit poza zakresem tej sesji
 
@@ -3098,6 +3098,7 @@ PK jest odporniejszy na przyszłą konwersję DB-069).
 - **Testy:** `CampaignContactArchivePurgeTenantIsolationTest` rozszerzony do 9 testów (3 dotychczasowe bez zmian asercji + 6 nowych: 5 wierszy/batch 2 → 2,2,1,0 z tenantem B i wierszami nowszymi nietkniętymi oraz asercją 3 wpisów `cron_log` i braku wpisu przy 0; kolejność od najstarszych; wywołanie 2-argumentowe przez DEFAULT; `p_batch_size` poza zakresem/NULL → 22023; jedyna sygnatura 3-argumentowa w `pg_proc`; pod `SET ROLE app_user` z GUC partiami tylko własny tenant, bez GUC cichy 0). `mvn verify -pl app`: 2481 testów, 0 błędów, 1 pominięty (ręczny perf BE-120), BUILD SUCCESS.
 - **OTWARTE:** (1) `EXPLAIN` partii na bazie scratch (≥ 500 tys. wierszy, 20 tenantów, oczekiwany `idx_cca_tenant_archived_at` bez Seq Scan, czas partii 10 000) — nie wykonany; (2) ~~wydanie razem z BE-121~~ — od tury 21 BE-121 ✅ w kodzie na tym samym branchu (spełnione na poziomie kodu); samo wydanie: potwierdzone w turze 25 (obraz z 2026-10-09 21:00 UTC zawiera BE-121). **Tura 22:** V126 zastosowana na żywej bazie 2026-10-09 14:47 (przebudowa backendu poza tą pracą) — fakt odnotowany, nie jako wykonanie WP-4.
 - **Odblokowane:** BE-121 (`DB-056 ✅` dopisane w `Zależy od`), DB-069 i DB-075 (`DB-056 ✅`; DB-069 jest ponadto bramkowany wolumenem, DB-075 warunkowy D6).
+- **Uzupełnienie (tura 43, 2026-10-22):** otwarty punkt (1) „EXPLAIN partii na scratch” WYKONANY 2026-10-18 — wynik i następstwo: patrz kryterium akceptacji powyżej i **DB-087** (V142 zastępuje `DELETE … USING batch` z V126 usuwaniem po pełnym PK; sygnatura funkcji bez zmian). Punkt (2) „wydanie razem z BE-121” — zrealizowany (obraz 2026-10-09 21:00 UTC).
 - **Uwagi z CR 2026-10-10 wprowadzone (tura 25, `CR-DATABASE.md` 4/5, brak blokerów):** `CampaignContactArchivePurgeTenantIsolationTest` rozszerzony do 10 testów — nowy test braku GUC pod `app_user` na niepustej tabeli: świeże połączenie → cichy 0, po `set_config('app.current_tenant_id','',false)` → twardy błąd SQLSTATE 22P02; nagłówek V126 „cichy 0” jest prawdziwy tylko dla świeżego połączenia (V126 zastosowana — nagłówka nie edytowano). **Zależności:** `Zależy od` brak; `Blokuje` BE-121 ✅, DB-069, DB-075 (bez zmian). **Stan żywej bazy (tura 25):** V126 zastosowana 2026-10-09 14:47:25.
 
 ---
@@ -3150,6 +3151,7 @@ definicję `(tenant_id, scheduled_at) WHERE status = 'PENDING' AND is_deleted = 
 - **Stan żywej bazy (korekta tury 25, odczyt `flyway_schema_history` 2026-10-10):** V129–V131 ZASTOSOWANE 2026-10-09 21:00:27 (razem z V127/V128, V132, V133 — max = 133, `success=t`, ok. 0,5 s łącznie) przez zewnętrzną przebudowę backendu (cc-backend; nie wiadomo przez kogo). Wcześniejszy zapis „niezastosowane / zostaną zastosowane przy restarcie / ostatnia = V126” (tury 22–24) był nieaktualny. V131 (decyzja właściciela „zostaw”) również zastosowana.
 - **Zależności:** `Zależy od: brak`, `Blokuje: brak` — zweryfikowane grepem 2026-10-09 (DB-057 występuje tylko w nagłówku własnym, grafie Fazy 0 preambuły, DESIGN §2 U14/§4 i PROGRESS); nic nie odblokowano.
 - **Uwagi z CR 2026-10-10 wprowadzone (tura 25):** nowa migracja `V134__fix_scheduled_callback_due_index_comment.sql` (guard `to_regclass` + `COMMENT ON INDEX idx_scheduled_callback_due`: częściowy indeks `(tenant_id, scheduled_at) WHERE status='PENDING' AND is_deleted=false`, zwycięzca duplikatu z V129; `ScheduledCallbackRepository#findDueCallbacks` go NIE używa, tylko `idx_callback_scheduled`; kandydat do osobnej oceny/usunięcia) — **poprawka do DB-057, NIE nowy ticket (nie w licznikach); V134 w chwili zapisu NIE zastosowana (max = 133) — korekta tury 30: ZASTOSOWANA na żywej bazie 2026-10-11 06:47:08 UTC (`success=t`), ostatnia zastosowana = V135; komentarz `idx_scheduled_callback_due` ma nową treść**; `Db057IndexCleanupMigrationsTest` 14. **Zależności:** `Zależy od` brak; `Blokuje` brak (bez zmian).
+- **Uzupełnienie (tura 43, 2026-10-22): diff `pg_dump -s` WYKONANY 2026-10-18** — żywa baza vs scratch zbudowany od zera z migracji V001..V141: **brak różnic schematu** (119 funkcji, 60 polityk RLS, rozszerzenia identyczne); jedyna różnica to partycje dynamiczne `*_YYYY_MM` tworzone przez joby (diff z filtrem tych partycji); indeksy różnią się wyłącznie tabelą `flyway_schema_history`. Punkt „NIEWYKONANE: diff `pg_dump -s`” z notatki powyżej — ZAMKNIĘTY. Otwarte kryterium „klikalne linki w HTML” pozostaje jako kosmetyka (zaakceptowane przez właściciela 2026-10-22, bez prac). Uwaga: diff dotyczył stanu do V141; V142 (DB-087) nie była jeszcze na żywej bazie.
 
 ---
 
@@ -3999,7 +4001,7 @@ RLS ALL + WITH CHECK + FORCE (GUC `app.current_tenant_id`); indeks `(tenant_id, 
 **Priorytet:** Could Have — **nie wykonywać przed spełnieniem warunku wejścia**
 **Złożoność:** L
 **Zależy od:** DB-056 ✅, DB-072 ✅ (purge w partiach i RLS kształtują projekt partycjonowanej tabeli); dodatkowo bramka wolumenowa — patrz Kontekst
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ⬜ Nie rozpoczęte — **ODŁOŻONE Z WYZWALACZEM WOLUMENOWYM** (decyzja właściciela 2026-10-22, tura 43; patrz „Decyzja właściciela” poniżej). Status ⬜ zachowany świadomie: ticket NIE jest zrealizowany i NIE jest porzucony.
 **Blokuje:** BE-137
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -4017,6 +4019,12 @@ funkcje `create_campaign_contact_archive_partition`, `create_next_month_partitio
 - [ ] Warunek wejścia udokumentowany liczbami; pomiar DELETE vs DROP na scratch ≥ warunek (z `SET max_parallel_maintenance_workers = 0` przed VACUUM)
 - [ ] (WP-1) Test Testcontainers: idempotencja archiwizacji (dwa uruchomienia = brak duplikatów), izolacja purge per tenant na tabeli partycjonowanej
 - [ ] (WP-3/WP-6) Migracja wg reguł; maszyneria (funkcje, `create_next_month_partitions()`); brak wykonywalnego `drop_old_*` — DROP przez `PartitionReclaimJob` (BE-137)
+
+**Decyzja właściciela (2026-10-22, tura 43): ODŁOŻONE Z WYZWALACZEM WOLUMENOWYM.** Ticket zostaje `⬜` i nie jest realizowany, dopóki nie zajdzie wyzwalacz. W liczniku EPIC-30 liczony OSOBNO jako „odłożone z wyzwalaczem” — NIE jako zrealizowany.
+- **Wyzwalacz (którykolwiek):** (a) ≥ 50–100 mln wierszy w `campaign_contact_archive`; LUB (b) problem z WAL/lagiem repliki wywołany purge archiwum; LUB (c) globalny DELETE „ogona” > 30 s.
+- **Kto decyduje:** właściciel produktu. **Jak mierzyć:** zapytanie (count/`reltuples`, `pg_total_relation_size`, czasy `CAMPAIGN_DATA` z `retention_purge_log`) opisane w Kontekście powyżej, wzorowane na `scripts/epic-30/db-066-email-message-volume.sql`. **Kiedy:** przy przeglądach oraz PRZED wdrożeniem produkcyjnym archiwum.
+- **Stan dziś (2026-10-22):** `campaign_contact_archive` = 0 wierszy, flaga `retention.campaign-archive.enabled` WYŁĄCZONA (zostaje wyłączona).
+- **Uwaga projektowa (DB-087, V142):** purge archiwum usuwa po pełnym PK `(record_id, campaign_id)` — odporne na przyszłe partycjonowanie (PK będzie musiał zawierać `archived_at`; przy DB-069 sprawdzić, że `DELETE … USING unnest(record_ids, campaign_ids)` nadal wykorzystuje indeks; `ctid` odrzucony jako dwuznaczny po partycjonowaniu).
 
 ---
 
@@ -4442,7 +4450,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-120 ✅, BE-122 ✅, BE-123 ✅, DB-070 ✅, DB-076 ✅ (tickety fal 1–3 aktualizują swoje fragmenty we własnym DoD) — wszystkie zamknięte
-**Status:** ✅ Ukończone (2026-10-09, tura 24) — dokumentacja zaktualizowana (`documentation/tech/06-database.md`, HTML regenerowany, `ARCHITECTURE.md`, `CR-DATABASE.md`, `DESIGN-message-retention-and-partitioning.md`, Javadoc `EmailMessage` i `RetentionDataCategory` — tylko komentarze); OTWARTE: diff `pg_dump -s` (niewykonany), linki do DESIGN w HTML nieklikalne (patrz kryteria)
+**Status:** ✅ Ukończone (2026-10-09, tura 24) — dokumentacja zaktualizowana (`documentation/tech/06-database.md`, HTML regenerowany, `ARCHITECTURE.md`, `CR-DATABASE.md`, `DESIGN-message-retention-and-partitioning.md`, Javadoc `EmailMessage` i `RetentionDataCategory` — tylko komentarze); diff `pg_dump -s` WYKONANY 2026-10-18 (tura 43, brak różnic schematu — patrz „Uzupełnienie tury 43”); OTWARTE (kosmetyka, zaakceptowana przez właściciela): linki do DESIGN w HTML nieklikalne (patrz kryteria)
 **Blokuje:** brak (grep 2026-10-09: żaden ticket nie ma DB-077 w `Zależy od`)
 **Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 **Wykonawca:** `db-schema-architect`
@@ -4460,7 +4468,7 @@ Wpisy `cleanup_expired_refresh_tokens`, `refresh_materialized_views` mają `last
 **Kryteria akceptacji:**
 - [x] `grep -rn pg_cron documentation/ ARCHITECTURE.md` — każde wystąpienie zgodne z faktem albo oznaczone „nieaktywne, zastąpione przez …"; brak twierdzenia o dynamicznych partycjach `campaign_contact`
 - [x] Brak twierdzeń o istnieniu/odświeżaniu widoków `mv_agent_daily_stats`/`mv_campaign_stats` w dokumentacji (wejście z DB-058, V132)
-- [ ] Wygenerowany HTML, linki do `DESIGN-message-retention-and-partitioning.md`; opis funkcji RODO zgodny z BE-129 (funkcje SQL wołane z Javy) — **CZĘŚCIOWO**: HTML wygenerowany (`node documentation/build-html.js`, zmienił się tylko `06-database.html`), opis RODO V095/V096 zgodny z BE-129; linki do DESIGN w sekcji 3.11 `06-database.md` są nieklikalne w wygenerowanym HTML (tak samo jak istniejące linki `../../`) — kryterium zostaje otwarte
+- [ ] Wygenerowany HTML, linki do `DESIGN-message-retention-and-partitioning.md`; opis funkcji RODO zgodny z BE-129 (funkcje SQL wołane z Javy) — **CZĘŚCIOWO (tura 43: diff `pg_dump -s` wykonany 2026-10-18 — brak różnic schematu; brak klikalnych linków w HTML = kosmetyka zaakceptowana przez właściciela, kryterium zostaje nieodhaczone świadomie)**: HTML wygenerowany (`node documentation/build-html.js`, zmienił się tylko `06-database.html`), opis RODO V095/V096 zgodny z BE-129; linki do DESIGN w sekcji 3.11 `06-database.md` są nieklikalne w wygenerowanym HTML (tak samo jak istniejące linki `../../`) — kryterium zostaje otwarte
 
 **Uzupełnienie z BE-124/DB-060 (2026-09-20):**
 - **Klucz JSONB załącznika to `s3_key`, nie `s3_url`:** komentarz nad kolumną `attachments` w V010 (≈ l. 44) i Javadoc `EmailMessage:102` — V010 jest zastosowana, więc komentarz kolumny poprawia `COMMENT ON COLUMN email_message.attachments` w nowej migracji (np. razem z DB-067, gdy tabela i tak jest przebudowywana, albo osobna, drobna), a Javadoc zwykła edycja komentarza.
@@ -4909,3 +4917,39 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Zależności:** `Zależy od` DB-084 ✅; `Blokuje` DB-083 (EPIC-31; tura 41: DB-086 ✅). Powiązane: DB-085 (ta sama funkcja).
 
 **Notatka wykonania (tura 41, 2026-10-17):** migracja **V141** (commit `fa9820a5`): `INSERT … SELECT … FOR UPDATE` + `DELETE … USING campaign_contact_archive` po `(record_id, campaign_id)` z warunkiem równości stanu wiersza (`status`, `attempt_count`, `last_attempt_at`, `disposition_code`, `last_contact_id`, `updated_at`) — poprawka DB85-R1 (Major: zamyka też modyfikację wiersza w oknie INSERT→DELETE); `DROP` dedykowanej partycji tylko gdy pusta; `Usuniete: N` w `message` wpisu `cron_log` (`rows_affected` bez zmian = liczba wstawionych). **Skutek uboczny:** wiersz z rozjechaną kopią archiwalną zostaje w `campaign_contact` i wymaga interwencji operatora (dane nie giną). Odziedziczone z V015: `ON CONFLICT DO NOTHING` nie nadpisuje starszej kopii (`archived_at` = zegar retencji `CAMPAIGN_DATA` nie jest ruszany). Stan bazy: funkcja z `FOR UPDATE` i „Usuniete” obecna, archiwum puste. **Otwarte:** dokumentacja `06-database.md`; stan flagi archiwizacji w demo niezweryfikowany w tej turze.
+
+---
+
+### DB-087 – Purge archiwum kontaktów (DB-056): `DELETE` po kluczu głównym zamiast Seq Scan — migracja V142
+
+**Typ:** Perf / Bugfix (migracja funkcji SQL)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-056 ✅ (V126 — funkcja `purge_campaign_contact_archive` w wersji zbatchowanej)
+**Status:** ✅ Ukończone (2026-10-18/22, tura 43 — migracja **V142** + test zacommitowane w `9c800c81`; założony i zamknięty w tej samej turze na polecenie właściciela; **V142 NIE ZASTOSOWANA na żywej bazie** — max wersja Flyway = 141 w chwili zapisu, zastosuje właściciel; **code review V142 NIE wykonany**; **dokumentacja `documentation/tech/06-database.md` dla V142 NIE wykonana**)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 59 → 60; nowy ticket wchodzi od razu zamknięty)
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testu migracyjnego)
+
+**Kontekst:** wynik pomiaru z DB-056 (EXPLAIN na scratch 2026-10-18): funkcja `purge_campaign_contact_archive` z V126 wykonywała `DELETE … USING batch` jako **Hash Join z Seq Scan całej tabeli** `campaign_contact_archive`. Scratch 600 tys. wierszy (20 tenantów × 30 tys.): partia 10 000 = 490–720 ms i koszt rośnie z rozmiarem tabeli (a nie z rozmiarem partii). Wybór partii (SELECT) używał poprawnie `idx_cca_tenant_archived_at`.
+
+**Zakres (V142):** `CREATE OR REPLACE FUNCTION purge_campaign_contact_archive(UUID, TIMESTAMPTZ, INT DEFAULT 10000) RETURNS INT` — ta sama sygnatura, `SECURITY INVOKER`; nowe atrybuty funkcji `SET enable_hashjoin = off, enable_mergejoin = off` (nowe wpisy w `proconfig`); krok 1: SELECT partii (`FOR UPDATE SKIP LOCKED`, `ORDER BY archived_at`, `LIMIT p_batch_size`) zbierany do tablic `array_agg` (`record_ids`, `campaign_ids`); krok 2: `DELETE … USING unnest(record_ids, campaign_ids)` po **pełnym PK** `(record_id, campaign_id)` (odporne na przyszłe partycjonowanie — DB-069); wpis do `cron_log` tylko gdy usunięto > 0; walidacja `p_batch_size` 1..100000 bez zmian (SQLSTATE 22023).
+
+**Pomiar po zmianie (scratch 600 tys. wierszy):** partia 10 000 = **78–105 ms** (samo `DELETE` 59,8 ms); plan Nested Loop + Index Scan `pk_campaign_contact_archive`; ok. **5–6× szybciej**; koszt rośnie z rozmiarem partii, nie tabeli.
+
+**Warianty odrzucone:** `USING unnest(…)` bez atrybutów planera (nadal Hash Join); `IN (SELECT …)` (niestabilny — przy partii 30 000 wraca Seq Scan); pętla `FOR` po wierszach (wolniej); `ctid = ANY(…)` (dwuznaczny po partycjonowaniu — kolizje `ctid` między partycjami).
+
+**Kryteria akceptacji:**
+- [x] Ta sama sygnatura `(UUID, TIMESTAMPTZ, INT DEFAULT 10000) RETURNS INT`, `SECURITY INVOKER`; w `pg_proc` dokładnie jedna sygnatura (brak przeciążeń)
+- [x] Usuwanie po pełnym PK `(record_id, campaign_id)` przez `unnest` dwóch tablic; plan `DELETE` bez Seq Scan i bez Hash Join (test przez `auto_explain`) — Nested Loop + Index Scan `pk_campaign_contact_archive`
+- [x] Parytet zachowania pre/post: te same wyniki na dwóch bazach (V126 vs V142) dla tych samych danych; `cron_log` tylko gdy > 0; walidacja 1..100000 bez zmian; `FOR UPDATE SKIP LOCKED` zachowany; migracja idempotentna
+- [x] Test `Db056PurgeCampaignContactArchivePkNestedLoopMigrationTest` **8/8** (parytet pre/post na dwóch bazach, pełny PK, `cron_log`, walidacja, `SKIP LOCKED`, plan bez Seq Scan/Hash Join przez `auto_explain`, atrybuty funkcji, idempotencja); **RED na V126 potwierdzony** (test pada na starej wersji funkcji)
+- [x] Pomiar na scratch ≥ 500 tys. wierszy: partia 10 000 z 490–720 ms do 78–105 ms
+- [x] Niezależnie: `mvn verify -pl app` BUILD SUCCESS, 2662 testy, 0 porażek, 1 pominięty (stary)
+- [ ] **Zastosowanie V142 na żywej bazie** — NIEWYKONANE (max Flyway = 141 w chwili zapisu); zastosuje właściciel (restart backendu z tego brancha); po zastosowaniu: `SELECT version, success FROM flyway_schema_history WHERE version = '142'` oraz `\df+`/`proconfig` funkcji
+- [ ] Code review migracji V142 (`senior-code-reviewer`) — NIEWYKONANY
+- [ ] Dokumentacja `documentation/tech/06-database.md` (opis V142: purge po PK, atrybuty planera) — NIEWYKONANA
+
+**Ryzyka / uwagi:** (R1) `SET enable_hashjoin/mergejoin = off` na poziomie funkcji wiąże plan ze wzorcem zapytania — stąd test planu przez `auto_explain`; (R2) przy DB-069 (partycjonowanie) sprawdzić ponownie plan (PK będzie zawierał `archived_at`); (R3) funkcja nie jest `SECURITY DEFINER` — rola aplikacji i RLS (V111) bez zmian; DB-083 (EPIC-31) użyje `ALTER FUNCTION` na ostatniej wersji.
+**Nie wchodzi w zakres:** zmiany pętli Javy (`CampaignArchiveRetentionRepository#purgeEligible`, BE-121), partycjonowanie (DB-069), zmiana semantyki wartości zwracanej.
+**Zależności:** `Zależy od` DB-056 ✅; `Blokuje` brak (grep tury 43).

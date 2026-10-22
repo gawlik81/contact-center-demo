@@ -3094,3 +3094,29 @@ _Brak błędów krytycznych ani blokujących merge._
 **Ocena: 4/5 ⭐** — solidna implementacja zgodna z regułami multi-tenancy, walidacją 30–730 spójną z CHECK V136 i predykatem podglądu zgodnym z V138; do domknięcia: brak testu gałęzi `ended_at` (najważniejszy semantycznie element DB-084), audyt będący w praktyce fire-and-forget (nieudowodniony do `audit_log`), oraz lokalny handler maskujący brak globalnego handlera `HttpMessageNotReadableException` (500 w całym API). Nie ma problemów blokujących merge.
 
 **Pewne vs niezweryfikowane:** pewne (odczyt kodu/SQL): brak handlera `HttpMessageNotReadableException` w `GlobalExceptionHandler`, `@Async` + połykanie `AmqpException` w `AuditLogServiceImpl`, brak `ended_at` w helperze testowym, zgodność predykatu z V138, dopasowanie wzorca V139 do V133. Niezweryfikowane (nie uruchamiałem): zachowanie Jacksona dla `30.7`, zielone `mvn verify -pl app`, wydajność preview na dużych danych.
+
+---
+
+## Review: BE-152 — `countArchivable` z `COALESCE(ended_at, updated_at, created_at)` (commit a0ad8870: `TenantCampaignArchiveSettingRepository`, Javadoc `CampaignArchiveJob`/`CampaignArchivePreviewDto`, test `createdAtFallback_nullEndedAndUpdated_isCountedInPreview`, `documentation/tech/04-backend.md` §1.25) — 2026-10-18
+
+### Ustalenia (numerowane: waga / opis)
+
+1. **[BLOCKER: brak]** Poprawka jest merytorycznie poprawna. Oba podzapytania `countArchivable` (kampanie i kontakty) używają teraz `COALESCE(c.ended_at, c.updated_at, c.created_at)` — identycznie jak pętla funkcji w V140 (linie 104-113 pliku V140). Zamyka to ustalenie z review DB-084 (CR-DATABASE.md, V137/V138: kampania terminalna z `ended_at` i `updated_at` = NULL nigdy nie była archiwizowana, a podgląd i job się rozjeżdżały po V140). Filtr `tenant_id` zachowany, `NOW()` zamrożone na transakcję, parametry bindowane — bez regresji bezpieczeństwa.
+2. **[MAJOR, test] `CampaignArchiveSettingIntegrationTest` ~l.297-321: `SET session_replication_role = replica` bez `finally`.** `RESET` wykonuje się tylko, gdy `INSERT` się powiedzie. Przy wyjątku (np. zmiana schematu) połączenie wraca do puli Hikari z wyłączonymi triggerami i FK (parametr jest sesyjny), co psuje kolejne testy w tej samej bazie w sposób niedeterministyczny i trudny do zdiagnozowania. Poprawka: `try { st.execute("INSERT ..."); } finally { st.execute("RESET session_replication_role"); }` albo `SET LOCAL` w jawnej transakcji (`c.setAutoCommit(false)` ... `commit`). Alternatywnie: zamiast replica-mode wstawić wiersz z jawnym `updated_at = NULL` bez wyłączania triggerów — trigger INSERT (DB-085) i tak ustawia `ended_at`, więc replica jest tu uzasadnione, ale tylko z `finally`. **[Poprawione w commicie `3e483671`.]**
+3. **[MINOR, test] Brak przypadku przeciwnego.** Test dowodzi tylko, że stare `created_at` + dwa NULL-e jest liczone. Nie ma kontrolki "świeże `created_at` + NULL-e NIE jest liczone" (dolna granica predykatu) ani wariantu, w którym `updated_at` ma priorytet nad `created_at`. Bez tego regresja typu `COALESCE(...) IS NULL OR ...` / zamiana na samo `created_at` przejdzie. Dodać 1 kampanię `created_at = now() - 5 days`, oba NULL-e, 4 kontakty i asercję, że `campaignsToArchive` pozostaje 1. **[Poprawione w commicie `3e483671`.]**
+4. **[MINOR, test] Asercja końcowa używa globalnego `job::run`** (cross-tenant) i `service.update(tenantA, 30, null)` mutuje ustawienie współdzielonego tenantA — test zależy od tego, że inne testy resetują to ustawienie (`@BeforeEach`?). Sprawdzić, czy sprzątanie jest gwarantowane; jeśli nie, kolejność testów zmienia wyniki `preview` (domyślne 180 vs 30) w testach następnych. Plus brak `TenantContext.clear()` w `finally` (zakładam, że robi to `@AfterEach` — potwierdzić).
+5. **[MINOR, doc/Javadoc] Długie linie w komentarzach** (`TenantCampaignArchiveSettingRepository` ~l.149: "(V138, zegar z trzecim argumentem created_at od V140)" wydłużył linię Javadoc poza 120 znaków; podobnie `CampaignArchiveJob` l.13 i `@Schema` w `CampaignArchivePreviewDto`). Zawinąć zgodnie z resztą pliku; Checkstyle/formatowanie pewnie nie złapie, ale łamie spójność. **[Poprawione w commicie `3e483671`.]**
+6. **[MINOR, doc] Nieaktualne opisy w innych miejscach.** `DESIGN-db084-wp1-model-danych.md` (l.13, 142) nadal opisuje `COALESCE(ended_at, updated_at)` — to dokument projektowy z 2-kolumnową wersją; dodać adnotację "zmienione w V140". Starsze sekcje CR-BACKEND/CR-DATABASE są historyczne — nie ruszać. `documentation/tech/04-backend.md` §1.25 zaktualizowany poprawnie i zgodnie ze stanem (usunięto zdanie "zapytanie Javy tego nie uwzględnia"). **[Poprawione w commicie `3e483671`.]**
+7. **[INFO] Spójność kontraktu FE↔BE:** tekst `@Schema` w DTO i semantyka podglądu są teraz zgodne z funkcją SQL; FE-113 nie zależy od tej zmiany (kontrakt pól bez zmian).
+
+### Pozytywy
+- Minimalna, celowa zmiana (2 linie SQL + dokumentacja + test regresyjny); test sprawdza zgodność podglądu z faktycznym zachowaniem joba (archiwizuje dokładnie to, co pokazał podgląd) — właściwa asercja kontraktowa, nie tekstowa.
+- Dokumentacja i Javadoc zaktualizowane w tym samym commicie.
+
+### Co przed zamknięciem BE-152
+- Wymagane: #2 (`finally` z `RESET session_replication_role`).
+- Zalecane: #3 (kontrolka negatywna), #4 (potwierdzić izolację ustawienia/TenantContext).
+- Opcjonalne: #5, #6.
+
+### Summary
+**Ocena: 4/5** — poprawka logicznie wierna V140 i dobrze udokumentowana; do domknięcia higiena testu (brak `finally` przy zmianie `session_replication_role`) i brak przypadku negatywnego. Nie uruchamiałem testów (review read-only, tylko kod/SQL).

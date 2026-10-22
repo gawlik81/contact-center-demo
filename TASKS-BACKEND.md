@@ -19,144 +19,89 @@
 
 ---
 
-## MODUL: Infrastruktura i Fundament
 
-### BE-001 – Inicjalizacja projektu Spring Boot i struktura modułów
+## Indeks wg EPIC
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** BE-002, BE-005, BE-009, BE-015, BE-001b, BE-003, BE-012, BE-067, BE-068
-**Odniesienie PRD:** przekrojowe
+Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID rosnąco); „Bez epiku” na końcu. Epik ticketu wg pola `**Epic:**`, a gdy go brak — wg nagłówka sekcji `(EPIC-xx)`, w której ticket leżał. Liczniki wg pola `**Status:**` ticketu (✅ ukończone, 🔧 w toku, ⬜ nie rozpoczęte, 🚫 N/A). Treść ticketów przeniesiona dosłownie.
 
-**Opis:**
-Inicjalizacja projektu Spring Boot 3.x (Maven/Gradle multi-module). Konfiguracja profili (dev/staging/prod), actuator health endpoints, Flyway migrations, connection pool (HikariCP), konfiguracja Redis (cache), RabbitMQ (broker). Struktura pakietów: `api/`, `domain/`, `infrastructure/`, `security/`.
+| EPIC | Nazwa | ✅ | 🔧 | ⬜ | 🚫 | Razem | Status epiku |
+|------|-------|----|----|----|----|-------|--------------|
+| EPIC-01 | Onboarding i konfiguracja tenanta | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-02 | Zarządzanie użytkownikami i rolami | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-03 | Kanał telefoniczny (inbound) | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-04 | IVR i Automatyzacja głosowa | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-05 | Kanał email | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-06 | Kanał Social Media | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-07 | Silnik routingu | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-08 | Zarządzanie kampaniami | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-09 | Profil i historia klienta | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-10 | Dashboardy i raporty | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-11 | Routing numerów telefonicznych | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-12 | Prezentacja Kontaktów | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-13 | Zaplanowane oddzwonienia | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-14 | Zarządzanie przypisaniem agentów do kolejek | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-15 | Zakładka Klienci w Agent Desktop | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-16 | Kalendarz Agenta | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-18 | Testy jednostkowe | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-19 | Wielojęzyczność | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-20 | Per-tenant konfiguracja Twilio | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-21 | Retry i callback w kampaniach wychodzących | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-22 | Notatki do kontaktów | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-23 | Historia etapów kontaktu | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-24 | Transfer połączenia: agent i kolejka | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-25 | Przypisywanie agentów do kampanii | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-26 | AI-Powered Conversation Summary | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
+| EPIC-27 | Własne dyspozycje per kampania i kolejka | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-28 | Per-Tenant Plugin (Extension) System | 12 | 0 | 0 | 0 | 12 | ✅ Zakończony |
+| EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
+| EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
+| EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
+| Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
+| Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
+| Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
+| Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
+| **RAZEM** | | **143** | **0** | **10** | **3** | **156** | |
 
-**Kryteria akceptacji:**
-- [x] `mvn package` buduje projekt bez błędów
-- [x] `/actuator/health` zwraca status UP ze statusami DB, Redis, RabbitMQ
-- [x] Flyway uruchamia migracje przy starcie aplikacji (baza pusta → schemat MVP)
-- [x] Profil `dev` używa bazy lokalnej, profil `prod` czyta z ENV vars
+Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
----
+### Otwarte tickety wg EPIC (⬜ / 🔧)
 
-### BE-001b – Lokalne środowisko DEV: docker-compose (MinIO i pozostałe serwisy)
+**EPIC-18 – Testy jednostkowe**
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** BE-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-21
-**Blokuje:** BE-010 (nagrywanie rozmów), BE-013 (IVR audio), BE-028 (GDPR anonymize)
-**Odniesienie PRD:** przekrojowe (środowisko deweloperskie)
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-T001 | Testy jednostkowe CampaignService | ⬜ Do zrobienia |
+| BE-T002 | Testy jednostkowe AdminUserService | ⬜ Do zrobienia |
+| BE-T003 | Testy jednostkowe EmailSendService | ⬜ Do zrobienia |
+| BE-T004 | Testy jednostkowe IvrService | ⬜ Do zrobienia |
 
-**Opis:**
-Uzupełnienie `docker-compose.yml` o MinIO (S3-compatible object storage) wymagany przez `S3Properties` i taskt BE-010 (nagrywanie rozmów). Serwis `minio` na portach 9000 (S3 API) / 9001 (Console UI), serwis `minio-init` tworzący bucket `contact-center-recordings` po starcie. Aktualizacja nagłówka `docker-compose.yml` i sekcji `volumes`.
+**EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości**
 
-**Kryteria akceptacji:**
-- [x] `docker compose up -d` uruchamia MinIO obok PostgreSQL, Redis, RabbitMQ
-- [x] MinIO Console dostępna pod `http://localhost:9001` (minioadmin/minioadmin)
-- [x] Bucket `contact-center-recordings` tworzony automatycznie przy pierwszym starcie
-- [x] `S3Properties` (endpoint `http://localhost:9000`, credentiale minioadmin) odpowiada konfiguracji docker-compose
-- [x] Volumen `minio_data` persystuje dane między restartami
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-137 | [BRAMKOWANY] `campaign_contact_archive` w maszynerii partycji | ⬜ Nie rozpoczęte — odłożony z wyzwalaczem wolumenowym (decyzja 2026-10-22) |
 
----
+**EPIC-31 – Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app)**
 
-### BE-002 – Konfiguracja multi-tenancy: TenantContext i filtr tenant_id
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-139 | Testy integracyjne pod rolą bez BYPASSRLS + weryfikacja roli połączenia produkcyjnego | ⬜ Nie rozpoczęte — kod/testy nie rozpoczęte |
+| BE-148 | Przejście produkcji na rolę połączenia aplikacji BEZ BYPASSRLS i bez superusera (+ rola migrac… | ⬜ Nie rozpoczęte — parasol; WP-1 wykonane |
+| BE-149 | Ścieżki HTTP, audyt, logowanie i lookupy pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
+| BE-150 | Joby retencji/partycji, ETL i routing/dialer pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-001, DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027, BE-007, BE-016
-**Odniesienie PRD:** US-01-01, wymagania bezpieczenstwa (izolacja)
+**Bez epiku – Porządki infrastrukturalne i CI**
 
-**Opis:**
-Implementacja `TenantContext` (ThreadLocal) ładowanego z JWT claims przy każdym żądaniu HTTP przez `TenantFilter`. Bazowa klasa `TenantAwareRepository` wymuszająca `WHERE tenant_id = :tenantId` w każdym zapytaniu. Globalny `@Aspect` logujący próby dostępu cross-tenant jako WARNING.
-
-**Kryteria akceptacji:**
-- [x] Każde zapytanie do DB przez TenantAwareRepository automatycznie filtruje po tenant_id
-- [x] Próba dostępu do zasobu innego tenanta zwraca HTTP 403 (nie 404)
-- [x] Test integracyjny: tenant A nie może odczytać danych tenanta B
-- [x] TenantContext czyszczony po zakończeniu żądania (finally block)
-
----
-
-### BE-003 – Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** BE-001, DB-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** BE-004, BE-012, BE-054
-**Odniesienie PRD:** wymagania bezpieczenstwa (TLS, JWT, MFA, bcrypt 12)
-
-**Opis:**
-Konfiguracja Spring Security: JWT access token (15 min TTL) + refresh token (7 dni, stored in DB). bcrypt z 12 rundami dla haseł. Endpoint `/auth/mfa/setup` (generowanie TOTP secret) i `/auth/mfa/verify`. Filtr `JwtAuthFilter` ekstrahujący claims: userId, tenantId, role. Blacklista tokenów w Redis (przy logout/revoke).
-
-**Kryteria akceptacji:**
-- [x] Logowanie zwraca access_token (15 min) i refresh_token (7 dni)
-- [x] Refresh endpoint wymienia refresh_token na nową parę tokenów (rotation)
-- [x] Hasła hashowane bcrypt cost=12 (weryfikacja: BCryptPasswordEncoder(12))
-- [x] MFA TOTP weryfikowany algorytmem RFC 6238 z oknem tolerancji ±30s
-- [x] Logout dodaje access_token do blacklisty Redis (TTL = pozostały czas ważności)
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-144 | [PORZĄDKOWY] Przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem | ⬜ Nie rozpoczęte — blokowany zewnętrznie (licencja AIStor); poza epikiem |
 
 ---
 
-### BE-004 – Auth API: login, logout, refresh, zmiana hasła
+## EPIC-01 – Onboarding i konfiguracja tenanta
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-18
-**Blokuje:** FE-004
-**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa
-
-**Opis:**
-Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `POST /api/auth/change-password`, `POST /api/auth/force-reset/{userId}`. Obsługa flagi `password_reset_required` w JWT claims. Rate limiting na endpoint logowania (5 prób / 15 min / IP przez Redis). Rozszerzono `PublicController` o endpoint `POST /api/public/tenants-by-email` (flow "email-first" na stronie logowania): metoda `findActiveTenantsByUserEmail` w `AppUserRepository` zwraca aktywne tenanty powiązane z danym e-mailem; zawsze HTTP 200 z pustą listą zamiast 404 (nie ujawnia istnienia e-maila – bezpieczeństwo PII).
-
-**Kryteria akceptacji:**
-- [x] `POST /auth/login` z błędnymi danymi zwraca HTTP 401 (bez ujawniania czy email istnieje)
-- [x] Po 5 nieudanych logowaniach z IP → HTTP 429 przez 15 minut
-- [x] `POST /auth/force-reset/{userId}` wymaga roli ADMIN lub SUPERVISOR (dla własnych agentów)
-- [x] `POST /auth/change-password` waliduje: nowe hasło min 8 znaków, 1 cyfra, 1 wielka litera
-- [x] Dokumentacja OpenAPI wygenerowana automatycznie (springdoc)
-
----
-
-### BE-005 – Audit Log: zapis działań użytkowników
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-002, DB-004
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-17
-**Blokuje:** brak
-**Odniesienie PRD:** RODO (rejestr przetwarzania), przekrojowe
-
-**Opis:**
-Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRUD na encjach wrażliwych (User, Customer, Tenant, Campaign). Implementacja przez Spring AOP `@Aspect` na metodach serwisowych z adnotacją `@Audited`. Zapis asynchroniczny przez RabbitMQ (nie blokuje głównego flow). Endpoint `GET /api/audit-logs` (ADMIN only, paginacja, filtry: tenantId, entityType, userId, zakres dat).
-
-**Kryteria akceptacji:**
-- [x] Każda operacja Create/Update/Delete na encjach wrażliwych generuje wpis w AUDIT_LOG
-- [x] Wpis zawiera: old_value i new_value jako JSONB (bez pól hasło/token)
-- [x] Zapis przez RabbitMQ nie spowalnia głównego zapytania (async, fire-and-forget)
-- [x] GET /api/audit-logs dostępny tylko dla ADMIN, paginacja max 100 rekordów
-
----
-
-## MODUL: Zarządzanie Tenantami (EPIC-01)
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-006 – Tenant CRUD API i limity zasobów
 
@@ -202,7 +147,9 @@ Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma 
 
 ---
 
-## MODUL: Użytkownicy i Role (EPIC-02)
+## EPIC-02 – Zarządzanie użytkownikami i rolami
+
+**Ukończone 1/1** · ✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-008 – User / Agent CRUD API ze skills
 
@@ -226,7 +173,9 @@ Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /a
 
 ---
 
-## MODUL: Kanał Telefoniczny (EPIC-03)
+## EPIC-03 – Kanał telefoniczny (inbound)
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-009 – Adapter VoIP: integracja z SIP trunk / CPaaS API
 
@@ -348,7 +297,9 @@ Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym
 
 ---
 
-## MODUL: IVR i Automatyzacja (EPIC-04)
+## EPIC-04 – IVR i Automatyzacja głosowa
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-013 – IVR Engine: wykonanie drzewa IVR
 
@@ -395,7 +346,9 @@ Serwis Python (FastAPI) integrujący ASR (Google Speech-to-Text lub Whisper) i p
 
 ---
 
-## MODUL: Kanał Email (EPIC-05)
+## EPIC-05 – Kanał email
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-015 – Email Adapter: IMAP polling + SMTP wysyłka
 
@@ -443,7 +396,9 @@ Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_ht
 
 ---
 
-## MODUL: Kanał Social Media (EPIC-06)
+## EPIC-06 – Kanał Social Media
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-017 – OAuth flow i zarządzanie tokenami social media
 
@@ -489,7 +444,9 @@ Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMe
 
 ---
 
-## MODUL: Routing i Kolejkowanie (EPIC-07)
+## EPIC-07 – Silnik routingu
+
+**Ukończone 3/3** · ✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-019 – Routing Engine: skill-based, round-robin, sticky agent
 
@@ -559,7 +516,9 @@ Zrealizowane: `WaitTimeEstimationService` (@Scheduled fixedDelay=30s), `QueueWai
 
 ---
 
-## MODUL: Kampanie Outbound (EPIC-08)
+## EPIC-08 – Zarządzanie kampaniami
+
+**Ukończone 4/4** · ✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-022 – Campaign CRUD API i harmonogram
 
@@ -630,7 +589,40 @@ Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event Rabbit
 
 ---
 
-## MODUL: Baza Klientów (EPIC-09)
+### BE-053 – Scheduler automatycznej aktywacji kampanii wg harmonogramu (`CampaignWindowActivator`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-022, DB-011
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-27
+**Blokuje:** brak
+**Epic:** EPIC-08 Kampanie Outbound
+**Odniesienie PRD:** EPIC-08
+
+> **Uwaga (weryfikacja 2026-08-09):** brak testu `CampaignWindowActivatorTest` (potwierdzone —
+> brak pliku w `backend/app/src/test`, tylko skompilowana klasa i raport jacoco). Status
+> pozostaje ✅ dla głównej ścieżki (SCHEDULED→RUNNING, RUNNING→COMPLETED), ale przejście
+> RUNNING→SCHEDULED przy wyjściu poza okno harmonogramu oraz pokrycie testowe wymagają
+> dokończenia.
+
+**Opis:**
+Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie o statusie `SCHEDULED` i automatycznie przełączający je do `RUNNING` gdy bieżący czas mieści się w oknie harmonogramu (pola `schedule.start_date`, `schedule.end_date`, `schedule.time_from`, `schedule.time_to`, `schedule.days_of_week`). Obsługuje strefę czasową tenanta. Zaimplementowany w `/domain/service/CampaignWindowActivator.java`.
+
+**Kryteria akceptacji:**
+- [ ] `@Scheduled` uruchamia zadanie cyklicznie (co minutę lub konfigurowalne)
+- [ ] Kampania SCHEDULED → RUNNING gdy aktualny czas mieści się w oknie harmonogramu
+- [ ] Kampania RUNNING → SCHEDULED gdy wychodzi poza okno harmonogramu (poza godzinami lub dniami)
+- [ ] Strefa czasowa pobierana z konfiguracji tenanta (`tenant.config.timezone`)
+- [ ] Kampanie bez harmonogramu lub z brakującymi polami pomijane bez błędu
+- [ ] Błąd dla jednej kampanii nie zatrzymuje przetwarzania pozostałych
+
+---
+
+## EPIC-09 – Profil i historia klienta
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-025 – Customer CRUD API i fuzzy search
 
@@ -678,7 +670,9 @@ Zrealizowane: `DeduplicationMode.java` (enum SKIP/OVERWRITE), `CustomerImportSta
 
 ---
 
-## MODUL: Raportowanie i Analityka (EPIC-10)
+## EPIC-10 – Dashboardy i raporty
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-027 – Contact API: zapis i odczyt historii kontaktów
 
@@ -829,33 +823,9 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 
 ---
 
-## MODUL: RODO / GDPR (przekrojowe)
+## EPIC-11 – Routing numerów telefonicznych
 
-### BE-031 – RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17)
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-025, BE-027, DB-012
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-09
-**Blokuje:** FE-033
-**Odniesienie PRD:** US-09-06, wymagania RODO
-
-**Opis:**
-Endpoint `POST /api/customers/{id}/gdpr/export` – generuje ZIP z danymi klienta w JSON (CUSTOMER, CONTACT history, AUDIT_LOG). Endpoint `POST /api/customers/{id}/gdpr/anonymize` – anonimizuje pola PII, usuwa nagrania z S3, usuwa wątki email/social (lub anonimizuje treść). Oba działania logowane w AUDIT_LOG z userId wykonującego operację.
-
-**Kryteria akceptacji:**
-- [x] Export ZIP zawiera wszystkie dane klienta w czytelnym JSON
-- [x] Anonimizacja: wszystkie pola PII zastąpione, is_deleted=true, plik nagrania usunięty z S3
-- [x] Obie operacje wymagają roli SUPERVISOR lub ADMIN
-- [x] Operacje logowane w AUDIT_LOG z entity_type='CUSTOMER', action='GDPR_EXPORT'/'GDPR_ANONYMIZE'
-
----
-
----
-
-## MODUL: Routing numerów telefonicznych (EPIC-11)
+**Ukończone 3/3** · ✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-033 – PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta
 
@@ -997,7 +967,9 @@ Integracja reguł routingu z logiką obsługi połączenia przychodzącego w `Tw
 
 ---
 
-## MODUL: Prezentacja Kontaktów (EPIC-12)
+## EPIC-12 – Prezentacja Kontaktów
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-036 – Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max)
 
@@ -1102,74 +1074,9 @@ Warunki bezpieczeństwa:
 
 ---
 
-## Zależności między zadaniami
+## EPIC-13 – Zaplanowane oddzwonienia
 
-### Kolejność obowiązkowa (blokery)
-
-```
-BE-001 → BE-002 → BE-003 → BE-004
-BE-001 → BE-005 (Audit Log)
-BE-002 + DB-005 → BE-006 → BE-007
-BE-002 + DB-003 → BE-008
-BE-001 + DB-006 → BE-009 → BE-010, BE-011
-BE-009 + BE-003 → BE-012 (WebSocket)
-BE-013 + DB-009 → BE-014 (Voicebot Python)
-BE-001 + DB-007 → BE-015 → BE-016
-BE-002 + DB-008 → BE-017 → BE-018
-BE-008 + DB-010 → BE-019 → BE-020, BE-021
-BE-002 + DB-011 → BE-022 → BE-023
-BE-009 + BE-022 + DB-011 → BE-024 (Dialer)
-BE-002 + DB-012 → BE-025 → BE-026
-BE-002 + DB-006 → BE-027 → BE-028
-BE-012 + BE-019 → BE-029
-BE-027 + DB-013 + DB-014 → BE-030 (ETL)
-BE-025 + BE-027 + DB-012 → BE-031 (RODO)
-BE-009 + BE-006 → BE-032 (Twilio per-tenant)
-BE-027 + DB-022 → BE-036 (Contact API filtry zaawansowane)
-BE-027 + BE-010 → BE-037 (Recording presigned URL)
-```
-
-### Blokery od Bazy Danych (BE czeka na DB)
-
-| Zadanie BE | Czeka na zadanie DB |
-|------------|---------------------|
-| BE-001 | DB-001 (schemat bazowy, Flyway) |
-| BE-002 | DB-002 (tabela TENANT) |
-| BE-003 | DB-003 (tabela USER, tokeny) |
-| BE-005 | DB-004 (tabela AUDIT_LOG) |
-| BE-006 | DB-005 (TENANT schema) |
-| BE-009, BE-010, BE-027 | DB-006 (tabela CONTACT, RECORDING) |
-| BE-015, BE-016 | DB-007 (tabela EMAIL, EMAIL_TEMPLATE) |
-| BE-017, BE-018 | DB-008 (tabela SOCIAL_INTEGRATION) |
-| BE-013, BE-014 | DB-009 (tabela IVR_TREE) |
-| BE-019, BE-020 | DB-010 (tabela QUEUE) |
-| BE-022, BE-023, BE-024 | DB-011 (tabela CAMPAIGN, CAMPAIGN_CONTACT) |
-| BE-025, BE-026, BE-031 | DB-012 (tabela CUSTOMER) |
-| BE-028, BE-030 | DB-013 (indeksy raportowe, widoki) |
-| BE-030 | DB-014 (schemat ClickHouse) |
-
-### Zadania mozliwe do realizacji rownoleglem (po BE-001 i odpowiednich schematach DB)
-
-| Sciezka | Zadania |
-|---------|---------|
-| Auth + Security | BE-003 → BE-004 |
-| Tenants | BE-006 → BE-007 |
-| Users | BE-008 |
-| Telephony | BE-009 → BE-010, BE-011, BE-012, BE-032 |
-| Routing telefoniczny | BE-033 → BE-034 → BE-035 |
-| IVR + Voicebot | BE-013 → BE-014 |
-| Email | BE-015 → BE-016 |
-| Social Media | BE-017 → BE-018 |
-| Routing | BE-019 → BE-020, BE-021 |
-| Kampanie | BE-022 → BE-023, BE-024 |
-| Klienci | BE-025 → BE-026, BE-031 |
-| Raporty | BE-027 → BE-028, BE-029, BE-030 |
-| Prezentacja kontaktów | BE-036, BE-037 (równolegle po BE-027) |
-| Zaplanowane oddzwonienia | BE-038 → BE-039, BE-040 (równolegle po BE-038) |
-
----
-
-## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-038 – Executor zaplanowanych callbacków (`ScheduledCallbackExecutor`)
 
@@ -1532,7 +1439,9 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 
 ---
 
-## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+## EPIC-14 – Zarządzanie przypisaniem agentów do kolejek
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-043 – Model i repozytorium grup agentów (`AgentGroup`, `AgentGroupRepository`)
 
@@ -1859,7 +1768,9 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 
 ---
 
-## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+## EPIC-15 – Zakładka Klienci w Agent Desktop
+
+**Ukończone 1/1** · ✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-048 – API manualnego callbacku do klienta inicjowanego przez agenta
 
@@ -1949,7 +1860,9 @@ Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego kl
 
 ---
 
-## MODUŁ: Kalendarz Agenta (EPIC-16)
+## EPIC-16 – Kalendarz Agenta
+
+**Ukończone 4/4** · ✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-049 – Model i repozytorium przerw agenta (`AgentBreak`, `AgentBreakRepository`)
 
@@ -2077,103 +1990,9 @@ Scheduled component `AgentBreakActivator` wykonujący cykliczne zadanie (np. co 
 
 ---
 
-### BE-053 – Scheduler automatycznej aktywacji kampanii wg harmonogramu (`CampaignWindowActivator`)
+## EPIC-18 – Testy jednostkowe
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** BE-022, DB-011
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-27
-**Blokuje:** brak
-**Epic:** EPIC-08 Kampanie Outbound
-**Odniesienie PRD:** EPIC-08
-
-> **Uwaga (weryfikacja 2026-08-09):** brak testu `CampaignWindowActivatorTest` (potwierdzone —
-> brak pliku w `backend/app/src/test`, tylko skompilowana klasa i raport jacoco). Status
-> pozostaje ✅ dla głównej ścieżki (SCHEDULED→RUNNING, RUNNING→COMPLETED), ale przejście
-> RUNNING→SCHEDULED przy wyjściu poza okno harmonogramu oraz pokrycie testowe wymagają
-> dokończenia.
-
-**Opis:**
-Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie o statusie `SCHEDULED` i automatycznie przełączający je do `RUNNING` gdy bieżący czas mieści się w oknie harmonogramu (pola `schedule.start_date`, `schedule.end_date`, `schedule.time_from`, `schedule.time_to`, `schedule.days_of_week`). Obsługuje strefę czasową tenanta. Zaimplementowany w `/domain/service/CampaignWindowActivator.java`.
-
-**Kryteria akceptacji:**
-- [ ] `@Scheduled` uruchamia zadanie cyklicznie (co minutę lub konfigurowalne)
-- [ ] Kampania SCHEDULED → RUNNING gdy aktualny czas mieści się w oknie harmonogramu
-- [ ] Kampania RUNNING → SCHEDULED gdy wychodzi poza okno harmonogramu (poza godzinami lub dniami)
-- [ ] Strefa czasowa pobierana z konfiguracji tenanta (`tenant.config.timezone`)
-- [ ] Kampanie bez harmonogramu lub z brakującymi polami pomijane bez błędu
-- [ ] Błąd dla jednej kampanii nie zatrzymuje przetwarzania pozostałych
-
----
-
-## MODUL: Wielojęzyczność – preferencje użytkownika (EPIC-19)
-
-### BE-054 – `UserPreferencesController`: GET/PUT preferencji zalogowanego użytkownika
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** BE-003 (auth), DB-029
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-28
-**Blokuje:** FE-050
-**Epic:** EPIC-19 Wielojęzyczność
-**Odniesienie PRD:** przekrojowe
-
-**Opis:**
-Nowy kontroler `UserPreferencesController` z dwoma endpointami dla zalogowanego użytkownika:
-
-- `GET /api/users/me/preferences` — zwraca aktualne preferencje (`preferred_language`, ewentualnie inne w przyszłości)
-- `PUT /api/users/me/preferences` — aktualizuje preferencje (body: `{ "preferredLanguage": "en" }`)
-
-Serwis `UserPreferencesService` operuje na encji `AppUser`, aktualizując pole `preferred_language` w tabeli `app_user`. Endpointy wymagają autoryzacji (JWT), operują na kontekście zalogowanego użytkownika (wyciągają `userId` z tokenu, nie z path variable). Izolacja tenant_id — zapis dotyczy tylko własnego rekordu.
-
-**DTO:**
-```java
-record UserPreferencesDto(String preferredLanguage) {}
-```
-
-**Kryteria akceptacji:**
-- [ ] `GET /api/users/me/preferences` zwraca 200 z `{ "preferredLanguage": "pl" }` dla zalogowanego użytkownika
-- [ ] `PUT /api/users/me/preferences` aktualizuje pole i zwraca 200 z nową wartością
-- [ ] Walidacja: `preferredLanguage` musi być jednym z `["pl", "en", "de"]` (można rozszerzać)
-- [ ] Nieuprawniony request (brak JWT) zwraca 401
-- [ ] Endpoint udokumentowany przez OpenAPI (`springdoc`)
-- [ ] Testy jednostkowe kontrolera i serwisu
-
----
-
-## Podsumowanie zadań Backend
-
-| Kategoria | Liczba zadań | Must Have | Should Have |
-|-----------|-------------|-----------|-------------|
-| Infrastruktura | 5 | 5 | 0 |
-| Tenants (EPIC-01) | 2 | 2 | 0 |
-| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
-| Telefonia (EPIC-03) | 5 | 4 | 1 |
-| Routing telefoniczny (EPIC-11) | 3 | 3 | 0 |
-| IVR + Voicebot (EPIC-04) | 2 | 2 | 0 |
-| Email (EPIC-05) | 2 | 2 | 0 |
-| Social Media (EPIC-06) | 2 | 2 | 0 |
-| Routing (EPIC-07) | 3 | 2 | 1 |
-| Kampanie (EPIC-08) | 4 | 4 | 0 |
-| Klienci (EPIC-09) | 2 | 2 | 0 |
-| Raporty (EPIC-10) | 4 | 4 | 0 |
-| RODO | 1 | 1 | 0 |
-| Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
-| Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
-| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
-| Kalendarz Agenta (EPIC-16) | 5 | 0 | 5 |
-| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
-| Wielojęzyczność (EPIC-19) | 1 | 1 | 0 |
-| Per-tenant konfiguracja Twilio (EPIC-20) | 7 | 0 | 7 |
-
----
-
-## MODUL: Testy jednostkowe (EPIC-18)
+**Ukończone 0/4** · ✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0
 
 ### BE-T001 – Testy jednostkowe CampaignService
 
@@ -2264,7 +2083,48 @@ Napisać testy jednostkowe dla `IvrService`.
 
 ---
 
-## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+## EPIC-19 – Wielojęzyczność
+
+**Ukończone 1/1** · ✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0
+
+### BE-054 – `UserPreferencesController`: GET/PUT preferencji zalogowanego użytkownika
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-003 (auth), DB-029
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Blokuje:** FE-050
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Nowy kontroler `UserPreferencesController` z dwoma endpointami dla zalogowanego użytkownika:
+
+- `GET /api/users/me/preferences` — zwraca aktualne preferencje (`preferred_language`, ewentualnie inne w przyszłości)
+- `PUT /api/users/me/preferences` — aktualizuje preferencje (body: `{ "preferredLanguage": "en" }`)
+
+Serwis `UserPreferencesService` operuje na encji `AppUser`, aktualizując pole `preferred_language` w tabeli `app_user`. Endpointy wymagają autoryzacji (JWT), operują na kontekście zalogowanego użytkownika (wyciągają `userId` z tokenu, nie z path variable). Izolacja tenant_id — zapis dotyczy tylko własnego rekordu.
+
+**DTO:**
+```java
+record UserPreferencesDto(String preferredLanguage) {}
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/users/me/preferences` zwraca 200 z `{ "preferredLanguage": "pl" }` dla zalogowanego użytkownika
+- [ ] `PUT /api/users/me/preferences` aktualizuje pole i zwraca 200 z nową wartością
+- [ ] Walidacja: `preferredLanguage` musi być jednym z `["pl", "en", "de"]` (można rozszerzać)
+- [ ] Nieuprawniony request (brak JWT) zwraca 401
+- [ ] Endpoint udokumentowany przez OpenAPI (`springdoc`)
+- [ ] Testy jednostkowe kontrolera i serwisu
+
+---
+
+## EPIC-20 – Per-tenant konfiguracja Twilio
+
+**Ukończone 7/7** · ✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-055 – Encja `TenantTwilioConfig` + `TenantTwilioConfigRepository` + konwerter szyfrowania
 
@@ -2618,7 +2478,9 @@ Nie należy buforować wyników (lista może się zmieniać po zakupie/usunięci
 
 ---
 
-## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+## EPIC-21 – Retry i callback w kampaniach wychodzących
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-062 – Propagacja wyniku połączenia Twilio przez `CallEvent` — rozróżnienie no-answer od completed
 
@@ -2976,97 +2838,9 @@ redisTemplate.delete("dialer:callback-attempt:" + callSid);
 
 ---
 
-## MODUŁ: Ad hoc połączenia i email z panelu agenta
+## EPIC-22 – Notatki do kontaktów
 
-### BE-067 – Endpoint `POST /api/telephony/calls/outbound` — inicjowanie wychodzącego połączenia ad hoc
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-001, BE-030 (TelephonyAdapter.initiateCall)
-**Status:** [x] Zrobione
-**Blokuje:** FE-071
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Nowy endpoint REST umożliwiający agentowi zainicjowanie wychodzącego połączenia telefonicznego do dowolnego numeru (ad hoc, bez kampanii). Reużywa istniejącego `TelephonyAdapter.initiateCall()`. Numer `from` pobierany z konfiguracji Twilio tenanta (`TenantTwilioConfig.phoneNumber`), analogicznie jak w `ProgressiveDialerService`.
-
-**Endpoint:**
-```
-POST /api/telephony/calls/outbound
-Body: { "phoneNumber": "+48123456789", "customerId": "uuid" (opcjonalne) }
-Response 200: { "contactId": "uuid", "callId": "string" }
-```
-
-**Implementacja:**
-- Kontroler: `AgentCallController` — nowa metoda `initiateOutboundCall()`
-- DTO request: `OutboundCallRequest` (record) — `phoneNumber` (@Pattern E.164, @NotBlank), `customerId` (UUID, nullable)
-- DTO response: `OutboundCallResponse` (record) — `contactId`, `callId`
-- Walidacja: numer E.164 przez Bean Validation
-- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
-- Logika: `telephonyAdapter.initiateCall(tenantId, resolvedFromNumber, phoneNumber, agentId, null, null)`
-- `resolvedFromNumber`: odczyt z `TenantTwilioConfig` (jeśli null — `TwilioProperties.defaultFrom` lub pusty string dla mock)
-- Wynik: kontakt tworzony przez adapter (jak dla callbacków); zwróć `contactId` i `callId` z `CallSession`
-- Nie tworzy `ScheduledCallback`; `queueId=null`, `callbackId=null`
-
-**Kryteria akceptacji:**
-- [x] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
-- [x] Niepoprawny format numeru zwraca 400 (Bean Validation)
-- [x] Agent bez tokenu JWT otrzymuje 401
-- [ ] Dla Mock adaptera: nowy kontakt OUTBOUND tworzony w DB, event `CALL_ASSIGNED` wysłany WS do agenta
-- [ ] Dla Twilio adaptera: połączenie inicjowane przez Twilio REST API
-- [x] Dokumentacja OpenAPI uzupełniona
-
----
-
-### BE-068 – Endpoint `POST /api/email/messages/outbound` — wysyłka nowego emaila ad hoc
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** BE-001, BE-038 (EmailSendService)
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-05-13
-**Blokuje:** FE-072
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Nowy endpoint REST do wysyłki nowej wiadomości email (nie odpowiedzi na istniejącą). Reużywa infrastruktury SMTP z `EmailSendService`, ale bez wymagania `originalMessageId`. Tworzy nowy wątek emailowy.
-
-**Endpoint:**
-```
-POST /api/email/messages/outbound
-Body: {
-  "toAddress": "klient@example.com",
-  "subject": "Temat",
-  "bodyHtml": "<p>Treść</p>",
-  "customerId": "uuid" (opcjonalne)
-}
-Response 200: EmailMessageResponse
-```
-
-**Implementacja:**
-- Kontroler: `EmailController` — nowa metoda `sendOutboundEmail()`
-- DTO request: `OutboundEmailRequest` (record) — `toAddress` (@Email, @NotBlank), `subject` (@NotBlank, max 500), `bodyHtml` (@NotBlank), `customerId` (UUID, nullable)
-- Logika w nowej metodzie `EmailSendService.sendNew()`:
-  - Pobiera konfigurację SMTP tenanta (jak w `sendReply`)
-  - Generuje nowy `Message-ID`, brak nagłówków `In-Reply-To` / `References`
-  - Wywołuje `sendSmtp()` bez `inReplyTo` i `references` (null)
-  - Zapisuje `EmailMessage` z `direction=OUTBOUND`, `contactId` = null lub powiązany z `customerId` jeśli podano
-  - Opcjonalnie: tworzy kontakt typu EMAIL_OUTBOUND jeśli `customerId` podano (przez `EmailContactCreator` lub bezpośrednio)
-- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
-
-**Kryteria akceptacji:**
-- [ ] `POST /api/email/messages/outbound` z poprawnymi danymi zwraca 200 z `EmailMessageResponse`
-- [ ] Brak skonfigurowanego SMTP → 422/500 z czytelnym komunikatem
-- [ ] `toAddress` nie jest emailem → 400 (Bean Validation)
-- [ ] Wiadomość zapisana w DB jako `direction=OUTBOUND`
-- [ ] Wysyłka przez SMTP przebiega poprawnie (test integracyjny z mock SMTP lub Greenmail)
-- [ ] Dokumentacja OpenAPI uzupełniona
-
----
-
-## MODUŁ: Notatki do kontaktów (EPIC-22)
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-069 – Zapis notatki agenta do kontaktu — `Contact`, `DispositionRequest`, `ContactResponse`, `ContactRepository`, `ContactService`
 
@@ -3189,7 +2963,9 @@ Panel klienta (prawy panel w Agent Desktop) wyświetla ostatnie 5 kontaktów kli
 
 ---
 
-## MODUŁ: Historia etapów kontaktu (EPIC-23)
+## EPIC-23 – Historia etapów kontaktu
+
+**Ukończone 3/3** · ✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-071 – Model `ContactEvent`, repozytorium i serwis zarządzania etapami
 
@@ -3527,7 +3303,9 @@ public List<ContactEventResponse> getContactEvents(
 
 ---
 
-## EPIC-24 Transfer połączenia: agent i kolejka
+## EPIC-24 – Transfer połączenia: agent i kolejka
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 Rozszerzenie istniejącego panelu transferu połączeń o możliwość przekazania lub konsultacji z konkretnym agentem oraz przekazania do innej kolejki. Obecna implementacja obsługuje tylko transfer na numer telefonu (BLIND + ATTENDED). Po tej epoce agent będzie miał do wyboru trzy cele transferu: **Telefon**, **Agent**, **Kolejka**.
 
@@ -3851,7 +3629,70 @@ public ResponseEntity<CallSessionResponse> transferCall(
 
 ---
 
-## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+### BE-078 – Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-074
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-15
+**Blokuje:** FE-076, FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Dedykowany endpoint do finalizacji attended transfer — łączy nogę klienta z nogą agenta-celu. Dotychczas wywoływany przez `/api/dev/telephony/simulate` z `action=BRIDGE`. Po tym zadaniu frontend wywołuje właściwy endpoint.
+
+**Endpoint w `AgentCallController`:**
+
+```
+POST /api/telephony/calls/{callId}/bridge/{secondCallId}
+Authorization: AGENT, SUPERVISOR (JWT)
+Response: 204 No Content
+HTTP 204  – bridge wykonany
+HTTP 403  – callId nie należy do zalogowanego agenta
+HTTP 404  – jedna z sesji nie istnieje lub inny tenant
+HTTP 409  – nogi nie są w stanie kompatybilnym z bridge (np. callId nie ON_HOLD)
+```
+
+**Implementacja:**
+
+```java
+@PostMapping("/{callId}/bridge/{secondCallId}")
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void bridgeCalls(
+        @PathVariable String callId,
+        @PathVariable String secondCallId,
+        Authentication auth) {
+
+    UUID tenantId = TenantContext.getTenantId();
+    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
+
+    // 1. Sprawdź, że callId należy do zalogowanego agenta
+    // 2. Wywołaj telephonyAdapter.bridgeCalls(callId, secondCallId)
+    // 3. Aktualizuj contact_event (stage=TRANSFER, zapisz czas zakończenia)
+    agentCallService.bridgeCalls(callId, secondCallId, tenantId, userId);
+}
+```
+
+**Uwagi:**
+- Metoda `MockTelephonyAdapter.bridgeCalls()` już istnieje — potrzebny jest tylko endpoint HTTP i wołanie z `AgentCallService`
+- `TwilioTelephonyAdapter.bridgeCalls()` też istnieje — wystarczy podpiąć
+
+**Kryteria akceptacji:**
+- [x] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
+- [x] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
+- [x] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
+- [x] callId nienależący do agenta → 403
+- [x] Niezgodny stan sesji → 409
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+## EPIC-25 – Przypisywanie agentów do kampanii
+
+**Ukończone 7/7** · ✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-079 – Usunięcie obowiązkowego powiązania kampanii z kolejką
 
@@ -4066,61 +3907,6 @@ campaign.all_agents == FALSE
 
 ---
 
-### BE-084 – Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii
-
-**Typ:** Feature / Bug fix
-**Priorytet:** Must Have
-**Złożoność:** S
-**Zależy od:** DB-036, BE-080
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-05-21
-**Blokuje:** FE-082
-**Epic:** EPIC-25 Przypisywanie agentów do kampanii
-
-**Kontekst — zweryfikowany stan:**
-`DialerController.getManualCampaignRecords()` (linia 656) pobiera **wszystkie** kampanie `MANUAL+RUNNING` dla tenanta bez żadnej weryfikacji przypisania agenta:
-```java
-List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
-```
-Po EPIC-25: agenci przypisani do kampanii przez `all_agents/campaign_agent/campaign_agent_group`. Gdy `all_agents=false` i agent nie jest przypisany do kampanii — rekordy tej kampanii **nie powinny być widoczne** w panelu manualnym agenta.
-
-**Zakres zmian w `DialerController.getManualCampaignRecords()`:**
-
-```java
-UUID agentId = TenantContext.getUserId();
-
-// 1. Kampanie MANUAL+RUNNING dla tenanta (bez zmian)
-List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
-
-// 2. Filtruj po przypisaniu agenta
-List<Campaign> eligibleCampaigns = manualCampaigns.stream()
-    .filter(campaign -> {
-        if (campaign.isAllAgents()) return true;
-        Set<UUID> eligible = campaignAssignmentRepository
-                .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
-        return eligible.contains(agentId);
-    })
-    .toList();
-
-if (eligibleCampaigns.isEmpty()) {
-    return ResponseEntity.ok(List.of());
-}
-// ... reszta bez zmian, używa eligibleCampaigns zamiast manualCampaigns
-```
-
-**Wstrzyknij `CampaignAssignmentRepository`** do `DialerController` (już dostępny po BE-080).
-
-**Kryteria akceptacji:**
-- [x] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
-- [x] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
-- [x] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
-- [x] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
-- [x] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
-- [x] Testy jednostkowe: 5 przypadków powyżej
-- [x] `mvn verify -pl app` przechodzi
-
----
-
 ### BE-082 – Ustawienie `campaign_id` na kontakcie wychodzącym — przepięcie `queueId` na `campaignId` w `TelephonyAdapter.initiateCall()`
 
 **Typ:** Bug fix
@@ -4210,69 +3996,6 @@ log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={
 
 ---
 
-### BE-078 – Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Złożoność:** S
-**Zależy od:** BE-074
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-05-15
-**Blokuje:** FE-076, FE-080
-**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
-
-**Opis:**
-
-Dedykowany endpoint do finalizacji attended transfer — łączy nogę klienta z nogą agenta-celu. Dotychczas wywoływany przez `/api/dev/telephony/simulate` z `action=BRIDGE`. Po tym zadaniu frontend wywołuje właściwy endpoint.
-
-**Endpoint w `AgentCallController`:**
-
-```
-POST /api/telephony/calls/{callId}/bridge/{secondCallId}
-Authorization: AGENT, SUPERVISOR (JWT)
-Response: 204 No Content
-HTTP 204  – bridge wykonany
-HTTP 403  – callId nie należy do zalogowanego agenta
-HTTP 404  – jedna z sesji nie istnieje lub inny tenant
-HTTP 409  – nogi nie są w stanie kompatybilnym z bridge (np. callId nie ON_HOLD)
-```
-
-**Implementacja:**
-
-```java
-@PostMapping("/{callId}/bridge/{secondCallId}")
-@ResponseStatus(HttpStatus.NO_CONTENT)
-public void bridgeCalls(
-        @PathVariable String callId,
-        @PathVariable String secondCallId,
-        Authentication auth) {
-
-    UUID tenantId = TenantContext.getTenantId();
-    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
-
-    // 1. Sprawdź, że callId należy do zalogowanego agenta
-    // 2. Wywołaj telephonyAdapter.bridgeCalls(callId, secondCallId)
-    // 3. Aktualizuj contact_event (stage=TRANSFER, zapisz czas zakończenia)
-    agentCallService.bridgeCalls(callId, secondCallId, tenantId, userId);
-}
-```
-
-**Uwagi:**
-- Metoda `MockTelephonyAdapter.bridgeCalls()` już istnieje — potrzebny jest tylko endpoint HTTP i wołanie z `AgentCallService`
-- `TwilioTelephonyAdapter.bridgeCalls()` też istnieje — wystarczy podpiąć
-
-**Kryteria akceptacji:**
-- [x] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
-- [x] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
-- [x] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
-- [x] callId nienależący do agenta → 403
-- [x] Niezgodny stan sesji → 409
-- [x] `mvn verify -pl app` przechodzi
-
----
-
-## MODUŁ: Blokada transferu do kolejki dla połączeń wychodzących (EPIC-25)
-
 ### BE-083 – Guard: odrzucenie transferu OUTBOUND → QUEUE w endpoincie transferu
 
 **Typ:** Bug fix / Validation
@@ -4316,7 +4039,60 @@ if ("OUTBOUND".equals(contact.getDirection())
 
 ---
 
-## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
+### BE-084 – Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii
+
+**Typ:** Feature / Bug fix
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-036, BE-080
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-21
+**Blokuje:** FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+`DialerController.getManualCampaignRecords()` (linia 656) pobiera **wszystkie** kampanie `MANUAL+RUNNING` dla tenanta bez żadnej weryfikacji przypisania agenta:
+```java
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+```
+Po EPIC-25: agenci przypisani do kampanii przez `all_agents/campaign_agent/campaign_agent_group`. Gdy `all_agents=false` i agent nie jest przypisany do kampanii — rekordy tej kampanii **nie powinny być widoczne** w panelu manualnym agenta.
+
+**Zakres zmian w `DialerController.getManualCampaignRecords()`:**
+
+```java
+UUID agentId = TenantContext.getUserId();
+
+// 1. Kampanie MANUAL+RUNNING dla tenanta (bez zmian)
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+
+// 2. Filtruj po przypisaniu agenta
+List<Campaign> eligibleCampaigns = manualCampaigns.stream()
+    .filter(campaign -> {
+        if (campaign.isAllAgents()) return true;
+        Set<UUID> eligible = campaignAssignmentRepository
+                .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+        return eligible.contains(agentId);
+    })
+    .toList();
+
+if (eligibleCampaigns.isEmpty()) {
+    return ResponseEntity.ok(List.of());
+}
+// ... reszta bez zmian, używa eligibleCampaigns zamiast manualCampaigns
+```
+
+**Wstrzyknij `CampaignAssignmentRepository`** do `DialerController` (już dostępny po BE-080).
+
+**Kryteria akceptacji:**
+- [x] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
+- [x] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
+- [x] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
+- [x] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
+- [x] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
+- [x] Testy jednostkowe: 5 przypadków powyżej
+- [x] `mvn verify -pl app` przechodzi
+
+---
 
 ### BE-085 – Powiązanie kontaktu z rekordem kampanii: zapis `campaign_contact_record_id` + endpoint historii
 
@@ -4458,7 +4234,9 @@ public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID c
 
 ---
 
-## EPIC-26: AI-Powered Conversation Summary
+## EPIC-26 – AI-Powered Conversation Summary
+
+**Ukończone 6/6** · ✅ 6 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-086 – Encja `TenantAiConfig` + Repository + konwerter szyfrowania
 
@@ -4743,7 +4521,9 @@ class SummarizeResponse(BaseModel):
 
 ---
 
-## EPIC-27: Własne dyspozycje per kampania i kolejka
+## EPIC-27 – Własne dyspozycje per kampania i kolejka
+
+**Ukończone 5/5** · ✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0
 
 ### BE-092 – Encja `CustomDisposition`, repozytorium i `CustomDispositionService`
 
@@ -5070,7 +4850,9 @@ POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (li
 
 ---
 
-## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+## EPIC-28 – Per-Tenant Plugin (Extension) System
+
+**Ukończone 12/12** · ✅ 12 · 🔧 0 · ⬜ 0 · 🚫 0
 
 > Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Pre-agreed decyzje
 > (nie renegocjować bez wyraźnej prośby użytkownika): izolacja in-process przez dedykowany
@@ -5852,7 +5634,9 @@ informacji diagnostycznej dla pozostałych statusów.
 
 ---
 
-## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+## EPIC-29 – Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Ukończone 9/9** · ✅ 9 · 🔧 0 · ⬜ 0 · 🚫 0
 
 > Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Tabele
 > bazowe: DB-046…DB-054 (TASKS-DATABASE.md). **DB-052 (V088, naprawa rotacji partycji) jest
@@ -6789,7 +6573,9 @@ działają niezależnie od tej decyzji.
 
 ---
 
-## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+## EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+
+**Ukończone 22/26** · ✅ 22 · 🔧 0 · ⬜ 1 · 🚫 3 · status epiku: ⚠️ Zamknięty warunkowo
 
 > Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20) — ustalenia U1–U15, decyzje D1–D8 z
 > założeniami domyślnymi, wymagania przekrojowe WP-1…WP-8. Tabele/funkcje bazowe: DB-056…DB-077 (`TASKS-DATABASE.md`). **Brak nowych endpointów
@@ -8050,35 +7836,6 @@ Nadal nie blokuje startu domyślnie (Testcontainers z uproszczonym schematem).
 
 ---
 
-### BE-139 – Testy integracyjne pod rolą bez BYPASSRLS + weryfikacja roli połączenia produkcyjnego
-
-**Typ:** Testing / infrastruktura testowa
-**Priorytet:** Should Have
-**Złożoność:** M
-**Zależy od:** DB-064 ✅, DB-071 ✅
-**Status:** ⬜ Nie rozpoczęte (kod/testy) — kryterium „weryfikacja roli połączenia produkcyjnego” WYKONANE przez potwierdzenie właściciela 2026-10-11 (zob. niżej); pozostają: harness testowy pod rolą bez BYPASSRLS (≥ 6 scenariuszy) oraz raport/rekomendacja w `DEPLOYMENT.md`
-**Blokuje:** BE-148, DB-083, BE-149, BE-150
-
-**USTALONY FAKT (potwierdzenie właściciela, 2026-10-11):** rola połączenia aplikacji na PRODUKCJI **MA BYPASSRLS / jest superuserem** (tak jak lokalnie `ccapp`); nazwa roli produkcyjnej nie została podana (w repo: `DB_USERNAME=ccapp` w `DEPLOYMENT.md` ≈ l. 685 — nie potwierdzone jako nazwa prod). Konsekwencje: (1) RLS z DB-072/DB-073/DB-074/DB-081 jest na produkcji WYŁĄCZNIE defense-in-depth i NIE chroni przed błędem aplikacji (izolacja tenantów = logika aplikacji: `TenantAwareRepository`, `assertSameTenant`, `TenantContext`); (2) uwaga „fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC” (BE-120/DB-082) **NIE dotyczy produkcji** — dotyczy wyłącznie roli bez BYPASSRLS (np. `app_user`); (3) joby krzyżujące tenantów (`archive_completed_campaign_contacts`, purge) działają na produkcji poprawnie, bo widzą wszystkie wiersze. Wcześniejsza decyzja 2026-10-07: pozostajemy przy `ccapp` (superuser z BYPASSRLS) — podtrzymana.
-
-**[Tura 33, 2026-10-11] DECYZJA WŁAŚCICIELA „tak, dodaj ticket” → ZAŁOŻONY ticket BE-148** (przejście produkcji na rolę połączenia aplikacji bez BYPASSRLS i bez superusera + osobna rola migracyjna + mechanizm dla jobów krzyżujących tenanty; wariant mechanizmu rozstrzyga pierwszy krok BE-148, nie ten ticket). Dawna „PROPOZYCJA” (tury 31) przestaje być propozycją. BE-139 pozostaje ⬜ i jest WARUNKIEM WSTĘPNYM BE-148 (harness testowy pod rolą bez BYPASSRLS jest narzędziem, którym BE-148 weryfikuje każdy job); wynik harnessu (lista defektów ścieżek pod rolą ograniczoną) zasila inwentarz BE-148. **[Tura 34, 2026-10-11] Po WP-1 i podziale BE-148 harness BE-139 jest warunkiem wstępnym także DB-083, BE-149 i BE-150 (testy każdej ścieżki/joba/funkcji pod rolą `NOSUPERUSER NOBYPASSRLS`); wzorzec do reużycia: `PostgresTestDatabase#createRestrictedLoginRole` (rola `LOGIN NOSUPERUSER NOBYPASSRLS`, `GRANT app_user`). Pozycje [N] z inwentarza WP-1 (listenery RabbitMQ, import klientów, `AdminMetricsServiceImpl`, self-invocation GUC) powinien wyłapać ten harness.**
-**Epic:** EPIC-31 Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) (wydzielony z EPIC-30 w turze 40, decyzja właściciela 2026-10-17; numery ticketów zachowane) [wcześniej: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości]
-**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert` dla konfiguracji)
-
-**Opis:** cały łańcuch retencji/RODO/jobów działa dziś wyłącznie dlatego, że `ccapp` = superuser + BYPASSRLS; `app_user` (V012) jest `NOLOGIN`, więc nigdy nie była nią uruchamiana aplikacja (DESIGN §2 U8, R1). Brak polityki UPDATE/DELETE na `contact` oznacza, że purge pod rolą ograniczoną usunąłby 0 wierszy po cichu.
-
-**Zakres:**
-1. Infrastruktura testowa: baza Testcontainers z pełnym Flyway + rola **logująca** (NOSUPERUSER NOBYPASSRLS, członek `app_user`) albo `SET ROLE app_user` przez `connectionInitSql`; narzędzie w `src/test` współdzielone przez testy (wzorzec `CampaignContactArchivePurgeTenantIsolationTest`).
-2. Scenariusze pod tą rolą (minimum 6): purge `contact`/`contact_event`/wiadomości (BE-126/127), `PartitionScanner`/joby, `GdprServiceImpl` (BE-129), zapis/aktualizacja `EmailMessageRepository`/`SocialMessageRepository`, `CampaignArchiveRetentionRepository`, cleanup `refresh_token`; asercje: zapis bez GUC odrzucony/0 wierszy, DELETE po `contact` (dziś bez polityki) = 0 usuniętych — wynik dokumentuje lukę (→ DB-074).
-3. **Weryfikacja roli produkcyjnej [WYKONANE przez potwierdzenie właściciela 2026-10-11: BYPASSRLS/superuser; nazwa roli niepodana; raport w `DEPLOYMENT.md` nadal do napisania]:** jaką rolą łączy się aplikacja w prod (`DB_USERNAME` w `application-prod.yml`, `docker-compose.yml`, `DEPLOYMENT.md`); jeśli superuser/BYPASSRLS → raport i propozycja: dedykowana rola LOGIN będąca członkiem `app_user` (NOBYPASSRLS) oraz osobna rola migracyjna (Flyway); zapis w `DEPLOYMENT.md`. Bez zmian produkcyjnych w tym tickecie.
-
-**Kryteria akceptacji:**
-- [ ] Harness zielony w `mvn verify -pl app` (≥ 6 scenariuszy); wyniki (które ścieżki się łamią pod rolą ograniczoną) w notatce jako lista defektów → tickety
-- [x] Weryfikacja roli produkcyjnej: potwierdzone przez właściciela 2026-10-11 (BYPASSRLS/superuser; nazwa roli niepodana)
-- [ ] Raport o roli produkcyjnej i rekomendacja w `DEPLOYMENT.md`; (WP-1/WP-4) testy nie używają `ccapp` ani nazw partycji potomnych; DoD (WP-7)
-
----
-
 ### BE-140 – [WARUNKOWY: D6 = koniec kampanii] `CAMPAIGN_DATA` liczone od końca kampanii (warstwa Java) (🚫 N/A)
 
 **Typ:** Backend implementation
@@ -8354,196 +8111,6 @@ backend/app/src/test/java/com/contactcenter/
 
 ---
 
-## MODUL: Porządki infrastrukturalne i CI (bez epiku)
-
-> Tickety porządkowe bez epiku (jak DB-055). **BE-144** dopisany 2026-09-21 po code review BE-125 (BE125-07) i weryfikacji dostępności obrazów MinIO;
-> poprzednie zadanie infrastrukturalne tego obszaru: BE-001b (docker-compose, MinIO).
-
-### BE-144 – [PORZĄDKOWY] Przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem
-
-**Typ:** Infrastructure (dług techniczny / dostępność obrazów)
-**Priorytet:** Should Have
-**Złożoność:** S
-**Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte — BLOKOWANY zewnętrznie (brak anonimowo dostępnego obrazu MinIO; weryfikacja 2026-10-11, zob. „Aktualizacja 2026-10-11”). **Tura 43 (2026-10-22): POZA EPIKIEM, backlog infrastruktury** — blokada licencji AIStor, decyzja właściciela nadal OTWARTA; nie wchodzi do kryteriów zamknięcia EPIC-30.
-**Blokuje:** brak
-**Epic:** brak (porządki infrastruktury lokalnej/CI — wynik code review BE-125 (BE125-07) i weryfikacji dostępności obrazów 2026-09-21; jak DB-055, bez epiku)
-**Wykonawca:** `backend-dev-expert`
-
-**Opis:**
-Ustalenie infra (zweryfikowane 2026-09-21 przez zlecającego): `docker manifest inspect minio/minio:latest` → `denied / unauthorized` (kontrola: `alpine` działa) — obrazy MinIO z Docker Hub nie są już anonimowo pobieralne. `docker-compose.yml` używa `minio/minio:latest` (l. 102, serwis `minio`) i `minio/mc:latest` (l. 127, serwis `minio-init`) — ruchomy tag i Docker Hub. Lokalny stos działa dziś tylko z cache'u obrazów; świeża maszyna, CI albo `docker compose pull` nie podniesie MinIO. Test `EmailAttachmentStorageServiceMinioTest` (BE-125) jest już przypięty do `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (BE125-07); compose i dokumentacja nadal wskazują Docker Hub i `latest`.
-
-**Zakres:**
-- `docker-compose.yml`: `minio` → `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (to samo wydanie co w teście — jedno wydanie w całym repo); `minio-init` → `quay.io/minio/mc:<przypięty RELEASE>` — wykonawca sprawdza dostępność `quay.io/minio/mc` (pull anonimowy) i wybiera wydanie zgodne z serwerem, a także zgodność `command: server /data --console-address ":9001"`, healthchecka `mc ready local` (wymaga `mc` w obrazie serwera) i entrypointu `minio-init` (`mc alias set`, `mc mb --ignore-existing`) z przypiętym wydaniem.
-- Pozostałe overlaye compose: `docker-compose.local-demo.yml` (l. 109: serwis `minio` nadpisuje tylko porty, bez obrazu — potwierdzić `docker compose config`); grep 2026-09-21: brak innych plików compose ani manifestów z obrazami MinIO.
-- Dokumentacja z nazwami obrazów: `ARCHITECTURE.md` (l. 881, 1235), `documentation/tech/08-infrastructure.md` (l. 22), `DOCKER-COMMANDS.md` (sekcja 8 „MinIO": polecenia `mc` w kontenerach `cc-minio`/`cc-minio-init`), `DEPLOYMENT.md` (§21 „MinIO Distributed", ≈ l. 1200–1211: brak wzmianek o obrazie w grepie; instalacja binarna `minio server` i `mc ilm add … --expiry-days 365` — sprawdzić źródło binariów/`mc` i odnotować globalny lifecycle 365 dni jako powiązany z ryzykiem R10 (DESIGN §7; H-2 z code review BE-125), bez zmiany polityki bucketu w tym tickecie).
-- `.github/workflows/ci.yml`: `mvn -B -pl app -am verify` uruchamia `EmailAttachmentStorageServiceMinioTest` na `ubuntu-latest` (pull z quay.io z przypiętym tagiem); `release.yml` bez wzmianek o MinIO (grep). Wykonawca sprawdza, czy runner pobiera obraz z quay.io bez logowania i czy potrzebny jest cache.
-- **NIE zmieniać stosu lokalnego użytkownika bez zgody:** przebudowa (`docker compose up -d minio`) = pobranie obrazów z quay.io; wolumen `minio_data` musi pozostać nietknięty.
-
-**Kryteria akceptacji:**
-- [ ] `docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml config` renderuje się bez błędów, a `minio`/`minio-init` wskazują `quay.io/minio/…` z przypiętym tagiem (bez `latest`); `grep -rn "minio/minio:latest\|minio/mc:latest"` po repo (poza `CR-*.md`, `TASKS-*.md`, `PROGRESS.md`, pamięcią agentów) → 0 trafień
-- [ ] `docker manifest inspect` (anonimowo) działa dla obu przypiętych obrazów; pull na czysto (`docker compose pull minio minio-init` na demonie bez cache'u albo `--dry-run` tam, gdzie się da) kończy się sukcesem
-- [ ] Healthcheck `minio` (`mc ready local`) przechodzi na przypiętym wydaniu, a `minio-init` tworzy bucket `contact-center-recordings` — sprawdzone na osobnym, tymczasowym projekcie compose (`-p`, inne porty i wolumeny), NIE na stosie użytkownika
-- [ ] Dokumentacja zaktualizowana (lista wyżej); `EmailAttachmentStorageServiceMinioTest` i compose używają tego samego wydania (jedno miejsce prawdy albo komentarz „utrzymywać razem")
-- [ ] (WP-4, wymaga zgody właściciela) Przełączenie stosu local-demo na przypięte wydanie: najpierw sprawdzić wersję obecnie działającego kontenera i nie schodzić poniżej niej (ryzyko niezgodności formatu danych w wolumenie `minio_data` — do potwierdzenia), pobranie obrazów z quay.io; dane i bucket nietknięte
-- [ ] DoD (WP-7): status i notatka w pliku zadań
-
-**Ryzyka:** przypięte wydanie może nie zawierać `mc` (healthcheck) albo różnić się poleceniem startowym — do sprawdzenia; przypięcie starszego wydania niż dane w wolumenie (patrz AC WP-4); quay.io może wymagać osobnej konfiguracji pull w CI (sprawdzić); ruchomy tag w innych miejscach (np. inne obrazy `latest` w compose) poza zakresem tego ticketu.
-
-**Aktualizacja 2026-09-30 (potwierdzone w CI):** ten problem przestał być teoretyczny/prewencyjny — realnie blokuje PR na GitHub Actions. `mvn -B -pl app -am verify` na świeżym runnerze (`ubuntu-latest`, zero lokalnego cache'u obrazów) pada w `EmailAttachmentStorageServiceMinioTest.start`:
-```
-ContainerFetchException: Can't get Docker image: RemoteDockerImage(imageName=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z, ...)
-```
-Diagnoza z tej samej daty (`docker manifest inspect` z maszyny dewelopera) pokazuje, że zakres tego ticketu (przepięcie na `quay.io`) jest **NIEAKTUALNY/niewystarczający**: nie tylko Docker Hub (`minio/minio:latest` → 401 unauthorized, jak już ustalono 2026-09-21), ale TERAZ TEŻ `quay.io/minio/minio` — zarówno przypięty tag `RELEASE.2025-09-07T16-13-09Z`, jak i `latest` — odpowiada „no such manifest"/401 anonimowemu zapytaniu (`quay.io/api/v1/repository/minio/minio` → HTTP 401 „Requires authentication"), mimo że to samo repozytorium było publicznie odpytywalne 2026-09-21 przy pinowaniu tagu w BE-125. Sprawdzono też `ghcr.io/minio/minio` (denied) i `docker.io/bitnami/minio` (no such manifest) — brak sprawdzonego publicznego rejestru serwującego ten obraz anonimowo w tej chwili. Lokalnie obraz jest wciąż w cache Dockera (stąd `mvn verify` przechodzi na maszynie dewelopera), co maskowało problem do pierwszego uruchomienia na czystym runnerze CI.
-
-Wykonawca BE-144 musi więc znaleźć **inne** rozwiązanie niż samo przejście na quay.io — np. mirror obrazu do rejestru kontrolowanego przez zespół (GHCR pod namespace tego repo) albo Docker Hub/quay.io z uwierzytelnieniem w CI (`docker login` z sekretem). Nie rozstrzygam tego tutaj — tylko odnotowuję.
-
-Doraźnie (osobna zmiana, poza zakresem BE-144): `EmailAttachmentStorageServiceMinioTest` pomija się (`Assumptions.assumeTrue`, JUnit SKIPPED) gdy start kontenera MinIO padnie na błędzie pobrania obrazu, żeby PR nie był czerwony z powodu infrastruktury poza kontrolą repo — to nie jest naprawa, tylko żeby CI nie blokował niezwiązanych zmian do czasu wykonania tego ticketu.
-
-**Aktualizacja 2026-10-11 (tura 31, weryfikacja dostępności — ticket NIE wykonany):** anonimowy `docker manifest inspect` zwraca: `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` → „no such manifest”; `quay.io/minio/minio:latest` → „no such manifest”; `quay.io/minio/mc:latest` → „no such manifest”; `minio/minio:latest` (Docker Hub) → denied/unauthorized. Lokalny `cc-minio` działa wyłącznie z cache'u (image ID `14cea493d9a3`); `docker-compose.yml` nadal ma `minio/minio:latest` (l. 102) i `minio/mc:latest` (l. 127); ŻADNYCH zmian w plikach (compose/CI/dokumentacja) w tej turze. Samo przepięcie na `quay.io/minio/minio` (zakres ticketu) nie zadziała — dla tej ścieżki brak manifestu (korekta tury 32: NIE oznacza to, że cały quay.io jest niedostępny — `quay.io/minio/aistor/*` istnieje i jest pobieralny anonimowo, ale wymaga licencji; zob. „Próba AIStor” niżej) — potrzebna decyzja właściciela. **Opcje dla właściciela:** (1) **[zalecane]** mirror obrazów do rejestru zespołu (np. `ghcr.io/<org>/minio:RELEASE.2025-09-07T16-13-09Z` oraz `mc`; wymaga `docker login ghcr.io` z tokenem właściciela), następnie przepięcie compose, testu `EmailAttachmentStorageServiceMinioTest` i dokumentacji na ten rejestr; (2) uwierzytelniony pull w CI z sekretem (zmiana `ci.yml`; lokalnie nadal bez rozwiązania dla świeżej maszyny); (3) zamiana MinIO na inny S3-kompatybilny obraz (poza zakresem tego ticketu). Do decyzji ticket zostaje `⬜`, BLOKOWANY zewnętrznie.
-
-**Próba AIStor 2026-10-11 (tura 32, wynik NEGATYWNY — ticket nadal `⬜` BLOKOWANY, bez zmiany statusu):** sprawdzono, czy następca MinIO (AIStor) nadaje się jako zamiennik. Próba na izolowanym projekcie (osobna sieć i wolumen `aistor-trial-*`, porty 19000/19001, jednorazowe losowe poświadczenia; po próbie posprzątane). `cc-minio` i wolumen `minio_data` NIE ruszane (ten sam ID/StartedAt, healthy); w repo żadnych zmian. Obrazy `quay.io/minio/aistor/minio:RELEASE.2026-09-19T17-05-25Z` (564 MB, amd64+arm64) i `quay.io/minio/aistor/mc:RELEASE.2026-09-19T15-24-59Z` (178 MB) są dostępne anonimowo (pull działa), **ALE nie nadają się jako zamiennik bez licencji:**
-- serwer startuje (`/minio/health/live` 200; `minio --version` = „License: MinIO AIStor License”), lecz log: „No valid license found, running in offline mode. All S3 operations are denied. Please install a valid license using 'mc license update'”;
-- healthcheck z compose (`mc ready local`) NIE przechodzi (`/minio/health/ready` 503, kontener >100 s w „starting”) — `minio-init` (`depends_on: service_healthy`) w ogóle by nie wystartował;
-- `mc alias set` działa; `mc mb` → „Access denied. No license is installed”; `mc license info` → „License is not installed”; brak darmowego/trial trybu w komunikatach; `mc --version` = „MinIO Enterprise License”; składnia poleceń zgodna; entrypoint obrazu `mc` jest pusty (compose ma `entrypoint: /bin/sh -c` — w próbie z `--entrypoint /bin/sh` działało);
-- `EmailAttachmentStorageServiceMinioTest` NIE był uruchamiany z AIStor (stała `MINIO_IMAGE` l. 79–80 zahardkodowana na `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`). **OSTRZEŻENIE:** gdyby przepiąć test na AIStor bez licencji, czeka on na `/minio/health/ready`=200 przez 90 s → timeout → `catch RuntimeException` → `Assumptions.assumeTrue(false)` = **SKIPPED, nie PASS** — zielony/pominięty wynik wprowadzałby w błąd (test nic by nie sprawdził).
-
-**Rekomendacja:** NIE przepinać na AIStor bez ważnej licencji (decyzja kosztowa/prawna poza zakresem BE-144; licencja = dodatkowy sekret w compose/CI/testach). **Opcje dla właściciela:** (1) **[zalecane]** mirror obrazu `RELEASE.2025-09-07T16-13-09Z` (+ `mc`) do rejestru zespołu (np. `ghcr.io`; wymaga `docker login` z tokenem właściciela); (2) uwierzytelniony pull w CI z sekretem (`ci.yml`); (3) inny S3-kompatybilny obraz (SeaweedFS/Garage/Ceph RGW — osobna ocena: zgodność z AWS SDK v2 i presigned URL); (4) zostawić `⬜` BLOKOWANY.
-**Gdyby mimo to przepiąć na AIStor — lista zmian:** `docker-compose.yml` l. 102 i 127 + sekret licencji i `mc license update` przed `mc mb` w `minio-init`; `EmailAttachmentStorageServiceMinioTest` l. 79–80 + licencja dla Testcontainers; `.github/workflows/ci.yml` (sekret); dokumentacja: `ARCHITECTURE.md` (l. 881, 1235), `documentation/tech/08-infrastructure.md` (l. 22), `DOCKER-COMMANDS.md` (sekcja 8), `DEPLOYMENT.md` §21. **Ryzyko zgodności formatu danych w `minio_data` niesprawdzone** (próba na świeżym wolumenie) — wymaga kopii zapasowej wolumenu przed jakimkolwiek podniesieniem.
-
-**Rekomendacja priorytetu:** biorąc pod uwagę, że problem aktywnie blokuje CI (nie jest już tylko ryzykiem na przyszłość), warto rozważyć podniesienie `Should Have` → `Must Have`. Decyzję i zmianę pola `**Priorytet:**` pozostawiam właścicielowi backlogu.
-
----
-
-## MODUL: Porządki silnika partycji i retencji (EPIC-29, bez epiku EPIC-30)
-
-> Tickety porządkowe bez epiku (jak DB-055, BE-144) dotyczące silnika retencji/partycjonowania z EPIC-29, nie samej retencji wiadomości (EPIC-30).
-> **BE-145** dopisany 2026-09-26 po code review BE-127 (BE127-01, `CR-BACKEND.md`) — pre-existing ryzyko w `PartitionReclaimJob` (BE-115, EPIC-29), niezmienionym przez BE-125/126/127.
-
-### BE-145 – [PORZĄDKOWY] `PartitionReclaimJob` nie powinien usuwać (`DROP TABLE`) niepustej partycji tabel per-tenant
-
-**Typ:** Backend implementation / bugfix
-**Priorytet:** Should Have (nie Must — scenariusz wymaga wieloletniej, niezauważonej awarii Poziomu 1 purge dla jednego tenanta; dotyczy WSZYSTKICH tabel per-tenant obsługiwanych przez ten job, nie tylko wiadomości)
-**Złożoność:** S (M, jeśli wykonawca zdecyduje się dodać też sweep dangling po FK jako drugą linię obrony — patrz Zakres, pkt opcjonalny)
-**Zależy od:** brak
-**Status:** ✅ Ukończone (2026-09-26) — patrz „Notatka z wykonania" poniżej
-**Blokuje:** brak
-**Epic:** brak (naprawa silnika partycji/retencji z EPIC-29 — `PartitionReclaimJob` istnieje od BE-115, niezmieniony przez EPIC-30/BE-125/126/127; wynik code review BE-127 (BE127-01) 2026-09-26; jak DB-055/BE-144, bez epiku)
-**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
-
-**Kontekst (cytat z `CR-BACKEND.md`, sekcja „Review: BE-127", ustalenie BE127-01 — major, latentne, pre-existing, NIE regresja BE-127):**
-> „decyzja „wariant dangling pominięty" opiera się na twierdzeniu „`contact` jest usuwany WYŁĄCZNIE przez `deleteContacts`/`deleteBatchOlderThan`" — pomija TRZECI mechanizm (`DROP TABLE` partycji), który usuwa wiersze `contact` bez żadnego sprzątania `email_message`/`social_message`."
-> „`warnIfStillHasRows` (…) explicite sprawdza, czy partycja-kandydat do DROP wciąż ma wiersze, loguje WARN gdy tak — **i mimo to kontynuuje DROP** (…). Ten job: (1) NIE woła `EmailMessageService`/`SocialMessageService` … przed/po DROP …; (2) Usuwa wiersze `contact` niezależnie od tego, czy powiązane `email_message`/`social_message` … istnieją — … nie mają FK do `contact` …, więc DROP nie kaskaduje …, zostawiając wskazujące na nie `email_message.contact_id`/`social_message.contact_id` jako dangling."
-> „Scenariusz utraty/luki danych: gdyby purge Poziomu 1 … przestał działać dla jednego tenanta na czas dłuższy niż globalny bufor (`maxRetentionMonths` ze WSZYSTKICH tenantów — dziś demo … 60 miesięcy) — `PartitionReclaimJob` i tak w końcu DROPnie starą partycję `contact` z pozostałymi wierszami (WARN, bez blokady). Każda wiadomość … staje się DOKŁADNIE tym „dangling", które BE-127 świadomie zdecydowało się nie sprzątać … i od tego momentu NIE ISTNIEJE żadna ścieżka usunięcia tej wiadomości w całym systemie."
-
-Wykonawca BE-127 potwierdził to ustalenie i dopisał w notatce wykonania BE-127 (`TASKS-BACKEND.md`, blok „Code review i poprawki (2026-09-26)"): ryzyko dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), świadomie NIE założono ticketu w tamtej sesji bez decyzji — ten ticket jest tą decyzją.
-
-Kod: `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — `TABLE_CATEGORIES` (l. 73–79, `Map<String, RetentionDataCategory>`: `contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), `reclaimTable` (l. 131–177, wywołuje `warnIfStillHasRows` na l. 167 i `partitionScanner.dropPartition(...)` bezwarunkowo na l. 169), `warnIfStillHasRows` (l. 184–194, WYŁĄCZNIE `log.warn`, zero wpływu na sterowanie). Potwierdzone niezależnym grepem: `email_message`/`social_message` nie mają FK `REFERENCES contact` w żadnej migracji.
-
-**Powiązanie z BE-123 (⬜, EPIC-30) — do rozstrzygnięcia przy implementacji, kolejność wg wykonawcy:** BE-123 planuje refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)` z nowym `DropMode.ONLY_IF_EMPTY` (dziś zarezerwowanym dla `email_message`/`social_message` przez BE-133), ale jego bieżący opis i AC explicite zachowują dla `contact*` `DropMode.AFTER_CUTOFF` („dzisiejsze zachowanie … bez zmian") — patrz uwaga dopisana w BE-123 (2026-09-26). Jeśli BE-123 wdroży się PRZED tym ticketem, ten ticket redukuje się do przełączenia `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` na `ONLY_IF_EMPTY` (reużycie mechanizmu, bez własnego). Jeśli ten ticket wdroży się PRZED BE-123, wykonawca BE-123 musi zaktualizować swój opis/AC („bez zmian" → „ONLY_IF_EMPTY, zgodnie z BE-145").
-
-**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
-1. `warnIfStillHasRows` (albo jego wywołujący `reclaimTable`) musi zwracać informację BLOKUJĄCĄ `DROP` (nie tylko logować) dla partycji tabel per-tenant z `TABLE_CATEGORIES` (`contact`, `contact_event`, `contact_transcription`, `contact_ai_summary` — nazwa `TABLE_CATEGORIES`/`ReclaimTarget` do potwierdzenia w kodzie w chwili implementacji, może się zmienić po BE-123), zgodnie z WP-5 z `DESIGN-message-retention-and-partitioning.md` („niepusta → WARN i pominięcie", NIE „WARN i kontynuuj").
-2. **Wyjątek — horyzont platformowy** (`audit_log`, `plugin_invocation_log`, DB-123/BE-123 — inny ticket o zbliżonym numerze, NIE mylić z DB-123-Twoim-DropMode-refaktorem powyżej; sprawdź aktualną numerację): niepusta partycja po horyzoncie platformowym jest OCZEKIWANA (WP-5) — tam DROP mimo niepustej zostaje (INFO, nie blokada). Sprawdzić, czy BE-123 (jeśli już wdrożone) rozróżnia te dwie ścieżki przez `ThresholdSource`, i dopasować warunek blokady tylko do `ThresholdSource.CATEGORY_MAX_RETENTION`.
-3. **(Could, opcja B z notatki BE-127/BE127-01)** Sweep dangling po FK dla `email_message`/`social_message` (`NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)`) jako DRUGA linia obrony, niezależna od TEGO, jak `contact` zniknął — NIE wymagane, jeśli pkt 1 skutecznie zablokuje DROP u źródła; do rozważenia, jeśli wykonawca oceni, że sama blokada DROP nie wystarcza (np. inne, jeszcze nieodkryte ścieżki usuwania `contact`).
-4. Test regresyjny na `_default`/partycjach horyzontu platformowego: zachowanie `audit_log`/`plugin_invocation_log` (jeśli BE-123 już wdrożone) BEZ ZMIAN — DROP mimo niepustej, INFO w logu.
-
-**Kryteria akceptacji:**
-- [x] (WP-1) Test Testcontainers: partycja `contact` (albo `contact_event`/`contact_transcription`/`contact_ai_summary`) kandydująca do DROP, ale z ≥ 1 wierszem → `DROP` POMINIĘTY, WARN/INFO w logu z liczbą wierszy, `pg_class`/`information_schema` po teście potwierdza, że partycja WCIĄŻ istnieje (brak zmiany w bazie) — `PartitionReclaimJobIntegrationTest#nonEmptyOldPartition_dropIsSkipped_partitionStillExistsInDatabase`; WARN z liczbą wierszy zweryfikowany osobno przez appender logów w `PartitionReclaimJobTest$InconsistencyWithLevelOneBlocksDrop#logsWarnWithRowCountAndTenantCount`
-- [x] Partycja pusta (dotychczasowy przypadek) → `DROP` wykonany jak dotąd (test regresyjny na istniejącym `PartitionReclaimJobTest`, zielony bez zmiany asercji tego przypadku) — `SafelyEmptyPartitionEligibleForDrop` (mock, bez zmiany) + regresja dodatkowo potwierdzona na prawdziwej bazie: `PartitionReclaimJobIntegrationTest#emptyOldPartition_isStillDropped`
-- [ ] Regresja horyzontu platformowego — **NIE DOTYCZY DZIŚ**: potwierdzone 2026-09-26 (`grep -n "^### BE-123 " TASKS-BACKEND.md`), że BE-123 jest ⬜ NIEZAIMPLEMENTOWANE w chwili tej pracy — `TABLE_CATEGORIES` nie ma dziś żadnego wpisu platformowego (`audit_log`/`plugin_invocation_log`), więc nie ma dziś ścieżki, na której blokada wprowadzona przez BE-145 mogłaby zmienić zachowanie horyzontu platformowego. Założenie na przyszłość udokumentowane: (a) w javadoc `PartitionReclaimJob` (sekcja „BE-145 vs. przyszły BE-123"), (b) w uwadze dopisanej do BE-123 poniżej — wykonawca BE-123 musi dodać analogiczny wyjątek `DropMode.AFTER_CUTOFF`/INFO-nie-blokada TYLKO dla nowego wpisu platformowego, nie usuwać blokady dla `contact*`
-- [x] `_default` (jeśli dotyczy tej ścieżki) — zachowanie bez zmian względem dzisiejszego (WARN gdy niepusta, sygnał awarii rotacji — nie część tego ticketu, tylko regresja) — `_default` nigdy nie dociera do `warnIfStillHasRows` (odrzucony wcześniej przez `expectedPartitionPattern`), regresja: `PartitionReclaimJobTest$DefaultPartitionNeverDropped`, zielony bez zmiany asercji
-- [x] Uwaga w BE-123 (dopisana 2026-09-26) skorygowana/potwierdzona zgodnie z faktyczną kolejnością wdrożenia obu ticketów — patrz sekcja BE-123 powyżej, uwaga skorygowana 2026-09-26 (BE-145 wdrożone pierwsze)
-- [x] `mvn verify -pl app`; DoD (WP-7) — `mvn clean verify -pl app`: BUILD SUCCESS, Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0
-
-**Ryzyka:** zmiana zachowania (partycja niepusta przestaje być usuwana) może w praktyce NIGDY nie zaobserwować różnicy na demo/testach (0 znanych incydentów, 60-miesięczny bufor) — wartość tego ticketu jest defensywna/prewencyjna, nie naprawia obserwowanego dziś problemu; jeśli globalny bufor (`maxRetentionMonths` ze wszystkich tenantów) miałby kiedyś spaść poniżej realistycznego czasu naprawy awarii Poziomu 1 dla pojedynczego tenanta, ryzyko przechodzi z teoretycznego na praktyczne — warto to odnotować jako invariant do monitorowania (poza zakresem tego ticketu, do rozważenia przy DB-076/DB-077 dokumentacji silnika retencji).
-
-**Notatka z wykonania (2026-09-26):**
-
-**Zaimplementowano (zmiana sterowania, punkt 1 Zakresu):** `PartitionReclaimJob.warnIfStillHasRows` zmienione z `void` (wyłącznie `log.warn`) na `boolean` — zwraca `true`, gdy partycja-kandydat do `DROP` wciąż ma ≥ 1 wiersz (dowolnego tenanta). `reclaimTable` sprawdza ten wynik i, gdy `true`, wykonuje `continue` (pomija `dropPartition` dla tej partycji w tym przebiegu) — partycja zostanie ponownie oceniona przy następnym uruchomieniu jobu (co niedzielę). Treść WARN rozszerzona o `POMIJAM DROP (BE-145)` i wzmiankę, że partycja zostanie ponownie sprawdzona. Partycja pusta → ścieżka bez zmian (`dropPartition` wykonywane jak dotąd). Javadoc klasy `PartitionReclaimJob` rozszerzony: nowy punkt w liście algorytmu + nowa sekcja „BE-145 vs. przyszły BE-123" z jawną notatką dla przyszłego wykonawcy BE-123 (patrz niżej).
-
-**Decyzja o wyjątku „horyzont platformowy" (punkt 2 Zakresu) — bezprzedmiotowy dziś, potwierdzone:** `grep -n "^### BE-123 " TASKS-BACKEND.md` potwierdza BE-123 jako ⬜ Nie rozpoczęte. Odczyt kodu (`PartitionReclaimJob.TABLE_CATEGORIES`, l. 89–97 po zmianie) potwierdza dokładnie 4 wpisy per-tenant (`contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), zero wpisów platformowych (`audit_log`/`plugin_invocation_log` nie istnieją w tej mapie — nie są nawet dziś przetwarzane przez ten job). Wniosek: blokada `DROP` niepustej partycji zaimplementowana w punkcie 1 dotyczy dziś BEZWARUNKOWO wszystkich wpisów `TABLE_CATEGORIES`, bez potrzeby rozróżniania przez `ThresholdSource`/`DropMode` (infrastruktura z BE-123, świadomie NIE zbudowana na zapas — kolizja z przyszłym refaktorem BE-123, niepotrzebna złożoność). Zamiast tego: (a) javadoc `PartitionReclaimJob` dostał sekcję ostrzegającą przyszłego wykonawcę BE-123, że przy dodaniu wpisu platformowego musi dodać analogiczny wyjątek (DROP mimo niepustej, INFO nie blokada) TYLKO dla tego jednego wpisu; (b) uwaga z code review BE-127 (BE127-01) w sekcji BE-123 powyżej skorygowana — odwrócona kolejność wdrożenia (BE-145 pierwsze) oznacza, że opis/AC BE-123 („`DropMode.AFTER_CUTOFF` dla `contact*` — bez zmian") jest już NIEAKTUALNY; wykonawca BE-123 musi przyjąć `ONLY_IF_EMPTY` dla `contact*` jako fakt dokonany, nie projekt do wdrożenia.
-
-**Decyzja o wariancie „dangling po FK" (punkt 3 Zakresu, Could) — POMINIĘTY, jak w BE-127/BE127-01:** blokada `DROP` u źródła (punkt 1) zamyka JEDYNĄ znaną ścieżkę, przez którą `PartitionReclaimJob` mógł osierocić `email_message`/`social_message` (usunięcie wierszy `contact` przez `DROP TABLE` partycji, bez wołania serwisów wiadomości). Sweep `NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)` dla `email_message`/`social_message` pozostaje NIEZAIMPLEMENTOWANY — decyzja świadoma, uzasadnienie identyczne jak w notatce BE-127 (`[[project_epic30_be127_orphan_message_purge]]`, sekcja „Decyzja: wariant dangling POMINIĘTY"): (1) po tej poprawce nie ma już żadnej znanej, aktywnej ścieżki tworzenia dangling; (2) koszt zapytania `NOT EXISTS` bez `started_at` (PK `contact` = `(contact_id, started_at)`) = probing PK każdej partycji per kandydat, bez partition pruning — nietrywialny narzut bez potwierdzonej potrzeby; (3) rozszerzałoby zakres ticketu PORZĄDKOWEGO poza to, co wymaga naprawy. Rewizja potrzebna TYLKO, jeśli powstanie INNA ścieżka usuwania wierszy `contact` poza `deleteContacts`/`deleteBatchOlderThan`/`DROP TABLE` partycji (te trzy są dziś WSZYSTKIE zaadresowane: pierwsze dwie przez BE-125/126/127, trzecia przez ten ticket).
-
-**Zmienione/dodane pliki:**
-- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — zmiana sterowania (`warnIfStillHasRows` → `boolean`, `reclaimTable` pomija `dropPartition` gdy `true`) + rozszerzony javadoc.
-- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobTest.java` — nested class `InconsistencyWithLevelOneDoesNotBlockDrop` → `InconsistencyWithLevelOneBlocksDrop`; test `stillDropsPartition_whenRowsUnexpectedlyPresent` odwrócony na `doesNotDropPartition_whenRowsUnexpectedlyPresent` (asercja `never().dropPartition(...)`); nowy test `logsWarnWithRowCountAndTenantCount` (appender logów, weryfikuje treść WARN — nazwa partycji, suma wierszy, liczba tenantów, `POMIJAM DROP`); zaktualizowany javadoc klasy (odsyła do nowego testu integracyjnego dla weryfikacji na prawdziwej bazie).
-- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobIntegrationTest.java` (NOWY) — test na Testcontainers/pełny Flyway (wzorzec `PostgresTestDatabase`/`JpaTestContext`, jak w `ContactRepositoryPurgeCandidatesIntegrationTest`): `PartitionScannerImpl` REALNA (nie mock), `RetentionPolicyService` mockowany (kontrola progu); 2 testy — (1) partycja z 1 wierszem starsza niż próg → `DROP` pominięty, partycja i wiersz potwierdzone jako WCIĄŻ ISTNIEJĄCE zapytaniem do `pg_tables`/`FROM ONLY <partycja>` po przebiegu jobu (sedno poprawki — mock nie mógłby tego wykazać); (2) regresja: partycja pusta starsza niż próg → `DROP` wykonany, partycja faktycznie zniknęła z `pg_tables`. Partycje testowe tworzone przez prawdziwą funkcję SQL `create_contact_partition` (V007) z datami WZGLĘDNYMI (`LocalDate.now().minusMonths(70/75)`), odległymi od dat używanych przez inne testy na tej samej współdzielonej bazie testowej (2001/2026/2027/2028).
-- `TASKS-BACKEND.md` — status/AC BE-145 (ta notatka) + korekta uwagi BE127-01 w sekcji BE-123 (punkt 4 Zakresu).
-
-**Wyniki testów:**
-- `PartitionReclaimJobTest` (mock): wszystkie nested classes zielone, w tym zmieniona `InconsistencyWithLevelOneBlocksDrop` (2 testy) — `mvn test -pl app -Dtest=PartitionReclaimJobTest`.
-- `PartitionReclaimJobIntegrationTest` (Testcontainers, NOWA): 2/2 zielone — `mvn test -pl app -Dtest=PartitionReclaimJobIntegrationTest`.
-- Pełny `mvn clean verify -pl app` (moduł `app`, cały pakiet, po zmianie): **BUILD SUCCESS**, `Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0`, czas 03:22 min. Testy tego ticketu w tym przebiegu: `PartitionReclaimJobTest` — 5 nested classes zielonych (`SafelyEmptyPartitionEligibleForDrop` 1, `YoungPartitionNotDropped` 1, `ThresholdUsesMaxNotMin` 2, `DefaultPartitionNeverDropped` 1, `TablesProcessedIndependently` 2, `InconsistencyWithLevelOneBlocksDrop` 2 [zmieniona]) = 9 testów; `PartitionReclaimJobIntegrationTest` (nowa) — 2/2 zielone.
-
-**Odstępstwa i ryzyka:**
-- Punkt 3 Zakresu (Could, dangling po FK) świadomie pominięty — patrz decyzja powyżej.
-- AC „regresja horyzontu platformowego" oznaczona jako nie dotyczy dziś (BE-123 niezaimplementowane) — nie ma dziś kodu do zregresowania; założenie na przyszłość zostawione w javadoc + uwadze BE-123, nie w teście (nie da się przetestować nieistniejącego zachowania).
-- Brak migracji SQL — zgodnie z zakresem ticketu (czysta zmiana logiki Java).
-- Nazwa metody `warnIfStillHasRows` NIE zmieniona (mimo że dziś robi więcej niż tylko „warn") — zachowana zgodnie z sugestią z treści ticketu („zaprojektuj to jako zmianę sterowania… np. `warnIfStillHasRows` zwraca `boolean`"); nowa semantyka opisana w javadoc metody.
-
-**Czego nie zweryfikowano:**
-- Zachowanie na żywej bazie demo/produkcyjnej — zgodnie z ograniczeniem zlecenia (WP-4, job destrukcyjny), job NIE był uruchamiany poza Testcontainers.
-- Interakcja z przyszłym BE-123 (refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode`) — nie istnieje w kodzie w chwili tej pracy, więc nie da się zweryfikować integracji; zamiast tego zostawiono jawne wskazówki (javadoc + uwaga BE-123).
-- Sweep dangling po FK (punkt 3, Could) — nie zaimplementowany, więc nie testowany (decyzja o pominięciu, nie przeoczenie).
-
-**Code review i poprawki (2026-09-26):** `CR-BACKEND.md`, sekcja „Review: BE-145" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów.
-- **BE145-01 (major, nienaprawione, rekomendacja follow-up niewymagana teraz):** ta poprawka zamienia „cichy `DROP` mimo niepustej partycji" na „cichy brak `DROP` w nieskończoność" — jedynym sygnałem jest identyczny `log.warn` co tydzień, bez metryki/licznika/progu eskalacji. Recenzent potwierdził grepem, że CAŁY silnik retencji (`RetentionPurgeService`, `RetentionEvaluationJob`, `PartitionMaintenanceJob`, `RecordingRetentionJob`) nie ma dziś żadnych metryk Micrometer — BE-145 nie odbiega od konwencji podsystemu, ale konsekwencje są tu wyższe (wcześniej WARN był informacyjny, teraz jest jedynym sygnałem awarii). **Decyzja zlecającego: nie tworzę teraz osobnego ticketu na mechanizm alertowania** — to nowa infrastruktura (Micrometer/metryki) w kodzie, który dotąd nie miał żadnej, więc wymaga świadomej decyzji o zakresie, nie automatycznego dociągnięcia. Odnotowane jako otwarty punkt do rozważenia razem z dokumentacją silnika retencji (DB-076/DB-077) albo jako osobny ticket, jeśli właściciel zdecyduje.
-- **BE145-02 (minor, nienaprawione):** `PartitionReclaimJobIntegrationTest` nie czyści po sobie utworzonej partycji/wiersza testowego we współdzielonym per-JVM kontenerze Testcontainers — dziś bez aktywnego skutku (dane testowe używają dat odległych od innych testów na tej samej bazie), ale warto posprzątać przy następnej okazji dotykania tego pliku.
-- Recenzent potwierdził niezależnie (nie tylko czytając notatkę): poprawność `continue` w pętli `for`, że `TABLE_CATEGORIES` ma dziś dosłownie 4 wpisy per-tenant, że zmiana w sekcji BE-123 dotyczy wyłącznie jednego akapitu, i że dziś istnieją WYŁĄCZNIE trzy mechanizmy usuwania `contact` (grep po `DELETE FROM contact\b` i `DROP TABLE`/`dropPartition` w całym repo) — wszystkie trzy są teraz zaadresowane.
-
----
-
-### BE-146 – [PORZĄDKOWY] `AuditAspect#extractEntityId` zapisuje błędny `entity_id` dla akcji `*_CREATED` (CUSTOMER, CONTACT — prawdopodobnie też inne)
-
-**Typ:** Backend implementation / bugfix
-**Priorytet:** Should Have (dane audytowe są dziś odzyskiwalne wyłącznie przez treść JSON — `new_value->>'customerId'`/`'contactId'` — ale `entity_id` jako kolumna indeksowana jest bezużyteczny dla akcji CREATED; nie jest to utrata danych, tylko degradacja użyteczności/zapytań audytu)
-**Złożoność:** M (dotyka wspólnej, używanej przez WSZYSTKIE audytowane akcje metody `extractEntityId` — wymaga przeglądu każdego z ~20 call site'ów `@Audited` pod kątem regresji, nie tylko CUSTOMER/CONTACT)
-**Zależy od:** brak
-**Status:** ✅ Ukończone (2026-10-01, commit `04c40d7` na gałęzi `feature/epic-30-be131-be141-be146`, PR#47; status cofnięty na `⬜` przez wadliwy merge `bdc5268` 2026-10-01, zidentyfikowany i potwierdzony kodem 2026-10-07 — zob. „Notatka z wykonania" niżej)
-**Blokuje:** brak
-**Epic:** brak (naprawa `AuditAspect`, istnieje od dawna, niezwiązana bezpośrednio z EPIC-30; odkryte przez `db-schema-architect` przy pracy nad BE-142/V098, zdiagnozowane dokładniej przez `backend-dev-expert` przy pracy nad BE-142 Zakres p.1, jak DB-055/BE-144/BE-145, bez epiku)
-**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
-
-**Kontekst (odkrycie db-schema-architect, BE-142/V098, zweryfikowane zapytaniem na żywych danych `contact_center` — nie zgadywane):** `entity_id` w `audit_log` jest BŁĘDNY dla akcji `*_CREATED` — niesie `tenant_id` zamiast właściwego id encji. Potwierdzone na danych live: `CUSTOMER_CREATED` 1/1 wiersz ma `entity_id = tenantId` (0/1 ma `entity_id = customerId`); `CONTACT_CREATED` 263/263 wierszy ma `entity_id = tenantId` (0/263 ma `entity_id = contactId`). Pozostałe akcje (`CUSTOMER_UPDATED`, `CONTACT_ABANDONED/ACCEPTED/AGENT_ASSIGNED/DISPOSITION_SET`) mają `entity_id` poprawny we wszystkich wierszach — tylko CREATED jest błędny, wzorzec spójny między CUSTOMER i CONTACT. Funkcja SQL `mask_audit_log_pii` (V098) obeszła ten problem dopasowując głównie po treści JSON (`new_value/old_value ->> 'customerId'/'contactId'`), z `entity_id` jako dodatkową, tańszą ścieżką — więc BE-142 sam w sobie NIE jest dotknięty tym bugiem, ale każdy INNY kod, który filtruje `audit_log` po `entity_id` dla akcji CREATED (np. przyszłe raporty, `WHERE entity_id = ?`), zwróci puste wyniki.
-
-**Root cause dokładnie zdiagnozowany (backend-dev-expert, BE-142, 2026-09-30) — dwie niezależne przyczyny, obie muszą zostać naprawione:**
-1. `AuditAspect#extractEntityId` (`infrastructure/aspect/AuditAspect.java`) próbuje w kolejności: (1) jawny `entityIdParamIndex`, (2) pierwszy parametr typu UUID w argumentach wywołania, (3) pole `id()`/`getId()` na wyniku metody. Dla `createCustomer(CreateCustomerRequest request, UUID tenantId)` i `createContact(CreateContactRequest request, UUID tenantId)` (`entityIdParamIndex` NIEustawiony, bo ID nie jest znane w momencie wywołania — generowane dopiero wewnątrz metody) — Próba 2 skanuje `args = [request, tenantId]`, `request` nie jest UUID, `tenantId` JEST — więc `tenantId` zostaje błędnie przyjęty jako `entity_id`, PRZED dotarciem do Próby 3.
-2. Nawet gdyby Próba 2 nie przechwyciła `tenantId` jako pierwsza (np. inna kolejność parametrów), Próba 3 i tak by dziś zawiodła: `CustomerResponse`/`ContactResponse` to rekordy Javy eksponujące akcesory `customerId()`/`contactId()`, NIE `id()`/`getId()` — refleksyjne `result.getClass().getMethod("id")`/`getMethod("getId")` nie znajduje niczego, `NoSuchMethodException` jest łapany i Próba 3 cicho zwraca `null` (a wtedy `entity_id` w ogóle nie zostałby ustawiony, gdyby nie to, że Próba 2 już wcześniej "znalazła" błędny `tenantId`).
-
-**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
-1. Zaprojektować mechanizm poprawnego wyodrębniania ID encji z WYNIKU metody CREATE, gdy ID nie jest dostępne w parametrach wejściowych — opcje do rozważenia: (a) nowy atrybut adnotacji `@Audited`, np. `String entityIdResultAccessor() default ""` wskazujący nazwę metody/akcesora na wyniku (np. `"customerId"`, `"contactId"`), wywoływany refleksyjnie zamiast/obok `id()`/`getId()`; (b) konwencja nazewnicza `<entityType w lowerCamelCase>Id()` (np. dla `entityType = "CUSTOMER"` szukaj `customerId()`) — mniej jawne, ale zero zmian w adnotacjach na ~20 istniejących call site'ach; (c) inna, uzasadniona przez wykonawcę.
-2. Naprawić kolejność/logikę `extractEntityId` tak, żeby Próba 2 (skan parametrów) nie przesłaniała poprawnego ID z wyniku, gdy jedyny UUID w parametrach jest semantycznie `tenantId`, nie `entity_id` — do rozważenia: przenieść Próbę "wynik" PRZED Próbę "skan parametrów" dla akcji, gdzie `entityIdParamIndex` nie jest ustawiony jawnie (ryzyko: może zmienić zachowanie innych, dziś poprawnie działających akcji — wymaga przeglądu WSZYSTKICH ~20 `@Audited` call site'ów, nie tylko CUSTOMER_CREATED/CONTACT_CREATED).
-3. Przegląd regresyjny wszystkich `@Audited` w kodzie (`grep -rn "@Audited" backend/app/src/main`) — potwierdzić dla każdego, czy `entity_id` jest dziś poprawny czy błędny (nie tylko CUSTOMER/CONTACT — `TenantServiceImpl#createTenant`, `UserServiceImpl#createUser`, `QueueServiceImpl#createQueue`, `EmailTemplateServiceImpl` create — te same sygnatury `(Request, ...)` bez ID w parametrach są podejrzane o ten sam bug).
-4. Decyzja: czy naprawić WYŁĄCZNIE zapis nowych wierszy (bez ruszania danych historycznych — `audit_log` ma dziś 263+1 błędnych wierszy CREATED na danych dev, prawdopodobnie więcej na innych encjach) — dane historyczne pozostają z błędnym `entity_id` na stałe, chyba że osobny, jednorazowy sweep (analogicznie do BE-142 Zakres p.3, decyzja o jednorazowym sweepie zostawiona bez implementacji domyślnie).
-
-**Kryteria akceptacji:**
-- [x] Test jednostkowy `AuditAspectTest`: `CUSTOMER_CREATED`/`CONTACT_CREATED` (wynik = rekord z akcesorem `customerId()`/`contactId()`, brak UUID encji w parametrach poza `tenantId`) → `entity_id` w opublikowanym `AuditLogEvent` RÓWNY id z wyniku, NIE `tenantId`. **Zweryfikowane 2026-10-07:** nested class `AuditAspectTest$EntityIdResultAccessor` (5 testów) — `customerCreated_usesResultAccessor_notTenantIdParam`, `contactCreated_usesResultAccessor_notTenantIdParam`, `contactCreatedWithIvrEntry_usesResultAccessor_notTenantIdParam` (oba overloady `createContact`), `whenAccessorMethodMissing_fallsBackToIdGetterNotParamScan`, `whenAccessorAndIdGetterBothMissing_entityIdIsNullNotTenantId`.
-- [x] Test regresyjny: wszystkie dziś poprawnie działające akcje (`CUSTOMER_UPDATED` z jawnym `entityIdParamIndex`, `CONTACT_DISPOSITION_SET`/`AGENT_ASSIGNED`/`ACCEPTED`/`ABANDONED` z UUID `contactId` jako pierwszym parametrem) → `entity_id` bez zmian względem dzisiejszego zachowania. **Zweryfikowane 2026-10-07:** nested class `AuditAspectTest$RegressionExistingBehaviorUnchanged` (4 testy) — `explicitParamIndex_stillHighestPriority_evenWithUuidInLaterParams`, `firstUuidParamScan_stillPicksContactIdNotTenantId_whenNoAccessorConfigured`, `noUuidInParams_noAccessorConfigured_fallsBackToIdGetterAsBefore`, `firstUuidParam_isTheEntityItself_stillWorksWhenNoAccessorConfigured`.
-- [x] Przegląd wszystkich `@Audited` call site'ów (Zakres p.3) udokumentowany w notatce wykonania — lista encji/akcji z potwierdzonym poprawnym/błędnym `entity_id` PRZED i PO naprawie. **Udokumentowane przy implementacji** w treści commitu `04c40d7` (21 call site'ów przejrzanych, 5 naprawionych, 16 już poprawnych) i **niezależnie zweryfikowane ponownie 2026-10-07** wobec AKTUALNEGO kodu (24 miejsca dziś — przyrost względem 21 to niezwiązane zmiany w innych tickietach po 2026-10-01) — pełna lista w „Notatce z wykonania" niżej.
-- [x] Decyzja o wierszach historycznych (Zakres p.4) zapisana w notatce, zgodnie z ustaleniem — bez implementacji domyślnie, chyba że wykonawca oceni inaczej. **Potwierdzone:** commit `04c40d7` — „Dane historyczne pozostają błędne (decyzja świadoma, bez sweepu)" — zgodne z treścią Zakresu p.4.
-- [x] `mvn verify -pl app`; DoD (WP-7). **Zweryfikowane ponownie 2026-10-07** w ramach tej sesji (zob. punkt (d) raportu koordynatora) — build zielony.
-
-**Ryzyka:** zmiana `extractEntityId` dotyka WSZYSTKICH audytowanych akcji w systemie — ryzyko regresji dla akcji dziś działających poprawnie jest realne i wymaga systematycznego przeglądu (Zakres p.3), nie punktowej łatki dla CUSTOMER/CONTACT; dane historyczne (setki wierszy na dev, nieznana liczba na innych encjach) pozostaną błędne bez osobnej decyzji o sweepie.
-
-**Notatka z wykonania (zrekonstruowana i niezależnie zweryfikowana 2026-10-07, po korupcji `bdc5268`):**
-Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131-be141-be146` (commit `04c40d7e`, PR#47, zmergowany `78726d4`) — ale jej domknięcie w `TASKS-BACKEND.md` (komunikowane w commicie `52445b7` jako „tabela przeglądu 21 call site'ów") **nigdy faktycznie nie trafiło do pliku**: diff `52445b7` dotyka WYŁĄCZNIE `TASKS-DATABASE.md` (2 linie, odblokowanie DB-078) — commit message dla `TASKS-BACKEND.md` był nieprawdziwy już w momencie powstania, niezależnie od późniejszej korupcji `bdc5268`. Ta notatka zastępuje więc treść, która nigdy nie istniała w pliku, nie tylko tę, którą `bdc5268` nadpisał.
-
-- **Zmiana (commit `04c40d7`):** nowy atrybut `@Audited#entityIdResultAccessor` (`Audited.java`) — gdy ustawiony, `AuditAspect#extractEntityId` wywołuje wskazany bezargumentowy akcesor na WYNIKU metody (np. `"customerId"`) i **pomija** Próbę "skan parametrów po pierwszym UUID", zamiast mieć od niej tylko wyższy priorytet — bez tego jawna deklaracja „ID jest w wyniku" mogłaby zostać przesłonięta przypadkowym `tenantId` w parametrach. Fallback przy nieudanym akcesorze (metoda nie istnieje / zwraca null / rzuca) → `id()`/`getId()` na wyniku (Próba 4), **NIE** powrót do skanu parametrów (świadome, logowane `WARN`).
-- **5 call site'ów naprawionych** (dodany `entityIdResultAccessor`): `USER_CREATED` → `"id"` (`UserServiceImpl:93`), `CUSTOMER_CREATED` → `"customerId"` (`CustomerServiceImpl:68`), `CONTACT_CREATED` → `"contactId"`, oba overloady (`ContactServiceImpl:131,138`), `QUEUE_CREATED` → `"queueId"` (`QueueServiceImpl:41`).
-- **Przegląd WSZYSTKICH `@Audited` w systemie — zweryfikowany ponownie 2026-10-07 grepem na aktualnym kodzie** (`grep -rn "@Audited(" backend/app/src/main`, 24 realne wystąpienia dziś, nie licząc Javadoc/komentarzy — 3 więcej niż 21 z 2026-10-01, przyrost z niezwiązanych zmian późniejszych; wszystkie poniżej potwierdzone poprawne):
-  - **Z jawnym `entityIdParamIndex`** (niezmienione, najwyższy priorytet): `USER_UPDATED`, `USER_DELETED`, `TENANT_UPDATED`, `TENANT_DEACTIVATED`, `CUSTOMER_UPDATED`, `QUEUE_UPDATED`, `QUEUE_DELETED` — poprawne przed i po.
-  - **Z `entityIdResultAccessor`** (naprawione w tej iteracji): `USER_CREATED`, `CUSTOMER_CREATED`, `CONTACT_CREATED` ×2 (overloady), `QUEUE_CREATED` — błędne (`entity_id = tenantId`) przed, poprawne po.
-  - **Bez obu, ale pierwszy parametr UUID JEST już poprawnym entity_id** (bo sygnatura nie ma `tenantId` jako osobnego UUID PRZED id encji, albo jedyny UUID param to sama encja): `CONTACT_UPDATED`, `CONTACT_DISPOSITION_SET`, `CONTACT_AGENT_ASSIGNED`, `CONTACT_ACCEPTED`, `CONTACT_ABANDONED`, `RECORDING_URL_REQUESTED` (`ContactServiceImpl` — wszystkie `(UUID contactId, ...)`, `contactId` jest pierwszym UUID), `RECORDING_ACCESS` (`RecordingServiceImpl.generatePresignedUrl(UUID contactId, UUID tenantId)` — `contactId` pierwszy), `EMAIL_TEMPLATE_UPDATED`, `EMAIL_TEMPLATE_DELETED` (`update(UUID id, ...)`/`delete(UUID id)` — `tenantId` NIE jest parametrem metody, jedyny UUID to `id` własnej encji), `TENANT_TWILIO_CONFIG_UPDATED` (`updateTwilioConfig(UUID tenantId, ...)` — tu `tenantId` JEST poprawnym `entity_id`, bo `entityType = "TENANT"`) — poprawne przed i po, bez zmian.
-  - **Bez UUID w parametrach wcale, poprawne przez `id()`/`getId()` na wyniku (Próba 4)**: `TENANT_CREATED` (`createTenant(CreateTenantRequest)` → `TenantResponse.id()`, rekord z polem `id`), `EMAIL_TEMPLATE_CREATED` (`create(CreateEmailTemplateRequest)` → encja JPA `EmailTemplate` z `@Getter`/`getId()`), `SUPER_ADMIN_BOOTSTRAPPED` (`createSuperAdminBootstrap(String, String)` → encja JPA `AppUser` z `@Getter`/`getId()`) — poprawne przed i po, bez zmian.
-  - **Wynik:** 5/24 wymagało naprawy, 19/24 było już poprawne (zgodne z commitem `04c40d7`: „5 z 21… pozostałe 16 już poprawne" — różnica 24 vs 21 i 19 vs 16 to 3 miejsca dodane do kodu po 2026-10-01, niezwiązane z BE-146, wszystkie poprawne od razu).
-- **Decyzja o wierszach historycznych (Zakres p.4):** bez implementacji — `entity_id` zapisany błędnie przed 2026-10-01 pozostaje błędny na stałe (setki wierszy `audit_log` na danych dev), brak jednorazowego sweepu. Potwierdzone w treści commitu `04c40d7`.
-- **Zmienione pliki (z `git show 04c40d7 --stat`):** `AuditAspect.java`, `Audited.java`, `AuditAspectTest.java` (+226 linii — nowe nested classes `EntityIdResultAccessor`, `RegressionExistingBehaviorUnchanged`), `ContactServiceImpl.java`, `CustomerServiceImpl.java`, `QueueServiceImpl.java`, `UserServiceImpl.java`.
-- **`mvn verify`:** nie zweryfikowany osobno dla tego commitu (część wspólnej gałęzi z BE-131/BE-141); pełny `mvn -o clean verify -pl app` dla BIEŻĄCEGO stanu repo (po przywróceniu tej notatki, czysta zmiana dokumentacji) wykonany w ramach tej sesji 2026-10-07 — wynik w raporcie koordynatora.
-
----
-
 ### BE-147 – Trwały ślad awarii zadań cyklicznych w Javie: `CronFailureLogRepository` + wpięcie w `CampaignArchiveJob`, `PartitionMaintenanceJob`, `RetentionPurgeServiceImpl`
 
 **Typ:** Backend implementation / Observability
@@ -8573,6 +8140,110 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 
 **Poza zakresem / otwarte:** fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC/BYPASSRLS (zależy od roli połączenia: DB-072/BE-139; zmiana kontraktu wymaga decyzji właściciela) — uwaga z CR zostaje otwarta. **Zależności:** `Zależy od` DB-082 ✅, BE-120 ✅, BE-121 ✅; od tury 33 zależy od niego BE-148 (rola bez BYPASSRLS: realny „fałszywy SUCCESS” i ślad awarii pod RLS).
 
+
+---
+
+### BE-151 – Okres archiwizacji kontaktów kampanii per tenant: API polityk retencji + `CampaignArchiveJob` na ustawieniu per tenant
+
+**Typ:** Backend implementation (API + job)
+**Priorytet:** Should Have
+**Złożoność:** M/L (tura 36: korekta z M — dochodzi osobny zasób API, audyt do DODANIA i endpoint podglądu skutku zmiany okresu)
+**Zależy od:** DB-084 ✅ (ukończony 2026-10-11, tura 37 — migracje V136–V138)
+**Status:** ✅ Ukończone (2026-10-11, tura 38 — commit `760fb263`; code review 4/5, `mvn verify -pl app` 2627/0/0/1 pominięty; V139 zastosowana na żywej bazie local-demo 2026-10-11 17:44 UTC [korekta tury 39; w chwili zapisu: niezastosowana]; otwarte: Swagger UI nie oglądany, `documentation/tech`, wydajność podglądu; założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
+**Blokuje:** FE-113 (odblokowany w turze 38 — BE-151 ✅)
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst:** po DB-084 próg archiwizacji kontaktów zakończonych kampanii jest ustawieniem per tenant (dni, domyślnie 180, zakres 30–730). Ten ticket udostępnia je w API (strona „Retencja danych”, `/api/tenants/{tenantId}/retention/**`, kontroler `RetentionController`, `@PreAuthorize("hasRole('ADMIN')")`; DTO `RetentionPolicyDto`/`UpdateRetentionPolicyRequest` w `domain.retention.dto`) i dba, by `CampaignArchiveJob`/`CampaignArchiveJobRepository` korzystały z okresu per tenant. Decyzje właściciela 2026-10-11: poziom PER TENANT (bez nadpisania per kampania), domyślnie 180 dni, zakres 30–730 (walidacja w DB `CHECK` + backend + frontend), flaga `retention.campaign-archive.enabled` w local-demo wyłączona do czasu wdrożenia (DB-084 + BE-151 + FE-113).
+
+**Zakres:**
+**[KOREKTA TURY 36 (WP-1 DB-084 + decyzje właściciela 2026-10-11): kształt API ROZSTRZYGNIĘTY — model danych (B): osobna tabela `tenant_campaign_archive_setting` (brak wiersza = 180), więc okres jest OSOBNYM ZASOBEM `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` (odpowiedź np. `{ archiveAfterDays, isDefault, defaultDays: 180, minDays: 30, maxDays: 730 }`); istniejące `PUT /policies/{category}`, `RetentionPolicyDto`, `UpdateRetentionPolicyRequest`, `TenantRetentionPolicyRepository#upsert` i `seedDefaultPolicies` BEZ ZMIAN (wariant „pole przy polityce `CAMPAIGN_DATA`” z poniższego punktu 1 ODPADA); nowa encja/repozytorium (`TenantAwareRepository`, `@Id` = `tenant_id`) i serwis, upsert `ON CONFLICT (tenant_id)`, zapis pod `setTenantContextInDb` (WITH CHECK RLS spełnione).]**
+1. **Odczyt/zapis okresu w endpointach polityk retencji:** pole „okres archiwizacji kontaktów kampanii (dni)” dostępne przy politykach (kształt zależny od modelu danych wybranego w DB-084 WP-1: pole przy polityce `CAMPAIGN_DATA` albo osobny zasób pod `/api/tenants/{tenantId}/retention/…` — wykonawca dobiera kształt zgodny z istniejącym kontraktem i NIE łamie klientów; **nie przeciążać `retentionMonths`**). `GET` zwraca wartość efektywną (przy braku wiersza/NULL = 180) i flagę „domyślna”; `PUT` przyjmuje wartość. Uprawnienia i reguła tenanta jak istniejące endpointy retencji (ADMIN; izolacja tenantów jak w `RetentionController`, w tym ochrona przed `tenantId` spoza własnego tenanta).
+2. **Walidacja:** Bean Validation (`@Min(30)`/`@Max(730)`, czytelny kod błędu jak dla `retentionMonths`) + obrona w głąb w serwisie (`RetentionPolicyServiceImpl` lub nowy serwis) + `CHECK` z DB-084; odpowiedź na wartość spoza zakresu = 422/400 zgodnie z konwencją retencji.
+3. **Audyt zmiany:** zapis w `audit_log` (kto, tenant, stara → nowa wartość) wg istniejącego mechanizmu audytu zmian polityk retencji; **[KOREKTA TURY 36: taki mechanizm NIE ISTNIEJE [F] — `RetentionPolicyServiceImpl#updatePolicy` nie jest `@Audited` i nie publikuje zdarzenia (zdarzenie `AuditLogEvent` publikuje tylko `RetentionPurgeServiceImpl`); audyt trzeba DODAĆ: `AuditLogService#publishAuditEvent` jak w `RetentionPurgeServiceImpl` (albo `@Audited` + wpis w `ENTITY_CLASS_MAP`), z polami stara → nowa wartość i flagą „skrócenie okresu”; audyt zmian istniejących polityk retencji NIE jest w zakresie, chyba że wykonawca uzna go za tani i spójny.]** ewentualne rozróżnienie zmiany skracającej okres (skutek: masowa archiwizacja przy najbliższym przebiegu) w treści wpisu.
+4. **`CampaignArchiveJob`/`CampaignArchiveJobRepository`:** brak zmiany sygnatury wywołania funkcji SQL (DB-084 zachowuje sygnaturę bez parametrów); sprawdzić i zaktualizować logowanie/komunikaty joba (próg nie jest już stałą 30 dni), Javadoc `CampaignArchiveJob` (lista czytelników `campaign_contact` bez zmian) oraz wszelkie miejsca w Javie zakładające 30 dni (grep `30` / „30 dni” w `domain.retention`/`campaign`). Zadbać, by odczyt ustawienia z Javy używał `TenantContext`/GUC zgodnie z regułami multi-tenancy (`TenantAwareRepository`, `assertSameTenant` przed zapisem).
+5. **OpenAPI/Swagger:** opisy pól (jednostka: dni, zakres, domyślne 180, ostrzeżenie o znikaniu kontaktów po archiwizacji), przykłady, kody błędów.
+6. ~~**Seedowanie nowych tenantów (jeśli wybrano wariant A z DB-084):** domyślna wartość 180 przy tworzeniu polityk (BE-111) — albo `COALESCE` w odczycie (wariant B).~~ **[TURA 36: ODPADA — wybrano wariant B (brak wiersza = 180); odczyt zwraca 180 + `isDefault = true` bez zapisu wiersza; BEZ seedowania i BEZ zmian w `seedDefaultPolicies`.]**
+7. **Podgląd skutku zmiany okresu (decyzja P5 = TAK, tura 36):** endpoint tylko do odczytu, np. `GET /api/tenants/{tenantId}/retention/campaign-archive/preview?archiveAfterDays=N` (ADMIN, izolacja tenanta jak pozostałe), zwraca liczbę kampanii `COMPLETED`/`STOPPED` oraz liczbę kontaktów w `campaign_contact`, które przy najbliższym przebiegu zostałyby zarchiwizowane przy nowej wartości N (np. `{ campaignsToArchive, contactsToArchive, currentDays, newDays }`; porównanie z okresem bieżącym — ile DODATKOWO). **Predykat IDENTYCZNY z funkcją z DB-084:** `status IN ('COMPLETED','STOPPED') AND COALESCE(ended_at, updated_at) < NOW() - make_interval(days => N)` (natywne zapytanie w repozytorium; `Campaign` nie musi mapować `ended_at`); walidacja N 30–730 jak w `PUT`; zapytanie pod RLS/GUC tenanta; bez efektów ubocznych (żadnego zapisu, żadnego uruchomienia funkcji).
+
+**Kryteria akceptacji:**
+- [x] `GET` zwraca okres efektywny (180 dla tenanta bez jawnej wartości), `PUT` zapisuje wartość 30, 180, 730; wartości 29 i 731 oraz null/tekst odrzucone czytelnym błędem (testy jednostkowe walidatora i testy kontrolera)
+- [x] Uprawnienia jak istniejące endpointy retencji: rola inna niż ADMIN → 403; ADMIN tenanta A nie czyta i nie zapisuje ustawienia tenanta B (test, ≥ 2 tenanty)
+- [x] Zmiana okresu zostawia wpis w `audit_log` (kto, tenant, stara/nowa wartość); test **[TURA 38: test na MOCKU serwisu audytu; zapis w prawdziwej tabeli `audit_log` (best-effort, `@Async`) NIEUDOWODNIONY.]**
+- [x] Test integracyjny (Testcontainers, pełny łańcuch Flyway, ≥ 2 tenanty): zmiana okresu przez API zmienia wynik `CampaignArchiveJob` — tenant z 180 dniami NIE archiwizuje kampanii zakończonej 100 dni temu, tenant z 30 dniami archiwizuje; przebieg joba nie rzuca wyjątku i zapisuje `cron_log`
+- [x] Brak regresji: `CampaignArchiveJobTest` (3) i `CampaignArchiveJobIntegrationTest` (7) zielone **[KOREKTA TURY 36: poprawka `CampaignArchiveJobIntegrationTest` (kampanie sprzed 31–60 dni przy domyślnych 180) NALEŻY DO DB-084 — ten ticket zakłada, że testy są już poprawione; tu tylko weryfikacja, że są zielone]**; istniejące testy `RetentionControllerTest` nietknięte kontraktowo
+- [x] **Podgląd skutku (P5):** endpoint zwraca liczby zgodne z faktycznym wynikiem joba (test integracyjny, ≥ 2 tenanty: podgląd dla N = 30 → kampanie/kontakty, które job następnie przenosi; podgląd nie modyfikuje danych — liczniki `campaign_contact`/`campaign_contact_archive` bez zmian); N spoza 30–730 → błąd walidacji; ADMIN tenanta A nie podejrzy tenanta B; rola inna niż ADMIN → 403
+- [x] **Audyt DODANY (nie „istniejący”):** zmiana okresu zapisuje wpis w `audit_log` (stara/nowa wartość, flaga skrócenia); test, że `PUT` bez zmiany wartości nie spamuje audytem (wg decyzji wykonawcy, opisanej w notatce) **[TURA 38: j.w. — udowodnione tylko na mocku.]**
+- [x] OpenAPI zawiera nowe pole/zasób z opisem i zakresem; brak nowych publicznych endpointów (`SecurityConfig`/`TenantFilter.PUBLIC_PATH_PREFIXES` bez zmian)
+- [x] `mvn verify -pl app` zielone
+- [x] Flaga `retention.campaign-archive.enabled`: domyślna `false` w `application.yml` bez zmian; włączenie w local-demo/produkcji NIE jest częścią tego ticketu (wymaga zgody właściciela po DB-084 + BE-151 + FE-113)
+- [ ] DoD: kod + testy, code review, dokumentacja zaktualizowana (Swagger, `documentation/tech`) **[TURA 38: CZĘŚCIOWO — opisy OpenAPI w kodzie są; `documentation/tech` w chwili zapisu NIEZAKTUALIZOWANA; Swagger UI nie oglądany. KOREKTA TURY 39 (2026-10-12): `documentation/tech` ZAKTUALIZOWANA (commit `68d9d29f`: `04-backend.md` sekcja 1.25, `06-database.md`, DESIGN graf §4) — część „documentation/tech” spełniona; otwarte TYLKO: Swagger UI nie oglądany.]**
+
+**Ryzyka:** (R1) rozjazd kontraktu z FE-113 — kształt pola uzgodnić z FE przed startem (weryfikować przeciw Swaggerowi, nie tylko treści ticketu); (R2) kolizja z BE-150/BE-148 (te same `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmieniane pod rolą `cc_app`) — przy równoległej pracy uzgodnić kolejność merge, brak formalnej zależności; (R3) skrócenie okresu = masowa archiwizacja przy najbliższym przebiegu (patrz DB-084 R2) — komunikat ostrzegawczy w odpowiedzi/Swaggerze.
+**Wpływ P5 (tura 36):** ticket rośnie o ok. 1 endpoint + 1 zapytanie natywne + testy (propozycja złożoności M → M/L; jeśli wykonawca uzna, że całość mieści się w M, korekta w notatce wykonania). **Nie wchodzi w zakres:** migracje (DB-084), UI (FE-113), nadpisanie okresu per kampania, czytelniki archiwum, włączanie flag.
+**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` FE-113. **Adnotacja (tura 37, 2026-10-11):** DB-084 ✅ (V136–V138, domyślnie 180 dni, zakres 30–730; model danych: tabela `tenant_campaign_archive_setting`, brak wiersza = 180; V136–V138 w chwili zapisu niezastosowane na żywej bazie local-demo [KOREKTA TURY 39 (2026-10-12): zastosowane 2026-10-11 17:44 UTC]). **Dodatkowo w zakresie BE-151 (z DB-084):** poprawić `scheduled_job.description` („> 30 dni” — wymaga nowej migracji lub osobnej decyzji, bo V133/V135 nie edytować), Javadoc `CampaignArchiveJob` i komentarz „30 dni” w `application.yml`.
+**Wynik smoke-testu (tura 39, 2026-10-12):** Smoke-test na żywym backendzie local-demo 2026-10-12 ~05:20 UTC (curl przez nginx :80, ADMIN tenanta KMN, tylko GET; PUT NIE testowany, bo zapisałby wiersz i audyt w demo): GET campaign-archive -> 200, `archiveAfterDays`=180, `isDefault`=true (nazwa pola w JSON: `isDefault`), `defaultDays` 180, `minDays` 30, `maxDays` 730, `warning`; BRAK kluczy `updatedBy`/`updatedAt` gdy null (null pomijany). preview N=30 -> 200: `campaignsToArchive` 30, `contactsToArchive` 37, `atCurrentDays` 0/0, additional 30/37, `shortensPeriod` true; N=90 -> 30/37; N=180 -> zera; N=29 -> 422 „Okres archiwizacji musi mieścić się w zakresie 30-730 dni (podano: 29)”; cudzy tenantId -> 403; brak tokena -> 401. Obraz cc-backend zbudowany 2026-10-11 17:43 UTC (zawiera `CampaignArchiveSettingController`; nie sprawdzono, czy zawiera poprawki z review). **Dokumentacja tech (tura 39):** zaktualizowana w `68d9d29f`.
+**Notatka wykonania (tura 38, 2026-10-11, commit `760fb263`):** API `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` + `GET .../preview?archiveAfterDays=N` (ADMIN, izolacja tenantów, walidacja 30–730 -> 422, ścisły deserializer liczby całkowitej `StrictIntegerDeserializer`); audyt `CAMPAIGN_ARCHIVE_PERIOD_CHANGED` (best-effort, `@Async`); atomowy odczyt poprzedniej wartości (`upsertReturningPrevious`: `INSERT ON CONFLICT DO NOTHING` + `SELECT FOR UPDATE`); migracja **V139** (`scheduled_job.description` bez „> 30 dni”); poprawione Javadoc `CampaignArchiveJob` i komentarze `application.yml`. **Odstępstwo od literalnego „liczba kampanii”:** podgląd liczy tylko kampanie z jeszcze istniejącymi wierszami w `campaign_contact`. Code review `senior-code-reviewer` 4/5 (`CR-BACKEND.md`), poprawki naniesione. Niezależny `mvn verify -pl app`: **2627 testów, 0 porażek, 0 błędów, 1 pominięty, BUILD SUCCESS**; testy BE-151: serwis 25, kontroler 21, walidacja kontrolera 5, integracyjny 11. Kontrakt dla FE-113 (zgodny z DTO w kodzie; NIE weryfikowany przeciw Swagger UI): `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` -> `{ archiveAfterDays, isDefault, defaultDays, minDays, maxDays, updatedBy, updatedAt, warning }`; `GET .../preview?archiveAfterDays=N` -> `{ currentDays, newDays, campaignsToArchive, contactsToArchive, campaignsToArchiveAtCurrentDays, contactsToArchiveAtCurrentDays, additionalCampaigns, additionalContacts, shortensPeriod }` (`additional*` ujemne przy wydłużeniu okresu); błędy walidacji (poza 30–730, nie-całkowita, null) = 422. **Niezweryfikowane / otwarte (tura 38):** (1) Swagger UI nie oglądany — kontrakt z DTO w kodzie, w tym serializacja pola `isDefault` (komponent rekordu) do potwierdzenia w żywym JSON/OpenAPI; (2) **V136–V139 ZASTOSOWANE na żywej bazie local-demo 2026-10-11 17:44:02 UTC** (`flyway_schema_history` `success=t`, restart backendu po commicie DB-084; `tenant_campaign_archive_setting` = 0 wierszy, `campaign.ended_at` wypełnione 30/30, `campaign_contact_archive` = 0; flaga `retention.campaign-archive.enabled=false`) **[KOREKTA TURY 39 (2026-10-12): w chwili zapisu tury 38 błędnie: „NIE zastosowane, max = 135, zastosuje je restart backendu”; smoke-test endpointów BE-151 w chwili zapisu otwarty — wykonany w turze 39, zob. nagłówek tury 39]**; (3) `documentation/tech` w chwili zapisu NIEZAKTUALIZOWANA (DoD BE-151 i DB-084) **[KOREKTA TURY 39 (2026-10-12): zaktualizowana w commicie `68d9d29f` — `04-backend.md` sekcja 1.25, `06-database.md`, DESIGN graf §4]**; (4) wydajność podglądu na dużych wolumenach — do 4 zliczeń po `campaign_contact` bez `statement_timeout`; (5) audyt `CAMPAIGN_ARCHIVE_PERIOD_CHANGED` jest best-effort (`@Async`) i NIEUDOWODNIONY w `audit_log` — pokryty testem na mocku, nie testem na żywej tabeli; (6) luka globalna: `GlobalExceptionHandler` zwraca 500 dla nieczytelnego JSON (`HttpMessageNotReadableException`) — BE-151 ma lokalny handler w `CampaignArchiveSettingController`; REKOMENDACJA osobnego ticketu BE (bez numeru, NIE założony, nie wchodzi do liczników — czeka na decyzję właściciela, zob. raport tury 38); (7) drobiazg: `CampaignArchivePreviewDto` ma 4 linie > 120 znaków.
+**Adnotacja (tura 42, 2026-10-17):** zegar podglądu (`countArchivable`) wyrównany z funkcją SQL V140 (`COALESCE(ended_at, updated_at, created_at)`) w BE-152 ✅.
+**Zależności (tura 38):** `Zależy od` DB-084 ✅; `Blokuje` FE-113 (BE-151 ✅ odblokowuje FE-113); BE-120 WP-4 czeka na FE-113 i ponowną zgodę na włączenie flagi.
+**Decyzja właściciela (tura 43, 2026-10-22): rekomendacja globalnego handlera `HttpMessageNotReadableException` — ODRZUCONA.** Dotyczyła luki znalezionej przy BE-151 (nieczytelne ciało żądania dla `PUT .../campaign-archive` daje 500 zamiast 4xx). Decyzja: NIE zakładać ticketu na globalny handler; rekomendacja usunięta z listy „otwartych decyzji” (PROGRESS.md). Luka jako znane zachowanie pozostaje (poza zakresem BE-151, bez ticketu).
+
+### BE-152 – Podgląd okresu archiwizacji (BE-151) używa tego samego zegara co funkcja SQL: `COALESCE(ended_at, updated_at, created_at)`
+
+**Typ:** Bugfix (Backend)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-151 ✅, DB-085 ✅ (V140 — funkcja `archive_completed_campaign_contacts()` liczy zegar `COALESCE(ended_at, updated_at, created_at)`)
+**Status:** ✅ Ukończone (2026-10-17, tura 42 — commit `a0ad8870`; code review 2026-10-18 4/5, poprawki w `3e483671` (tura 43); niezależny `mvn verify -pl app` po poprawkach BUILD SUCCESS, 2662 testy, 0 porażek, 1 pominięty (stary, w `CampaignArchiveJobIntegrationTest`); założony i zamknięty w tej samej turze na polecenie właściciela)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 59 wg konwencji skryptu po polu `**Epic:**` = +2 w skrypcie; tura 42)
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst:** po V140 (DB-085) funkcja SQL liczy zegar archiwizacji jako `COALESCE(ended_at, updated_at, created_at)`, a zapytanie `countArchivable` w `TenantCampaignArchiveSettingRepository` (podgląd BE-151) miało tylko `COALESCE(ended_at, updated_at)`. Rozbieżność dotyczyła wyłącznie kampanii z `ended_at` i `updated_at` jednocześnie NULL (na żywej bazie: 0 takich kampanii) — podgląd zaniżałby wtedy liczbę kampanii/kontaktów do archiwizacji względem faktycznego wyniku joba.
+
+**Zakres:** oba podzapytania `countArchivable` (kampanie, kontakty) dostały trzeci argument `c.created_at`; zaktualizowany Javadoc (`CampaignArchiveJob`, DTO podglądu, repozytorium) oraz `documentation/tech/04-backend.md` sekcja 1.25; nowy test integracyjny `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` (kampania `COMPLETED` z NULL-ami w `ended_at`/`updated_at`, `created_at` sprzed 400 dni: podgląd dla 30 dni = 1 kampania / 4 kontakty, a job po skróceniu okresu przenosi te same 4 kontakty).
+
+**Kryteria akceptacji:**
+- [x] Oba podzapytania `countArchivable` używają `COALESCE(ended_at, updated_at, created_at)` (zgodnie z funkcją SQL z V140)
+- [x] Nowy test integracyjny `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` zielony: podgląd 30 dni = 1 kampania / 4 kontakty, job po skróceniu okresu przenosi te same 4
+- [x] Brak regresji: niezależny `mvn verify -pl app` BUILD SUCCESS, 2653 testy, 0 porażek, 1 pominięty (stary)
+- [x] Javadoc (`CampaignArchiveJob`, DTO, repozytorium) i `documentation/tech/04-backend.md` sekcja 1.25 zaktualizowane
+- [x] Code review (`senior-code-reviewer`) — **WYKONANE 2026-10-18 (tura 43 odnotowuje): ocena 4/5**; wszystkie punkty wymagane i zalecane poprawione w commicie `3e483671` (patrz „Poprawki po code review”); wyniki w `CR-BACKEND.md` (sekcja „Review: BE-152 … 2026-10-18”)
+
+**Uwagi (tura 43, korekta):** (1) ~~agent implementujący NIE uruchomił nowego testu na starym zapytaniu — twierdzenie „test pada bez poprawki” wynika z rozumowania~~ — **ZDJĘTE: dowód RED wykonany** (osobny worktree): `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` PADA na starym zapytaniu (`expected 1L but was 0L`, 11 pozostałych testów klasy przechodzi) i przechodzi po poprawce (12/12). (2) code review wykonane 2026-10-18 (4/5), patrz niżej. (3) rozbieżność ma znaczenie wyłącznie dla kampanii z obiema kolumnami NULL — na żywej bazie 0 takich.
+**Poprawki po code review (tura 43, commit `3e483671`):** #2 (wymagane) `RESET session_replication_role` w `try/finally` w pomocniczej metodzie testu (połączenie nigdy nie wraca do puli z `replica`); #3 test przeciwny `createdAtFallback_nullEndedAndUpdated_freshCreatedAt_isNotCounted` (świeże `created_at` + NULL-e NIE jest liczone); #4 izolacja potwierdzona — `@BeforeEach`/`@AfterEach` czyszczą `TenantContext` (bez zmian w kodzie); #5 Javadoc zawinięty (`CampaignArchiveJob`, `CampaignArchivePreviewDto`, `TenantCampaignArchiveSettingRepository`); #6 adnotacje „zmienione w V140” w `DESIGN-db084-wp1-model-danych.md`. Niezależnie: `mvn verify -pl app` BUILD SUCCESS, 2662 testy, 0 porażek, 1 pominięty (stary).
+**Zależności (tura 42):** `Zależy od` BE-151 ✅, DB-085 ✅; `Blokuje` brak.
+
+## EPIC-31 – Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app)
+
+**Ukończone 0/4** · ✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0
+
+### BE-139 – Testy integracyjne pod rolą bez BYPASSRLS + weryfikacja roli połączenia produkcyjnego
+
+**Typ:** Testing / infrastruktura testowa
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** DB-064 ✅, DB-071 ✅
+**Status:** ⬜ Nie rozpoczęte (kod/testy) — kryterium „weryfikacja roli połączenia produkcyjnego” WYKONANE przez potwierdzenie właściciela 2026-10-11 (zob. niżej); pozostają: harness testowy pod rolą bez BYPASSRLS (≥ 6 scenariuszy) oraz raport/rekomendacja w `DEPLOYMENT.md`
+**Blokuje:** BE-148, DB-083, BE-149, BE-150
+
+**USTALONY FAKT (potwierdzenie właściciela, 2026-10-11):** rola połączenia aplikacji na PRODUKCJI **MA BYPASSRLS / jest superuserem** (tak jak lokalnie `ccapp`); nazwa roli produkcyjnej nie została podana (w repo: `DB_USERNAME=ccapp` w `DEPLOYMENT.md` ≈ l. 685 — nie potwierdzone jako nazwa prod). Konsekwencje: (1) RLS z DB-072/DB-073/DB-074/DB-081 jest na produkcji WYŁĄCZNIE defense-in-depth i NIE chroni przed błędem aplikacji (izolacja tenantów = logika aplikacji: `TenantAwareRepository`, `assertSameTenant`, `TenantContext`); (2) uwaga „fałszywy `SUCCESS` w `cron_log` pod RLS bez GUC” (BE-120/DB-082) **NIE dotyczy produkcji** — dotyczy wyłącznie roli bez BYPASSRLS (np. `app_user`); (3) joby krzyżujące tenantów (`archive_completed_campaign_contacts`, purge) działają na produkcji poprawnie, bo widzą wszystkie wiersze. Wcześniejsza decyzja 2026-10-07: pozostajemy przy `ccapp` (superuser z BYPASSRLS) — podtrzymana.
+
+**[Tura 33, 2026-10-11] DECYZJA WŁAŚCICIELA „tak, dodaj ticket” → ZAŁOŻONY ticket BE-148** (przejście produkcji na rolę połączenia aplikacji bez BYPASSRLS i bez superusera + osobna rola migracyjna + mechanizm dla jobów krzyżujących tenanty; wariant mechanizmu rozstrzyga pierwszy krok BE-148, nie ten ticket). Dawna „PROPOZYCJA” (tury 31) przestaje być propozycją. BE-139 pozostaje ⬜ i jest WARUNKIEM WSTĘPNYM BE-148 (harness testowy pod rolą bez BYPASSRLS jest narzędziem, którym BE-148 weryfikuje każdy job); wynik harnessu (lista defektów ścieżek pod rolą ograniczoną) zasila inwentarz BE-148. **[Tura 34, 2026-10-11] Po WP-1 i podziale BE-148 harness BE-139 jest warunkiem wstępnym także DB-083, BE-149 i BE-150 (testy każdej ścieżki/joba/funkcji pod rolą `NOSUPERUSER NOBYPASSRLS`); wzorzec do reużycia: `PostgresTestDatabase#createRestrictedLoginRole` (rola `LOGIN NOSUPERUSER NOBYPASSRLS`, `GRANT app_user`). Pozycje [N] z inwentarza WP-1 (listenery RabbitMQ, import klientów, `AdminMetricsServiceImpl`, self-invocation GUC) powinien wyłapać ten harness.**
+**Epic:** EPIC-31 Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) (wydzielony z EPIC-30 w turze 40, decyzja właściciela 2026-10-17; numery ticketów zachowane) [wcześniej: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości]
+**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert` dla konfiguracji)
+
+**Opis:** cały łańcuch retencji/RODO/jobów działa dziś wyłącznie dlatego, że `ccapp` = superuser + BYPASSRLS; `app_user` (V012) jest `NOLOGIN`, więc nigdy nie była nią uruchamiana aplikacja (DESIGN §2 U8, R1). Brak polityki UPDATE/DELETE na `contact` oznacza, że purge pod rolą ograniczoną usunąłby 0 wierszy po cichu.
+
+**Zakres:**
+1. Infrastruktura testowa: baza Testcontainers z pełnym Flyway + rola **logująca** (NOSUPERUSER NOBYPASSRLS, członek `app_user`) albo `SET ROLE app_user` przez `connectionInitSql`; narzędzie w `src/test` współdzielone przez testy (wzorzec `CampaignContactArchivePurgeTenantIsolationTest`).
+2. Scenariusze pod tą rolą (minimum 6): purge `contact`/`contact_event`/wiadomości (BE-126/127), `PartitionScanner`/joby, `GdprServiceImpl` (BE-129), zapis/aktualizacja `EmailMessageRepository`/`SocialMessageRepository`, `CampaignArchiveRetentionRepository`, cleanup `refresh_token`; asercje: zapis bez GUC odrzucony/0 wierszy, DELETE po `contact` (dziś bez polityki) = 0 usuniętych — wynik dokumentuje lukę (→ DB-074).
+3. **Weryfikacja roli produkcyjnej [WYKONANE przez potwierdzenie właściciela 2026-10-11: BYPASSRLS/superuser; nazwa roli niepodana; raport w `DEPLOYMENT.md` nadal do napisania]:** jaką rolą łączy się aplikacja w prod (`DB_USERNAME` w `application-prod.yml`, `docker-compose.yml`, `DEPLOYMENT.md`); jeśli superuser/BYPASSRLS → raport i propozycja: dedykowana rola LOGIN będąca członkiem `app_user` (NOBYPASSRLS) oraz osobna rola migracyjna (Flyway); zapis w `DEPLOYMENT.md`. Bez zmian produkcyjnych w tym tickecie.
+
+**Kryteria akceptacji:**
+- [ ] Harness zielony w `mvn verify -pl app` (≥ 6 scenariuszy); wyniki (które ścieżki się łamią pod rolą ograniczoną) w notatce jako lista defektów → tickety
+- [x] Weryfikacja roli produkcyjnej: potwierdzone przez właściciela 2026-10-11 (BYPASSRLS/superuser; nazwa roli niepodana)
+- [ ] Raport o roli produkcyjnej i rekomendacja w `DEPLOYMENT.md`; (WP-1/WP-4) testy nie używają `ccapp` ani nazw partycji potomnych; DoD (WP-7)
 
 ---
 
@@ -8728,73 +8399,560 @@ Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131
 
 **Adnotacja (tura 36, 2026-10-11):** DB-083 `Zależy od` DB-084 (decyzja P6: DB-084 PRZED DB-083). Czujnik kandydatów archiwizacji kampanii (DB-083 pkt 3(v)) ma predykat identyczny z pętlą funkcji po DB-084 — próg per tenant (`tenant_campaign_archive_setting`, brak wiersza = 180) i `COALESCE(ended_at, updated_at)`; funkcja przełączana na definera przez `ALTER FUNCTION`, nie przez kopię ciała. W BE-150 testy joba pod `cc_app` mają obejmować ≥ 2 tenanty o RÓŻNYCH progach (parytet czujnika z wynikiem przebiegu). Brak nowej formalnej zależności BE-150 od DB-084 (przechodnia przez DB-083).
 
-### BE-151 – Okres archiwizacji kontaktów kampanii per tenant: API polityk retencji + `CampaignArchiveJob` na ustawieniu per tenant
+## Bez epiku
 
-**Typ:** Backend implementation (API + job)
-**Priorytet:** Should Have
-**Złożoność:** M/L (tura 36: korekta z M — dochodzi osobny zasób API, audyt do DODANIA i endpoint podglądu skutku zmiany okresu)
-**Zależy od:** DB-084 ✅ (ukończony 2026-10-11, tura 37 — migracje V136–V138)
-**Status:** ✅ Ukończone (2026-10-11, tura 38 — commit `760fb263`; code review 4/5, `mvn verify -pl app` 2627/0/0/1 pominięty; V139 zastosowana na żywej bazie local-demo 2026-10-11 17:44 UTC [korekta tury 39; w chwili zapisu: niezastosowana]; otwarte: Swagger UI nie oglądany, `documentation/tech`, wydajność podglądu; założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
-**Blokuje:** FE-113 (odblokowany w turze 38 — BE-151 ✅)
-**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
-**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+**Ukończone 11/12** · ✅ 11 · 🔧 0 · ⬜ 1 · 🚫 0
 
-**Kontekst:** po DB-084 próg archiwizacji kontaktów zakończonych kampanii jest ustawieniem per tenant (dni, domyślnie 180, zakres 30–730). Ten ticket udostępnia je w API (strona „Retencja danych”, `/api/tenants/{tenantId}/retention/**`, kontroler `RetentionController`, `@PreAuthorize("hasRole('ADMIN')")`; DTO `RetentionPolicyDto`/`UpdateRetentionPolicyRequest` w `domain.retention.dto`) i dba, by `CampaignArchiveJob`/`CampaignArchiveJobRepository` korzystały z okresu per tenant. Decyzje właściciela 2026-10-11: poziom PER TENANT (bez nadpisania per kampania), domyślnie 180 dni, zakres 30–730 (walidacja w DB `CHECK` + backend + frontend), flaga `retention.campaign-archive.enabled` w local-demo wyłączona do czasu wdrożenia (DB-084 + BE-151 + FE-113).
+Tickety, którym nie przypisano numeru EPIC (porządki, infrastruktura, zadania przekrojowe). Pogrupowane tematycznie.
 
-**Zakres:**
-**[KOREKTA TURY 36 (WP-1 DB-084 + decyzje właściciela 2026-10-11): kształt API ROZSTRZYGNIĘTY — model danych (B): osobna tabela `tenant_campaign_archive_setting` (brak wiersza = 180), więc okres jest OSOBNYM ZASOBEM `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` (odpowiedź np. `{ archiveAfterDays, isDefault, defaultDays: 180, minDays: 30, maxDays: 730 }`); istniejące `PUT /policies/{category}`, `RetentionPolicyDto`, `UpdateRetentionPolicyRequest`, `TenantRetentionPolicyRepository#upsert` i `seedDefaultPolicies` BEZ ZMIAN (wariant „pole przy polityce `CAMPAIGN_DATA`” z poniższego punktu 1 ODPADA); nowa encja/repozytorium (`TenantAwareRepository`, `@Id` = `tenant_id`) i serwis, upsert `ON CONFLICT (tenant_id)`, zapis pod `setTenantContextInDb` (WITH CHECK RLS spełnione).]**
-1. **Odczyt/zapis okresu w endpointach polityk retencji:** pole „okres archiwizacji kontaktów kampanii (dni)” dostępne przy politykach (kształt zależny od modelu danych wybranego w DB-084 WP-1: pole przy polityce `CAMPAIGN_DATA` albo osobny zasób pod `/api/tenants/{tenantId}/retention/…` — wykonawca dobiera kształt zgodny z istniejącym kontraktem i NIE łamie klientów; **nie przeciążać `retentionMonths`**). `GET` zwraca wartość efektywną (przy braku wiersza/NULL = 180) i flagę „domyślna”; `PUT` przyjmuje wartość. Uprawnienia i reguła tenanta jak istniejące endpointy retencji (ADMIN; izolacja tenantów jak w `RetentionController`, w tym ochrona przed `tenantId` spoza własnego tenanta).
-2. **Walidacja:** Bean Validation (`@Min(30)`/`@Max(730)`, czytelny kod błędu jak dla `retentionMonths`) + obrona w głąb w serwisie (`RetentionPolicyServiceImpl` lub nowy serwis) + `CHECK` z DB-084; odpowiedź na wartość spoza zakresu = 422/400 zgodnie z konwencją retencji.
-3. **Audyt zmiany:** zapis w `audit_log` (kto, tenant, stara → nowa wartość) wg istniejącego mechanizmu audytu zmian polityk retencji; **[KOREKTA TURY 36: taki mechanizm NIE ISTNIEJE [F] — `RetentionPolicyServiceImpl#updatePolicy` nie jest `@Audited` i nie publikuje zdarzenia (zdarzenie `AuditLogEvent` publikuje tylko `RetentionPurgeServiceImpl`); audyt trzeba DODAĆ: `AuditLogService#publishAuditEvent` jak w `RetentionPurgeServiceImpl` (albo `@Audited` + wpis w `ENTITY_CLASS_MAP`), z polami stara → nowa wartość i flagą „skrócenie okresu”; audyt zmian istniejących polityk retencji NIE jest w zakresie, chyba że wykonawca uzna go za tani i spójny.]** ewentualne rozróżnienie zmiany skracającej okres (skutek: masowa archiwizacja przy najbliższym przebiegu) w treści wpisu.
-4. **`CampaignArchiveJob`/`CampaignArchiveJobRepository`:** brak zmiany sygnatury wywołania funkcji SQL (DB-084 zachowuje sygnaturę bez parametrów); sprawdzić i zaktualizować logowanie/komunikaty joba (próg nie jest już stałą 30 dni), Javadoc `CampaignArchiveJob` (lista czytelników `campaign_contact` bez zmian) oraz wszelkie miejsca w Javie zakładające 30 dni (grep `30` / „30 dni” w `domain.retention`/`campaign`). Zadbać, by odczyt ustawienia z Javy używał `TenantContext`/GUC zgodnie z regułami multi-tenancy (`TenantAwareRepository`, `assertSameTenant` przed zapisem).
-5. **OpenAPI/Swagger:** opisy pól (jednostka: dni, zakres, domyślne 180, ostrzeżenie o znikaniu kontaktów po archiwizacji), przykłady, kody błędów.
-6. ~~**Seedowanie nowych tenantów (jeśli wybrano wariant A z DB-084):** domyślna wartość 180 przy tworzeniu polityk (BE-111) — albo `COALESCE` w odczycie (wariant B).~~ **[TURA 36: ODPADA — wybrano wariant B (brak wiersza = 180); odczyt zwraca 180 + `isDefault = true` bez zapisu wiersza; BEZ seedowania i BEZ zmian w `seedDefaultPolicies`.]**
-7. **Podgląd skutku zmiany okresu (decyzja P5 = TAK, tura 36):** endpoint tylko do odczytu, np. `GET /api/tenants/{tenantId}/retention/campaign-archive/preview?archiveAfterDays=N` (ADMIN, izolacja tenanta jak pozostałe), zwraca liczbę kampanii `COMPLETED`/`STOPPED` oraz liczbę kontaktów w `campaign_contact`, które przy najbliższym przebiegu zostałyby zarchiwizowane przy nowej wartości N (np. `{ campaignsToArchive, contactsToArchive, currentDays, newDays }`; porównanie z okresem bieżącym — ile DODATKOWO). **Predykat IDENTYCZNY z funkcją z DB-084:** `status IN ('COMPLETED','STOPPED') AND COALESCE(ended_at, updated_at) < NOW() - make_interval(days => N)` (natywne zapytanie w repozytorium; `Campaign` nie musi mapować `ended_at`); walidacja N 30–730 jak w `PUT`; zapytanie pod RLS/GUC tenanta; bez efektów ubocznych (żadnego zapisu, żadnego uruchomienia funkcji).
+### Bez epiku – Infrastruktura i Fundament
+
+**Ukończone 6/6** · ✅ 6 · 🔧 0 · ⬜ 0 · 🚫 0
+
+### BE-001 – Inicjalizacja projektu Spring Boot i struktura modułów
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** BE-002, BE-005, BE-009, BE-015, BE-001b, BE-003, BE-012, BE-067, BE-068
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Inicjalizacja projektu Spring Boot 3.x (Maven/Gradle multi-module). Konfiguracja profili (dev/staging/prod), actuator health endpoints, Flyway migrations, connection pool (HikariCP), konfiguracja Redis (cache), RabbitMQ (broker). Struktura pakietów: `api/`, `domain/`, `infrastructure/`, `security/`.
 
 **Kryteria akceptacji:**
-- [x] `GET` zwraca okres efektywny (180 dla tenanta bez jawnej wartości), `PUT` zapisuje wartość 30, 180, 730; wartości 29 i 731 oraz null/tekst odrzucone czytelnym błędem (testy jednostkowe walidatora i testy kontrolera)
-- [x] Uprawnienia jak istniejące endpointy retencji: rola inna niż ADMIN → 403; ADMIN tenanta A nie czyta i nie zapisuje ustawienia tenanta B (test, ≥ 2 tenanty)
-- [x] Zmiana okresu zostawia wpis w `audit_log` (kto, tenant, stara/nowa wartość); test **[TURA 38: test na MOCKU serwisu audytu; zapis w prawdziwej tabeli `audit_log` (best-effort, `@Async`) NIEUDOWODNIONY.]**
-- [x] Test integracyjny (Testcontainers, pełny łańcuch Flyway, ≥ 2 tenanty): zmiana okresu przez API zmienia wynik `CampaignArchiveJob` — tenant z 180 dniami NIE archiwizuje kampanii zakończonej 100 dni temu, tenant z 30 dniami archiwizuje; przebieg joba nie rzuca wyjątku i zapisuje `cron_log`
-- [x] Brak regresji: `CampaignArchiveJobTest` (3) i `CampaignArchiveJobIntegrationTest` (7) zielone **[KOREKTA TURY 36: poprawka `CampaignArchiveJobIntegrationTest` (kampanie sprzed 31–60 dni przy domyślnych 180) NALEŻY DO DB-084 — ten ticket zakłada, że testy są już poprawione; tu tylko weryfikacja, że są zielone]**; istniejące testy `RetentionControllerTest` nietknięte kontraktowo
-- [x] **Podgląd skutku (P5):** endpoint zwraca liczby zgodne z faktycznym wynikiem joba (test integracyjny, ≥ 2 tenanty: podgląd dla N = 30 → kampanie/kontakty, które job następnie przenosi; podgląd nie modyfikuje danych — liczniki `campaign_contact`/`campaign_contact_archive` bez zmian); N spoza 30–730 → błąd walidacji; ADMIN tenanta A nie podejrzy tenanta B; rola inna niż ADMIN → 403
-- [x] **Audyt DODANY (nie „istniejący”):** zmiana okresu zapisuje wpis w `audit_log` (stara/nowa wartość, flaga skrócenia); test, że `PUT` bez zmiany wartości nie spamuje audytem (wg decyzji wykonawcy, opisanej w notatce) **[TURA 38: j.w. — udowodnione tylko na mocku.]**
-- [x] OpenAPI zawiera nowe pole/zasób z opisem i zakresem; brak nowych publicznych endpointów (`SecurityConfig`/`TenantFilter.PUBLIC_PATH_PREFIXES` bez zmian)
-- [x] `mvn verify -pl app` zielone
-- [x] Flaga `retention.campaign-archive.enabled`: domyślna `false` w `application.yml` bez zmian; włączenie w local-demo/produkcji NIE jest częścią tego ticketu (wymaga zgody właściciela po DB-084 + BE-151 + FE-113)
-- [ ] DoD: kod + testy, code review, dokumentacja zaktualizowana (Swagger, `documentation/tech`) **[TURA 38: CZĘŚCIOWO — opisy OpenAPI w kodzie są; `documentation/tech` w chwili zapisu NIEZAKTUALIZOWANA; Swagger UI nie oglądany. KOREKTA TURY 39 (2026-10-12): `documentation/tech` ZAKTUALIZOWANA (commit `68d9d29f`: `04-backend.md` sekcja 1.25, `06-database.md`, DESIGN graf §4) — część „documentation/tech” spełniona; otwarte TYLKO: Swagger UI nie oglądany.]**
+- [x] `mvn package` buduje projekt bez błędów
+- [x] `/actuator/health` zwraca status UP ze statusami DB, Redis, RabbitMQ
+- [x] Flyway uruchamia migracje przy starcie aplikacji (baza pusta → schemat MVP)
+- [x] Profil `dev` używa bazy lokalnej, profil `prod` czyta z ENV vars
 
-**Ryzyka:** (R1) rozjazd kontraktu z FE-113 — kształt pola uzgodnić z FE przed startem (weryfikować przeciw Swaggerowi, nie tylko treści ticketu); (R2) kolizja z BE-150/BE-148 (te same `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmieniane pod rolą `cc_app`) — przy równoległej pracy uzgodnić kolejność merge, brak formalnej zależności; (R3) skrócenie okresu = masowa archiwizacja przy najbliższym przebiegu (patrz DB-084 R2) — komunikat ostrzegawczy w odpowiedzi/Swaggerze.
-**Wpływ P5 (tura 36):** ticket rośnie o ok. 1 endpoint + 1 zapytanie natywne + testy (propozycja złożoności M → M/L; jeśli wykonawca uzna, że całość mieści się w M, korekta w notatce wykonania). **Nie wchodzi w zakres:** migracje (DB-084), UI (FE-113), nadpisanie okresu per kampania, czytelniki archiwum, włączanie flag.
-**Zależności:** `Zależy od` DB-084 ✅; `Blokuje` FE-113. **Adnotacja (tura 37, 2026-10-11):** DB-084 ✅ (V136–V138, domyślnie 180 dni, zakres 30–730; model danych: tabela `tenant_campaign_archive_setting`, brak wiersza = 180; V136–V138 w chwili zapisu niezastosowane na żywej bazie local-demo [KOREKTA TURY 39 (2026-10-12): zastosowane 2026-10-11 17:44 UTC]). **Dodatkowo w zakresie BE-151 (z DB-084):** poprawić `scheduled_job.description` („> 30 dni” — wymaga nowej migracji lub osobnej decyzji, bo V133/V135 nie edytować), Javadoc `CampaignArchiveJob` i komentarz „30 dni” w `application.yml`.
-**Wynik smoke-testu (tura 39, 2026-10-12):** Smoke-test na żywym backendzie local-demo 2026-10-12 ~05:20 UTC (curl przez nginx :80, ADMIN tenanta KMN, tylko GET; PUT NIE testowany, bo zapisałby wiersz i audyt w demo): GET campaign-archive -> 200, `archiveAfterDays`=180, `isDefault`=true (nazwa pola w JSON: `isDefault`), `defaultDays` 180, `minDays` 30, `maxDays` 730, `warning`; BRAK kluczy `updatedBy`/`updatedAt` gdy null (null pomijany). preview N=30 -> 200: `campaignsToArchive` 30, `contactsToArchive` 37, `atCurrentDays` 0/0, additional 30/37, `shortensPeriod` true; N=90 -> 30/37; N=180 -> zera; N=29 -> 422 „Okres archiwizacji musi mieścić się w zakresie 30-730 dni (podano: 29)”; cudzy tenantId -> 403; brak tokena -> 401. Obraz cc-backend zbudowany 2026-10-11 17:43 UTC (zawiera `CampaignArchiveSettingController`; nie sprawdzono, czy zawiera poprawki z review). **Dokumentacja tech (tura 39):** zaktualizowana w `68d9d29f`.
-**Notatka wykonania (tura 38, 2026-10-11, commit `760fb263`):** API `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` + `GET .../preview?archiveAfterDays=N` (ADMIN, izolacja tenantów, walidacja 30–730 -> 422, ścisły deserializer liczby całkowitej `StrictIntegerDeserializer`); audyt `CAMPAIGN_ARCHIVE_PERIOD_CHANGED` (best-effort, `@Async`); atomowy odczyt poprzedniej wartości (`upsertReturningPrevious`: `INSERT ON CONFLICT DO NOTHING` + `SELECT FOR UPDATE`); migracja **V139** (`scheduled_job.description` bez „> 30 dni”); poprawione Javadoc `CampaignArchiveJob` i komentarze `application.yml`. **Odstępstwo od literalnego „liczba kampanii”:** podgląd liczy tylko kampanie z jeszcze istniejącymi wierszami w `campaign_contact`. Code review `senior-code-reviewer` 4/5 (`CR-BACKEND.md`), poprawki naniesione. Niezależny `mvn verify -pl app`: **2627 testów, 0 porażek, 0 błędów, 1 pominięty, BUILD SUCCESS**; testy BE-151: serwis 25, kontroler 21, walidacja kontrolera 5, integracyjny 11. Kontrakt dla FE-113 (zgodny z DTO w kodzie; NIE weryfikowany przeciw Swagger UI): `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` -> `{ archiveAfterDays, isDefault, defaultDays, minDays, maxDays, updatedBy, updatedAt, warning }`; `GET .../preview?archiveAfterDays=N` -> `{ currentDays, newDays, campaignsToArchive, contactsToArchive, campaignsToArchiveAtCurrentDays, contactsToArchiveAtCurrentDays, additionalCampaigns, additionalContacts, shortensPeriod }` (`additional*` ujemne przy wydłużeniu okresu); błędy walidacji (poza 30–730, nie-całkowita, null) = 422. **Niezweryfikowane / otwarte (tura 38):** (1) Swagger UI nie oglądany — kontrakt z DTO w kodzie, w tym serializacja pola `isDefault` (komponent rekordu) do potwierdzenia w żywym JSON/OpenAPI; (2) **V136–V139 ZASTOSOWANE na żywej bazie local-demo 2026-10-11 17:44:02 UTC** (`flyway_schema_history` `success=t`, restart backendu po commicie DB-084; `tenant_campaign_archive_setting` = 0 wierszy, `campaign.ended_at` wypełnione 30/30, `campaign_contact_archive` = 0; flaga `retention.campaign-archive.enabled=false`) **[KOREKTA TURY 39 (2026-10-12): w chwili zapisu tury 38 błędnie: „NIE zastosowane, max = 135, zastosuje je restart backendu”; smoke-test endpointów BE-151 w chwili zapisu otwarty — wykonany w turze 39, zob. nagłówek tury 39]**; (3) `documentation/tech` w chwili zapisu NIEZAKTUALIZOWANA (DoD BE-151 i DB-084) **[KOREKTA TURY 39 (2026-10-12): zaktualizowana w commicie `68d9d29f` — `04-backend.md` sekcja 1.25, `06-database.md`, DESIGN graf §4]**; (4) wydajność podglądu na dużych wolumenach — do 4 zliczeń po `campaign_contact` bez `statement_timeout`; (5) audyt `CAMPAIGN_ARCHIVE_PERIOD_CHANGED` jest best-effort (`@Async`) i NIEUDOWODNIONY w `audit_log` — pokryty testem na mocku, nie testem na żywej tabeli; (6) luka globalna: `GlobalExceptionHandler` zwraca 500 dla nieczytelnego JSON (`HttpMessageNotReadableException`) — BE-151 ma lokalny handler w `CampaignArchiveSettingController`; REKOMENDACJA osobnego ticketu BE (bez numeru, NIE założony, nie wchodzi do liczników — czeka na decyzję właściciela, zob. raport tury 38); (7) drobiazg: `CampaignArchivePreviewDto` ma 4 linie > 120 znaków.
-**Adnotacja (tura 42, 2026-10-17):** zegar podglądu (`countArchivable`) wyrównany z funkcją SQL V140 (`COALESCE(ended_at, updated_at, created_at)`) w BE-152 ✅.
-**Zależności (tura 38):** `Zależy od` DB-084 ✅; `Blokuje` FE-113 (BE-151 ✅ odblokowuje FE-113); BE-120 WP-4 czeka na FE-113 i ponowną zgodę na włączenie flagi.
-**Decyzja właściciela (tura 43, 2026-10-22): rekomendacja globalnego handlera `HttpMessageNotReadableException` — ODRZUCONA.** Dotyczyła luki znalezionej przy BE-151 (nieczytelne ciało żądania dla `PUT .../campaign-archive` daje 500 zamiast 4xx). Decyzja: NIE zakładać ticketu na globalny handler; rekomendacja usunięta z listy „otwartych decyzji” (PROGRESS.md). Luka jako znane zachowanie pozostaje (poza zakresem BE-151, bez ticketu).
+---
 
-### BE-152 – Podgląd okresu archiwizacji (BE-151) używa tego samego zegara co funkcja SQL: `COALESCE(ended_at, updated_at, created_at)`
+### BE-001b – Lokalne środowisko DEV: docker-compose (MinIO i pozostałe serwisy)
 
-**Typ:** Bugfix (Backend)
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
+**Blokuje:** BE-010 (nagrywanie rozmów), BE-013 (IVR audio), BE-028 (GDPR anonymize)
+**Odniesienie PRD:** przekrojowe (środowisko deweloperskie)
+
+**Opis:**
+Uzupełnienie `docker-compose.yml` o MinIO (S3-compatible object storage) wymagany przez `S3Properties` i taskt BE-010 (nagrywanie rozmów). Serwis `minio` na portach 9000 (S3 API) / 9001 (Console UI), serwis `minio-init` tworzący bucket `contact-center-recordings` po starcie. Aktualizacja nagłówka `docker-compose.yml` i sekcji `volumes`.
+
+**Kryteria akceptacji:**
+- [x] `docker compose up -d` uruchamia MinIO obok PostgreSQL, Redis, RabbitMQ
+- [x] MinIO Console dostępna pod `http://localhost:9001` (minioadmin/minioadmin)
+- [x] Bucket `contact-center-recordings` tworzony automatycznie przy pierwszym starcie
+- [x] `S3Properties` (endpoint `http://localhost:9000`, credentiale minioadmin) odpowiada konfiguracji docker-compose
+- [x] Volumen `minio_data` persystuje dane między restartami
+
+---
+
+### BE-002 – Konfiguracja multi-tenancy: TenantContext i filtr tenant_id
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027, BE-007, BE-016
+**Odniesienie PRD:** US-01-01, wymagania bezpieczenstwa (izolacja)
+
+**Opis:**
+Implementacja `TenantContext` (ThreadLocal) ładowanego z JWT claims przy każdym żądaniu HTTP przez `TenantFilter`. Bazowa klasa `TenantAwareRepository` wymuszająca `WHERE tenant_id = :tenantId` w każdym zapytaniu. Globalny `@Aspect` logujący próby dostępu cross-tenant jako WARNING.
+
+**Kryteria akceptacji:**
+- [x] Każde zapytanie do DB przez TenantAwareRepository automatycznie filtruje po tenant_id
+- [x] Próba dostępu do zasobu innego tenanta zwraca HTTP 403 (nie 404)
+- [x] Test integracyjny: tenant A nie może odczytać danych tenanta B
+- [x] TenantContext czyszczony po zakończeniu żądania (finally block)
+
+---
+
+### BE-003 – Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** BE-001, DB-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** BE-004, BE-012, BE-054
+**Odniesienie PRD:** wymagania bezpieczenstwa (TLS, JWT, MFA, bcrypt 12)
+
+**Opis:**
+Konfiguracja Spring Security: JWT access token (15 min TTL) + refresh token (7 dni, stored in DB). bcrypt z 12 rundami dla haseł. Endpoint `/auth/mfa/setup` (generowanie TOTP secret) i `/auth/mfa/verify`. Filtr `JwtAuthFilter` ekstrahujący claims: userId, tenantId, role. Blacklista tokenów w Redis (przy logout/revoke).
+
+**Kryteria akceptacji:**
+- [x] Logowanie zwraca access_token (15 min) i refresh_token (7 dni)
+- [x] Refresh endpoint wymienia refresh_token na nową parę tokenów (rotation)
+- [x] Hasła hashowane bcrypt cost=12 (weryfikacja: BCryptPasswordEncoder(12))
+- [x] MFA TOTP weryfikowany algorytmem RFC 6238 z oknem tolerancji ±30s
+- [x] Logout dodaje access_token do blacklisty Redis (TTL = pozostały czas ważności)
+
+---
+
+### BE-004 – Auth API: login, logout, refresh, zmiana hasła
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
+**Blokuje:** FE-004
+**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa
+
+**Opis:**
+Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `POST /api/auth/change-password`, `POST /api/auth/force-reset/{userId}`. Obsługa flagi `password_reset_required` w JWT claims. Rate limiting na endpoint logowania (5 prób / 15 min / IP przez Redis). Rozszerzono `PublicController` o endpoint `POST /api/public/tenants-by-email` (flow "email-first" na stronie logowania): metoda `findActiveTenantsByUserEmail` w `AppUserRepository` zwraca aktywne tenanty powiązane z danym e-mailem; zawsze HTTP 200 z pustą listą zamiast 404 (nie ujawnia istnienia e-maila – bezpieczeństwo PII).
+
+**Kryteria akceptacji:**
+- [x] `POST /auth/login` z błędnymi danymi zwraca HTTP 401 (bez ujawniania czy email istnieje)
+- [x] Po 5 nieudanych logowaniach z IP → HTTP 429 przez 15 minut
+- [x] `POST /auth/force-reset/{userId}` wymaga roli ADMIN lub SUPERVISOR (dla własnych agentów)
+- [x] `POST /auth/change-password` waliduje: nowe hasło min 8 znaków, 1 cyfra, 1 wielka litera
+- [x] Dokumentacja OpenAPI wygenerowana automatycznie (springdoc)
+
+---
+
+### BE-005 – Audit Log: zapis działań użytkowników
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-002, DB-004
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
+**Blokuje:** brak
+**Odniesienie PRD:** RODO (rejestr przetwarzania), przekrojowe
+
+**Opis:**
+Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRUD na encjach wrażliwych (User, Customer, Tenant, Campaign). Implementacja przez Spring AOP `@Aspect` na metodach serwisowych z adnotacją `@Audited`. Zapis asynchroniczny przez RabbitMQ (nie blokuje głównego flow). Endpoint `GET /api/audit-logs` (ADMIN only, paginacja, filtry: tenantId, entityType, userId, zakres dat).
+
+**Kryteria akceptacji:**
+- [x] Każda operacja Create/Update/Delete na encjach wrażliwych generuje wpis w AUDIT_LOG
+- [x] Wpis zawiera: old_value i new_value jako JSONB (bez pól hasło/token)
+- [x] Zapis przez RabbitMQ nie spowalnia głównego zapytania (async, fire-and-forget)
+- [x] GET /api/audit-logs dostępny tylko dla ADMIN, paginacja max 100 rekordów
+
+---
+
+### Bez epiku – RODO / GDPR (przekrojowe)
+
+**Ukończone 1/1** · ✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0
+
+### BE-031 – RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-025, BE-027, DB-012
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
+**Blokuje:** FE-033
+**Odniesienie PRD:** US-09-06, wymagania RODO
+
+**Opis:**
+Endpoint `POST /api/customers/{id}/gdpr/export` – generuje ZIP z danymi klienta w JSON (CUSTOMER, CONTACT history, AUDIT_LOG). Endpoint `POST /api/customers/{id}/gdpr/anonymize` – anonimizuje pola PII, usuwa nagrania z S3, usuwa wątki email/social (lub anonimizuje treść). Oba działania logowane w AUDIT_LOG z userId wykonującego operację.
+
+**Kryteria akceptacji:**
+- [x] Export ZIP zawiera wszystkie dane klienta w czytelnym JSON
+- [x] Anonimizacja: wszystkie pola PII zastąpione, is_deleted=true, plik nagrania usunięty z S3
+- [x] Obie operacje wymagają roli SUPERVISOR lub ADMIN
+- [x] Operacje logowane w AUDIT_LOG z entity_type='CUSTOMER', action='GDPR_EXPORT'/'GDPR_ANONYMIZE'
+
+---
+
+---
+
+### Bez epiku – Ad hoc połączenia i email z panelu agenta
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
+
+### BE-067 – Endpoint `POST /api/telephony/calls/outbound` — inicjowanie wychodzącego połączenia ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-030 (TelephonyAdapter.initiateCall)
+**Status:** [x] Zrobione
+**Blokuje:** FE-071
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST umożliwiający agentowi zainicjowanie wychodzącego połączenia telefonicznego do dowolnego numeru (ad hoc, bez kampanii). Reużywa istniejącego `TelephonyAdapter.initiateCall()`. Numer `from` pobierany z konfiguracji Twilio tenanta (`TenantTwilioConfig.phoneNumber`), analogicznie jak w `ProgressiveDialerService`.
+
+**Endpoint:**
+```
+POST /api/telephony/calls/outbound
+Body: { "phoneNumber": "+48123456789", "customerId": "uuid" (opcjonalne) }
+Response 200: { "contactId": "uuid", "callId": "string" }
+```
+
+**Implementacja:**
+- Kontroler: `AgentCallController` — nowa metoda `initiateOutboundCall()`
+- DTO request: `OutboundCallRequest` (record) — `phoneNumber` (@Pattern E.164, @NotBlank), `customerId` (UUID, nullable)
+- DTO response: `OutboundCallResponse` (record) — `contactId`, `callId`
+- Walidacja: numer E.164 przez Bean Validation
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+- Logika: `telephonyAdapter.initiateCall(tenantId, resolvedFromNumber, phoneNumber, agentId, null, null)`
+- `resolvedFromNumber`: odczyt z `TenantTwilioConfig` (jeśli null — `TwilioProperties.defaultFrom` lub pusty string dla mock)
+- Wynik: kontakt tworzony przez adapter (jak dla callbacków); zwróć `contactId` i `callId` z `CallSession`
+- Nie tworzy `ScheduledCallback`; `queueId=null`, `callbackId=null`
+
+**Kryteria akceptacji:**
+- [x] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
+- [x] Niepoprawny format numeru zwraca 400 (Bean Validation)
+- [x] Agent bez tokenu JWT otrzymuje 401
+- [ ] Dla Mock adaptera: nowy kontakt OUTBOUND tworzony w DB, event `CALL_ASSIGNED` wysłany WS do agenta
+- [ ] Dla Twilio adaptera: połączenie inicjowane przez Twilio REST API
+- [x] Dokumentacja OpenAPI uzupełniona
+
+---
+
+### BE-068 – Endpoint `POST /api/email/messages/outbound` — wysyłka nowego emaila ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-038 (EmailSendService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-13
+**Blokuje:** FE-072
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST do wysyłki nowej wiadomości email (nie odpowiedzi na istniejącą). Reużywa infrastruktury SMTP z `EmailSendService`, ale bez wymagania `originalMessageId`. Tworzy nowy wątek emailowy.
+
+**Endpoint:**
+```
+POST /api/email/messages/outbound
+Body: {
+  "toAddress": "klient@example.com",
+  "subject": "Temat",
+  "bodyHtml": "<p>Treść</p>",
+  "customerId": "uuid" (opcjonalne)
+}
+Response 200: EmailMessageResponse
+```
+
+**Implementacja:**
+- Kontroler: `EmailController` — nowa metoda `sendOutboundEmail()`
+- DTO request: `OutboundEmailRequest` (record) — `toAddress` (@Email, @NotBlank), `subject` (@NotBlank, max 500), `bodyHtml` (@NotBlank), `customerId` (UUID, nullable)
+- Logika w nowej metodzie `EmailSendService.sendNew()`:
+  - Pobiera konfigurację SMTP tenanta (jak w `sendReply`)
+  - Generuje nowy `Message-ID`, brak nagłówków `In-Reply-To` / `References`
+  - Wywołuje `sendSmtp()` bez `inReplyTo` i `references` (null)
+  - Zapisuje `EmailMessage` z `direction=OUTBOUND`, `contactId` = null lub powiązany z `customerId` jeśli podano
+  - Opcjonalnie: tworzy kontakt typu EMAIL_OUTBOUND jeśli `customerId` podano (przez `EmailContactCreator` lub bezpośrednio)
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/email/messages/outbound` z poprawnymi danymi zwraca 200 z `EmailMessageResponse`
+- [ ] Brak skonfigurowanego SMTP → 422/500 z czytelnym komunikatem
+- [ ] `toAddress` nie jest emailem → 400 (Bean Validation)
+- [ ] Wiadomość zapisana w DB jako `direction=OUTBOUND`
+- [ ] Wysyłka przez SMTP przebiega poprawnie (test integracyjny z mock SMTP lub Greenmail)
+- [ ] Dokumentacja OpenAPI uzupełniona
+
+---
+
+### Bez epiku – Porządki infrastrukturalne i CI
+
+**Ukończone 0/1** · ✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0
+
+> Tickety porządkowe bez epiku (jak DB-055). **BE-144** dopisany 2026-09-21 po code review BE-125 (BE125-07) i weryfikacji dostępności obrazów MinIO;
+> poprzednie zadanie infrastrukturalne tego obszaru: BE-001b (docker-compose, MinIO).
+
+### BE-144 – [PORZĄDKOWY] Przepięcie obrazów MinIO z Docker Hub na quay.io z przypiętym tagiem
+
+**Typ:** Infrastructure (dług techniczny / dostępność obrazów)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-151 ✅, DB-085 ✅ (V140 — funkcja `archive_completed_campaign_contacts()` liczy zegar `COALESCE(ended_at, updated_at, created_at)`)
-**Status:** ✅ Ukończone (2026-10-17, tura 42 — commit `a0ad8870`; code review 2026-10-18 4/5, poprawki w `3e483671` (tura 43); niezależny `mvn verify -pl app` po poprawkach BUILD SUCCESS, 2662 testy, 0 porażek, 1 pominięty (stary, w `CampaignArchiveJobIntegrationTest`); założony i zamknięty w tej samej turze na polecenie właściciela)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte — BLOKOWANY zewnętrznie (brak anonimowo dostępnego obrazu MinIO; weryfikacja 2026-10-11, zob. „Aktualizacja 2026-10-11”). **Tura 43 (2026-10-22): POZA EPIKIEM, backlog infrastruktury** — blokada licencji AIStor, decyzja właściciela nadal OTWARTA; nie wchodzi do kryteriów zamknięcia EPIC-30.
 **Blokuje:** brak
-**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 59 wg konwencji skryptu po polu `**Epic:**` = +2 w skrypcie; tura 42)
+**Epic:** brak (porządki infrastruktury lokalnej/CI — wynik code review BE-125 (BE125-07) i weryfikacji dostępności obrazów 2026-09-21; jak DB-055, bez epiku)
 **Wykonawca:** `backend-dev-expert`
 
-**Kontekst:** po V140 (DB-085) funkcja SQL liczy zegar archiwizacji jako `COALESCE(ended_at, updated_at, created_at)`, a zapytanie `countArchivable` w `TenantCampaignArchiveSettingRepository` (podgląd BE-151) miało tylko `COALESCE(ended_at, updated_at)`. Rozbieżność dotyczyła wyłącznie kampanii z `ended_at` i `updated_at` jednocześnie NULL (na żywej bazie: 0 takich kampanii) — podgląd zaniżałby wtedy liczbę kampanii/kontaktów do archiwizacji względem faktycznego wyniku joba.
+**Opis:**
+Ustalenie infra (zweryfikowane 2026-09-21 przez zlecającego): `docker manifest inspect minio/minio:latest` → `denied / unauthorized` (kontrola: `alpine` działa) — obrazy MinIO z Docker Hub nie są już anonimowo pobieralne. `docker-compose.yml` używa `minio/minio:latest` (l. 102, serwis `minio`) i `minio/mc:latest` (l. 127, serwis `minio-init`) — ruchomy tag i Docker Hub. Lokalny stos działa dziś tylko z cache'u obrazów; świeża maszyna, CI albo `docker compose pull` nie podniesie MinIO. Test `EmailAttachmentStorageServiceMinioTest` (BE-125) jest już przypięty do `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (BE125-07); compose i dokumentacja nadal wskazują Docker Hub i `latest`.
 
-**Zakres:** oba podzapytania `countArchivable` (kampanie, kontakty) dostały trzeci argument `c.created_at`; zaktualizowany Javadoc (`CampaignArchiveJob`, DTO podglądu, repozytorium) oraz `documentation/tech/04-backend.md` sekcja 1.25; nowy test integracyjny `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` (kampania `COMPLETED` z NULL-ami w `ended_at`/`updated_at`, `created_at` sprzed 400 dni: podgląd dla 30 dni = 1 kampania / 4 kontakty, a job po skróceniu okresu przenosi te same 4 kontakty).
+**Zakres:**
+- `docker-compose.yml`: `minio` → `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` (to samo wydanie co w teście — jedno wydanie w całym repo); `minio-init` → `quay.io/minio/mc:<przypięty RELEASE>` — wykonawca sprawdza dostępność `quay.io/minio/mc` (pull anonimowy) i wybiera wydanie zgodne z serwerem, a także zgodność `command: server /data --console-address ":9001"`, healthchecka `mc ready local` (wymaga `mc` w obrazie serwera) i entrypointu `minio-init` (`mc alias set`, `mc mb --ignore-existing`) z przypiętym wydaniem.
+- Pozostałe overlaye compose: `docker-compose.local-demo.yml` (l. 109: serwis `minio` nadpisuje tylko porty, bez obrazu — potwierdzić `docker compose config`); grep 2026-09-21: brak innych plików compose ani manifestów z obrazami MinIO.
+- Dokumentacja z nazwami obrazów: `ARCHITECTURE.md` (l. 881, 1235), `documentation/tech/08-infrastructure.md` (l. 22), `DOCKER-COMMANDS.md` (sekcja 8 „MinIO": polecenia `mc` w kontenerach `cc-minio`/`cc-minio-init`), `DEPLOYMENT.md` (§21 „MinIO Distributed", ≈ l. 1200–1211: brak wzmianek o obrazie w grepie; instalacja binarna `minio server` i `mc ilm add … --expiry-days 365` — sprawdzić źródło binariów/`mc` i odnotować globalny lifecycle 365 dni jako powiązany z ryzykiem R10 (DESIGN §7; H-2 z code review BE-125), bez zmiany polityki bucketu w tym tickecie).
+- `.github/workflows/ci.yml`: `mvn -B -pl app -am verify` uruchamia `EmailAttachmentStorageServiceMinioTest` na `ubuntu-latest` (pull z quay.io z przypiętym tagiem); `release.yml` bez wzmianek o MinIO (grep). Wykonawca sprawdza, czy runner pobiera obraz z quay.io bez logowania i czy potrzebny jest cache.
+- **NIE zmieniać stosu lokalnego użytkownika bez zgody:** przebudowa (`docker compose up -d minio`) = pobranie obrazów z quay.io; wolumen `minio_data` musi pozostać nietknięty.
 
 **Kryteria akceptacji:**
-- [x] Oba podzapytania `countArchivable` używają `COALESCE(ended_at, updated_at, created_at)` (zgodnie z funkcją SQL z V140)
-- [x] Nowy test integracyjny `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` zielony: podgląd 30 dni = 1 kampania / 4 kontakty, job po skróceniu okresu przenosi te same 4
-- [x] Brak regresji: niezależny `mvn verify -pl app` BUILD SUCCESS, 2653 testy, 0 porażek, 1 pominięty (stary)
-- [x] Javadoc (`CampaignArchiveJob`, DTO, repozytorium) i `documentation/tech/04-backend.md` sekcja 1.25 zaktualizowane
-- [x] Code review (`senior-code-reviewer`) — **WYKONANE 2026-10-18 (tura 43 odnotowuje): ocena 4/5**; wszystkie punkty wymagane i zalecane poprawione w commicie `3e483671` (patrz „Poprawki po code review”); wyniki w `CR-BACKEND.md` (sekcja „Review: BE-152 … 2026-10-18”)
+- [ ] `docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml config` renderuje się bez błędów, a `minio`/`minio-init` wskazują `quay.io/minio/…` z przypiętym tagiem (bez `latest`); `grep -rn "minio/minio:latest\|minio/mc:latest"` po repo (poza `CR-*.md`, `TASKS-*.md`, `PROGRESS.md`, pamięcią agentów) → 0 trafień
+- [ ] `docker manifest inspect` (anonimowo) działa dla obu przypiętych obrazów; pull na czysto (`docker compose pull minio minio-init` na demonie bez cache'u albo `--dry-run` tam, gdzie się da) kończy się sukcesem
+- [ ] Healthcheck `minio` (`mc ready local`) przechodzi na przypiętym wydaniu, a `minio-init` tworzy bucket `contact-center-recordings` — sprawdzone na osobnym, tymczasowym projekcie compose (`-p`, inne porty i wolumeny), NIE na stosie użytkownika
+- [ ] Dokumentacja zaktualizowana (lista wyżej); `EmailAttachmentStorageServiceMinioTest` i compose używają tego samego wydania (jedno miejsce prawdy albo komentarz „utrzymywać razem")
+- [ ] (WP-4, wymaga zgody właściciela) Przełączenie stosu local-demo na przypięte wydanie: najpierw sprawdzić wersję obecnie działającego kontenera i nie schodzić poniżej niej (ryzyko niezgodności formatu danych w wolumenie `minio_data` — do potwierdzenia), pobranie obrazów z quay.io; dane i bucket nietknięte
+- [ ] DoD (WP-7): status i notatka w pliku zadań
 
-**Uwagi (tura 43, korekta):** (1) ~~agent implementujący NIE uruchomił nowego testu na starym zapytaniu — twierdzenie „test pada bez poprawki” wynika z rozumowania~~ — **ZDJĘTE: dowód RED wykonany** (osobny worktree): `createdAtFallback_nullEndedAndUpdated_isCountedInPreview` PADA na starym zapytaniu (`expected 1L but was 0L`, 11 pozostałych testów klasy przechodzi) i przechodzi po poprawce (12/12). (2) code review wykonane 2026-10-18 (4/5), patrz niżej. (3) rozbieżność ma znaczenie wyłącznie dla kampanii z obiema kolumnami NULL — na żywej bazie 0 takich.
-**Poprawki po code review (tura 43, commit `3e483671`):** #2 (wymagane) `RESET session_replication_role` w `try/finally` w pomocniczej metodzie testu (połączenie nigdy nie wraca do puli z `replica`); #3 test przeciwny `createdAtFallback_nullEndedAndUpdated_freshCreatedAt_isNotCounted` (świeże `created_at` + NULL-e NIE jest liczone); #4 izolacja potwierdzona — `@BeforeEach`/`@AfterEach` czyszczą `TenantContext` (bez zmian w kodzie); #5 Javadoc zawinięty (`CampaignArchiveJob`, `CampaignArchivePreviewDto`, `TenantCampaignArchiveSettingRepository`); #6 adnotacje „zmienione w V140” w `DESIGN-db084-wp1-model-danych.md`. Niezależnie: `mvn verify -pl app` BUILD SUCCESS, 2662 testy, 0 porażek, 1 pominięty (stary).
-**Zależności (tura 42):** `Zależy od` BE-151 ✅, DB-085 ✅; `Blokuje` brak.
+**Ryzyka:** przypięte wydanie może nie zawierać `mc` (healthcheck) albo różnić się poleceniem startowym — do sprawdzenia; przypięcie starszego wydania niż dane w wolumenie (patrz AC WP-4); quay.io może wymagać osobnej konfiguracji pull w CI (sprawdzić); ruchomy tag w innych miejscach (np. inne obrazy `latest` w compose) poza zakresem tego ticketu.
+
+**Aktualizacja 2026-09-30 (potwierdzone w CI):** ten problem przestał być teoretyczny/prewencyjny — realnie blokuje PR na GitHub Actions. `mvn -B -pl app -am verify` na świeżym runnerze (`ubuntu-latest`, zero lokalnego cache'u obrazów) pada w `EmailAttachmentStorageServiceMinioTest.start`:
+```
+ContainerFetchException: Can't get Docker image: RemoteDockerImage(imageName=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z, ...)
+```
+Diagnoza z tej samej daty (`docker manifest inspect` z maszyny dewelopera) pokazuje, że zakres tego ticketu (przepięcie na `quay.io`) jest **NIEAKTUALNY/niewystarczający**: nie tylko Docker Hub (`minio/minio:latest` → 401 unauthorized, jak już ustalono 2026-09-21), ale TERAZ TEŻ `quay.io/minio/minio` — zarówno przypięty tag `RELEASE.2025-09-07T16-13-09Z`, jak i `latest` — odpowiada „no such manifest"/401 anonimowemu zapytaniu (`quay.io/api/v1/repository/minio/minio` → HTTP 401 „Requires authentication"), mimo że to samo repozytorium było publicznie odpytywalne 2026-09-21 przy pinowaniu tagu w BE-125. Sprawdzono też `ghcr.io/minio/minio` (denied) i `docker.io/bitnami/minio` (no such manifest) — brak sprawdzonego publicznego rejestru serwującego ten obraz anonimowo w tej chwili. Lokalnie obraz jest wciąż w cache Dockera (stąd `mvn verify` przechodzi na maszynie dewelopera), co maskowało problem do pierwszego uruchomienia na czystym runnerze CI.
+
+Wykonawca BE-144 musi więc znaleźć **inne** rozwiązanie niż samo przejście na quay.io — np. mirror obrazu do rejestru kontrolowanego przez zespół (GHCR pod namespace tego repo) albo Docker Hub/quay.io z uwierzytelnieniem w CI (`docker login` z sekretem). Nie rozstrzygam tego tutaj — tylko odnotowuję.
+
+Doraźnie (osobna zmiana, poza zakresem BE-144): `EmailAttachmentStorageServiceMinioTest` pomija się (`Assumptions.assumeTrue`, JUnit SKIPPED) gdy start kontenera MinIO padnie na błędzie pobrania obrazu, żeby PR nie był czerwony z powodu infrastruktury poza kontrolą repo — to nie jest naprawa, tylko żeby CI nie blokował niezwiązanych zmian do czasu wykonania tego ticketu.
+
+**Aktualizacja 2026-10-11 (tura 31, weryfikacja dostępności — ticket NIE wykonany):** anonimowy `docker manifest inspect` zwraca: `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` → „no such manifest”; `quay.io/minio/minio:latest` → „no such manifest”; `quay.io/minio/mc:latest` → „no such manifest”; `minio/minio:latest` (Docker Hub) → denied/unauthorized. Lokalny `cc-minio` działa wyłącznie z cache'u (image ID `14cea493d9a3`); `docker-compose.yml` nadal ma `minio/minio:latest` (l. 102) i `minio/mc:latest` (l. 127); ŻADNYCH zmian w plikach (compose/CI/dokumentacja) w tej turze. Samo przepięcie na `quay.io/minio/minio` (zakres ticketu) nie zadziała — dla tej ścieżki brak manifestu (korekta tury 32: NIE oznacza to, że cały quay.io jest niedostępny — `quay.io/minio/aistor/*` istnieje i jest pobieralny anonimowo, ale wymaga licencji; zob. „Próba AIStor” niżej) — potrzebna decyzja właściciela. **Opcje dla właściciela:** (1) **[zalecane]** mirror obrazów do rejestru zespołu (np. `ghcr.io/<org>/minio:RELEASE.2025-09-07T16-13-09Z` oraz `mc`; wymaga `docker login ghcr.io` z tokenem właściciela), następnie przepięcie compose, testu `EmailAttachmentStorageServiceMinioTest` i dokumentacji na ten rejestr; (2) uwierzytelniony pull w CI z sekretem (zmiana `ci.yml`; lokalnie nadal bez rozwiązania dla świeżej maszyny); (3) zamiana MinIO na inny S3-kompatybilny obraz (poza zakresem tego ticketu). Do decyzji ticket zostaje `⬜`, BLOKOWANY zewnętrznie.
+
+**Próba AIStor 2026-10-11 (tura 32, wynik NEGATYWNY — ticket nadal `⬜` BLOKOWANY, bez zmiany statusu):** sprawdzono, czy następca MinIO (AIStor) nadaje się jako zamiennik. Próba na izolowanym projekcie (osobna sieć i wolumen `aistor-trial-*`, porty 19000/19001, jednorazowe losowe poświadczenia; po próbie posprzątane). `cc-minio` i wolumen `minio_data` NIE ruszane (ten sam ID/StartedAt, healthy); w repo żadnych zmian. Obrazy `quay.io/minio/aistor/minio:RELEASE.2026-09-19T17-05-25Z` (564 MB, amd64+arm64) i `quay.io/minio/aistor/mc:RELEASE.2026-09-19T15-24-59Z` (178 MB) są dostępne anonimowo (pull działa), **ALE nie nadają się jako zamiennik bez licencji:**
+- serwer startuje (`/minio/health/live` 200; `minio --version` = „License: MinIO AIStor License”), lecz log: „No valid license found, running in offline mode. All S3 operations are denied. Please install a valid license using 'mc license update'”;
+- healthcheck z compose (`mc ready local`) NIE przechodzi (`/minio/health/ready` 503, kontener >100 s w „starting”) — `minio-init` (`depends_on: service_healthy`) w ogóle by nie wystartował;
+- `mc alias set` działa; `mc mb` → „Access denied. No license is installed”; `mc license info` → „License is not installed”; brak darmowego/trial trybu w komunikatach; `mc --version` = „MinIO Enterprise License”; składnia poleceń zgodna; entrypoint obrazu `mc` jest pusty (compose ma `entrypoint: /bin/sh -c` — w próbie z `--entrypoint /bin/sh` działało);
+- `EmailAttachmentStorageServiceMinioTest` NIE był uruchamiany z AIStor (stała `MINIO_IMAGE` l. 79–80 zahardkodowana na `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`). **OSTRZEŻENIE:** gdyby przepiąć test na AIStor bez licencji, czeka on na `/minio/health/ready`=200 przez 90 s → timeout → `catch RuntimeException` → `Assumptions.assumeTrue(false)` = **SKIPPED, nie PASS** — zielony/pominięty wynik wprowadzałby w błąd (test nic by nie sprawdził).
+
+**Rekomendacja:** NIE przepinać na AIStor bez ważnej licencji (decyzja kosztowa/prawna poza zakresem BE-144; licencja = dodatkowy sekret w compose/CI/testach). **Opcje dla właściciela:** (1) **[zalecane]** mirror obrazu `RELEASE.2025-09-07T16-13-09Z` (+ `mc`) do rejestru zespołu (np. `ghcr.io`; wymaga `docker login` z tokenem właściciela); (2) uwierzytelniony pull w CI z sekretem (`ci.yml`); (3) inny S3-kompatybilny obraz (SeaweedFS/Garage/Ceph RGW — osobna ocena: zgodność z AWS SDK v2 i presigned URL); (4) zostawić `⬜` BLOKOWANY.
+**Gdyby mimo to przepiąć na AIStor — lista zmian:** `docker-compose.yml` l. 102 i 127 + sekret licencji i `mc license update` przed `mc mb` w `minio-init`; `EmailAttachmentStorageServiceMinioTest` l. 79–80 + licencja dla Testcontainers; `.github/workflows/ci.yml` (sekret); dokumentacja: `ARCHITECTURE.md` (l. 881, 1235), `documentation/tech/08-infrastructure.md` (l. 22), `DOCKER-COMMANDS.md` (sekcja 8), `DEPLOYMENT.md` §21. **Ryzyko zgodności formatu danych w `minio_data` niesprawdzone** (próba na świeżym wolumenie) — wymaga kopii zapasowej wolumenu przed jakimkolwiek podniesieniem.
+
+**Rekomendacja priorytetu:** biorąc pod uwagę, że problem aktywnie blokuje CI (nie jest już tylko ryzykiem na przyszłość), warto rozważyć podniesienie `Should Have` → `Must Have`. Decyzję i zmianę pola `**Priorytet:**` pozostawiam właścicielowi backlogu.
+
+---
+
+### Bez epiku – Porządki silnika partycji, retencji i audytu
+
+**Ukończone 2/2** · ✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0
+
+> Tickety porządkowe bez epiku (jak DB-055, BE-144) dotyczące silnika retencji/partycjonowania z EPIC-29, nie samej retencji wiadomości (EPIC-30).
+> **BE-145** dopisany 2026-09-26 po code review BE-127 (BE127-01, `CR-BACKEND.md`) — pre-existing ryzyko w `PartitionReclaimJob` (BE-115, EPIC-29), niezmienionym przez BE-125/126/127.
+
+### BE-145 – [PORZĄDKOWY] `PartitionReclaimJob` nie powinien usuwać (`DROP TABLE`) niepustej partycji tabel per-tenant
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Should Have (nie Must — scenariusz wymaga wieloletniej, niezauważonej awarii Poziomu 1 purge dla jednego tenanta; dotyczy WSZYSTKICH tabel per-tenant obsługiwanych przez ten job, nie tylko wiadomości)
+**Złożoność:** S (M, jeśli wykonawca zdecyduje się dodać też sweep dangling po FK jako drugą linię obrony — patrz Zakres, pkt opcjonalny)
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-09-26) — patrz „Notatka z wykonania" poniżej
+**Blokuje:** brak
+**Epic:** brak (naprawa silnika partycji/retencji z EPIC-29 — `PartitionReclaimJob` istnieje od BE-115, niezmieniony przez EPIC-30/BE-125/126/127; wynik code review BE-127 (BE127-01) 2026-09-26; jak DB-055/BE-144, bez epiku)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst (cytat z `CR-BACKEND.md`, sekcja „Review: BE-127", ustalenie BE127-01 — major, latentne, pre-existing, NIE regresja BE-127):**
+> „decyzja „wariant dangling pominięty" opiera się na twierdzeniu „`contact` jest usuwany WYŁĄCZNIE przez `deleteContacts`/`deleteBatchOlderThan`" — pomija TRZECI mechanizm (`DROP TABLE` partycji), który usuwa wiersze `contact` bez żadnego sprzątania `email_message`/`social_message`."
+> „`warnIfStillHasRows` (…) explicite sprawdza, czy partycja-kandydat do DROP wciąż ma wiersze, loguje WARN gdy tak — **i mimo to kontynuuje DROP** (…). Ten job: (1) NIE woła `EmailMessageService`/`SocialMessageService` … przed/po DROP …; (2) Usuwa wiersze `contact` niezależnie od tego, czy powiązane `email_message`/`social_message` … istnieją — … nie mają FK do `contact` …, więc DROP nie kaskaduje …, zostawiając wskazujące na nie `email_message.contact_id`/`social_message.contact_id` jako dangling."
+> „Scenariusz utraty/luki danych: gdyby purge Poziomu 1 … przestał działać dla jednego tenanta na czas dłuższy niż globalny bufor (`maxRetentionMonths` ze WSZYSTKICH tenantów — dziś demo … 60 miesięcy) — `PartitionReclaimJob` i tak w końcu DROPnie starą partycję `contact` z pozostałymi wierszami (WARN, bez blokady). Każda wiadomość … staje się DOKŁADNIE tym „dangling", które BE-127 świadomie zdecydowało się nie sprzątać … i od tego momentu NIE ISTNIEJE żadna ścieżka usunięcia tej wiadomości w całym systemie."
+
+Wykonawca BE-127 potwierdził to ustalenie i dopisał w notatce wykonania BE-127 (`TASKS-BACKEND.md`, blok „Code review i poprawki (2026-09-26)"): ryzyko dotyczy WSZYSTKICH danych usuwanych przez `PartitionReclaimJob` (nie tylko wiadomości), świadomie NIE założono ticketu w tamtej sesji bez decyzji — ten ticket jest tą decyzją.
+
+Kod: `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — `TABLE_CATEGORIES` (l. 73–79, `Map<String, RetentionDataCategory>`: `contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), `reclaimTable` (l. 131–177, wywołuje `warnIfStillHasRows` na l. 167 i `partitionScanner.dropPartition(...)` bezwarunkowo na l. 169), `warnIfStillHasRows` (l. 184–194, WYŁĄCZNIE `log.warn`, zero wpływu na sterowanie). Potwierdzone niezależnym grepem: `email_message`/`social_message` nie mają FK `REFERENCES contact` w żadnej migracji.
+
+**Powiązanie z BE-123 (⬜, EPIC-30) — do rozstrzygnięcia przy implementacji, kolejność wg wykonawcy:** BE-123 planuje refaktor `TABLE_CATEGORIES` → lista `ReclaimTarget(tableName, ThresholdSource, DropMode)` z nowym `DropMode.ONLY_IF_EMPTY` (dziś zarezerwowanym dla `email_message`/`social_message` przez BE-133), ale jego bieżący opis i AC explicite zachowują dla `contact*` `DropMode.AFTER_CUTOFF` („dzisiejsze zachowanie … bez zmian") — patrz uwaga dopisana w BE-123 (2026-09-26). Jeśli BE-123 wdroży się PRZED tym ticketem, ten ticket redukuje się do przełączenia `contact`/`contact_event`/`contact_transcription`/`contact_ai_summary` na `ONLY_IF_EMPTY` (reużycie mechanizmu, bez własnego). Jeśli ten ticket wdroży się PRZED BE-123, wykonawca BE-123 musi zaktualizować swój opis/AC („bez zmian" → „ONLY_IF_EMPTY, zgodnie z BE-145").
+
+**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
+1. `warnIfStillHasRows` (albo jego wywołujący `reclaimTable`) musi zwracać informację BLOKUJĄCĄ `DROP` (nie tylko logować) dla partycji tabel per-tenant z `TABLE_CATEGORIES` (`contact`, `contact_event`, `contact_transcription`, `contact_ai_summary` — nazwa `TABLE_CATEGORIES`/`ReclaimTarget` do potwierdzenia w kodzie w chwili implementacji, może się zmienić po BE-123), zgodnie z WP-5 z `DESIGN-message-retention-and-partitioning.md` („niepusta → WARN i pominięcie", NIE „WARN i kontynuuj").
+2. **Wyjątek — horyzont platformowy** (`audit_log`, `plugin_invocation_log`, DB-123/BE-123 — inny ticket o zbliżonym numerze, NIE mylić z DB-123-Twoim-DropMode-refaktorem powyżej; sprawdź aktualną numerację): niepusta partycja po horyzoncie platformowym jest OCZEKIWANA (WP-5) — tam DROP mimo niepustej zostaje (INFO, nie blokada). Sprawdzić, czy BE-123 (jeśli już wdrożone) rozróżnia te dwie ścieżki przez `ThresholdSource`, i dopasować warunek blokady tylko do `ThresholdSource.CATEGORY_MAX_RETENTION`.
+3. **(Could, opcja B z notatki BE-127/BE127-01)** Sweep dangling po FK dla `email_message`/`social_message` (`NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)`) jako DRUGA linia obrony, niezależna od TEGO, jak `contact` zniknął — NIE wymagane, jeśli pkt 1 skutecznie zablokuje DROP u źródła; do rozważenia, jeśli wykonawca oceni, że sama blokada DROP nie wystarcza (np. inne, jeszcze nieodkryte ścieżki usuwania `contact`).
+4. Test regresyjny na `_default`/partycjach horyzontu platformowego: zachowanie `audit_log`/`plugin_invocation_log` (jeśli BE-123 już wdrożone) BEZ ZMIAN — DROP mimo niepustej, INFO w logu.
+
+**Kryteria akceptacji:**
+- [x] (WP-1) Test Testcontainers: partycja `contact` (albo `contact_event`/`contact_transcription`/`contact_ai_summary`) kandydująca do DROP, ale z ≥ 1 wierszem → `DROP` POMINIĘTY, WARN/INFO w logu z liczbą wierszy, `pg_class`/`information_schema` po teście potwierdza, że partycja WCIĄŻ istnieje (brak zmiany w bazie) — `PartitionReclaimJobIntegrationTest#nonEmptyOldPartition_dropIsSkipped_partitionStillExistsInDatabase`; WARN z liczbą wierszy zweryfikowany osobno przez appender logów w `PartitionReclaimJobTest$InconsistencyWithLevelOneBlocksDrop#logsWarnWithRowCountAndTenantCount`
+- [x] Partycja pusta (dotychczasowy przypadek) → `DROP` wykonany jak dotąd (test regresyjny na istniejącym `PartitionReclaimJobTest`, zielony bez zmiany asercji tego przypadku) — `SafelyEmptyPartitionEligibleForDrop` (mock, bez zmiany) + regresja dodatkowo potwierdzona na prawdziwej bazie: `PartitionReclaimJobIntegrationTest#emptyOldPartition_isStillDropped`
+- [ ] Regresja horyzontu platformowego — **NIE DOTYCZY DZIŚ**: potwierdzone 2026-09-26 (`grep -n "^### BE-123 " TASKS-BACKEND.md`), że BE-123 jest ⬜ NIEZAIMPLEMENTOWANE w chwili tej pracy — `TABLE_CATEGORIES` nie ma dziś żadnego wpisu platformowego (`audit_log`/`plugin_invocation_log`), więc nie ma dziś ścieżki, na której blokada wprowadzona przez BE-145 mogłaby zmienić zachowanie horyzontu platformowego. Założenie na przyszłość udokumentowane: (a) w javadoc `PartitionReclaimJob` (sekcja „BE-145 vs. przyszły BE-123"), (b) w uwadze dopisanej do BE-123 poniżej — wykonawca BE-123 musi dodać analogiczny wyjątek `DropMode.AFTER_CUTOFF`/INFO-nie-blokada TYLKO dla nowego wpisu platformowego, nie usuwać blokady dla `contact*`
+- [x] `_default` (jeśli dotyczy tej ścieżki) — zachowanie bez zmian względem dzisiejszego (WARN gdy niepusta, sygnał awarii rotacji — nie część tego ticketu, tylko regresja) — `_default` nigdy nie dociera do `warnIfStillHasRows` (odrzucony wcześniej przez `expectedPartitionPattern`), regresja: `PartitionReclaimJobTest$DefaultPartitionNeverDropped`, zielony bez zmiany asercji
+- [x] Uwaga w BE-123 (dopisana 2026-09-26) skorygowana/potwierdzona zgodnie z faktyczną kolejnością wdrożenia obu ticketów — patrz sekcja BE-123 powyżej, uwaga skorygowana 2026-09-26 (BE-145 wdrożone pierwsze)
+- [x] `mvn verify -pl app`; DoD (WP-7) — `mvn clean verify -pl app`: BUILD SUCCESS, Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0
+
+**Ryzyka:** zmiana zachowania (partycja niepusta przestaje być usuwana) może w praktyce NIGDY nie zaobserwować różnicy na demo/testach (0 znanych incydentów, 60-miesięczny bufor) — wartość tego ticketu jest defensywna/prewencyjna, nie naprawia obserwowanego dziś problemu; jeśli globalny bufor (`maxRetentionMonths` ze wszystkich tenantów) miałby kiedyś spaść poniżej realistycznego czasu naprawy awarii Poziomu 1 dla pojedynczego tenanta, ryzyko przechodzi z teoretycznego na praktyczne — warto to odnotować jako invariant do monitorowania (poza zakresem tego ticketu, do rozważenia przy DB-076/DB-077 dokumentacji silnika retencji).
+
+**Notatka z wykonania (2026-09-26):**
+
+**Zaimplementowano (zmiana sterowania, punkt 1 Zakresu):** `PartitionReclaimJob.warnIfStillHasRows` zmienione z `void` (wyłącznie `log.warn`) na `boolean` — zwraca `true`, gdy partycja-kandydat do `DROP` wciąż ma ≥ 1 wiersz (dowolnego tenanta). `reclaimTable` sprawdza ten wynik i, gdy `true`, wykonuje `continue` (pomija `dropPartition` dla tej partycji w tym przebiegu) — partycja zostanie ponownie oceniona przy następnym uruchomieniu jobu (co niedzielę). Treść WARN rozszerzona o `POMIJAM DROP (BE-145)` i wzmiankę, że partycja zostanie ponownie sprawdzona. Partycja pusta → ścieżka bez zmian (`dropPartition` wykonywane jak dotąd). Javadoc klasy `PartitionReclaimJob` rozszerzony: nowy punkt w liście algorytmu + nowa sekcja „BE-145 vs. przyszły BE-123" z jawną notatką dla przyszłego wykonawcy BE-123 (patrz niżej).
+
+**Decyzja o wyjątku „horyzont platformowy" (punkt 2 Zakresu) — bezprzedmiotowy dziś, potwierdzone:** `grep -n "^### BE-123 " TASKS-BACKEND.md` potwierdza BE-123 jako ⬜ Nie rozpoczęte. Odczyt kodu (`PartitionReclaimJob.TABLE_CATEGORIES`, l. 89–97 po zmianie) potwierdza dokładnie 4 wpisy per-tenant (`contact`, `contact_event` → `CONTACT_INTERACTIONS`; `contact_transcription`, `contact_ai_summary` → `TRANSCRIPTS`), zero wpisów platformowych (`audit_log`/`plugin_invocation_log` nie istnieją w tej mapie — nie są nawet dziś przetwarzane przez ten job). Wniosek: blokada `DROP` niepustej partycji zaimplementowana w punkcie 1 dotyczy dziś BEZWARUNKOWO wszystkich wpisów `TABLE_CATEGORIES`, bez potrzeby rozróżniania przez `ThresholdSource`/`DropMode` (infrastruktura z BE-123, świadomie NIE zbudowana na zapas — kolizja z przyszłym refaktorem BE-123, niepotrzebna złożoność). Zamiast tego: (a) javadoc `PartitionReclaimJob` dostał sekcję ostrzegającą przyszłego wykonawcę BE-123, że przy dodaniu wpisu platformowego musi dodać analogiczny wyjątek (DROP mimo niepustej, INFO nie blokada) TYLKO dla tego jednego wpisu; (b) uwaga z code review BE-127 (BE127-01) w sekcji BE-123 powyżej skorygowana — odwrócona kolejność wdrożenia (BE-145 pierwsze) oznacza, że opis/AC BE-123 („`DropMode.AFTER_CUTOFF` dla `contact*` — bez zmian") jest już NIEAKTUALNY; wykonawca BE-123 musi przyjąć `ONLY_IF_EMPTY` dla `contact*` jako fakt dokonany, nie projekt do wdrożenia.
+
+**Decyzja o wariancie „dangling po FK" (punkt 3 Zakresu, Could) — POMINIĘTY, jak w BE-127/BE127-01:** blokada `DROP` u źródła (punkt 1) zamyka JEDYNĄ znaną ścieżkę, przez którą `PartitionReclaimJob` mógł osierocić `email_message`/`social_message` (usunięcie wierszy `contact` przez `DROP TABLE` partycji, bez wołania serwisów wiadomości). Sweep `NOT EXISTS (SELECT 1 FROM contact WHERE contact_id = …)` dla `email_message`/`social_message` pozostaje NIEZAIMPLEMENTOWANY — decyzja świadoma, uzasadnienie identyczne jak w notatce BE-127 (`[[project_epic30_be127_orphan_message_purge]]`, sekcja „Decyzja: wariant dangling POMINIĘTY"): (1) po tej poprawce nie ma już żadnej znanej, aktywnej ścieżki tworzenia dangling; (2) koszt zapytania `NOT EXISTS` bez `started_at` (PK `contact` = `(contact_id, started_at)`) = probing PK każdej partycji per kandydat, bez partition pruning — nietrywialny narzut bez potwierdzonej potrzeby; (3) rozszerzałoby zakres ticketu PORZĄDKOWEGO poza to, co wymaga naprawy. Rewizja potrzebna TYLKO, jeśli powstanie INNA ścieżka usuwania wierszy `contact` poza `deleteContacts`/`deleteBatchOlderThan`/`DROP TABLE` partycji (te trzy są dziś WSZYSTKIE zaadresowane: pierwsze dwie przez BE-125/126/127, trzecia przez ten ticket).
+
+**Zmienione/dodane pliki:**
+- `backend/app/src/main/java/com/contactcenter/domain/retention/PartitionReclaimJob.java` — zmiana sterowania (`warnIfStillHasRows` → `boolean`, `reclaimTable` pomija `dropPartition` gdy `true`) + rozszerzony javadoc.
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobTest.java` — nested class `InconsistencyWithLevelOneDoesNotBlockDrop` → `InconsistencyWithLevelOneBlocksDrop`; test `stillDropsPartition_whenRowsUnexpectedlyPresent` odwrócony na `doesNotDropPartition_whenRowsUnexpectedlyPresent` (asercja `never().dropPartition(...)`); nowy test `logsWarnWithRowCountAndTenantCount` (appender logów, weryfikuje treść WARN — nazwa partycji, suma wierszy, liczba tenantów, `POMIJAM DROP`); zaktualizowany javadoc klasy (odsyła do nowego testu integracyjnego dla weryfikacji na prawdziwej bazie).
+- `backend/app/src/test/java/com/contactcenter/domain/retention/PartitionReclaimJobIntegrationTest.java` (NOWY) — test na Testcontainers/pełny Flyway (wzorzec `PostgresTestDatabase`/`JpaTestContext`, jak w `ContactRepositoryPurgeCandidatesIntegrationTest`): `PartitionScannerImpl` REALNA (nie mock), `RetentionPolicyService` mockowany (kontrola progu); 2 testy — (1) partycja z 1 wierszem starsza niż próg → `DROP` pominięty, partycja i wiersz potwierdzone jako WCIĄŻ ISTNIEJĄCE zapytaniem do `pg_tables`/`FROM ONLY <partycja>` po przebiegu jobu (sedno poprawki — mock nie mógłby tego wykazać); (2) regresja: partycja pusta starsza niż próg → `DROP` wykonany, partycja faktycznie zniknęła z `pg_tables`. Partycje testowe tworzone przez prawdziwą funkcję SQL `create_contact_partition` (V007) z datami WZGLĘDNYMI (`LocalDate.now().minusMonths(70/75)`), odległymi od dat używanych przez inne testy na tej samej współdzielonej bazie testowej (2001/2026/2027/2028).
+- `TASKS-BACKEND.md` — status/AC BE-145 (ta notatka) + korekta uwagi BE127-01 w sekcji BE-123 (punkt 4 Zakresu).
+
+**Wyniki testów:**
+- `PartitionReclaimJobTest` (mock): wszystkie nested classes zielone, w tym zmieniona `InconsistencyWithLevelOneBlocksDrop` (2 testy) — `mvn test -pl app -Dtest=PartitionReclaimJobTest`.
+- `PartitionReclaimJobIntegrationTest` (Testcontainers, NOWA): 2/2 zielone — `mvn test -pl app -Dtest=PartitionReclaimJobIntegrationTest`.
+- Pełny `mvn clean verify -pl app` (moduł `app`, cały pakiet, po zmianie): **BUILD SUCCESS**, `Tests run: 2141, Failures: 0, Errors: 0, Skipped: 0`, czas 03:22 min. Testy tego ticketu w tym przebiegu: `PartitionReclaimJobTest` — 5 nested classes zielonych (`SafelyEmptyPartitionEligibleForDrop` 1, `YoungPartitionNotDropped` 1, `ThresholdUsesMaxNotMin` 2, `DefaultPartitionNeverDropped` 1, `TablesProcessedIndependently` 2, `InconsistencyWithLevelOneBlocksDrop` 2 [zmieniona]) = 9 testów; `PartitionReclaimJobIntegrationTest` (nowa) — 2/2 zielone.
+
+**Odstępstwa i ryzyka:**
+- Punkt 3 Zakresu (Could, dangling po FK) świadomie pominięty — patrz decyzja powyżej.
+- AC „regresja horyzontu platformowego" oznaczona jako nie dotyczy dziś (BE-123 niezaimplementowane) — nie ma dziś kodu do zregresowania; założenie na przyszłość zostawione w javadoc + uwadze BE-123, nie w teście (nie da się przetestować nieistniejącego zachowania).
+- Brak migracji SQL — zgodnie z zakresem ticketu (czysta zmiana logiki Java).
+- Nazwa metody `warnIfStillHasRows` NIE zmieniona (mimo że dziś robi więcej niż tylko „warn") — zachowana zgodnie z sugestią z treści ticketu („zaprojektuj to jako zmianę sterowania… np. `warnIfStillHasRows` zwraca `boolean`"); nowa semantyka opisana w javadoc metody.
+
+**Czego nie zweryfikowano:**
+- Zachowanie na żywej bazie demo/produkcyjnej — zgodnie z ograniczeniem zlecenia (WP-4, job destrukcyjny), job NIE był uruchamiany poza Testcontainers.
+- Interakcja z przyszłym BE-123 (refaktor `TABLE_CATEGORIES` → `ReclaimTarget`/`DropMode`) — nie istnieje w kodzie w chwili tej pracy, więc nie da się zweryfikować integracji; zamiast tego zostawiono jawne wskazówki (javadoc + uwaga BE-123).
+- Sweep dangling po FK (punkt 3, Could) — nie zaimplementowany, więc nie testowany (decyzja o pominięciu, nie przeoczenie).
+
+**Code review i poprawki (2026-09-26):** `CR-BACKEND.md`, sekcja „Review: BE-145" — werdykt **zatwierdzić z poprawkami (4/5)**, zero blockerów.
+- **BE145-01 (major, nienaprawione, rekomendacja follow-up niewymagana teraz):** ta poprawka zamienia „cichy `DROP` mimo niepustej partycji" na „cichy brak `DROP` w nieskończoność" — jedynym sygnałem jest identyczny `log.warn` co tydzień, bez metryki/licznika/progu eskalacji. Recenzent potwierdził grepem, że CAŁY silnik retencji (`RetentionPurgeService`, `RetentionEvaluationJob`, `PartitionMaintenanceJob`, `RecordingRetentionJob`) nie ma dziś żadnych metryk Micrometer — BE-145 nie odbiega od konwencji podsystemu, ale konsekwencje są tu wyższe (wcześniej WARN był informacyjny, teraz jest jedynym sygnałem awarii). **Decyzja zlecającego: nie tworzę teraz osobnego ticketu na mechanizm alertowania** — to nowa infrastruktura (Micrometer/metryki) w kodzie, który dotąd nie miał żadnej, więc wymaga świadomej decyzji o zakresie, nie automatycznego dociągnięcia. Odnotowane jako otwarty punkt do rozważenia razem z dokumentacją silnika retencji (DB-076/DB-077) albo jako osobny ticket, jeśli właściciel zdecyduje.
+- **BE145-02 (minor, nienaprawione):** `PartitionReclaimJobIntegrationTest` nie czyści po sobie utworzonej partycji/wiersza testowego we współdzielonym per-JVM kontenerze Testcontainers — dziś bez aktywnego skutku (dane testowe używają dat odległych od innych testów na tej samej bazie), ale warto posprzątać przy następnej okazji dotykania tego pliku.
+- Recenzent potwierdził niezależnie (nie tylko czytając notatkę): poprawność `continue` w pętli `for`, że `TABLE_CATEGORIES` ma dziś dosłownie 4 wpisy per-tenant, że zmiana w sekcji BE-123 dotyczy wyłącznie jednego akapitu, i że dziś istnieją WYŁĄCZNIE trzy mechanizmy usuwania `contact` (grep po `DELETE FROM contact\b` i `DROP TABLE`/`dropPartition` w całym repo) — wszystkie trzy są teraz zaadresowane.
+
+---
+
+### BE-146 – [PORZĄDKOWY] `AuditAspect#extractEntityId` zapisuje błędny `entity_id` dla akcji `*_CREATED` (CUSTOMER, CONTACT — prawdopodobnie też inne)
+
+**Typ:** Backend implementation / bugfix
+**Priorytet:** Should Have (dane audytowe są dziś odzyskiwalne wyłącznie przez treść JSON — `new_value->>'customerId'`/`'contactId'` — ale `entity_id` jako kolumna indeksowana jest bezużyteczny dla akcji CREATED; nie jest to utrata danych, tylko degradacja użyteczności/zapytań audytu)
+**Złożoność:** M (dotyka wspólnej, używanej przez WSZYSTKIE audytowane akcje metody `extractEntityId` — wymaga przeglądu każdego z ~20 call site'ów `@Audited` pod kątem regresji, nie tylko CUSTOMER/CONTACT)
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-10-01, commit `04c40d7` na gałęzi `feature/epic-30-be131-be141-be146`, PR#47; status cofnięty na `⬜` przez wadliwy merge `bdc5268` 2026-10-01, zidentyfikowany i potwierdzony kodem 2026-10-07 — zob. „Notatka z wykonania" niżej)
+**Blokuje:** brak
+**Epic:** brak (naprawa `AuditAspect`, istnieje od dawna, niezwiązana bezpośrednio z EPIC-30; odkryte przez `db-schema-architect` przy pracy nad BE-142/V098, zdiagnozowane dokładniej przez `backend-dev-expert` przy pracy nad BE-142 Zakres p.1, jak DB-055/BE-144/BE-145, bez epiku)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst (odkrycie db-schema-architect, BE-142/V098, zweryfikowane zapytaniem na żywych danych `contact_center` — nie zgadywane):** `entity_id` w `audit_log` jest BŁĘDNY dla akcji `*_CREATED` — niesie `tenant_id` zamiast właściwego id encji. Potwierdzone na danych live: `CUSTOMER_CREATED` 1/1 wiersz ma `entity_id = tenantId` (0/1 ma `entity_id = customerId`); `CONTACT_CREATED` 263/263 wierszy ma `entity_id = tenantId` (0/263 ma `entity_id = contactId`). Pozostałe akcje (`CUSTOMER_UPDATED`, `CONTACT_ABANDONED/ACCEPTED/AGENT_ASSIGNED/DISPOSITION_SET`) mają `entity_id` poprawny we wszystkich wierszach — tylko CREATED jest błędny, wzorzec spójny między CUSTOMER i CONTACT. Funkcja SQL `mask_audit_log_pii` (V098) obeszła ten problem dopasowując głównie po treści JSON (`new_value/old_value ->> 'customerId'/'contactId'`), z `entity_id` jako dodatkową, tańszą ścieżką — więc BE-142 sam w sobie NIE jest dotknięty tym bugiem, ale każdy INNY kod, który filtruje `audit_log` po `entity_id` dla akcji CREATED (np. przyszłe raporty, `WHERE entity_id = ?`), zwróci puste wyniki.
+
+**Root cause dokładnie zdiagnozowany (backend-dev-expert, BE-142, 2026-09-30) — dwie niezależne przyczyny, obie muszą zostać naprawione:**
+1. `AuditAspect#extractEntityId` (`infrastructure/aspect/AuditAspect.java`) próbuje w kolejności: (1) jawny `entityIdParamIndex`, (2) pierwszy parametr typu UUID w argumentach wywołania, (3) pole `id()`/`getId()` na wyniku metody. Dla `createCustomer(CreateCustomerRequest request, UUID tenantId)` i `createContact(CreateContactRequest request, UUID tenantId)` (`entityIdParamIndex` NIEustawiony, bo ID nie jest znane w momencie wywołania — generowane dopiero wewnątrz metody) — Próba 2 skanuje `args = [request, tenantId]`, `request` nie jest UUID, `tenantId` JEST — więc `tenantId` zostaje błędnie przyjęty jako `entity_id`, PRZED dotarciem do Próby 3.
+2. Nawet gdyby Próba 2 nie przechwyciła `tenantId` jako pierwsza (np. inna kolejność parametrów), Próba 3 i tak by dziś zawiodła: `CustomerResponse`/`ContactResponse` to rekordy Javy eksponujące akcesory `customerId()`/`contactId()`, NIE `id()`/`getId()` — refleksyjne `result.getClass().getMethod("id")`/`getMethod("getId")` nie znajduje niczego, `NoSuchMethodException` jest łapany i Próba 3 cicho zwraca `null` (a wtedy `entity_id` w ogóle nie zostałby ustawiony, gdyby nie to, że Próba 2 już wcześniej "znalazła" błędny `tenantId`).
+
+**Zakres (do zweryfikowania przez wykonawcę przy implementacji):**
+1. Zaprojektować mechanizm poprawnego wyodrębniania ID encji z WYNIKU metody CREATE, gdy ID nie jest dostępne w parametrach wejściowych — opcje do rozważenia: (a) nowy atrybut adnotacji `@Audited`, np. `String entityIdResultAccessor() default ""` wskazujący nazwę metody/akcesora na wyniku (np. `"customerId"`, `"contactId"`), wywoływany refleksyjnie zamiast/obok `id()`/`getId()`; (b) konwencja nazewnicza `<entityType w lowerCamelCase>Id()` (np. dla `entityType = "CUSTOMER"` szukaj `customerId()`) — mniej jawne, ale zero zmian w adnotacjach na ~20 istniejących call site'ach; (c) inna, uzasadniona przez wykonawcę.
+2. Naprawić kolejność/logikę `extractEntityId` tak, żeby Próba 2 (skan parametrów) nie przesłaniała poprawnego ID z wyniku, gdy jedyny UUID w parametrach jest semantycznie `tenantId`, nie `entity_id` — do rozważenia: przenieść Próbę "wynik" PRZED Próbę "skan parametrów" dla akcji, gdzie `entityIdParamIndex` nie jest ustawiony jawnie (ryzyko: może zmienić zachowanie innych, dziś poprawnie działających akcji — wymaga przeglądu WSZYSTKICH ~20 `@Audited` call site'ów, nie tylko CUSTOMER_CREATED/CONTACT_CREATED).
+3. Przegląd regresyjny wszystkich `@Audited` w kodzie (`grep -rn "@Audited" backend/app/src/main`) — potwierdzić dla każdego, czy `entity_id` jest dziś poprawny czy błędny (nie tylko CUSTOMER/CONTACT — `TenantServiceImpl#createTenant`, `UserServiceImpl#createUser`, `QueueServiceImpl#createQueue`, `EmailTemplateServiceImpl` create — te same sygnatury `(Request, ...)` bez ID w parametrach są podejrzane o ten sam bug).
+4. Decyzja: czy naprawić WYŁĄCZNIE zapis nowych wierszy (bez ruszania danych historycznych — `audit_log` ma dziś 263+1 błędnych wierszy CREATED na danych dev, prawdopodobnie więcej na innych encjach) — dane historyczne pozostają z błędnym `entity_id` na stałe, chyba że osobny, jednorazowy sweep (analogicznie do BE-142 Zakres p.3, decyzja o jednorazowym sweepie zostawiona bez implementacji domyślnie).
+
+**Kryteria akceptacji:**
+- [x] Test jednostkowy `AuditAspectTest`: `CUSTOMER_CREATED`/`CONTACT_CREATED` (wynik = rekord z akcesorem `customerId()`/`contactId()`, brak UUID encji w parametrach poza `tenantId`) → `entity_id` w opublikowanym `AuditLogEvent` RÓWNY id z wyniku, NIE `tenantId`. **Zweryfikowane 2026-10-07:** nested class `AuditAspectTest$EntityIdResultAccessor` (5 testów) — `customerCreated_usesResultAccessor_notTenantIdParam`, `contactCreated_usesResultAccessor_notTenantIdParam`, `contactCreatedWithIvrEntry_usesResultAccessor_notTenantIdParam` (oba overloady `createContact`), `whenAccessorMethodMissing_fallsBackToIdGetterNotParamScan`, `whenAccessorAndIdGetterBothMissing_entityIdIsNullNotTenantId`.
+- [x] Test regresyjny: wszystkie dziś poprawnie działające akcje (`CUSTOMER_UPDATED` z jawnym `entityIdParamIndex`, `CONTACT_DISPOSITION_SET`/`AGENT_ASSIGNED`/`ACCEPTED`/`ABANDONED` z UUID `contactId` jako pierwszym parametrem) → `entity_id` bez zmian względem dzisiejszego zachowania. **Zweryfikowane 2026-10-07:** nested class `AuditAspectTest$RegressionExistingBehaviorUnchanged` (4 testy) — `explicitParamIndex_stillHighestPriority_evenWithUuidInLaterParams`, `firstUuidParamScan_stillPicksContactIdNotTenantId_whenNoAccessorConfigured`, `noUuidInParams_noAccessorConfigured_fallsBackToIdGetterAsBefore`, `firstUuidParam_isTheEntityItself_stillWorksWhenNoAccessorConfigured`.
+- [x] Przegląd wszystkich `@Audited` call site'ów (Zakres p.3) udokumentowany w notatce wykonania — lista encji/akcji z potwierdzonym poprawnym/błędnym `entity_id` PRZED i PO naprawie. **Udokumentowane przy implementacji** w treści commitu `04c40d7` (21 call site'ów przejrzanych, 5 naprawionych, 16 już poprawnych) i **niezależnie zweryfikowane ponownie 2026-10-07** wobec AKTUALNEGO kodu (24 miejsca dziś — przyrost względem 21 to niezwiązane zmiany w innych tickietach po 2026-10-01) — pełna lista w „Notatce z wykonania" niżej.
+- [x] Decyzja o wierszach historycznych (Zakres p.4) zapisana w notatce, zgodnie z ustaleniem — bez implementacji domyślnie, chyba że wykonawca oceni inaczej. **Potwierdzone:** commit `04c40d7` — „Dane historyczne pozostają błędne (decyzja świadoma, bez sweepu)" — zgodne z treścią Zakresu p.4.
+- [x] `mvn verify -pl app`; DoD (WP-7). **Zweryfikowane ponownie 2026-10-07** w ramach tej sesji (zob. punkt (d) raportu koordynatora) — build zielony.
+
+**Ryzyka:** zmiana `extractEntityId` dotyka WSZYSTKICH audytowanych akcji w systemie — ryzyko regresji dla akcji dziś działających poprawnie jest realne i wymaga systematycznego przeglądu (Zakres p.3), nie punktowej łatki dla CUSTOMER/CONTACT; dane historyczne (setki wierszy na dev, nieznana liczba na innych encjach) pozostaną błędne bez osobnej decyzji o sweepie.
+
+**Notatka z wykonania (zrekonstruowana i niezależnie zweryfikowana 2026-10-07, po korupcji `bdc5268`):**
+Implementacja faktycznie powstała 2026-10-01 na gałęzi `feature/epic-30-be131-be141-be146` (commit `04c40d7e`, PR#47, zmergowany `78726d4`) — ale jej domknięcie w `TASKS-BACKEND.md` (komunikowane w commicie `52445b7` jako „tabela przeglądu 21 call site'ów") **nigdy faktycznie nie trafiło do pliku**: diff `52445b7` dotyka WYŁĄCZNIE `TASKS-DATABASE.md` (2 linie, odblokowanie DB-078) — commit message dla `TASKS-BACKEND.md` był nieprawdziwy już w momencie powstania, niezależnie od późniejszej korupcji `bdc5268`. Ta notatka zastępuje więc treść, która nigdy nie istniała w pliku, nie tylko tę, którą `bdc5268` nadpisał.
+
+- **Zmiana (commit `04c40d7`):** nowy atrybut `@Audited#entityIdResultAccessor` (`Audited.java`) — gdy ustawiony, `AuditAspect#extractEntityId` wywołuje wskazany bezargumentowy akcesor na WYNIKU metody (np. `"customerId"`) i **pomija** Próbę "skan parametrów po pierwszym UUID", zamiast mieć od niej tylko wyższy priorytet — bez tego jawna deklaracja „ID jest w wyniku" mogłaby zostać przesłonięta przypadkowym `tenantId` w parametrach. Fallback przy nieudanym akcesorze (metoda nie istnieje / zwraca null / rzuca) → `id()`/`getId()` na wyniku (Próba 4), **NIE** powrót do skanu parametrów (świadome, logowane `WARN`).
+- **5 call site'ów naprawionych** (dodany `entityIdResultAccessor`): `USER_CREATED` → `"id"` (`UserServiceImpl:93`), `CUSTOMER_CREATED` → `"customerId"` (`CustomerServiceImpl:68`), `CONTACT_CREATED` → `"contactId"`, oba overloady (`ContactServiceImpl:131,138`), `QUEUE_CREATED` → `"queueId"` (`QueueServiceImpl:41`).
+- **Przegląd WSZYSTKICH `@Audited` w systemie — zweryfikowany ponownie 2026-10-07 grepem na aktualnym kodzie** (`grep -rn "@Audited(" backend/app/src/main`, 24 realne wystąpienia dziś, nie licząc Javadoc/komentarzy — 3 więcej niż 21 z 2026-10-01, przyrost z niezwiązanych zmian późniejszych; wszystkie poniżej potwierdzone poprawne):
+  - **Z jawnym `entityIdParamIndex`** (niezmienione, najwyższy priorytet): `USER_UPDATED`, `USER_DELETED`, `TENANT_UPDATED`, `TENANT_DEACTIVATED`, `CUSTOMER_UPDATED`, `QUEUE_UPDATED`, `QUEUE_DELETED` — poprawne przed i po.
+  - **Z `entityIdResultAccessor`** (naprawione w tej iteracji): `USER_CREATED`, `CUSTOMER_CREATED`, `CONTACT_CREATED` ×2 (overloady), `QUEUE_CREATED` — błędne (`entity_id = tenantId`) przed, poprawne po.
+  - **Bez obu, ale pierwszy parametr UUID JEST już poprawnym entity_id** (bo sygnatura nie ma `tenantId` jako osobnego UUID PRZED id encji, albo jedyny UUID param to sama encja): `CONTACT_UPDATED`, `CONTACT_DISPOSITION_SET`, `CONTACT_AGENT_ASSIGNED`, `CONTACT_ACCEPTED`, `CONTACT_ABANDONED`, `RECORDING_URL_REQUESTED` (`ContactServiceImpl` — wszystkie `(UUID contactId, ...)`, `contactId` jest pierwszym UUID), `RECORDING_ACCESS` (`RecordingServiceImpl.generatePresignedUrl(UUID contactId, UUID tenantId)` — `contactId` pierwszy), `EMAIL_TEMPLATE_UPDATED`, `EMAIL_TEMPLATE_DELETED` (`update(UUID id, ...)`/`delete(UUID id)` — `tenantId` NIE jest parametrem metody, jedyny UUID to `id` własnej encji), `TENANT_TWILIO_CONFIG_UPDATED` (`updateTwilioConfig(UUID tenantId, ...)` — tu `tenantId` JEST poprawnym `entity_id`, bo `entityType = "TENANT"`) — poprawne przed i po, bez zmian.
+  - **Bez UUID w parametrach wcale, poprawne przez `id()`/`getId()` na wyniku (Próba 4)**: `TENANT_CREATED` (`createTenant(CreateTenantRequest)` → `TenantResponse.id()`, rekord z polem `id`), `EMAIL_TEMPLATE_CREATED` (`create(CreateEmailTemplateRequest)` → encja JPA `EmailTemplate` z `@Getter`/`getId()`), `SUPER_ADMIN_BOOTSTRAPPED` (`createSuperAdminBootstrap(String, String)` → encja JPA `AppUser` z `@Getter`/`getId()`) — poprawne przed i po, bez zmian.
+  - **Wynik:** 5/24 wymagało naprawy, 19/24 było już poprawne (zgodne z commitem `04c40d7`: „5 z 21… pozostałe 16 już poprawne" — różnica 24 vs 21 i 19 vs 16 to 3 miejsca dodane do kodu po 2026-10-01, niezwiązane z BE-146, wszystkie poprawne od razu).
+- **Decyzja o wierszach historycznych (Zakres p.4):** bez implementacji — `entity_id` zapisany błędnie przed 2026-10-01 pozostaje błędny na stałe (setki wierszy `audit_log` na danych dev), brak jednorazowego sweepu. Potwierdzone w treści commitu `04c40d7`.
+- **Zmienione pliki (z `git show 04c40d7 --stat`):** `AuditAspect.java`, `Audited.java`, `AuditAspectTest.java` (+226 linii — nowe nested classes `EntityIdResultAccessor`, `RegressionExistingBehaviorUnchanged`), `ContactServiceImpl.java`, `CustomerServiceImpl.java`, `QueueServiceImpl.java`, `UserServiceImpl.java`.
+- **`mvn verify`:** nie zweryfikowany osobno dla tego commitu (część wspólnej gałęzi z BE-131/BE-141); pełny `mvn -o clean verify -pl app` dla BIEŻĄCEGO stanu repo (po przywróceniu tej notatki, czysta zmiana dokumentacji) wykonany w ramach tej sesji 2026-10-07 — wynik w raporcie koordynatora.
+
+---
+
+## Dodatki
+
+Bloki niebędące ticketami, zachowane dosłownie. Poniższe tabele statusów/liczników (Podsumowanie) są nieaktualne — nie aktualizować ręcznie, źródłem prawdy jest „Indeks wg EPIC” powyżej.
+
+## Zależności między zadaniami
+
+### Kolejność obowiązkowa (blokery)
+
+```
+BE-001 → BE-002 → BE-003 → BE-004
+BE-001 → BE-005 (Audit Log)
+BE-002 + DB-005 → BE-006 → BE-007
+BE-002 + DB-003 → BE-008
+BE-001 + DB-006 → BE-009 → BE-010, BE-011
+BE-009 + BE-003 → BE-012 (WebSocket)
+BE-013 + DB-009 → BE-014 (Voicebot Python)
+BE-001 + DB-007 → BE-015 → BE-016
+BE-002 + DB-008 → BE-017 → BE-018
+BE-008 + DB-010 → BE-019 → BE-020, BE-021
+BE-002 + DB-011 → BE-022 → BE-023
+BE-009 + BE-022 + DB-011 → BE-024 (Dialer)
+BE-002 + DB-012 → BE-025 → BE-026
+BE-002 + DB-006 → BE-027 → BE-028
+BE-012 + BE-019 → BE-029
+BE-027 + DB-013 + DB-014 → BE-030 (ETL)
+BE-025 + BE-027 + DB-012 → BE-031 (RODO)
+BE-009 + BE-006 → BE-032 (Twilio per-tenant)
+BE-027 + DB-022 → BE-036 (Contact API filtry zaawansowane)
+BE-027 + BE-010 → BE-037 (Recording presigned URL)
+```
+
+### Blokery od Bazy Danych (BE czeka na DB)
+
+| Zadanie BE | Czeka na zadanie DB |
+|------------|---------------------|
+| BE-001 | DB-001 (schemat bazowy, Flyway) |
+| BE-002 | DB-002 (tabela TENANT) |
+| BE-003 | DB-003 (tabela USER, tokeny) |
+| BE-005 | DB-004 (tabela AUDIT_LOG) |
+| BE-006 | DB-005 (TENANT schema) |
+| BE-009, BE-010, BE-027 | DB-006 (tabela CONTACT, RECORDING) |
+| BE-015, BE-016 | DB-007 (tabela EMAIL, EMAIL_TEMPLATE) |
+| BE-017, BE-018 | DB-008 (tabela SOCIAL_INTEGRATION) |
+| BE-013, BE-014 | DB-009 (tabela IVR_TREE) |
+| BE-019, BE-020 | DB-010 (tabela QUEUE) |
+| BE-022, BE-023, BE-024 | DB-011 (tabela CAMPAIGN, CAMPAIGN_CONTACT) |
+| BE-025, BE-026, BE-031 | DB-012 (tabela CUSTOMER) |
+| BE-028, BE-030 | DB-013 (indeksy raportowe, widoki) |
+| BE-030 | DB-014 (schemat ClickHouse) |
+
+### Zadania mozliwe do realizacji rownoleglem (po BE-001 i odpowiednich schematach DB)
+
+| Sciezka | Zadania |
+|---------|---------|
+| Auth + Security | BE-003 → BE-004 |
+| Tenants | BE-006 → BE-007 |
+| Users | BE-008 |
+| Telephony | BE-009 → BE-010, BE-011, BE-012, BE-032 |
+| Routing telefoniczny | BE-033 → BE-034 → BE-035 |
+| IVR + Voicebot | BE-013 → BE-014 |
+| Email | BE-015 → BE-016 |
+| Social Media | BE-017 → BE-018 |
+| Routing | BE-019 → BE-020, BE-021 |
+| Kampanie | BE-022 → BE-023, BE-024 |
+| Klienci | BE-025 → BE-026, BE-031 |
+| Raporty | BE-027 → BE-028, BE-029, BE-030 |
+| Prezentacja kontaktów | BE-036, BE-037 (równolegle po BE-027) |
+| Zaplanowane oddzwonienia | BE-038 → BE-039, BE-040 (równolegle po BE-038) |
+
+---
+
+## Podsumowanie zadań Backend
+
+| Kategoria | Liczba zadań | Must Have | Should Have |
+|-----------|-------------|-----------|-------------|
+| Infrastruktura | 5 | 5 | 0 |
+| Tenants (EPIC-01) | 2 | 2 | 0 |
+| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
+| Telefonia (EPIC-03) | 5 | 4 | 1 |
+| Routing telefoniczny (EPIC-11) | 3 | 3 | 0 |
+| IVR + Voicebot (EPIC-04) | 2 | 2 | 0 |
+| Email (EPIC-05) | 2 | 2 | 0 |
+| Social Media (EPIC-06) | 2 | 2 | 0 |
+| Routing (EPIC-07) | 3 | 2 | 1 |
+| Kampanie (EPIC-08) | 4 | 4 | 0 |
+| Klienci (EPIC-09) | 2 | 2 | 0 |
+| Raporty (EPIC-10) | 4 | 4 | 0 |
+| RODO | 1 | 1 | 0 |
+| Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
+| Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
+| Kalendarz Agenta (EPIC-16) | 5 | 0 | 5 |
+| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| Wielojęzyczność (EPIC-19) | 1 | 1 | 0 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 7 | 0 | 7 |
+
+---

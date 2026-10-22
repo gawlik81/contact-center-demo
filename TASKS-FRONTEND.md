@@ -18,125 +18,59 @@
 
 ---
 
-## MODUL: Fundament aplikacji
+## Indeks wg EPIC
 
-### FE-001 – Inicjalizacja projektu Angular i konfiguracja workspace
+Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone jako ⬜; „Zrobione” = ✅). Status epiku dotyczy ticketów Frontend; EPIC-30: zamknięty warunkowo wg `PROGRESS.md` (DB-069 i BE-137 odłożone z wyzwalaczem po stronie DB/BE; FE-111 = 🚫 N/A).
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** brak
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-002, FE-003, FE-049
-**Odniesienie PRD:** przekrojowe
+| EPIC | Nazwa | ✅ | 🔧 | ⬜ | 🚫 | Razem | Status epiku |
+|------|-------|----|----|----|----|-------|--------------|
+| EPIC-01 | Onboarding i konfiguracja tenanta | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-02 | Zarządzanie użytkownikami i rolami | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-03 | Kanał telefoniczny (inbound) | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-04 | IVR i Automatyzacja głosowa | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-05 | Kanał email | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-06 | Kanał Social Media | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-07 | Silnik routingu | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-08 | Zarządzanie kampaniami | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-09 | Profil i historia klienta | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-10 | Dashboardy i raporty | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-11 | Routing numerów telefonicznych | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-12 | Prezentacja Kontaktów | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-13 | Zaplanowane oddzwonienia | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-14 | Zarządzanie przypisaniem agentów do kolejek | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-15 | Zakładka Klienci w Agent Desktop | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-16 | Kalendarz Agenta | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-17 | Powiadomienia o połączeniu (Incoming Call Alert) | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-18 | Testy jednostkowe | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-19 | Wielojęzyczność | 17 | 0 | 0 | 0 | 17 | ✅ Zakończony |
+| EPIC-20 | Per-tenant konfiguracja Twilio | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-21 | Retry i callback w kampaniach wychodzących | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-22 | Notatki do kontaktów | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-23 | Historia etapów kontaktu | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-24 | Transfer połączenia: agent i kolejka | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-25 | Przypisywanie agentów do kampanii | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-26 | AI-Powered Conversation Summary | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-27 | Własne dyspozycje per kampania i kolejka | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
+| EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
+| Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| **Razem** | | **112** | **0** | **4** | **1** | **117** | |
 
-**Opis:**
-Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLint, Prettier, Husky pre-commit hooks. Ustawienie struktury katalogów: `core/`, `shared/`, `features/`, `environments/`. Konfiguracja proxy deweloperskiego do backendu (proxy.conf.json).
+### Otwarte tickety (🔧 / ⬜) wg EPIC
 
-**Kryteria akceptacji:**
-- [ ] `ng build` i `ng test` kończą się bez błędów
-- [ ] ESLint i Prettier skonfigurowane z regułami projektu
-- [ ] Struktura katalogów zgodna z przyjętą architekturą modularną
-- [ ] Proxy do backendu (localhost:8080) skonfigurowany w proxy.conf.json
+**EPIC-18 – Testy jednostkowe**
 
----
-
-### FE-002 – Konfiguracja routingu, lazy loading i guard AuthGuard
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-004
-**Odniesienie PRD:** przekrojowe
-
-**Opis:**
-Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Implementacja `AuthGuard` (sprawdza ważność JWT z localStorage/sessionStorage) i `RoleGuard` (weryfikuje role: ADMIN, SUPERVISOR, AGENT). Obsługa przekierowania na `/login` przy wygaśnięciu sesji.
-
-**Kryteria akceptacji:**
-- [ ] Moduły feature ładowane lazy (widoczne w Network tab jako osobne chunk-i)
-- [ ] Próba wejścia na chronioną trasę bez JWT → redirect do /login
-- [ ] Próba wejścia na trasę niedostępną dla roli → redirect do /forbidden
-- [ ] Refresh tokenu wykonywany transparentnie przez HTTP Interceptor
-
----
-
-### FE-003 – HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-004
-**Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
-
-**Opis:**
-Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <token>` do każdego żądania. Logika automatycznego odświeżenia tokenu (retry z nowym tokenem po otrzymaniu 401). Globalny handler błędów HTTP wyświetlający notyfikacje toast dla błędów 4xx/5xx.
-
-**Kryteria akceptacji:**
-- [ ] Każde żądanie HTTP zawiera nagłówek Authorization
-- [ ] Po wygaśnięciu JWT interceptor wykonuje refresh i ponawia oryginalne żądanie
-- [ ] Błąd 403 wyświetla komunikat "Brak uprawnień" (toast)
-- [ ] Błąd 5xx wyświetla komunikat "Błąd serwera, spróbuj ponownie" (toast)
+- FE-T001 – Testy jednostkowe AgentStatusService — ⬜ (🔲 Do zrobienia)
+- FE-T002 – Testy jednostkowe ContactService — ⬜ (🔲 Do zrobienia)
+- FE-T003 – Testy jednostkowe CallbackService — ⬜ (🔲 Do zrobienia)
+- FE-T004 – Testy jednostkowe AgentGroupService — ⬜ (🔲 Do zrobienia)
 
 ---
 
-### FE-004 – Moduł uwierzytelniania: ekran logowania i MFA
+## EPIC-01 – Onboarding i konfiguracja tenanta
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-002, FE-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-18
-**Czeka na BE:** BE-004 ✅
-**Blokuje:** FE-005
-**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
-
-**Opis:**
-Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpisuje e-mail, frontend wywołuje `POST /api/public/tenants-by-email` i wykrywa organizacje powiązane z tym adresem; krok 2 – wyświetlane jest pole hasła (i opcjonalny dropdown organizacji gdy >1 trafień); krok 3 – opcjonalny krok MFA (TOTP 6-cyfr). Zapis JWT i refresh tokenu w pamięci aplikacji. Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`. Formularz 3-krokowy z sygnałami Angular (step, matchedTenants, loading, errorMessage).
-
-**Kryteria akceptacji:**
-- [ ] Formularz logowania waliduje format email i niepuste hasło
-- [ ] Po poprawnym logowaniu z MFA użytkownik trafia do dashboardu swojej roli
-- [ ] Przy `password_reset_required=true` wyświetlany jest formularz zmiany hasła przed dashboardem
-- [ ] Przycisk "Zaloguj" zablokowany (spinner) podczas oczekiwania na odpowiedź API
-
----
-
-### FE-005 – Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** FE-004
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-14
-**Czeka na BE:** brak
-**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024, FE-025, FE-026, FE-028, FE-029
-**Odniesienie PRD:** przekrojowe (wszystkie persony)
-
-**Opis:**
-Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależną od roli (ADMIN/SUPERVISOR/AGENT widzi inne pozycje menu), top bar z informacją o użytkowniku i tenant, system powiadomień toast (RxJS Subject singleton), komponent breadcrumb generowany z aktywnej trasy.
-
-**Kryteria akceptacji:**
-- [ ] Menu sidebar pokazuje tylko pozycje dostępne dla aktualnej roli
-- [ ] Wylogowanie czyści stan aplikacji i przekierowuje na /login
-- [ ] Toast notyfikacje widoczne ponad wszystkimi komponentami (z-index)
-- [ ] Aplikacja jest responsywna (breakpoint tablet 1024px, desktop 1280px+)
-- [ ] Spełnia WCAG 2.1 AA (kontrast, nawigacja klawiaturą, aria-labels)
-
----
-
-## MODUL: Zarządzanie Tenantami (EPIC-01)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-006 – Lista tenantów i formularz tworzenia tenanta
 
@@ -185,7 +119,9 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 
 ---
 
-## MODUL: Zarządzanie Użytkownikami i Rolami (EPIC-02)
+## EPIC-02 – Zarządzanie użytkownikami i rolami
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-008 – Zarządzanie agentami: lista, tworzenie, edycja, skills
 
@@ -210,7 +146,9 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 
 ---
 
-## MODUL: Agent Desktop (EPIC-03, EPIC-05, EPIC-06, EPIC-07)
+## EPIC-03 – Kanał telefoniczny (inbound)
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-009 – Agent Desktop: główny layout i panel statusu agenta
 
@@ -260,78 +198,35 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 
 ---
 
-### FE-011 – Panel profilu klienta podczas kontaktu
+### FE-025 – Panel konfiguracji Twilio per tenant
 
 **Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-009, BE-025, BE-011
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-005, BE-032
 **Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-20
-**Czeka na BE:** BE-025 ✅, BE-011 ✅
+**Zrealizowane:** 2026-04-01
+**Czeka na BE:** BE-032 ✅
 **Blokuje:** brak
-**Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
+**Odniesienie PRD:** EPIC-03
 
 **Opis:**
-Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwisko, telefon, email), historia ostatnich 10 kontaktów z danym klientem (kanał, data, disposition). Link do pełnego profilu klienta. Jeśli klient nieznany – przycisk "Utwórz profil" pre-wypełniający formularz numerem CLI.
+Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
 
 **Kryteria akceptacji:**
-- [x] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
-- [x] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
-- [x] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
-- [x] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
+- [x] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
+- [x] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
+- [x] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
+- [x] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
+- [x] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
 
 ---
 
-### FE-012 – Komponent obsługi kontaktu email
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** FE-009, BE-015, BE-016
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-26
-**Czeka na BE:** BE-015 ✅, BE-016 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-05-01, US-05-02, US-05-03, US-05-04, EPIC-05
-
-**Opis:**
-Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor odpowiedzi z rich text (Quill lub TinyMCE), wybór szablonu odpowiedzi z listy rozwijanej, przeglądanie wątku (thread). Przypisanie wątku do profilu klienta (search + select).
-
-Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wątku load-more), `EmailThreadMessageComponent` (pojedyncza wiadomość w wątku), `EmailService` (agent, GET wiadomości, POST reply, GET templates), `EmailSettingsComponent` (supervisor settings – formularz konfiguracji IMAP/SMTP per tenant, test połączenia), `EmailConfigService` (supervisor, konfiguracja emaila), integracja z `agent-desktop.component` i `customer-panel.component`.
-
-**Kryteria akceptacji:**
-- [x] HTML treść emaila renderowana w izolowanym iframe (ochrona XSS)
-- [x] Szablony odpowiedzi ładowane z API i filtrowane autocomplete
-- [x] Odpowiedź wysłana → zakładka kontaktu zamknięta, status zmieniony na "zamknięty"
-- [x] Wątek emailowy paginowany (load more) dla konwersacji > 20 wiadomości
-
 ---
 
-### FE-013 – Komponent obsługi kontaktu social media
+## EPIC-04 – IVR i Automatyzacja głosowa
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-009, BE-018
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-20
-**Czeka na BE:** BE-018 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-06-01, US-06-02, US-06-03, US-06-04, EPIC-06
-
-**Opis:**
-Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsApp): chat UI z historią konwersacji, pole odpowiedzi z emoji picker, znaczniki czasu, wskaźnik "platforma" (ikona). Tryb read-only dla historii zamkniętych konwersacji.
-
-**Kryteria akceptacji:**
-- [x] Ikona platformy widoczna obok każdej wiadomości
-- [x] Nowe wiadomości w aktywnej zakładce wyświetlane natychmiast przez WebSocket push
-- [x] Historia konwersacji scroll-paginowana (infinite scroll, load 20 wiadomości)
-- [x] Pola odpowiedzi zablokowane gdy konwersacja jest w statusie "zamknięta"
-
----
-
-## MODUL: IVR i Automatyzacja (EPIC-04)
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-014 – Graficzny edytor drzewa IVR (drag & drop)
 
@@ -358,7 +253,117 @@ Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węz
 
 ---
 
-## MODUL: Kampanie Outbound (EPIC-08)
+## EPIC-05 – Kanał email
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-012 – Komponent obsługi kontaktu email
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** FE-009, BE-015, BE-016
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
+**Czeka na BE:** BE-015 ✅, BE-016 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-05-01, US-05-02, US-05-03, US-05-04, EPIC-05
+
+**Opis:**
+Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor odpowiedzi z rich text (Quill lub TinyMCE), wybór szablonu odpowiedzi z listy rozwijanej, przeglądanie wątku (thread). Przypisanie wątku do profilu klienta (search + select).
+
+Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wątku load-more), `EmailThreadMessageComponent` (pojedyncza wiadomość w wątku), `EmailService` (agent, GET wiadomości, POST reply, GET templates), `EmailSettingsComponent` (supervisor settings – formularz konfiguracji IMAP/SMTP per tenant, test połączenia), `EmailConfigService` (supervisor, konfiguracja emaila), integracja z `agent-desktop.component` i `customer-panel.component`.
+
+**Kryteria akceptacji:**
+- [x] HTML treść emaila renderowana w izolowanym iframe (ochrona XSS)
+- [x] Szablony odpowiedzi ładowane z API i filtrowane autocomplete
+- [x] Odpowiedź wysłana → zakładka kontaktu zamknięta, status zmieniony na "zamknięty"
+- [x] Wątek emailowy paginowany (load more) dla konwersacji > 20 wiadomości
+
+---
+
+## EPIC-06 – Kanał Social Media
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-013 – Komponent obsługi kontaktu social media
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-009, BE-018
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-20
+**Czeka na BE:** BE-018 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-06-01, US-06-02, US-06-03, US-06-04, EPIC-06
+
+**Opis:**
+Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsApp): chat UI z historią konwersacji, pole odpowiedzi z emoji picker, znaczniki czasu, wskaźnik "platforma" (ikona). Tryb read-only dla historii zamkniętych konwersacji.
+
+**Kryteria akceptacji:**
+- [x] Ikona platformy widoczna obok każdej wiadomości
+- [x] Nowe wiadomości w aktywnej zakładce wyświetlane natychmiast przez WebSocket push
+- [x] Historia konwersacji scroll-paginowana (infinite scroll, load 20 wiadomości)
+- [x] Pola odpowiedzi zablokowane gdy konwersacja jest w statusie "zamknięta"
+
+---
+
+### FE-023 – Panel konfiguracji integracji social media (OAuth flow)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-005, BE-017
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-17
+**Czeka na BE:** BE-017 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-06-02, EPIC-06
+
+**Opis:**
+Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, WhatsApp) ze statusem połączenia. Przycisk "Połącz" inicjuje OAuth 2.0 flow (redirect → callback → token zapis). Przycisk "Rozłącz" (z potwierdzeniem). Status webhook (aktywny/błąd).
+
+**Zrealizowane:** SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" inicjujący OAuth redirect, `OAuthCallbackComponent` przechwytujący callback i zapisujący token, przycisk "Rozłącz" z modalem potwierdzenia, wyświetlanie statusu webhooka), SocialIntegrationService (initiateOAuth, disconnect, list), social-integration.model.ts, integrations.routes.ts.
+
+**Kryteria akceptacji:**
+- [x] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
+- [x] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
+- [x] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
+- [x] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
+
+---
+
+## EPIC-07 – Silnik routingu
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-024 – Panel konfiguracji kolejek i routingu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-005, BE-020
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
+**Czeka na BE:** BE-020 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
+
+**Opis:**
+Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s), adres email kolejki (opcjonalne pole `emailAddress` – walidacja formatu email, VARCHAR 255). Lista kolejek z liczbą agentów i aktualnym obciążeniem. Pole `emailAddress` w `queue.model.ts` jako `string | null`.
+
+**Kryteria akceptacji:**
+- [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
+- [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
+- [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
+- [x] Pole adresu email kolejki walidowane jako format email (Validators.email), opcjonalne
+
+---
+
+## EPIC-08 – Zarządzanie kampaniami
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-015 – Zarządzanie kampaniami: lista i formularz tworzenia
 
@@ -431,7 +436,32 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 
 ---
 
-## MODUL: Baza Klientów (EPIC-09)
+## EPIC-09 – Profil i historia klienta
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-011 – Panel profilu klienta podczas kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-009, BE-025, BE-011
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-20
+**Czeka na BE:** BE-025 ✅, BE-011 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
+
+**Opis:**
+Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwisko, telefon, email), historia ostatnich 10 kontaktów z danym klientem (kanał, data, disposition). Link do pełnego profilu klienta. Jeśli klient nieznany – przycisk "Utwórz profil" pre-wypełniający formularz numerem CLI.
+
+**Kryteria akceptacji:**
+- [x] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
+- [x] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
+- [x] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
+- [x] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
+
+---
 
 ### FE-018 – Wyszukiwanie i lista klientów (fuzzy search)
 
@@ -504,7 +534,60 @@ Zrealizowane: `customer-import.model.ts` (typy DeduplicationMode, ImportJobStatu
 
 ---
 
-## MODUL: Raportowanie i Analityka (EPIC-10)
+### FE-033 – Panel RODO w profilu klienta: eksport danych i anonimizacja
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-019 (CustomerDetailComponent), BE-031
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
+**Czeka na BE:** BE-031
+**Blokuje:** brak
+**Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17
+
+**Opis:**
+Rozszerzenie istniejącego `CustomerDetailComponent` (FE-019) o sekcję RODO z dwoma akcjami:
+- **Eksport danych (Art. 15):** pobiera plik ZIP z danymi klienta
+- **Anonimizacja (Art. 17):** anonimizuje wszystkie PII klienta z potwierdzeniem modal
+
+Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
+
+**Komponenty do stworzenia/modyfikacji:**
+
+1. **Rozszerzenie `CustomerDetailComponent`** (`features/customers/customer-detail/`):
+   - Sekcja „Prawa RODO" na dole strony profilu (po historii kontaktów)
+   - Przycisk „Eksportuj dane (Art. 15)" – wywołuje `GdprService.exportData(customerId)`, pobiera ZIP przez `URL.createObjectURL`
+   - Przycisk „Anonimizuj klienta (Art. 17)" – widoczny tylko dla ADMIN/SUPERVISOR, otwiera `GdprAnonymizeModalComponent`
+   - Oba przyciski ukryte gdy klient ma już `is_deleted=true` (wyświetlić zamiast tego badge "Dane zanonimizowane")
+
+2. **`GdprAnonymizeModalComponent`** (`features/customers/gdpr-anonymize-modal/`):
+   - Standalone component, selector: `app-gdpr-anonymize-modal`
+   - Input: `customerId: string`, `customerName: string`
+   - Output: `confirmed: EventEmitter<void>`, `cancelled: EventEmitter<void>`
+   - Treść: ostrzeżenie "Ta operacja jest nieodwracalna. Wszystkie dane osobowe klienta [name] zostaną trwale zanonimizowane."
+   - Wymaga wpisania słowa "ANONIMIZUJ" w pole tekstowe (potwierdzenie)
+   - Submit wywołuje `GdprService.anonymize(customerId)` → po sukcesie: toast + przekierowanie na listę klientów
+
+3. **`GdprService`** (`features/customers/services/gdpr.service.ts`):
+   - `exportData(customerId: string): Observable<Blob>` → `POST /api/customers/{id}/gdpr/export`, responseType: 'blob'
+   - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
+
+**Kryteria akceptacji:**
+- [x] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
+- [x] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
+- [x] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
+- [x] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
+- [x] Loading state na obu przyciskach podczas operacji
+- [x] Błąd 403 → toast "Brak uprawnień"
+- [x] Błąd 404 → toast "Klient nie istnieje"
+- [x] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
+
+---
+
+## EPIC-10 – Dashboardy i raporty
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-021 – Dashboard RT supervisora
 
@@ -554,83 +637,9 @@ Zrealizowane: `report.model.ts` – interfejsy `AgentReportRow`, `AgentReportFil
 
 ---
 
-## MODUL: Konfiguracja i Integracje (EPIC-01, EPIC-06)
+## EPIC-11 – Routing numerów telefonicznych
 
-### FE-023 – Panel konfiguracji integracji social media (OAuth flow)
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-005, BE-017
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-17
-**Czeka na BE:** BE-017 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-06-02, EPIC-06
-
-**Opis:**
-Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, WhatsApp) ze statusem połączenia. Przycisk "Połącz" inicjuje OAuth 2.0 flow (redirect → callback → token zapis). Przycisk "Rozłącz" (z potwierdzeniem). Status webhook (aktywny/błąd).
-
-**Zrealizowane:** SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" inicjujący OAuth redirect, `OAuthCallbackComponent` przechwytujący callback i zapisujący token, przycisk "Rozłącz" z modalem potwierdzenia, wyświetlanie statusu webhooka), SocialIntegrationService (initiateOAuth, disconnect, list), social-integration.model.ts, integrations.routes.ts.
-
-**Kryteria akceptacji:**
-- [x] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
-- [x] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
-- [x] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
-- [x] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
-
----
-
-### FE-024 – Panel konfiguracji kolejek i routingu
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-005, BE-020
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-21
-**Czeka na BE:** BE-020 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
-
-**Opis:**
-Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s), adres email kolejki (opcjonalne pole `emailAddress` – walidacja formatu email, VARCHAR 255). Lista kolejek z liczbą agentów i aktualnym obciążeniem. Pole `emailAddress` w `queue.model.ts` jako `string | null`.
-
-**Kryteria akceptacji:**
-- [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
-- [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
-- [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
-- [x] Pole adresu email kolejki walidowane jako format email (Validators.email), opcjonalne
-
----
-
-### FE-025 – Panel konfiguracji Twilio per tenant
-
-**Typ:** Feature
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-005, BE-032
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-01
-**Czeka na BE:** BE-032 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** EPIC-03
-
-**Opis:**
-Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
-
-**Kryteria akceptacji:**
-- [x] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
-- [x] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
-- [x] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
-- [x] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
-- [x] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
-
----
-
----
-
-## MODUL: Routing numerów telefonicznych (EPIC-11)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-026 – Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor)
 
@@ -762,7 +771,9 @@ Zrealizowane: `ManualCampaignPanelComponent` (polling co 30s, lista kampanii man
 
 ---
 
-## MODUL: Prezentacja Kontaktów (EPIC-12)
+## EPIC-12 – Prezentacja Kontaktów
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-028 – Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal)
 
@@ -950,64 +961,9 @@ exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane prze
 
 ---
 
-## Zależności między zadaniami
+## EPIC-13 – Zaplanowane oddzwonienia
 
-### Kolejność obowiązkowa (blokery)
-
-```
-FE-001 → FE-002 → FE-003 → FE-004 → FE-005
-FE-005 → FE-006, FE-007, FE-008, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
-FE-009 (Agent Desktop) → FE-010, FE-011, FE-012, FE-013, FE-017
-FE-015 (Kampanie) → FE-016
-FE-018 (Lista klientów) → FE-019, FE-020
-```
-
-### Zadania możliwe do realizacji równoległej (po odblokowaniu FE-005)
-
-| Ścieżka | Zadania |
-|---------|---------|
-| Admin | FE-006, FE-007 |
-| Supervisor / Agenci | FE-008, FE-024 |
-| Agent Desktop | FE-009 → FE-010, FE-011, FE-012, FE-013, FE-017 |
-| IVR | FE-014 (niezależny od Agent Desktop) |
-| Kampanie | FE-015 → FE-016 |
-| Klienci | FE-018 → FE-019, FE-020 |
-| Raporty | FE-021, FE-022 |
-| Integracje | FE-023 |
-| Twilio config | FE-025 (po BE-032) |
-| Routing telefoniczny | FE-026 (po BE-033, BE-034) |
-| Prezentacja kontaktów | FE-028 (modal + audio player), FE-029 (raport), FE-030 (panel klienta) |
-
-### Blokery od Backendu (FE czeka na BE)
-
-| Zadanie FE | Czeka na zadanie BE |
-|------------|---------------------|
-| FE-004 | BE-004 (auth endpoints) |
-| FE-006 | BE-006 (tenant CRUD API) |
-| FE-007 | BE-007 (admin metrics API) |
-| FE-008 | BE-008 (users/agents API) |
-| FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
-| FE-012 | BE-015 (email API) |
-| FE-013 | BE-018 (social media API) |
-| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 ✅ (IVR Engine – zrealizowane) |
-| FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
-| FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
-| FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
-| FE-022 | BE-028 ✅ (reports API – zrealizowane) |
-| FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
-| FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
-| FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
-| FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
-| FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
-| FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
-| FE-031 | BE-039 ✅ (reschedule callback API) |
-| FE-032 | BE-040 ✅ (inbound callback API) |
-
-> Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
-
----
-
-## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-031 – Modal przełożenia rozmowy wychodzącej (Agent Desktop)
 
@@ -1139,59 +1095,6 @@ export interface CreateInboundCallbackRequest {
 - [x] Błąd 403 → "Brak uprawnień"
 - [x] Formularz zablokowany podczas wysyłki (brak podwójnego submitu)
 - [x] Walidacja phone: format E.164 lub akceptowalny lokalny format
-
----
-
-## MODUL: RODO / GDPR (EPIC-09, przekrojowe)
-
-### FE-033 – Panel RODO w profilu klienta: eksport danych i anonimizacja
-
-**Typ:** Feature – UI Component
-**Priorytet:** Must Have
-**Złożoność:** S
-**Zależy od:** FE-019 (CustomerDetailComponent), BE-031
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-09
-**Czeka na BE:** BE-031
-**Blokuje:** brak
-**Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17
-
-**Opis:**
-Rozszerzenie istniejącego `CustomerDetailComponent` (FE-019) o sekcję RODO z dwoma akcjami:
-- **Eksport danych (Art. 15):** pobiera plik ZIP z danymi klienta
-- **Anonimizacja (Art. 17):** anonimizuje wszystkie PII klienta z potwierdzeniem modal
-
-Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
-
-**Komponenty do stworzenia/modyfikacji:**
-
-1. **Rozszerzenie `CustomerDetailComponent`** (`features/customers/customer-detail/`):
-   - Sekcja „Prawa RODO" na dole strony profilu (po historii kontaktów)
-   - Przycisk „Eksportuj dane (Art. 15)" – wywołuje `GdprService.exportData(customerId)`, pobiera ZIP przez `URL.createObjectURL`
-   - Przycisk „Anonimizuj klienta (Art. 17)" – widoczny tylko dla ADMIN/SUPERVISOR, otwiera `GdprAnonymizeModalComponent`
-   - Oba przyciski ukryte gdy klient ma już `is_deleted=true` (wyświetlić zamiast tego badge "Dane zanonimizowane")
-
-2. **`GdprAnonymizeModalComponent`** (`features/customers/gdpr-anonymize-modal/`):
-   - Standalone component, selector: `app-gdpr-anonymize-modal`
-   - Input: `customerId: string`, `customerName: string`
-   - Output: `confirmed: EventEmitter<void>`, `cancelled: EventEmitter<void>`
-   - Treść: ostrzeżenie "Ta operacja jest nieodwracalna. Wszystkie dane osobowe klienta [name] zostaną trwale zanonimizowane."
-   - Wymaga wpisania słowa "ANONIMIZUJ" w pole tekstowe (potwierdzenie)
-   - Submit wywołuje `GdprService.anonymize(customerId)` → po sukcesie: toast + przekierowanie na listę klientów
-
-3. **`GdprService`** (`features/customers/services/gdpr.service.ts`):
-   - `exportData(customerId: string): Observable<Blob>` → `POST /api/customers/{id}/gdpr/export`, responseType: 'blob'
-   - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
-
-**Kryteria akceptacji:**
-- [x] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
-- [x] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
-- [x] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
-- [x] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
-- [x] Loading state na obu przyciskach podczas operacji
-- [x] Błąd 403 → toast "Brak uprawnień"
-- [x] Błąd 404 → toast "Klient nie istnieje"
-- [x] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
 
 ---
 
@@ -1420,7 +1323,9 @@ editingCallback = signal<CallbackListItem | null>(null);
 
 ---
 
-## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+## EPIC-14 – Zarządzanie przypisaniem agentów do kolejek
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-036 – Serwis `AgentGroupService` i typy DTO dla grup agentów
 
@@ -1669,7 +1574,9 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 
 ---
 
-## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+## EPIC-15 – Zakładka Klienci w Agent Desktop
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-040 – Zakładka „Klienci" w Agent Desktop (`AgentCustomersTabComponent`)
 
@@ -1809,7 +1716,9 @@ interface ManualCallbackResponse {
 
 ---
 
-## MODUŁ: Kalendarz Agenta (EPIC-16)
+## EPIC-16 – Kalendarz Agenta
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-042 – `AgentCalendarService` i typy DTO dla kalendarza
 
@@ -1941,7 +1850,9 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 
 ---
 
-## Powiadomienia o połączeniu (EPIC-17 – Incoming Call Alert)
+## EPIC-17 – Powiadomienia o połączeniu (Incoming Call Alert)
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Agent przebywający na zakładce innej niż `/agent/desktop` (Klienci, Oddzwonienia) nie widzi
 > softphone'a i może przeoczyć przychodzące połączenie. Poniższe zadania rozwiązują ten problem
@@ -2111,7 +2022,98 @@ export class AgentShellComponent {}
 
 ---
 
-## MODUL: Wielojęzyczność UI (EPIC-19)
+## EPIC-18 – Testy jednostkowe
+
+**Ukończone 0/4** (✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0) — status epiku: ⬜ Nie rozpoczęty
+
+### FE-T001 – Testy jednostkowe AgentStatusService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Napisać testy Vitest dla `AgentStatusService`.
+
+**Kryteria akceptacji:**
+- [ ] `setStatus()` → HTTP PUT, optymistyczna aktualizacja sygnału, rollback przy błędzie
+- [ ] WebSocket update: odbiór eventu zmiany statusu innego agenta, aktualizacja listy
+- [ ] `getAvailableStatuses()` — filtrowanie według roli (agent vs supervisor)
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T002 – Testy jednostkowe ContactService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Napisać testy Vitest dla `ContactService`.
+
+**Kryteria akceptacji:**
+- [ ] `getContacts()` — stronicowanie, filtrowanie po statusie/kanale, tenant header
+- [ ] `assignContact()` — happy path, kontakt już przypisany (błąd 409), optymistyczna aktualizacja
+- [ ] `closeContact()` — zmiana statusu, wyzwolenie eventu do supervisora
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T003 – Testy jednostkowe CallbackService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-oddzwonienia (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-13
+
+**Opis:**
+Napisać testy Vitest dla `CallbackService`.
+
+**Kryteria akceptacji:**
+- [ ] `scheduleCallback()` — walidacja daty (nie w przeszłości), HTTP POST, zapis w lokalnym stanie
+- [ ] `cancelCallback()` — HTTP DELETE, usunięcie z listy
+- [ ] `getUpcoming()` — filtrowanie przeszłych callbacków, sortowanie po dacie
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T004 – Testy jednostkowe AgentGroupService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-przypisanie-agentów (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-14
+
+**Opis:**
+Napisać testy Vitest dla `AgentGroupService`.
+
+**Kryteria akceptacji:**
+- [ ] `getGroups()` — lista grup z agentami, cache (nie wywołuje HTTP dwa razy)
+- [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
+- [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
+- [ ] Wszystkie testy przechodzą (`npm test`)
+| **RAZEM** | **54** | **42** | **12** |
+
+---
+
+## EPIC-19 – Wielojęzyczność
+
+**Ukończone 17/17** (✅ 17 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-049 – Konfiguracja Transloco i pliki tłumaczeń (PL / EN / DE)
 
@@ -2515,122 +2517,9 @@ Pliki:
 
 ---
 
-## Podsumowanie zadań Frontend
+## EPIC-20 – Per-tenant konfiguracja Twilio
 
-| Kategoria | Liczba zadań | Must Have | Should Have |
-|-----------|-------------|-----------|-------------|
-| Fundament | 5 | 5 | 0 |
-| Tenants (EPIC-01) | 2 | 2 | 0 |
-| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
-| Agent Desktop | 5 | 5 | 0 |
-| IVR (EPIC-04) | 1 | 1 | 0 |
-| Kampanie (EPIC-08) | 3 | 3 | 0 |
-| Klienci (EPIC-09) | 3 | 3 | 0 |
-| RODO / GDPR | 1 | 1 | 0 |
-| Raporty (EPIC-10) | 2 | 2 | 0 |
-| Konfiguracja | 3 | 2 | 1 |
-| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
-| Dialer manualny | 1 | 1 | 0 |
-| Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
-| Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
-| Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
-| Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
-| Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
-| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
-| i18n fixes (EPIC-19) | 12 | 6 | 6 |
-| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
-
----
-
-## MODUL: Testy jednostkowe (EPIC-18)
-
-### FE-T001 – Testy jednostkowe AgentStatusService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-agent-desktop (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-03
-
-**Opis:**
-Napisać testy Vitest dla `AgentStatusService`.
-
-**Kryteria akceptacji:**
-- [ ] `setStatus()` → HTTP PUT, optymistyczna aktualizacja sygnału, rollback przy błędzie
-- [ ] WebSocket update: odbiór eventu zmiany statusu innego agenta, aktualizacja listy
-- [ ] `getAvailableStatuses()` — filtrowanie według roli (agent vs supervisor)
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T002 – Testy jednostkowe ContactService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-agent-desktop (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-12
-
-**Opis:**
-Napisać testy Vitest dla `ContactService`.
-
-**Kryteria akceptacji:**
-- [ ] `getContacts()` — stronicowanie, filtrowanie po statusie/kanale, tenant header
-- [ ] `assignContact()` — happy path, kontakt już przypisany (błąd 409), optymistyczna aktualizacja
-- [ ] `closeContact()` — zmiana statusu, wyzwolenie eventu do supervisora
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T003 – Testy jednostkowe CallbackService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-oddzwonienia (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-13
-
-**Opis:**
-Napisać testy Vitest dla `CallbackService`.
-
-**Kryteria akceptacji:**
-- [ ] `scheduleCallback()` — walidacja daty (nie w przeszłości), HTTP POST, zapis w lokalnym stanie
-- [ ] `cancelCallback()` — HTTP DELETE, usunięcie z listy
-- [ ] `getUpcoming()` — filtrowanie przeszłych callbacków, sortowanie po dacie
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T004 – Testy jednostkowe AgentGroupService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-przypisanie-agentów (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-14
-
-**Opis:**
-Napisać testy Vitest dla `AgentGroupService`.
-
-**Kryteria akceptacji:**
-- [ ] `getGroups()` — lista grup z agentami, cache (nie wywołuje HTTP dwa razy)
-- [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
-- [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
-- [ ] Wszystkie testy przechodzą (`npm test`)
-| **RAZEM** | **54** | **42** | **12** |
-
----
-
-## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-066 – `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora
 
@@ -2804,7 +2693,9 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 
 ---
 
-## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+## EPIC-21 – Retry i callback w kampaniach wychodzących
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-069 – Aktualizacja widoku listy kontaktów kampanii — nowe statusy `NOT_REACHED` i `CALLBACK`
 
@@ -2950,96 +2841,9 @@ maxAttempts: new FormControl(3, [
 
 ---
 
-## MODUŁ: Ad hoc połączenia i email z panelu agenta
+## EPIC-22 – Notatki do kontaktów
 
-### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
-**Status:** ✅ Ukończone
-**Czeka na BE:** BE-067 ✅
-**Zrealizowane:** 2026-05-13
-**Blokuje:** brak
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
-- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
-- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
-- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
-
-**Implementacja:**
-- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
-- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
-- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
-- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
-- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
-- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
-- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
-
-**Kryteria akceptacji:**
-- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
-- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
-- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
-- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
-- [ ] Sukces: powiadomienie toast
-- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
-- [ ] Brak numeru: przycisk niewidoczny lub disabled
-- [ ] Tłumaczenia w pl.json i en.json
-
----
-
-### FE-072 – Modal „Wyślij email" do klienta ad hoc
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
-**Status:** ✅ Ukończone
-**Czeka na BE:** BE-068 ✅
-**Zrealizowane:** 2026-05-13
-**Blokuje:** brak
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
-
-**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
-
-**Implementacja:**
-- Standalone component, `ChangeDetectionStrategy.OnPush`
-- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
-- `@Output() sent = new EventEmitter<void>()`
-- `@Output() cancelled = new EventEmitter<void>()`
-- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
-- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
-- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
-- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
-- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
-- Integracja w `AgentCustomersTabComponent`:
-  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
-  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
-  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
-- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
-- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
-
-**Kryteria akceptacji:**
-- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
-- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
-- [ ] Klient z wieloma emailami: dropdown wyboru adresu
-- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
-- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
-- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
-- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
-- [ ] Anulowanie: modal zamknięty, brak wywołania API
-- [ ] Tłumaczenia w pl.json i en.json
-- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
-
----
-
-## MODUŁ: Notatki do kontaktów (EPIC-22)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-073 – Wyświetlanie notatki w widoku szczegółów kontaktu (`contact-detail-modal`)
 
@@ -3218,7 +3022,9 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 
 ---
 
-## MODUŁ: Historia etapów kontaktu (EPIC-23)
+## EPIC-23 – Historia etapów kontaktu
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-075 – Sekcja „Historia kontaktu" w modalu szczegółów kontaktu (`contact-detail-modal`)
 
@@ -3439,7 +3245,9 @@ protected getStageContext(event: ContactEventResponse): string {
 
 ---
 
-## EPIC-24 Transfer połączenia: agent i kolejka
+## EPIC-24 – Transfer połączenia: agent i kolejka
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (transfer BLIND + konsultacja ATTENDED) i **Kolejka** (transfer BLIND). Obecny UI obsługuje tylko transfer na numer telefonu.
 
@@ -3842,7 +3650,9 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 
 ---
 
-## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+## EPIC-25 – Przypisywanie agentów do kampanii
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-081 – Usunięcie pola `queueId` z formularza kampanii
 
@@ -4093,8 +3903,6 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 
 ---
 
-## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
-
 ### FE-085 – Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia)
 
 **Typ:** Feature
@@ -4247,7 +4055,9 @@ readonly contactSelected = output<string>();
 
 ---
 
-## EPIC-26: AI-Powered Conversation Summary
+## EPIC-26 – AI-Powered Conversation Summary
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-086 – `AiSummaryService`: serwis Angular do generowania podsumowania AI
 
@@ -4524,7 +4334,9 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 
 ---
 
-## EPIC-27: Własne dyspozycje per kampania i kolejka
+## EPIC-27 – Własne dyspozycje per kampania i kolejka
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-090 – `CustomDispositionService` i modele — warstwa danych Angular
 
@@ -4904,7 +4716,9 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 
 ---
 
-## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+## EPIC-28 – Per-Tenant Plugin (Extension) System
+
+**Ukończone 6/6** (✅ 6 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Decyzja UI
 > pre-agreed (ADR-12): plugin UI renderowane w cross-origin `<iframe sandbox="allow-scripts
@@ -5306,7 +5120,9 @@ produkcyjnego flow.
 
 ---
 
-## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+## EPIC-29 – Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Backend:
 > BE-118 (REST API). Wszystkie strony tego modułu są ADMIN-only (w odróżnieniu od części innych
@@ -5866,7 +5682,9 @@ nie konstruowało literalnie).
 
 ---
 
-## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
+## EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+
+**Ukończone 3/4** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 1) — status epiku: ⚠️ Zamknięty warunkowo
 
 > Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20). Backend: BE-126 (usuwanie wiadomości w kategorii `CONTACT_INTERACTIONS`),
 > BE-129 (przepływ RODO), BE-130 (tylko D1 = osobna kategoria). Zakres frontendu jest mały — partycjonowanie i harmonogramy są dla UI przezroczyste; strony retencji pozostają ADMIN-only (kontrakt EPIC-29).
@@ -6057,3 +5875,305 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Poprawki po code review (tura 43, commit `67c85f8c`; ocena review 3,5/5 z 2026-10-18, wszystkie punkty wymagane i zalecane poprawione):** dialog pokazuje PRZYROST (`additionalCampaigns`/`additionalContacts`) zamiast sumy (#2); forma neutralna zamiast pluralizacji — brak ICU w projekcie (#1); trwały kontener `aria-live="polite"` na wynik podglądu oraz `role="alertdialog"` (#3); anulowanie wyścigu podglądu i odrzucanie odpowiedzi z innym `newDays` (#4); guard podwójnego `save()` (#5); obsługa 400/403 z testami (#6); `onInput` zamiast `$any` (#8); testy komponentu 16→36 (#7). `npm test` 316/316 w 24 plikach, eslint i `format:check` czyste.
 **Znany dług (tura 43, świadomie niezmieniony):** format daty `dd.MM.yyyy HH:mm` jest niezależny od języka (punkt #9 review) — zmiana wymaga rejestracji locale `de`/`uk`; zapisane jako znany dług, bez ticketu.
 **Weryfikacje OPCJONALNE (WP-4, NIEZWERYFIKOWANE, nie blokują zamknięcia EPIC-30):** wygląd w obu motywach, Escape/fokus dialogu, `PUT` na żywym backendzie w przeglądarce, tłumaczenia de/uk bez przeglądu native speakera.
+
+## Bez epiku
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — tickety niepowiązane z numerowanym EPIC-iem
+
+### Temat: Fundament aplikacji
+
+Ukończone 5/5
+
+### FE-001 – Inicjalizacja projektu Angular i konfiguracja workspace
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** brak
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-002, FE-003, FE-049
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLint, Prettier, Husky pre-commit hooks. Ustawienie struktury katalogów: `core/`, `shared/`, `features/`, `environments/`. Konfiguracja proxy deweloperskiego do backendu (proxy.conf.json).
+
+**Kryteria akceptacji:**
+- [ ] `ng build` i `ng test` kończą się bez błędów
+- [ ] ESLint i Prettier skonfigurowane z regułami projektu
+- [ ] Struktura katalogów zgodna z przyjętą architekturą modularną
+- [ ] Proxy do backendu (localhost:8080) skonfigurowany w proxy.conf.json
+
+---
+
+### FE-002 – Konfiguracja routingu, lazy loading i guard AuthGuard
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-004
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Implementacja `AuthGuard` (sprawdza ważność JWT z localStorage/sessionStorage) i `RoleGuard` (weryfikuje role: ADMIN, SUPERVISOR, AGENT). Obsługa przekierowania na `/login` przy wygaśnięciu sesji.
+
+**Kryteria akceptacji:**
+- [ ] Moduły feature ładowane lazy (widoczne w Network tab jako osobne chunk-i)
+- [ ] Próba wejścia na chronioną trasę bez JWT → redirect do /login
+- [ ] Próba wejścia na trasę niedostępną dla roli → redirect do /forbidden
+- [ ] Refresh tokenu wykonywany transparentnie przez HTTP Interceptor
+
+---
+
+### FE-003 – HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-004
+**Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
+
+**Opis:**
+Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <token>` do każdego żądania. Logika automatycznego odświeżenia tokenu (retry z nowym tokenem po otrzymaniu 401). Globalny handler błędów HTTP wyświetlający notyfikacje toast dla błędów 4xx/5xx.
+
+**Kryteria akceptacji:**
+- [ ] Każde żądanie HTTP zawiera nagłówek Authorization
+- [ ] Po wygaśnięciu JWT interceptor wykonuje refresh i ponawia oryginalne żądanie
+- [ ] Błąd 403 wyświetla komunikat "Brak uprawnień" (toast)
+- [ ] Błąd 5xx wyświetla komunikat "Błąd serwera, spróbuj ponownie" (toast)
+
+---
+
+### FE-004 – Moduł uwierzytelniania: ekran logowania i MFA
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-002, FE-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
+**Czeka na BE:** BE-004 ✅
+**Blokuje:** FE-005
+**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
+
+**Opis:**
+Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpisuje e-mail, frontend wywołuje `POST /api/public/tenants-by-email` i wykrywa organizacje powiązane z tym adresem; krok 2 – wyświetlane jest pole hasła (i opcjonalny dropdown organizacji gdy >1 trafień); krok 3 – opcjonalny krok MFA (TOTP 6-cyfr). Zapis JWT i refresh tokenu w pamięci aplikacji. Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`. Formularz 3-krokowy z sygnałami Angular (step, matchedTenants, loading, errorMessage).
+
+**Kryteria akceptacji:**
+- [ ] Formularz logowania waliduje format email i niepuste hasło
+- [ ] Po poprawnym logowaniu z MFA użytkownik trafia do dashboardu swojej roli
+- [ ] Przy `password_reset_required=true` wyświetlany jest formularz zmiany hasła przed dashboardem
+- [ ] Przycisk "Zaloguj" zablokowany (spinner) podczas oczekiwania na odpowiedź API
+
+---
+
+### FE-005 – Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** FE-004
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
+**Czeka na BE:** brak
+**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024, FE-025, FE-026, FE-028, FE-029
+**Odniesienie PRD:** przekrojowe (wszystkie persony)
+
+**Opis:**
+Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależną od roli (ADMIN/SUPERVISOR/AGENT widzi inne pozycje menu), top bar z informacją o użytkowniku i tenant, system powiadomień toast (RxJS Subject singleton), komponent breadcrumb generowany z aktywnej trasy.
+
+**Kryteria akceptacji:**
+- [ ] Menu sidebar pokazuje tylko pozycje dostępne dla aktualnej roli
+- [ ] Wylogowanie czyści stan aplikacji i przekierowuje na /login
+- [ ] Toast notyfikacje widoczne ponad wszystkimi komponentami (z-index)
+- [ ] Aplikacja jest responsywna (breakpoint tablet 1024px, desktop 1280px+)
+- [ ] Spełnia WCAG 2.1 AA (kontrast, nawigacja klawiaturą, aria-labels)
+
+---
+
+### Temat: Ad hoc połączenia i email z panelu agenta
+
+Ukończone 2/2
+
+### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
+**Status:** ✅ Ukończone
+**Czeka na BE:** BE-067 ✅
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
+- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
+- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
+- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
+
+**Implementacja:**
+- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
+- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
+- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
+- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
+- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
+- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
+- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
+- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
+- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
+- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
+- [ ] Sukces: powiadomienie toast
+- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
+- [ ] Brak numeru: przycisk niewidoczny lub disabled
+- [ ] Tłumaczenia w pl.json i en.json
+
+---
+
+### FE-072 – Modal „Wyślij email" do klienta ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
+**Status:** ✅ Ukończone
+**Czeka na BE:** BE-068 ✅
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
+
+**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
+
+**Implementacja:**
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
+- `@Output() sent = new EventEmitter<void>()`
+- `@Output() cancelled = new EventEmitter<void>()`
+- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
+- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
+- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
+- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
+- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
+- Integracja w `AgentCustomersTabComponent`:
+  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
+  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
+  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
+- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
+- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
+- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
+- [ ] Klient z wieloma emailami: dropdown wyboru adresu
+- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
+- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
+- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
+- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
+- [ ] Anulowanie: modal zamknięty, brak wywołania API
+- [ ] Tłumaczenia w pl.json i en.json
+- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
+
+---
+
+## Dodatki
+
+## Zależności między zadaniami
+
+### Kolejność obowiązkowa (blokery)
+
+```
+FE-001 → FE-002 → FE-003 → FE-004 → FE-005
+FE-005 → FE-006, FE-007, FE-008, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
+FE-009 (Agent Desktop) → FE-010, FE-011, FE-012, FE-013, FE-017
+FE-015 (Kampanie) → FE-016
+FE-018 (Lista klientów) → FE-019, FE-020
+```
+
+### Zadania możliwe do realizacji równoległej (po odblokowaniu FE-005)
+
+| Ścieżka | Zadania |
+|---------|---------|
+| Admin | FE-006, FE-007 |
+| Supervisor / Agenci | FE-008, FE-024 |
+| Agent Desktop | FE-009 → FE-010, FE-011, FE-012, FE-013, FE-017 |
+| IVR | FE-014 (niezależny od Agent Desktop) |
+| Kampanie | FE-015 → FE-016 |
+| Klienci | FE-018 → FE-019, FE-020 |
+| Raporty | FE-021, FE-022 |
+| Integracje | FE-023 |
+| Twilio config | FE-025 (po BE-032) |
+| Routing telefoniczny | FE-026 (po BE-033, BE-034) |
+| Prezentacja kontaktów | FE-028 (modal + audio player), FE-029 (raport), FE-030 (panel klienta) |
+
+### Blokery od Backendu (FE czeka na BE)
+
+| Zadanie FE | Czeka na zadanie BE |
+|------------|---------------------|
+| FE-004 | BE-004 (auth endpoints) |
+| FE-006 | BE-006 (tenant CRUD API) |
+| FE-007 | BE-007 (admin metrics API) |
+| FE-008 | BE-008 (users/agents API) |
+| FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
+| FE-012 | BE-015 (email API) |
+| FE-013 | BE-018 (social media API) |
+| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 ✅ (IVR Engine – zrealizowane) |
+| FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
+| FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
+| FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
+| FE-022 | BE-028 ✅ (reports API – zrealizowane) |
+| FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
+| FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
+| FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
+| FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
+| FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
+| FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
+| FE-031 | BE-039 ✅ (reschedule callback API) |
+| FE-032 | BE-040 ✅ (inbound callback API) |
+
+> Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
+
+---
+
+## Podsumowanie zadań Frontend
+
+| Kategoria | Liczba zadań | Must Have | Should Have |
+|-----------|-------------|-----------|-------------|
+| Fundament | 5 | 5 | 0 |
+| Tenants (EPIC-01) | 2 | 2 | 0 |
+| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
+| Agent Desktop | 5 | 5 | 0 |
+| IVR (EPIC-04) | 1 | 1 | 0 |
+| Kampanie (EPIC-08) | 3 | 3 | 0 |
+| Klienci (EPIC-09) | 3 | 3 | 0 |
+| RODO / GDPR | 1 | 1 | 0 |
+| Raporty (EPIC-10) | 2 | 2 | 0 |
+| Konfiguracja | 3 | 2 | 1 |
+| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
+| Dialer manualny | 1 | 1 | 0 |
+| Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
+| Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
+| Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
+| Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
+| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| i18n fixes (EPIC-19) | 12 | 6 | 6 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
+
+---

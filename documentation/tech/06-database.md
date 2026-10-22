@@ -371,8 +371,9 @@ od V126. Zmieniał się sposób usuwania partii:
   partia wycofana).
 
   *Stan na żywej bazie (sprawdzony 2026-10-22):* **V142 zastosowana** (`flyway_schema_history` wersja 142,
-  `success = t`, 2026-10-22 18:31:23 UTC, `proconfig` ustawione); **V143 niezastosowana** (max wersja =
-  142) – zastosuje właściciel (restart backendu; ręczny `RunFlyway` wymaga `-Duser.timezone=UTC`).
+  `success = t`, 2026-10-22 18:31:23 UTC, `proconfig` ustawione); **V143 zastosowana 2026-10-22 19:21:32 UTC**
+  (weryfikacja read-only: wersja 143 `success = t`, `proconfig` `{enable_hashjoin=off,enable_mergejoin=off}`, guard
+  tenanta i `a.archived_at = b.archived_at` w treści funkcji; plan na żywej bazie niezmierzony – archiwum puste).
 
   *Punkt twardy dla DB-069:* po zmianie PK archiwum na `(record_id, campaign_id, archived_at)` należy
   zweryfikować `purge_campaign_contact_archive` (V143 jest na to przygotowana dzięki `archived_at`);

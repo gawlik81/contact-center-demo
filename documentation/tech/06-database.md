@@ -294,13 +294,89 @@ skrypt progu: `TASKS-DATABASE.md` DB-070 oraz `DESIGN-message-retention-and-part
 `app.current_tenant_id` oraz `FORCE ROW LEVEL SECURITY`; partycja `campaign_contact_default` ma
 odebrany `GRANT` dla `app_user`. Retencja archiwum (kategoria `CAMPAIGN_DATA`) działa **per tenant,
 partiami**: `purge_campaign_contact_archive(p_tenant_id, p_cutoff_date, p_batch_size DEFAULT 10000)`
-(V126, DB-056) usuwa najwyżej `p_batch_size` najstarszych wierszy tenanta (wybór po PK
-`(record_id, campaign_id)`, `FOR UPDATE SKIP LOCKED`, indeks `idx_cca_tenant_archived_at`) i zwraca
-liczbę usuniętych w tej partii; pętlę do wyniku 0 prowadzi Java
+(V126, DB-056; aktualna definicja: V143, DB-087 – patrz niżej) usuwa najwyżej `p_batch_size`
+najstarszych wierszy tenanta (wybór partii `ORDER BY archived_at` z `FOR UPDATE SKIP LOCKED`, indeks
+`idx_cca_tenant_archived_at`, usuwanie po kluczu głównym) i zwraca liczbę usuniętych w tej partii; pętlę do wyniku 0 prowadzi Java
 (`CampaignArchiveRetentionRepository#purgeEligible`, każda partia w osobnej transakcji, parametry
 `retention.campaign-archive.purge-batch-size` / `purge-max-batches`), wywoływana z
 `RetentionPurgeService` po `RetentionEvaluationJob` (01:00 UTC). Funkcja jest `SECURITY INVOKER`
 i filtruje jawnie po `p_tenant_id` – pod rolą bez `BYPASSRLS` wymaga ustawionego GUC tenanta.
+
+**Purge archiwum kontaktów – plan zapytania (EPIC-30, DB-056/DB-087: V126, V142, V143):** sygnatura
+`purge_campaign_contact_archive(UUID, TIMESTAMPTZ, INT DEFAULT 10000) RETURNS INT`, `SECURITY INVOKER`,
+walidacja `p_batch_size` 1..100000 (SQLSTATE `22023`), wpis w `cron_log` tylko gdy usunięto > 0 – bez zmian
+od V126. Zmieniał się sposób usuwania partii:
+
+- **V126** (DB-056) – `WITH batch AS (SELECT … LIMIT … FOR UPDATE SKIP LOCKED) DELETE … USING batch`.
+  Planer wybierał **Hash Join z Seq Scan całej tabeli** archiwum (koszt O(rozmiar tabeli), nie O(partia)).
+  Pomiar na scratch (600 tys. wierszy, 20 tenantów × 30 tys.): **ok. 490–720 ms** na partię 10 000;
+  koszt rośnie z rozmiarem tabeli, a pętla Javy (BE-121) woła funkcję wielokrotnie.
+- **V142** (DB-087) – dwa kroki w funkcji plpgsql:
+  - *Krok 1:* ten sam `SELECT` partii (`tenant_id`, `archived_at < cutoff`, `ORDER BY archived_at`,
+    `LIMIT p_batch_size`, `FOR UPDATE SKIP LOCKED`) zbierany przez `array_agg` do tablic równoległych
+    (`record_id[]`, `campaign_id[]`). Zablokowane wiersze zostają zablokowane do końca transakcji, więc
+    równoległe wywołania nadal biorą rozłączne partie.
+  - *Krok 2:* `DELETE … USING unnest(tablice)` po pełnym kluczu głównym (nie po `ctid`).
+  - *Atrybuty funkcji* `SET enable_hashjoin = off`, `SET enable_mergejoin = off` (wpis w `proconfig`):
+    obowiązują **wyłącznie w czasie wykonania funkcji** i są przywracane przy wyjściu – sesja wywołującego
+    (np. połączenie z puli) nie jest dotykana. Planer ma wtedy do wyboru tylko Nested Loop.
+  - *Wynik:* Nested Loop + Index Scan `pk_campaign_contact_archive`, partia 10 000 = **ok. 80–105 ms**
+    (samo `DELETE` ok. 60 ms), ok. 5–6× szybciej; koszt rośnie z rozmiarem partii, nie tabeli.
+  - *Warianty odrzucone:* `USING unnest(…)` bez atrybutów (nadal Hash Join); `IN (SELECT … unnest)`
+    (niestabilny – przy partii 30 000 wraca Hash Join + Seq Scan); pętla `FOR` po wierszach (wolniej);
+    `ctid = ANY(…)` (dwuznaczny po partycjonowaniu – kolizje `ctid` między partycjami).
+- **V143** (DB-087, poprawki po code review V142 – DB87-R2, R3, R4, R8, R9; V142 była już zastosowana,
+  więc poprawki poszły w nowej migracji):
+  - *Pełna tożsamość wiersza (R3):* krok 1 zbiera **trzecią tablicę `archived_at`**, a `DELETE` dostaje
+    warunek `a.archived_at = b.archived_at`. Dziś PK = `(record_id, campaign_id)`, więc planer nadal używa
+    Index Scan po PK (dwie kolumny indeksu + filtr). Po DB-069 (PK = `(record_id, campaign_id,
+    archived_at)`, partycjonowanie po `archived_at`) predykat jest pełnym PK: `DELETE` nie skasuje nowszych
+    wersji tej samej pary `(record_id, campaign_id)` i możliwy jest partition pruning. Teza V142
+    „odporne na przyszłe partycjonowanie” jest prawdziwa dopiero od V143.
+  - *Guard izolacji tenantów, fail-closed (R2):* `DELETE` stoi w CTE z `RETURNING a.tenant_id`; jeśli
+    usunięto wiersz innego tenanta niż `p_tenant_id`, funkcja kończy się błędem SQLSTATE `23000`
+    (`integrity_constraint_violation`) i **cała partia jest wycofana**. Jest to obrona w głąb: rola
+    aplikacji ma `BYPASSRLS`, więc RLS (V111) nie jest tu siatką bezpieczeństwa.
+    **Świadome odstępstwo od rekomendacji review:** review (DB87-R2) proponował predykat
+    `AND a.tenant_id = p_tenant_id` w `WHERE`. Pomiar pokazał, że stały predykat `tenant_id` zaniża
+    estymatę wierszy archiwum na tabeli bez statystyk (świeżo po bulk-insercie, przed autoanalyze,
+    `rows=12`), a planer wybiera wtedy Nested Loop + Materialize + Bitmap Heap Scan po
+    `idx_cca_tenant_archived_at` z Join Filter – O(n²), **ok. 7 s na partię** zamiast ok. 55 ms. Guard
+    przez `RETURNING` nie wpływa na plan `DELETE`.
+  - *Skorygowana teza o stabilności planu (R8):* `enable_hashjoin/mergejoin = off` tylko **wyklucza**
+    Hash/Merge Join; wybór Index Scan vs Seq Scan wewnątrz Nested Loop nadal jest kosztowy. Nested Loop +
+    Index Scan po PK wygrywa kosztowo dla każdej realnej relacji rozmiaru partii do tabeli (potwierdzone
+    testem, także dla generic plan i wielu wywołań w sesji).
+  - *Rozszerzony końcowy blok `DO` (R9):* sprawdza jedną sygnaturę 3-argumentową, `prosecdef = false`,
+    typ zwracany `int4` oraz obie flagi w `proconfig`.
+
+  *Ostrzeżenie dla kolejnych migracji tej funkcji (DB87-R4):* `CREATE OR REPLACE FUNCTION` bez klauzul
+  `SET` **zeruje `proconfig`** i po cichu przywraca Hash Join + Seq Scan. Każda następna wersja musi
+  zachować **oba** `SET enable_hashjoin = off` i `SET enable_mergejoin = off` (albo zmieniać funkcję przez
+  `ALTER FUNCTION`). Funkcja z klauzulą `SET` nie może też zostać przekształcona w `PROCEDURE` z `COMMIT`
+  wewnątrz; dokładane do niej joiny będą wykonywane bez hash/merge join.
+
+  *Uwaga o planerze:* przy unikalnym `archived_at` w obrębie tenanta planer może wybrać
+  `idx_cca_tenant_archived_at` zamiast PK; przy wspólnych znacznikach `archived_at` jednego przebiegu
+  archiwizacji i aktualnych statystykach wybiera PK.
+
+  *Testy:* klasa `Db056PurgeCampaignContactArchivePkNestedLoopMigrationTest` (17 testów, przepisana w
+  ramach V143): baza „pre” = migracja tuż przed V142, baza „post” = **pełny łańcuch Flyway** (dzięki temu
+  test jest też guardem na `proconfig` przy późniejszych migracjach); parytet pre/post z fingerprintem
+  zbioru po każdej partii (kolejność „najstarsze pierwsze” na stałych `archived_at`); plan przez
+  `auto_explain` w formacie JSON (typy węzłów, nazwa indeksu) przy ok. 200 tys. wierszy – dla wielu
+  wywołań w jednej sesji, z `plan_cache_mode = force_generic_plan`, bez statystyk tabeli oraz pod rolą
+  nie-superuser `app_user` z GUC tenanta (RLS V111); `SHOW enable_hashjoin/mergejoin` = `on` także po błędzie
+  `22023`; test R3 na zmienionym PK (nowsza wersja pary przeżywa) i test R2 guardu (obcy tenant → `23000`,
+  partia wycofana).
+
+  *Stan na żywej bazie (sprawdzony 2026-10-22):* **V142 zastosowana** (`flyway_schema_history` wersja 142,
+  `success = t`, 2026-10-22 18:31:23 UTC, `proconfig` ustawione); **V143 niezastosowana** (max wersja =
+  142) – zastosuje właściciel (restart backendu; ręczny `RunFlyway` wymaga `-Duser.timezone=UTC`).
+
+  *Punkt twardy dla DB-069:* po zmianie PK archiwum na `(record_id, campaign_id, archived_at)` należy
+  zweryfikować `purge_campaign_contact_archive` (V143 jest na to przygotowana dzięki `archived_at`);
+  przy każdej zmianie funkcji zachować `SET enable_hashjoin/enable_mergejoin = off`.
 
 **Okres archiwizacji kontaktów kampanii per tenant (EPIC-30, DB-084/DB-085/DB-086: V136–V141):** od V138 próg
 archiwizacji nie jest już zaszyty w funkcji (wcześniej 30 dni od `updated_at`), tylko jest

@@ -21,466 +21,50 @@
 
 ---
 
-## MODUL: Fundament i infrastruktura bazy
+## Indeks wg EPIC
 
-### DB-001 – Inicjalizacja schematu bazowego i konfiguracja Flyway
+Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamknięte bez realizacji). Liczniki liczone ze skryptu po polu `**Status:**` (pierwsze wystąpienie w tickecie).
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** brak
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-002, DB-003, DB-005, DB-009, DB-010, DB-012, DB-024, DB-030, BE-001
-**Odniesienie PRD:** przekrojowe
+| EPIC | Nazwa | ✅ | 🔧 | ⬜ | 🚫 | Razem | Status epiku |
+|---|---|---:|---:|---:|---:|---:|---|
+| EPIC-11 | Routing numerów telefonicznych | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-12 | Prezentacja Kontaktów | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-13 | Zaplanowane oddzwonienia | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-14 | Zarządzanie przypisaniem agentów do kolejek | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-15 | Zakładka Klienci w Agent Desktop | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-16 | Kalendarz Agenta | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-19 | Wielojęzyczność – preferencje użytkownika | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-20 | Per-tenant konfiguracja Twilio | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-21 | Retry i callback w kampaniach wychodzących | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-22 | Notatki do kontaktów | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-23 | Historia etapów kontaktu | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-25 | Przypisywanie agentów do kampanii | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-26 | AI-Powered Conversation Summary | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-27 | Własne dyspozycje per kampania i kolejka | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-28 | Per-Tenant Plugin (Extension) System | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
+| EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
+| EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
+| Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
+| **RAZEM** | | **82** | **0** | **2** | **3** | **87** | |
 
-**Opis:**
-Konfiguracja Flyway w projekcie Spring Boot (flyway-core). Plik migracji `V001__init_extensions.sql`: włączenie rozszerzeń PostgreSQL: `uuid-ossp` (generowanie UUID), `pg_trgm` (fuzzy search), `pgcrypto` (szyfrowanie). Stworzenie domyślnego schematu `public`, ustawienie `search_path`. Konfiguracja parametrów połączenia per środowisko (dev/prod) przez Spring profiles.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB.
 
-**Kryteria akceptacji:**
-- [x] Flyway uruchamia się przy starcie aplikacji i raportuje "Successfully applied N migrations"
-- [x] Rozszerzenia uuid-ossp, pg_trgm, pgcrypto dostępne w bazie (SELECT * FROM pg_extension)
-- [x] Plik `flyway_schema_history` tworzony automatycznie
-- [x] Skrypt idempotentny: powtórne uruchomienie nie generuje błędów
+### Otwarte tickety (⬜ / 🔧) wg EPIC
 
----
+**EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości**
 
-### DB-002 – Tabela TENANT: schemat, indeksy, constraints
+- DB-069 – [BRAMKOWANY] Partycjonowanie `campaign_contact_archive` RANGE(`archived_at`) – ⬜
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-003, DB-005, DB-006, DB-009, DB-010, DB-011, DB-012, DB-015, DB-004, DB-021, DB-024, DB-030, DB-035, DB-038, DB-040, DB-041, DB-042, DB-043, DB-046, DB-048, BE-002
-**Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
+**EPIC-31 – Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app)**
 
-**Opis:**
-Migracja `V002__create_tenant.sql`. Definicja tabeli TENANT zgodna z modelem danych PRD. Pole `config` jako JSONB z domyślnymi limitami: `{"max_agents": 100, "max_queues": 50, "max_campaigns": 20}`. Pole `status` jako typ ENUM (`ACTIVE`, `INACTIVE`, `SUSPENDED`). Indeks unikalny na `name` (case-insensitive: `LOWER(name)`).
-
-**Kryteria akceptacji:**
-- [x] DDL: `tenant_id UUID PRIMARY KEY DEFAULT uuid_generate_v4()`
-- [x] `status` jako PostgreSQL ENUM lub CHECK constraint z dozwolonymi wartościami
-- [x] Indeks unikalny na `LOWER(name)` zapobiega duplikatom nazw różniących się wielkością liter
-- [x] `config JSONB NOT NULL DEFAULT '{"max_agents":100}'`
-- [x] Komentarze kolumn (`COMMENT ON COLUMN`) dla dokumentacji schematu
+- DB-083 – Role i uprawnienia pod rolę aplikacji `cc_app` (bez BYPASSRLS): GRANT-y, funkcje `SECURITY DEFINER`, REVOKE… – ⬜
 
 ---
 
-### DB-003 – Tabela USER: schemat, role, ENUM statusów, indeksy
+## EPIC-11 – Routing numerów telefonicznych
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-004, DB-006, DB-013, DB-014, DB-015, DB-028, DB-029, DB-036, DB-042, DB-043, DB-046, DB-048, BE-003, BE-008
-**Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
-
-**Opis:**
-Migracja `V003__create_user.sql`. Tabela USER z FK do TENANT. Pole `role` jako ENUM (`ADMIN`, `SUPERVISOR`, `AGENT`). Pole `skills` jako JSONB (`string[]`). Pole `status` jako ENUM (`ACTIVE`, `INACTIVE`, `BREAK`, `AVAILABLE`, `BUSY`, `AFTER_CONTACT`). Pole `password_reset_required BOOLEAN DEFAULT FALSE`. Pole `mfa_secret VARCHAR(32)`. Tabela `REFRESH_TOKEN` (token, user_id FK, expires_at, is_revoked).
-
-**Kryteria akceptacji:**
-- [x] FK: `tenant_id REFERENCES tenant(tenant_id) ON DELETE RESTRICT`
-- [x] Indeks na `(tenant_id, email)` – UNIQUE (jeden email per tenant)
-- [x] Indeks na `(tenant_id, status)` – dla zapytań routingu (agenci dostępni)
-- [x] Tabela REFRESH_TOKEN z indeksem na `token` i TTL-based cleanup (cron lub pg_cron)
-- [x] `password_hash VARCHAR(60) NOT NULL` (bcrypt output length)
-
----
-
-### DB-004 – Tabela AUDIT_LOG: schemat, partycjonowanie po dacie
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-002, DB-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-018, DB-040, BE-005
-**Odniesienie PRD:** RODO, przekrojowe
-
-**Opis:**
-Migracja `V004__create_audit_log.sql`. Tabela AUDIT_LOG partycjonowana po `created_at` (RANGE partitioning, miesiąc). Automatyczne tworzenie partycji przez `pg_partman` lub dedykowaną funkcję. Kolumny `old_value` i `new_value` jako JSONB (NULL jeśli nie dotyczy). Indeks na `(tenant_id, entity_type, created_at DESC)`.
-
-**Kryteria akceptacji:**
-- [x] Tabela partycjonowana (`PARTITION BY RANGE (created_at)`)
-- [x] Partycja tworzona automatycznie na następny miesiąc (skrypt lub pg_partman)
-- [x] Indeks GIN na `old_value` i `new_value` dla zapytań JSONB
-- [x] Zapisy do AUDIT_LOG przez dedykowaną rolę DB z ograniczonymi uprawnieniami (INSERT only)
-- [x] Polityka retencji: partycje starsze niż 2 lata usuwane przez cron job
-
----
-
-## MODUL: Encje domenowe (Core Entities)
-
-### DB-005 – Kompletny schemat TENANT z limitami i konfiguracją
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** brak (BE-006 i dalej)
-**Odniesienie PRD:** US-01-03, EPIC-01
-
-**Opis:**
-Migracja `V005__tenant_config_schema.sql`. Dodanie JSON Schema validation dla kolumny `config` przez CHECK constraint lub trigger. Funkcja PostgreSQL `get_tenant_limit(tenant_id UUID, limit_name TEXT) RETURNS INT` – wygodny dostęp do limitów z aplikacji. Widok `v_tenant_stats` agregujący: liczbę agentów, kolejek, kampanii per tenant (dla dashboardu admina).
-
-**Kryteria akceptacji:**
-- [x] CHECK constraint lub trigger odrzuca `config` bez wymaganych pól (max_agents, max_queues)
-- [x] Funkcja `get_tenant_limit` działa dla dowolnego klucza z config JSONB
-- [x] Widok `v_tenant_stats` zwraca dane bez full scan (korzysta z indeksów tabel docelowych)
-
----
-
-### DB-006 – Tabela CONTACT i RECORDING: schemat, indeksy, partycjonowanie
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-002, DB-003, DB-012
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-007, DB-008, DB-013, DB-014, DB-015, DB-017, DB-022, DB-023, DB-034, DB-035, DB-037, DB-039, BE-009, BE-010, BE-027
-**Odniesienie PRD:** US-03-05, US-09-02, EPIC-03, EPIC-09
-
-**Opis:**
-Migracja `V006__create_contact.sql`. Tabela CONTACT partycjonowana po `started_at` (RANGE, miesiąc). ENUMy: `channel` (PHONE, EMAIL, SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP), `direction` (INBOUND, OUTBOUND), `status` (QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED). FK do CUSTOMER (nullable, dla nieznanych), AGENT (nullable), CAMPAIGN (nullable). Kolumna `recording_url TEXT` (S3 URL lub NULL).
-
-**Kryteria akceptacji:**
-- [x] Tabela partycjonowana po `started_at` (RANGE monthly)
-- [x] Indeks na `(tenant_id, customer_id, started_at DESC)` – dla historii klienta
-- [x] Indeks na `(tenant_id, agent_id, started_at DESC)` – dla raportów agentów
-- [x] Indeks na `(tenant_id, status)` – dla aktywnych kontaktów w RT
-- [x] FK na customer_id i agent_id z `ON DELETE SET NULL` (anonimizacja RODO)
-
----
-
-### DB-007 – Tabele EMAIL i EMAIL_TEMPLATE: schemat
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-006
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-017, BE-015, BE-016
-**Odniesienie PRD:** US-05-01, US-05-02, US-05-03, EPIC-05
-
-**Opis:**
-Migracja `V007__create_email.sql`. Tabela `EMAIL_MESSAGE` (message_id, tenant_id, contact_id FK, direction, from_address, to_address, subject, body_html TEXT, body_text TEXT, message_id_header VARCHAR (RFC header), in_reply_to VARCHAR, received_at TIMESTAMPTZ, sent_at TIMESTAMPTZ). Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_html, variables JSONB, created_by FK users). Indeks na `(tenant_id, message_id_header)` – UNIQUE dla deduplikacji.
-
-**Kryteria akceptacji:**
-- [x] UNIQUE na `(tenant_id, message_id_header)` zapobiega duplikatom przy wielokrotnym pobraniu IMAP
-- [x] Indeks na `(contact_id, received_at DESC)` – dla wątku wiadomości
-- [x] `body_html` i `body_text` bez limitu rozmiaru (TEXT, nie VARCHAR)
-- [x] FK: `contact_id REFERENCES contact(contact_id) ON DELETE CASCADE`
-
----
-
-### DB-008 – Tabela SOCIAL_INTEGRATION i SOCIAL_MESSAGE: schemat
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-006
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-017, BE-017, BE-018
-**Odniesienie PRD:** US-06-01, US-06-02, EPIC-06
-
-**Opis:**
-Migracja `V008__create_social.sql`. Tabela `SOCIAL_INTEGRATION` (integration_id, tenant_id, platform ENUM(FACEBOOK/INSTAGRAM/WHATSAPP), page_id, access_token_encrypted BYTEA, token_expires_at TIMESTAMPTZ, webhook_status, created_at). Tabela `SOCIAL_MESSAGE` (message_id, tenant_id, contact_id FK, platform, external_message_id, direction, content TEXT, sender_external_id, sent_at TIMESTAMPTZ, attachments JSONB).
-
-**Kryteria akceptacji:**
-- [x] `access_token_encrypted` jako BYTEA (zaszyfrowany AES-256 przez pgcrypto lub aplikację)
-- [x] UNIQUE na `(tenant_id, platform, page_id)` – jedna konfiguracja per strona per tenant
-- [x] UNIQUE na `(tenant_id, external_message_id)` – idempotentny webhook
-- [x] Indeks na `(contact_id, sent_at DESC)` – dla historii konwersacji
-
----
-
-### DB-009 – Tabela IVR_TREE: schemat, wersjonowanie
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** BE-013, BE-014, DB-021
-**Odniesienie PRD:** US-04-01, EPIC-04
-
-**Opis:**
-Migracja `V009__create_ivr_tree.sql`. Tabela `IVR_TREE` (ivr_id, tenant_id, name, definition JSONB NOT NULL, version INT DEFAULT 1, is_active BOOLEAN DEFAULT FALSE, created_by FK users, created_at, updated_at). Constraint: maksymalnie jeden aktywny IVR per tenant per "punkt wejścia" (możliwe przez partial unique index lub trigger). Tabela `IVR_AUDIO` (audio_id, tenant_id, ivr_id FK, filename, s3_url, duration_seconds, created_at).
-
-**Kryteria akceptacji:**
-- [x] `definition JSONB` walidowane przez CHECK czy zawiera klucz "nodes" (tablica)
-- [x] Indeks GIN na `definition` dla zapytań JSONB (wyszukiwanie w definicji)
-- [x] `version` inkrementowany przez trigger przy każdym UPDATE `definition`
-- [x] Tabela `IVR_AUDIO` z UNIQUE na `(tenant_id, filename)` – bez duplikatów nazw
-
----
-
-### DB-010 – Tabela QUEUE: schemat, routing strategy, skills
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-018, DB-020, DB-021, DB-025, BE-019, BE-020
-**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
-
-**Opis:**
-Migracja `V010__create_queue.sql`. Tabela `QUEUE` (queue_id, tenant_id, name, routing_strategy ENUM(ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED), required_skills JSONB DEFAULT '[]', sticky_agent_timeout_seconds INT DEFAULT 60, is_active BOOLEAN DEFAULT TRUE, created_at). Tabela `QUEUE_AGENT` (queue_id FK, agent_id FK, assigned_at) – wielo-do-wielu (agent może być w kilku kolejkach). Indeks na `(tenant_id, routing_strategy)`.
-
-**Kryteria akceptacji:**
-- [x] CHECK: `sticky_agent_timeout_seconds >= 0`
-- [x] UNIQUE na `(tenant_id, name)` – unikalność nazwy kolejki w tenantcie
-- [x] Indeks GIN na `required_skills` – szybkie zapytania skill-matching
-- [x] Widok `v_queue_available_agents(queue_id)` – agenci dostępni dla danej kolejki z odpowiednimi skills
-
----
-
-### DB-011 – Tabele CAMPAIGN i CAMPAIGN_CONTACT: schemat, statusy, indeksy
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-002, DB-012
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-013, DB-014, DB-031, DB-032, DB-036, DB-037, BE-022, BE-023, BE-024, BE-053
-**Odniesienie PRD:** US-08-01, US-08-02, US-08-03, US-08-04, US-08-05, EPIC-08
-
-**Opis:**
-Migracja `V011__create_campaign.sql`. Tabela `CAMPAIGN` (campaign_id, tenant_id, name, type ENUM(OUTBOUND_VOICE/OUTBOUND_EMAIL), dialer_type ENUM(PROGRESSIVE/PREDICTIVE/MANUAL), schedule JSONB, status ENUM(DRAFT/SCHEDULED/RUNNING/PAUSED/STOPPED/COMPLETED), contact_list_id UUID, created_by FK users, created_at). Tabela `CAMPAIGN_CONTACT` (record_id, campaign_id FK, customer_id FK nullable, phone VARCHAR, first_name, last_name, custom_fields JSONB, status ENUM(PENDING/DIALING/CONNECTED/NO_ANSWER/FAILED/COMPLETED), attempt_count INT DEFAULT 0, last_attempt_at TIMESTAMPTZ, next_attempt_at TIMESTAMPTZ, disposition_code VARCHAR). Tabela `SCHEDULED_CALLBACK` (callback_id, campaign_id FK, customer_id FK, phone VARCHAR, scheduled_at TIMESTAMPTZ, created_at).
-
-**Kryteria akceptacji:**
-- [x] Indeks na `(campaign_id, status, next_attempt_at)` – dla dialera (pobierz następne do dzwonienia)
-- [x] Indeks na `(tenant_id, status)` na tabeli CAMPAIGN – dla filtrowania listy kampanii
-- [x] CHECK na CAMPAIGN: `status` przestrzega dozwolonych przejść (możliwe przez trigger)
-- [x] Partycjonowanie CAMPAIGN_CONTACT po `campaign_id` (list partitioning) dla izolacji dużych kampanii
-- [x] Indeks na `(scheduled_at)` w SCHEDULED_CALLBACK – dla pobierania zaplanowanych callbacków
-
----
-
-### DB-012 – Tabela CUSTOMER: schemat, fuzzy search, RODO
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-002
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-006, DB-011, DB-015, DB-017, DB-013, DB-028, BE-025, BE-026, BE-031
-**Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-06, EPIC-09
-
-**Opis:**
-Migracja `V012__create_customer.sql`. Tabela `CUSTOMER` (customer_id, tenant_id, first_name VARCHAR(100), last_name VARCHAR(100), phone JSONB (string[]), email JSONB (string[]), custom_fields JSONB, gdpr_consent JSONB, source VARCHAR(50) DEFAULT 'MANUAL', is_deleted BOOLEAN DEFAULT FALSE, created_at, updated_at). Indeksy trigram dla fuzzy search na first_name i last_name. Indeks GIN na phone i email dla wyszukiwania w tablicach JSONB.
-
-**Kryteria akceptacji:**
-- [x] Indeks trigram: `CREATE INDEX idx_customer_name_trgm ON customer USING GIN ((first_name || ' ' || last_name) gin_trgm_ops)`
-- [x] Indeks GIN na `phone jsonb_path_ops` i `email jsonb_path_ops` dla operatora `@>`
-- [x] PARTIAL indeks na `(tenant_id, phone)` WHERE `is_deleted = FALSE`
-- [x] Funkcja `search_customers(tenant_id UUID, query TEXT, limit INT) RETURNS SETOF customer` używająca `%` operator trigram
-- [x] Pole `gdpr_consent JSONB` z przykładową strukturą: `{"consent_given": true, "consent_date": "...", "consent_source": "..."}`
-
----
-
-## MODUL: Bezpieczeństwo i izolacja
-
-### DB-013 – Indeksy wydajnościowe i widoki raportowe
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** DB-006, DB-003, DB-011, DB-012
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-018, BE-028, BE-030
-**Odniesienie PRD:** US-10-02, US-10-03, EPIC-10, wymagania wydajnoscowe (< 200ms)
-
-**Opis:**
-Migracja `V013__performance_indexes.sql`. Dodatkowe indeksy kompozytowe na tabelach CONTACT dla zapytań raportowych. Widoki materializowane (MATERIALIZED VIEW) dla raportów historycznych: `mv_agent_daily_stats` (count kontaktów, avg handle time per agent per dzień), `mv_campaign_stats` (dials, connected, conversion per kampania). Polityka odświeżania widoków materializowanych (REFRESH MATERIALIZED VIEW CONCURRENTLY – codziennie o 01:00).
-
-**Kryteria akceptacji:**
-- [x] `EXPLAIN ANALYZE` na zapytaniu raportowym agentów (30 dni) zwraca plan z Index Scan (nie Seq Scan)
-- [x] `mv_agent_daily_stats` odświeżany przez pg_cron lub aplikację co dobę  _(adnotacja 2026-10-09, DB-077: zamknięte/nieaktualne po V132 (DB-058) — widok i `refresh_materialized_views()` usunięte; treść zadania bez zmian)_
-- [x] REFRESH CONCURRENTLY: stare dane dostępne podczas odświeżania (brak blokady)
-- [x] Indeks na `(tenant_id, channel, started_at::DATE)` na tabeli CONTACT
-- [x] Indeks na `(tenant_id, disposition_code, started_at)` na tabeli CONTACT
-
----
-
-### DB-014 – Schemat Data Warehouse: ClickHouse tabele docelowe
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** DB-006, DB-011, DB-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** BE-030, BE-030b
-**Odniesienie PRD:** US-10-06, EPIC-10
-
-**Opis:**
-Definicja tabel w ClickHouse (DDL skrypty, nie Flyway – osobny katalog `dw/`): `contacts_dw` (ReplacingMergeTree, partycja po toYYYYMM(started_at), ORDER BY (tenant_id, contact_id)), `agent_performance_dw` (AggregatingMergeTree per dzień), `campaigns_dw`. Widoki agregujące dla raportów: `v_agent_kpi_daily`, `v_campaign_conversion`. Materialized views w ClickHouse dla pre-agregacji.
-
-**Kryteria akceptacji:**
-- [x] Tabela `contacts_dw` z ENGINE = ReplacingMergeTree(updated_at) dla idempotentnego upsert
-- [x] Partycjonowanie miesięczne (toYYYYMM) dla efektywnego pruning zapytań
-- [x] Widok `v_agent_kpi_daily` zwraca wyniki dla 1 agenta za 30 dni w < 500ms
-- [x] Schemat ClickHouse wersjonowany w katalogu `dw/migrations/`
-- [x] Wszystkie pola PII klientów WYKLUCZONE ze schematu DW (zgodność RODO)
-
----
-
-### DB-015 – Row Level Security (RLS): polityki izolacji tenant_id
-
-**Typ:** Feature
-**Priorytet:** Should Have
-**Zlozonosc:** M
-**Zależy od:** DB-002, DB-003, DB-006, DB-012
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** DB-021, DB-030
-**Odniesienie PRD:** wymagania bezpieczenstwa (izolacja logiczna tenant_id)
-
-**Opis:**
-Migracja `V015__row_level_security.sql`. Włączenie RLS na kluczowych tabelach: CUSTOMER, CONTACT, CAMPAIGN, QUEUE. Polityka: `USING (tenant_id = current_setting('app.current_tenant_id')::UUID)`. Ustawienie `app.current_tenant_id` przez aplikację przy każdym połączeniu DB (przez `SET LOCAL`). Rola DB `app_user` bez uprawnień superuser. Rola `admin_user` z BYPASSRLS dla operacji administracyjnych.
-
-**Kryteria akceptacji:**
-- [x] Test: połączenie z `SET LOCAL app.current_tenant_id = 'tenant-A'` nie widzi rekordów tenant-B
-- [x] RLS nie spowalnia zapytań > 10% (EXPLAIN ANALYZE przed i po)
-- [x] Rola `app_user` ma tylko SELECT/INSERT/UPDATE/DELETE (nie ALTER/DROP)
-- [x] RLS wyłączone dla roli `admin_user` (BYPASSRLS) – dla operacji migracyjnych
-
----
-
-### DB-016 – Konfiguracja Redis: struktury danych i polityki TTL
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** brak (niezalezne od PostgreSQL)
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** brak
-**Odniesienie PRD:** wymagania wydajnoscowe, bezpieczenstwo (JWT blacklista)
-
-**Opis:**
-Dokumentacja i konfiguracja struktur Redis używanych przez backend. Klucze i TTL: `jwt:blacklist:{token_hash}` (TTL = pozostały czas ważności tokenu), `session:agent:{user_id}` (status agenta, TTL 8h), `cache:customer:phone:{phone}` (CLI lookup, TTL 5 min), `cache:queue:stats:{queue_id}` (TTL 5s), `cache:tenant:metrics` (TTL 30s), `rate:login:{ip}` (TTL 15 min, counter). Konfiguracja Redis maxmemory-policy (`allkeys-lru`) i persistence (AOF dla JWT blacklisty).
-
-**Kryteria akceptacji:**
-- [x] Konfiguracja Redis (`redis.conf`) zawiera: maxmemory, maxmemory-policy allkeys-lru
-- [x] AOF persistence włączone dla namespace `jwt:blacklist` (lub osobna instancja Redis)
-- [x] Dokumentacja kluczy Redis jako komentarze w `RedisKeyConstants.java`
-- [x] Test: po logout token trafia do blacklisty i kolejne żądanie z tym tokenem → HTTP 401
-
----
-
-### DB-017 – Procedury RODO: funkcje anonimizacji i eksportu
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-012, DB-006, DB-007, DB-008
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** brak
-**Odniesienie PRD:** US-09-06, wymagania RODO (Art. 15, Art. 17)
-
-**Opis:**
-Migracja `V017__gdpr_functions.sql`. Funkcja PostgreSQL `anonymize_customer(p_customer_id UUID, p_tenant_id UUID)`: UPDATE CUSTOMER (first_name='ANONYMIZED', last_name='ANONYMIZED', phone='[]', email='[]', custom_fields='{}', is_deleted=TRUE), wywołanie logowania do AUDIT_LOG. Funkcja `export_customer_data(p_customer_id UUID, p_tenant_id UUID) RETURNS JSONB`: SELECT z JOIN na CONTACT, EMAIL_MESSAGE (ograniczony), SOCIAL_MESSAGE (ograniczony) – przygotowanie payloadu do ZIP.
-
-**Kryteria akceptacji:**
-- [x] `anonymize_customer` działa transakcyjnie (COMMIT lub ROLLBACK całości)
-- [x] Anonimizacja nie usuwa rekordów CONTACT (zachowanie historii bezpiecznej – bez PII)
-- [x] `export_customer_data` zwraca JSONB z kluczami: customer, contacts, email_messages, social_messages
-- [x] Obie funkcje sprawdzają tenant_id (nie mogą działać cross-tenant)
-- [x] Test: po anonimizacji GET /api/customers/{id} zwraca dane z 'ANONYMIZED' zamiast imienia
-
----
-
-## MODUL: Narzędzia operacyjne
-
-### DB-018 – Konfiguracja pg_cron: zadania scheduled
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-004, DB-010, DB-013
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Blokuje:** brak
-**Odniesienie PRD:** US-03-05 (retencja nagran), RODO (retencja danych)
-
-**Opis:**
-Migracja `V018__pg_cron_jobs.sql`. Konfiguracja zadań pg_cron (lub tabela z definicjami dla zewnętrznego crona): (1) Codziennie 02:00 – usunięcie wygasłych REFRESH_TOKEN, (2) Codziennie 02:30 – rotacja AUDIT_LOG partycji (drop starych, create nowych), (3) Co godzinę – REFRESH MATERIALIZED VIEW CONCURRENTLY mv_agent_daily_stats, (4) Co 5 minut – archiwizacja CAMPAIGN_CONTACT dla zakończonych kampanii (status=COMPLETED → tabela archiwalna).
-
-**Kryteria akceptacji:**
-- [x] Wszystkie zaplanowane zadania zdefiniowane w jednym miejscu (tabela lub plik konfiguracyjny)
-- [x] Zadania logują wynik (sukces/błąd) do tabeli `cron_log` lub AUDIT_LOG
-- [x] Cron retencji REFRESH_TOKEN usuwa tylko tokeny z is_revoked=TRUE lub expires_at < NOW()
-- [x] Cron nie uruchamia się gdy poprzednie wykonanie jest jeszcze w toku (idempotency)
-
----
-
-### DB-019 – Seed danych testowych i migracje dla środowiska dev
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** DB-001 do DB-017
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-14
-**Blokuje:** brak
-**Odniesienie PRD:** przekrojowe (wspomaga development)
-
-**Opis:**
-Migracja `V999__dev_seed.sql` (uruchamiana tylko w profilu `dev` przez Flyway locations). Wstawienie: 2 tenantów testowych, 1 ADMIN, 2 SUPERVISOR, 5 AGENT (różne skills), 3 QUEUE, 1 aktywna kampania z 100 CAMPAIGN_CONTACT, 50 CUSTOMER, 200 CONTACT (mix kanałów i statusów), 2 IVR_TREE (przykładowe drzewa). Hasła: `Test@12345` (bcrypt hash).
-
-**Kryteria akceptacji:**
-- [x] Seed uruchamiany tylko w profilu `spring.profiles.active=dev` (nie na prod)
-- [x] Seed idempotentny: INSERT OR IGNORE / ON CONFLICT DO NOTHING
-- [x] Dane seed pokrywają wszystkie kanały (PHONE, EMAIL, SOCIAL) i statusy kontaktów
-- [x] Seed nie zawiera prawdziwych danych osobowych (tylko fikcyjne imiona/numery)
-
----
-
-### DB-020 – Kolumna email_address w tabeli QUEUE: routing emaili
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** DB-010
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-26
-**Blokuje:** BE-015
-**Odniesienie PRD:** US-05-01, EPIC-05
-
-**Opis:**
-Migracja `V029__add_email_address_to_queue.sql`. Dodanie kolumny `email_address VARCHAR(255) NULL` do tabeli `QUEUE`. Umożliwia przypisanie adresu email do kolejki, tak aby przychodzące wiadomości email na ten adres były automatycznie routowane do tej kolejki. UNIQUE constraint na `(tenant_id, email_address)` (NULL nie narusza UNIQUE w PostgreSQL). CHECK constraint: `email_address IS NULL OR email_address LIKE '%@%'`. Partial index `idx_queue_email_address` na `(tenant_id, email_address) WHERE email_address IS NOT NULL` dla szybkiego lookup w `EmailPollingService`.
-
-**Kryteria akceptacji:**
-- [x] Kolumna `email_address` nullable – zachowanie backward-compatible (istniejące kolejki bez zmian)
-- [x] UNIQUE constraint na `(tenant_id, email_address)` zapobiega duplikatom adresów w tenantcie
-- [x] CHECK constraint weryfikuje obecność `@` w adresie (podstawowa walidacja formatu)
-- [x] Partial index (WHERE IS NOT NULL) zoptymalizowany dla lookup w EmailRoutingService
-- [x] EmailRoutingService używa `queueRepository.findByEmailAddressAndTenantId()` do routingu przed regułami
-
----
-
----
-
-## MODUL: Routing numerów telefonicznych (EPIC-11)
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-021 – Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR
 
@@ -583,7 +167,9 @@ CREATE CONSTRAINT TRIGGER trg_routing_rule_collision
 
 ---
 
-## MODUL: Prezentacja Kontaktów (EPIC-12)
+## EPIC-12 – Prezentacja Kontaktów
+
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-022 – Indeksy wyszukiwania kontaktów dla Raportów > Kontakty
 
@@ -613,67 +199,9 @@ Migracja: `V035__contact_search_indexes.sql`
 
 ---
 
-## Zależności między zadaniami
+## EPIC-13 – Zaplanowane oddzwonienia
 
-### Kolejność obowiązkowa (blokery)
-
-```
-DB-001 (extensions) → DB-002 (TENANT) → DB-003 (USER) → DB-004 (AUDIT_LOG)
-DB-002 → DB-005 (TENANT config)
-DB-003 + DB-012 → DB-006 (CONTACT)
-DB-006 → DB-007 (EMAIL)
-DB-006 → DB-008 (SOCIAL)
-DB-002 → DB-009 (IVR_TREE)
-DB-002 → DB-010 (QUEUE)
-DB-010 → DB-020 (email_address w QUEUE)
-DB-002 + DB-012 → DB-011 (CAMPAIGN)
-DB-002 → DB-012 (CUSTOMER)
-DB-006 + DB-011 + DB-003 → DB-013 (indeksy raportowe)
-DB-006 + DB-011 + DB-003 → DB-014 (ClickHouse DW)
-DB-002 + DB-003 + DB-006 + DB-012 → DB-015 (RLS)
-DB-004 + DB-010 + DB-013 → DB-018 (pg_cron)
-DB-012 + DB-006 + DB-007 + DB-008 → DB-017 (RODO funkcje)
-Wszystkie → DB-019 (seed dev)
-```
-
-### Zadania niezależne (mozliwe równolegle po DB-001)
-
-| Ścieżka | Zadania |
-|---------|---------|
-| Core entities | DB-002 → DB-003 → DB-004 |
-| Customer | DB-012 (po DB-002) |
-| IVR | DB-009 (po DB-002) |
-| Queue | DB-010 (po DB-002) |
-| Redis | DB-016 (calkowicie niezależne) |
-
-### Blokery DB dla Backendu (które DB zadania muszą byc gotowe przed startem BE)
-
-| Zadanie BE | Wymaga DB |
-|------------|-----------|
-| BE-001 (Spring Boot init) | DB-001 (Flyway extensions) |
-| BE-002 (TenantContext) | DB-002 (tabela TENANT) |
-| BE-003 (Spring Security) | DB-003 (tabela USER, REFRESH_TOKEN) |
-| BE-005 (Audit Log) | DB-004 (tabela AUDIT_LOG) |
-| BE-006 (Tenant API) | DB-005 (TENANT config) |
-| BE-009, BE-010, BE-027 | DB-006 (tabela CONTACT) |
-| BE-015, BE-016 | DB-007 (tabela EMAIL) |
-| BE-017, BE-018 | DB-008 (SOCIAL_INTEGRATION) |
-| BE-013, BE-014 | DB-009 (tabela IVR_TREE) |
-| BE-019, BE-020 | DB-010 (tabela QUEUE) |
-| BE-015 (email routing po adresie) | DB-020 (email_address w QUEUE) |
-| BE-022, BE-023, BE-024 | DB-011 (tabela CAMPAIGN) |
-| BE-025, BE-026, BE-031 | DB-012 (tabela CUSTOMER) |
-| BE-028, BE-030 | DB-013 + DB-014 |
-| BE-003, BE-004 | DB-016 (Redis config) |
-| BE-031 (RODO API) | DB-017 (RODO funkcje) |
-
-| BE-038 (Callback Executor) | DB-023 (rozszerzenie scheduled_callback) |
-| BE-039 (Reschedule API) | DB-023 |
-| BE-040 (Inbound Callback API) | DB-023 |
-
----
-
-## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-023 – Rozszerzenie tabeli `scheduled_callback` o kontekst źródłowy
 
@@ -740,7 +268,9 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
 
 ---
 
-## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+## EPIC-14 – Zarządzanie przypisaniem agentów do kolejek
+
+**Ukończone 3/3** — status epiku: ✅ Zakończony
 
 ### DB-024 – Tabele `agent_group` i `agent_group_member`: grupy agentów
 
@@ -893,7 +423,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
 
 ---
 
-## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+## EPIC-15 – Zakładka Klienci w Agent Desktop
+
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-027 – Rozszerzenie `scheduled_callback.source_type` o wartość `AGENT_MANUAL`
 
@@ -947,28 +479,9 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_calendar
 
 ---
 
-## Podsumowanie zadań Baza Danych
+## EPIC-16 – Kalendarz Agenta
 
-| Kategoria | Liczba zadań | Must Have | Should Have |
-|-----------|-------------|-----------|-------------|
-| Infrastruktura / Fundament | 3 | 3 | 0 |
-| Encje domenowe (PostgreSQL) | 12 | 12 | 0 |
-| Bezpieczenstwo / Izolacja | 2 | 1 | 1 |
-| Redis | 1 | 1 | 0 |
-| RODO / Funkcje | 1 | 1 | 0 |
-| Narzedzia operacyjne | 2 | 2 | 0 |
-| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
-| Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 1 | 1 | 0 |
-| Zarządzanie przypisaniem agentów (EPIC-14) | 3 | 2 | 1 |
-| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
-| **RAZEM** | **27** | **25** | **2** |
-
----
-
----
-
-## MODUŁ: Kalendarz Agenta (EPIC-16)
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-028 – Tabela `agent_break`: zaplanowane przerwy agentów
 
@@ -1022,7 +535,9 @@ CREATE POLICY agent_break_tenant_isolation ON agent_break
 
 ---
 
-## MODUŁ: Wielojęzyczność – preferencje użytkownika (EPIC-19)
+## EPIC-19 – Wielojęzyczność – preferencje użytkownika
+
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-029 – Kolumna `preferred_language` w tabeli `app_user`
 
@@ -1055,7 +570,9 @@ COMMENT ON COLUMN app_user.preferred_language IS 'ISO 639-1 language code for UI
 
 ---
 
-## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+## EPIC-20 – Per-tenant konfiguracja Twilio
+
+**Ukończone 2/2** — status epiku: ✅ Zakończony
 
 ### DB-030 – Tabela `tenant_twilio_config`: per-tenant kredencjały Twilio z szyfrowaniem
 
@@ -1157,40 +674,9 @@ CREATE INDEX IF NOT EXISTS idx_campaign_caller_id
 
 ---
 
-## Macierz gotowości: DB → BE → FE
+## EPIC-21 – Retry i callback w kampaniach wychodzących
 
-Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do widoku FE:
-
-| Funkcja | DB | BE | FE |
-|---------|-----|-----|-----|
-| Logowanie i MFA | DB-001, DB-002, DB-003, DB-016 | BE-003, BE-004 | FE-004 |
-| Lista tenantów (Admin) | DB-001, DB-002, DB-005 | BE-006, BE-007 | FE-006, FE-007 |
-| Zarządzanie agentami | DB-002, DB-003 | BE-008 | FE-008 |
-| Połączenie telefoniczne | DB-003, DB-006 | BE-009, BE-011, BE-012 | FE-010, FE-011 |
-| Nagrywanie rozmów | DB-006 | BE-010 | FE-019 (historia) |
-| IVR editor | DB-009 | BE-013 | FE-014 |
-| Voicebot | DB-009 | BE-014 | – (brak widoku FE) |
-| Email handling | DB-006, DB-007, DB-020 | BE-015 | FE-012 |
-| Social media | DB-006, DB-008 | BE-017, BE-018 | FE-013, FE-023 |
-| Routing | DB-010 | BE-019, BE-020 | FE-024 |
-| Kampanie outbound | DB-011 | BE-022, BE-023, BE-024 | FE-015, FE-016 |
-| Baza klientów | DB-012 | BE-025, BE-026 | FE-018, FE-019, FE-020 |
-| Dashboard RT supervisora | DB-006, DB-003, DB-010 | BE-029 | FE-021 |
-| Raporty historyczne | DB-013 | BE-028 | FE-022 |
-| Data Warehouse / ETL | DB-013, DB-014 | BE-030 | – |
-| RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
-| Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
-| Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |
-| Zaplanowane oddzwonienia | DB-023 | BE-038 (executor), BE-039 (reschedule API), BE-040 (inbound callback API) | FE-031 (reschedule modal), FE-032 (inbound callback modal) |
-| Zarządzanie przypisaniem agentów | DB-024, DB-025, DB-026 | BE-043, BE-044, BE-045, BE-046, BE-047 | FE-036 ✅, FE-037, FE-038, FE-039 |
-| Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
-| Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |
-| Wielojęzyczność UI (EPIC-19) | DB-029 | BE-054 | FE-049, FE-050, FE-051, FE-052, FE-053 |
-| Retry i callback w kampaniach wychodzących (EPIC-21) | DB-032, DB-033 | BE-062, BE-063, BE-064, BE-065, BE-066 | FE-069, FE-070 |
-
----
-
-## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+**Ukończone 2/2** — status epiku: ✅ Zakończony
 
 ### DB-032 – Nowe statusy `campaign_contact`: `NOT_REACHED` i `CALLBACK` — migracja V053
 
@@ -1355,7 +841,9 @@ COMMENT ON INDEX idx_scheduled_callback_cc_record IS
 
 ---
 
-## MODUŁ: Notatki do kontaktów (EPIC-22)
+## EPIC-22 – Notatki do kontaktów
+
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-034 – Kolumna `notes` w tabeli `contact` — migracja V058
 
@@ -1397,7 +885,9 @@ COMMENT ON COLUMN contact.notes IS
 
 ---
 
-## MODUŁ: Historia etapów kontaktu (EPIC-23)
+## EPIC-23 – Historia etapów kontaktu
+
+**Ukończone 1/1** — status epiku: ✅ Zakończony
 
 ### DB-035 – Tabela `contact_event`: rejestracja etapów kontaktu (IVR, kolejka, agent, hold)
 
@@ -1509,7 +999,9 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 
 ---
 
-## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+## EPIC-25 – Przypisywanie agentów do kampanii
+
+**Ukończone 2/2** — status epiku: ✅ Zakończony
 
 ### DB-036 – Schemat przypisania agentów do kampanii: `all_agents`, `campaign_agent`, `campaign_agent_group` — migracja V062
 
@@ -1685,7 +1177,9 @@ Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełni
 
 ---
 
-## EPIC-26: AI-Powered Conversation Summary
+## EPIC-26 – AI-Powered Conversation Summary
+
+**Ukończone 2/2** — status epiku: ✅ Zakończony
 
 ### DB-038 – Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064
 
@@ -1814,7 +1308,9 @@ COMMENT ON COLUMN contact.ai_summary_generated_at IS
 
 ---
 
-## EPIC-27: Własne dyspozycje per kampania i kolejka
+## EPIC-27 – Własne dyspozycje per kampania i kolejka
+
+**Ukończone 2/2** — status epiku: ✅ Zakończony
 
 ### DB-040 – Tabela `custom_disposition`: konfiguracja dyspozycji po kontakcie per kampania i per kolejka — migracja V069
 
@@ -2002,7 +1498,10 @@ COMMENT ON COLUMN disposition_set_item.disposition_code IS
 
 ---
 
-## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+## EPIC-28 – Per-Tenant Plugin (Extension) System
+
+**Ukończone 4/4** — status epiku: ✅ Zakończony
+
 
 > Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). `plugin`/`plugin_version`
 > to katalog **globalny** (bez `tenant_id`, bez RLS — ADR-13); pozostałe trzy tabele są
@@ -2353,7 +1852,10 @@ COMMENT ON COLUMN plugin_invocation_log.request_payload_redacted IS
 
 ---
 
-## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+## EPIC-29 – Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Ukończone 9/9** — status epiku: ✅ Zakończony
+
 
 > Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Powiązane:
 > `ARCHITECTURE.md` §4.1–4.3, §6.6, §8.6, §10.3 (RC-02); `PRD.md` §6.5 (NFR-RODO03).
@@ -2896,132 +2398,10 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 
 ---
 
-### DB-055 – [PORZĄDKOWY] Usunięcie zduplikowanych indeksów z partycjonowanej tabeli `contact` — migracja V093
+## EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
 
-**Typ:** Schema migration / performance (dług techniczny)
-**Priorytet:** Should Have
-**Złożoność:** S
-**Zależy od:** DB-052 (V088 — rotacja partycji; każda nowa partycja `contact` dziedziczy indeksy rodzica)
-**Status:** ✅ Ukończone (migracja zweryfikowana na bazie scratch + pełnym łańcuchu Flyway w Testcontainers; **zastosowana RĘCZNIE przez `psql` na lokalnej bazie demo `contact_center` 2026-09-19 — poza Flyway**, więc `flyway_schema_history` nie ma jeszcze wpisu V093. Przy wdrożeniu z plikami V092+V093 Flyway zarejestruje V093, a ponowne wykonanie jest no-op: `DROP INDEX IF EXISTS`, guard przechodzi, komentarze nadpisywane tym samym tekstem)
-**Blokuje:** brak
-**Epic:** brak (porządki po EPIC-29 — dotyczy tabeli `contact` partycjonowanej w V007, rotowanej w DB-052)
+**Ukończone 27/31** (🚫 N/A: 3, ⬜ nie rozpoczęte: 1) — status epiku: ⚠️ Zamknięty warunkowo
 
-**Numeracja:** V092 jest zajęte przez `V092__social_integration_global_unique_page.sql` (zastosowane w bazie
-dev 2026-08-29, plik istnieje na gałęzi `feature-socialmedia`, a NIE na `develop`), więc migracja dostała
-następny wolny numer **V093**.
-
-> **Uwaga wdrożeniowa (zweryfikowana Flyway API na kopii `flyway_schema_history`):** baza `contact_center`
-> ma już zastosowane V092. Build z samego `develop` (V091 + V093, bez pliku V092) wystartowany na tej bazie
-> **nie przejdzie walidacji Flyway** — `V092 MISSING_SUCCESS`, `Detected applied migration not resolved
-> locally: 092` (V092 przestaje być „future" i staje się „missing", gdy V093 jest wyższe i rozpoznane lokalnie;
-> domyślne `ignoreMigrationPatterns` ignoruje tylko `*:future`). Najpierw trzeba wprowadzić na `develop`
-> `V092__social_integration_global_unique_page.sql` (merge `feature-socialmedia`), dopiero potem wdrażać V093.
-> Z plikiem V092 obecnym lokalnie Flyway widzi wyłącznie V093 jako `PENDING` i aplikuje go czysto.
-
-**Kontekst:**
-`V007__create_contact.sql` zadeklarował indeksy z sufiksami `_history`/`_date`/`_disposition`, a
-`V011__performance_indexes_views.sql` (sekcja 3) dodał drugi zestaw z innymi nazwami i tymi samymi
-kolumnami. Oba zestawy są zdefiniowane NA TABELI NADRZĘDNEJ, więc każdy propaguje się do KAŻDEJ partycji
-(11 dziś: `contact_2026_03..12` + `contact_default`, plus każda kolejna tworzona przez
-`PartitionMaintenanceJob`). Każdy INSERT/UPDATE na `contact` utrzymuje zbędne indeksy × liczba partycji —
-czysty koszt zapisu i miejsca, bez korzyści dla odczytu.
-
-**Audyt (żywa baza PG 16.13, `pg_index`: kolumny, `indoption`, opclass, collation, predykat, AM):**
-
-| Para | Indeks A (V007) — ZOSTAJE | Indeks B (V011) — USUWANY | Różnica |
-|---|---|---|---|
-| 1 | `idx_contact_agent_history` `(tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL` | `idx_contact_tenant_agent_date` | brak (identyczne) |
-| 2 | `idx_contact_disposition` `(tenant_id, disposition_code, started_at) WHERE disposition_code IS NOT NULL` | `idx_contact_tenant_disposition_date` | brak (identyczne) |
-| 3 | `idx_contact_channel_date` `(tenant_id, channel, started_at)` | `idx_contact_tenant_channel_date` `(tenant_id, channel, started_at DESC)` | tylko kierunek `started_at` (`indoption` `0 0 0` vs `0 0 3`) |
-
-**Decyzja co zostaje i dlaczego** (kryteria: referencje / nazewnictwo / V025):
-- **Referencje:** nazwy V007 występują w `documentation/tech/06-database.md` (+ html), w treści ticketu
-  powyżej (linia „Raporty > Kontakty") i w nagłówku V089; nazw V011 nie ma nigdzie poza V011/V025. Zero
-  referencji w kodzie Javy, hintach `@Query`, funkcjach SQL (`pg_proc`), widokach (`pg_views`) i w voicebot —
-  usunięcie nie wymaga zmian w kodzie ani w dokumentacji.
-- **Nazewnictwo:** po migracji 13 z 15 indeksów nie-PK na `contact` ma formę `idx_contact_<przeznaczenie>`;
-  infiks `tenant_` nie niesie informacji, bo każdy indeks `contact` (poza `idx_contact_campaign_contact_record`)
-  zaczyna się od `tenant_id`.
-- **V025:** nie dotknął par 1 i 2 (kolumny nie są enum); parę 3 dotknął symetrycznie (DROP + CREATE obu
-  indeksów `channel`) — nie rozstrzyga.
-- Statystyki `idx_scan` na żywej bazie (21 skanów tylko na `idx_contact_tenant_agent_date`) NIE są argumentem:
-  przy dwóch identycznych indeksach planner wybiera któryś arbitralnie; po usunięciu bliźniaka plan jest ten sam.
-
-**Para 3 (ASC vs DESC) — dowód, nie domysł.** Zapytania z filtrem `channel` w backendzie
-(`ContactRepository.findContacts/countContacts/findAgentReportRows/countAgentReportRows/findActiveSocialContact`;
-`getContactCountsByChannelInRange` używa `channel` tylko w `GROUP BY`) traktują `channel` wyłącznie jako
-równość lub `GROUP BY`; jedyny związany `ORDER BY` to `ORDER BY started_at DESC LIMIT/OFFSET`
-(`findContacts`). Brak `ORDER BY` zawierającego `channel` w `backend/`, `voicebot/` i migracjach.
-`EXPLAIN (ANALYZE, BUFFERS)` na bazie scratch (500 tys. wierszy, 60 tenantów, 7 zapełnionych partycji,
-`SET enable_seqscan = off`, największy tenant 64,6 tys. wierszy; w transakcji z `ROLLBACK`, dodatkowo po
-usunięciu `idx_contact_tenant_started_at`, żeby żaden inny indeks nie mógł dać kolejności po `started_at`):
-
-| Wariant | `ORDER BY started_at DESC LIMIT 20` | `ORDER BY started_at ASC LIMIT 20` | głęboka strona `OFFSET 1500` | zakres dat / `COUNT(*)` / raport `GROUP BY` |
-|---|---|---|---|---|
-| tylko ASC (zostaje) | `Merge Append` > `Index Scan Backward`, **0 węzłów Sort**, 55–57 buforów, 0,6–1,0 ms | `Index Scan`, 0 Sort, 55 buf. | 1580 / 1564 buf., ~4,7 ms | identyczne plany i bufory |
-| tylko DESC (usuwany) | `Index Scan`, 0 Sort, 55–56 buf. | `Index Scan Backward`, 0 Sort, 55 buf. | 1564 / 1580 buf., ~4,7 ms | identyczne |
-| KONTROLA (oba indeksy `channel` + `tenant_started_at` usunięte) | `Sort` > `Bitmap Heap Scan`, 13955 buf., 35–45 ms | jw. | jw. | — |
-
-Kontrola dowodzi, że test wykrywa brak indeksu — brak `Sort` w wariantach z pojedynczym indeksem jest
-dowodem, nie artefaktem. Rozmiar przy monotonicznym napływie wierszy (700 tys., kolejność czasowa): ASC ≈ DESC
-≈ 60 MB (różnica <1%; po `REINDEX` po 34 MB). **Jedyna zmierzona różnica** dotyczy kształtu `ORDER BY`, którego
-kod NIE używa: `WHERE tenant_id = ? ORDER BY channel, started_at DESC` (`channel` bez równości) — DESC obsługuje
-go skanem w przód (55 buf.), ASC wymaga `Incremental Sort` (16 tys. buf., 20–60 ms); symetrycznie ASC obsługuje
-`ORDER BY channel, started_at`, a DESC nie. Gdyby takie zapytanie powstało, należy wtedy świadomie dodać indeks
-pod jego `ORDER BY`. Wniosek: dla WSZYSTKICH istniejących ścieżek pojedynczy indeks wystarcza → usunięty wariant
-DESC, zostaje `idx_contact_channel_date` (te same kryteria co w parach 1 i 2).
-
-**Nowe partycje nie odtwarzają duplikatów.** `create_contact_partition()` (V007; V014/V077/V088 redefiniują
-wyłącznie `create_next_month_partitions()`/`rotate_*`) tworzy partycje przez `CREATE TABLE ... PARTITION OF
-contact` — partycja dziedziczy dokładnie te indeksy, które istnieją na rodzicu w chwili tworzenia. Żadna
-funkcja z `pg_proc`, `PartitionMaintenanceJob`, kod Javy ani event trigger nie tworzy indeksów `contact`
-jawnie po nazwie (zweryfikowane). Empirycznie: `SELECT create_contact_partition(2027, 1)` po migracji → 16
-indeksów, wszystkie dołączone do rodziców, bez duplikatów (także na świeżej bazie po pełnym łańcuchu Flyway).
-
-**DDL migracji (`V093__drop_duplicate_contact_indexes.sql`):**
-```sql
-SET LOCAL lock_timeout = '10s';
--- guard (DO $$): survivors idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date
--- MUSZĄ istnieć, inaczej RAISE EXCEPTION (ochrona przed dryfem — nie usuniemy jedynego indeksu ścieżki)
-DROP INDEX IF EXISTS idx_contact_tenant_agent_date;
-DROP INDEX IF EXISTS idx_contact_tenant_disposition_date;
-DROP INDEX IF EXISTS idx_contact_tenant_channel_date;
-COMMENT ON INDEX idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date IS '...';
-```
-
-**Blokada:** `DROP INDEX` na indeksie partycjonowanym zakłada `ACCESS EXCLUSIVE` na `contact` ORAZ na każdej
-partycji (zweryfikowane w `pg_locks`: 12 tabel) do końca transakcji Flyway. Operacja jest metadata-only
-(milisekundy), ale czeka na zakończenie trwających transakcji na `contact`, a nowe zapytania ustawiają się za
-nią w kolejce — stąd `SET LOCAL lock_timeout = '10s'` (lepiej przerwać migrację niż zablokować ruch).
-`DROP INDEX CONCURRENTLY` jest niemożliwy na indeksie partycjonowanym (`ERROR: cannot drop partitioned index ...
-concurrently`). Zalecenie: wdrożenie poza szczytem ruchu.
-
-**Kryteria akceptacji:**
-- [x] Numeracja potwierdzona: V092 zajęte (baza + `feature-socialmedia`) → V093
-- [x] Migracja aplikuje się bez błędów: scratch (`psql -1`, `ON_ERROR_STOP`); pełny łańcuch Flyway 10.20.1 na świeżej bazie w dwóch wariantach — bez V092 (czysty `develop`, 92 migracje) i z V092 z `feature-socialmedia` (93 migracje); `mvn verify -pl app` = BUILD SUCCESS, 1779 testów, 0 błędów (w tym Testcontainers `CampaignContactArchivePurgeTenantIsolationTest`; uwaga: `backend/app/target/classes/db/migration` zawierał nieaktualną kopię V092 po wcześniejszym buildzie z gałęzi social, więc ten przebieg walidował wariant „z V092" — wariant „bez V092" zweryfikowano osobno przez Flyway API)
-- [x] Idempotentna — drugie uruchomienie bez błędów i bez zmian (`DROP INDEX IF EXISTS`)
-- [x] Guard działa: przy usuniętym indeksie-zwycięzcy migracja przerywa się i niczego nie usuwa (symulacja dryfu w transakcji z `ROLLBACK`)
-- [x] Rodzic `contact`: 19 → 16 indeksów; każda z 11 partycji: 19 → 16, wszystkie dołączone; zero duplikatów (exact + direction-only)
-- [x] `create_contact_partition(2027, 1)` → nowa partycja z 16 indeksami, bez duplikatów; `create_next_month_partitions()` nadal działa
-- [x] Diff `pg_dump -s` przed/po: wyłącznie 3 indeksy rodzica + 33 indeksy partycji (+ ich `ATTACH`) usunięte i 3 komentarze dodane
-- [x] Plany zapytań pod `SET ROLE app_user` z RLS (GUC `app.current_tenant_id`): bez `Sort`, użyty indeks-zwycięzca
-- [x] Żaden kod Javy / dokumentacja nie wymaga zmian (brak referencji do usuwanych nazw)
-
-**Audyt pozostałych tabel partycjonowanych (TYLKO RAPORT, poza zakresem V093 — bez zmian):**
-`contact_event`, `contact_transcription`, `contact_ai_summary`, `audit_log`, `plugin_invocation_log` (oraz
-`campaign_contact`, LIST) — porównanie definicji indeksów rodzica po zdjęciu nazwy (`pg_indexes`) i strukturalne
-(`pg_index`: kolumny/opcje/opclass/collation/predykat) oraz wykrywanie redundancji prefiksowej (A jest
-początkiem B, ten sam predykat/kierunek): **zero duplikatów dokładnych, zero bliźniaków różniących się tylko
-kierunkiem, zero redundancji prefiksowej**. Wszystkie 3 zidentyfikowane pary występują wyłącznie na `contact`.
-Rodzic `contact` po V093 też bez redundancji prefiksowej.
-
-**Podsumowanie implementacji (2026-09-19):**
-- `V093__drop_duplicate_contact_indexes.sql` — 3× `DROP INDEX IF EXISTS` + guard + `lock_timeout` + `COMMENT ON INDEX` na 3 indeksach-zwycięzcach. Efekt na wolumenie scratch (500 tys. wierszy, po `VACUUM FULL`): usunięte indeksy ważyły 24,7 + 19,9 + 15,7 = ~60 MiB (~21% miejsca wszystkich indeksów `contact`, ~57% rozmiaru samych danych 106 MiB) i tyle mniej pracy przy każdym INSERT/UPDATE (3 indeksy × liczba partycji).
-- Bez zmian w kodzie produkcyjnym i dokumentacji. Wdrożenie: patrz „Uwaga wdrożeniowa" (kolejność względem V092).
-
----
-
-## MODUL: Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (EPIC-30)
 
 > Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20) — ustalenia U1–U15, decyzje
 > D1–D8 z założeniami domyślnymi (tickety działają przy nich; wpływ alternatywy opisany w każdym tickecie zależnym), wymagania
@@ -4746,50 +4126,6 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ---
 
-### DB-083 – Role i uprawnienia pod rolę aplikacji `cc_app` (bez BYPASSRLS): GRANT-y, funkcje `SECURITY DEFINER`, REVOKE na `flyway_schema_history`
-
-**Typ:** Bezpieczeństwo / infrastruktura (DB) — migracje ról `NOLOGIN`, GRANT-ów i funkcji `SECURITY DEFINER`
-**Priorytet:** Should Have
-**Złożoność:** L (proponowana: ok. 17+ funkcji wejściowych do przeglądu `SECURITY DEFINER`, nowe funkcje DDL/skanu partycji, 2–3 migracje, test pod rolą ograniczoną)
-**Zależy od:** BE-148 (decyzja WP-1 ✅ zapisana 2026-10-11, tura 34 — ticket-parasol pozostaje ⬜, patrz uwaga o cyklu w BE-148), BE-139 (⬜ — harness testowy pod rolą bez BYPASSRLS), **DB-084 ✅ (tura 36, P6 — kolejność: DB-084 PRZED DB-083; ukończony w turze 37; DB-083 pkt 3(v) po DB-084 używa `ALTER FUNCTION`)**
-**Zależy od (tura 40, dopisane):** **DB-085 i DB-086** (kolejność OBOWIĄZKOWA: DB-085/DB-086 PRZED DB-083 — oba przepisują `archive_completed_campaign_contacts()` przez `CREATE OR REPLACE`, które ZERUJE `SECURITY DEFINER` i `search_path`; DB-083 pkt 3(v) wykonuje `ALTER FUNCTION … SECURITY DEFINER SET search_path` na ostatniej wersji funkcji, nie kopiuje ciała) oraz **DB-084 ✅** (formalnie: DB84-R1 z code review 2026-10-17 — funkcja V138 po cichu polega na BYPASSRLS; rozwiązanie w DB-083: `ALTER FUNCTION … SECURITY DEFINER SET search_path`, guard `rolbypassrls` w funkcji, przepisanie testu `function_contract` z DB-084 na tolerujący oba stany `prosecdef` i egzekwujący definera po DB-083 [DB84-R3]).
-**Zależy od (tura 41, 2026-10-17):** DB-085 ✅ i DB-086 ✅ (V140/V141 zastosowane na żywej bazie 2026-10-17 11:09 UTC) — **DB-083 jest odblokowany względem DB-085/DB-086**. DB-083 pkt 3(v) MUSI użyć `ALTER FUNCTION archive_completed_campaign_contacts() SECURITY DEFINER SET search_path = public, pg_temp` na wersji funkcji z **V141** (nie kopiować ciała; `CREATE OR REPLACE` zeruje `SECURITY DEFINER`). Pozostałe zależności DB-083 (BE-148 parasol, BE-139) bez zmian.
-**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 34, decyzja właściciela (b): podział BE-148)
-**Blokuje:** BE-149, BE-150
-**Epic:** EPIC-31 Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) (wydzielony z EPIC-30 w turze 40, decyzja właściciela 2026-10-17; numery ticketów zachowane) [wcześniej: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 55 → 58 razem z BE-149 i BE-150)]
-**Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testów pod rolą; sekrety i tworzenie ról z hasłami: właściciel/DevOps)
-
-**Kontekst:** decyzja (a) właściciela, wariant MIESZANY (zob. BE-148, sekcja „TURA 34”). Podstawa faktów: `DESIGN-be148-wp1-analiza-db.md` (nie edytować). Numery migracji: KOLEJNE WOLNE po ostatnim zastosowanym/istniejącym pliku (stan zweryfikowany 2026-10-11: `select max(version::int) from flyway_schema_history` = 135 i ostatni plik w `backend/src/main/resources/db/migration` = V135) — numer sprawdzić ponownie tuż przed startem (żywa baza i wszystkie gałęzie), nie wpisywać na sztywno. Baza produkcyjna = własny PostgreSQL, `ccapp` = bootstrap-superuser (decyzja (c)); `ccapp` zostaje rolą migracyjną/właścicielem, BEZ `REASSIGN OWNED`.
-
-**Zakres:**
-0. **Krok wstępny (weryfikacja niezweryfikowanych punktów na Testcontainers/jednorazowej bazie, wynik zapisać w tym tickecie):** (i) czy `SECURITY DEFINER` z właścicielem `NOLOGIN NOSUPERUSER BYPASSRLS` wykona `CREATE TABLE … PARTITION OF` i `DROP TABLE` partycji na tabelach, których właścicielem jest `ccapp` — hipoteza: członkostwo definera w roli właściciela (`GRANT ccapp TO <definer>` z `INHERIT`; własność sprawdzana przez `has_privs_of_role`), a `BYPASSRLS` jako atrybut własny; (ii) `REVOKE … FROM app_user` na nowo tworzonej partycji wewnątrz definera; (iii) Flyway pod `ccapp` jako rolą migracyjną przy osobnym `spring.flyway.user`. **Jeśli (i) negatywne — STOP i eskalacja do właściciela** (alternatywa: osobny `DataSource` ownera dla jobów partycji, zmiana decyzji (a) należy do właściciela).
-1. **Role (w Flyway WYŁĄCZNIE `NOLOGIN`, bez haseł; precedens V012; warunkowo, `IF NOT EXISTS`):** (a) rola-właściciel funkcji definera (`NOLOGIN NOSUPERUSER BYPASSRLS`; nazwa do ustalenia, np. `cc_definer`); (b) rola ETL tylko-do-odczytu (`BYPASSRLS`, `SELECT` na tabelach ETL, `ALL` na `etl_sync_state`, `INSERT/UPDATE` na `contacts_dw`; `NOLOGIN` w Flyway, `LOGIN`+hasło ustawia krok operacyjny w `DEPLOYMENT.md` w BE-148). `cc_app` (`LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`) tworzy krok OPERACYJNY (hasło poza repo); migracja robi tylko warunkowe `GRANT app_user TO cc_app` (jeśli rola istnieje), tak by migracje przechodziły także w CI/Testcontainers bez `cc_app`.
-2. **GRANT-y/REVOKE:** `REVOKE ALL ON flyway_schema_history FROM app_user` (korekta 5 z BE-148); `ALTER DEFAULT PRIVILEGES` także dla sekwencji i funkcji (dziś default ACL obejmuje tylko tabele); weryfikacja, że partycje NIE dostają GRANT dla `app_user` (DB-080 bez zmian).
-3. **Funkcje `SECURITY DEFINER`** (każda: właściciel = rola z pkt 1a, `SET search_path = public, pg_temp`, nazwy kwalifikowane schematem, `REVOKE EXECUTE … FROM PUBLIC`, `GRANT EXECUTE` tylko dla `cc_app`; komentarz `COMMENT ON FUNCTION`): (i) **tenants-by-email** (zwraca minimum: `tenant_id`/nazwa, NIE całe wiersze `app_user`); (ii) **lookup webhooka social** `(platform, page_id)` → `tenant_id` (+ wariant do `existsByPlatformAndPageIdAndTenantIdNot`); (iii) **DDL partycji:** istniejące `create_next_month_partitions()`, `create_<tabela>_partition(y,m)` (8), `rotate_*_partitions()` (6), `drop_old_*_partitions(n)` (5) przestawione na definera (migracja `ALTER FUNCTION … SECURITY DEFINER SET … OWNER TO …`), plus NOWE funkcje dla operacji dziś wykonywanych z Javy: `DROP TABLE` partycji (`PartitionScannerImpl`) z walidacją — nazwa musi być partycją znanego rodzica w `pg_inherits` i pasować do wzorca `{tabela}_YYYY_MM` z białej listy 8 tabel (test negatywny: nie da się usunąć tabeli spoza listy); (iv) **skan partycji:** liczenie wierszy per tenant/partycja (`countRowsByTenant`, `countRowsInPartition`) jako funkcje z tą samą walidacją nazwy; (v) **archiwizacja kampanii:** `archive_completed_campaign_contacts()` jako definer (E9/D1: bez GUC archiwizuje wszystkie tenanty) + NOWA funkcja zwracająca liczbę kandydatów (niezależny czujnik fałszywego `SUCCESS` dla BE-150). **[TURA 36: po DB-084 funkcję `archive_completed_campaign_contacts()` przełączyć na definera przez `ALTER FUNCTION … SECURITY DEFINER SET search_path = public, pg_temp OWNER TO …` — NIE `CREATE OR REPLACE` z kopią ciała z V015/V133 (przywróciłoby próg 30 dni = cicha regresja; sam `CREATE OR REPLACE` zeruje też `SECURITY DEFINER`/`search_path`). Czujnik kandydatów musi mieć IDENTYCZNY predykat jak pętla: próg per tenant (`LEFT JOIN tenant_campaign_archive_setting` + `COALESCE(…, 180)`) i `COALESCE(ended_at, updated_at)`; nie jako VIEW (omija RLS widoku właściciela [Z]).]** Definicje istniejących funkcji INVOKER, które nie wymagają zmiany (`log_cron_failure`, `cleanup_expired_refresh_tokens`, `purge_campaign_contact_archive`), NIE są przepisywane.
-4. **Krok porządkowy `rls_probe` (decyzja (d)):** rola pozostaje; po ustaleniu pochodzenia (pytanie do właściciela) — osobna migracja/krok operacyjny `DROP ROLE rls_probe` albo udokumentowanie roli. NIE ruszać przed ustaleniem pochodzenia.
-5. **Rollback:** migracje są wstecznie zgodne z `ccapp` (superuser ignoruje GRANT/definer); powrót `DB_USERNAME` na `ccapp` w BE-148/WP-6; role `cc_*` nie są usuwane do końca okresu obserwacji.
-
-**Kryteria akceptacji:**
-- [ ] Krok wstępny (pkt 0) wykonany, wynik (hipoteza członkostwa w roli właściciela potwierdzona/obalona) zapisany w tickecie; przy wyniku negatywnym — eskalacja, brak dalszych migracji bez decyzji właściciela
-- [ ] Migracje (numery kolejne wolne po V135, zweryfikowane tuż przed startem; zastosowane migracje nie edytowane), idempotentne, `SET LOCAL lock_timeout`, brak ról z hasłami i brak ról `LOGIN` w Flyway; GRANT-y warunkowe tak, by łańcuch Flyway przechodził bez `cc_app`
-- [ ] Rola-właściciel definera: `rolsuper = false`, `rolbypassrls = true`, `rolcanlogin = false`; potwierdzone testem na `pg_roles`
-- [ ] Każda funkcja `SECURITY DEFINER`: `proconfig` zawiera `search_path=public, pg_temp`, `proacl` bez PUBLIC, `EXECUTE` tylko dla `cc_app`; test negatywny wywołania przez rolę bez GRANT (`permission denied for function`) oraz test shadowingu (`CREATE TEMP TABLE cron_log` przez wywołującego nie przekierowuje zapisu definera)
-- [ ] Funkcje DDL/skanu partycji: odrzucają nazwy spoza białej listy/wzorca (test negatywny), po utworzeniu partycji `app_user` nie ma na niej uprawnień (REVOKE zadziałał)
-- [ ] Test pod rolą `NOSUPERUSER NOBYPASSRLS` (harness BE-139) na danych ≥ 2 tenantów: archiwizacja kampanii przez definer widzi oba tenanty (wynik > 0), czujnik kandydatów zgodny z wynikiem, tenants-by-email i lookup webhooka social zwracają wynik bez GUC, `create_next_month_partitions()` tworzy brakujące partycje
-- [ ] `REVOKE` na `flyway_schema_history`: `has_table_privilege('app_user','flyway_schema_history','UPDATE') = false` (test)
-- [ ] Rola ETL: tylko odczyt wskazanych tabel (test: `INSERT/UPDATE/DELETE` poza `etl_sync_state`/`contacts_dw` odrzucone)
-- [ ] Plan rollbacku opisany w tickecie i przekazany do `DEPLOYMENT.md` (BE-148 WP-6); krok `rls_probe` odnotowany jako oczekujący na ustalenie pochodzenia
-- [ ] `mvn verify -pl app` zielone
-- [ ] Zastosowanie migracji na żywej bazie local-demo: poprzedzone odczytem `flyway_schema_history` i krótką informacją dla właściciela (migracje zastosuje restart backendu; nie zmieniają roli połączenia aplikacji — `.env.local-demo` nie jest ruszane)
-- [ ] DoD: kod/migracje + testy, code review, dokumentacja zaktualizowana
-
-**Ryzyka:** (R1) DDL partycji w definerze bez własności tabel (pkt 0 (i)) — mitygacja: krok wstępny + eskalacja; (R2) błędny `search_path` = eskalacja uprawnień (korekta 2 z BE-148); (R3) parametry funkcji jako powierzchnia ataku (skompromitowana aplikacja może wołać funkcje) — mitygacja: biała lista nazw, brak parametrów `tenant_id` tam, gdzie niepotrzebne, minimalny zwrot; (R4) `GRANT EXECUTE ON ALL FUNCTIONS` z V012 i domyślny `EXECUTE` dla PUBLIC trzeba odwołać per funkcja; (R5) rollback uprawnień tylko przez powrót `DB_USERNAME`, bez DROP ról.
-**Nie wchodzi w zakres:** tworzenie ról z hasłami, zmiana `.env.local-demo`/sekretów, `REASSIGN OWNED`, zmiany w Javie (BE-149/BE-150), włączanie flag retencji na produkcji.
-**Zależności:** `Zależy od` BE-148 (decyzja WP-1 ✅), BE-139 ⬜, DB-084 ✅ (tura 36; ukończony tura 37); `Blokuje` BE-149, BE-150 (korzystają z funkcji i ról).
-**Adnotacja (tura 35, 2026-10-11):** pkt 3(v) (archiwizacja kampanii jako definer) dotyka funkcji `archive_completed_campaign_contacts()`, którą DB-084 przedefiniowuje (okres archiwizacji per tenant, domyślnie 180 dni, zakres 30–730; sygnatura bez parametrów zachowana). DB-083 i DB-084 NIE zależą od siebie formalnie — kto startuje drugi, bazuje na aktualnej definicji funkcji (`pg_get_functiondef`), nie na V015/V133; odczyt ustawienia per tenant w definerze bez GUC (join po `tenant_id`).
-
-**Adnotacja (tura 36, 2026-10-11 — KOREKTA adnotacji z tury 35):** zdanie „DB-083 i DB-084 NIE zależą od siebie formalnie” jest NIEAKTUALNE — decyzja właściciela P6: **DB-084 wchodzi PRZED DB-083** (`Zależy od` DB-084, `Blokuje` w DB-084 uzupełnione bez ✅). Powód: DB-083 pkt 3(v) po DB-084 przełącza funkcję przez `ALTER FUNCTION` zamiast kopiować ciało. Testy krzyżowe: (a) test czujnika kandydatów z danymi DWÓCH tenantów o RÓŻNYCH progach i parytetem „kandydaci = zarchiwizowane w jednym przebiegu”; (b) test atrybutów funkcji po przełączeniu (`prosecdef = true`, `proconfig` zawiera `search_path=public, pg_temp`, brak regresji progu 30 dni: tenant bez wiersza ustawienia nadal archiwizuje po 180, nie po 30). Zapis w DB-084 („Wynik WP-1”, kryteria „Testy krzyżowe”).
-
 ### DB-084 – Konfigurowalny okres archiwizacji kontaktów zakończonych kampanii per tenant (`archive_completed_campaign_contacts()`)
 
 **Typ:** Feature / zmiana zachowania (DB) — model danych ustawienia per tenant + nowa wersja funkcji SQL
@@ -4956,3 +4292,759 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Ryzyka / uwagi:** (R1) `SET enable_hashjoin/mergejoin = off` na poziomie funkcji wiąże plan ze wzorcem zapytania — stąd test planu przez `auto_explain`; (R2) przy DB-069 (partycjonowanie) sprawdzić ponownie plan (PK będzie zawierał `archived_at`); (R3) funkcja nie jest `SECURITY DEFINER` — rola aplikacji i RLS (V111) bez zmian; DB-083 (EPIC-31) użyje `ALTER FUNCTION` na ostatniej wersji. **Tura 44:** (R2) przy DB-069 punkt twardy — po zmianie PK na `(record_id, campaign_id, archived_at)` zweryfikować funkcję purge (V143 przygotowana dzięki `archived_at`), przy zmianie funkcji zachować `SET enable_hashjoin/mergejoin = off`. **Świadome odstępstwo od review (R2):** review rekomendował predykat `AND a.tenant_id = p_tenant_id` w `WHERE`; zamiast tego guard fail-closed na `RETURNING`, bo stały predykat `tenant_id` zaniżał estymatę planera na tabeli bez statystyk i dawał plan O(n²) (ok. 7 s/partię zamiast ok. 55 ms); właściciel poinformowany.
 **Nie wchodzi w zakres:** zmiany pętli Javy (`CampaignArchiveRetentionRepository#purgeEligible`, BE-121), partycjonowanie (DB-069), zmiana semantyki wartości zwracanej.
 **Zależności:** `Zależy od` DB-056 ✅; `Blokuje` brak (grep tury 43).
+## EPIC-31 – Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app)
+
+**Ukończone 0/1** (⬜ nie rozpoczęte: 1) — status epiku: ⬜ Nie rozpoczęty (wstrzymany)
+
+### DB-083 – Role i uprawnienia pod rolę aplikacji `cc_app` (bez BYPASSRLS): GRANT-y, funkcje `SECURITY DEFINER`, REVOKE na `flyway_schema_history`
+
+**Typ:** Bezpieczeństwo / infrastruktura (DB) — migracje ról `NOLOGIN`, GRANT-ów i funkcji `SECURITY DEFINER`
+**Priorytet:** Should Have
+**Złożoność:** L (proponowana: ok. 17+ funkcji wejściowych do przeglądu `SECURITY DEFINER`, nowe funkcje DDL/skanu partycji, 2–3 migracje, test pod rolą ograniczoną)
+**Zależy od:** BE-148 (decyzja WP-1 ✅ zapisana 2026-10-11, tura 34 — ticket-parasol pozostaje ⬜, patrz uwaga o cyklu w BE-148), BE-139 (⬜ — harness testowy pod rolą bez BYPASSRLS), **DB-084 ✅ (tura 36, P6 — kolejność: DB-084 PRZED DB-083; ukończony w turze 37; DB-083 pkt 3(v) po DB-084 używa `ALTER FUNCTION`)**
+**Zależy od (tura 40, dopisane):** **DB-085 i DB-086** (kolejność OBOWIĄZKOWA: DB-085/DB-086 PRZED DB-083 — oba przepisują `archive_completed_campaign_contacts()` przez `CREATE OR REPLACE`, które ZERUJE `SECURITY DEFINER` i `search_path`; DB-083 pkt 3(v) wykonuje `ALTER FUNCTION … SECURITY DEFINER SET search_path` na ostatniej wersji funkcji, nie kopiuje ciała) oraz **DB-084 ✅** (formalnie: DB84-R1 z code review 2026-10-17 — funkcja V138 po cichu polega na BYPASSRLS; rozwiązanie w DB-083: `ALTER FUNCTION … SECURITY DEFINER SET search_path`, guard `rolbypassrls` w funkcji, przepisanie testu `function_contract` z DB-084 na tolerujący oba stany `prosecdef` i egzekwujący definera po DB-083 [DB84-R3]).
+**Zależy od (tura 41, 2026-10-17):** DB-085 ✅ i DB-086 ✅ (V140/V141 zastosowane na żywej bazie 2026-10-17 11:09 UTC) — **DB-083 jest odblokowany względem DB-085/DB-086**. DB-083 pkt 3(v) MUSI użyć `ALTER FUNCTION archive_completed_campaign_contacts() SECURITY DEFINER SET search_path = public, pg_temp` na wersji funkcji z **V141** (nie kopiować ciała; `CREATE OR REPLACE` zeruje `SECURITY DEFINER`). Pozostałe zależności DB-083 (BE-148 parasol, BE-139) bez zmian.
+**Status:** ⬜ Nie rozpoczęte (założony 2026-10-11, tura 34, decyzja właściciela (b): podział BE-148)
+**Blokuje:** BE-149, BE-150
+**Epic:** EPIC-31 Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) (wydzielony z EPIC-30 w turze 40, decyzja właściciela 2026-10-17; numery ticketów zachowane) [wcześniej: EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 55 → 58 razem z BE-149 i BE-150)]
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testów pod rolą; sekrety i tworzenie ról z hasłami: właściciel/DevOps)
+
+**Kontekst:** decyzja (a) właściciela, wariant MIESZANY (zob. BE-148, sekcja „TURA 34”). Podstawa faktów: `DESIGN-be148-wp1-analiza-db.md` (nie edytować). Numery migracji: KOLEJNE WOLNE po ostatnim zastosowanym/istniejącym pliku (stan zweryfikowany 2026-10-11: `select max(version::int) from flyway_schema_history` = 135 i ostatni plik w `backend/src/main/resources/db/migration` = V135) — numer sprawdzić ponownie tuż przed startem (żywa baza i wszystkie gałęzie), nie wpisywać na sztywno. Baza produkcyjna = własny PostgreSQL, `ccapp` = bootstrap-superuser (decyzja (c)); `ccapp` zostaje rolą migracyjną/właścicielem, BEZ `REASSIGN OWNED`.
+
+**Zakres:**
+0. **Krok wstępny (weryfikacja niezweryfikowanych punktów na Testcontainers/jednorazowej bazie, wynik zapisać w tym tickecie):** (i) czy `SECURITY DEFINER` z właścicielem `NOLOGIN NOSUPERUSER BYPASSRLS` wykona `CREATE TABLE … PARTITION OF` i `DROP TABLE` partycji na tabelach, których właścicielem jest `ccapp` — hipoteza: członkostwo definera w roli właściciela (`GRANT ccapp TO <definer>` z `INHERIT`; własność sprawdzana przez `has_privs_of_role`), a `BYPASSRLS` jako atrybut własny; (ii) `REVOKE … FROM app_user` na nowo tworzonej partycji wewnątrz definera; (iii) Flyway pod `ccapp` jako rolą migracyjną przy osobnym `spring.flyway.user`. **Jeśli (i) negatywne — STOP i eskalacja do właściciela** (alternatywa: osobny `DataSource` ownera dla jobów partycji, zmiana decyzji (a) należy do właściciela).
+1. **Role (w Flyway WYŁĄCZNIE `NOLOGIN`, bez haseł; precedens V012; warunkowo, `IF NOT EXISTS`):** (a) rola-właściciel funkcji definera (`NOLOGIN NOSUPERUSER BYPASSRLS`; nazwa do ustalenia, np. `cc_definer`); (b) rola ETL tylko-do-odczytu (`BYPASSRLS`, `SELECT` na tabelach ETL, `ALL` na `etl_sync_state`, `INSERT/UPDATE` na `contacts_dw`; `NOLOGIN` w Flyway, `LOGIN`+hasło ustawia krok operacyjny w `DEPLOYMENT.md` w BE-148). `cc_app` (`LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`) tworzy krok OPERACYJNY (hasło poza repo); migracja robi tylko warunkowe `GRANT app_user TO cc_app` (jeśli rola istnieje), tak by migracje przechodziły także w CI/Testcontainers bez `cc_app`.
+2. **GRANT-y/REVOKE:** `REVOKE ALL ON flyway_schema_history FROM app_user` (korekta 5 z BE-148); `ALTER DEFAULT PRIVILEGES` także dla sekwencji i funkcji (dziś default ACL obejmuje tylko tabele); weryfikacja, że partycje NIE dostają GRANT dla `app_user` (DB-080 bez zmian).
+3. **Funkcje `SECURITY DEFINER`** (każda: właściciel = rola z pkt 1a, `SET search_path = public, pg_temp`, nazwy kwalifikowane schematem, `REVOKE EXECUTE … FROM PUBLIC`, `GRANT EXECUTE` tylko dla `cc_app`; komentarz `COMMENT ON FUNCTION`): (i) **tenants-by-email** (zwraca minimum: `tenant_id`/nazwa, NIE całe wiersze `app_user`); (ii) **lookup webhooka social** `(platform, page_id)` → `tenant_id` (+ wariant do `existsByPlatformAndPageIdAndTenantIdNot`); (iii) **DDL partycji:** istniejące `create_next_month_partitions()`, `create_<tabela>_partition(y,m)` (8), `rotate_*_partitions()` (6), `drop_old_*_partitions(n)` (5) przestawione na definera (migracja `ALTER FUNCTION … SECURITY DEFINER SET … OWNER TO …`), plus NOWE funkcje dla operacji dziś wykonywanych z Javy: `DROP TABLE` partycji (`PartitionScannerImpl`) z walidacją — nazwa musi być partycją znanego rodzica w `pg_inherits` i pasować do wzorca `{tabela}_YYYY_MM` z białej listy 8 tabel (test negatywny: nie da się usunąć tabeli spoza listy); (iv) **skan partycji:** liczenie wierszy per tenant/partycja (`countRowsByTenant`, `countRowsInPartition`) jako funkcje z tą samą walidacją nazwy; (v) **archiwizacja kampanii:** `archive_completed_campaign_contacts()` jako definer (E9/D1: bez GUC archiwizuje wszystkie tenanty) + NOWA funkcja zwracająca liczbę kandydatów (niezależny czujnik fałszywego `SUCCESS` dla BE-150). **[TURA 36: po DB-084 funkcję `archive_completed_campaign_contacts()` przełączyć na definera przez `ALTER FUNCTION … SECURITY DEFINER SET search_path = public, pg_temp OWNER TO …` — NIE `CREATE OR REPLACE` z kopią ciała z V015/V133 (przywróciłoby próg 30 dni = cicha regresja; sam `CREATE OR REPLACE` zeruje też `SECURITY DEFINER`/`search_path`). Czujnik kandydatów musi mieć IDENTYCZNY predykat jak pętla: próg per tenant (`LEFT JOIN tenant_campaign_archive_setting` + `COALESCE(…, 180)`) i `COALESCE(ended_at, updated_at)`; nie jako VIEW (omija RLS widoku właściciela [Z]).]** Definicje istniejących funkcji INVOKER, które nie wymagają zmiany (`log_cron_failure`, `cleanup_expired_refresh_tokens`, `purge_campaign_contact_archive`), NIE są przepisywane.
+4. **Krok porządkowy `rls_probe` (decyzja (d)):** rola pozostaje; po ustaleniu pochodzenia (pytanie do właściciela) — osobna migracja/krok operacyjny `DROP ROLE rls_probe` albo udokumentowanie roli. NIE ruszać przed ustaleniem pochodzenia.
+5. **Rollback:** migracje są wstecznie zgodne z `ccapp` (superuser ignoruje GRANT/definer); powrót `DB_USERNAME` na `ccapp` w BE-148/WP-6; role `cc_*` nie są usuwane do końca okresu obserwacji.
+
+**Kryteria akceptacji:**
+- [ ] Krok wstępny (pkt 0) wykonany, wynik (hipoteza członkostwa w roli właściciela potwierdzona/obalona) zapisany w tickecie; przy wyniku negatywnym — eskalacja, brak dalszych migracji bez decyzji właściciela
+- [ ] Migracje (numery kolejne wolne po V135, zweryfikowane tuż przed startem; zastosowane migracje nie edytowane), idempotentne, `SET LOCAL lock_timeout`, brak ról z hasłami i brak ról `LOGIN` w Flyway; GRANT-y warunkowe tak, by łańcuch Flyway przechodził bez `cc_app`
+- [ ] Rola-właściciel definera: `rolsuper = false`, `rolbypassrls = true`, `rolcanlogin = false`; potwierdzone testem na `pg_roles`
+- [ ] Każda funkcja `SECURITY DEFINER`: `proconfig` zawiera `search_path=public, pg_temp`, `proacl` bez PUBLIC, `EXECUTE` tylko dla `cc_app`; test negatywny wywołania przez rolę bez GRANT (`permission denied for function`) oraz test shadowingu (`CREATE TEMP TABLE cron_log` przez wywołującego nie przekierowuje zapisu definera)
+- [ ] Funkcje DDL/skanu partycji: odrzucają nazwy spoza białej listy/wzorca (test negatywny), po utworzeniu partycji `app_user` nie ma na niej uprawnień (REVOKE zadziałał)
+- [ ] Test pod rolą `NOSUPERUSER NOBYPASSRLS` (harness BE-139) na danych ≥ 2 tenantów: archiwizacja kampanii przez definer widzi oba tenanty (wynik > 0), czujnik kandydatów zgodny z wynikiem, tenants-by-email i lookup webhooka social zwracają wynik bez GUC, `create_next_month_partitions()` tworzy brakujące partycje
+- [ ] `REVOKE` na `flyway_schema_history`: `has_table_privilege('app_user','flyway_schema_history','UPDATE') = false` (test)
+- [ ] Rola ETL: tylko odczyt wskazanych tabel (test: `INSERT/UPDATE/DELETE` poza `etl_sync_state`/`contacts_dw` odrzucone)
+- [ ] Plan rollbacku opisany w tickecie i przekazany do `DEPLOYMENT.md` (BE-148 WP-6); krok `rls_probe` odnotowany jako oczekujący na ustalenie pochodzenia
+- [ ] `mvn verify -pl app` zielone
+- [ ] Zastosowanie migracji na żywej bazie local-demo: poprzedzone odczytem `flyway_schema_history` i krótką informacją dla właściciela (migracje zastosuje restart backendu; nie zmieniają roli połączenia aplikacji — `.env.local-demo` nie jest ruszane)
+- [ ] DoD: kod/migracje + testy, code review, dokumentacja zaktualizowana
+
+**Ryzyka:** (R1) DDL partycji w definerze bez własności tabel (pkt 0 (i)) — mitygacja: krok wstępny + eskalacja; (R2) błędny `search_path` = eskalacja uprawnień (korekta 2 z BE-148); (R3) parametry funkcji jako powierzchnia ataku (skompromitowana aplikacja może wołać funkcje) — mitygacja: biała lista nazw, brak parametrów `tenant_id` tam, gdzie niepotrzebne, minimalny zwrot; (R4) `GRANT EXECUTE ON ALL FUNCTIONS` z V012 i domyślny `EXECUTE` dla PUBLIC trzeba odwołać per funkcja; (R5) rollback uprawnień tylko przez powrót `DB_USERNAME`, bez DROP ról.
+**Nie wchodzi w zakres:** tworzenie ról z hasłami, zmiana `.env.local-demo`/sekretów, `REASSIGN OWNED`, zmiany w Javie (BE-149/BE-150), włączanie flag retencji na produkcji.
+**Zależności:** `Zależy od` BE-148 (decyzja WP-1 ✅), BE-139 ⬜, DB-084 ✅ (tura 36; ukończony tura 37); `Blokuje` BE-149, BE-150 (korzystają z funkcji i ról).
+**Adnotacja (tura 35, 2026-10-11):** pkt 3(v) (archiwizacja kampanii jako definer) dotyka funkcji `archive_completed_campaign_contacts()`, którą DB-084 przedefiniowuje (okres archiwizacji per tenant, domyślnie 180 dni, zakres 30–730; sygnatura bez parametrów zachowana). DB-083 i DB-084 NIE zależą od siebie formalnie — kto startuje drugi, bazuje na aktualnej definicji funkcji (`pg_get_functiondef`), nie na V015/V133; odczyt ustawienia per tenant w definerze bez GUC (join po `tenant_id`).
+
+**Adnotacja (tura 36, 2026-10-11 — KOREKTA adnotacji z tury 35):** zdanie „DB-083 i DB-084 NIE zależą od siebie formalnie” jest NIEAKTUALNE — decyzja właściciela P6: **DB-084 wchodzi PRZED DB-083** (`Zależy od` DB-084, `Blokuje` w DB-084 uzupełnione bez ✅). Powód: DB-083 pkt 3(v) po DB-084 przełącza funkcję przez `ALTER FUNCTION` zamiast kopiować ciało. Testy krzyżowe: (a) test czujnika kandydatów z danymi DWÓCH tenantów o RÓŻNYCH progach i parytetem „kandydaci = zarchiwizowane w jednym przebiegu”; (b) test atrybutów funkcji po przełączeniu (`prosecdef = true`, `proconfig` zawiera `search_path=public, pg_temp`, brak regresji progu 30 dni: tenant bez wiersza ustawienia nadal archiwizuje po 180, nie po 30). Zapis w DB-084 („Wynik WP-1”, kryteria „Testy krzyżowe”).
+
+## Bez epiku – tematy poza numerowanymi epikami
+
+**Ukończone 21/21** — status epiku: ✅ Zakończony
+
+### Temat: Fundament i infrastruktura bazy (DB-001 – DB-004)
+
+### DB-001 – Inicjalizacja schematu bazowego i konfiguracja Flyway
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** brak
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-002, DB-003, DB-005, DB-009, DB-010, DB-012, DB-024, DB-030, BE-001
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Konfiguracja Flyway w projekcie Spring Boot (flyway-core). Plik migracji `V001__init_extensions.sql`: włączenie rozszerzeń PostgreSQL: `uuid-ossp` (generowanie UUID), `pg_trgm` (fuzzy search), `pgcrypto` (szyfrowanie). Stworzenie domyślnego schematu `public`, ustawienie `search_path`. Konfiguracja parametrów połączenia per środowisko (dev/prod) przez Spring profiles.
+
+**Kryteria akceptacji:**
+- [x] Flyway uruchamia się przy starcie aplikacji i raportuje "Successfully applied N migrations"
+- [x] Rozszerzenia uuid-ossp, pg_trgm, pgcrypto dostępne w bazie (SELECT * FROM pg_extension)
+- [x] Plik `flyway_schema_history` tworzony automatycznie
+- [x] Skrypt idempotentny: powtórne uruchomienie nie generuje błędów
+
+---
+
+### DB-002 – Tabela TENANT: schemat, indeksy, constraints
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-003, DB-005, DB-006, DB-009, DB-010, DB-011, DB-012, DB-015, DB-004, DB-021, DB-024, DB-030, DB-035, DB-038, DB-040, DB-041, DB-042, DB-043, DB-046, DB-048, BE-002
+**Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
+
+**Opis:**
+Migracja `V002__create_tenant.sql`. Definicja tabeli TENANT zgodna z modelem danych PRD. Pole `config` jako JSONB z domyślnymi limitami: `{"max_agents": 100, "max_queues": 50, "max_campaigns": 20}`. Pole `status` jako typ ENUM (`ACTIVE`, `INACTIVE`, `SUSPENDED`). Indeks unikalny na `name` (case-insensitive: `LOWER(name)`).
+
+**Kryteria akceptacji:**
+- [x] DDL: `tenant_id UUID PRIMARY KEY DEFAULT uuid_generate_v4()`
+- [x] `status` jako PostgreSQL ENUM lub CHECK constraint z dozwolonymi wartościami
+- [x] Indeks unikalny na `LOWER(name)` zapobiega duplikatom nazw różniących się wielkością liter
+- [x] `config JSONB NOT NULL DEFAULT '{"max_agents":100}'`
+- [x] Komentarze kolumn (`COMMENT ON COLUMN`) dla dokumentacji schematu
+
+---
+
+### DB-003 – Tabela USER: schemat, role, ENUM statusów, indeksy
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-004, DB-006, DB-013, DB-014, DB-015, DB-028, DB-029, DB-036, DB-042, DB-043, DB-046, DB-048, BE-003, BE-008
+**Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
+
+**Opis:**
+Migracja `V003__create_user.sql`. Tabela USER z FK do TENANT. Pole `role` jako ENUM (`ADMIN`, `SUPERVISOR`, `AGENT`). Pole `skills` jako JSONB (`string[]`). Pole `status` jako ENUM (`ACTIVE`, `INACTIVE`, `BREAK`, `AVAILABLE`, `BUSY`, `AFTER_CONTACT`). Pole `password_reset_required BOOLEAN DEFAULT FALSE`. Pole `mfa_secret VARCHAR(32)`. Tabela `REFRESH_TOKEN` (token, user_id FK, expires_at, is_revoked).
+
+**Kryteria akceptacji:**
+- [x] FK: `tenant_id REFERENCES tenant(tenant_id) ON DELETE RESTRICT`
+- [x] Indeks na `(tenant_id, email)` – UNIQUE (jeden email per tenant)
+- [x] Indeks na `(tenant_id, status)` – dla zapytań routingu (agenci dostępni)
+- [x] Tabela REFRESH_TOKEN z indeksem na `token` i TTL-based cleanup (cron lub pg_cron)
+- [x] `password_hash VARCHAR(60) NOT NULL` (bcrypt output length)
+
+---
+
+### DB-004 – Tabela AUDIT_LOG: schemat, partycjonowanie po dacie
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-002, DB-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-018, DB-040, BE-005
+**Odniesienie PRD:** RODO, przekrojowe
+
+**Opis:**
+Migracja `V004__create_audit_log.sql`. Tabela AUDIT_LOG partycjonowana po `created_at` (RANGE partitioning, miesiąc). Automatyczne tworzenie partycji przez `pg_partman` lub dedykowaną funkcję. Kolumny `old_value` i `new_value` jako JSONB (NULL jeśli nie dotyczy). Indeks na `(tenant_id, entity_type, created_at DESC)`.
+
+**Kryteria akceptacji:**
+- [x] Tabela partycjonowana (`PARTITION BY RANGE (created_at)`)
+- [x] Partycja tworzona automatycznie na następny miesiąc (skrypt lub pg_partman)
+- [x] Indeks GIN na `old_value` i `new_value` dla zapytań JSONB
+- [x] Zapisy do AUDIT_LOG przez dedykowaną rolę DB z ograniczonymi uprawnieniami (INSERT only)
+- [x] Polityka retencji: partycje starsze niż 2 lata usuwane przez cron job
+
+---
+
+### Temat: Encje domenowe (Core Entities) (DB-005 – DB-012)
+
+### DB-005 – Kompletny schemat TENANT z limitami i konfiguracją
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** brak (BE-006 i dalej)
+**Odniesienie PRD:** US-01-03, EPIC-01
+
+**Opis:**
+Migracja `V005__tenant_config_schema.sql`. Dodanie JSON Schema validation dla kolumny `config` przez CHECK constraint lub trigger. Funkcja PostgreSQL `get_tenant_limit(tenant_id UUID, limit_name TEXT) RETURNS INT` – wygodny dostęp do limitów z aplikacji. Widok `v_tenant_stats` agregujący: liczbę agentów, kolejek, kampanii per tenant (dla dashboardu admina).
+
+**Kryteria akceptacji:**
+- [x] CHECK constraint lub trigger odrzuca `config` bez wymaganych pól (max_agents, max_queues)
+- [x] Funkcja `get_tenant_limit` działa dla dowolnego klucza z config JSONB
+- [x] Widok `v_tenant_stats` zwraca dane bez full scan (korzysta z indeksów tabel docelowych)
+
+---
+
+### DB-006 – Tabela CONTACT i RECORDING: schemat, indeksy, partycjonowanie
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-002, DB-003, DB-012
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-007, DB-008, DB-013, DB-014, DB-015, DB-017, DB-022, DB-023, DB-034, DB-035, DB-037, DB-039, BE-009, BE-010, BE-027
+**Odniesienie PRD:** US-03-05, US-09-02, EPIC-03, EPIC-09
+
+**Opis:**
+Migracja `V006__create_contact.sql`. Tabela CONTACT partycjonowana po `started_at` (RANGE, miesiąc). ENUMy: `channel` (PHONE, EMAIL, SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP), `direction` (INBOUND, OUTBOUND), `status` (QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED). FK do CUSTOMER (nullable, dla nieznanych), AGENT (nullable), CAMPAIGN (nullable). Kolumna `recording_url TEXT` (S3 URL lub NULL).
+
+**Kryteria akceptacji:**
+- [x] Tabela partycjonowana po `started_at` (RANGE monthly)
+- [x] Indeks na `(tenant_id, customer_id, started_at DESC)` – dla historii klienta
+- [x] Indeks na `(tenant_id, agent_id, started_at DESC)` – dla raportów agentów
+- [x] Indeks na `(tenant_id, status)` – dla aktywnych kontaktów w RT
+- [x] FK na customer_id i agent_id z `ON DELETE SET NULL` (anonimizacja RODO)
+
+---
+
+### DB-007 – Tabele EMAIL i EMAIL_TEMPLATE: schemat
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-006
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-017, BE-015, BE-016
+**Odniesienie PRD:** US-05-01, US-05-02, US-05-03, EPIC-05
+
+**Opis:**
+Migracja `V007__create_email.sql`. Tabela `EMAIL_MESSAGE` (message_id, tenant_id, contact_id FK, direction, from_address, to_address, subject, body_html TEXT, body_text TEXT, message_id_header VARCHAR (RFC header), in_reply_to VARCHAR, received_at TIMESTAMPTZ, sent_at TIMESTAMPTZ). Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_html, variables JSONB, created_by FK users). Indeks na `(tenant_id, message_id_header)` – UNIQUE dla deduplikacji.
+
+**Kryteria akceptacji:**
+- [x] UNIQUE na `(tenant_id, message_id_header)` zapobiega duplikatom przy wielokrotnym pobraniu IMAP
+- [x] Indeks na `(contact_id, received_at DESC)` – dla wątku wiadomości
+- [x] `body_html` i `body_text` bez limitu rozmiaru (TEXT, nie VARCHAR)
+- [x] FK: `contact_id REFERENCES contact(contact_id) ON DELETE CASCADE`
+
+---
+
+### DB-008 – Tabela SOCIAL_INTEGRATION i SOCIAL_MESSAGE: schemat
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-006
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-017, BE-017, BE-018
+**Odniesienie PRD:** US-06-01, US-06-02, EPIC-06
+
+**Opis:**
+Migracja `V008__create_social.sql`. Tabela `SOCIAL_INTEGRATION` (integration_id, tenant_id, platform ENUM(FACEBOOK/INSTAGRAM/WHATSAPP), page_id, access_token_encrypted BYTEA, token_expires_at TIMESTAMPTZ, webhook_status, created_at). Tabela `SOCIAL_MESSAGE` (message_id, tenant_id, contact_id FK, platform, external_message_id, direction, content TEXT, sender_external_id, sent_at TIMESTAMPTZ, attachments JSONB).
+
+**Kryteria akceptacji:**
+- [x] `access_token_encrypted` jako BYTEA (zaszyfrowany AES-256 przez pgcrypto lub aplikację)
+- [x] UNIQUE na `(tenant_id, platform, page_id)` – jedna konfiguracja per strona per tenant
+- [x] UNIQUE na `(tenant_id, external_message_id)` – idempotentny webhook
+- [x] Indeks na `(contact_id, sent_at DESC)` – dla historii konwersacji
+
+---
+
+### DB-009 – Tabela IVR_TREE: schemat, wersjonowanie
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** BE-013, BE-014, DB-021
+**Odniesienie PRD:** US-04-01, EPIC-04
+
+**Opis:**
+Migracja `V009__create_ivr_tree.sql`. Tabela `IVR_TREE` (ivr_id, tenant_id, name, definition JSONB NOT NULL, version INT DEFAULT 1, is_active BOOLEAN DEFAULT FALSE, created_by FK users, created_at, updated_at). Constraint: maksymalnie jeden aktywny IVR per tenant per "punkt wejścia" (możliwe przez partial unique index lub trigger). Tabela `IVR_AUDIO` (audio_id, tenant_id, ivr_id FK, filename, s3_url, duration_seconds, created_at).
+
+**Kryteria akceptacji:**
+- [x] `definition JSONB` walidowane przez CHECK czy zawiera klucz "nodes" (tablica)
+- [x] Indeks GIN na `definition` dla zapytań JSONB (wyszukiwanie w definicji)
+- [x] `version` inkrementowany przez trigger przy każdym UPDATE `definition`
+- [x] Tabela `IVR_AUDIO` z UNIQUE na `(tenant_id, filename)` – bez duplikatów nazw
+
+---
+
+### DB-010 – Tabela QUEUE: schemat, routing strategy, skills
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-018, DB-020, DB-021, DB-025, BE-019, BE-020
+**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
+
+**Opis:**
+Migracja `V010__create_queue.sql`. Tabela `QUEUE` (queue_id, tenant_id, name, routing_strategy ENUM(ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED), required_skills JSONB DEFAULT '[]', sticky_agent_timeout_seconds INT DEFAULT 60, is_active BOOLEAN DEFAULT TRUE, created_at). Tabela `QUEUE_AGENT` (queue_id FK, agent_id FK, assigned_at) – wielo-do-wielu (agent może być w kilku kolejkach). Indeks na `(tenant_id, routing_strategy)`.
+
+**Kryteria akceptacji:**
+- [x] CHECK: `sticky_agent_timeout_seconds >= 0`
+- [x] UNIQUE na `(tenant_id, name)` – unikalność nazwy kolejki w tenantcie
+- [x] Indeks GIN na `required_skills` – szybkie zapytania skill-matching
+- [x] Widok `v_queue_available_agents(queue_id)` – agenci dostępni dla danej kolejki z odpowiednimi skills
+
+---
+
+### DB-011 – Tabele CAMPAIGN i CAMPAIGN_CONTACT: schemat, statusy, indeksy
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-002, DB-012
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-013, DB-014, DB-031, DB-032, DB-036, DB-037, BE-022, BE-023, BE-024, BE-053
+**Odniesienie PRD:** US-08-01, US-08-02, US-08-03, US-08-04, US-08-05, EPIC-08
+
+**Opis:**
+Migracja `V011__create_campaign.sql`. Tabela `CAMPAIGN` (campaign_id, tenant_id, name, type ENUM(OUTBOUND_VOICE/OUTBOUND_EMAIL), dialer_type ENUM(PROGRESSIVE/PREDICTIVE/MANUAL), schedule JSONB, status ENUM(DRAFT/SCHEDULED/RUNNING/PAUSED/STOPPED/COMPLETED), contact_list_id UUID, created_by FK users, created_at). Tabela `CAMPAIGN_CONTACT` (record_id, campaign_id FK, customer_id FK nullable, phone VARCHAR, first_name, last_name, custom_fields JSONB, status ENUM(PENDING/DIALING/CONNECTED/NO_ANSWER/FAILED/COMPLETED), attempt_count INT DEFAULT 0, last_attempt_at TIMESTAMPTZ, next_attempt_at TIMESTAMPTZ, disposition_code VARCHAR). Tabela `SCHEDULED_CALLBACK` (callback_id, campaign_id FK, customer_id FK, phone VARCHAR, scheduled_at TIMESTAMPTZ, created_at).
+
+**Kryteria akceptacji:**
+- [x] Indeks na `(campaign_id, status, next_attempt_at)` – dla dialera (pobierz następne do dzwonienia)
+- [x] Indeks na `(tenant_id, status)` na tabeli CAMPAIGN – dla filtrowania listy kampanii
+- [x] CHECK na CAMPAIGN: `status` przestrzega dozwolonych przejść (możliwe przez trigger)
+- [x] Partycjonowanie CAMPAIGN_CONTACT po `campaign_id` (list partitioning) dla izolacji dużych kampanii
+- [x] Indeks na `(scheduled_at)` w SCHEDULED_CALLBACK – dla pobierania zaplanowanych callbacków
+
+---
+
+### DB-012 – Tabela CUSTOMER: schemat, fuzzy search, RODO
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-002
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-006, DB-011, DB-015, DB-017, DB-013, DB-028, BE-025, BE-026, BE-031
+**Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-06, EPIC-09
+
+**Opis:**
+Migracja `V012__create_customer.sql`. Tabela `CUSTOMER` (customer_id, tenant_id, first_name VARCHAR(100), last_name VARCHAR(100), phone JSONB (string[]), email JSONB (string[]), custom_fields JSONB, gdpr_consent JSONB, source VARCHAR(50) DEFAULT 'MANUAL', is_deleted BOOLEAN DEFAULT FALSE, created_at, updated_at). Indeksy trigram dla fuzzy search na first_name i last_name. Indeks GIN na phone i email dla wyszukiwania w tablicach JSONB.
+
+**Kryteria akceptacji:**
+- [x] Indeks trigram: `CREATE INDEX idx_customer_name_trgm ON customer USING GIN ((first_name || ' ' || last_name) gin_trgm_ops)`
+- [x] Indeks GIN na `phone jsonb_path_ops` i `email jsonb_path_ops` dla operatora `@>`
+- [x] PARTIAL indeks na `(tenant_id, phone)` WHERE `is_deleted = FALSE`
+- [x] Funkcja `search_customers(tenant_id UUID, query TEXT, limit INT) RETURNS SETOF customer` używająca `%` operator trigram
+- [x] Pole `gdpr_consent JSONB` z przykładową strukturą: `{"consent_given": true, "consent_date": "...", "consent_source": "..."}`
+
+---
+
+### Temat: Bezpieczeństwo i izolacja (DB-013 – DB-017)
+
+### DB-013 – Indeksy wydajnościowe i widoki raportowe
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** DB-006, DB-003, DB-011, DB-012
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-018, BE-028, BE-030
+**Odniesienie PRD:** US-10-02, US-10-03, EPIC-10, wymagania wydajnoscowe (< 200ms)
+
+**Opis:**
+Migracja `V013__performance_indexes.sql`. Dodatkowe indeksy kompozytowe na tabelach CONTACT dla zapytań raportowych. Widoki materializowane (MATERIALIZED VIEW) dla raportów historycznych: `mv_agent_daily_stats` (count kontaktów, avg handle time per agent per dzień), `mv_campaign_stats` (dials, connected, conversion per kampania). Polityka odświeżania widoków materializowanych (REFRESH MATERIALIZED VIEW CONCURRENTLY – codziennie o 01:00).
+
+**Kryteria akceptacji:**
+- [x] `EXPLAIN ANALYZE` na zapytaniu raportowym agentów (30 dni) zwraca plan z Index Scan (nie Seq Scan)
+- [x] `mv_agent_daily_stats` odświeżany przez pg_cron lub aplikację co dobę  _(adnotacja 2026-10-09, DB-077: zamknięte/nieaktualne po V132 (DB-058) — widok i `refresh_materialized_views()` usunięte; treść zadania bez zmian)_
+- [x] REFRESH CONCURRENTLY: stare dane dostępne podczas odświeżania (brak blokady)
+- [x] Indeks na `(tenant_id, channel, started_at::DATE)` na tabeli CONTACT
+- [x] Indeks na `(tenant_id, disposition_code, started_at)` na tabeli CONTACT
+
+---
+
+### DB-014 – Schemat Data Warehouse: ClickHouse tabele docelowe
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** DB-006, DB-011, DB-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** BE-030, BE-030b
+**Odniesienie PRD:** US-10-06, EPIC-10
+
+**Opis:**
+Definicja tabel w ClickHouse (DDL skrypty, nie Flyway – osobny katalog `dw/`): `contacts_dw` (ReplacingMergeTree, partycja po toYYYYMM(started_at), ORDER BY (tenant_id, contact_id)), `agent_performance_dw` (AggregatingMergeTree per dzień), `campaigns_dw`. Widoki agregujące dla raportów: `v_agent_kpi_daily`, `v_campaign_conversion`. Materialized views w ClickHouse dla pre-agregacji.
+
+**Kryteria akceptacji:**
+- [x] Tabela `contacts_dw` z ENGINE = ReplacingMergeTree(updated_at) dla idempotentnego upsert
+- [x] Partycjonowanie miesięczne (toYYYYMM) dla efektywnego pruning zapytań
+- [x] Widok `v_agent_kpi_daily` zwraca wyniki dla 1 agenta za 30 dni w < 500ms
+- [x] Schemat ClickHouse wersjonowany w katalogu `dw/migrations/`
+- [x] Wszystkie pola PII klientów WYKLUCZONE ze schematu DW (zgodność RODO)
+
+---
+
+### DB-015 – Row Level Security (RLS): polityki izolacji tenant_id
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** DB-002, DB-003, DB-006, DB-012
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** DB-021, DB-030
+**Odniesienie PRD:** wymagania bezpieczenstwa (izolacja logiczna tenant_id)
+
+**Opis:**
+Migracja `V015__row_level_security.sql`. Włączenie RLS na kluczowych tabelach: CUSTOMER, CONTACT, CAMPAIGN, QUEUE. Polityka: `USING (tenant_id = current_setting('app.current_tenant_id')::UUID)`. Ustawienie `app.current_tenant_id` przez aplikację przy każdym połączeniu DB (przez `SET LOCAL`). Rola DB `app_user` bez uprawnień superuser. Rola `admin_user` z BYPASSRLS dla operacji administracyjnych.
+
+**Kryteria akceptacji:**
+- [x] Test: połączenie z `SET LOCAL app.current_tenant_id = 'tenant-A'` nie widzi rekordów tenant-B
+- [x] RLS nie spowalnia zapytań > 10% (EXPLAIN ANALYZE przed i po)
+- [x] Rola `app_user` ma tylko SELECT/INSERT/UPDATE/DELETE (nie ALTER/DROP)
+- [x] RLS wyłączone dla roli `admin_user` (BYPASSRLS) – dla operacji migracyjnych
+
+---
+
+### DB-016 – Konfiguracja Redis: struktury danych i polityki TTL
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** brak (niezalezne od PostgreSQL)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** brak
+**Odniesienie PRD:** wymagania wydajnoscowe, bezpieczenstwo (JWT blacklista)
+
+**Opis:**
+Dokumentacja i konfiguracja struktur Redis używanych przez backend. Klucze i TTL: `jwt:blacklist:{token_hash}` (TTL = pozostały czas ważności tokenu), `session:agent:{user_id}` (status agenta, TTL 8h), `cache:customer:phone:{phone}` (CLI lookup, TTL 5 min), `cache:queue:stats:{queue_id}` (TTL 5s), `cache:tenant:metrics` (TTL 30s), `rate:login:{ip}` (TTL 15 min, counter). Konfiguracja Redis maxmemory-policy (`allkeys-lru`) i persistence (AOF dla JWT blacklisty).
+
+**Kryteria akceptacji:**
+- [x] Konfiguracja Redis (`redis.conf`) zawiera: maxmemory, maxmemory-policy allkeys-lru
+- [x] AOF persistence włączone dla namespace `jwt:blacklist` (lub osobna instancja Redis)
+- [x] Dokumentacja kluczy Redis jako komentarze w `RedisKeyConstants.java`
+- [x] Test: po logout token trafia do blacklisty i kolejne żądanie z tym tokenem → HTTP 401
+
+---
+
+### DB-017 – Procedury RODO: funkcje anonimizacji i eksportu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-012, DB-006, DB-007, DB-008
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** brak
+**Odniesienie PRD:** US-09-06, wymagania RODO (Art. 15, Art. 17)
+
+**Opis:**
+Migracja `V017__gdpr_functions.sql`. Funkcja PostgreSQL `anonymize_customer(p_customer_id UUID, p_tenant_id UUID)`: UPDATE CUSTOMER (first_name='ANONYMIZED', last_name='ANONYMIZED', phone='[]', email='[]', custom_fields='{}', is_deleted=TRUE), wywołanie logowania do AUDIT_LOG. Funkcja `export_customer_data(p_customer_id UUID, p_tenant_id UUID) RETURNS JSONB`: SELECT z JOIN na CONTACT, EMAIL_MESSAGE (ograniczony), SOCIAL_MESSAGE (ograniczony) – przygotowanie payloadu do ZIP.
+
+**Kryteria akceptacji:**
+- [x] `anonymize_customer` działa transakcyjnie (COMMIT lub ROLLBACK całości)
+- [x] Anonimizacja nie usuwa rekordów CONTACT (zachowanie historii bezpiecznej – bez PII)
+- [x] `export_customer_data` zwraca JSONB z kluczami: customer, contacts, email_messages, social_messages
+- [x] Obie funkcje sprawdzają tenant_id (nie mogą działać cross-tenant)
+- [x] Test: po anonimizacji GET /api/customers/{id} zwraca dane z 'ANONYMIZED' zamiast imienia
+
+---
+
+### Temat: Narzędzia operacyjne (DB-018 – DB-020)
+
+### DB-018 – Konfiguracja pg_cron: zadania scheduled
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-004, DB-010, DB-013
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Blokuje:** brak
+**Odniesienie PRD:** US-03-05 (retencja nagran), RODO (retencja danych)
+
+**Opis:**
+Migracja `V018__pg_cron_jobs.sql`. Konfiguracja zadań pg_cron (lub tabela z definicjami dla zewnętrznego crona): (1) Codziennie 02:00 – usunięcie wygasłych REFRESH_TOKEN, (2) Codziennie 02:30 – rotacja AUDIT_LOG partycji (drop starych, create nowych), (3) Co godzinę – REFRESH MATERIALIZED VIEW CONCURRENTLY mv_agent_daily_stats, (4) Co 5 minut – archiwizacja CAMPAIGN_CONTACT dla zakończonych kampanii (status=COMPLETED → tabela archiwalna).
+
+**Kryteria akceptacji:**
+- [x] Wszystkie zaplanowane zadania zdefiniowane w jednym miejscu (tabela lub plik konfiguracyjny)
+- [x] Zadania logują wynik (sukces/błąd) do tabeli `cron_log` lub AUDIT_LOG
+- [x] Cron retencji REFRESH_TOKEN usuwa tylko tokeny z is_revoked=TRUE lub expires_at < NOW()
+- [x] Cron nie uruchamia się gdy poprzednie wykonanie jest jeszcze w toku (idempotency)
+
+---
+
+### DB-019 – Seed danych testowych i migracje dla środowiska dev
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-001 do DB-017
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
+**Blokuje:** brak
+**Odniesienie PRD:** przekrojowe (wspomaga development)
+
+**Opis:**
+Migracja `V999__dev_seed.sql` (uruchamiana tylko w profilu `dev` przez Flyway locations). Wstawienie: 2 tenantów testowych, 1 ADMIN, 2 SUPERVISOR, 5 AGENT (różne skills), 3 QUEUE, 1 aktywna kampania z 100 CAMPAIGN_CONTACT, 50 CUSTOMER, 200 CONTACT (mix kanałów i statusów), 2 IVR_TREE (przykładowe drzewa). Hasła: `Test@12345` (bcrypt hash).
+
+**Kryteria akceptacji:**
+- [x] Seed uruchamiany tylko w profilu `spring.profiles.active=dev` (nie na prod)
+- [x] Seed idempotentny: INSERT OR IGNORE / ON CONFLICT DO NOTHING
+- [x] Dane seed pokrywają wszystkie kanały (PHONE, EMAIL, SOCIAL) i statusy kontaktów
+- [x] Seed nie zawiera prawdziwych danych osobowych (tylko fikcyjne imiona/numery)
+
+---
+
+### DB-020 – Kolumna email_address w tabeli QUEUE: routing emaili
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-010
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
+**Blokuje:** BE-015
+**Odniesienie PRD:** US-05-01, EPIC-05
+
+**Opis:**
+Migracja `V029__add_email_address_to_queue.sql`. Dodanie kolumny `email_address VARCHAR(255) NULL` do tabeli `QUEUE`. Umożliwia przypisanie adresu email do kolejki, tak aby przychodzące wiadomości email na ten adres były automatycznie routowane do tej kolejki. UNIQUE constraint na `(tenant_id, email_address)` (NULL nie narusza UNIQUE w PostgreSQL). CHECK constraint: `email_address IS NULL OR email_address LIKE '%@%'`. Partial index `idx_queue_email_address` na `(tenant_id, email_address) WHERE email_address IS NOT NULL` dla szybkiego lookup w `EmailPollingService`.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `email_address` nullable – zachowanie backward-compatible (istniejące kolejki bez zmian)
+- [x] UNIQUE constraint na `(tenant_id, email_address)` zapobiega duplikatom adresów w tenantcie
+- [x] CHECK constraint weryfikuje obecność `@` w adresie (podstawowa walidacja formatu)
+- [x] Partial index (WHERE IS NOT NULL) zoptymalizowany dla lookup w EmailRoutingService
+- [x] EmailRoutingService używa `queueRepository.findByEmailAddressAndTenantId()` do routingu przed regułami
+
+---
+
+---
+
+### Temat: Porządki po EPIC-29 (bez własnego epiku) (DB-055 – DB-055)
+
+### DB-055 – [PORZĄDKOWY] Usunięcie zduplikowanych indeksów z partycjonowanej tabeli `contact` — migracja V093
+
+**Typ:** Schema migration / performance (dług techniczny)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** DB-052 (V088 — rotacja partycji; każda nowa partycja `contact` dziedziczy indeksy rodzica)
+**Status:** ✅ Ukończone (migracja zweryfikowana na bazie scratch + pełnym łańcuchu Flyway w Testcontainers; **zastosowana RĘCZNIE przez `psql` na lokalnej bazie demo `contact_center` 2026-09-19 — poza Flyway**, więc `flyway_schema_history` nie ma jeszcze wpisu V093. Przy wdrożeniu z plikami V092+V093 Flyway zarejestruje V093, a ponowne wykonanie jest no-op: `DROP INDEX IF EXISTS`, guard przechodzi, komentarze nadpisywane tym samym tekstem)
+**Blokuje:** brak
+**Epic:** brak (porządki po EPIC-29 — dotyczy tabeli `contact` partycjonowanej w V007, rotowanej w DB-052)
+
+**Numeracja:** V092 jest zajęte przez `V092__social_integration_global_unique_page.sql` (zastosowane w bazie
+dev 2026-08-29, plik istnieje na gałęzi `feature-socialmedia`, a NIE na `develop`), więc migracja dostała
+następny wolny numer **V093**.
+
+> **Uwaga wdrożeniowa (zweryfikowana Flyway API na kopii `flyway_schema_history`):** baza `contact_center`
+> ma już zastosowane V092. Build z samego `develop` (V091 + V093, bez pliku V092) wystartowany na tej bazie
+> **nie przejdzie walidacji Flyway** — `V092 MISSING_SUCCESS`, `Detected applied migration not resolved
+> locally: 092` (V092 przestaje być „future" i staje się „missing", gdy V093 jest wyższe i rozpoznane lokalnie;
+> domyślne `ignoreMigrationPatterns` ignoruje tylko `*:future`). Najpierw trzeba wprowadzić na `develop`
+> `V092__social_integration_global_unique_page.sql` (merge `feature-socialmedia`), dopiero potem wdrażać V093.
+> Z plikiem V092 obecnym lokalnie Flyway widzi wyłącznie V093 jako `PENDING` i aplikuje go czysto.
+
+**Kontekst:**
+`V007__create_contact.sql` zadeklarował indeksy z sufiksami `_history`/`_date`/`_disposition`, a
+`V011__performance_indexes_views.sql` (sekcja 3) dodał drugi zestaw z innymi nazwami i tymi samymi
+kolumnami. Oba zestawy są zdefiniowane NA TABELI NADRZĘDNEJ, więc każdy propaguje się do KAŻDEJ partycji
+(11 dziś: `contact_2026_03..12` + `contact_default`, plus każda kolejna tworzona przez
+`PartitionMaintenanceJob`). Każdy INSERT/UPDATE na `contact` utrzymuje zbędne indeksy × liczba partycji —
+czysty koszt zapisu i miejsca, bez korzyści dla odczytu.
+
+**Audyt (żywa baza PG 16.13, `pg_index`: kolumny, `indoption`, opclass, collation, predykat, AM):**
+
+| Para | Indeks A (V007) — ZOSTAJE | Indeks B (V011) — USUWANY | Różnica |
+|---|---|---|---|
+| 1 | `idx_contact_agent_history` `(tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL` | `idx_contact_tenant_agent_date` | brak (identyczne) |
+| 2 | `idx_contact_disposition` `(tenant_id, disposition_code, started_at) WHERE disposition_code IS NOT NULL` | `idx_contact_tenant_disposition_date` | brak (identyczne) |
+| 3 | `idx_contact_channel_date` `(tenant_id, channel, started_at)` | `idx_contact_tenant_channel_date` `(tenant_id, channel, started_at DESC)` | tylko kierunek `started_at` (`indoption` `0 0 0` vs `0 0 3`) |
+
+**Decyzja co zostaje i dlaczego** (kryteria: referencje / nazewnictwo / V025):
+- **Referencje:** nazwy V007 występują w `documentation/tech/06-database.md` (+ html), w treści ticketu
+  powyżej (linia „Raporty > Kontakty") i w nagłówku V089; nazw V011 nie ma nigdzie poza V011/V025. Zero
+  referencji w kodzie Javy, hintach `@Query`, funkcjach SQL (`pg_proc`), widokach (`pg_views`) i w voicebot —
+  usunięcie nie wymaga zmian w kodzie ani w dokumentacji.
+- **Nazewnictwo:** po migracji 13 z 15 indeksów nie-PK na `contact` ma formę `idx_contact_<przeznaczenie>`;
+  infiks `tenant_` nie niesie informacji, bo każdy indeks `contact` (poza `idx_contact_campaign_contact_record`)
+  zaczyna się od `tenant_id`.
+- **V025:** nie dotknął par 1 i 2 (kolumny nie są enum); parę 3 dotknął symetrycznie (DROP + CREATE obu
+  indeksów `channel`) — nie rozstrzyga.
+- Statystyki `idx_scan` na żywej bazie (21 skanów tylko na `idx_contact_tenant_agent_date`) NIE są argumentem:
+  przy dwóch identycznych indeksach planner wybiera któryś arbitralnie; po usunięciu bliźniaka plan jest ten sam.
+
+**Para 3 (ASC vs DESC) — dowód, nie domysł.** Zapytania z filtrem `channel` w backendzie
+(`ContactRepository.findContacts/countContacts/findAgentReportRows/countAgentReportRows/findActiveSocialContact`;
+`getContactCountsByChannelInRange` używa `channel` tylko w `GROUP BY`) traktują `channel` wyłącznie jako
+równość lub `GROUP BY`; jedyny związany `ORDER BY` to `ORDER BY started_at DESC LIMIT/OFFSET`
+(`findContacts`). Brak `ORDER BY` zawierającego `channel` w `backend/`, `voicebot/` i migracjach.
+`EXPLAIN (ANALYZE, BUFFERS)` na bazie scratch (500 tys. wierszy, 60 tenantów, 7 zapełnionych partycji,
+`SET enable_seqscan = off`, największy tenant 64,6 tys. wierszy; w transakcji z `ROLLBACK`, dodatkowo po
+usunięciu `idx_contact_tenant_started_at`, żeby żaden inny indeks nie mógł dać kolejności po `started_at`):
+
+| Wariant | `ORDER BY started_at DESC LIMIT 20` | `ORDER BY started_at ASC LIMIT 20` | głęboka strona `OFFSET 1500` | zakres dat / `COUNT(*)` / raport `GROUP BY` |
+|---|---|---|---|---|
+| tylko ASC (zostaje) | `Merge Append` > `Index Scan Backward`, **0 węzłów Sort**, 55–57 buforów, 0,6–1,0 ms | `Index Scan`, 0 Sort, 55 buf. | 1580 / 1564 buf., ~4,7 ms | identyczne plany i bufory |
+| tylko DESC (usuwany) | `Index Scan`, 0 Sort, 55–56 buf. | `Index Scan Backward`, 0 Sort, 55 buf. | 1564 / 1580 buf., ~4,7 ms | identyczne |
+| KONTROLA (oba indeksy `channel` + `tenant_started_at` usunięte) | `Sort` > `Bitmap Heap Scan`, 13955 buf., 35–45 ms | jw. | jw. | — |
+
+Kontrola dowodzi, że test wykrywa brak indeksu — brak `Sort` w wariantach z pojedynczym indeksem jest
+dowodem, nie artefaktem. Rozmiar przy monotonicznym napływie wierszy (700 tys., kolejność czasowa): ASC ≈ DESC
+≈ 60 MB (różnica <1%; po `REINDEX` po 34 MB). **Jedyna zmierzona różnica** dotyczy kształtu `ORDER BY`, którego
+kod NIE używa: `WHERE tenant_id = ? ORDER BY channel, started_at DESC` (`channel` bez równości) — DESC obsługuje
+go skanem w przód (55 buf.), ASC wymaga `Incremental Sort` (16 tys. buf., 20–60 ms); symetrycznie ASC obsługuje
+`ORDER BY channel, started_at`, a DESC nie. Gdyby takie zapytanie powstało, należy wtedy świadomie dodać indeks
+pod jego `ORDER BY`. Wniosek: dla WSZYSTKICH istniejących ścieżek pojedynczy indeks wystarcza → usunięty wariant
+DESC, zostaje `idx_contact_channel_date` (te same kryteria co w parach 1 i 2).
+
+**Nowe partycje nie odtwarzają duplikatów.** `create_contact_partition()` (V007; V014/V077/V088 redefiniują
+wyłącznie `create_next_month_partitions()`/`rotate_*`) tworzy partycje przez `CREATE TABLE ... PARTITION OF
+contact` — partycja dziedziczy dokładnie te indeksy, które istnieją na rodzicu w chwili tworzenia. Żadna
+funkcja z `pg_proc`, `PartitionMaintenanceJob`, kod Javy ani event trigger nie tworzy indeksów `contact`
+jawnie po nazwie (zweryfikowane). Empirycznie: `SELECT create_contact_partition(2027, 1)` po migracji → 16
+indeksów, wszystkie dołączone do rodziców, bez duplikatów (także na świeżej bazie po pełnym łańcuchu Flyway).
+
+**DDL migracji (`V093__drop_duplicate_contact_indexes.sql`):**
+```sql
+SET LOCAL lock_timeout = '10s';
+-- guard (DO $$): survivors idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date
+-- MUSZĄ istnieć, inaczej RAISE EXCEPTION (ochrona przed dryfem — nie usuniemy jedynego indeksu ścieżki)
+DROP INDEX IF EXISTS idx_contact_tenant_agent_date;
+DROP INDEX IF EXISTS idx_contact_tenant_disposition_date;
+DROP INDEX IF EXISTS idx_contact_tenant_channel_date;
+COMMENT ON INDEX idx_contact_agent_history / idx_contact_disposition / idx_contact_channel_date IS '...';
+```
+
+**Blokada:** `DROP INDEX` na indeksie partycjonowanym zakłada `ACCESS EXCLUSIVE` na `contact` ORAZ na każdej
+partycji (zweryfikowane w `pg_locks`: 12 tabel) do końca transakcji Flyway. Operacja jest metadata-only
+(milisekundy), ale czeka na zakończenie trwających transakcji na `contact`, a nowe zapytania ustawiają się za
+nią w kolejce — stąd `SET LOCAL lock_timeout = '10s'` (lepiej przerwać migrację niż zablokować ruch).
+`DROP INDEX CONCURRENTLY` jest niemożliwy na indeksie partycjonowanym (`ERROR: cannot drop partitioned index ...
+concurrently`). Zalecenie: wdrożenie poza szczytem ruchu.
+
+**Kryteria akceptacji:**
+- [x] Numeracja potwierdzona: V092 zajęte (baza + `feature-socialmedia`) → V093
+- [x] Migracja aplikuje się bez błędów: scratch (`psql -1`, `ON_ERROR_STOP`); pełny łańcuch Flyway 10.20.1 na świeżej bazie w dwóch wariantach — bez V092 (czysty `develop`, 92 migracje) i z V092 z `feature-socialmedia` (93 migracje); `mvn verify -pl app` = BUILD SUCCESS, 1779 testów, 0 błędów (w tym Testcontainers `CampaignContactArchivePurgeTenantIsolationTest`; uwaga: `backend/app/target/classes/db/migration` zawierał nieaktualną kopię V092 po wcześniejszym buildzie z gałęzi social, więc ten przebieg walidował wariant „z V092" — wariant „bez V092" zweryfikowano osobno przez Flyway API)
+- [x] Idempotentna — drugie uruchomienie bez błędów i bez zmian (`DROP INDEX IF EXISTS`)
+- [x] Guard działa: przy usuniętym indeksie-zwycięzcy migracja przerywa się i niczego nie usuwa (symulacja dryfu w transakcji z `ROLLBACK`)
+- [x] Rodzic `contact`: 19 → 16 indeksów; każda z 11 partycji: 19 → 16, wszystkie dołączone; zero duplikatów (exact + direction-only)
+- [x] `create_contact_partition(2027, 1)` → nowa partycja z 16 indeksami, bez duplikatów; `create_next_month_partitions()` nadal działa
+- [x] Diff `pg_dump -s` przed/po: wyłącznie 3 indeksy rodzica + 33 indeksy partycji (+ ich `ATTACH`) usunięte i 3 komentarze dodane
+- [x] Plany zapytań pod `SET ROLE app_user` z RLS (GUC `app.current_tenant_id`): bez `Sort`, użyty indeks-zwycięzca
+- [x] Żaden kod Javy / dokumentacja nie wymaga zmian (brak referencji do usuwanych nazw)
+
+**Audyt pozostałych tabel partycjonowanych (TYLKO RAPORT, poza zakresem V093 — bez zmian):**
+`contact_event`, `contact_transcription`, `contact_ai_summary`, `audit_log`, `plugin_invocation_log` (oraz
+`campaign_contact`, LIST) — porównanie definicji indeksów rodzica po zdjęciu nazwy (`pg_indexes`) i strukturalne
+(`pg_index`: kolumny/opcje/opclass/collation/predykat) oraz wykrywanie redundancji prefiksowej (A jest
+początkiem B, ten sam predykat/kierunek): **zero duplikatów dokładnych, zero bliźniaków różniących się tylko
+kierunkiem, zero redundancji prefiksowej**. Wszystkie 3 zidentyfikowane pary występują wyłącznie na `contact`.
+Rodzic `contact` po V093 też bez redundancji prefiksowej.
+
+**Podsumowanie implementacji (2026-09-19):**
+- `V093__drop_duplicate_contact_indexes.sql` — 3× `DROP INDEX IF EXISTS` + guard + `lock_timeout` + `COMMENT ON INDEX` na 3 indeksach-zwycięzcach. Efekt na wolumenie scratch (500 tys. wierszy, po `VACUUM FULL`): usunięte indeksy ważyły 24,7 + 19,9 + 15,7 = ~60 MiB (~21% miejsca wszystkich indeksów `contact`, ~57% rozmiaru samych danych 106 MiB) i tyle mniej pracy przy każdym INSERT/UPDATE (3 indeksy × liczba partycji).
+- Bez zmian w kodzie produkcyjnym i dokumentacji. Wdrożenie: patrz „Uwaga wdrożeniowa" (kolejność względem V092).
+
+---
+
+## Dodatki
+
+Poniższe bloki (zależności, podsumowanie, macierz gotowości) zachowane dosłownie z poprzedniej wersji pliku; ich dane mogą być nieaktualne względem indeksu powyżej.
+
+### Zależności między zadaniami
+
+### Kolejność obowiązkowa (blokery)
+
+```
+DB-001 (extensions) → DB-002 (TENANT) → DB-003 (USER) → DB-004 (AUDIT_LOG)
+DB-002 → DB-005 (TENANT config)
+DB-003 + DB-012 → DB-006 (CONTACT)
+DB-006 → DB-007 (EMAIL)
+DB-006 → DB-008 (SOCIAL)
+DB-002 → DB-009 (IVR_TREE)
+DB-002 → DB-010 (QUEUE)
+DB-010 → DB-020 (email_address w QUEUE)
+DB-002 + DB-012 → DB-011 (CAMPAIGN)
+DB-002 → DB-012 (CUSTOMER)
+DB-006 + DB-011 + DB-003 → DB-013 (indeksy raportowe)
+DB-006 + DB-011 + DB-003 → DB-014 (ClickHouse DW)
+DB-002 + DB-003 + DB-006 + DB-012 → DB-015 (RLS)
+DB-004 + DB-010 + DB-013 → DB-018 (pg_cron)
+DB-012 + DB-006 + DB-007 + DB-008 → DB-017 (RODO funkcje)
+Wszystkie → DB-019 (seed dev)
+```
+
+### Zadania niezależne (mozliwe równolegle po DB-001)
+
+| Ścieżka | Zadania |
+|---------|---------|
+| Core entities | DB-002 → DB-003 → DB-004 |
+| Customer | DB-012 (po DB-002) |
+| IVR | DB-009 (po DB-002) |
+| Queue | DB-010 (po DB-002) |
+| Redis | DB-016 (calkowicie niezależne) |
+
+### Blokery DB dla Backendu (które DB zadania muszą byc gotowe przed startem BE)
+
+| Zadanie BE | Wymaga DB |
+|------------|-----------|
+| BE-001 (Spring Boot init) | DB-001 (Flyway extensions) |
+| BE-002 (TenantContext) | DB-002 (tabela TENANT) |
+| BE-003 (Spring Security) | DB-003 (tabela USER, REFRESH_TOKEN) |
+| BE-005 (Audit Log) | DB-004 (tabela AUDIT_LOG) |
+| BE-006 (Tenant API) | DB-005 (TENANT config) |
+| BE-009, BE-010, BE-027 | DB-006 (tabela CONTACT) |
+| BE-015, BE-016 | DB-007 (tabela EMAIL) |
+| BE-017, BE-018 | DB-008 (SOCIAL_INTEGRATION) |
+| BE-013, BE-014 | DB-009 (tabela IVR_TREE) |
+| BE-019, BE-020 | DB-010 (tabela QUEUE) |
+| BE-015 (email routing po adresie) | DB-020 (email_address w QUEUE) |
+| BE-022, BE-023, BE-024 | DB-011 (tabela CAMPAIGN) |
+| BE-025, BE-026, BE-031 | DB-012 (tabela CUSTOMER) |
+| BE-028, BE-030 | DB-013 + DB-014 |
+| BE-003, BE-004 | DB-016 (Redis config) |
+| BE-031 (RODO API) | DB-017 (RODO funkcje) |
+
+| BE-038 (Callback Executor) | DB-023 (rozszerzenie scheduled_callback) |
+| BE-039 (Reschedule API) | DB-023 |
+| BE-040 (Inbound Callback API) | DB-023 |
+
+---
+
+### Podsumowanie zadań Baza Danych
+
+| Kategoria | Liczba zadań | Must Have | Should Have |
+|-----------|-------------|-----------|-------------|
+| Infrastruktura / Fundament | 3 | 3 | 0 |
+| Encje domenowe (PostgreSQL) | 12 | 12 | 0 |
+| Bezpieczenstwo / Izolacja | 2 | 1 | 1 |
+| Redis | 1 | 1 | 0 |
+| RODO / Funkcje | 1 | 1 | 0 |
+| Narzedzia operacyjne | 2 | 2 | 0 |
+| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
+| Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
+| Zaplanowane oddzwonienia (EPIC-13) | 1 | 1 | 0 |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 3 | 2 | 1 |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
+| **RAZEM** | **27** | **25** | **2** |
+
+---
+
+---
+
+### Macierz gotowości: DB → BE → FE
+
+Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do widoku FE:
+
+| Funkcja | DB | BE | FE |
+|---------|-----|-----|-----|
+| Logowanie i MFA | DB-001, DB-002, DB-003, DB-016 | BE-003, BE-004 | FE-004 |
+| Lista tenantów (Admin) | DB-001, DB-002, DB-005 | BE-006, BE-007 | FE-006, FE-007 |
+| Zarządzanie agentami | DB-002, DB-003 | BE-008 | FE-008 |
+| Połączenie telefoniczne | DB-003, DB-006 | BE-009, BE-011, BE-012 | FE-010, FE-011 |
+| Nagrywanie rozmów | DB-006 | BE-010 | FE-019 (historia) |
+| IVR editor | DB-009 | BE-013 | FE-014 |
+| Voicebot | DB-009 | BE-014 | – (brak widoku FE) |
+| Email handling | DB-006, DB-007, DB-020 | BE-015 | FE-012 |
+| Social media | DB-006, DB-008 | BE-017, BE-018 | FE-013, FE-023 |
+| Routing | DB-010 | BE-019, BE-020 | FE-024 |
+| Kampanie outbound | DB-011 | BE-022, BE-023, BE-024 | FE-015, FE-016 |
+| Baza klientów | DB-012 | BE-025, BE-026 | FE-018, FE-019, FE-020 |
+| Dashboard RT supervisora | DB-006, DB-003, DB-010 | BE-029 | FE-021 |
+| Raporty historyczne | DB-013 | BE-028 | FE-022 |
+| Data Warehouse / ETL | DB-013, DB-014 | BE-030 | – |
+| RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
+| Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
+| Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |
+| Zaplanowane oddzwonienia | DB-023 | BE-038 (executor), BE-039 (reschedule API), BE-040 (inbound callback API) | FE-031 (reschedule modal), FE-032 (inbound callback modal) |
+| Zarządzanie przypisaniem agentów | DB-024, DB-025, DB-026 | BE-043, BE-044, BE-045, BE-046, BE-047 | FE-036 ✅, FE-037, FE-038, FE-039 |
+| Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
+| Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |
+| Wielojęzyczność UI (EPIC-19) | DB-029 | BE-054 | FE-049, FE-050, FE-051, FE-052, FE-053 |
+| Retry i callback w kampaniach wychodzących (EPIC-21) | DB-032, DB-033 | BE-062, BE-063, BE-064, BE-065, BE-066 | FE-069, FE-070 |
+
+---
+

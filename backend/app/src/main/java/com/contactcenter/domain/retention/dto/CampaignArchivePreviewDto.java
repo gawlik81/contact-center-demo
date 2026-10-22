@@ -7,8 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * ile kampanii/kontaktów zostałoby zarchiwizowanych przy najbliższym przebiegu joba dla danego okresu.
  */
 @Schema(description = "Skutek zmiany okresu archiwizacji (podgląd, bez zapisu). Predykat identyczny z funkcją "
-        + "archive_completed_campaign_contacts(): status COMPLETED/STOPPED i COALESCE(ended_at, updated_at, created_at) "
-        + "starsze niż okres.")
+        + "archive_completed_campaign_contacts(): status COMPLETED/STOPPED i "
+        + "COALESCE(ended_at, updated_at, created_at) starsze niż okres.")
 public record CampaignArchivePreviewDto(
 
         @Schema(description = "Obecnie obowiązujący okres (dni).", example = "180")

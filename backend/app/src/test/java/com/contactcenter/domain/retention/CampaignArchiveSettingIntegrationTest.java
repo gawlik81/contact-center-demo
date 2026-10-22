@@ -298,14 +298,7 @@ class CampaignArchiveSettingIntegrationTest {
     @DisplayName("COALESCE(ended_at, updated_at, created_at): terminalna kampania z ended_at i updated_at = NULL "
             + "oraz starym created_at jest liczona w podgladzie (zgodnie z funkcja SQL od V140)")
     void createdAtFallback_nullEndedAndUpdated_isCountedInPreview() throws Exception {
-        UUID id = UUID.randomUUID();
-        try (java.sql.Connection c = superuserPool.getConnection(); java.sql.Statement st = c.createStatement()) {
-            st.execute("SET session_replication_role = replica");
-            st.execute("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, ended_at) "
-                    + "VALUES ('" + id + "', '" + tenantA + "', 'BE-151 null clock " + id + "', 'COMPLETED', "
-                    + "now() - interval '400 days', NULL, NULL)");
-            st.execute("RESET session_replication_role");
-        }
+        UUID id = campaignWithNullClocks(tenantA, 400);
         contacts(tenantA, id, 4);
         TenantContext.setTenantId(tenantA);
 
@@ -318,6 +311,44 @@ class CampaignArchiveSettingIntegrationTest {
         assertThatNoException().isThrownBy(job::run);
         assertThat(liveCount(id)).isZero();
         assertThat(archiveCount(id)).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("COALESCE(..., created_at): terminalna kampania z ended_at i updated_at = NULL oraz SWIEZYM "
+            + "created_at NIE jest liczona w podgladzie ani archiwizowana (dolna granica predykatu)")
+    void createdAtFallback_nullEndedAndUpdated_freshCreatedAt_isNotCounted() throws Exception {
+        UUID id = campaignWithNullClocks(tenantA, 5);
+        contacts(tenantA, id, 4);
+        TenantContext.setTenantId(tenantA);
+
+        CampaignArchivePreviewDto p = service.preview(tenantA, 30);
+        assertThat(p.campaignsToArchive()).isZero();
+        assertThat(p.contactsToArchive()).isZero();
+
+        service.update(tenantA, 30, null);
+        assertThatNoException().isThrownBy(job::run);
+        assertThat(liveCount(id)).isEqualTo(4);
+        assertThat(archiveCount(id)).isZero();
+    }
+
+    /**
+     * Inserts a COMPLETED campaign with NULL ended_at/updated_at and the given created_at age. Triggers are
+     * disabled only for this statement; RESET is guaranteed in finally so the pooled connection is never
+     * returned with session_replication_role = replica.
+     */
+    private UUID campaignWithNullClocks(UUID tenant, int createdDaysAgo) throws Exception {
+        UUID id = UUID.randomUUID();
+        try (java.sql.Connection c = superuserPool.getConnection(); java.sql.Statement st = c.createStatement()) {
+            try {
+                st.execute("SET session_replication_role = replica");
+                st.execute("INSERT INTO campaign (campaign_id, tenant_id, name, status, created_at, updated_at, "
+                        + "ended_at) VALUES ('" + id + "', '" + tenant + "', 'BE-151 null clock " + id
+                        + "', 'COMPLETED', now() - interval '" + createdDaysAgo + " days', NULL, NULL)");
+            } finally {
+                st.execute("RESET session_replication_role");
+            }
+        }
+        return id;
     }
 
     @Test

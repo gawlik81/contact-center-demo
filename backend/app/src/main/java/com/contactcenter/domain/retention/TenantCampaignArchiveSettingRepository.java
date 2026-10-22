@@ -146,7 +146,8 @@ class TenantCampaignArchiveSettingRepository extends TenantAwareRepository {
      * Liczy kampanie {@code COMPLETED}/{@code STOPPED} tenanta kwalifikujące się do archiwizacji przy
      * okresie {@code days} oraz ich kontakty w {@code campaign_contact}. Tylko odczyt.
      *
-     * <p>Predykat IDENTYCZNY z pętlą funkcji {@code archive_completed_campaign_contacts()} (V138, zegar z trzecim argumentem created_at od V140):
+     * <p>Predykat IDENTYCZNY z pętlą funkcji {@code archive_completed_campaign_contacts()} (V138; od V140
+     * zegar ma trzeci argument {@code created_at}):
      * {@code status IN ('COMPLETED','STOPPED') AND COALESCE(ended_at, updated_at, created_at) < NOW() -
      * make_interval(days => N)}. Liczone są tylko kampanie, które mają jeszcze kontakty w
      * {@code campaign_contact} (funkcja przetwarza także kampanie już zarchiwizowane, bez kontaktów,

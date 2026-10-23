@@ -256,7 +256,7 @@
 
     <!-- MAIN: contact tabs + customer panel -->
     <div class="desktop__content-area">
-      <main class="desktop__main" id="main-content" [attr.aria-label]="'agent.desktop.activeContactsLabel' | transloco">
+      <section class="desktop__main" [attr.aria-label]="'agent.desktop.mainRegionLabel' | transloco">
         @if (calendarTabActive()) {
           <!-- ── Calendar view ── -->
           <app-agent-calendar />
@@ -382,7 +382,7 @@
             </div>
           }
         }
-      </main>
+      </section>
 
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {

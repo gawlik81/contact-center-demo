@@ -31,8 +31,8 @@ body {
 
   // Text
   --color-text-primary: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  --color-text-secondary: oklch(42% 0.012 250);
+  --color-text-muted: oklch(51% 0.012 250);
 
   // Surface
   --color-surface: #ffffff;
@@ -65,20 +65,25 @@ body {
   --bg-input: oklch(98% 0.004 80);
 
   --text-1: oklch(24% 0.012 250);
-  --text-2: oklch(45% 0.012 250);
-  --text-3: oklch(58% 0.012 250);
-  --text-muted: oklch(70% 0.008 250);
+  --text-2: oklch(42% 0.012 250);
+  --text-3: oklch(47% 0.012 250);
+  --text-muted: oklch(51% 0.012 250);
 
   --border-1: oklch(91% 0.005 80);
   --border-2: oklch(87% 0.005 80);
   --border-strong: oklch(80% 0.008 80);
+  // Control outline (input/select/checkbox): >= 3:1 vs every surface (WCAG 1.4.11)
+  --border-control: oklch(60% 0.008 250);
 
-  --accent: oklch(58% 0.13 255);
+  --accent: oklch(55% 0.13 255);
   --accent-soft: oklch(94% 0.025 255);
   --accent-text: oklch(45% 0.14 255);
-  --accent-fg: #ffffff;
+  --on-accent: oklch(100% 0 0);
+  --on-danger: oklch(100% 0 0);
+  --on-success: oklch(100% 0 0);
+  --accent-fg: var(--on-accent);
 
-  --success: oklch(58% 0.12 155);
+  --success: oklch(52% 0.12 155);
   --success-soft: oklch(94% 0.03 155);
   --success-text: oklch(42% 0.12 155);
 
@@ -86,7 +91,7 @@ body {
   --warning-soft: oklch(95% 0.04 75);
   --warning-text: oklch(50% 0.12 60);
 
-  --danger: oklch(60% 0.18 25);
+  --danger: oklch(55% 0.18 25);
   --danger-soft: oklch(95% 0.025 25);
   --danger-text: oklch(48% 0.18 25);
 
@@ -119,18 +124,22 @@ body {
   --bg-input: oklch(23% 0.012 250);
 
   --text-1: oklch(92% 0.008 250);
-  --text-2: oklch(74% 0.008 250);
-  --text-3: oklch(62% 0.008 250);
-  --text-muted: oklch(50% 0.008 250);
+  --text-2: oklch(80% 0.008 250);
+  --text-3: oklch(74% 0.008 250);
+  --text-muted: oklch(68% 0.008 250);
 
   --border-1: oklch(28% 0.012 250);
   --border-2: oklch(33% 0.012 250);
   --border-strong: oklch(40% 0.012 250);
+  --border-control: oklch(54% 0.012 250);
 
   --accent: oklch(70% 0.13 255);
   --accent-soft: oklch(30% 0.07 255);
   --accent-text: oklch(82% 0.1 255);
-  --accent-fg: oklch(15% 0.02 250);
+  --on-accent: oklch(15% 0.02 250);
+  --on-danger: oklch(15% 0.02 250);
+  --on-success: oklch(15% 0.02 250);
+  --accent-fg: var(--on-accent);
 
   --success: oklch(70% 0.12 155);
   --success-soft: oklch(28% 0.06 155);
@@ -168,8 +177,8 @@ body {
   --color-surface-3: oklch(22% 0.012 250);
   --color-border: oklch(28% 0.012 250);
   --color-text-primary: oklch(92% 0.008 250);
-  --color-text-secondary: oklch(74% 0.008 250);
-  --color-text-muted: oklch(50% 0.008 250);
+  --color-text-secondary: oklch(80% 0.008 250);
+  --color-text-muted: oklch(68% 0.008 250);
 }
 
 // ── Global animations ─────────────────────────────────────────────────────────
@@ -233,7 +242,7 @@ textarea {
   color-scheme: inherit;
   background: var(--bg-input);
   color: var(--text-1);
-  border-color: var(--border-2);
+  border-color: var(--border-control);
 }
 
 select {

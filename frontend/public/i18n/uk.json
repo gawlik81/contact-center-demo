@@ -190,7 +190,8 @@
     "customerProfile": "Профіль клієнта",
     "ivrEditor": "Редактор IVR",
     "oauthCallback": "OAuth Callback",
-    "breadcrumbNav": "Шлях навігації"
+    "breadcrumbNav": "Шлях навігації",
+    "skipToContent": "Перейти до вмісту"
   },
   "role": {
     "superAdmin": "Головний адміністратор",
@@ -229,7 +230,7 @@
       "queueWaiting": "очікує",
       "queueWaitTime": "Час очікування",
       "sidebarLabel": "Черга контактів та ручні кампанії",
-      "activeContactsLabel": "Активні контакти",
+      "mainRegionLabel": "Контакти та календар",
       "noActiveContacts": "Немає активних контактів",
       "noActiveContactsSub": "Очікуйте призначення контакту або прийміть дзвінок з черги",
       "tabBarLabel": "Активні контакти",

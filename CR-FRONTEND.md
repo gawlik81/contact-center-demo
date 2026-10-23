@@ -1632,3 +1632,61 @@ Zakres: niezacommitowane zmiany w `frontend/` (25 zmodyfikowanych + nowe: `agent
 
 ### Summary
 **Ocena: 3.5/5** - dobrze zbudowane a11y (menu/tabs, live region, cleanup listenerów, poprawne efekty sygnałowe) i spójne i18n w 4 językach, ale globalny skrót odbioru z nawigacją może po cichu zniszczyć niezapisaną pracę, a stan widoczności bannera i sprzątanie ASYNC alertów są niepoprawne reaktywnie.
+
+---
+
+## Review: FE-115 (kontrast tokenów) + FE-117 (landmarki i fokus) — 2026-10-23
+
+Zakres: niezacommitowane zmiany na `feature/epic-32-agent-ux-a11y` (styles.scss, DESIGN.md, design.json, agent-desktop.html, breadcrumb.service, agent.routes, 3x SCSS fokusu, 2 nowe specy). Kontrasty zweryfikowane skryptem `c.py` (zgodne z deklaracjami w DESIGN.md: on-fill 4,87/5,32/5,20 jasny, 6,32–7,75 ciemny; text-muted min 4,89 jasny / 5,71 ciemny; border-control min 3,72 jasny / 3,34 ciemny).
+
+### 🐛 Bugs / Critical Issues
+- **app-shell.component.html:14-16 / app-shell.component.scss:55-61 (FE-117)** Po `hideBreadcrumbs` komponent `cc-breadcrumbs` renderuje nic, ale wrapper `.shell__breadcrumbs` zostaje (`min-height: 34px`, padding, `border-bottom`, tło). Na `/agent/desktop` zostaje więc pusty pasek z linią — kryterium "breadcrumb nie pojawia się" jest spełnione tylko dla `<nav>`, wizualnie regresja. Fix: warunkowo renderować wrapper (`@if (breadcrumbService.breadcrumbs().length)` w shellu) albo przenieść styl wrappera do `.breadcrumbs`.
+- **app-shell.component.scss:14 (FE-115/117)** `.skip-link` ma `color: #ffffff` na `background: var(--accent)`. W ciemnym motywie accent to 70% L, więc biały tekst ma ok. 2,9:1 (poniżej 4,5:1) — dokładnie klasa błędu, którą naprawia FE-115. Fix: `color: var(--on-accent)`.
+
+### ⚠️ Security Concerns
+_None identified._
+
+### 🏗️ Architecture / Pattern Violations
+- **app-shell.component.html:2 (WP-2, FE-117)** Tekst skip-linku "Przejdz do tresci" jest na sztywno, bez diakrytyków i bez i18n (aplikacja ma 4 języki). Ticket dotyka tego elementu (cel `#main-content`, test skip-linku), więc to naruszenie WP-2 w zakresie FE-117. Fix: klucz transloco (np. `a11y.skipToContent`) w 4 plikach języków + "Przejdź do treści".
+- **styles.scss:81-83,139-141 (FE-115)** Tokeny `--on-danger` i `--on-success` są zdefiniowane, ale nie ma żadnego konsumenta (grep: 0 użyć). Teksty na `--danger`/`--success` nadal używają `--accent-fg` (np. incoming-call-banner.component.scss:15 tekst na `--danger`). Działa dziś tylko dlatego, że wszystkie trzy `on-*` mają tę samą wartość. Zmigrować te użycia albo nie dodawać martwych tokenów (FE-116 może to zrobić — odnotować).
+- **email-contact.component.scss:410-416, adhoc-email-modal.component.scss:358-364 (FE-117)** Zagnieżdżony `&:focus-visible` wstawiony w środek deklaracji; kolejne deklaracje (`font-size`, `color`, `overflow-y`…) po regule zagnieżdżonej wywołują ostrzeżenie `mixed-decls` w Dart Sass 1.97 (zmiana semantyki kolejności). Przenieść blok na koniec reguły.
+
+### 🔧 Improvements & Suggestions
+- **styles.scss:240-246 (FE-115)** `border-color: var(--border-control)` w globalnej regule `select, input, textarea` jest bezpieczna: brak Angular Material (nie ma w package.json), natywny checkbox/radio ignoruje `border-color` bez `appearance:none`, a komponenty z własnym `border: … var(--border-1/2)` (specyficzność klasy) i tak nadpisują regułę elementową. Skutek uboczny: reguła realnie działa tylko na niestylowane inputy; kryterium "obramowania kontrolek >= 3:1" nie jest więc spełnione dla większości kontrolek, które mają własny `--border-1/--border-2` (np. login, queue-assignment-panel, routing-rule-form). Dopisać w notatce zakres i/lub wskazać FE-116/FE-124 do migracji; sprawdzić w przeglądarce.
+- **styles.scss:32-34 (FE-115)** Warstwa legacy `--color-text-*`: `secondary`/`muted` przepisane na oklch (spójnie z tokenami), `--color-text-primary` zostaje hex `#1e293b` — OK kontrastowo, ale mieszanie hex/oklch w jednej warstwie; drobna niespójność z Token-Only Rule, do wygaszenia w FE-116.
+- **styles.scss (FE-115) warianty hover/soft** 205 użyć `color-mix(... var(--accent|danger|success) ...)` — to mieszanie w oklch z procentami (tło przezroczyste/black), więc ściemnienie accenta (58→55, danger 60→55, success 58→52) skaluje je proporcjonalnie, bez rozjazdu; `--accent-soft`/`-text` bez zmian (accent-text 45% vs accent 55% — hierarchia zachowana). Nie znalazłem miejsca, które by się psuło; zalecany przegląd wizualny hover/active (login.component.scss:239 `accent 85% black` jest teraz ciemniejszy niż wcześniej, nadal >= 4,5:1 z białym).
+- **incoming-call-banner.component.scss:58-62 (FE-115)** CTA: `background: var(--accent-fg)` + `color: var(--danger)` — w jasnym motywie 5,32:1, w ciemnym graphite-na-danger-tekst: poprawne, ale semantycznie `--on-danger`. Dotyczy tylko spójności nazw.
+- **breadcrumb.service.ts:40 (FE-117)** `hideBreadcrumbs` działa poprawnie także dla dzieci `desktop` (zwrot `[]` przed rekurencją i odrzucenie nagromadzonych elementów rodzica). Uwaga: Angular domyślnie dziedziczy `data` do dzieci tras bez komponentu/pathless — flaga na takim węźle ukryje breadcrumby całego poddrzewa; warto to wpisać w komentarz przy flagę. Dodać krótki komentarz/JSDoc oraz test dla trasy zagnieżdżonej (dziecko `desktop`).
+- **agent-desktop.component.html:259 (FE-117)** `<section aria-label>` jest poprawną landmarką (region). Etykieta `agent.desktop.activeContactsLabel` ("aktywne kontakty") nie opisuje widoku kalendarza, który renderuje się w tej samej sekcji (`calendarTabActive()`); rozważyć etykietę dynamiczną. Sprawdzić selektory SCSS `main` po usunięciu drugiego `<main>` (grep: brak selektorów `main` poza `__main`; `.desktop__main` zachowany — OK).
+- **Fokus ring (FE-117)** `2px solid var(--accent)`: jasny 4,87:1 na bg-surface, ciemny accent 70% L na ciemnych powierzchniach > 3:1 — spełnia kryterium. `outline-offset: -2px` poprawne przy `overflow-y: auto` (ring nie jest ucinany). `border-radius: 0` przy edytorach zbędnie nadpisuje globalne 4px; opcjonalnie usunąć.
+- **Testy (FE-117)** `breadcrumb.service.spec.ts` — sensowny (ścieżka z flagą i bez, asercja na etykietach). `app-shell.component.spec.ts` sprawdza tylko powłokę ze stubami: kryterium ticketu ("jeden `<main>` w powłoce + pulpicie") nie jest pokryte — brak renderu `AgentDesktopComponent` (ciężki, ale test `querySelectorAll('main')` na jego HTML/szablonie mógłby być prostą asercją). Test nie dowodzi, że `section` nie zostanie z powrotem zamieniony na `main` w pulpicie. Brak testów fokusu (SCSS — akceptowalne, ale kryterium wymaga sprawdzenia w przeglądarce — brak śladu w diffie).
+- **Spójność dokumentacji (FE-115)** Wartości w DESIGN.md, design.json i styles.scss są zgodne (text-2/3/muted, border-control, accent, success, danger, accent-fg). Drobiazg: `accent-fg` w DESIGN.md/design.json zmienione z `#ffffff` na `oklch(100% 0 0)` bez potrzeby (wartość identyczna); design.json nie zawiera nowych tokenów `on-accent/on-danger/on-success` (DESIGN.md je opisuje w prozie, ale nie w YAML `colors`) — dopisać dla pełnej synchronizacji (kryterium AC5). `border-2` przemianowany "Linia pomocnicza" — OK.
+- **WP-7 (impeccable)** W diffie brak śladu użycia skilla impeccable (poza tym, że DESIGN.md/design.json zostały zaktualizowane w jego formacie i dodana reguła "Contrast Floor Rule"). Nie da się tego zweryfikować z kodu; potwierdzić w notatce wykonania.
+- **Notatka wykonania / tabela przed-po (AC1)** Nie ma jej w przeglądanym diffie (TASKS-FRONTEND.md poza zakresem) — upewnić się, że jest dopisana.
+
+### ✅ Positive Observations
+- Wartości tokenów policzone skryptem OKLCH→WCAG i zgodne z deklaracjami; hierarchia text-1/2/3/muted zachowana (różnice w 42/47/51% L), dark-mode text-muted podniesiony z ~2,8 do >= 5,7:1.
+- `--accent-fg` zachowany jako alias `--on-accent` — brak zmiany dla ~55 istniejących użyć; poprawne w obu motywach (ciemny tekst na jaśniejszym akcencie).
+- Osobny `--border-control` zamiast zaostrzania `--border-1` — karty i tabele zachowują subtelność.
+- `hideBreadcrumbs` jako deklaratywna flaga trasy, minimalny diff, test obejmuje ścieżkę pozytywną i regresyjną.
+- Fokus z `outline-offset: -2px` poprawnie dobrany do kontenerów z `overflow`.
+
+### Wymagane (przed merge)
+1. app-shell.component.html:14 / .scss:55 — pusty pasek `.shell__breadcrumbs` na `/agent/desktop`.
+2. app-shell.component.scss:14 — skip-link `#fff` na accent w ciemnym motywie (~2,9:1) → `var(--on-accent)`.
+3. app-shell.component.html:2 — skip-link bez i18n/diakrytyków (WP-2).
+
+### Zalecane
+1. email-contact.component.scss:410, adhoc-email-modal.component.scss:358 — przenieść `&:focus-visible` na koniec reguły (mixed-decls).
+2. Zmigrować użycia na `--on-danger`/`--on-success` lub usunąć martwe tokeny; dopisać `on-*` do YAML w DESIGN.md/design.json.
+3. Zakres `--border-control` realnie ogranicza się do niestylowanych inputów — udokumentować w notatce / FE-116.
+4. Rozszerzyć test landmarków o pulpit agenta i test `hideBreadcrumbs` dla trasy zagnieżdżonej.
+5. Przegląd w przeglądarce (agent/supervisor/admin, oba motywy) — AC Lamp Rule i fokus — brak śladu w diffie.
+
+### Opcjonalne
+1. Dynamiczna etykieta `section` (kalendarz vs kontakty).
+2. Usunąć zbędne `border-radius: 0` w fokusach edytorów; `accent-fg` bez zmiany `#fff` → `oklch(100% 0 0)`.
+3. Komentarz przy `hideBreadcrumbs` o dziedziczeniu `data`.
+
+### Summary
+**Ocena: 4/5** — poprawne, zweryfikowane skryptem wartości tokenów i minimalne, trafne zmiany landmarków/fokusu, ale zostaje pusty pasek breadcrumbów, skip-link z białym tekstem na jasnym akcencie w ciemnym motywie i brak i18n skip-linku, a testy nie pokrywają pulpitu agenta.

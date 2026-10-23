@@ -373,6 +373,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   a {
     color: var(--accent-text);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
 }
 
 .editor-btn {

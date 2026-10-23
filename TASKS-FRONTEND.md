@@ -54,9 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 1 | 0 | 11 | 0 | 12 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 3 | 0 | 9 | 0 | 12 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **113** | **0** | **15** | **1** | **129** | |
+| **Razem** | | **115** | **0** | **13** | **1** | **129** | |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -69,9 +69,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 
 **EPIC-32 – UX i dostępność stanowiska agenta**
 
-- FE-115 – Kontrast tokenów: tekst wyciszony, tekst na akcencie/danger/success, obramowania kontrolek — ⬜ (Do zrobienia)
 - FE-116 – Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta — ⬜ (Do zrobienia)
-- FE-117 – Landmarki i fokus: jeden `<main>`, unikalny `#main-content`, widoczny fokus, breadcrumb — ⬜ (Do zrobienia)
 - FE-118 – Skala typografii: minimalny rozmiar tekstu i etykiety KPI — ⬜ (Do zrobienia)
 - FE-119 – Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę” — ⬜ (Do zrobienia)
 - FE-120 – Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta — ⬜ (Do zrobienia)
@@ -5893,7 +5891,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 1/12** (✅ 1 · 🔧 0 · ⬜ 11 · 🚫 0) — status epiku: 🔧 W toku
+**Ukończone 3/12** (✅ 3 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Nie przewidziano ticketów BE/DB; jedyne otwarte pytanie o backend — FE-122 (zob. ryzyka tego ticketu). Jeśli FE-122 wykaże potrzebę zmiany API, wtedy dopiero zakłada się osobny ticket BE.
@@ -5901,15 +5899,16 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119, FE-120 (`clarify` + `harden`); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
-> - **WP-1** `npm run lint` — 0 błędów; `npm run format:check` zgodne; `npm test` (Vitest) zielone (punkt odniesienia: 410 testów po FE-114).
+> - **WP-1** `npm run lint` — 0 błędów; `npm run format:check` zgodne; `npm test` (Vitest) zielone (punkt odniesienia: 410 testów po FE-114; 420 testów / 33 pliki po FE-115 + FE-117).
 > - **WP-2** komplet kluczy i18n w `frontend/public/i18n/{pl,en,de,uk}.json`, brak martwych kluczy (grep), poprawne diakrytyki, forma neutralna płciowo.
 > - **WP-3** kontrast WCAG 2.1 AA w OBU motywach (jasny i ciemny): tekst ≥ 4,5:1 (duży ≥ 3:1), elementy interfejsu i fokus ≥ 3:1; zero nowych literałów hex (The Token-Only Rule).
 > - **WP-4** obsługa z klawiatury (fokus widoczny, kolejność Tab, Esc, brak pułapek fokusu).
 > - **WP-5** weryfikacja w przeglądarce w local-demo po przebudowie obrazu frontendu (`docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --build frontend`), w obu motywach i przy 1366×768; wynik odnotowany w tickecie (nie „NIEZWERYFIKOWANE” bez powodu).
 > - **WP-6** code review `senior-code-reviewer` (wpis w `CR-FRONTEND.md`), `/verify` przed commitem; pamięć agenta commitowana razem ze zmianą.
+> - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 → FE-116`;  `FE-115 → FE-118`;  `FE-117` (równolegle z FE-115, bez zależności);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121 → FE-122`;  `FE-121, FE-122 → FE-123`;  `FE-116, FE-118, FE-123 → FE-124`;  `FE-114…FE-124 → FE-125`.
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116` (odblokowany);  `FE-115 ✅ → FE-118` (odblokowany);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121 → FE-122`;  `FE-121, FE-122 → FE-123`;  `FE-116, FE-118, FE-123 → FE-124`;  `FE-114…FE-124 → FE-125`.
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -5950,9 +5949,9 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Priorytet:** Must Have
 **Złożoność:** S/M
 **Zależy od:** brak
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-23, tura 48; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` 2026-10-23, 4/5; `/verify` OK). **Niespełnione kryteria przeniesione do FE-116** (obramowania kontrolek z własnym borderem w komponentach — zob. kryteria poniżej).
 **Czeka na BE:** brak
-**Blokuje:** FE-116, FE-118, FE-124
+**Blokuje:** FE-116 (odblokowany ✅), FE-118 (odblokowany ✅), FE-124
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `ui-premium-designer` (dobór wartości OKLCH) + `angular-frontend-expert` (wdrożenie, testy)
 
@@ -5966,22 +5965,23 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - Aktualizacja `DESIGN.md` (sekcje kolorów i komponentów) i `.impeccable/design.json` — nowe wartości i tokeny.
 
 **Kryteria akceptacji:**
-- [ ] Tabela pomiarów przed/po w notatce wykonania; wszystkie pary tekst/tło z zakresu ≥ 4,5:1 (duży tekst ≥ 3:1) w jasnym i ciemnym motywie
-- [ ] Tekst na wypełnieniach accent/danger/success w jasnym motywie ≥ 4,5:1 (przyciski primary/danger, plakietki, toasty)
-- [ ] Obramowania kontrolek ≥ 3:1 (WCAG 1.4.11) w obu motywach; karty/tabele zachowują subtelne `--border-1`
-- [ ] Brak regresji wizualnej Lamp Rule (akcent wciąż tylko dla akcji/aktywności/fokusu) — przegląd w przeglądarce, powierzchnie agent, supervisor, admin
-- [ ] `DESIGN.md` i `.impeccable/design.json` zsynchronizowane z nowymi wartościami
-- [ ] WP-1…WP-6
+- [x] Tabela pomiarów w notatce wykonania; wszystkie pary tekst/tło z zakresu ≥ 4,5:1 (duży tekst ≥ 3:1) w jasnym i ciemnym motywie *(wartości „po” w notatce; „przed” = wartości z audytu 2026-10-22 — osobna tabela „przed” nie została dołączona)*
+- [x] Tekst na wypełnieniach accent/danger/success w jasnym motywie ≥ 4,5:1 (4,87 / 5,32 / 5,20) — dotyczy tokenów `--on-*`; użycie `--on-danger`/`--on-success` wdrożone na powierzchni agenta i shella, **migracja pozostałych miejsc (supervisor/admin) → FE-116 (b)**
+- [ ] Obramowania kontrolek ≥ 3:1 (WCAG 1.4.11) w obu motywach; karty/tabele zachowują subtelne `--border-1` — **spełnione tylko dla kontrolek bez własnej ramki** (globalna reguła `select/input/textarea` → `--border-control`, ≥ 3,34:1); **kontrolki komponentów z własnym `border: var(--border-1/2)` → przeniesione do FE-116 (a)**
+- [ ] Brak regresji wizualnej Lamp Rule — przegląd w przeglądarce, powierzchnie agent, supervisor, admin — **niezweryfikowane w przeglądarce dla FE-115** (w turze 48 odnotowano przeglądarkę tylko dla FE-117 / powierzchni agenta); `impeccable detect` = 0 znalezisk
+- [x] `DESIGN.md` i `.impeccable/design.json` zsynchronizowane z nowymi wartościami
+- [x] WP-1, WP-3, WP-6, WP-7 *(WP-2 i WP-4 — nie dotyczą: brak zmian i18n i interakcji)*; WP-5 — zob. kryterium przeglądu wyżej (nieodnotowane)
 
 **Ryzyka:** (R1) zmiana tokenów globalnych dotyka wszystkich ról (supervisor, admin), nie tylko agenta — przegląd wizualny wszystkich powierzchni, nie tylko `/agent`; (R2) 79 użyć `--text-muted` — część (placeholdery, tekst wyłączony) jest wyłączona z wymogu 4.5:1 (WCAG: elementy nieaktywne) — nie zaostrzać ponad potrzebę; (R3) zbyt ciemny muted spłaszcza hierarchię — rozróżniać wagą/rozmiarem (One Family Rule).
 **Nie wchodzi w zakres:** zamiana literałów hex na tokeny (FE-116), skala typografii (FE-118).
+**Notatka wykonania (2026-10-23, tura 48):** tokeny w `frontend/src/styles.scss` — jasny: `--text-2` 42%, `--text-3` 47%, `--text-muted` 51%, `--accent` 55%, `--danger` 55%, `--success` 52%; ciemny: `--text-2` 80%, `--text-3` 74%, `--text-muted` 68%. Nowe `--on-accent` / `--on-danger` / `--on-success` (jasny: biały; ciemny: `oklch(15% .02 250)`), `--accent-fg` = alias `--on-accent`. Nowy `--border-control` (jasny 60%, ciemny 54%) w globalnej regule `select/input/textarea`. Legacy `--color-text-secondary` / `--color-text-muted` zmapowane na oklch. Kontrasty (skrypt OKLCH→WCAG): `--text-muted` min 4,89 (jasny) / 5,71 (ciemny); `--text-3` 5,80 / 7,13; tekst na accent/danger/success w jasnym 4,87 / 5,32 / 5,20; `--border-control` ≥ 3,34 na wszystkich powierzchniach. `DESIGN.md` (+ reguła „The Contrast Floor Rule”, tokeny `on-*` i `border-control` we frontmatter) i `.impeccable/design.json` zsynchronizowane. `--on-danger`/`--on-success` użyte na powierzchni agenta i shella: `incoming-call-banner`, `softphone`, `agent-callbacks-page`, `add-break-modal`, `confirm-dialog`, `sidenav`, `agent-customers-tab`. WP-7: `impeccable` polish (context, `polish.md`, `craft-floor.md`), `impeccable detect` = 0 znalezisk. **Code review:** `CR-FRONTEND.md`, sekcja FE-115 + FE-117 (2026-10-23), 4/5; wszystkie punkty wymagane i zalecane poprawione. **`/verify`:** lint 0 błędów (10 starych ostrzeżeń), `format:check` OK, FE 33 pliki / 420 testów, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-115 ✅ odblokowuje FE-116 i FE-118 (oraz pośrednio FE-124). **Przeniesione do FE-116:** ramki kontrolek komponentów, migracja `--on-danger`/`--on-success` w supervisor/admin, legacy `--color-text-primary` (hex), listboxy bez `:focus-visible`, jasna pigułka „Available” w ciemnym motywie (zob. FE-116, „Przeniesione z FE-115/FE-117”).
 
 ### FE-116 – Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta
 
 **Typ:** Frontend implementation (design tokens / dark theme)
 **Priorytet:** Must Have
-**Złożoność:** M
-**Zależy od:** FE-115
+**Złożoność:** M/L (tura 48: korekta z M — zakres rozszerzony o punkty przeniesione z FE-115/FE-117, w tym ok. 20 miejsc supervisor/admin; jeśli w trakcie przerośnie 3 dni — rozbić: powierzchnia agenta vs migracja supervisor/admin)
+**Zależy od:** FE-115 ✅ (ukończony 2026-10-23, tura 48 — FE-116 odblokowany; zalecane też: FE-117 ✅)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** FE-124
@@ -5995,7 +5995,14 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - `agent-status.model.ts` + komponenty statusu: kolory statusów jako tokeny (np. `--status-available/-break/-busy/-after-contact/-offline` + wersje `-soft`), tła pigułek poprawne w obu motywach; „Po kontakcie” NIE w kolorze akcentu (osobny, neutralny/ostrzegawczy token — decyzja z `ui-premium-designer`, zgodna z DESIGN.md).
 - `toast-container`, `agent-calendar`, skeleton w `disposition-panel`: literały hex → tokeny.
 - Nagłówek modala „Dodaj przerwę” bez zielonego tła (Lamp Rule: nagłówki nie są dekoracją koloru); SVG banera `fill="white"` → `currentColor`/token.
-- Zakres ograniczony do powierzchni agenta + wspólnych komponentów jej używanych (`toast-container`); pozostałe ~28 plików SCSS z hex — poza zakresem (dług wygaszany osobno).
+- Zakres ograniczony do powierzchni agenta + wspólnych komponentów jej używanych (`toast-container`); pozostałe ~28 plików SCSS z hex — poza zakresem (dług wygaszany osobno) **z wyjątkiem punktów poniżej, przeniesionych z FE-115/FE-117 (tura 48, 2026-10-23)**.
+
+**Przeniesione z FE-115/FE-117 (tura 48) — UWAGA: punkt (b) rozszerza zakres FE-116 poza powierzchnię agenta o supervisor/admin:**
+- (a) Ramki kontrolek w komponentach z własnym `border: var(--border-1/2/strong)` → `var(--border-control)` (kryterium „obramowania kontrolek ≥ 3:1” z FE-115 spełnione dotąd tylko dla kontrolek bez własnej ramki); weryfikacja ≥ 3:1 w obu motywach.
+- (b) Migracja tekstu `--accent-fg` / `#fff` na `var(--danger)` / `var(--success)` → `--on-danger` / `--on-success` (FE-115 wdrożył to tylko na powierzchni agenta i shella). Miejsca (plik:linia): `admin-user-list:656`, `queue-delete-modal:119`, `supervisor-callbacks-page:262`, `campaign-import:84`, `agent-groups-page:167`, `twilio-settings:212`, `phone-numbers:483`, `email-templates:98`, `campaign-archive-setting:178`, `customer-detail:637`, `purge-confirm-modal:187`, `gdpr-anonymize-modal:281`, `ai-config:300`, `ivr-editor:501,1013`, `ivr-list:340,350`, `customer-import:73`, `twilio-config:322`, `user-delete-modal:115`, `agent-desktop.component.scss:9` (`#fff` na `--warning`, kontrast niesprawdzony — zmierzyć i dobrać `--on-warning` lub inny tekst). Numery linii wg stanu z tury 48 — mogą się przesunąć.
+- (c) Legacy `--color-text-primary` nadal hex → zmapować na oklch (jak `--color-text-secondary/muted` w FE-115).
+- (d) Listbox w `admin-user-form`, `queue-form`, `user-form` bez `:focus-visible` na opcjach (wzór: `.autocomplete-item`, `.custom-select__option` z FE-117).
+- (e) Jasna pigułka statusu „Available” w ciemnym motywie (potwierdzone w przeglądarce, 2026-10-23) — wchodzi w istniejący punkt o pigułkach statusów.
 
 **Kryteria akceptacji:**
 - [ ] `grep` literałów hex (`#[0-9a-fA-F]{3,8}`) w 5 wymienionych miejscach + nagłówku „Dodaj przerwę” zwraca 0 trafień (poza wyjątkami uzasadnionymi w komentarzu)
@@ -6003,6 +6010,9 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - [ ] „Po kontakcie” nie używa koloru akcentu; Lamp Rule zachowany (akcent tylko akcje/aktywność/fokus)
 - [ ] Skeleton dyspozycji, toasty, kalendarz i social-contact bez jasnych „plam” w ciemnym motywie
 - [ ] Testy modelu statusów zaktualizowane (mapowanie status → token)
+- [ ] (przeniesione) Kontrolki z własną ramką używają `--border-control` (≥ 3:1 w obu motywach) — brak `border: … var(--border-1/2/strong)` na input/select/textarea/checkbox/przyciskach obramowanych (grep)
+- [ ] (przeniesione) Lista (b) zmigrowana na `--on-danger`/`--on-success` (grep `--accent-fg|#fff` na `var(--danger|--success)` = 0); kontrast tekstu na `--warning` w `agent-desktop.component.scss:9` zmierzony i ≥ 4,5:1; przegląd w przeglądarce stron supervisor/admin
+- [ ] (przeniesione) `--color-text-primary` w oklch; listboxy z (d) mają widoczny `:focus-visible`; pigułka „Available” czytelna w ciemnym motywie
 - [ ] WP-1…WP-6
 
 **Ryzyka:** (R1) zależność od FE-115 (nowe tokeny kontrastu) — nie zaczynać przed nim; (R2) kolor statusu bywa jedynym nośnikiem informacji — zachować ikonę/etykietę tekstową (WCAG 1.4.1); (R3) `toast-container` jest współdzielony — sprawdzić na stronach supervisor/admin.
@@ -6014,9 +6024,9 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** brak (może iść równolegle z FE-115)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-23, tura 48; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` 2026-10-23, 4/5; `/verify` OK; WP-5 zweryfikowane w przeglądarce)
 **Czeka na BE:** brak
-**Blokuje:** FE-125
+**Blokuje:** FE-125 (FE-116 i FE-118 — zalecenie, nie twarda zależność; odblokowane)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert`
 
@@ -6029,22 +6039,23 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - Test a11y (Vitest): jedna landmarka `main` w renderze powłoki + pulpitu; unikalność id.
 
 **Kryteria akceptacji:**
-- [ ] W DOM strony agenta dokładnie jeden `<main>` i jedno `#main-content` (test + sprawdzenie w przeglądarce)
-- [ ] Fokus klawiaturą w edytorze e-mail i na opcjach listbox jest widoczny w obu motywach (≥ 3:1)
-- [ ] Breadcrumb nie pojawia się na stronie jednopoziomowej; na stronach wielopoziomowych bez zmian
-- [ ] Link „Przejdź do treści” przenosi fokus do `main`
-- [ ] Brak regresji skrótów i fokusu z FE-114 (testy `agent-hotkeys`, `dialog-escape` zielone)
-- [ ] WP-1…WP-6
+- [x] W DOM strony agenta dokładnie jeden `<main>` i jedno `#main-content` (testy + sprawdzenie w przeglądarce 2026-10-23)
+- [x] Fokus klawiaturą w edytorze e-mail i na opcjach listbox jest widoczny *(`:focus-visible` w `email-contact`, `adhoc-email-modal`, `.autocomplete-item`, `.custom-select__option`; ring zweryfikowany w przeglądarce na opcji listy typu przerwy, motyw jasny i ciemny; edytor e-mail — bez osobnej adnotacji o sprawdzeniu w przeglądarce; listboxy w `admin-user-form`/`queue-form`/`user-form` bez fokusu → przeniesione do FE-116 (d))*
+- [x] Breadcrumb nie pojawia się na stronie jednopoziomowej (`/agent/desktop`); na stronach wielopoziomowych bez zmian (`/agent/customers` — breadcrumb jest)
+- [x] Link „Przejdź do treści” przenosi fokus do `main` (i zostaje na trasie)
+- [x] Brak regresji skrótów i fokusu z FE-114 (testy `agent-hotkeys`, `dialog-escape` zielone; FE 33 pliki / 420 testów)
+- [x] WP-1…WP-7
 
 **Ryzyka:** (R1) `<main>` w shellu jest współdzielony przez wszystkie role — sprawdzić strony supervisor/admin; (R2) usunięcie drugiego `<main>` może zmienić style (selektory `main`) — przegląd SCSS.
 **Nie wchodzi w zakres:** przebudowa nawigacji, układ kolumn (FE-123), kolory fokusu poza tokenem istniejącym.
+**Notatka wykonania (2026-10-23, tura 48):** wewnętrzny `<main id="main-content">` pulpitu → `<section aria-label>` (nowy klucz `agent.desktop.mainRegionLabel` „Kontakty i kalendarz” w 4 językach; usunięty martwy `agent.desktop.activeContactsLabel`). Breadcrumb ukryty flagą route data `hideBreadcrumbs` (`agent.routes.ts`, trasa desktop; ukrywa całe poddrzewo; `BreadcrumbService`), wrapper `.shell__breadcrumbs` renderowany warunkowo (**decyzja z pytania krytyki: ukryty na pulpicie agenta**). `:focus-visible` w edytorze e-mail (`email-contact`, `adhoc-email-modal`) i opcjach listbox (`.autocomplete-item`, `.custom-select__option`). Skip-link: i18n `nav.skipToContent` (pl „Przejdź do treści”), kolor `var(--on-accent)`; **naprawiony błąd istniejący wcześniej** — `href="#main-content"` przy `<base href="/">` nawigował do `/#main-content` (pełne przeładowanie, utrata JWT, wylogowanie); teraz `(click)` z `preventDefault` + fokus na `main`. Testy: `app-shell.component.spec.ts`, `breadcrumb.service.spec.ts` (w tym trasa zagnieżdżona), `agent-desktop.landmarks.spec.ts` (prawdziwy szablon). WP-7: `impeccable` harden. **WP-5 (przeglądarka, 2026-10-23, dev server + backend local-demo):** jeden `main`, brak pustego paska breadcrumb na `/agent/desktop`, breadcrumb na `/agent/customers`, skip-link zostaje na trasie i fokusuje `main`, ring fokusu na opcji listy typu przerwy, motyw jasny i ciemny. **Code review:** `CR-FRONTEND.md`, sekcja FE-115 + FE-117 (2026-10-23), 4/5; wszystkie punkty wymagane i zalecane poprawione. **`/verify`:** lint 0 błędów (10 starych ostrzeżeń), `format:check` OK, FE 33 pliki / 420 testów, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-117 ✅ — bez twardych zależności wychodzących poza FE-125; razem z FE-115 ✅ odblokowuje fazę 1 (FE-116, FE-118). **Przeniesione:** listboxy z (d) → FE-116; znalezione przy okazji punkty do FE-119/FE-120/FE-124 (zob. te tickety).
 
 ### FE-118 – Skala typografii: minimalny rozmiar tekstu i etykiety KPI
 
 **Typ:** Frontend implementation (typografia)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-115
+**Zależy od:** FE-115 ✅ (ukończony 2026-10-23, tura 48 — FE-118 odblokowany; FE-117 ✅ — zalecane, spełnione)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** FE-124
@@ -6089,6 +6100,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - Teksty na sztywno po polsku (m.in. `disposition-panel.component.ts`: `'Używam dyspozycji systemowych (błąd pobierania)'`, teksty bez diakrytyków, aria-label) → klucze i18n w 4 językach; forma neutralna płciowo (bez rodzaju męskiego).
 - Usunięcie martwego `agent-dashboard.component.ts` (po sprawdzeniu braku referencji w routingu i testach).
 - Jeden przycisk „Dodaj przerwę” (usunąć duplikat; zachować ten wygodniejszy z klawiatury — decyzja w notatce).
+- *(tura 48, dopisane)* `add-break-modal`: etykieta „(opcjonalne)” na sztywno po polsku (widoczna w interfejsie EN) → klucz i18n w pl/en/de/uk.
 
 **Kryteria akceptacji:**
 - [ ] Brak fałszywych KPI „cel 90%”/„z 8:00” (lub zasilanie z realnych danych po decyzji D1)
@@ -6097,6 +6109,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - [ ] `agent-dashboard.component.ts` usunięty, `npm run build` i testy zielone
 - [ ] Jeden przycisk „Dodaj przerwę”; skrót/fokus nadal działają
 - [ ] Placeholder CHAT nie sugeruje działającego kanału
+- [ ] (dopisane w turze 48) Etykieta „(opcjonalne)” w `add-break-modal` przez i18n (4 języki) — brak tekstu na sztywno po polsku (widoczny w EN)
 - [ ] WP-1…WP-6
 
 **Ryzyka:** (R1) decyzja D1 otwarta (KPI) — wariant (B) wymaga backendu; (R2) tłumaczenia de/uk bez przeglądu native speakera (dług znany z FE-113); (R3) usunięcie „martwego” komponentu — zweryfikować brak dynamicznego użycia (lazy route, `loadComponent`).
@@ -6122,6 +6135,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - Formularz „Dodaj przerwę”: wartości domyślne (typ/powód/czas — ustalić z `PRODUCT.md`: dostępny, przerwa, szkolenie), kolejność pól dla klawiatury; licznik trwania przerwy w statusie agenta.
 - Jeden toast po dyspozycji (sukces) — usunięcie zdublowanego powiadomienia.
 - Karta klienta: przycisk „Spróbuj ponownie” przy błędzie ładowania (z `aria-live`).
+- *(tura 48, dopisane — formularz „Dodaj przerwę”, `add-break-modal`)* custom-select typu przerwy nie obsługuje strzałek (tylko Tab, opcje `tabindex=0`) i nie ma `aria-selected`; Esc przy otwartej liście zamyka cały dialog zamiast samej listy → wzorzec listbox WAI-ARIA (roving tabindex lub `aria-activedescendant`, `aria-selected`, Esc zamyka listę i zatrzymuje propagację do dialogu; spójnie z Esc z FE-114).
 - Usunięcie martwych kluczy i18n (jeśli nadal nieużywane), weryfikacja pozostałych punktów review.
 
 **Kryteria akceptacji:**
@@ -6131,6 +6145,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - [ ] Po zapisaniu dyspozycji pojawia się dokładnie jeden toast (test)
 - [ ] Błąd ładowania karty klienta oferuje ponowienie i po sukcesie pokazuje dane (test)
 - [ ] Brak martwych kluczy i18n (grep)
+- [ ] (dopisane w turze 48) Custom-select typu przerwy: strzałki góra/dół (+ Home/End) przesuwają wybór; opcje `role="option"` z `aria-selected`; Esc przy otwartej liście zamyka tylko listę, nie dialog (testy Vitest)
 - [ ] WP-1…WP-6
 
 **Ryzyka:** (R1) ochrona szkicu w manual-callback to rozwiązanie tymczasowe — FE-121 wprowadzi magazyn szkiców per kontakt; zrobić minimalnie (potwierdzenie przy zamknięciu), bez budowy magazynu; (R2) licznik przerwy wymaga źródła czasu startu statusu (sprawdzić `AgentStatusService` — jeśli backend go nie zwraca, licznik od momentu zmiany po stronie klienta, z adnotacją).
@@ -6250,6 +6265,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - Redukcja `agent-desktop.component.scss` do budżetu 12 kB: podział na komponenty/partiale, usunięcie martwych reguł po FE-121/FE-122/FE-123, wspólne mixiny.
 - Usunięcie 123 fallbacków hex (tokeny zdefiniowane globalnie w `styles.scss`, więc fallbacki zbędne).
 - `will-change` tylko na czas animacji; animacje `width`/`margin` → `transform`/`opacity`; `prefers-reduced-motion` respektowane.
+- *(tura 48, dopisane)* `adhoc-email-modal.component.scss`: linie ~243 i ~307 `rgba(255,255,255,0.7)` → token; `outline: none` → `:focus-visible` z tokenem fokusu.
 - Pomiar przed/po (rozmiar, ostrzeżenia budżetu w `npm run build`).
 
 **Kryteria akceptacji:**
@@ -6257,6 +6273,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 - [ ] `grep -c "var(--[a-z0-9-]*, #" agent-desktop.component.scss` = 0
 - [ ] Brak `will-change` w stanie spoczynku; brak animacji `width`/`margin` na powierzchni agenta; `prefers-reduced-motion` wyłącza ruch
 - [ ] Wizualnie bez regresji w obu motywach (przegląd w przeglądarce)
+- [ ] (dopisane w turze 48) `adhoc-email-modal`: brak `rgba(255,255,255,0.7)` (linie ~243 i ~307) i brak `outline: none` bez zamiennika `:focus-visible` (tokeny)
 - [ ] WP-1…WP-6
 
 **Ryzyka:** (R1) refaktor stylów po przebudowie pulpitu — nie zaczynać przed FE-123; (R2) usunięcie fallbacków ujawni brakujące tokeny — sprawdzić w obu motywach; (R3) rozbieżność pomiarów (18,75 kB vs ~24 kB) — ustalić metodę pomiaru w pierwszym kroku.

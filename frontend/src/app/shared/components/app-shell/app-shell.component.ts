@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
+import { TranslocoModule } from '@jsverse/transloco';
+import { BreadcrumbService } from '../../../core/services/breadcrumb.service';
 import { TopNavbarComponent } from '../top-navbar/top-navbar.component';
 import { SidenavComponent } from '../sidenav/sidenav.component';
 import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
@@ -8,7 +10,13 @@ import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
 @Component({
   selector: 'cc-app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, TopNavbarComponent, SidenavComponent, BreadcrumbsComponent],
+  imports: [
+    RouterOutlet,
+    TranslocoModule,
+    TopNavbarComponent,
+    SidenavComponent,
+    BreadcrumbsComponent,
+  ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
   host: {
@@ -18,6 +26,7 @@ import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
 })
 export class AppShellComponent implements OnInit {
   private readonly document = inject(DOCUMENT);
+  protected readonly breadcrumbService = inject(BreadcrumbService);
   protected readonly sidenavOpen = signal(false);
 
   /** Whether the sidenav is in collapsed (icon-only) mode */
@@ -52,6 +61,16 @@ export class AppShellComponent implements OnInit {
     if (this.windowWidth < this.DESKTOP_BREAKPOINT) {
       this.sidenavOpen.set(false);
     }
+  }
+
+  /**
+   * Skip link: with `<base href="/">` a plain `#main-content` anchor resolves to the app root
+   * and triggers a full page reload (losing the in-memory JWT). Keep the href for link
+   * semantics, but move focus to <main> ourselves and stay on the current route.
+   */
+  onSkipToContent(event: Event): void {
+    event.preventDefault();
+    this.document.getElementById('main-content')?.focus();
   }
 
   /** Keyboard: close drawer on Escape */

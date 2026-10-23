@@ -119,8 +119,8 @@
       "text-2": {
         "role": "neutral",
         "displayName": "Grafit 2",
-        "canonical": "oklch(45% 0.012 250)",
-        "darkValue": "oklch(74% 0.008 250)",
+        "canonical": "oklch(42% 0.012 250)",
+        "darkValue": "oklch(80% 0.008 250)",
         "tonalRamp": [
           "oklch(15.0% 0.012 250)",
           "oklch(26.4% 0.012 250)",
@@ -135,8 +135,8 @@
       "text-3": {
         "role": "neutral",
         "displayName": "Grafit 3",
-        "canonical": "oklch(58% 0.012 250)",
-        "darkValue": "oklch(62% 0.008 250)",
+        "canonical": "oklch(47% 0.012 250)",
+        "darkValue": "oklch(74% 0.008 250)",
         "tonalRamp": [
           "oklch(15.0% 0.012 250)",
           "oklch(26.4% 0.012 250)",
@@ -151,8 +151,8 @@
       "text-muted": {
         "role": "neutral",
         "displayName": "Grafit wyciszony",
-        "canonical": "oklch(70% 0.008 250)",
-        "darkValue": "oklch(50% 0.008 250)",
+        "canonical": "oklch(51% 0.012 250)",
+        "darkValue": "oklch(68% 0.008 250)",
         "tonalRamp": [
           "oklch(15.0% 0.008 250)",
           "oklch(26.4% 0.008 250)",
@@ -182,7 +182,7 @@
       },
       "border-2": {
         "role": "neutral",
-        "displayName": "Linia kontrolki",
+        "displayName": "Linia pomocnicza",
         "canonical": "oklch(87% 0.005 80)",
         "darkValue": "oklch(33% 0.012 250)",
         "tonalRamp": [
@@ -194,6 +194,22 @@
           "oklch(72.1% 0.005 80)",
           "oklch(83.6% 0.005 80)",
           "oklch(95.0% 0.005 80)"
+        ]
+      },
+      "border-control": {
+        "role": "neutral",
+        "displayName": "Obrys kontrolki (min. 3:1)",
+        "canonical": "oklch(60% 0.008 250)",
+        "darkValue": "oklch(54% 0.012 250)",
+        "tonalRamp": [
+          "oklch(15.0% 0.008 250)",
+          "oklch(26.4% 0.008 250)",
+          "oklch(37.9% 0.008 250)",
+          "oklch(49.3% 0.008 250)",
+          "oklch(60.7% 0.008 250)",
+          "oklch(72.1% 0.008 250)",
+          "oklch(83.6% 0.008 250)",
+          "oklch(95.0% 0.008 250)"
         ]
       },
       "border-strong": {
@@ -215,7 +231,7 @@
       "accent": {
         "role": "primary",
         "displayName": "Work-Lamp Blue / Lampa robocza",
-        "canonical": "oklch(58% 0.13 255)",
+        "canonical": "oklch(55% 0.13 255)",
         "darkValue": "oklch(70% 0.13 255)",
         "tonalRamp": [
           "oklch(15.0% 0.13 255)",
@@ -260,17 +276,38 @@
           "oklch(95.0% 0.14 255)"
         ]
       },
+      "on-accent": {
+        "role": "primary",
+        "displayName": "Tekst na pełnym akcencie",
+        "canonical": "oklch(100% 0 0)",
+        "darkValue": "oklch(15% 0.02 250)",
+        "tonalRamp": []
+      },
       "accent-fg": {
         "role": "primary",
         "displayName": "Tekst na Lampie roboczej",
-        "canonical": "#ffffff",
+        "canonical": "oklch(100% 0 0)",
+        "darkValue": "oklch(15% 0.02 250)",
+        "tonalRamp": []
+      },
+      "on-danger": {
+        "role": "state",
+        "displayName": "Tekst na pełnym danger",
+        "canonical": "oklch(100% 0 0)",
+        "darkValue": "oklch(15% 0.02 250)",
+        "tonalRamp": []
+      },
+      "on-success": {
+        "role": "state",
+        "displayName": "Tekst na pełnym success",
+        "canonical": "oklch(100% 0 0)",
         "darkValue": "oklch(15% 0.02 250)",
         "tonalRamp": []
       },
       "success": {
         "role": "state",
         "displayName": "Sukces",
-        "canonical": "oklch(58% 0.12 155)",
+        "canonical": "oklch(52% 0.12 155)",
         "darkValue": "oklch(70% 0.12 155)",
         "tonalRamp": [
           "oklch(15.0% 0.12 155)",
@@ -366,7 +403,7 @@
       "danger": {
         "role": "state",
         "displayName": "Błąd",
-        "canonical": "oklch(60% 0.18 25)",
+        "canonical": "oklch(55% 0.18 25)",
         "darkValue": "oklch(68% 0.17 25)",
         "tonalRamp": [
           "oklch(15.0% 0.18 25)",
@@ -652,7 +689,7 @@
       "refersTo": "input",
       "description": "Pole formularza z obrysem 1.5 px i poświatą fokusu.",
       "html": "<label class=\"ds-field\"><span class=\"ds-field__label\">E-mail</span><input class=\"ds-input\" placeholder=\"jan@firma.pl\"></label>",
-      "css": ".ds-field{display:flex;flex-direction:column;gap:.375rem;font-family:Geist,system-ui,sans-serif}.ds-field__label{font-size:.875rem;font-weight:500;color:var(--text-1)}.ds-input{padding:.5rem .75rem;border:1.5px solid var(--border-1);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-1);font:400 .9375rem/1.3 Geist,system-ui,sans-serif;outline:none;transition:border-color .2s ease,box-shadow .2s ease}.ds-input::placeholder{color:var(--text-muted)}.ds-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}"
+      "css": ".ds-field{display:flex;flex-direction:column;gap:.375rem;font-family:Geist,system-ui,sans-serif}.ds-field__label{font-size:.875rem;font-weight:500;color:var(--text-1)}.ds-input{padding:.5rem .75rem;border:1.5px solid var(--border-control);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-1);font:400 .9375rem/1.3 Geist,system-ui,sans-serif;outline:none;transition:border-color .2s ease,box-shadow .2s ease}.ds-input::placeholder{color:var(--text-muted)}.ds-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}"
     },
     {
       "name": "Sidenav",

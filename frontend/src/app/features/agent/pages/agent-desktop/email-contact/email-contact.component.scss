@@ -426,6 +426,11 @@
     a {
       color: var(--accent-text);
     }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
   }
 
   // ===== Attachment upload area =====
@@ -611,6 +616,12 @@
   &:focus {
     background: var(--bg-elevated);
     outline: none;
+  }
+
+  &:focus-visible {
+    background: var(--bg-elevated);
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   &[aria-selected='true'] {

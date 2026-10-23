@@ -85,7 +85,7 @@
 
   &-danger {
     background: var(--danger);
-    color: var(--accent-fg);
+    color: var(--on-danger);
 
     &:hover:not(:disabled) {
       opacity: 0.88;

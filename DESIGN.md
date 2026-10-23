@@ -9,23 +9,27 @@ colors:
   bg-subtle: "oklch(94.5% 0.005 80)"
   bg-input: "oklch(98% 0.004 80)"
   text-1: "oklch(24% 0.012 250)"
-  text-2: "oklch(45% 0.012 250)"
-  text-3: "oklch(58% 0.012 250)"
-  text-muted: "oklch(70% 0.008 250)"
+  text-2: "oklch(42% 0.012 250)"
+  text-3: "oklch(47% 0.012 250)"
+  text-muted: "oklch(51% 0.012 250)"
   border-1: "oklch(91% 0.005 80)"
   border-2: "oklch(87% 0.005 80)"
   border-strong: "oklch(80% 0.008 80)"
-  accent: "oklch(58% 0.13 255)"
+  border-control: "oklch(60% 0.008 250)"
+  accent: "oklch(55% 0.13 255)"
   accent-soft: "oklch(94% 0.025 255)"
   accent-text: "oklch(45% 0.14 255)"
-  accent-fg: "#ffffff"
-  success: "oklch(58% 0.12 155)"
+  on-accent: "oklch(100% 0 0)"
+  accent-fg: "oklch(100% 0 0)"
+  on-danger: "oklch(100% 0 0)"
+  on-success: "oklch(100% 0 0)"
+  success: "oklch(52% 0.12 155)"
   success-soft: "oklch(94% 0.03 155)"
   success-text: "oklch(42% 0.12 155)"
   warning: "oklch(70% 0.13 70)"
   warning-soft: "oklch(95% 0.04 75)"
   warning-text: "oklch(50% 0.12 60)"
-  danger: "oklch(60% 0.18 25)"
+  danger: "oklch(55% 0.18 25)"
   danger-soft: "oklch(95% 0.025 25)"
   danger-text: "oklch(48% 0.18 25)"
   violet: "oklch(58% 0.14 290)"
@@ -151,7 +155,7 @@ System ma pełny motyw ciemny (`[data-theme='dark']`) o tych samych nazwach toke
 Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem stonowanych kolorów stanu w trójkach. Źródłem prawdy są tokeny OKLCH w `frontend/src/styles.scss`.
 
 ### Primary
-- **Work-Lamp Blue / Lampa robocza** (`accent`): główny przycisk, aktywna pozycja nawigacji (ikona), obrys fokusu, pierścień pulsujący softphone'u, kanał telefoniczny. **Lampa robocza miękka** (`accent-soft`) to tło aktywnej pozycji nawigacji i pigułek telefon/outbound. **Lampa robocza – tekst** (`accent-text`) to tekst na miękkim tle i wartości KPI połączeń. Na pełnym akcencie tekst ma kolor `accent-fg`.
+- **Work-Lamp Blue / Lampa robocza** (`accent`): główny przycisk, aktywna pozycja nawigacji (ikona), obrys fokusu, pierścień pulsujący softphone'u, kanał telefoniczny. **Lampa robocza miękka** (`accent-soft`) to tło aktywnej pozycji nawigacji i pigułek telefon/outbound. **Lampa robocza – tekst** (`accent-text`) to tekst na miękkim tle i wartości KPI połączeń. Na pełnym akcencie tekst ma kolor `on-accent` (`accent-fg` zostaje aliasem); analogicznie `on-danger` i `on-success`. W jasnym motywie to biel, a wypełnienia `accent`, `danger` i `success` są przyciemnione tak, by dawały co najmniej 4,5:1 (4,87 / 5,32 / 5,20); w ciemnym motywie ciemny grafit (6,3–7,8:1).
 
 ### Secondary
 - **Violet / Fiolet** (`violet`, `violet-soft`, `violet-text`): kanał e-mail, status „przekazany”, drugi biegun gradientu awatara w softphonie. To kolor rozróżniający, nie drugi akcent akcji.
@@ -161,8 +165,8 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 - **Czysta karta** (`bg-surface`): karty, tabele, modale, pola formularzy.
 - **Uniesiony papier** (`bg-elevated`): powierzchnie nad kartą (menu, popovery).
 - **Przetarty papier** (`bg-subtle`): hover wierszy i pozycji nawigacji, tła sekcji pomocniczych.
-- **Graphite Ink / Grafit** (`text-1`): tekst główny. Stopnie jaśniejsze: `text-2` dla tekstu drugorzędnego i etykiet KPI, `text-3` dla opisów, `text-muted` dla ikon w spoczynku, placeholderów i nagłówków sekcji nawigacji.
-- **Linie** (`border-1`): domyślne obramowania i separatory. `border-2` to obrys natywnych kontrolek, a `border-strong` to obramowania wymagające wyraźnego podziału.
+- **Graphite Ink / Grafit** (`text-1`): tekst główny. Stopnie jaśniejsze: `text-2` dla tekstu drugorzędnego i etykiet KPI, `text-3` dla opisów, `text-muted` dla ikon w spoczynku, placeholderów i nagłówków sekcji nawigacji. Wszystkie trzy mają co najmniej 4,5:1 na każdej powierzchni (`bg-*`, `accent-soft`), a hierarchię niosą waga i rozmiar, nie osłabiony kontrast.
+- **Linie** (`border-1`): domyślne obramowania i separatory. `border-control` to obrys kontrolek (input, select, checkbox, radio) i ma co najmniej 3:1 względem każdej powierzchni (WCAG 1.4.11); `border-2` zostaje dekoracyjnym, subtelnym podziałem, a `border-strong` to obramowania wymagające wyraźnego podziału.
 
 ### Stany
 - **Sukces** (`success` / `-soft` / `-text`): agent dostępny, kontakt aktywny lub zakończony, kanał czat, kierunek inbound.
@@ -174,6 +178,8 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 **The Lamp Rule.** Lampa robocza świeci tylko na to, co agent może teraz zrobić lub gdzie właśnie jest: na główną akcję, aktywną pozycję, fokus i zaznaczenie. Nie służy do dekoracji, nagłówków ani ilustracji.
 
 **The Triad Rule.** Każdy kolor semantyczny istnieje jako trójka `X` / `X-soft` / `X-text`. Pigułki i odznaki używają `X-soft` jako tła i `X-text` jako tekstu. Pełne `X` jest dla ikon, kropek statusu, przycisków i zdarzeń wymagających reakcji.
+
+**The Contrast Floor Rule.** Tekst (także `text-3` i `text-muted`) ma co najmniej 4,5:1 na każdej powierzchni, na której leży; tekst na pełnym wypełnieniu `accent` / `danger` / `success` ma co najmniej 4,5:1; obrys kontrolki i fokus mają co najmniej 3:1. Nowe wartości tokenów sprawdza się skryptem (OKLCH → WCAG), nie na oko.
 
 **The Token-Only Rule.** Nowy kod używa wyłącznie tokenów OKLCH z `styles.scss`. Warstwa `--color-*` (hex) i literalne kolory hex w ok. 28 plikach SCSS to dług techniczny do wygaszenia, a nie wzorzec. Literalne wartości łamią motyw ciemny.
 

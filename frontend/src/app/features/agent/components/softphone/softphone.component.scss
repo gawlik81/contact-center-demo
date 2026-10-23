@@ -245,7 +245,7 @@
 
     &--answer {
       background: var(--success);
-      color: #fff;
+      color: var(--on-success);
       box-shadow: 0 8px 20px color-mix(in oklch, var(--success) 40%, transparent);
 
       &:hover {
@@ -406,7 +406,7 @@
     width: 100%;
     padding: 0.875rem;
     background: var(--danger);
-    color: #fff;
+    color: var(--on-danger);
     border: none;
     border-radius: var(--radius-md, 10px);
     font-size: 0.9375rem;
@@ -606,6 +606,7 @@
 
     &--complete {
       background: var(--success);
+      color: var(--on-success);
 
       &:hover {
         opacity: 0.88;

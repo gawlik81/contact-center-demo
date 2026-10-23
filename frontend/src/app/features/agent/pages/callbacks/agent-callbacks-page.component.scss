@@ -266,7 +266,7 @@
 .btn-danger {
   padding: 0.625rem 1.125rem;
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
   border: 1.5px solid var(--danger);
 
   &:hover:not(:disabled) {

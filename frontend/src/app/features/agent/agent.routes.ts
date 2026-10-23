@@ -13,7 +13,7 @@ export const AGENT_ROUTES: Routes = [
       },
       {
         path: 'desktop',
-        data: { breadcrumb: 'nav.desktop' },
+        data: { breadcrumb: 'nav.desktop', hideBreadcrumbs: true },
         loadComponent: () =>
           import('./pages/agent-desktop/agent-desktop.component').then(
             (m) => m.AgentDesktopComponent,

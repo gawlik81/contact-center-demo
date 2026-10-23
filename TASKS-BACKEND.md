@@ -56,7 +56,7 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
@@ -97,6 +97,9 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | ID | Nazwa | Status |
 |----|-------|--------|
 | BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ⬜ Do zrobienia — blokuje FE-130 |
+| BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social | ⬜ Do zrobienia — blokuje FE-135 |
+| BE-155 | [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'`, `isReadOnly` vs `COMPLETED` | ⬜ Do zrobienia — Must Have (rekomendacja) |
+| BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8408,9 +8411,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 0/1** · ✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0
+**Ukończone 0/4** · ✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-130 w `TASKS-FRONTEND.md`). Jedyny ticket BE — BE-153 — założony w turze 50 (2026-10-23) jako zależność follow-upu FE-130.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8440,6 +8443,101 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) brak trwałego źródła czasu zmiany statusu może wymagać migracji DB; (R2) zmiana kontraktu WS — zachować kompatybilność wsteczną.
 **Nie wchodzi w zakres:** historia statusów, raportowanie czasu w statusach, zmiany FE (FE-130).
 **Zależności (tura 50):** `Zależy od` brak; `Blokuje` FE-130.
+
+### BE-154 – Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social
+
+**Typ:** Feature (Backend, WebSocket)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-135
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51):** gdy w już przydzielonym kontakcie e-mail/social przychodzi kolejna wiadomość klienta, backend jej tylko zapisuje (`SocialMessageServiceImpl.java` ok. linii 96–99: gałąź „Dołączam do istniejącego kontaktu”, bez publikacji zdarzenia); front nasłuchuje `SOCIAL_MESSAGE_RECEIVED` (`ws-event.model.ts`, `social-contact.component.ts` ok. linii 104), którego `WebSocketEvent.java` (ok. linii 47–59) w ogóle nie definiuje. Skutek: agent nie dowiaduje się o nowej wiadomości w nieaktywnej karcie (znacznik „nieprzeczytane/czeka klient” niemożliwy — FE-135).
+
+**Zakres:**
+- Nowy typ zdarzenia w `WebSocketEvent` (np. `CONTACT_MESSAGE_RECEIVED`; nazwa do uzgodnienia z FE — ujednolicić z `SOCIAL_MESSAGE_RECEIVED` oczekiwanym przez front, albo go zastąpić) z payloadem: `contactId`, `channel`, `messageId`, `receivedAt` (bez treści wiadomości — RODO/minimalizacja).
+- Publikacja do przydzielonego agenta (tenant-aware) po zapisie kolejnej wiadomości w kontakcie e-mail i social; brak publikacji, gdy kontakt nie ma agenta.
+- Kontrakt WS udokumentowany (OpenAPI/dokumentacja zdarzeń); zgodność wsteczna — nieznany typ jest ignorowany przez starszy front.
+
+**Kryteria akceptacji:**
+- [ ] Kolejna wiadomość w kontakcie z przydzielonym agentem publikuje zdarzenie tylko do TEGO agenta i tenanta (test integracyjny, w tym izolacja tenantów)
+- [ ] Payload nie zawiera treści wiadomości; zawiera `contactId`, `channel`, `messageId`, `receivedAt`
+- [ ] Pierwsza wiadomość nowego kontaktu nie publikuje tego zdarzenia (ścieżka routingu bez zmian)
+- [ ] Nazwa zdarzenia uzgodniona z FE i spójna z `ws-event.model.ts`; `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zależność od BE-155 — dopóki social nie trafia do agenta, zdarzenie dla social jest niewidoczne w praktyce (e-mail działa niezależnie); (R2) zmiana kontraktu WS — zachować zgodność wsteczną.
+**Nie wchodzi w zakres:** powiadomienia push/e-mail do agenta, licznik nieprzeczytanych po stronie serwera, zmiany FE (FE-135).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` FE-135.
+
+### BE-155 – [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'` we froncie, `isReadOnly` porównuje z nieistniejącym `COMPLETED`
+
+**Typ:** Bug (Backend + mała część Frontend)
+**Priorytet:** Must Have (rekomendacja — kanał niedziałający; do oceny właściciela)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (dotyczy kanału z EPIC-06; EPIC-06 pozostaje ✅ — ticket nie zmienia jego licznika)
+**Wykonawca:** `backend-dev-expert` (część BE); `angular-frontend-expert` (punkt 3, mała poprawka FE)
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51; do zweryfikowania w kodzie i na żywym środowisku przed naprawą — stąd „prawdopodobnie”):**
+1. Nowy kontakt social jest kolejkowany z `queueId = null` (`SocialMessageServiceImpl.java` ok. linii 139–141: „brak kolejki dla social → null queueId”).
+2. `RoutingServiceImpl.java` (ok. linii 219–226): kontakt bez `queueId` kończy ze statusem `ERROR` i `endedAt`; poller kolejki takie kontakty pomija → agent nigdy nie dostaje kontaktu social.
+3. Kanał: `platformToChannel` zwraca `SOCIAL_FACEBOOK`/`SOCIAL_INSTAGRAM`/`SOCIAL_WHATSAPP` (ok. linii 426–431), a front oczekuje kanału `'SOCIAL'`; `social-contact.component.ts` (ok. linii 57) liczy `isReadOnly` jako `contactStatus() === 'COMPLETED'`, którego `ContactTabStatus` nie zawiera (martwy warunek).
+
+**Zakres:**
+- Ustalić (testem na żywo w local-demo + lekturą kodu), czy opisany łańcuch rzeczywiście odrzuca kontakt social; potwierdzenie lub obalenie zapisać w tickecie.
+- Przypisać kontakt social do kolejki (konfiguracja kolejki per integracja/tenant — decyzja: domyślna kolejka social tenanta albo kolejka w ustawieniach integracji; ustalić z właścicielem) tak, by routing go przydzielał.
+- Ujednolicić kontrakt kanału BE↔FE (albo mapowanie `SOCIAL_*` → `SOCIAL` w jednym miejscu, albo FE rozpoznaje rodzinę kanałów), bez łamania zapisanych danych historycznych.
+- FE: `isReadOnly` oparty o realny status zakończenia (wartość z `ContactTabStatus`/API), nie o `'COMPLETED'`.
+
+**Kryteria akceptacji:**
+- [ ] Test integracyjny: wiadomość social od klienta tworzy kontakt z kolejką, routing przydziela go agentowi `AVAILABLE`, agent dostaje `CONTACT_ASSIGNED`
+- [ ] Kontakt social NIE kończy ze statusem `ERROR` z powodu braku `queueId`
+- [ ] Kanał social rozpoznawany spójnie na BE i FE (test mapowania dla FACEBOOK/INSTAGRAM/WHATSAPP)
+- [ ] `isReadOnly` karty social poprawnie wyznaczane dla kontaktu zakończonego (test FE)
+- [ ] Istniejące kontakty social w bazie nie są łamane (migracja danych tylko jeśli konieczna — wtedy osobny ticket DB, numer wolny: DB-088)
+- [ ] `mvn verify -pl app`, `npm test` zielone
+
+**Ryzyka:** (R1) wybór kolejki dla social to decyzja produktowa; (R2) zmiana kanału może dotknąć raportów i filtrów (`channel`); (R3) część obserwacji pochodzi z lektury kodu — możliwe, że istnieje ścieżka obejścia (np. ręczne przypisanie), zweryfikować przed zmianą.
+**Nie wchodzi w zakres:** nowe platformy social, zdarzenie nowej wiadomości (BE-154), limit równoległych kontaktów (BE-156).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak (praktycznie warunkuje wartość BE-154 dla social).
+
+### BE-156 – Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social)
+
+**Typ:** Feature / Bug (Backend, routing)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51; do zweryfikowania w kodzie):**
+- Kolumna `queue.max_concurrent_contacts_per_agent` jest tylko zapisywana — routing jej nie egzekwuje: `DefaultRoutingEngine` w strategii `SKILL_BASED` nie ma limitu, `ROUND_ROBIN`/`FIRST_AVAILABLE` nie patrzą na obciążenie.
+- Przydział kontaktu e-mail/social nie zmienia statusu agenta (agent zostaje `AVAILABLE` mimo kilku otwartych kontaktów).
+- Front ma własne limity kart: `MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3` (SOCIAL liczony tylko do `MAX_TOTAL_TABS=4`, nie do limitu async). Po odrzuceniu kontaktu przez front (limit) kontakt wraca do kolejki dopiero po 3 próbach `ContactAssignmentMonitor`.
+
+**Zakres:**
+- Egzekwować `max_concurrent_contacts_per_agent` we wszystkich strategiach `DefaultRoutingEngine` (liczba kontaktów `ASSIGNED`+`ACTIVE` agenta w danej kolejce; ustalić, czy limit jest per kolejka czy globalny dla agenta).
+- Ustalić politykę dla kontaktów e-mail/social wobec statusu agenta (czy przydział zmienia status; propozycja: bez zmiany, ale z uwzględnieniem obciążenia).
+- Uzgodnić z FE limity (`MAX_*_TABS`) tak, by backend nie przydzielał kontaktów, które front odrzuci; opisać kontrakt w dokumentacji.
+
+**Kryteria akceptacji:**
+- [ ] Agent z liczbą otwartych kontaktów równą limitowi kolejki nie otrzymuje kolejnego (test dla każdej strategii routingu)
+- [ ] Brak regresji: kolejki bez ustawionego limitu zachowują dotychczasowe zachowanie
+- [ ] Test integracyjny: kontakt nieprzydzielony z powodu limitu pozostaje w kolejce i trafia do kolejnego dostępnego agenta
+- [ ] Limity BE i FE uzgodnione i udokumentowane (jedna tabela wartości)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana routingu wpływa na wszystkie kolejki — wprowadzić za konfiguracją/flagą lub z domyślnym „brak limitu”; (R2) kolizja z BE-150 (routing pod rolą `cc_app`) — uzgodnić kolejność merge; (R3) różne definicje „otwartego kontaktu” (PHONE vs async).
+**Nie wchodzi w zakres:** nowe strategie routingu, zmiany FE (limity kart FE zostają do uzgodnienia), kanał social bez kolejki (BE-155).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak.
+
 
 ## Bez epiku
 

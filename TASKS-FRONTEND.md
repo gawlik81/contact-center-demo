@@ -54,7 +54,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 9 | 0 | 17 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 15 | 0 | 23 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | **Razem** | | **120** | **0** | **13** | **1** | **134** | |
 
@@ -69,7 +69,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 
 **EPIC-32 – UX i dostępność stanowiska agenta**
 
-- FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce — ⬜ (Do zrobienia)
+- FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134) — ⬜ (Do zrobienia; brief zatwierdzony 2026-10-23)
 - FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu — ⬜ (Do zrobienia)
 - FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ⬜ (Do zrobienia)
 - FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ⬜ (Do zrobienia)
@@ -78,6 +78,12 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ⬜ (Do zrobienia)
 - FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) — ⬜ (Do zrobienia)
 - FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ⬜ (Do zrobienia; czeka na BE-153)
+- FE-131 – WP-A (FE-121): magazyn szkiców per kontakt (e-mail, social, notatka PHONE), bez ponownego `acceptContact` — ⬜ (Do zrobienia)
+- FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ⬜ (Do zrobienia; po FE-131)
+- FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ⬜ (Do zrobienia; po FE-131)
+- FE-134 – WP-D (FE-121): status agenta w górnym pasku na `/agent/*`, CTA „Utwórz profil”/„Pełny profil” ukryte dla agenta — ⬜ (Do zrobienia)
+- FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154 i FE-133)
+- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; pytanie o BE otwarte; po FE-122 i FE-131)
 
 ---
 
@@ -5891,11 +5897,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 8/17** (✅ 8 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
+**Ukończone 8/23** (✅ 8 · 🔧 0 · ⬜ 15 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
-> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Jedyny ticket BE epiku: BE-153 (`statusSince`, tura 50; w `TASKS-BACKEND.md`). Otwarte pytanie o backend — także FE-122 (zob. ryzyka tego ticketu). Jeśli FE-122 wykaże potrzebę zmiany API, wtedy dopiero zakłada się osobny ticket BE.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Otwarte pytanie o backend pozostaje dla FE-136 (lista aktywnych kontaktów agenta).
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -5908,7 +5914,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121 → FE-122`;  `FE-121, FE-122 → FE-123`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124, FE-126…FE-129 → FE-125` (FE-130/BE-153 nie blokują).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-131 → FE-132`;  `FE-131 → FE-133`;  `FE-131, FE-133 → FE-122`;  `FE-134` (bez zależności, w dowolnym momencie);  `FE-121, FE-131…FE-134, FE-122 → FE-123`;  `BE-154, FE-133 → FE-135`;  `FE-122, FE-131 → FE-136` (pytanie o BE);  `BE-154 → FE-135`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6158,70 +6164,96 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Nie wchodzi w zakres:** magazyn szkiców per kontakt (FE-121), ACW niemodalne (FE-122), status „Szkolenie” w backendzie (jeśli go brak — zgłosić, nie zakładać BE).
 **Notatka wykonania (2026-10-23, tura 50):** `manual-callback-modal`: ochrona szkicu przez `app-confirm-dialog` (w przeglądarce: Esc → potwierdzenie, Esc wraca do formularza z zachowaną notatką, „Odrzuć zmiany” zamyka). `confirm-dialog`: `(cancel)`/Esc → `onCancel` oraz **naprawiony istniejący błąd — `onBackdropClick` nie był podpięty w szablonie** (dotyczy 9 użytkowników komponentu), nowy spec. Ściąga skrótów bez zawijania (`nowrap`, kolumna 13rem, panel 30rem). Licznik przerwy `cc-status-elapsed` przy pigułce statusu (`role="timer"`, `aria-live="off"`, `<time datetime>` ISO 8601, `title`/sr „Czas od zmiany statusu w tej sesji”, `--fs-xs`) — **czas startu po stronie klienta, bo API nie zwraca czasu zmiany statusu** (R2; follow-up: BE-153 + FE-130). Jeden toast „Dyspozycja zapisana.” + osobny toast błędu przy porażce `changeStatus`. Karta klienta „Spróbuj ponownie” z fokusem na kartę/przycisk. Domyślne wartości przerwy: `SHORT_BREAK`, start = najbliższy slot 5 min od teraz+2 min, koniec +15 min, odświeżenie nietkniętego slotu i walidacja przed zapisem (w przeglądarce: 11:54 → 12:00–12:15). Custom-select typu przerwy wg listbox WAI-ARIA (w przeglądarce: strzałki, `aria-selected`, Esc zamyka tylko listę, drugi Esc dialog). Punkty review naprawione wcześniej: `preventDefault` cancel dyspozycji, podwójne `role="alert"`, martwe klucze `incomingCall.dismiss`/`goToDesktop`, `--shadow-pop`.
 
-### FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce
+### FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134)
 
-**Typ:** Frontend implementation (UX, stan aplikacji)
+**Typ:** Frontend implementation (UX, stan aplikacji) — ticket-parasol
 **Priorytet:** Must Have
-**Złożoność:** L
-**Zależy od:** brak twardej (zalecane: po FE-115…FE-118 i FE-120; wymaga wcześniej `/impeccable shape`)
-**Status:** ⬜ Do zrobienia
-**Czeka na BE:** brak (do potwierdzenia: czy dla znaczników „nieprzeczytane/czeka klient” wystarczą istniejące zdarzenia WS — zob. ryzyka)
-**Blokuje:** FE-122, FE-123
+**Złożoność:** L (suma pakietów FE-131…FE-134)
+**Zależy od:** brak twardej (zalecane: po FE-115…FE-118 i FE-120 — spełnione); `/impeccable shape` wykonany 2026-10-23 (tura 51), brief zatwierdzony przez właściciela
+**Status:** ⬜ Do zrobienia (parasol; kod realizują pakiety FE-131…FE-134; domknięcie po ukończeniu wszystkich czterech — warunek PROCESOWY, nie zależność, żeby uniknąć cyklu)
+**Czeka na BE:** brak
+**Blokuje:** FE-131, FE-132, FE-133, FE-134 (pakiety), FE-123, FE-125
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
-**Wykonawca:** `angular-frontend-expert` (po `/impeccable shape` i projekcie z `ui-premium-designer`)
+**Wykonawca:** `angular-frontend-expert` + `impeccable` (per pakiet: harden/polish); ticket sam nie ma kodu
 
-**Opis:** P1 z krytyki: „Praca na kilku kontaktach” — szkice niszczone przez `@switch` przy zmianie karty, × na karcie PHONE rozłącza bez potwierdzenia (zagnieżdżony `button` w elemencie `tab`), karty bez stanu (hold/ACW/nieprzeczytane/czeka klient), przydział e-mail/social i status agenta widoczne tylko na Desktopie. PRODUCT.md: agent obsługuje kilka kontaktów równolegle; „telefon kasuje szkic”, „karty nie mówią, gdzie ktoś czeka”.
+**Opis:** P1 z krytyki: „Praca na kilku kontaktach” — szkice niszczone przez `@switch` przy zmianie karty, × na karcie PHONE rozłącza bez potwierdzenia (zagnieżdżony `button` w elemencie `tab`), karty bez stanu (hold/ACW/szkic), status agenta widoczny tylko na Desktopie. PRODUCT.md: agent obsługuje kilka kontaktów równolegle; „telefon kasuje szkic”, „karty nie mówią, gdzie ktoś czeka”.
 
-**Zakres:**
-- **Przed implementacją:** `/impeccable shape` dla pracy na wielu kontaktach (wynik: krótki brief w notatce ticketu; ew. podział ticketu na WP-A…WP-D, jeśli przekroczy 3–5 dni).
-- Magazyn szkiców per `contactId` (serwis/store w `features/agent/services`), przeżywa zmianę karty i `@switch`; szkice: edytor e-mail, notatki, pola social/czat; czyszczony przy zamknięciu kontaktu/wysłaniu.
-- Znaczniki stanu na kartach: hold, ACW, nieprzeczytane, czeka klient (ikona + tekst dla czytnika, nie sam kolor — WCAG 1.4.1; kolory z tokenów FE-116).
-- × na karcie aktywnej rozmowy: potwierdzenie przed rozłączeniem; poprawka zagnieżdżonego `button` w `role="tab"` (zamknięcie jako sąsiedni element z własnym fokusem, ewentualnie `aria-label`), bez regresji nawigacji strzałkami z FE-114.
-- Przydział e-mail/social (przypisanie do agenta) i status agenta dostępne na poziomie powłoki agenta, nie tylko na Desktopie (komponent w `AgentShellComponent`/nagłówku), z obsługą klawiaturą.
-- Dwa „CTA” karty klienta prowadzące na `/supervisor/…` (krytyka, drobne): dla agenta ukryć lub zastąpić akcjami w kontekście agenta — decyzja w briefie.
+#### Brief (impeccable shape, zatwierdzony 2026-10-23)
 
-**Kryteria akceptacji:**
-- [ ] Szkic e-maila/notatki przeżywa przełączenie karty i powrót (test + przeglądarka); po wysłaniu/zamknięciu kontaktu jest usuwany
-- [ ] Karty pokazują hold / ACW / nieprzeczytane / czeka klient z ikoną i tekstem dla czytnika; kontrast AA w obu motywach
-- [ ] × na aktywnej rozmowie wymaga potwierdzenia; × na karcie bez aktywnej rozmowy zamyka od razu; brak zagnieżdżonego interaktywnego elementu w `role="tab"` (test a11y)
-- [ ] Przydział e-mail/social i status agenta widoczne i obsługiwalne z klawiatury na każdej stronie agenta
-- [ ] CTA karty klienta nie prowadzą agenta na strony `/supervisor/…`
-- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
-- [ ] WP-1…WP-6
+Wynik `/impeccable shape` dla pracy na wielu kontaktach (wspólny z FE-122). **Decyzje właściciela (2026-10-23):**
+1. **ACW (R1 z FE-122):** agent w ACW **dokańcza otwarte kontakty**; zmian BE nie ma. Routing przydziela nowe kontakty tylko agentom `AVAILABLE` (`DefaultRoutingEngine`), więc w ACW nowe kontakty nie przychodzą; po zapisie dyspozycji front zmienia status na `AVAILABLE` (zachowanie dotychczasowe).
+2. **Znaczniki kart:** tylko stany znane frontowi (ACW, Wstrzymana, Rozmowa, Szkic). „Nowa wiadomość/nieprzeczytane/czeka klient” wymaga zdarzenia z backendu → osobne tickety BE-154 + FE-135 (poza briefem).
+3. **× na kartach e-mail/social:** „Zwróć do kolejki” przez `abandonContact` (dziś × tylko usuwa kartę, a kontakt zostaje `ASSIGNED`/`ACTIVE`); potwierdzenie tylko przy niewysłanym szkicu.
+4. **CTA `/supervisor/…` w karcie klienta:** ukryte dla agenta.
+5. **Nowy kontakt NIE przejmuje aktywnej karty** (dziś `openTab` zawsze aktywuje nową) — zamiast tego znacznik/ogłoszenie polite.
 
-**Ryzyka:** (R1) NAJWIĘKSZE ryzyko epiku — dotyka `ContactTabStore`, `AgentDesktopComponent`, modali; wymaga `/impeccable shape` PRZED kodem; (R2) znaczniki „nieprzeczytane/czeka klient” wymagają źródła danych — zweryfikować, czy istniejące zdarzenia WS niosą taką informację; jeśli nie — wariant minimalny (lokalne „nieprzeczytane” od ostatniego otwarcia karty) i zgłoszenie potrzeby BE jako pytanie do właściciela, NIE zakładanie ticketu BE; (R3) rozmiar L — przy przekroczeniu 5 dni podzielić na WP po `shape`; (R4) przechowywanie szkiców w pamięci (nie `localStorage`) ze względu na RODO — nie utrwalać treści wiadomości klienta w przeglądarce.
-**Nie wchodzi w zakres:** ACW niemodalne (FE-122), przebudowa układu kolumn (FE-123), nowe kanały (RCS, czat), zmiany API.
+**Podział na pakiety** (kolejność: WP-A → WP-B i WP-C równolegle → FE-122; WP-D w dowolnym momencie):
+
+| Pakiet | Ticket | Zakres | Rozmiar | Zależy od |
+|--------|--------|--------|---------|-----------|
+| WP-A | FE-131 | magazyn szkiców per `contactId` (e-mail, social, notatka PHONE), tylko w pamięci; brak ponownego `acceptContact` | S/M | brak |
+| WP-B | FE-132 | × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” | S/M | FE-131 |
+| WP-C | FE-133 | znaczniki kart (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania karty | S/M | FE-131 |
+| WP-D | FE-134 | status agenta w górnym pasku na `/agent/*`, CTA ukryte dla agenta | S | brak |
+
+**Przypisanie kryteriów akceptacji z FE-121 do pakietów:**
+- szkic przeżywa przełączenie karty, jest usuwany po wysłaniu/zamknięciu → FE-131;
+- × (potwierdzenie, brak zagnieżdżonego interaktywnego elementu w `role="tab"`) → FE-132;
+- znaczniki stanu z ikoną i tekstem, kontrast AA w obu motywach → FE-133 (część „nieprzeczytane/czeka klient” wycięta → FE-135 po BE-154);
+- status agenta widoczny na każdej stronie agenta, CTA karty klienta → FE-134 (przydział nowego kontaktu bez przejmowania karty → FE-133);
+- skróty z FE-114 bez regresji → każdy pakiet.
+
+**Kryteria akceptacji parasola** (spełnione, gdy spełnione są pakiety):
+- [ ] FE-131 ✅ (szkice), FE-132 ✅ (zamykanie), FE-133 ✅ (znaczniki), FE-134 ✅ (powłoka)
+- [ ] Skróty z FE-114 działają bez regresji po wszystkich pakietach (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 per pakiet
+
+**Ryzyka:** (R1) NAJWIĘKSZE ryzyko epiku — dotyka `ContactTabStore`, `AgentDesktopComponent`, modali; brief zatwierdzony, ryzyko zredukowane podziałem; (R2) znaczniki „nieprzeczytane/czeka klient” — rozstrzygnięte: wymagają BE → BE-154 + FE-135; (R3) rozmiar L — rozbity na 4 pakiety S/M/S; (R4) przechowywanie szkiców w pamięci (nie `localStorage`) ze względu na RODO — nie utrwalać treści wiadomości klienta w przeglądarce.
+**Nie wchodzi w zakres:** ACW niemodalne (FE-122), przebudowa układu kolumn (FE-123), nowe kanały (RCS, czat), zmiany API. Odkrycia z shape poza zakresem: BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu), FE-135, FE-136.
 
 ### FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu
 
 **Typ:** Frontend implementation (UX)
 **Priorytet:** Must Have
 **Złożoność:** L
-**Zależy od:** FE-121
+**Zależy od:** FE-131 (WP-A: magazyn szkiców), FE-133 (WP-C: znacznik ACW na karcie), FE-121 (parasol; brief zatwierdzony 2026-10-23)
 **Status:** ⬜ Do zrobienia
-**Czeka na BE:** brak (potwierdzone w analizie: dyspozycja jest per kontakt — `POST /contacts/{contactId}/disposition`, `SetDispositionRequest { dispositionCode, notes }`; do weryfikacji w kodzie: stan ACW/AFTER_CONTACT jest dziś statusem agenta, nie kontaktu — zob. ryzyko R1)
-**Blokuje:** FE-123, FE-125
+**Czeka na BE:** brak (R1 rozstrzygnięte w briefie: bez zmian BE; potwierdzone w analizie: dyspozycja jest per kontakt — `POST /contacts/{contactId}/disposition`, `SetDispositionRequest { dispositionCode, notes }`; do weryfikacji w kodzie: stan ACW/AFTER_CONTACT jest dziś statusem agenta, nie kontaktu — zob. ryzyko R1)
+**Blokuje:** FE-123, FE-125, FE-136
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` (projekt z `ui-premium-designer`)
 
 **Opis:** Decyzja właściciela z krytyki: ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką. Dziś `DispositionPanelComponent` to natywny `<dialog>` modalny, który blokuje obsługę czatów (krytyka: „ACW blokuje 3 czaty”), ogłasza licznik ACW co sekundę, a formularz pojawia się tylko na pulpicie, gdy rozmowa skończy się poza pulpitem po odebraniu przy otwartym modalu (znany punkt otwarty po FE-114).
 
 **Zakres:**
-- Dyspozycja renderowana w obszarze karty kontaktu w stanie `WRAPPING` (nie `showModal()`); agent może przełączyć się na inną kartę (czat/e-mail) bez utraty stanu ACW; powrót na kartę pokazuje formularz ze szkicem (magazyn z FE-121).
-- Działa także gdy rozmowa kończy się poza pulpitem: stan ACW karty tworzony w `CallLifecycleService` (już niezależny od pulpitu), formularz dostępny po wejściu na kartę; znacznik ACW na karcie (FE-121) + powiadomienie bez kradzieży fokusu.
+- Dyspozycja renderowana w obszarze karty kontaktu w stanie `WRAPPING` (nie `showModal()`); agent może przełączyć się na inną kartę (czat/e-mail) bez utraty stanu ACW; powrót na kartę pokazuje formularz ze szkicem dyspozycji (magazyn z FE-131).
+- Działa także gdy rozmowa kończy się poza pulpitem: stan ACW karty tworzony w `CallLifecycleService` (już niezależny od pulpitu), formularz dostępny po wejściu na kartę; znacznik ACW na karcie (FE-133) + powiadomienie bez kradzieży fokusu.
 - Dostępność: licznik ACW poza `aria-live` (lub ogłaszany rzadko), błąd walidacji dopiero po próbie zapisu, fokus na pierwszym polu po aktywacji karty ACW (na żądanie, nie przy każdym renderze); Esc nie zamyka dyspozycji (jak w FE-114).
-- Reguły ACW: czy agent może przyjąć nowy kontakt w trakcie ACW — ustalić w briefie z FE-121 i zachować dotychczasowe reguły statusu `AFTER_CONTACT`.
+- Reguły ACW (ustalone w briefie, zob. niżej): w ACW agent dokańcza otwarte kontakty; brak nowych kontaktów (routing bierze tylko `AVAILABLE`); dotychczasowe reguły statusu `AFTER_CONTACT` bez zmian.
 - Usunięcie obejścia modalnego (`(cancel)="$event.preventDefault()"`, zależności od `showModal()`) razem z punktem review o drugim Esc w Chromium (staje się nieistotny).
+
+#### Brief (impeccable shape, zatwierdzony 2026-10-23)
+
+Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
+- **Formularz dyspozycji w panelu karty `WRAPPING`** (nie `showModal()`); agent przełącza się na inne karty i wraca do karty z zachowanym SZKICEM dyspozycji (magazyn WP-A = FE-131).
+- **Rozmowa zakończona poza pulpitem** (np. na `/agent/customers`) → karta w stanie ACW + baner „uzupełnij dyspozycję” z linkiem do karty; BEZ kradzieży fokusu (ogłoszenie polite, nie `focus()`).
+- **Reguły bez zmian:** w ACW brak nowych kontaktów — routing bierze tylko agentów `AVAILABLE` (`DefaultRoutingEngine`); po zapisie dyspozycji front zmienia status na `AVAILABLE` (zachowanie dotychczasowe).
+- **R1 rozstrzygnięte** (decyzja: agent w ACW **dokańcza otwarte kontakty**, bez zmian BE).
+- **Dostępność:** licznik ACW poza `aria-live`; błąd walidacji dopiero po próbie zapisu; fokus na pierwszym polu tylko na żądanie; Esc NIE zamyka dyspozycji.
+- **Sprzątanie:** usunięcie obejść modalnych (`(cancel)="$event.preventDefault()"`, zależności od `showModal()`).
 
 **Kryteria akceptacji:**
 - [ ] W stanie ACW agent może obsługiwać pozostałe karty (czat/e-mail) bez zamykania formularza; formularz nie jest modalny (brak `showModal()`/inertu reszty strony)
 - [ ] Dyspozycję można wypełnić także po zakończeniu rozmowy zakończonej poza pulpitem (test: koniec rozmowy na `/agent/customers`)
 - [ ] Zapis dyspozycji działa na istniejącym API (`POST /contacts/{id}/disposition`) bez zmian backendu; jeden toast (zob. FE-120)
-- [ ] Licznik ACW nie jest ogłaszany co sekundę; błąd walidacji po próbie zapisu
+- [ ] Licznik ACW nie jest ogłaszany co sekundę; błąd walidacji po próbie zapisu; Esc nie zamyka dyspozycji
+- [ ] Rozmowa zakończona poza pulpitem → karta ACW + baner „uzupełnij dyspozycję” z linkiem, bez kradzieży fokusu (test: fokus bez zmian)
+- [ ] Przełączenie na inną kartę i powrót zachowuje szkic dyspozycji (FE-131)
+- [ ] Po zapisie dyspozycji status agenta zmienia się na `AVAILABLE`; w ACW nie przychodzą nowe kontakty (routing bez zmian)
 - [ ] Obsługa wyłącznie klawiaturą: dojście do formularza, wybór kodu, zapis (skróty z FE-114 bez regresji)
 - [ ] WP-1…WP-6
 
-**Ryzyka:** (R1) **pytanie o backend:** status `AFTER_CONTACT` jest statusem AGENTA (`AgentStatusService.changeStatus`), nie kontaktu — przy kilku kontaktach w ACW lub nowym kontakcie w trakcie ACW semantyka statusu może wymagać decyzji (np. kiedy wracać do `AVAILABLE`); jeśli wymaga zmian API/WS — opisać pytanie i NIE zakładać ticketu BE bez decyzji właściciela; (R2) dyspozycje per kampania/kolejka (EPIC-27) — `getAvailableDispositions(contactId)` musi działać także dla karty nieaktywnej; (R3) utrata ACW przy odświeżeniu strony (`agent-recovery.service`) — sprawdzić odtwarzanie.
+**Ryzyka:** (R1) **ROZSTRZYGNIĘTE (brief 2026-10-23): dokańcza otwarte kontakty, bez zmian BE.** Pierwotne pytanie o backend: status `AFTER_CONTACT` jest statusem AGENTA (`AgentStatusService.changeStatus`), nie kontaktu — przy kilku kontaktach w ACW lub nowym kontakcie w trakcie ACW semantyka statusu może wymagać decyzji (np. kiedy wracać do `AVAILABLE`); jeśli wymaga zmian API/WS — opisać pytanie i NIE zakładać ticketu BE bez decyzji właściciela; (R2) dyspozycje per kampania/kolejka (EPIC-27) — `getAvailableDispositions(contactId)` musi działać także dla karty nieaktywnej; (R3) utrata ACW przy odświeżeniu strony (`agent-recovery.service`) — sprawdzić odtwarzanie.
 **Nie wchodzi w zakres:** nowe typy dyspozycji, zmiany backendu, przebudowa układu (FE-123).
 
 ### FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów
@@ -6229,7 +6261,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Typ:** Frontend implementation (layout / responsywność)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-121, FE-122 (przebudowują pulpit), FE-118
+**Zależy od:** FE-121 (parasol), FE-131…FE-134 (pakiety FE-121), FE-122 (przebudowują pulpit), FE-118 ✅
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** FE-124, FE-125
@@ -6295,7 +6327,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Typ:** Testing / Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-114…FE-124, FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130 i BE-153 (statusSince) NIE blokują zamknięcia audytu — backlog po FE-125
+**Zależy od:** FE-114…FE-124 (w tym FE-131…FE-134 jako pakiety FE-121), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** zamknięcie EPIC-32
@@ -6449,6 +6481,190 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 **Ryzyka:** (R1) rozjazd zegarów klient/serwer — liczyć względem czasu serwera lub odnotować tolerancję; (R2) rolling deploy FE przed BE — stąd fallback.
 **Nie wchodzi w zakres:** zmiany backendu (BE-153).
+
+### FE-131 – WP-A (FE-121): Magazyn szkiców per kontakt (e-mail, social, notatka PHONE) bez ponownego `acceptContact` przy powrocie na kartę
+
+**Typ:** Frontend implementation (stan aplikacji)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-121 (parasol; brief zatwierdzony 2026-10-23 — warunek procesowy, nie blokada techniczna); twardych zależności technicznych brak
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-132, FE-133, FE-122, FE-136
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-A)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Dziś `@switch` w `agent-desktop` niszczy komponent karty przy zmianie karty, więc szkic e-maila, odpowiedź social i notatka PHONE przepadają. Dodać magazyn szkiców kluczowany `contactId` (serwis/store w `features/agent/services`), który przeżywa zmianę karty. Szkice wyłącznie w pamięci (RODO: treść wiadomości klienta nie trafia do `localStorage`/`sessionStorage`/IndexedDB).
+
+**Zakres:**
+- Szkic e-mail: treść, temat, wybrany szablon, zmienne szablonu, załączniki (referencje do plików w pamięci).
+- Szkic social: tekst odpowiedzi (`replyText`).
+- Notatka karty PHONE: istniejące `tab.note` w `ContactTabStore` przechodzi na wspólny magazyn (jedno źródło prawdy dla szkiców).
+- Czyszczenie wpisu po: wysłaniu, zamknięciu kontaktu, zwrocie do kolejki (WP-B) oraz wylogowaniu/zamknięciu karty bez szkicu.
+- `email-contact.component.ts` (ok. linii 97–104) woła `acceptContact` przy KAŻDYM montażu — przenieść wywołanie tak, by powrót na kartę (ponowny montaż) nie wysyłał kolejnego `acceptContact` (np. flaga „zaakceptowano” w magazynie/`ContactTab`).
+- API magazynu udostępnia „czy jest niewysłany szkic dla contactId” (potrzebne dla WP-B i znacznika „Szkic” w WP-C) jako `computed`/signal.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [ ] Szkic e-maila (treść, temat, szablon, zmienne, załączniki), odpowiedź social i notatka PHONE przeżywają przełączenie karty i powrót (test jednostkowy magazynu + komponentu, weryfikacja w przeglądarce)
+- [ ] Szkic jest usuwany po wysłaniu, zamknięciu kontaktu i zwrocie do kolejki
+- [ ] Powrót na kartę e-mail nie wywołuje ponownie `acceptContact` (test: dwa montaże = jedno wywołanie)
+- [ ] Szkice nie są zapisywane w `localStorage`/`sessionStorage`/IndexedDB (test/grep)
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable harden`)
+
+**Ryzyka:** (R1) komponenty e-mail/social mają dziś lokalne signal-e — migracja musi zachować zachowanie wysyłki i walidacji; (R2) załączniki w pamięci zwiększają zużycie RAM przy wielu kartach — limit rozmiaru już istnieje po stronie formularza, nie dublować; (R3) `adhoc-email-modal` i `manual-callback-modal` mają własną ochronę szkicu (FE-120) — poza zakresem.
+**Nie wchodzi w zakres:** zamykanie kart (FE-132), znaczniki (FE-133), formularz dyspozycji (FE-122; używa tego magazynu), trwałość szkiców po przeładowaniu strony.
+
+### FE-132 – WP-B (FE-121): Bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” (e-mail/social)
+
+**Typ:** Frontend implementation (UX, a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-131 (wiedza o niewysłanym szkicu), FE-121 (parasol)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (istniejące API `abandonContact`; do potwierdzenia w kodzie nazwa i kontrakt metody w `ContactService`)
+**Blokuje:** FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-B)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Dziś × jest zagnieżdżonym `button` wewnątrz elementu `role="tab"` (`agent-desktop.component.html` ok. linii 279–313): nieprawidłowe ARIA, a × na karcie PHONE rozłącza bez pytania; dla e-mail/social × tylko usuwa kartę z pulpitu, a kontakt zostaje `ASSIGNED`/`ACTIVE` w bazie (agent „gubi” kontakt, którego nikt inny nie obsłuży).
+
+**Zakres:**
+- × jako osobny przycisk SĄSIADUJĄCY z `role="tab"` (nie jego potomek), z własnym fokusem i `aria-label` zawierającym nazwę kontaktu; nawigacja strzałkami po kartach z FE-114 bez regresji.
+- Klawiatura: `Delete` na karcie z fokusem uruchamia to samo zamknięcie co ×.
+- Reguły wg typu i stanu:
+  - PHONE `ACTIVE`/`HOLD` → `app-confirm-dialog` przed rozłączeniem;
+  - PHONE `WRAPPING` (ACW) → × wyłączone (`aria-disabled` + powód w `title`/opisie; dyspozycję zamyka się zapisem, nie ×);
+  - EMAIL/SOCIAL → „Zwróć do kolejki” przez `abandonContact`; potwierdzenie WYŁĄCZNIE gdy istnieje niewysłany szkic (FE-131); toast sukcesu; błąd API = karta zostaje + komunikat błędu;
+- Po zwrocie do kolejki: czyszczenie szkicu (FE-131), usunięcie karty, fokus na sąsiedniej karcie lub regionie pulpitu.
+- i18n w 4 językach (teksty potwierdzeń, toast, `aria-label`).
+
+**Kryteria akceptacji (z AC FE-121):**
+- [ ] × na PHONE `ACTIVE`/`HOLD` wymaga potwierdzenia; na PHONE `WRAPPING` jest wyłączone
+- [ ] × na EMAIL/SOCIAL zwraca kontakt do kolejki przez `abandonContact` (test: wywołanie API + zniknięcie karty); potwierdzenie tylko gdy jest niewysłany szkic; toast sukcesu; przy błędzie API karta zostaje
+- [ ] Brak zagnieżdżonego interaktywnego elementu w `role="tab"` (test a11y na prawdziwym szablonie); `Delete` na karcie z fokusem zamyka tak samo jak ×
+- [ ] Nawigacja strzałkami po kartach i skróty z FE-114 bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable harden`)
+
+**Ryzyka:** (R1) `abandonContact` po stronie backendu może odrzucić stan kontaktu inny niż `ASSIGNED`/`ACTIVE` — obsłużyć 4xx komunikatem, nie zamykać karty; (R2) po zwrocie kontakt wraca do kolejki i może zostać ponownie przydzielony temu samemu agentowi — zachowanie routingu poza zakresem (zob. BE-156); (R3) `Delete` jest też klawiszem edycji — obsługiwać tylko gdy fokus jest NA karcie (nie w polu edytora).
+**Nie wchodzi w zakres:** znaczniki stanu (FE-133), zmiany backendu, zamykanie karty z poziomu innego miejsca niż pasek kart.
+
+### FE-133 – WP-C (FE-121): Znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic) i nowy kontakt bez przejmowania aktywnej karty
+
+**Typ:** Frontend implementation (UX, a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-131 (znacznik „Szkic”), FE-121 (parasol); tokeny FE-116 ✅
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (znaczniki wyłącznie ze stanów znanych frontowi; „nowa wiadomość/nieprzeczytane” → BE-154 + FE-135)
+**Blokuje:** FE-122, FE-135, FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-C)
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Karty nie mówią, w jakim są stanie, a każdy nowy kontakt (`openTab`, `contact-tab.store.ts` ok. linii 81–92) zawsze przejmuje aktywną kartę — agent w trakcie pisania jest przerzucany na inny kontakt. Dodać jeden znacznik na kartę wg priorytetu i przestać przełączać aktywną kartę przy nowym kontakcie.
+
+**Zakres:**
+- Jeden znacznik na kartę, wg priorytetu: **ACW** (ton violet) > **Wstrzymana** (warning) > **Rozmowa** (success) > **Szkic** (neutral, ikona ołówka). Ikona + tekst dla czytnika (WCAG 1.4.1 — nie sam kolor), tony z tokenów FE-116, kontrast AA w obu motywach.
+- „Wstrzymana” z lokalnego stanu softphone (dziś status `HOLD` w `ContactTabStore` nigdy nie jest ustawiany) — podpiąć stan hold/resume z softphone do karty PHONE.
+- „Szkic” z magazynu FE-131; „ACW” ze stanu karty `WRAPPING`; „Rozmowa” dla PHONE `ACTIVE`.
+- Nowy kontakt NIE przejmuje aktywnej karty: karta dodawana jako nieaktywna z znacznikiem/ogłoszeniem `aria-live="polite"` („Nowy kontakt: …”); wyjątek — gdy nie ma żadnej karty (pierwsza karta aktywna). Połączenie przychodzące PHONE nadal obsługuje baner/skróty z FE-114 (bez regresji).
+- Długie nazwy: elipsa wizualnie + pełna nazwa w nazwie dostępnej karty (`aria-label`/`title`).
+- i18n w 4 językach; znaczniki nie wprowadzają literałów hex.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [ ] Karta pokazuje dokładnie jeden znacznik wg priorytetu ACW > Wstrzymana > Rozmowa > Szkic, z ikoną i tekstem dla czytnika (test: kombinacje stanów)
+- [ ] Kontrast znaczników ≥ 4,5:1 (tekst) i ≥ 3:1 (ikona/ramka) w motywie jasnym i ciemnym
+- [ ] „Wstrzymana” pojawia się po wstrzymaniu rozmowy w softphone i znika po wznowieniu (test + przeglądarka)
+- [ ] Nowy kontakt nie zmienia aktywnej karty (gdy jakaś jest aktywna); agent dostaje ogłoszenie polite; fokus nie jest kradziony (test)
+- [ ] Długie nazwy skracane elipsą, pełna nazwa w nazwie dostępnej karty
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable polish`)
+
+**Ryzyka:** (R1) zmiana `openTab` dotyka limitów kart (`MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3`, `MAX_TOTAL_TABS=4`) i `AgentRecoveryService` — przetestować odtwarzanie i odrzucanie przy limicie; (R2) połączenie przychodzące a „nie przejmuj karty” — rozstrzygnąć w kodzie, że baner przychodzący pozostaje nadrzędny; (R3) stan hold w softphone może być w kilku miejscach — wskazać jedno źródło.
+**Nie wchodzi w zakres:** „nieprzeczytane/czeka klient” (FE-135 po BE-154), limity kart (BE-156), przycisk zamykania (FE-132).
+
+### FE-134 – WP-D (FE-121): Powłoka agenta — przełącznik statusu w górnym pasku na wszystkich `/agent/*`; CTA „Utwórz profil” i „Pełny profil” ukryte dla agenta
+
+**Typ:** Frontend implementation (UX, a11y, shell)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-121 (parasol); twardych zależności technicznych brak
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-D)
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Status agenta można dziś zmienić tylko na pulpicie (przełącznik w nagłówku pulpitu), a karta klienta ma dwa CTA prowadzące na `/supervisor/…`, niedostępne dla roli AGENT.
+
+**Zakres:**
+- Przełącznik statusu agenta w górnym pasku (top-navbar/powłoka) na WSZYSTKICH trasach `/agent/*` — jedno miejsce; usunięty z nagłówka pulpitu (bez duplikatu).
+- Pełna obsługa klawiaturą (otwarcie, strzałki, Enter/Esc, powrót fokusu na wyzwalacz), zachowany `data-status-tone` z FE-116.
+- Bez regresji FE-114/FE-120: licznik przerwy `cc-status-elapsed` przenosi się razem z pigułką statusu (`role="timer"`, `aria-live="off"`), jeden toast po zmianie statusu, `add-break-modal` dostępny z nowego miejsca.
+- `customer-panel`: CTA „Utwórz profil” (→ `/supervisor/customers/new`) i „Pełny profil” ukryte dla roli AGENT (widoczne dla ról, które mają dostęp).
+- i18n w 4 językach, brak martwych kluczy.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [ ] Status agenta widoczny i obsługiwalny z klawiatury na każdej stronie `/agent/*`, bez duplikatu w nagłówku pulpitu
+- [ ] Licznik przerwy i pigułka statusu przenoszone razem; testy FE-120 (licznik, toast) zielone
+- [ ] CTA „Utwórz profil” i „Pełny profil” nie są renderowane dla roli AGENT (test dla AGENT i dla roli z dostępem)
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable polish`)
+
+**Ryzyka:** (R1) top-navbar jest wspólny dla ról — zmiana nie może pojawić się dla supervisor/admin (przegląd obu); (R2) kolizja z FE-123 (kompaktowy chrome) — FE-134 przed FE-123; (R3) FE-130 (licznik z `statusSince`) dotyka tego samego komponentu — uzgodnić kolejność merge.
+**Nie wchodzi w zakres:** nowe statusy agenta, zmiana semantyki `AFTER_CONTACT`, ekran profilu klienta dla agenta (CTA tylko ukryte).
+
+### FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social (follow-up BE-154)
+
+**Typ:** Frontend implementation (follow-up, poza zakresem briefu FE-121)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-154 (zdarzenie WS o nowej wiadomości), FE-133 (znaczniki kart)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-154
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Po BE-154 karta kontaktu e-mail/social ma pokazywać, że w nieaktywnej karcie czeka nowa wiadomość klienta. Znacznik dołącza do hierarchii z FE-133 (miejsce w priorytecie do ustalenia: proponowane ponad „Szkic”, pod „Rozmowa”), znika po otwarciu karty.
+
+**Kryteria akceptacji:**
+- [ ] Nowa wiadomość klienta w otwartym kontakcie e-mail/social oznacza nieaktywną kartę znacznikiem (ikona + tekst dla czytnika) i ogłoszeniem polite
+- [ ] Znacznik znika po aktywacji karty; stan „nieprzeczytane” tylko w pamięci
+- [ ] Kontrast AA w obu motywach; i18n w 4 językach
+- [ ] Fallback: stary backend bez zdarzenia — brak znacznika, bez błędów
+- [ ] WP-1…WP-7
+
+**Ryzyka:** (R1) zdarzenie WS nie jest wysyłane dziś (front nasłuchuje `SOCIAL_MESSAGE_RECEIVED`, którego backend nie emituje) — nie zaczynać przed BE-154.
+**Nie wchodzi w zakres:** powiadomienia systemowe/dźwiękowe, trwałe liczniki nieprzeczytanych.
+
+### FE-136 – Odtwarzanie kart po przeładowaniu strony: wiele kontaktów, SOCIAL, `ACTIVE` i ACW (`agent-recovery.service`)
+
+**Typ:** Frontend implementation (odporność) — **z otwartym pytaniem o backend**
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-122 (ACW jako stan karty), FE-131 (magazyn szkiców); zależność warunkowa od API listy aktywnych kontaktów agenta (zob. Czeka na BE)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** PYTANIE OTWARTE (nie zakładano ticketu BE): dziś jedynym źródłem jest `GET /api/agent/me/assigned-contact` (jeden kontakt `ASSIGNED`). Odtworzenie wielu kart, SOCIAL, kontaktów `ACTIVE` i ACW wymaga najpewniej endpointu listy aktywnych kontaktów agenta (`ASSIGNED`+`ACTIVE`, także kontakty po rozmowie bez dyspozycji). Decyzja właściciela: czy zakładać ticket BE (propozycja numeru: BE-157).
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden` (oraz `backend-dev-expert`, jeśli zapadnie decyzja o endpoincie)
+
+**Opis:** `agent-recovery.service` odtwarza po przeładowaniu tylko jeden kontakt `ASSIGNED`. Agent z kilkoma kartami, kontaktem SOCIAL, kontaktem `ACTIVE` lub kontaktem w ACW traci je z pulpitu (kontakty zostają w bazie — zob. FE-132/BE-156).
+
+**Kryteria akceptacji:**
+- [ ] Po przeładowaniu odtwarzane są wszystkie otwarte kontakty agenta (w tym SOCIAL i `ACTIVE`) z zachowaniem limitów kart
+- [ ] Kontakt po rozmowie bez dyspozycji wraca jako karta ACW z formularzem (FE-122)
+- [ ] Nie wywołuje ponownego `acceptContact` dla kontaktu już `ACTIVE` (FE-131)
+- [ ] Szkice nie są odtwarzane (pamięć, RODO) — brak próby zapisu w przeglądarce
+- [ ] WP-1…WP-7
+
+**Ryzyka:** (R1) bez zmiany BE zakres ogranicza się do kontaktów dostępnych z istniejącego API; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`).
+**Nie wchodzi w zakres:** trwałość szkiców po przeładowaniu, odtwarzanie rozmowy WebRTC.
 
 
 ## Bez epiku

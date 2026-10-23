@@ -24,3 +24,4 @@
 - [Tura 47: EPIC-32 UX agenta](project_tura47_epic32.md) — FE-114..125, 338/372, fazy i otwarte decyzje
 - [EPIC-32 po turze 48](project_epic32_tura48.md) — FE 3/12; reszta kontrastu przeniesiona do FE-116 (M/L)
 - [EPIC-32 po turze 49](project_epic32_tura49.md) — FE 5/13, nowy FE-126, 342/373, faza 1 zamknięta
+- [Tura 51: shape FE-121/122](project_tura51_shape.md) — FE-121 parasol FE-131..134, FE-135/136, BE-154..156, 345/387

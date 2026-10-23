@@ -56,7 +56,7 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 5 | 0 | 5 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 6 | 0 | 6 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
@@ -101,6 +101,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-155 | [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'`, `isReadOnly` vs `COMPLETED` | ⬜ Do zrobienia — Must Have (rekomendacja) |
 | BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
 | BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ⬜ Do zrobienia — blokuje FE-136 |
+| BE-158 | KPI agenta `GET /api/agent/me/kpi`: odporne mapowanie wiersza i poprawna semantyka `workTimeSeconds` (powiązany z FE-129) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8412,9 +8413,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 0/5** · ✅ 0 · 🔧 0 · ⬜ 5 · 🚫 0
+**Ukończone 0/6** · ✅ 0 · 🔧 0 · ⬜ 6 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8578,7 +8579,9 @@ backend/app/src/test/java/com/contactcenter/
 - Rozwiązanie nazw kolejek i klientów zbiorczo (1 zapytanie na typ, `WHERE id IN (...)` i `tenant_id = ...`), nie `resolveQueueName` w pętli; ewentualna nowa metoda zbiorcza w `QueueService` (zachować wzorzec: błąd rozwiązania nazwy → pusty string, nie 500).
 - `ContactService.findActiveContactsForAgent` + implementacja w `ContactServiceImpl` (mapowanie do `phase`), kontroler tylko deleguje.
 - Sprawdzić plan zapytania (`EXPLAIN`) na tabeli `contact` (partycjonowanej): jeśli brak indeksu pod `(tenant_id, agent_id, status)` powoduje skan wszystkich partycji, założyć OSOBNY ticket DB (numer wolny: DB-088), nie wstawiać migracji w ten ticket bez uzgodnienia.
-- OpenAPI (`@Operation`, `@ApiResponse` 200/403) po polsku jak sąsiednie endpointy.
+- OpenAPI (`@Operation`, `@ApiResponse` 200/401/403) po polsku jak sąsiednie endpointy.
+- **Poprawka opisów 401/403 w całym `AgentSelfController` (decyzja użytkownika, tura 53):** `@ApiResponse` i Javadoc dla braku/nieprawidłowego JWT mają mówić 401, a dla niewystarczającej roli 403 — dla nowego endpointu ORAZ istniejących `getAssignedContact()` (`@ApiResponse` 403 ok. linii 75) i `getKpi()` (ok. linii 139), które dziś opisują „JWT brakuje lub niewystarczająca rola” jako 403 i nie mają wpisu 401. Źródło prawdy: `TenantFilter` (Javadoc ok. linii 45–47: brak tokenu, token nieprawidłowy/wygasły, brak claims → 401) oraz `AgentSelfControllerTest` (commit `1f645fec`, potwierdza 401). Tylko adnotacje i Javadoc, bez zmiany zachowania runtime.
+- **Lista informacyjna (NIE poprawiać w BE-157)** — inne kontrolery z tym samym rozjazdem znalezione grepem w turze 53: `TwilioVoiceController` (ok. linii 106, „Brak JWT lub niewystarczająca rola” przy 403) i `AgentCallController` (ok. linii 171, „JWT missing or insufficient role” przy 403, opis po angielsku). Opisy typu „Brak roli ADMIN” przy 403 (np. `TenantController`, `AdminMetricsController`, `RetentionController`) są poprawne. Lista bez ticketu — do ewentualnej decyzji właściciela.
 
 **Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (jedyny wyjątek: `customerName` korzysta ze wspólnego mapowania prawdziwej nazwy klienta, jak nowy endpoint) (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
 
@@ -8592,6 +8595,7 @@ backend/app/src/test/java/com/contactcenter/
 - [ ] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
 - [ ] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
 - [ ] `assigned-contact` działa bez zmian poza poprawionym `customerName` (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
+- [ ] `@ApiResponse` i Javadoc w `AgentSelfController` opisują brak/nieprawidłowy JWT jako 401 i niewystarczającą rolę jako 403 — dla `active-contacts`, `assigned-contact` i `kpi` (zgodnie z `TenantFilter` i `AgentSelfControllerTest`); wygenerowany `/v3/api-docs` pokazuje 401 dla tych endpointów
 - [ ] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
 
 **Testy:**
@@ -8602,6 +8606,46 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) definicja ACW jest pochodna (`COMPLETED` + brak dyspozycji + okno) — kontakty zamknięte automatycznie przez system mogą wyglądać jak ACW, stąd ograniczenie do `PHONE` i okna; trwały stan ACW z `wrap_up_started_at` wymagałby migracji (poza zakresem, osobny ticket DB tylko jeśli właściciel zażąda dokładnego licznika ACW); (R2) kontakty `SOCIAL` mogą w ogóle nie trafiać do agenta do czasu BE-155 — endpoint zadziała, ale lista nie będzie ich zawierać; (R3) wydajność na tabeli partycjonowanej bez indeksu (zob. EXPLAIN w zakresie); (R4) `customerName` dziś nigdy nie jest prawdziwą nazwą (`AgentSelfController` używa `remoteAddress`) — zmiana jest widoczna dla FE, wymaga mapowania `customer` w tenantcie.
 **Nie wchodzi w zakres:** migracja DB i trwały stan ACW, usunięcie `assigned-contact`, zmiany routingu i limitów (BE-156), zdarzenia WS (BE-154), poprawka kanału social (BE-155), zmiany FE (FE-136).
 **Zależności (tura 52):** `Zależy od` brak; `Blokuje` FE-136. Kontekstowo: BE-155 (kanał `SOCIAL`), BE-156 (limity równoległych kontaktów — te same definicje „otwartego kontaktu”).
+
+### BE-158 – KPI agenta `GET /api/agent/me/kpi`: odporne mapowanie wiersza i poprawna semantyka `workTimeSeconds` („Czas pracy”)
+
+**Typ:** Bug / Hardening (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak (kontekst: BE-153 — przyszłe źródło czasu startu pracy; FE-129 — powiązany, NIE blokowany ani blokujący)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (pole „Czas pracy” w pasie KPI pulpitu agenta; ticket powiązany z FE-129 z tego epiku)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (systemowa Java to 25 — Mockito/Byte Buddy nie działają).
+
+**Kontekst (odkrycie `test-suite-expert` przy `AgentSelfControllerTest`, commit `1f645fec`; stan kodu zweryfikowany w turze 53, 2026-10-23):**
+- (a) `AgentSelfController.getKpi()` (ok. linii 142) rzutuje `row[0]`…`row[3]` na `Number` (ok. linii 153–156) bez sprawdzenia `null` ani długości tablicy. Dziś jest bezpiecznie, bo `ContactRepository.findAgentKpiToday` (ok. linii 2224) opakowuje kolumny w `COALESCE`/`COUNT`, ale każda zmiana SQL może dać `NullPointerException`/`ClassCastException`/`ArrayIndexOutOfBoundsException` → HTTP 500.
+- (b) `workTimeSeconds` = `COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(c.started_at))), 0)` (ok. linii 2241) liczone po wierszach filtrowanych `status IN ('COMPLETED','TRANSFERRED') AND duration_seconds IS NOT NULL` (ok. linii 2248–2249). „Czas pracy” startuje więc od pierwszego ZAKOŃCZONEGO kontaktu dnia (nie od początku pracy), nie uwzględnia kontaktów trwających, a przed pierwszym zakończonym kontaktem wynosi 0.
+- Źródła „początku pracy” w systemie: brak tabeli historii statusów agenta ani czasu logowania (w migracjach nie ma `agent_status_history`/`last_login`); status bieżący jest tylko w Redis z TTL 8 h (`UserServiceImpl.REDIS_AGENT_STATUS_TTL`, ok. linii 57), a czas zmiany statusu dopiero planuje BE-153 (`statusSince`).
+- **Powiązanie z FE-129:** wartość `225:56` w pasie KPI NIE wynika z błędu backendu. Backend zwraca sekundy (13 556 s = 3 h 45 min 56 s), a `TopNavbarComponent.formatSeconds` (`top-navbar.component.ts`, ok. linii 43) formatuje je jako `m:ss` (minuty bez przejścia na godziny) — przyczyną formatu jest FE. Naprawia to FE-129; FE-129 NIE zależy od BE-158. BE-158 poprawia natomiast SEMANTYKĘ liczby, którą FE formatuje (po poprawce wartość będzie rosła od pierwszego kontaktu dnia, także trwającego).
+
+**Decyzja o semantyce (b) — rekomendacja:** `workTimeSeconds` = sekundy od najwcześniejszego `COALESCE(started_at, assigned_at)` WSZYSTKICH kontaktów agenta rozpoczętych w bieżącym dniu UTC (statusy `ASSIGNED`, `ACTIVE`, `ON_HOLD`, `COMPLETED`, `TRANSFERRED`, bez filtra `duration_seconds`, z pominięciem `ABANDONED`/`ERROR`/`NOT_REACHED`) do `NOW()`; 0 gdy brak. Liczniki `contacts_count`, `avg_handle_time`, `sla_percent` zostają policzone jak dziś (tylko `COMPLETED`/`TRANSFERRED` z `duration_seconds`). Dlaczego ta opcja: jest dostępna od ręki z istniejących danych (bez migracji), uwzględnia kontakt trwający i usuwa „zero do pierwszego zakończonego”. Alternatywa „od pierwszego logowania/statusu `AVAILABLE`” jest semantycznie lepsza, ale nie ma dla niej danych (zob. wyżej); po wdrożeniu BE-153 można przełączyć źródło na czas pierwszego wejścia w `AVAILABLE` danego dnia — poza zakresem tego ticketu, bez osobnego ticketu do czasu decyzji właściciela. Decyzja do potwierdzenia przez właściciela przed implementacją (zaproponowana, nie zatwierdzona).
+
+**Zakres:**
+- Wydzielić mapowanie wiersza do metody (np. w `AgentSelfController` lub małym mapperze): `null` → 0, wartość nie-`Number` lub tablica krótsza niż 4 → jasny wyjątek (`IllegalStateException` z opisem kształtu wiersza i `agentId`), nie `ClassCastException`; log `ERROR` bez PII.
+- Zmiana zapytania `ContactRepository.findAgentKpiToday` wg semantyki (b); aktualizacja Javadoc repozytorium (ok. linii 2212) oraz opisu `@Operation` w `getKpi()` (ok. linii 132: „sekundy od pierwszego kontaktu do teraz”).
+- Nie zmieniać kontraktu JSON (`AgentKpiResponse`).
+
+**Kryteria akceptacji:**
+- [ ] Wiersz z `null` w dowolnej kolumnie daje 0 dla tej kolumny (test jednostkowy), a wiersz o złej długości/typie — wyjątek z czytelnym komunikatem, nie `ClassCastException`/NPE (test)
+- [ ] `workTimeSeconds` liczone od najwcześniejszego kontaktu dnia, także trwającego (`ACTIVE`/`ON_HOLD`), bez filtra `duration_seconds` (test integracyjny zapytania)
+- [ ] Kontakty `ABANDONED`/`ERROR`/`NOT_REACHED`, innego agenta, innego tenanta i z innego dnia UTC NIE wpływają na wynik (test)
+- [ ] Agent bez kontaktów dziś: wszystkie wartości 0, odpowiedź 200
+- [ ] Pozostałe KPI (`contactsHandledToday`, `avgHandleTimeSeconds`, `slaPercent`) bez zmiany wartości dla tych samych danych (test regresyjny)
+- [ ] `mvn verify -pl app` zielone (z `JAVA_HOME` dla JDK 21)
+
+**Testy:** rozszerzyć istniejące `AgentSelfControllerTest` (klasa `Kpi`, ok. linii 304; `findAgentKpiToday` mockowane przez `contactService`) o przypadki `null`/zła długość/zły typ wiersza; nowy test integracyjny repozytorium na prawdziwej bazie (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`) dla zapytania `findAgentKpiToday` — izolacja agent/tenant, granice dnia UTC, kontakty trwające.
+
+**Ryzyka:** (R1) zmiana semantyki zmienia wyświetlaną wartość „Czas pracy” dla wszystkich agentów — uzgodnić z właścicielem przed wdrożeniem; (R2) „czas pracy” liczony od pierwszego kontaktu nadal nie jest czasem obecności (przerwy, brak kontaktów) — świadome ograniczenie do czasu BE-153; (R3) dzień UTC vs strefa agenta (granica doby) — bez zmian względem dziś.
+**Nie wchodzi w zakres:** historia statusów i czas logowania (migracja DB), format wyświetlania (FE-129), zmiany FE.
+**Zależności (tura 53):** `Zależy od` brak; `Blokuje` brak; powiązany z FE-129 (przyczyną `225:56` jest `formatSeconds` na FE) i kontekstowo z BE-153.
 
 
 ## Bez epiku

@@ -56,7 +56,7 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 5 | 0 | 5 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
@@ -100,6 +100,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social | ⬜ Do zrobienia — blokuje FE-135 |
 | BE-155 | [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'`, `isReadOnly` vs `COMPLETED` | ⬜ Do zrobienia — Must Have (rekomendacja) |
 | BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
+| BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ⬜ Do zrobienia — blokuje FE-136 |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8411,9 +8412,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 0/4** · ✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0
+**Ukończone 0/5** · ✅ 0 · 🔧 0 · ⬜ 5 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8537,6 +8538,68 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) zmiana routingu wpływa na wszystkie kolejki — wprowadzić za konfiguracją/flagą lub z domyślnym „brak limitu”; (R2) kolizja z BE-150 (routing pod rolą `cc_app`) — uzgodnić kolejność merge; (R3) różne definicje „otwartego kontaktu” (PHONE vs async).
 **Nie wchodzi w zakres:** nowe strategie routingu, zmiany FE (limity kart FE zostają do uzgodnienia), kanał social bez kolejki (BE-155).
 **Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak.
+
+### BE-157 – Lista aktywnych kontaktów agenta: `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu)
+
+**Typ:** Feature (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-136
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (systemowa Java to 25 — Mockito/Byte Buddy nie działają, testy masowo padają).
+
+**Kontekst (stan kodu, zweryfikowany w turze 52, 2026-10-23):**
+- Jedyny dziś endpoint recovery to `GET /api/agent/me/assigned-contact` — `AgentSelfController.getAssignedContact()` (ok. linii 78), który woła `ContactService.findAssignedContactForAgent` (interfejs ok. linii 669, `ContactServiceImpl` ok. linii 1464) → `ContactRepository.findAssignedContactForAgent` (ok. linii 2108). Zapytanie: `c.agentId = :agentId AND c.tenantId = :tenantId AND c.status = 'ASSIGNED'` z `setMaxResults(1)`, więc zwraca co najwyżej JEDEN kontakt `ASSIGNED`; kontakty `ACTIVE` i po rozmowie nie są widoczne. Odpowiedź `AssignedContactResponse` ma tylko 6 pól (`contactId`, `channel`, `customerIdentifier`, `customerName`, `queueName`, `customerId`), a `customerName` to dziś zawsze `remoteAddress` (fallback) — brak prawdziwej nazwy klienta, tematu e-maila ani czasów. Nazwa kolejki jest rozwiązywana osobnym wywołaniem `resolveQueueName` (ok. linii 182, `queueService.findQueueEntity`) na kontakt — przy liście to byłby N+1.
+- Jedyny konsument we froncie: `AgentRecoveryService.recoverAfterReconnect()` (`frontend/src/app/features/agent/services/agent-recovery.service.ts`); limity kart FE: `MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3`, `MAX_TOTAL_TABS=4` (`contact-tab.store.ts`).
+- Statusy kontaktu w kodzie: `QUEUED`, `ASSIGNED` (ustawiany w `RoutingServiceImpl` ok. linii 461), `ACTIVE` (`ContactServiceImpl.acceptContact` ok. linii 649), `ON_HOLD`, `COMPLETED`, `TRANSFERRED`, `ABANDONED`, `NOT_REACHED`, `ERROR` (zbiór terminalnych: `ContactServiceImpl` ok. linii 124 i `ContactRepository` ok. linii 1333). Javadoc pola `Contact.status` jest nieaktualny (nie wymienia `ASSIGNED`/`TRANSFERRED`).
+- **Stan ACW NIE istnieje w backendzie.** „Kontakt po rozmowie bez dyspozycji” to stan pochodny: `status = 'COMPLETED'`, ustawione `ended_at`, `disposition_code IS NULL`, `agent_id` = agent (dyspozycję ustawia `ContactServiceImpl.setDisposition` ok. linii 539, która dopuszcza ją dopiero po zakończeniu kontaktu). Backend nie zapisuje czasu wejścia w ACW — najbliższym przybliżeniem jest `ended_at`.
+
+**Opis:** Nowy endpoint zwraca WSZYSTKIE aktywne kontakty zalogowanego agenta w jednym wywołaniu — dane wystarczające do odbudowania kart na pulpicie bez dodatkowych zapytań (bez N+1 po stronie FE i BE).
+
+**Kontrakt API:**
+- `GET /api/agent/me/active-contacts` w `AgentSelfController` (prefiks `/api/agent/me`, `@PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMIN')")`, identyfikacja agenta przez `TenantContext.getUserId()` — jak `assigned-contact`; BEZ parametru `agentId`). Ścieżka pod istniejącym prefiksem, więc NIE wymaga zmian w `SecurityConfig`/`TenantFilter.PUBLIC_PATH_PREFIXES` (endpoint chroniony JWT, nie publiczny).
+- Odpowiedź: `200 OK` zawsze, ciało = tablica JSON (pusta `[]`, gdy brak kontaktów; NIE 204 — inaczej niż `assigned-contact`, żeby FE nie rozróżniał dwóch „pustych” przypadków). Limit bezpieczeństwa: maks. 20 elementów (kod stały/konfig; ponad limit — ucinane od najstarszych w ACW).
+- Element `ActiveContactResponse` (nowy rekord w `api/contact/dto`):
+  - `contactId` (UUID jako String, jak `AssignedContactResponse`), `channel` (`PHONE`/`EMAIL`/`CHAT`/`SOCIAL`; wartość z bazy bez normalizacji — kanał `SOCIAL_*` do ujednolicenia w BE-155), `direction`,
+  - `status` (surowy status bazy: `ASSIGNED`/`ACTIVE`/`ON_HOLD`/`COMPLETED`) oraz `phase` — wartość pochodna wygodna dla FE: `RINGING` (`ASSIGNED`), `IN_PROGRESS` (`ACTIVE`, `ON_HOLD`), `WRAP_UP` (ACW, wg definicji niżej),
+  - `assignedAt`, `startedAt`, `endedAt` (ISO 8601 UTC, nullable), `wrapUpStartedAt` (= `endedAt` dla `WRAP_UP`, w pozostałych `null`; pole jawne, by FE nie zgadywał semantyki `endedAt`),
+  - `customerId`, `customerIdentifier` (= `remote_address`), `customerName` (nazwa klienta, gdy `customer_id` ustawione i rozwiązywalne jednym zapytaniem zbiorczym; inaczej fallback na `customerIdentifier`), `queueId`, `queueName`,
+  - `subject` (temat dla e-mail z `channel_metadata.subject`, inaczej `null`) — razem z pozostałymi polami pozwala FE odtworzyć kartę bez dociągania `GET /api/contacts/{id}`.
+- Kolejność: stabilna, `assigned_at ASC NULLS LAST`, następnie `created_at ASC`, następnie `contact_id ASC` (deterministyczny remis).
+- Zakres „aktywnych” (decyzja projektowa, do potwierdzenia w WP-1): `agent_id = <agent>` AND (`status IN ('ASSIGNED','ACTIVE','ON_HOLD')` OR ACW). ACW = `status = 'COMPLETED' AND disposition_code IS NULL AND ended_at >= now() - <okno>`, okno konfigurowalne (`agent.active-contacts.wrap-up-window`, domyślnie 12 h — ucina „wieczne” ACW po porzuconej dyspozycji), tylko kanał `PHONE` (kontakty e-mail/social/chat zamykane po stronie systemu nie wymagają dyspozycji agenta — zob. `EmailContactCreator` ok. linii 292, gdzie `ended_at` ustawia system; rozszerzenie na `CHAT` do rozstrzygnięcia z FE-122). `TRANSFERRED` nie jest ACW (agent oddał kontakt).
+- Dostęp: tylko własne kontakty zalogowanego agenta, w obrębie jego tenanta. Brak parametru pozwalającego pobrać kontakty innego agenta (supervisor ma osobne endpointy).
+
+**Zakres implementacji:**
+- `ContactRepository.findActiveContactsForAgent(UUID agentId, UUID tenantId, Instant wrapUpSince, int limit)` — `setTenantContextInDb(tenantId)` jak w `findAssignedContactForAgent` (repozytorium rozszerza `TenantAwareRepository`), warunek `tenantId` JAWNIE w zapytaniu (nie polegać wyłącznie na RLS), jedno zapytanie z `ORDER BY` j.w.
+- Rozwiązanie nazw kolejek i klientów zbiorczo (1 zapytanie na typ, `WHERE id IN (...)` i `tenant_id = ...`), nie `resolveQueueName` w pętli; ewentualna nowa metoda zbiorcza w `QueueService` (zachować wzorzec: błąd rozwiązania nazwy → pusty string, nie 500).
+- `ContactService.findActiveContactsForAgent` + implementacja w `ContactServiceImpl` (mapowanie do `phase`), kontroler tylko deleguje.
+- Sprawdzić plan zapytania (`EXPLAIN`) na tabeli `contact` (partycjonowanej): jeśli brak indeksu pod `(tenant_id, agent_id, status)` powoduje skan wszystkich partycji, założyć OSOBNY ticket DB (numer wolny: DB-088), nie wstawiać migracji w ten ticket bez uzgodnienia.
+- OpenAPI (`@Operation`, `@ApiResponse` 200/403) po polsku jak sąsiednie endpointy.
+
+**Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/agent/me/active-contacts` zwraca 200 i tablicę wszystkich kontaktów agenta w statusach `ASSIGNED`, `ACTIVE`, `ON_HOLD` oraz kontaktów ACW (wg definicji wyżej); brak kontaktów → `[]`
+- [ ] Każdy element zawiera pola z kontraktu (w tym `phase`, `assignedAt`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`) — FE odtwarza kartę bez dodatkowych wywołań
+- [ ] Kolejność stabilna: `assigned_at ASC NULLS LAST`, `created_at`, `contact_id` (test z remisem `assigned_at`)
+- [ ] Nie zwraca kontaktów: innego agenta tego samego tenanta, agenta innego tenanta, terminalnych (`ABANDONED`, `NOT_REACHED`, `ERROR`, `TRANSFERRED`), `COMPLETED` z ustawioną dyspozycją, `COMPLETED` starszych niż okno ACW, `COMPLETED` kanałów innych niż `PHONE`
+- [ ] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
+- [ ] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
+- [ ] `assigned-contact` działa bez zmian (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
+- [ ] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
+
+**Testy:**
+- Jednostkowe: `ContactServiceTest` (mapowanie statusu na `phase`, ACW tylko `PHONE` + brak dyspozycji + w oknie, fallback nazwy klienta) oraz nowy `AgentSelfControllerTest` (dziś BRAK jakichkolwiek testów `AgentSelfController` — `grep` po `src/test` nie znajduje odwołań do kontrolera ani do `assigned-contact`; przy okazji dodać test regresyjny `assigned-contact`): 200 + `[]`, rola, użycie `TenantContext.getUserId()` zamiast parametru.
+- Integracyjne (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`, prawdziwa baza): zestaw danych z 2 tenantami × 2 agentami; **kontakty innego agenta i innego tenanta NIE mogą wyciec** (asercja na pełnym zbiorze identyfikatorów, nie tylko na liczbie), kolejność, limit, okno ACW, kontakt `COMPLETED` z dyspozycją pominięty, test pod RLS (`app.current_tenant`).
+- Test bezpieczeństwa: wywołanie bez JWT → 401/403; agent nie może podać cudzego `agentId` (brak parametru; próba przez query string ignorowana).
+
+**Ryzyka:** (R1) definicja ACW jest pochodna (`COMPLETED` + brak dyspozycji + okno) — kontakty zamknięte automatycznie przez system mogą wyglądać jak ACW, stąd ograniczenie do `PHONE` i okna; trwały stan ACW z `wrap_up_started_at` wymagałby migracji (poza zakresem, osobny ticket DB tylko jeśli właściciel zażąda dokładnego licznika ACW); (R2) kontakty `SOCIAL` mogą w ogóle nie trafiać do agenta do czasu BE-155 — endpoint zadziała, ale lista nie będzie ich zawierać; (R3) wydajność na tabeli partycjonowanej bez indeksu (zob. EXPLAIN w zakresie); (R4) `customerName` dziś nigdy nie jest prawdziwą nazwą (`AgentSelfController` używa `remoteAddress`) — zmiana jest widoczna dla FE, wymaga mapowania `customer` w tenantcie.
+**Nie wchodzi w zakres:** migracja DB i trwały stan ACW, usunięcie `assigned-contact`, zmiany routingu i limitów (BE-156), zdarzenia WS (BE-154), poprawka kanału social (BE-155), zmiany FE (FE-136).
+**Zależności (tura 52):** `Zależy od` brak; `Blokuje` FE-136. Kontekstowo: BE-155 (kanał `SOCIAL`), BE-156 (limity równoległych kontaktów — te same definicje „otwartego kontaktu”).
 
 
 ## Bez epiku

@@ -83,7 +83,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ⬜ (Do zrobienia; po FE-131)
 - FE-134 – WP-D (FE-121): status agenta w górnym pasku na `/agent/*`, CTA „Utwórz profil”/„Pełny profil” ukryte dla agenta — ⬜ (Do zrobienia)
 - FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154 i FE-133)
-- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; pytanie o BE otwarte; po FE-122 i FE-131)
+- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po FE-122, FE-131 i BE-157)
 
 ---
 
@@ -5900,7 +5900,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Ukończone 8/23** (✅ 8 · 🔧 0 · ⬜ 15 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
-> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Otwarte pytanie o backend pozostaje dla FE-136 (lista aktywnych kontaktów agenta).
+> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta).
 > **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
@@ -5914,7 +5914,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-131 → FE-132`;  `FE-131 → FE-133`;  `FE-131, FE-133 → FE-122`;  `FE-134` (bez zależności, w dowolnym momencie);  `FE-121, FE-131…FE-134, FE-122 → FE-123`;  `BE-154, FE-133 → FE-135`;  `FE-122, FE-131 → FE-136` (pytanie o BE);  `BE-154 → FE-135`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-131 → FE-132`;  `FE-131 → FE-133`;  `FE-131, FE-133 → FE-122`;  `FE-134` (bez zależności, w dowolnym momencie);  `FE-121, FE-131…FE-134, FE-122 → FE-123`;  `BE-154, FE-133 → FE-135`;  `FE-122, FE-131, BE-157 → FE-136`;  `BE-154 → FE-135`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6644,26 +6644,27 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 
 ### FE-136 – Odtwarzanie kart po przeładowaniu strony: wiele kontaktów, SOCIAL, `ACTIVE` i ACW (`agent-recovery.service`)
 
-**Typ:** Frontend implementation (odporność) — **z otwartym pytaniem o backend**
+**Typ:** Frontend implementation (odporność)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-122 (ACW jako stan karty), FE-131 (magazyn szkiców); zależność warunkowa od API listy aktywnych kontaktów agenta (zob. Czeka na BE)
+**Zależy od:** FE-122 (ACW jako stan karty), FE-131 (magazyn szkiców), BE-157 (lista aktywnych kontaktów agenta)
 **Status:** ⬜ Do zrobienia
-**Czeka na BE:** PYTANIE OTWARTE (nie zakładano ticketu BE): dziś jedynym źródłem jest `GET /api/agent/me/assigned-contact` (jeden kontakt `ASSIGNED`). Odtworzenie wielu kart, SOCIAL, kontaktów `ACTIVE` i ACW wymaga najpewniej endpointu listy aktywnych kontaktów agenta (`ASSIGNED`+`ACTIVE`, także kontakty po rozmowie bez dyspozycji). Decyzja właściciela: czy zakładać ticket BE (propozycja numeru: BE-157).
+**Czeka na BE:** BE-157 — `GET /api/agent/me/active-contacts` (tablica wszystkich aktywnych kontaktów agenta: `ASSIGNED`, `ACTIVE`, `ON_HOLD` i ACW; pole `phase` = `RINGING`/`IN_PROGRESS`/`WRAP_UP`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`; kolejność `assigned_at ASC`; maks. 20; `[]` gdy brak). Pytanie otwarte rozstrzygnięte 2026-10-23 (tura 52) — właściciel zatwierdził ticket BE-157. Stary `GET /api/agent/me/assigned-contact` zostaje (zgodność wsteczna), po FE-136 oznaczany jako deprecated.
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
-**Wykonawca:** `angular-frontend-expert` + `impeccable harden` (oraz `backend-dev-expert`, jeśli zapadnie decyzja o endpoincie)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden` (backend: `backend-dev-expert` w BE-157)
 
-**Opis:** `agent-recovery.service` odtwarza po przeładowaniu tylko jeden kontakt `ASSIGNED`. Agent z kilkoma kartami, kontaktem SOCIAL, kontaktem `ACTIVE` lub kontaktem w ACW traci je z pulpitu (kontakty zostają w bazie — zob. FE-132/BE-156).
+**Opis:** `agent-recovery.service` odtwarza po przeładowaniu tylko jeden kontakt `ASSIGNED` (`GET /api/agent/me/assigned-contact`). Po BE-157 serwis ma wołać `GET /api/agent/me/active-contacts` i odtwarzać karty z jednej odpowiedzi: `phase=RINGING` → dzwonek/akceptacja jak dotąd (e-mail/chat: `acceptContact`), `phase=IN_PROGRESS` → karta bez `acceptContact`, `phase=WRAP_UP` → karta ACW z formularzem (czas ACW z `wrapUpStartedAt`). Agent z kilkoma kartami, kontaktem SOCIAL, kontaktem `ACTIVE` lub kontaktem w ACW traci je z pulpitu (kontakty zostają w bazie — zob. FE-132/BE-156).
 
 **Kryteria akceptacji:**
-- [ ] Po przeładowaniu odtwarzane są wszystkie otwarte kontakty agenta (w tym SOCIAL i `ACTIVE`) z zachowaniem limitów kart
+- [ ] Po przeładowaniu odtwarzane są wszystkie otwarte kontakty agenta (w tym SOCIAL i `ACTIVE`) z JEDNEGO wywołania `active-contacts`, w kolejności `assignedAt`, z zachowaniem limitów kart (nadmiarowe kontakty nie są gubione po cichu — komunikat/lista „poza limitem kart”)
+- [ ] Błąd/timeout endpointu nie blokuje pulpitu; w razie `404` (starszy backend) fallback do `assigned-contact`
 - [ ] Kontakt po rozmowie bez dyspozycji wraca jako karta ACW z formularzem (FE-122)
 - [ ] Nie wywołuje ponownego `acceptContact` dla kontaktu już `ACTIVE` (FE-131)
 - [ ] Szkice nie są odtwarzane (pamięć, RODO) — brak próby zapisu w przeglądarce
 - [ ] WP-1…WP-7
 
-**Ryzyka:** (R1) bez zmiany BE zakres ogranicza się do kontaktów dostępnych z istniejącego API; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`).
+**Ryzyka:** (R1) kontakty `SOCIAL` pojawią się na liście dopiero po BE-155 (bug kanału); ACW to stan pochodny backendu (`COMPLETED` bez dyspozycji, tylko `PHONE`, okno 12 h) — czas ACW to `endedAt`, nie dokładny moment wejścia; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`) — zob. BE-156.
 **Nie wchodzi w zakres:** trwałość szkiców po przeładowaniu, odtwarzanie rozmowy WebRTC.
 
 

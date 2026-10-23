@@ -1,7 +1,7 @@
 .form-select {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   color: var(--text-1);
@@ -59,7 +59,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.625rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-2);
@@ -72,7 +72,7 @@
 
   &:hover {
     background: var(--bg-subtle);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 
   &:focus-visible {

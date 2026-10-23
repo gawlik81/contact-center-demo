@@ -326,7 +326,7 @@ $breakpoint-desktop: 1280px;
     border-radius: 9px;
     background: var(--danger, #ef4444);
     color: var(--on-danger, #ffffff);
-    font-size: 0.625rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     line-height: 1;
     flex-shrink: 0;

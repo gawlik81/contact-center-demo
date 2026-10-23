@@ -171,7 +171,7 @@ input[type='email'],
 input[type='password'],
 input[type='text'] {
   padding: 0.625rem 0.875rem;
-  border: 1.5px solid var(--border-2);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 1rem;
   color: var(--text-1);
@@ -265,8 +265,8 @@ input[type='text'] {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 40%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

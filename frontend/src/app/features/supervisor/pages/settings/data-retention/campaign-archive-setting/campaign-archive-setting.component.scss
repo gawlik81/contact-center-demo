@@ -65,7 +65,7 @@
 .cas-input {
   width: 110px;
   padding: 0.4rem 0.625rem;
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
@@ -176,7 +176,7 @@
 
   &--danger {
     background: var(--danger);
-    color: var(--accent-fg);
+    color: var(--on-danger);
   }
 }
 

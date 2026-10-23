@@ -108,7 +108,7 @@
   }
 
   &__inactive {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     font-style: italic;
     padding: 2px 7px;
@@ -223,7 +223,7 @@
 .form-input,
 .form-select {
   padding: 0.5rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   color: var(--text-1);
@@ -314,11 +314,11 @@
 .btn-cancel {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--neutral-soft);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 }
 
@@ -336,11 +336,11 @@
 .btn-ghost {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--bg-elevated);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
     color: var(--text-1);
   }
 }
@@ -365,8 +365,8 @@
   display: inline-block;
   width: 13px;
   height: 13px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

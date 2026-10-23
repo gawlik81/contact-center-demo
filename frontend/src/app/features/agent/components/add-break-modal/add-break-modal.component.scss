@@ -1,5 +1,3 @@
-$primary: #166534;
-$primary-dark: #15803d;
 $ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -32,16 +30,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     gap: 14px;
     padding: 20px 20px 20px 24px;
-    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
-    position: relative;
-
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 60%);
-      pointer-events: none;
-    }
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-1);
   }
 
   &__icon {
@@ -49,8 +39,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
+    background: var(--warning-soft);
+    color: var(--warning-text);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -69,14 +59,14 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   &__title {
     font-size: 1.0625rem;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-1);
     margin: 0 0 2px;
     letter-spacing: -0.01em;
   }
 
   &__subtitle {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-2);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -88,9 +78,9 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     width: 32px;
     height: 32px;
     border: none;
-    background: rgba(255, 255, 255, 0.12);
+    background: transparent;
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-2);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -106,8 +96,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.22);
-      color: #fff;
+      background: var(--border-1);
+      color: var(--text-1);
     }
 
     &:active:not(:disabled) {
@@ -115,7 +105,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:focus-visible {
-      outline: 2px solid rgba(255, 255, 255, 0.7);
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
 
@@ -251,7 +241,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &__optional {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 400;
     color: var(--text-muted);
   }
@@ -261,7 +251,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 0.9375rem;
     color: var(--text-1);
     background: var(--bg-input, var(--bg-surface));
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-md);
     font-family: inherit;
     width: 100%;
@@ -275,7 +265,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover:not(:focus) {
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
     }
 
     &:focus {
@@ -291,7 +281,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 0.9375rem;
     color: var(--text-1);
     background: var(--bg-input, var(--bg-surface));
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-md);
     font-family: inherit;
     width: 100%;
@@ -306,7 +296,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow 180ms $ease-standard;
 
     &:hover:not(:focus) {
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
     }
 
     &:focus {
@@ -320,7 +310,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     padding: 11px 12px;
     font-size: 0.875rem;
     color: var(--text-1);
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-md);
     resize: vertical;
     font-family: inherit;
@@ -336,7 +326,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover:not(:focus) {
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
     }
 
     &:focus {
@@ -361,7 +351,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &__char-count {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 500;
     color: var(--text-muted);
     text-align: right;
@@ -448,22 +438,16 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &--primary {
-    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
-    color: #fff;
-    box-shadow:
-      0 1px 2px rgba(21, 128, 61, 0.3),
-      0 4px 12px rgba(22, 101, 52, 0.25);
+    background: var(--accent);
+    color: var(--on-accent);
 
     &:hover:not(:disabled) {
-      opacity: 0.92;
-      box-shadow:
-        0 2px 4px rgba(21, 128, 61, 0.35),
-        0 6px 16px rgba(22, 101, 52, 0.3);
+      background: color-mix(in oklch, var(--accent), var(--text-1) 14%);
       transform: translateY(-1px);
     }
 
     &:focus-visible {
-      outline: 2px solid $primary;
+      outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
 
@@ -480,7 +464,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &--loading {
-    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%) !important;
+    background: var(--accent) !important;
     opacity: 0.85;
     cursor: wait;
     pointer-events: none;
@@ -489,16 +473,16 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   &--secondary {
     background: transparent;
     color: var(--text-2);
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
 
     &:hover:not(:disabled) {
       background: var(--bg-subtle);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
       color: var(--text-1);
     }
 
     &:focus-visible {
-      outline: 2px solid $primary;
+      outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
 
@@ -563,8 +547,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     display: inline-block;
     width: 15px;
     height: 15px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
+    border: 2px solid color-mix(in oklch, var(--on-accent) 30%, transparent);
+    border-top-color: var(--on-accent);
     border-radius: 50%;
     animation: spin 0.65s linear infinite;
     flex-shrink: 0;
@@ -610,7 +594,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   .btn__spinner {
     animation: none;
-    border-top-color: rgba(255, 255, 255, 0.8);
+    border-top-color: var(--on-accent);
   }
 }
 
@@ -632,7 +616,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     gap: 8px;
     padding: 10px 14px;
     border-radius: var(--radius-md);
-    border: 1.5px solid var(--border-2);
+    border: 1.5px solid var(--border-control);
     background: var(--bg-input);
     color: var(--text-1);
     font-size: 13px;
@@ -644,7 +628,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     text-align: left;
 
     &:hover {
-      border-color: var(--border-strong);
+      border-color: var(--border-control-hover);
     }
 
     &:focus-visible {

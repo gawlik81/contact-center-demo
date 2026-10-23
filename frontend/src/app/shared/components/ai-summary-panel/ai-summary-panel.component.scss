@@ -35,7 +35,7 @@
     justify-content: center;
     width: 1.125rem;
     height: 1.125rem;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     background: transparent;
     cursor: pointer;
@@ -49,7 +49,7 @@
 
     &:hover {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
       color: var(--text-1);
     }
 

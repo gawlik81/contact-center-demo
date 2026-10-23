@@ -30,7 +30,7 @@ body {
   --color-danger-bg: #ffebee;
 
   // Text
-  --color-text-primary: #1e293b;
+  --color-text-primary: oklch(24% 0.012 250);
   --color-text-secondary: oklch(42% 0.012 250);
   --color-text-muted: oklch(51% 0.012 250);
 
@@ -51,6 +51,11 @@ body {
   --duration-fast: 120ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+
+  // Type scale floor (DESIGN.md → Typography). Never go below --fs-2xs.
+  // 2xs: uppercase labels, pills, counters, KPI captions. xs: small secondary text.
+  --fs-2xs: 0.6875rem; // 11px
+  --fs-xs: 0.75rem; // 12px
 }
 
 // ── New Design System Tokens (oklch) ─────────────────────────────────────────
@@ -74,6 +79,8 @@ body {
   --border-strong: oklch(80% 0.008 80);
   // Control outline (input/select/checkbox): >= 3:1 vs every surface (WCAG 1.4.11)
   --border-control: oklch(60% 0.008 250);
+  // Control outline on hover / focus-within: darker than rest state, contrast >= --border-control
+  --border-control-hover: oklch(48% 0.01 250);
 
   --accent: oklch(55% 0.13 255);
   --accent-soft: oklch(94% 0.025 255);
@@ -81,6 +88,7 @@ body {
   --on-accent: oklch(100% 0 0);
   --on-danger: oklch(100% 0 0);
   --on-success: oklch(100% 0 0);
+  --on-warning: oklch(22% 0.02 250);
   --accent-fg: var(--on-accent);
 
   --success: oklch(52% 0.12 155);
@@ -132,6 +140,7 @@ body {
   --border-2: oklch(33% 0.012 250);
   --border-strong: oklch(40% 0.012 250);
   --border-control: oklch(54% 0.012 250);
+  --border-control-hover: oklch(68% 0.012 250);
 
   --accent: oklch(70% 0.13 255);
   --accent-soft: oklch(30% 0.07 255);
@@ -139,6 +148,7 @@ body {
   --on-accent: oklch(15% 0.02 250);
   --on-danger: oklch(15% 0.02 250);
   --on-success: oklch(15% 0.02 250);
+  --on-warning: oklch(15% 0.02 250);
   --accent-fg: var(--on-accent);
 
   --success: oklch(70% 0.12 155);

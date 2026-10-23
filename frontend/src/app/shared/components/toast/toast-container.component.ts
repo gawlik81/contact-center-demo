@@ -33,7 +33,7 @@ import { NotificationService, Toast } from '../../../core/services/notification.
         gap: 0.75rem;
         padding: 0.75rem 1rem;
         border-radius: 0.5rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: var(--shadow-lg);
         pointer-events: all;
         animation: slideIn 0.2s ease-out;
         font-size: 0.875rem;
@@ -52,27 +52,27 @@ import { NotificationService, Toast } from '../../../core/services/notification.
       }
 
       .toast--success {
-        background: #d1fae5;
-        border-left: 4px solid #059669;
-        color: #065f46;
+        background: var(--success-soft);
+        border: 1px solid color-mix(in oklch, var(--success) 45%, transparent);
+        color: var(--success-text);
       }
 
       .toast--error {
-        background: #fee2e2;
-        border-left: 4px solid #dc2626;
-        color: #7f1d1d;
+        background: var(--danger-soft);
+        border: 1px solid color-mix(in oklch, var(--danger) 45%, transparent);
+        color: var(--danger-text);
       }
 
       .toast--warning {
-        background: #fef3c7;
-        border-left: 4px solid #d97706;
-        color: #78350f;
+        background: var(--warning-soft);
+        border: 1px solid color-mix(in oklch, var(--warning) 45%, transparent);
+        color: var(--warning-text);
       }
 
       .toast--info {
-        background: #dbeafe;
-        border-left: 4px solid #2563eb;
-        color: #1e3a5f;
+        background: var(--accent-soft);
+        border: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
+        color: var(--accent-text);
       }
 
       .toast__icon {

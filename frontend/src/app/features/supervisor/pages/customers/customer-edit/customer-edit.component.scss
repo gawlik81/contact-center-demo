@@ -142,7 +142,7 @@
 .form-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   color: var(--text-1);
@@ -292,11 +292,11 @@
 .btn-cancel {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--neutral-soft);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 }
 
@@ -341,7 +341,7 @@
   color: var(--text-2);
   padding: 0.375rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   line-height: 0;
   cursor: pointer;
   transition:
@@ -379,7 +379,7 @@
     width: 18px;
     height: 18px;
     flex-shrink: 0;
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: 4px;
     background: var(--bg-surface);
     cursor: pointer;
@@ -413,8 +413,8 @@
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

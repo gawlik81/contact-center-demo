@@ -8,6 +8,7 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
+import { AGENT_STATUS_CONFIG, ALL_AGENT_STATUSES } from '../../models/agent-status.model';
 import { AgentHotkeysService } from '../../services/agent-hotkeys.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { IncomingCallAlertService } from '../../services/incoming-call-alert.service';
@@ -78,5 +79,19 @@ describe('AgentDesktopComponent landmarks (real template)', () => {
   it('labels the central region for both the contacts and the calendar view', () => {
     const region = (fixture.nativeElement as HTMLElement).querySelector('.desktop__main');
     expect(region?.getAttribute('aria-label')).toBe('Kontakty i kalendarz');
+  });
+
+  it('exposes the model tone on the status button and on every menu item', () => {
+    const root = fixture.nativeElement as HTMLElement;
+    const trigger = root.querySelector<HTMLButtonElement>('.status-btn');
+    expect(trigger?.getAttribute('data-status-tone')).toBe(AGENT_STATUS_CONFIG.AVAILABLE.tone);
+
+    trigger?.click();
+    fixture.detectChanges();
+
+    const items = Array.from(root.querySelectorAll<HTMLElement>('.status-menu__item'));
+    expect(items.map((item) => item.getAttribute('data-status-tone'))).toEqual(
+      ALL_AGENT_STATUSES.map((status) => AGENT_STATUS_CONFIG[status].tone),
+    );
   });
 });

@@ -107,17 +107,17 @@
 .btn-cancel {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover {
     background: var(--neutral-soft);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 }
 
 .btn-delete {
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
 
   &:hover {
     opacity: 0.88;

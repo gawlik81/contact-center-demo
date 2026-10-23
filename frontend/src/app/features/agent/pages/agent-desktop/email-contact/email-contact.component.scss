@@ -91,7 +91,7 @@
   &__icon {
     width: 1rem;
     height: 1rem;
-    color: #9333ea;
+    color: var(--violet-text);
     flex-shrink: 0;
   }
 
@@ -113,7 +113,7 @@
     align-items: center;
     padding: 2px 8px;
     border-radius: 9999px;
-    font-size: 0.625rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -255,7 +255,7 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.3125rem 1rem;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     background: var(--bg-surface);
     cursor: pointer;
@@ -273,7 +273,7 @@
 
     &:hover:not(:disabled) {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
       box-shadow: var(--shadow-xs, var(--shadow-sm));
     }
 
@@ -505,7 +505,7 @@
   }
 
   &__size {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
@@ -556,7 +556,7 @@
 .field-input {
   width: 100%;
   padding: 0.4375rem 0.75rem;
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
@@ -779,8 +779,8 @@
   flex-shrink: 0;
 
   &--light {
-    border-color: rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
+    border-color: color-mix(in oklch, var(--on-accent) 30%, transparent);
+    border-top-color: var(--on-accent);
   }
 }
 

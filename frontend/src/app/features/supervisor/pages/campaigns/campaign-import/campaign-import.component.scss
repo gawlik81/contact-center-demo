@@ -82,7 +82,7 @@
 
     &--completed .stepper__circle {
       background: var(--success);
-      color: #fff;
+      color: var(--on-success);
       border-color: var(--success);
     }
   }
@@ -104,7 +104,7 @@
   }
 
   &__label {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-2);
     white-space: nowrap;
 
@@ -460,7 +460,7 @@
 .field-select {
   width: 100%;
   padding: 0.4375rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
@@ -690,11 +690,11 @@
 .btn-secondary {
   background: var(--bg-surface);
   color: var(--text-1);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--bg-subtle);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 }
 
@@ -714,8 +714,8 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 40%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

@@ -212,6 +212,22 @@
           "oklch(95.0% 0.008 250)"
         ]
       },
+      "border-control-hover": {
+        "role": "neutral",
+        "displayName": "Obrys kontrolki na hover",
+        "canonical": "oklch(48% 0.01 250)",
+        "darkValue": "oklch(68% 0.012 250)",
+        "tonalRamp": [
+          "oklch(15.0% 0.01 250)",
+          "oklch(26.4% 0.01 250)",
+          "oklch(37.9% 0.01 250)",
+          "oklch(49.3% 0.01 250)",
+          "oklch(60.7% 0.01 250)",
+          "oklch(72.1% 0.01 250)",
+          "oklch(83.6% 0.01 250)",
+          "oklch(95.0% 0.01 250)"
+        ]
+      },
       "border-strong": {
         "role": "neutral",
         "displayName": "Linia mocna",
@@ -301,6 +317,13 @@
         "role": "state",
         "displayName": "Tekst na pełnym success",
         "canonical": "oklch(100% 0 0)",
+        "darkValue": "oklch(15% 0.02 250)",
+        "tonalRamp": []
+      },
+      "on-warning": {
+        "role": "state",
+        "displayName": "Tekst na pełnym warning",
+        "canonical": "oklch(22% 0.02 250)",
         "darkValue": "oklch(15% 0.02 250)",
         "tonalRamp": []
       },
@@ -726,7 +749,7 @@
   ],
   "narrative": {
     "northStar": "The Well-Lit Workbench",
-    "overview": "Interfejs to stół warsztatowy, przy którym agent spędza całą zmianę: tło ma kolor lekko ciepłego papieru, tekst ma kolor chłodnego grafitu, a jedyne mocne światło, czyli Lampa robocza, pada tam, gdzie trzeba działać: na główną akcję, aktywną pozycję nawigacji, fokus i zaznaczenie. Wszystko inne jest ciche, żeby po ośmiu godzinach oczy nadal odróżniały ważne od tła.\n\nNastrój jest **spokojny i precyzyjny**. System jest gęsty, ale nie ciasny: tekst bazowy ma 14 px, kontrolki 15 px, a odstępy idą skokami 4–16 px. Kolory semantyczne (sukces, ostrzeżenie, błąd, fiolet kanału e-mail) zawsze występują jako trójka „pełny / miękki / tekst”, a stan pokazuje się miękkim tłem z ciemniejszym tekstem, nie krzykliwym wypełnieniem. Wyjątkiem są zdarzenia wymagające natychmiastowej reakcji: przychodzące połączenie dostaje pełny kolor i ruch.\n\nSystem ma pełny motyw ciemny (`[data-theme='dark']`) o tych samych nazwach tokenów: tła przechodzą w grafit o odcieniu 250, a akcenty się rozjaśniają. Każdy nowy komponent musi działać w obu motywach bez dodatkowego kodu, czyli wyłącznie przez tokeny.",
+    "overview": "Interfejs to stół warsztatowy, przy którym agent spędza całą zmianę: tło ma kolor lekko ciepłego papieru, tekst ma kolor chłodnego grafitu, a jedyne mocne światło, czyli Lampa robocza, pada tam, gdzie trzeba działać: na główną akcję, aktywną pozycję nawigacji, fokus i zaznaczenie. Wszystko inne jest ciche, żeby po ośmiu godzinach oczy nadal odróżniały ważne od tła.\n\nNastrój jest **spokojny i precyzyjny**. System jest gęsty, ale nie ciasny: tekst bazowy ma 14 px, kontrolki 15 px, a odstępy idą skokami 4–16 px. Kolory semantyczne (sukces, ostrzeżenie, błąd, fiolet kanału e-mail i statusu „Po kontakcie”) zawsze występują jako trójka „pełny / miękki / tekst”, a stan pokazuje się miękkim tłem z ciemniejszym tekstem, nie krzykliwym wypełnieniem. Wyjątkiem są zdarzenia wymagające natychmiastowej reakcji: przychodzące połączenie dostaje pełny kolor i ruch.\n\nSystem ma pełny motyw ciemny (`[data-theme='dark']`) o tych samych nazwach tokenów: tła przechodzą w grafit o odcieniu 250, a akcenty się rozjaśniają. Każdy nowy komponent musi działać w obu motywach bez dodatkowego kodu, czyli wyłącznie przez tokeny.",
     "keyCharacteristics": [
       "Ciepłe, papierowe neutralne tła (odcień 80) i chłodny grafitowy tekst (odcień 250).",
       "Jeden akcent, Lampa robocza, zarezerwowany dla akcji, aktywności i fokusu.",
@@ -754,6 +777,11 @@
       {
         "name": "The One Family Rule",
         "body": "Cały interfejs jest pisany Geistem. Hierarchię buduje się wagą (400/500/600/700) i rozmiarem, nie drugą rodziną.",
+        "section": "typography"
+      },
+      {
+        "name": "The Type Floor Rule",
+        "body": "Żaden `font-size` nie schodzi poniżej `--fs-2xs` (0.6875rem, 11 px). Skala: `--fs-2xs` 0.6875rem (etykiety wersalikami, pigułki, liczniki, podpisy KPI), `--fs-xs` 0.75rem (drobny tekst czytany). Nowy kod używa tokenów `--fs-*`, nie literałów.",
         "section": "typography"
       },
       {

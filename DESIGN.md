@@ -16,6 +16,7 @@ colors:
   border-2: "oklch(87% 0.005 80)"
   border-strong: "oklch(80% 0.008 80)"
   border-control: "oklch(60% 0.008 250)"
+  border-control-hover: "oklch(48% 0.01 250)"
   accent: "oklch(55% 0.13 255)"
   accent-soft: "oklch(94% 0.025 255)"
   accent-text: "oklch(45% 0.14 255)"
@@ -23,6 +24,7 @@ colors:
   accent-fg: "oklch(100% 0 0)"
   on-danger: "oklch(100% 0 0)"
   on-success: "oklch(100% 0 0)"
+  on-warning: "oklch(22% 0.02 250)"
   success: "oklch(52% 0.12 155)"
   success-soft: "oklch(94% 0.03 155)"
   success-text: "oklch(42% 0.12 155)"
@@ -155,10 +157,10 @@ System ma pełny motyw ciemny (`[data-theme='dark']`) o tych samych nazwach toke
 Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem stonowanych kolorów stanu w trójkach. Źródłem prawdy są tokeny OKLCH w `frontend/src/styles.scss`.
 
 ### Primary
-- **Work-Lamp Blue / Lampa robocza** (`accent`): główny przycisk, aktywna pozycja nawigacji (ikona), obrys fokusu, pierścień pulsujący softphone'u, kanał telefoniczny. **Lampa robocza miękka** (`accent-soft`) to tło aktywnej pozycji nawigacji i pigułek telefon/outbound. **Lampa robocza – tekst** (`accent-text`) to tekst na miękkim tle i wartości KPI połączeń. Na pełnym akcencie tekst ma kolor `on-accent` (`accent-fg` zostaje aliasem); analogicznie `on-danger` i `on-success`. W jasnym motywie to biel, a wypełnienia `accent`, `danger` i `success` są przyciemnione tak, by dawały co najmniej 4,5:1 (4,87 / 5,32 / 5,20); w ciemnym motywie ciemny grafit (6,3–7,8:1).
+- **Work-Lamp Blue / Lampa robocza** (`accent`): główny przycisk, aktywna pozycja nawigacji (ikona), obrys fokusu, pierścień pulsujący softphone'u, kanał telefoniczny. **Lampa robocza miękka** (`accent-soft`) to tło aktywnej pozycji nawigacji i pigułek telefon/outbound. **Lampa robocza – tekst** (`accent-text`) to tekst na miękkim tle i wartości KPI połączeń. Na pełnym akcencie tekst ma kolor `on-accent` (`accent-fg` zostaje aliasem); analogicznie `on-danger`, `on-success` i `on-warning` (ten ostatni to ciemny grafit także w jasnym motywie, bo `warning` jest jasnym bursztynem: 6,3:1 jasny, 9,6:1 ciemny). W jasnym motywie to biel, a wypełnienia `accent`, `danger` i `success` są przyciemnione tak, by dawały co najmniej 4,5:1 (4,87 / 5,32 / 5,20); w ciemnym motywie ciemny grafit (6,3–7,8:1).
 
 ### Secondary
-- **Violet / Fiolet** (`violet`, `violet-soft`, `violet-text`): kanał e-mail, status „przekazany”, drugi biegun gradientu awatara w softphonie. To kolor rozróżniający, nie drugi akcent akcji.
+- **Violet / Fiolet** (`violet`, `violet-soft`, `violet-text`): kanał e-mail, status agenta „Po kontakcie”, status „przekazany”, callbacki w kalendarzu agenta, drugi biegun gradientu awatara w softphonie. To kolor rozróżniający, nie drugi akcent akcji.
 
 ### Neutral
 - **Workbench Paper / Papier warsztatowy** (`bg-app`): tło aplikacji. **Papier boczny** (`bg-sidebar`) to tło nawigacji bocznej, o ton ciemniejsze.
@@ -166,13 +168,14 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 - **Uniesiony papier** (`bg-elevated`): powierzchnie nad kartą (menu, popovery).
 - **Przetarty papier** (`bg-subtle`): hover wierszy i pozycji nawigacji, tła sekcji pomocniczych.
 - **Graphite Ink / Grafit** (`text-1`): tekst główny. Stopnie jaśniejsze: `text-2` dla tekstu drugorzędnego i etykiet KPI, `text-3` dla opisów, `text-muted` dla ikon w spoczynku, placeholderów i nagłówków sekcji nawigacji. Wszystkie trzy mają co najmniej 4,5:1 na każdej powierzchni (`bg-*`, `accent-soft`), a hierarchię niosą waga i rozmiar, nie osłabiony kontrast.
-- **Linie** (`border-1`): domyślne obramowania i separatory. `border-control` to obrys kontrolek (input, select, checkbox, radio) i ma co najmniej 3:1 względem każdej powierzchni (WCAG 1.4.11); `border-2` zostaje dekoracyjnym, subtelnym podziałem, a `border-strong` to obramowania wymagające wyraźnego podziału.
+- **Linie** (`border-1`): domyślne obramowania i separatory. `border-control` to obrys kontrolek (input, select, checkbox, radio, przyciski z obrysem) i ma co najmniej 3:1 względem każdej powierzchni (WCAG 1.4.11); `border-control-hover` to ten sam obrys na hover kontrolki (ciemniejszy w jasnym motywie, jaśniejszy w ciemnym, zawsze o wyższym kontraście niż spoczynek). Kontenery, karty i elementy informacyjne (np. plakietka użytkownika w pasku) zostają na `border-1`; `border-2` zostaje dekoracyjnym, subtelnym podziałem, a `border-strong` to obramowania wymagające wyraźnego podziału.
 
 ### Stany
 - **Sukces** (`success` / `-soft` / `-text`): agent dostępny, kontakt aktywny lub zakończony, kanał czat, kierunek inbound.
 - **Ostrzeżenie** (`warning` / `-soft` / `-text`): przerwa, kolejka, wstrzymanie, kanał social.
 - **Błąd** (`danger` / `-soft` / `-text`): błędy formularzy, nieudane i nieosiągnięte kontakty, akcje destrukcyjne, baner przychodzącego połączenia.
-- **Neutralny** (`neutral` / `-soft` / `-text`): domyślny i porzucony stan pigułki.
+- **Neutralny** (`neutral` / `-soft` / `-text`): domyślny i porzucony stan pigułki, kategoria kampanii w kalendarzu agenta, plakietka platformy social (kolor marki tylko jako obrys, nigdy tło pod tekstem).
+- **Statusy agenta** (jedna deklaracja `[data-status-tone]`, etykieta i ikona zawsze obecne): Dostępny = `success`, Zajęty = `danger`, Przerwa = `warning`, Po kontakcie = `violet`, Offline = `neutral`.
 
 ### Named Rules
 **The Lamp Rule.** Lampa robocza świeci tylko na to, co agent może teraz zrobić lub gdzie właśnie jest: na główną akcję, aktywną pozycję, fokus i zaznaczenie. Nie służy do dekoracji, nagłówków ani ilustracji.
@@ -201,8 +204,15 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 - **Pill** (600, 0.71875rem): tekst w pigułkach stanu i kanału.
 - **Mono** (400, ok. 0.8125rem): identyfikatory, numery telefonów, czasy trwania, fragmenty techniczne.
 
+### Type scale floor
+Tokeny rozmiaru w `styles.scss` (`:root`): `--fs-2xs` = 0.6875rem (11 px), `--fs-xs` = 0.75rem (12 px). Nazwy `--text-*` zostają zarezerwowane dla kolorów tekstu.
+- `--fs-2xs`: najmniejszy dozwolony tekst. Etykiety wersalikami (KPI, grupy nawigacji, `cd-stat-label`), pigułki i znaczniki typu, liczniki w odznakach, podpisy pod wartościami KPI (np. „cel 90%”). Wersaliki mają 600-700 i letter-spacing 0.04-0.06em; KPI w górnym pasku 0.04em. Mieszczenie się etykiet KPI przy 1366 px nie jest zweryfikowane: dziś są na sztywno po polsku (FE-119), więc dla `de` i innych języków wymaga pomiaru po wprowadzeniu tłumaczeń.
+- `--fs-xs`: drobny tekst czytany (metadane, opisy), gdy 13 px (Body small) jest za duże.
+
 ### Named Rules
 **The One Family Rule.** Cały interfejs jest pisany Geistem. Hierarchię buduje się wagą (400/500/600/700) i rozmiarem, nie drugą rodziną.
+
+**The Type Floor Rule.** Żaden `font-size` nie schodzi poniżej `--fs-2xs` (11 px). Nowy kod w powierzchni agenta i powłoce używa tokenów `--fs-*`, nie literałów px/rem. Wyjątek wymaga komentarza w kodzie.
 
 **The Real Mono Rule.** Dane o stałej szerokości używają `'Geist Mono', ui-monospace, monospace`. Generyczne `monospace`, `Courier New`, `Consolas` czy `Fira Mono` w obecnym kodzie to niespójności do usunięcia.
 
@@ -248,7 +258,7 @@ Precyzyjne narzędzia: ciche w spoczynku, wyraźne przy dotyku. Interakcja zmien
 - **Primary:** pełna Lampa robocza z tekstem `accent-fg`, padding 0.625rem × 1.125rem, typografia Control.
 - **Hover / Focus:** hover obniża krycie do 0.88 (przejście 150 ms). Fokus to globalny obrys 2 px w kolorze `accent`, odsunięty o 3 px.
 - **Danger:** ta sama forma na pełnym `danger`, tylko dla akcji destrukcyjnych.
-- **Secondary / Cancel:** przezroczyste tło, tekst `text-2`, obrys 1.5 px `border-1`. Na hover tło przechodzi w `neutral-soft`, a obrys w `border-strong`.
+- **Secondary / Cancel:** przezroczyste tło, tekst `text-2`, obrys 1.5 px `border-control`. Na hover tło przechodzi w `neutral-soft`, a obrys w `border-control-hover`.
 - **Icon:** kwadrat 30 × 30 px na `bg-surface`, z obrysem 1.5 px `border-1` i promieniem `radius-sm`.
 
 ### Chips (pigułki stanu i kanału)

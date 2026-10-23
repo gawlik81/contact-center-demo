@@ -136,7 +136,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--on-accent);
     font-size: 0.9375rem;
     font-weight: 700;
     flex-shrink: 0;
@@ -222,7 +222,7 @@
 
   // ── History ────────────────────────────────────────────
   &__history-title {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     color: var(--text-muted, #94a3b8);
     text-transform: uppercase;
@@ -270,7 +270,7 @@
     width: 24px;
     height: 24px;
     border-radius: 6px;
-    border: 1px solid var(--border-1, #e2e8f0);
+    border: 1px solid var(--border-control);
     background: var(--bg-elevated, #fff);
     color: var(--text-muted, #94a3b8);
     cursor: pointer;

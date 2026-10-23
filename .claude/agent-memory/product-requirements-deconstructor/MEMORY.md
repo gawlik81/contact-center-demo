@@ -23,3 +23,4 @@
 - [Tura 43: zamknięcie EPIC-30](project_tura43_epic30_closure.md) — warunkowe, DB-087/V142, 337/352, odłożone DB-069/BE-137
 - [Tura 47: EPIC-32 UX agenta](project_tura47_epic32.md) — FE-114..125, 338/372, fazy i otwarte decyzje
 - [EPIC-32 po turze 48](project_epic32_tura48.md) — FE 3/12; reszta kontrastu przeniesiona do FE-116 (M/L)
+- [EPIC-32 po turze 49](project_epic32_tura49.md) — FE 5/13, nowy FE-126, 342/373, faza 1 zamknięta

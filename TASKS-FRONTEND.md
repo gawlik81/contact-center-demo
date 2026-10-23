@@ -54,8 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
+| EPIC-32 | UX i dostępność stanowiska agenta | 1 | 0 | 11 | 0 | 12 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **112** | **0** | **4** | **1** | **117** | |
+| **Razem** | | **113** | **0** | **15** | **1** | **129** | |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -65,6 +66,20 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-T002 – Testy jednostkowe ContactService — ⬜ (🔲 Do zrobienia)
 - FE-T003 – Testy jednostkowe CallbackService — ⬜ (🔲 Do zrobienia)
 - FE-T004 – Testy jednostkowe AgentGroupService — ⬜ (🔲 Do zrobienia)
+
+**EPIC-32 – UX i dostępność stanowiska agenta**
+
+- FE-115 – Kontrast tokenów: tekst wyciszony, tekst na akcencie/danger/success, obramowania kontrolek — ⬜ (Do zrobienia)
+- FE-116 – Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta — ⬜ (Do zrobienia)
+- FE-117 – Landmarki i fokus: jeden `<main>`, unikalny `#main-content`, widoczny fokus, breadcrumb — ⬜ (Do zrobienia)
+- FE-118 – Skala typografii: minimalny rozmiar tekstu i etykiety KPI — ⬜ (Do zrobienia)
+- FE-119 – Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę” — ⬜ (Do zrobienia)
+- FE-120 – Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta — ⬜ (Do zrobienia)
+- FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce — ⬜ (Do zrobienia)
+- FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu — ⬜ (Do zrobienia)
+- FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ⬜ (Do zrobienia)
+- FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ⬜ (Do zrobienia)
+- FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` — ⬜ (Do zrobienia)
 
 ---
 
@@ -5875,6 +5890,408 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 **Poprawki po code review (tura 43, commit `67c85f8c`; ocena review 3,5/5 z 2026-10-18, wszystkie punkty wymagane i zalecane poprawione):** dialog pokazuje PRZYROST (`additionalCampaigns`/`additionalContacts`) zamiast sumy (#2); forma neutralna zamiast pluralizacji — brak ICU w projekcie (#1); trwały kontener `aria-live="polite"` na wynik podglądu oraz `role="alertdialog"` (#3); anulowanie wyścigu podglądu i odrzucanie odpowiedzi z innym `newDays` (#4); guard podwójnego `save()` (#5); obsługa 400/403 z testami (#6); `onInput` zamiast `$any` (#8); testy komponentu 16→36 (#7). `npm test` 316/316 w 24 plikach, eslint i `format:check` czyste.
 **Znany dług (tura 43, świadomie niezmieniony):** format daty `dd.MM.yyyy HH:mm` jest niezależny od języka (punkt #9 review) — zmiana wymaga rejestracji locale `de`/`uk`; zapisane jako znany dług, bez ticketu.
 **Weryfikacje OPCJONALNE (WP-4, NIEZWERYFIKOWANE, nie blokują zamknięcia EPIC-30):** wygląd w obu motywach, Escape/fokus dialogu, `PUT` na żywym backendzie w przeglądarce, tłumaczenia de/uk bez przeglądu native speakera.
+
+## EPIC-32 – UX i dostępność stanowiska agenta
+
+**Ukończone 1/12** (✅ 1 · 🔧 0 · ⬜ 11 · 🚫 0) — status epiku: 🔧 W toku
+
+> Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
+> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Nie przewidziano ticketów BE/DB; jedyne otwarte pytanie o backend — FE-122 (zob. ryzyka tego ticketu). Jeśli FE-122 wykaże potrzebę zmiany API, wtedy dopiero zakłada się osobny ticket BE.
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113). EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119, FE-120 (`clarify` + `harden`); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
+>
+> **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
+> - **WP-1** `npm run lint` — 0 błędów; `npm run format:check` zgodne; `npm test` (Vitest) zielone (punkt odniesienia: 410 testów po FE-114).
+> - **WP-2** komplet kluczy i18n w `frontend/public/i18n/{pl,en,de,uk}.json`, brak martwych kluczy (grep), poprawne diakrytyki, forma neutralna płciowo.
+> - **WP-3** kontrast WCAG 2.1 AA w OBU motywach (jasny i ciemny): tekst ≥ 4,5:1 (duży ≥ 3:1), elementy interfejsu i fokus ≥ 3:1; zero nowych literałów hex (The Token-Only Rule).
+> - **WP-4** obsługa z klawiatury (fokus widoczny, kolejność Tab, Esc, brak pułapek fokusu).
+> - **WP-5** weryfikacja w przeglądarce w local-demo po przebudowie obrazu frontendu (`docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --build frontend`), w obu motywach i przy 1366×768; wynik odnotowany w tickecie (nie „NIEZWERYFIKOWANE” bez powodu).
+> - **WP-6** code review `senior-code-reviewer` (wpis w `CR-FRONTEND.md`), `/verify` przed commitem; pamięć agenta commitowana razem ze zmianą.
+> - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
+>
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 → FE-116`;  `FE-115 → FE-118`;  `FE-117` (równolegle z FE-115, bez zależności);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121 → FE-122`;  `FE-121, FE-122 → FE-123`;  `FE-116, FE-118, FE-123 → FE-124`;  `FE-114…FE-124 → FE-125`.
+
+### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
+
+**Typ:** Frontend implementation (a11y / UX hardening)
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-10-21, commit `322db0c1` na gałęzi `fix/agent-incoming-call-hardening` — **przed merge do `develop`**; `npm test` 410 testów FE; code review `CR-FRONTEND.md` 2026-10-21, 3,5/5). **Kryterium otwarte:** test z PRAWDZIWYM połączeniem przychodzącym (dotąd tylko symulacja w przeglądarce).
+**Czeka na BE:** brak
+**Blokuje:** FE-120 (domknięcia po hardeningu), pośrednio FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Zamknięcie dwóch P0 z krytyki 2026-10-21 („Przychodzące połączenie może zniknąć”, „Brak skrótów klawiszowych”). Dzwonienie zamyka Kalendarz, aktywuje kartę telefonu i przenosi fokus na „Odbierz” (bez kradzieży fokusu z pola tekstowego), z jednorazowym komunikatem `role="alert"`. Baner poza pulpitem: „Odbierz” odbiera, „Odrzuć” zamiast „Zamknij”, warstwa `popover` nad otwartym modalem, odbiór bez nawigacji gdy otwarty jest modal („Rozmowa w toku”). Skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga skrótów (AltGr ignorowany). Menu statusu i karty kontaktów obsługiwane z klawiatury. `CallLifecycleService` (root) przejmuje przejścia BUSY / AFTER_CONTACT niezależnie od pulpitu. Esc w 6 modalach synchronizuje stan i oddaje fokus; dyspozycja blokuje Esc. Dodatkowo `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` i snapshot krytyki.
+
+**Zakres (zrealizowany, `git show --stat 322db0c1`: 44 pliki, +4006/−350):**
+- Nowe: `AgentHotkeysService`, `CallLifecycleService`, komponent `agent-shortcuts-cheat-sheet`, `shared/utils/focus.util.ts`, `shared/utils/router-url.util.ts`, model skrótów; zmiany w `IncomingCallAlertService`, `IncomingCallBannerComponent`, `AgentShellComponent`, `AgentDesktopComponent`, `SoftphoneComponent`, 6 modalach (dyspozycja, przerwa, oddzwonienia, e-mail ad hoc, manual-callback).
+- Klucze i18n w pl/en/de/uk (`incomingCall.*`, `desktop.ringingAnnouncement*`, `shortcuts.*`).
+- Testy: `agent-hotkeys.service.spec.ts`, `call-lifecycle.service.spec.ts`, `incoming-call-alert.service.spec.ts`, `incoming-call-banner.component.spec.ts`, `dialog-escape.spec.ts`, rozszerzony `agent-desktop.component.spec.ts`.
+
+**Kryteria akceptacji:**
+- [x] Dzwonienie zamyka Kalendarz, aktywuje kartę PHONE i ustawia fokus na „Odbierz”; jednorazowe ogłoszenie `role="alert"` (testy Vitest)
+- [x] Baner poza pulpitem: „Odbierz” odbiera, „Odrzuć” zamiast „Zamknij”, widoczny nad otwartym modalem
+- [x] Skróty Ctrl+Alt+Enter / Ctrl+Alt+Backspace / Ctrl+Alt+M i `?` działają; AltGr ignorowany (Ctrl+Alt+End zastąpiony Backspace — kolizja z Ctrl+Alt+Del w RDP/VDI, review)
+- [x] Esc w natywnych dialogach nie rozsynchronizowuje stanu i zwraca fokus; dyspozycja blokuje Esc
+- [x] Menu statusu i karty kontaktów obsługiwane z klawiatury (wzorce WAI-ARIA menu/tabs)
+- [x] `npm test` 410 testów zielone
+- [ ] Test z prawdziwym połączeniem przychodzącym (Twilio/SIP) w local-demo — **otwarte**; dotąd tylko symulacja w przeglądarce
+- [ ] Merge gałęzi `fix/agent-incoming-call-hardening` do `develop` — **otwarte**
+
+**Ryzyka:** (R1) zachowanie na prawdziwym połączeniu (wyścig WS vs Twilio, `answerCall()` przy już aktywnej sesji) potwierdzone tylko symulacją; (R2) `preventDefault` na `cancel` w dyspozycji może nie wytrzymać drugiego Esc w Chromium (review, do weryfikacji w Chrome).
+**Nie wchodzi w zakres:** punkty otwarte po hardeningu — trafiają do FE-120/FE-121/FE-122.
+**Notatka wykonania (2026-10-21):** commit `322db0c1`; ticket założony wstecznie w turze 47 (2026-10-23) jako FE-114 EPIC-32.
+
+### FE-115 – Kontrast tokenów: tekst wyciszony, tekst na akcencie/danger/success, obramowania kontrolek
+
+**Typ:** Frontend implementation (design tokens / a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-116, FE-118, FE-124
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` (dobór wartości OKLCH) + `angular-frontend-expert` (wdrożenie, testy)
+
+**Opis:** Audyt 2026-10-22 (P1): `--text-muted` ma kontrast 2,4–3,2:1 w obu motywach (79 użyć w tekście), `--text-3` w jasnym motywie 4,04–4,28:1, biały tekst na wypełnieniach accent/danger/success w jasnym motywie 4,05–4,31:1 (< 4,5:1). P2: obramowania kontrolek 1,3–1,4:1 (< 3:1, WCAG 1.4.11). Krytyka dodaje: `--text-muted` w ciemnym motywie 2,8–3,2:1. Ticket koryguje wartości tokenów w `frontend/src/styles.scss` tak, by spełniały WCAG 2.1 AA, bez łamania charakteru „Well-Lit Workbench”.
+
+**Zakres:**
+- Pomiar bazowy: skrypt/tabela kontrastów dla par tekst/tło (`--text`, `--text-2`, `--text-3`, `--text-muted`, `accent/danger/success` + tekst na nich) w obu motywach — zapis w notatce wykonania (przed i po).
+- Korekta `--text-muted` i `--text-3` (≥ 4,5:1 na `--surface`, `--bg` i tle `--surface-2`/ramki tabel) w obu motywach.
+- Tekst na wypełnieniach: wprowadzić token `--on-accent` (lub ściemnić wypełnienia accent/danger/success) tak, by tekst na pełnym wypełnieniu miał ≥ 4,5:1 w jasnym motywie; zachować `--accent-fg` jako alias, nie łamać istniejących użyć.
+- Obramowania kontrolek (input, select, checkbox, radio, przyciski obramowane): osobny token (np. `--border-control`) ≥ 3:1 względem tła; `--border-1` dla kart i tabel zostaje subtelny (nie jest kontrolką).
+- Aktualizacja `DESIGN.md` (sekcje kolorów i komponentów) i `.impeccable/design.json` — nowe wartości i tokeny.
+
+**Kryteria akceptacji:**
+- [ ] Tabela pomiarów przed/po w notatce wykonania; wszystkie pary tekst/tło z zakresu ≥ 4,5:1 (duży tekst ≥ 3:1) w jasnym i ciemnym motywie
+- [ ] Tekst na wypełnieniach accent/danger/success w jasnym motywie ≥ 4,5:1 (przyciski primary/danger, plakietki, toasty)
+- [ ] Obramowania kontrolek ≥ 3:1 (WCAG 1.4.11) w obu motywach; karty/tabele zachowują subtelne `--border-1`
+- [ ] Brak regresji wizualnej Lamp Rule (akcent wciąż tylko dla akcji/aktywności/fokusu) — przegląd w przeglądarce, powierzchnie agent, supervisor, admin
+- [ ] `DESIGN.md` i `.impeccable/design.json` zsynchronizowane z nowymi wartościami
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) zmiana tokenów globalnych dotyka wszystkich ról (supervisor, admin), nie tylko agenta — przegląd wizualny wszystkich powierzchni, nie tylko `/agent`; (R2) 79 użyć `--text-muted` — część (placeholdery, tekst wyłączony) jest wyłączona z wymogu 4.5:1 (WCAG: elementy nieaktywne) — nie zaostrzać ponad potrzebę; (R3) zbyt ciemny muted spłaszcza hierarchię — rozróżniać wagą/rozmiarem (One Family Rule).
+**Nie wchodzi w zakres:** zamiana literałów hex na tokeny (FE-116), skala typografii (FE-118).
+
+### FE-116 – Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta
+
+**Typ:** Frontend implementation (design tokens / dark theme)
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-115
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-124
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` (mapowanie statusów na tokeny) + `angular-frontend-expert`
+
+**Opis:** Audyt (P1): palety hex psują motyw ciemny — `social-contact` (`$surface #fff`), `agent-status.model` (kolory statusów w hex, jasna pigułka `#e8f5e9` w ciemnym motywie), `toast-container`, `agent-calendar`, skeleton w panelu dyspozycji. Krytyka (drobne): „Po kontakcie” w kolorze akcentu łamie Lamp Rule; zielony nagłówek modala „Dodaj przerwę”; `fill="white"` w SVG banera. The Token-Only Rule: nowy kod i dotykane pliki używają wyłącznie tokenów OKLCH z `styles.scss`.
+
+**Zakres:**
+- `social-contact.component.scss`: `$surface` i inne literały → tokeny motywowe.
+- `agent-status.model.ts` + komponenty statusu: kolory statusów jako tokeny (np. `--status-available/-break/-busy/-after-contact/-offline` + wersje `-soft`), tła pigułek poprawne w obu motywach; „Po kontakcie” NIE w kolorze akcentu (osobny, neutralny/ostrzegawczy token — decyzja z `ui-premium-designer`, zgodna z DESIGN.md).
+- `toast-container`, `agent-calendar`, skeleton w `disposition-panel`: literały hex → tokeny.
+- Nagłówek modala „Dodaj przerwę” bez zielonego tła (Lamp Rule: nagłówki nie są dekoracją koloru); SVG banera `fill="white"` → `currentColor`/token.
+- Zakres ograniczony do powierzchni agenta + wspólnych komponentów jej używanych (`toast-container`); pozostałe ~28 plików SCSS z hex — poza zakresem (dług wygaszany osobno).
+
+**Kryteria akceptacji:**
+- [ ] `grep` literałów hex (`#[0-9a-fA-F]{3,8}`) w 5 wymienionych miejscach + nagłówku „Dodaj przerwę” zwraca 0 trafień (poza wyjątkami uzasadnionymi w komentarzu)
+- [ ] Wszystkie statusy agenta i pigułki czytelne i spełniające kontrast AA w obu motywach (screenshoty jasny/ciemny w notatce wykonania)
+- [ ] „Po kontakcie” nie używa koloru akcentu; Lamp Rule zachowany (akcent tylko akcje/aktywność/fokus)
+- [ ] Skeleton dyspozycji, toasty, kalendarz i social-contact bez jasnych „plam” w ciemnym motywie
+- [ ] Testy modelu statusów zaktualizowane (mapowanie status → token)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) zależność od FE-115 (nowe tokeny kontrastu) — nie zaczynać przed nim; (R2) kolor statusu bywa jedynym nośnikiem informacji — zachować ikonę/etykietę tekstową (WCAG 1.4.1); (R3) `toast-container` jest współdzielony — sprawdzić na stronach supervisor/admin.
+**Nie wchodzi w zakres:** usunięcie fallbacków hex w `agent-desktop.component.scss` (FE-124), pozostałe pliki SCSS poza agentem.
+
+### FE-117 – Landmarki i fokus: jeden `<main>`, unikalny `#main-content`, widoczny fokus, breadcrumb
+
+**Typ:** Frontend implementation (a11y)
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** brak (może iść równolegle z FE-115)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Audyt (P1): dwa elementy `<main>` i zduplikowany `#main-content` (shell aplikacji + pulpit agenta). P2: brak widocznego fokusu w edytorze e-mail (contenteditable) i na opcjach listbox. Krytyka: breadcrumb na stronie jednopoziomowej (pytanie 1: czy pulpit agenta potrzebuje breadcrumbów i nawigacji bocznej?). Ticket porządkuje landmarki i fokus, nie zmienia układu.
+
+**Zakres:**
+- Jeden `<main id="main-content">` na stronę (shell); pulpit agenta i inne strony agenta używają `<section>`/`<div role="region" aria-label>`; link „Przejdź do treści” działa na unikalny id.
+- Widoczny fokus (`:focus-visible`, obrys z tokenu fokusu, ≥ 3:1) w edytorze e-mail (`adhoc-email-modal`, `email-contact`) i na opcjach listbox (wybór dyspozycji, lista agentów/kolejek transferu).
+- Breadcrumb: ukryć na stronach jednopoziomowych (np. `/agent/desktop`); decyzja i uzasadnienie w notatce (pytanie z krytyki — rekomendacja: ukryć, bez nawigacji bocznej na pulpicie).
+- Test a11y (Vitest): jedna landmarka `main` w renderze powłoki + pulpitu; unikalność id.
+
+**Kryteria akceptacji:**
+- [ ] W DOM strony agenta dokładnie jeden `<main>` i jedno `#main-content` (test + sprawdzenie w przeglądarce)
+- [ ] Fokus klawiaturą w edytorze e-mail i na opcjach listbox jest widoczny w obu motywach (≥ 3:1)
+- [ ] Breadcrumb nie pojawia się na stronie jednopoziomowej; na stronach wielopoziomowych bez zmian
+- [ ] Link „Przejdź do treści” przenosi fokus do `main`
+- [ ] Brak regresji skrótów i fokusu z FE-114 (testy `agent-hotkeys`, `dialog-escape` zielone)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) `<main>` w shellu jest współdzielony przez wszystkie role — sprawdzić strony supervisor/admin; (R2) usunięcie drugiego `<main>` może zmienić style (selektory `main`) — przegląd SCSS.
+**Nie wchodzi w zakres:** przebudowa nawigacji, układ kolumn (FE-123), kolory fokusu poza tokenem istniejącym.
+
+### FE-118 – Skala typografii: minimalny rozmiar tekstu i etykiety KPI
+
+**Typ:** Frontend implementation (typografia)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-115
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-124
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` + `angular-frontend-expert`
+
+**Opis:** Audyt (P2): fonty < 11 px w 14 miejscach, m.in. etykiety KPI w `top-navbar.component.scss` (9,5 px, linie 349 i 375). The One Family Rule: hierarchia wagą i rozmiarem w obrębie Geista. Ticket wprowadza minimalny rozmiar tekstu jako token i zastępuje wartości literalne.
+
+**Zakres:**
+- Token(y) skali typografii w `styles.scss` (np. `--text-2xs` ≥ 11 px/0,6875 rem — wartość wg `DESIGN.md`) i użycie we wszystkich 14 miejscach < 11 px (wyszukanie: `font-size` < 0.6875rem / < 11px w `frontend/src`).
+- Etykiety KPI w top-navbar ≥ minimum; sprawdzić, że KPI mieszczą się przy 1366 px i w tłumaczeniu `de` (dłuższe teksty).
+- Aktualizacja `DESIGN.md` (skala typografii).
+
+**Kryteria akceptacji:**
+- [ ] Brak `font-size` < 11 px w `frontend/src/**/*.scss` (grep; wyjątki uzasadnione w komentarzu)
+- [ ] Etykiety KPI w top-navbar czytelne i niepoprzecinane przy 1366×768 w pl i de
+- [ ] Rozmiary pochodzą z tokenów, nie z literałów
+- [ ] `DESIGN.md` zawiera skalę
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) powiększenie etykiet KPI może wypchnąć układ top-navbara — weryfikacja przy 1366 px i `de`; (R2) kolizja z FE-123 (układ) — FE-118 przed FE-123.
+**Nie wchodzi w zakres:** zmiana rodziny fontu, ogólna przebudowa skali dla supervisor/admin poza użyciami < 11 px.
+
+### FE-119 – Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę”
+
+**Typ:** Frontend implementation (i18n / clarify)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak (zalecane po fazie 1)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (KPI „cel” — zob. decyzja D1 poniżej)
+**Blokuje:** FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Audyt (P2) i krytyka (P1): fałszywe KPI „cel 90%” i „z 8:00”, nazwa marki na sztywno (PRODUCT.md: nazwa/logo to otwarta decyzja — nie wymyślać), placeholder kanału CHAT, martwy `agent-dashboard.component.ts`, teksty PL na sztywno (część bez diakrytyków — dostępne nazwy „bez ogonków”), rodzaj męski w tekstach, dwa przyciski „Dodaj przerwę”. PRODUCT.md: „Żaden tekst nie może być na sztywno w jednym języku.”
+
+**Zakres:**
+- **Decyzja właściciela D1 (KPI):** „cel 90%” i „z 8:00” — (A) usunąć, (B) pobierać z konfiguracji tenanta/kampanii (wymagałoby API — wtedy osobny ticket BE, NIE zakładany z góry). Rekomendacja: (A) — nie pokazywać danych, których system nie zna (zasada „Dane na żywo mówią prawdę o sobie”). Do czasu decyzji realizować wariant (A).
+- Nazwa marki: z jednego źródła (stała/konfiguracja/i18n), bez wymyślania nazwy; zachować `ContactCenterFrontend` jako roboczą.
+- Placeholder CHAT: zastąpić stanem pustym zgodnym z faktycznym stanem kanału (czat niezaimplementowany) lub ukryć za flagą — bez udawania działającej funkcji.
+- Teksty na sztywno po polsku (m.in. `disposition-panel.component.ts`: `'Używam dyspozycji systemowych (błąd pobierania)'`, teksty bez diakrytyków, aria-label) → klucze i18n w 4 językach; forma neutralna płciowo (bez rodzaju męskiego).
+- Usunięcie martwego `agent-dashboard.component.ts` (po sprawdzeniu braku referencji w routingu i testach).
+- Jeden przycisk „Dodaj przerwę” (usunąć duplikat; zachować ten wygodniejszy z klawiatury — decyzja w notatce).
+
+**Kryteria akceptacji:**
+- [ ] Brak fałszywych KPI „cel 90%”/„z 8:00” (lub zasilanie z realnych danych po decyzji D1)
+- [ ] `grep` polskich literałów w szablonach/TS powierzchni agenta zwraca 0 poza plikami i18n (poza komentarzami)
+- [ ] Wszystkie nowe/zmienione klucze w pl/en/de/uk, bez martwych kluczy; teksty w formie neutralnej płciowo
+- [ ] `agent-dashboard.component.ts` usunięty, `npm run build` i testy zielone
+- [ ] Jeden przycisk „Dodaj przerwę”; skrót/fokus nadal działają
+- [ ] Placeholder CHAT nie sugeruje działającego kanału
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) decyzja D1 otwarta (KPI) — wariant (B) wymaga backendu; (R2) tłumaczenia de/uk bez przeglądu native speakera (dług znany z FE-113); (R3) usunięcie „martwego” komponentu — zweryfikować brak dynamicznego użycia (lazy route, `loadComponent`).
+**Nie wchodzi w zakres:** nazwa/logo produktu (decyzja marki), nowe KPI z backendu, implementacja kanału CHAT.
+
+### FE-120 – Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta
+
+**Typ:** Frontend implementation (UX / harden)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-114 ✅ (zalecane po fazie 1)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Drobne domknięcia z review `CR-FRONTEND.md` (2026-10-21), weryfikacji po FE-114 i krytyki: (a) modal `manual-callback` nie ma ochrony szkicu (adhoc-email ma); (b) w ściądze skrótów `Esc` się zawija; (c) przerwa: 6 pól bez wartości domyślnych i brak licznika przerwy; (d) dwa toasty po dyspozycji; (e) błąd karty klienta bez możliwości ponowienia. Punkty z review nieobjęte listą powyżej (np. `preventDefault` na `cancel` dyspozycji w Chromium, banner `role="alert"` ogłaszany drugi raz przy wzbogaceniu nazwy, `--shadow-lg` → `--shadow-pop` na ściądze, martwe klucze i18n `agent.incomingCall.dismiss` i `agent.incomingCall.goToDesktop`) — zweryfikować w kodzie i dopisać do zakresu tylko te, które nadal występują.
+
+**Zakres:**
+- `manual-callback-modal`: ochrona szkicu (potwierdzenie przy zamknięciu z niezapisanymi zmianami, wzór z `adhoc-email-modal`); docelowo szkic przejmie magazyn z FE-121 (zob. ryzyko R1).
+- Ściąga skrótów: układ klawisza `Esc` bez zawijania (`white-space: nowrap`, szerokość kolumny).
+- Formularz „Dodaj przerwę”: wartości domyślne (typ/powód/czas — ustalić z `PRODUCT.md`: dostępny, przerwa, szkolenie), kolejność pól dla klawiatury; licznik trwania przerwy w statusie agenta.
+- Jeden toast po dyspozycji (sukces) — usunięcie zdublowanego powiadomienia.
+- Karta klienta: przycisk „Spróbuj ponownie” przy błędzie ładowania (z `aria-live`).
+- Usunięcie martwych kluczy i18n (jeśli nadal nieużywane), weryfikacja pozostałych punktów review.
+
+**Kryteria akceptacji:**
+- [ ] Zamknięcie `manual-callback` z niezapisanymi zmianami wymaga potwierdzenia; bez zmian zamyka się od razu (test)
+- [ ] `Esc` w ściądze skrótów w jednej linii w pl/en/de/uk (screenshot)
+- [ ] Formularz przerwy ma sensowne wartości domyślne; w trakcie przerwy widoczny licznik czasu (w statusie agenta)
+- [ ] Po zapisaniu dyspozycji pojawia się dokładnie jeden toast (test)
+- [ ] Błąd ładowania karty klienta oferuje ponowienie i po sukcesie pokazuje dane (test)
+- [ ] Brak martwych kluczy i18n (grep)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) ochrona szkicu w manual-callback to rozwiązanie tymczasowe — FE-121 wprowadzi magazyn szkiców per kontakt; zrobić minimalnie (potwierdzenie przy zamknięciu), bez budowy magazynu; (R2) licznik przerwy wymaga źródła czasu startu statusu (sprawdzić `AgentStatusService` — jeśli backend go nie zwraca, licznik od momentu zmiany po stronie klienta, z adnotacją).
+**Nie wchodzi w zakres:** magazyn szkiców per kontakt (FE-121), ACW niemodalne (FE-122), status „Szkolenie” w backendzie (jeśli go brak — zgłosić, nie zakładać BE).
+
+### FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce
+
+**Typ:** Frontend implementation (UX, stan aplikacji)
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** brak twardej (zalecane: po FE-115…FE-118 i FE-120; wymaga wcześniej `/impeccable shape`)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (do potwierdzenia: czy dla znaczników „nieprzeczytane/czeka klient” wystarczą istniejące zdarzenia WS — zob. ryzyka)
+**Blokuje:** FE-122, FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (po `/impeccable shape` i projekcie z `ui-premium-designer`)
+
+**Opis:** P1 z krytyki: „Praca na kilku kontaktach” — szkice niszczone przez `@switch` przy zmianie karty, × na karcie PHONE rozłącza bez potwierdzenia (zagnieżdżony `button` w elemencie `tab`), karty bez stanu (hold/ACW/nieprzeczytane/czeka klient), przydział e-mail/social i status agenta widoczne tylko na Desktopie. PRODUCT.md: agent obsługuje kilka kontaktów równolegle; „telefon kasuje szkic”, „karty nie mówią, gdzie ktoś czeka”.
+
+**Zakres:**
+- **Przed implementacją:** `/impeccable shape` dla pracy na wielu kontaktach (wynik: krótki brief w notatce ticketu; ew. podział ticketu na WP-A…WP-D, jeśli przekroczy 3–5 dni).
+- Magazyn szkiców per `contactId` (serwis/store w `features/agent/services`), przeżywa zmianę karty i `@switch`; szkice: edytor e-mail, notatki, pola social/czat; czyszczony przy zamknięciu kontaktu/wysłaniu.
+- Znaczniki stanu na kartach: hold, ACW, nieprzeczytane, czeka klient (ikona + tekst dla czytnika, nie sam kolor — WCAG 1.4.1; kolory z tokenów FE-116).
+- × na karcie aktywnej rozmowy: potwierdzenie przed rozłączeniem; poprawka zagnieżdżonego `button` w `role="tab"` (zamknięcie jako sąsiedni element z własnym fokusem, ewentualnie `aria-label`), bez regresji nawigacji strzałkami z FE-114.
+- Przydział e-mail/social (przypisanie do agenta) i status agenta dostępne na poziomie powłoki agenta, nie tylko na Desktopie (komponent w `AgentShellComponent`/nagłówku), z obsługą klawiaturą.
+- Dwa „CTA” karty klienta prowadzące na `/supervisor/…` (krytyka, drobne): dla agenta ukryć lub zastąpić akcjami w kontekście agenta — decyzja w briefie.
+
+**Kryteria akceptacji:**
+- [ ] Szkic e-maila/notatki przeżywa przełączenie karty i powrót (test + przeglądarka); po wysłaniu/zamknięciu kontaktu jest usuwany
+- [ ] Karty pokazują hold / ACW / nieprzeczytane / czeka klient z ikoną i tekstem dla czytnika; kontrast AA w obu motywach
+- [ ] × na aktywnej rozmowie wymaga potwierdzenia; × na karcie bez aktywnej rozmowy zamyka od razu; brak zagnieżdżonego interaktywnego elementu w `role="tab"` (test a11y)
+- [ ] Przydział e-mail/social i status agenta widoczne i obsługiwalne z klawiatury na każdej stronie agenta
+- [ ] CTA karty klienta nie prowadzą agenta na strony `/supervisor/…`
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) NAJWIĘKSZE ryzyko epiku — dotyka `ContactTabStore`, `AgentDesktopComponent`, modali; wymaga `/impeccable shape` PRZED kodem; (R2) znaczniki „nieprzeczytane/czeka klient” wymagają źródła danych — zweryfikować, czy istniejące zdarzenia WS niosą taką informację; jeśli nie — wariant minimalny (lokalne „nieprzeczytane” od ostatniego otwarcia karty) i zgłoszenie potrzeby BE jako pytanie do właściciela, NIE zakładanie ticketu BE; (R3) rozmiar L — przy przekroczeniu 5 dni podzielić na WP po `shape`; (R4) przechowywanie szkiców w pamięci (nie `localStorage`) ze względu na RODO — nie utrwalać treści wiadomości klienta w przeglądarce.
+**Nie wchodzi w zakres:** ACW niemodalne (FE-122), przebudowa układu kolumn (FE-123), nowe kanały (RCS, czat), zmiany API.
+
+### FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu
+
+**Typ:** Frontend implementation (UX)
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-121
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (potwierdzone w analizie: dyspozycja jest per kontakt — `POST /contacts/{contactId}/disposition`, `SetDispositionRequest { dispositionCode, notes }`; do weryfikacji w kodzie: stan ACW/AFTER_CONTACT jest dziś statusem agenta, nie kontaktu — zob. ryzyko R1)
+**Blokuje:** FE-123, FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (projekt z `ui-premium-designer`)
+
+**Opis:** Decyzja właściciela z krytyki: ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką. Dziś `DispositionPanelComponent` to natywny `<dialog>` modalny, który blokuje obsługę czatów (krytyka: „ACW blokuje 3 czaty”), ogłasza licznik ACW co sekundę, a formularz pojawia się tylko na pulpicie, gdy rozmowa skończy się poza pulpitem po odebraniu przy otwartym modalu (znany punkt otwarty po FE-114).
+
+**Zakres:**
+- Dyspozycja renderowana w obszarze karty kontaktu w stanie `WRAPPING` (nie `showModal()`); agent może przełączyć się na inną kartę (czat/e-mail) bez utraty stanu ACW; powrót na kartę pokazuje formularz ze szkicem (magazyn z FE-121).
+- Działa także gdy rozmowa kończy się poza pulpitem: stan ACW karty tworzony w `CallLifecycleService` (już niezależny od pulpitu), formularz dostępny po wejściu na kartę; znacznik ACW na karcie (FE-121) + powiadomienie bez kradzieży fokusu.
+- Dostępność: licznik ACW poza `aria-live` (lub ogłaszany rzadko), błąd walidacji dopiero po próbie zapisu, fokus na pierwszym polu po aktywacji karty ACW (na żądanie, nie przy każdym renderze); Esc nie zamyka dyspozycji (jak w FE-114).
+- Reguły ACW: czy agent może przyjąć nowy kontakt w trakcie ACW — ustalić w briefie z FE-121 i zachować dotychczasowe reguły statusu `AFTER_CONTACT`.
+- Usunięcie obejścia modalnego (`(cancel)="$event.preventDefault()"`, zależności od `showModal()`) razem z punktem review o drugim Esc w Chromium (staje się nieistotny).
+
+**Kryteria akceptacji:**
+- [ ] W stanie ACW agent może obsługiwać pozostałe karty (czat/e-mail) bez zamykania formularza; formularz nie jest modalny (brak `showModal()`/inertu reszty strony)
+- [ ] Dyspozycję można wypełnić także po zakończeniu rozmowy zakończonej poza pulpitem (test: koniec rozmowy na `/agent/customers`)
+- [ ] Zapis dyspozycji działa na istniejącym API (`POST /contacts/{id}/disposition`) bez zmian backendu; jeden toast (zob. FE-120)
+- [ ] Licznik ACW nie jest ogłaszany co sekundę; błąd walidacji po próbie zapisu
+- [ ] Obsługa wyłącznie klawiaturą: dojście do formularza, wybór kodu, zapis (skróty z FE-114 bez regresji)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) **pytanie o backend:** status `AFTER_CONTACT` jest statusem AGENTA (`AgentStatusService.changeStatus`), nie kontaktu — przy kilku kontaktach w ACW lub nowym kontakcie w trakcie ACW semantyka statusu może wymagać decyzji (np. kiedy wracać do `AVAILABLE`); jeśli wymaga zmian API/WS — opisać pytanie i NIE zakładać ticketu BE bez decyzji właściciela; (R2) dyspozycje per kampania/kolejka (EPIC-27) — `getAvailableDispositions(contactId)` musi działać także dla karty nieaktywnej; (R3) utrata ACW przy odświeżeniu strony (`agent-recovery.service`) — sprawdzić odtwarzanie.
+**Nie wchodzi w zakres:** nowe typy dyspozycji, zmiany backendu, przebudowa układu (FE-123).
+
+### FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów
+
+**Typ:** Frontend implementation (layout / responsywność)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-121, FE-122 (przebudowują pulpit), FE-118
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-124, FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` + `angular-frontend-expert`
+
+**Opis:** Audyt (P2): stałe kolumny 264/280 px, ok. 160 z 591 px wysokości zajmuje chrome (nagłówek, KPI, paski) przy 1366×768; P3: 10 ad-hoc breakpointów. PRODUCT.md: rozdzielczości od 1366×768 do 4K.
+
+**Zakres:**
+- Kolumny pulpitu elastyczne (`minmax`/`clamp`/`fr`) zamiast stałych 264/280 px; sensowne minimum dla treści (e-mail, czat).
+- Zmniejszenie chrome przy małej wysokości (kompaktowy nagłówek/KPI/status; pomiar: ≥ 70% wysokości okna dla treści przy 768 px — docelowo co najmniej 450 z 591 px).
+- Breakpointy z tokenów/zmiennych (jedna skala, redukcja z 10 do ustalonej listy).
+- Weryfikacja: 1366×768, 1920×1080, 2560×1440, szerokość ~1024 px, język `de`.
+
+**Kryteria akceptacji:**
+- [ ] Przy 1366×768 chrome zajmuje ≤ 120 z 591 px (lub uzasadniony inny próg ustalony w `shape`), treść kontaktu widoczna bez przewijania całej strony
+- [ ] Brak poziomego przewijania w 1366×768, 1024 px i w języku `de`
+- [ ] Kolumny bez stałych 264/280 px; breakpointy z jednej skali (grep)
+- [ ] Brak regresji skrótów, fokusu i stanów kart (FE-121/FE-122)
+- [ ] WP-1…WP-6 (WP-5 przy 1366×768 obowiązkowo)
+
+**Ryzyka:** (R1) kolizje z FE-121/FE-122 — realizować po nich; (R2) zmiany w SCSS top-navbara wspólnego dla ról — przegląd supervisor/admin; (R3) rozmiary celów (clamp) a zoom 200% (WCAG 1.4.4/1.4.10).
+**Nie wchodzi w zakres:** układ mobilny/tablet, przebudowa nawigacji, optymalizacja rozmiaru stylów (FE-124).
+
+### FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje
+
+**Typ:** Frontend implementation (wydajność / refaktor)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-116, FE-118, FE-123
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (przegląd ruchu: `ui-premium-designer`)
+
+**Opis:** Audyt (P2/P3): `agent-desktop.component.scss` 18,75 kB przy budżecie 12 kB (wg audytu; `wc -c` źródła daje ok. 24 kB — pomiar wg ostrzeżeń `npm run build`/budżetu `angular.json`), 123 fallbacki hex (`var(--x, #hex)`), `will-change` w stanie spoczynku, animacje `width`/`margin`, „side-tab” (4 px `border-left`; część to celowe znaczniki kierunku w `email-thread-message.component.scss` — wg krytyki fałszywy alarm, nie zmieniać bez uzasadnienia). The Flat-at-Rest Rule i zasada „ruch = stan, nie dekoracja”.
+
+**Zakres:**
+- Redukcja `agent-desktop.component.scss` do budżetu 12 kB: podział na komponenty/partiale, usunięcie martwych reguł po FE-121/FE-122/FE-123, wspólne mixiny.
+- Usunięcie 123 fallbacków hex (tokeny zdefiniowane globalnie w `styles.scss`, więc fallbacki zbędne).
+- `will-change` tylko na czas animacji; animacje `width`/`margin` → `transform`/`opacity`; `prefers-reduced-motion` respektowane.
+- Pomiar przed/po (rozmiar, ostrzeżenia budżetu w `npm run build`).
+
+**Kryteria akceptacji:**
+- [ ] `npm run build` bez ostrzeżenia o przekroczeniu budżetu dla `agent-desktop.component.scss` (≤ 12 kB)
+- [ ] `grep -c "var(--[a-z0-9-]*, #" agent-desktop.component.scss` = 0
+- [ ] Brak `will-change` w stanie spoczynku; brak animacji `width`/`margin` na powierzchni agenta; `prefers-reduced-motion` wyłącza ruch
+- [ ] Wizualnie bez regresji w obu motywach (przegląd w przeglądarce)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) refaktor stylów po przebudowie pulpitu — nie zaczynać przed FE-123; (R2) usunięcie fallbacków ujawni brakujące tokeny — sprawdzić w obu motywach; (R3) rozbieżność pomiarów (18,75 kB vs ~24 kB) — ustalić metodę pomiaru w pierwszym kroku.
+**Nie wchodzi w zakres:** optymalizacja bundla JS, pozostałe komponenty poza pulpitem, zmiany `side-tab` w wiadomościach e-mail.
+
+### FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md`
+
+**Typ:** Testing / Documentation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-114…FE-124 (wszystkie tickety epiku)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** zamknięcie EPIC-32
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (uruchomienie `/impeccable audit` i `/impeccable critique`), `senior-code-reviewer` (przegląd końcowy)
+
+**Opis:** Zamknięcie epiku: ponowny `/impeccable audit` i `/impeccable critique` powierzchni agenta, porównanie z wynikami wyjściowymi (audyt 12/20, krytyka 17/40), aktualizacja lub zastąpienie nieaktualnego `UI-REVIEW.md` (2026-03-26) i synchronizacja `DESIGN.md` / `.impeccable/design.json` ze stanem faktycznym.
+
+**Zakres:**
+- `/impeccable audit` i `/impeccable critique` na `frontend/src/app/features/agent` + shell; snapshot krytyki w `.impeccable/critique/`.
+- `UI-REVIEW.md` zastąpiony aktualną oceną (lub oznaczony jako zarchiwizowany z odnośnikiem do nowej).
+- `DESIGN.md` i `design.json` zsynchronizowane (tokeny z FE-115/FE-116/FE-118, zasady Lamp/Token-Only).
+- Test z prawdziwym połączeniem przychodzącym (otwarte kryterium FE-114), jeśli środowisko pozwala; w przeciwnym razie odnotować jako dług.
+- Lista pozostałych znalezisk (P2/P3) jako propozycje kolejnych ticketów (bez numerów).
+
+**Kryteria akceptacji:**
+- [ ] Audyt ≥ 16/20, krytyka ≥ 28/40
+- [ ] 0 × P0 i 0 × P1 w obu raportach
+- [ ] `UI-REVIEW.md` zaktualizowany lub zastąpiony; `DESIGN.md`/`design.json` zgodne ze stanem faktycznym
+- [ ] Wyniki porównania (przed/po) w notatce wykonania; nierozwiązane znaleziska wypisane
+- [ ] WP-1…WP-6; po spełnieniu — status EPIC-32 ✅ w indeksie i w `PROGRESS.md`
+
+**Ryzyka:** (R1) cel liczbowy (16/20, 28/40) zależy od narzędzia (zmienność ocen) — przy niedoborze o 1 punkt decyzja właściciela; (R2) test na prawdziwym połączeniu może być niedostępny w demo.
+**Nie wchodzi w zakres:** naprawa nowych znalezisk P2/P3 (osobne tickety).
 
 ## Bez epiku
 

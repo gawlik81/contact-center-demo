@@ -8570,7 +8570,7 @@ backend/app/src/test/java/com/contactcenter/
   - `customerId`, `customerIdentifier` (= `remote_address`), `customerName` (nazwa klienta, gdy `customer_id` ustawione i rozwiązywalne jednym zapytaniem zbiorczym; inaczej fallback na `customerIdentifier`), `queueId`, `queueName`,
   - `subject` (temat dla e-mail z `channel_metadata.subject`, inaczej `null`) — razem z pozostałymi polami pozwala FE odtworzyć kartę bez dociągania `GET /api/contacts/{id}`.
 - Kolejność: stabilna, `assigned_at ASC NULLS LAST`, następnie `created_at ASC`, następnie `contact_id ASC` (deterministyczny remis).
-- Zakres „aktywnych” (decyzja projektowa, do potwierdzenia w WP-1): `agent_id = <agent>` AND (`status IN ('ASSIGNED','ACTIVE','ON_HOLD')` OR ACW). ACW = `status = 'COMPLETED' AND disposition_code IS NULL AND ended_at >= now() - <okno>`, okno konfigurowalne (`agent.active-contacts.wrap-up-window`, domyślnie 12 h — ucina „wieczne” ACW po porzuconej dyspozycji), tylko kanał `PHONE` (kontakty e-mail/social/chat zamykane po stronie systemu nie wymagają dyspozycji agenta — zob. `EmailContactCreator` ok. linii 292, gdzie `ended_at` ustawia system; rozszerzenie na `CHAT` do rozstrzygnięcia z FE-122). `TRANSFERRED` nie jest ACW (agent oddał kontakt).
+- Zakres „aktywnych” (ZAAKCEPTOWANA decyzja tymczasowa właściciela, 2026-10-23; trwały stan ACW poza zakresem i bez ticketu): `agent_id = <agent>` AND (`status IN ('ASSIGNED','ACTIVE','ON_HOLD')` OR ACW). ACW = `status = 'COMPLETED' AND disposition_code IS NULL AND ended_at >= now() - <okno>`, okno konfigurowalne (`agent.active-contacts.wrap-up-window`, domyślnie 12 h — ucina „wieczne” ACW po porzuconej dyspozycji), tylko kanał `PHONE` (kontakty e-mail/social/chat zamykane po stronie systemu nie wymagają dyspozycji agenta — zob. `EmailContactCreator` ok. linii 292, gdzie `ended_at` ustawia system; rozszerzenie na `CHAT` do rozstrzygnięcia z FE-122). `TRANSFERRED` nie jest ACW (agent oddał kontakt).
 - Dostęp: tylko własne kontakty zalogowanego agenta, w obrębie jego tenanta. Brak parametru pozwalającego pobrać kontakty innego agenta (supervisor ma osobne endpointy).
 
 **Zakres implementacji:**
@@ -8580,20 +8580,22 @@ backend/app/src/test/java/com/contactcenter/
 - Sprawdzić plan zapytania (`EXPLAIN`) na tabeli `contact` (partycjonowanej): jeśli brak indeksu pod `(tenant_id, agent_id, status)` powoduje skan wszystkich partycji, założyć OSOBNY ticket DB (numer wolny: DB-088), nie wstawiać migracji w ten ticket bez uzgodnienia.
 - OpenAPI (`@Operation`, `@ApiResponse` 200/403) po polsku jak sąsiednie endpointy.
 
-**Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
+**Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (jedyny wyjątek: `customerName` korzysta ze wspólnego mapowania prawdziwej nazwy klienta, jak nowy endpoint) (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
 
 **Kryteria akceptacji:**
 - [ ] `GET /api/agent/me/active-contacts` zwraca 200 i tablicę wszystkich kontaktów agenta w statusach `ASSIGNED`, `ACTIVE`, `ON_HOLD` oraz kontaktów ACW (wg definicji wyżej); brak kontaktów → `[]`
 - [ ] Każdy element zawiera pola z kontraktu (w tym `phase`, `assignedAt`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`) — FE odtwarza kartę bez dodatkowych wywołań
 - [ ] Kolejność stabilna: `assigned_at ASC NULLS LAST`, `created_at`, `contact_id` (test z remisem `assigned_at`)
 - [ ] Nie zwraca kontaktów: innego agenta tego samego tenanta, agenta innego tenanta, terminalnych (`ABANDONED`, `NOT_REACHED`, `ERROR`, `TRANSFERRED`), `COMPLETED` z ustawioną dyspozycją, `COMPLETED` starszych niż okno ACW, `COMPLETED` kanałów innych niż `PHONE`
+- [ ] `customerName` to prawdziwa nazwa klienta (mapowanie z `customer` po `customer_id`, w obrębie tenanta); fallback na `customerIdentifier` tylko gdy klient nieznany lub nazwa pusta (test)
+- [ ] Ta sama poprawka mapowania `customerName` obejmuje istniejący `assigned-contact` (wspólny kod; rekomendacja: TAK, test regresyjny zmienionego pola)
 - [ ] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
 - [ ] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
-- [ ] `assigned-contact` działa bez zmian (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
+- [ ] `assigned-contact` działa bez zmian poza poprawionym `customerName` (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
 - [ ] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
 
 **Testy:**
-- Jednostkowe: `ContactServiceTest` (mapowanie statusu na `phase`, ACW tylko `PHONE` + brak dyspozycji + w oknie, fallback nazwy klienta) oraz nowy `AgentSelfControllerTest` (dziś BRAK jakichkolwiek testów `AgentSelfController` — `grep` po `src/test` nie znajduje odwołań do kontrolera ani do `assigned-contact`; przy okazji dodać test regresyjny `assigned-contact`): 200 + `[]`, rola, użycie `TenantContext.getUserId()` zamiast parametru.
+- Jednostkowe: `ContactServiceTest` (mapowanie statusu na `phase`, ACW tylko `PHONE` + brak dyspozycji + w oknie, fallback nazwy klienta) oraz `AgentSelfControllerTest` — klasę z testami bazowymi istniejących endpointów (`assigned-contact`, `kpi`) tworzy równolegle `test-suite-expert` (dotąd brak jakichkolwiek testów `AgentSelfController`); testy BE-157 ROZSZERZAJĄ tę istniejącą klasę, nie tworzą jej (bez nowego ticketu); pokrycie: 200 + `[]`, rola, użycie `TenantContext.getUserId()` zamiast parametru.
 - Integracyjne (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`, prawdziwa baza): zestaw danych z 2 tenantami × 2 agentami; **kontakty innego agenta i innego tenanta NIE mogą wyciec** (asercja na pełnym zbiorze identyfikatorów, nie tylko na liczbie), kolejność, limit, okno ACW, kontakt `COMPLETED` z dyspozycją pominięty, test pod RLS (`app.current_tenant`).
 - Test bezpieczeństwa: wywołanie bez JWT → 401/403; agent nie może podać cudzego `agentId` (brak parametru; próba przez query string ignorowana).
 

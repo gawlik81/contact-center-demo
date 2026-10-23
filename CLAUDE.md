@@ -18,6 +18,7 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 - Deleguj do agentów gdy zadanie pasuje do ich opisu — nie wykonuj samodzielnie tego, co wyspecjalizowany agent zrobi lepiej.
 - Agentów można uruchamiać **równolegle** gdy zadania są niezależne — zawsze preferuj równoległe uruchomienie.
 - Po zakończeniu pracy przez agenta/skill — podsumuj wynik użytkownikowi po polsku.
+- Agenci pracujący nad UI (`angular-frontend-expert`, `ui-premium-designer`) **zawsze** korzystają ze skilla `impeccable:impeccable` z poleceniem dopasowanym do zadania (`harden`, `polish`, `typeset`, `clarify`, `shape`, `layout`, `optimize`…). W prompcie dla agenta podawaj konkretne polecenie i ścieżkę; w raporcie agent wskazuje, co skill wykonał.
 
 | Typ zmiany                                                             | Agent                                |
 |------------------------------------------------------------------------|--------------------------------------|

@@ -42,7 +42,7 @@ Ask only the most relevant questions – group them logically and keep the list 
 Any task that touches UI (templates, component styles, design tokens, UX copy, accessibility, layout, interaction) goes through the `impeccable` skill:
 
 1. Before writing code, load it with the Skill tool: `skill: "impeccable:impeccable"`, `args: "<command> <target path>"`. Pick the command that matches the task: `harden` (a11y, keyboard, focus, edge cases, i18n), `polish` (tokens, visual consistency), `typeset`, `clarify` (UX copy), `layout`, `optimize`, `animate`, `shape` (new or reworked flows, before implementation), `audit` / `critique` (review only).
-2. Follow its checklist within the scope you were given. `PRODUCT.md`, `DESIGN.md` and `.impeccable/design.json` are the design source of truth (Token-Only, Lamp, Flat-at-Rest, Contrast Floor rules).
+2. Follow its checklist within the scope you were given. `PRODUCT.md`, `DESIGN.md` and `.impeccable/design.json` are the design source of truth (Token-Only, Lamp, Flat-at-Rest, Contrast Floor rules). Run the skill's `impeccable` scripts (`context`, `detect`, …) from the repo root, not from `frontend/` — from `frontend/` `context` reports `NO_PRODUCT_MD` and skips the product context.
 3. If the skill asks a question for the user or wants to open a browser or spawn sub-agents and you cannot do that, make a reasonable decision and record it in your report.
 4. In your final report, state which impeccable command you ran and what came out of it (including `impeccable detect` findings if it ran).
 

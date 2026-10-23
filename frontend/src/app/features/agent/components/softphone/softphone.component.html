@@ -254,7 +254,11 @@
         </div>
 
         <!-- Zakładki celu transferu -->
-        <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
+        <div
+          class="softphone__target-tabs"
+          role="group"
+          [attr.aria-label]="'agent.softphone.transferTargetLabel' | transloco"
+        >
           @for (tab of transferTargetTabs(); track tab) {
             <button
               type="button"

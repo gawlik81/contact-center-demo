@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -40,6 +40,7 @@ export class SocialContactComponent implements OnInit {
   private readonly socialService = inject(SocialContactService);
   private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
@@ -89,7 +90,7 @@ export class SocialContactComponent implements OnInit {
           this.loadingMore.set(false);
         },
         error: () => {
-          this.error.set('Nie udalo sie zaladowac historii wiadomosci.');
+          this.error.set(this.transloco.translate('agent.socialContact.errorLoad'));
           this.loading.set(false);
           this.loadingMore.set(false);
         },
@@ -142,7 +143,7 @@ export class SocialContactComponent implements OnInit {
         },
         error: () => {
           this.sending.set(false);
-          this.sendError.set('Nie udalo sie wyslac wiadomosci. Sprobuj ponownie.');
+          this.sendError.set(this.transloco.translate('agent.socialContact.errorSend'));
         },
       });
   }

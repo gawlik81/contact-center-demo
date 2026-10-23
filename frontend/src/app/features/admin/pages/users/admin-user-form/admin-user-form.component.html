@@ -22,7 +22,9 @@
       <!-- Tenant selector (only in create mode, hidden for SUPER_ADMIN – no tenant) -->
       @if (!isEditMode() && !isSuperAdminRoleSelected) {
         <div class="form-field" [class.form-field--error]="tenantIdError">
-          <label class="form-label" for="tenantId"> Tenant <span class="required" aria-hidden="true">*</span> </label>
+          <label class="form-label" for="tenantId">
+            {{ 'admin.userForm.tenantLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
           <select
             id="tenantId"
             class="form-select"
@@ -82,7 +84,9 @@
 
       <!-- Email -->
       <div class="form-field" [class.form-field--error]="emailError">
-        <label class="form-label" for="adm-email"> Email <span class="required" aria-hidden="true">*</span> </label>
+        <label class="form-label" for="adm-email">
+          {{ 'admin.userForm.emailLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+        </label>
         <input
           id="adm-email"
           type="email"
@@ -101,7 +105,7 @@
       @if (!isEditMode()) {
         <div class="form-field" [class.form-field--error]="passwordError">
           <label class="form-label" for="adm-password">
-            Haslo <span class="required" aria-hidden="true">*</span>
+            {{ 'admin.userForm.passwordLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="adm-password"
@@ -115,14 +119,16 @@
           @if (passwordError) {
             <span id="adm-password-error" class="form-error" role="alert">{{ passwordError }}</span>
           } @else {
-            <span id="adm-password-hint" class="form-hint">Min. 8 znakow, 1 wielka litera, 1 cyfra.</span>
+            <span id="adm-password-hint" class="form-hint">{{ 'admin.userForm.passwordHint' | transloco }}</span>
           }
         </div>
       }
 
       <!-- Role -->
       <div class="form-field">
-        <label class="form-label" for="adm-role"> Rola <span class="required" aria-hidden="true">*</span> </label>
+        <label class="form-label" for="adm-role">
+          {{ 'admin.userForm.roleLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+        </label>
         <select id="adm-role" class="form-select" formControlName="role" aria-required="true">
           @for (opt of roleOptions(); track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
@@ -146,8 +152,8 @@
 
       <!-- Skills multi-select -->
       <div class="form-field">
-        <label class="form-label" for="adm-skill-input">Skills</label>
-        <div class="skills-container" role="group" aria-label="Wybrane skills">
+        <label class="form-label" for="adm-skill-input">{{ 'supervisor.userForm.skillsLabel' | transloco }}</label>
+        <div class="skills-container" role="group" [attr.aria-label]="'admin.userForm.skillsSelectedLabel' | transloco">
           @for (skill of selectedSkills(); track skill) {
             <span class="skill-chip">
               {{ skill }}
@@ -155,7 +161,7 @@
                 type="button"
                 class="skill-chip__remove"
                 (click)="removeSkill(skill)"
-                [attr.aria-label]="'Usun skill ' + skill"
+                [attr.aria-label]="('supervisor.userForm.removeSkill' | transloco) + ' ' + skill"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
                   <path
@@ -171,7 +177,7 @@
               type="text"
               class="skill-input"
               [value]="skillInput()"
-              placeholder="Dodaj skill..."
+              [attr.placeholder]="'admin.userForm.skillsAddPlaceholder' | transloco"
               autocomplete="off"
               role="combobox"
               aria-autocomplete="list"
@@ -180,16 +186,32 @@
               (input)="onSkillInputChange($event)"
               (focus)="onSkillInputFocus()"
               (blur)="onSkillInputBlur()"
-              (keydown)="onSkillInputKeydown($event)"
+              appListboxNav="adm-skill"
+              #nav="appListboxNav"
+              [listboxOpen]="showSkillDropdown() && filteredSkills().length > 0"
+              [listboxCount]="filteredSkills().length"
+              [listboxEditable]="true"
+              (listboxSelect)="addSkill(filteredSkills()[$event])"
+              (listboxEnter)="onSkillEnter()"
+              (listboxCloseRequest)="showSkillDropdown.set(false)"
+              (listboxOpenRequest)="showSkillDropdown.set(true)"
             />
             @if (showSkillDropdown() && filteredSkills().length > 0) {
-              <ul id="adm-skill-dropdown" class="skill-dropdown" role="listbox" aria-label="Dostepne skills">
-                @for (skill of filteredSkills(); track skill) {
+              <ul
+                id="adm-skill-dropdown"
+                class="skill-dropdown"
+                role="listbox"
+                [attr.aria-label]="'supervisor.userForm.skillsAvailable' | transloco"
+                (mousedown)="$event.preventDefault()"
+              >
+                @for (skill of filteredSkills(); track skill; let i = $index) {
                   <li
+                    [id]="nav.optionId(i)"
                     class="skill-dropdown__item"
+                    [class.skill-dropdown__item--highlighted]="nav.activeIndex() === i"
                     role="option"
                     (mousedown)="addSkill(skill)"
-                    [attr.aria-selected]="false"
+                    [attr.aria-selected]="nav.activeIndex() === i"
                   >
                     {{ skill }}
                   </li>
@@ -198,7 +220,7 @@
             }
           </div>
         </div>
-        <span class="form-hint">Nacisnij Enter lub wybierz z listy, aby dodac skill.</span>
+        <span class="form-hint">{{ 'supervisor.userForm.skillsHint' | transloco }}</span>
       </div>
     </form>
 
@@ -210,7 +232,9 @@
         form="admin-user-form"
         [disabled]="isSaveDisabled"
         [attr.aria-disabled]="isSaveDisabled"
-        [attr.aria-label]="isEditMode() ? 'Zapisz zmiany użytkownika' : 'Zapisz użytkownika'"
+        [attr.aria-label]="
+          (isEditMode() ? 'admin.userForm.saveEditLabel' : 'supervisor.userForm.saveLabel') | transloco
+        "
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>

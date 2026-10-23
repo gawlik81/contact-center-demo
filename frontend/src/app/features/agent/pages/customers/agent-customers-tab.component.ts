@@ -99,7 +99,7 @@ export class AgentCustomersTabComponent implements OnInit {
           this.searchService.search(q).pipe(
             catchError(() => {
               this.isLoading.set(false);
-              this.notifications.error('Nie udalo sie wyszukac klientow. Sprobuj ponownie.');
+              this.notifications.error(this.transloco.translate('agent.customersTab.searchError'));
               return EMPTY;
             }),
           ),

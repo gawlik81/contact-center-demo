@@ -34,6 +34,14 @@ export class AgentStatusService {
   readonly currentStatus = signal<AgentStatus>('OFFLINE');
   readonly isChanging = signal(false);
 
+  /**
+   * Epoch ms of when the current status began, as observed by THIS client. The API
+   * (`GET /users/me`, `AGENT_STATUS_CHANGED`) carries no status start time, so the timestamp is
+   * taken locally when a status change is applied; after a page reload mid-break the elapsed time
+   * restarts from the reload. Replace with the server value once the backend exposes it.
+   */
+  readonly statusSince = signal<number | null>(null);
+
   private currentUserId: string | null = null;
 
   /**
@@ -44,7 +52,7 @@ export class AgentStatusService {
    * missed during a temporary disconnect.
    */
   initStatus(): void {
-    this.currentStatus.set('OFFLINE');
+    this.applyStatus('OFFLINE');
     this.fetchAndSyncStatus();
 
     this.ws.onConnect(() => this.fetchAndSyncStatus());
@@ -54,9 +62,16 @@ export class AgentStatusService {
       .subscribe((e) => {
         const payload = e.payload as AgentStatusChangedPayload;
         if (payload.agentId === this.currentUserId) {
-          this.currentStatus.set(payload.status);
+          this.applyStatus(payload.status);
         }
       });
+  }
+
+  /** Sets the status and restarts the elapsed-time origin only when the status really changes. */
+  private applyStatus(status: AgentStatus): void {
+    if (status === this.currentStatus() && this.statusSince() !== null) return;
+    this.currentStatus.set(status);
+    this.statusSince.set(Date.now());
   }
 
   private fetchAndSyncStatus(): void {
@@ -67,7 +82,7 @@ export class AgentStatusService {
           this.currentUserId = user.id;
           const status = user?.status as AgentStatus | undefined;
           if (status && ACTIVE_STATUSES.has(status)) {
-            this.currentStatus.set(status);
+            this.applyStatus(status);
             return EMPTY;
           }
           return this.changeStatus('AVAILABLE');
@@ -93,7 +108,7 @@ export class AgentStatusService {
 
     return this.http.patch<void>(`${environment.apiUrl}/users/me/status`, { status }).pipe(
       tap(() => {
-        this.currentStatus.set(status);
+        this.applyStatus(status);
         // Notify backend via WebSocket so supervisors get real-time update
         this.ws.publish('/app/agent/status', { status });
         this.isChanging.set(false);

@@ -687,10 +687,17 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       outline-offset: -2px;
     }
 
-    &--active {
+    &--selected {
       background: var(--accent-soft);
       color: var(--accent-text);
       font-weight: 600;
+    }
+
+    // Keyboard-active option (aria-activedescendant); ring keeps it visible on the selected row.
+    &--highlighted {
+      background: var(--bg-subtle);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
   }
 

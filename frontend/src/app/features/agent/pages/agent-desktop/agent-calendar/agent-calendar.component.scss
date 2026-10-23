@@ -485,56 +485,6 @@
       white-space: nowrap;
     }
   }
-
-  // ── FAB ─────────────────────────────────────────────────────────────────────
-  &__fab {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.25rem;
-    background: var(--accent);
-    color: var(--on-accent);
-    border: none;
-    border-radius: 9999px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 700;
-    box-shadow: var(--shadow-lg);
-    transition:
-      background 120ms,
-      box-shadow 120ms,
-      transform 120ms;
-    z-index: 50;
-
-    svg {
-      width: 1.125rem;
-      height: 1.125rem;
-    }
-
-    &:hover {
-      filter: brightness(0.92);
-      box-shadow: var(--shadow-pop);
-    }
-
-    &:active {
-      transform: scale(0.97);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 3px;
-    }
-
-    @media (max-width: 640px) {
-      bottom: 1rem;
-      right: 1rem;
-      padding: 0.625rem 1rem;
-      font-size: 0.8125rem;
-    }
-  }
 }
 
 // ===== Modal placeholder =====

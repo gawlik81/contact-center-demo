@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-10-23 (tura 49 – EPIC-32: FE-116 ✅ palety hex → tokeny i FE-118 ✅ skala typografii, nowy FE-126 (klawiatura list umiejętności); zmiany niezacommitowane na `feature/epic-32-agent-ux-a11y`, commit za chwilę; wcześniej tura 48 – FE-115 ✅ i FE-117 ✅; tura 47 – założenie EPIC-32: FE-114…FE-125).
+**Ostatnia aktualizacja:** 2026-10-23 (tura 50 – EPIC-32 faza 2: FE-119 ✅ teksty/KPI/marka/i18n powierzchni agenta, FE-120 ✅ domknięcia po hardeningu, FE-126 ✅ klawiatura list umiejętności; nowe tickety FE-127…FE-130 i BE-153; zmiany niezacommitowane na `feature/epic-32-agent-ux-a11y`, commit na życzenie użytkownika; wcześniej tura 49 – FE-116 ✅ i FE-118 ✅, nowy FE-126; tura 48 – FE-115 ✅ i FE-117 ✅; tura 47 – założenie EPIC-32).
 
 Źródłem prawdy o statusach są pola `**Status:**` w plikach zadań: [TASKS-DATABASE.md](TASKS-DATABASE.md), [TASKS-BACKEND.md](TASKS-BACKEND.md), [TASKS-FRONTEND.md](TASKS-FRONTEND.md) (każdy ma na górze „Indeks wg EPIC”). Pełny dziennik tur, stare tabele ticketów z notatkami wykonania, mapa procesów, sesja 2026-04-09 i refaktor pakietu `domain` są w [PROGRESS-ARCHIVE.md](PROGRESS-ARCHIVE.md).
 
@@ -23,11 +23,11 @@ Status epiku: ✅ Zakończony / 🔧 W toku / ⬜ Nie rozpoczęty / ⚠️ Zamkn
 | Obszar | ✅ | 🔧 | ⬜ | 🚫 | Razem |
 |--------|---:|---:|---:|---:|------:|
 | Database (DB) | 82 | 0 | 2 | 3 | 87 |
-| Backend (BE) | 143 | 0 | 10 | 3 | 156 |
-| Frontend (FE) | 117 | 0 | 12 | 1 | 130 |
-| **RAZEM** | **342** | **0** | **24** | **7** | **373** |
+| Backend (BE) | 143 | 0 | 11 | 3 | 157 |
+| Frontend (FE) | 120 | 0 | 13 | 1 | 134 |
+| **RAZEM** | **345** | **0** | **26** | **7** | **378** |
 
-Liczniki przeliczone skryptem ze statusów w `TASKS-*.md` (2026-10-23, tura 49: FE-116 i FE-118 → ✅ (+2 ✅ / −2 ⬜) oraz nowy FE-126 ⬜ (+1 w mianowniku), czyli FE 117 ✅ + 8 ⬜ EPIC-32 + 4 ⬜ FE-T00x + 1 🚫 = 130, RAZEM 373; DB/BE bez zmian; poprzednio tura 48: FE-115 i FE-117 → ✅, czyli FE i RAZEM +2 ✅ / −2 ⬜, DB/BE bez zmian; FE: 115 ✅ + 9 ⬜ EPIC-32 + 4 ⬜ FE-T00x + 1 🚫 = 129; w turze 47 dodano 12 ticketów FE EPIC-32); 🚫 (7): DB-063, DB-068, DB-075, BE-130, BE-136, BE-140, FE-111 — tickety warunkowe zamknięte decyzjami D1 = A, D4 = A, D6 = `archived_at` (nie są „ukończone” ani otwartym backlogiem).
+Liczniki przeliczone skryptem ze statusów w `TASKS-*.md` (2026-10-23, tura 50: FE-119, FE-120 i FE-126 → ✅ (+3 ✅ / −3 ⬜) oraz nowe ⬜: FE-127, FE-128, FE-129, FE-130 (FE +4) i BE-153 (BE +1), czyli FE 120 ✅ + 9 ⬜ EPIC-32 + 4 ⬜ FE-T00x + 1 🚫 = 134, BE 143 ✅ + 11 ⬜ + 3 🚫 = 157 (skrypt na `###` widzi 141 ✅ — BE-108/BE-109 bez nagłówka `###` dodają +2), RAZEM 378 = 345 ✅ + 26 ⬜ + 7 🚫; DB bez zmian; poprzednio tura 49: FE-116 i FE-118 → ✅ (+2 ✅ / −2 ⬜) oraz nowy FE-126 ⬜ (+1 w mianowniku), czyli FE 117 ✅ + 8 ⬜ EPIC-32 + 4 ⬜ FE-T00x + 1 🚫 = 130, RAZEM 373; DB/BE bez zmian; poprzednio tura 48: FE-115 i FE-117 → ✅, czyli FE i RAZEM +2 ✅ / −2 ⬜, DB/BE bez zmian; FE: 115 ✅ + 9 ⬜ EPIC-32 + 4 ⬜ FE-T00x + 1 🚫 = 129; w turze 47 dodano 12 ticketów FE EPIC-32); 🚫 (7): DB-063, DB-068, DB-075, BE-130, BE-136, BE-140, FE-111 — tickety warunkowe zamknięte decyzjami D1 = A, D4 = A, D6 = `archived_at` (nie są „ukończone” ani otwartym backlogiem).
 
 **Rozbieżność względem poprzedniej wersji tego pliku (BE 152 / FE 113, razem 352):** obecnie BE 156 i FE 117 (razem 360). Różnica to po 4 tickety testowe EPIC-18 — BE-T001…BE-T004 i FE-T001…FE-T004 (status w `TASKS-*.md`: „🔲 Do zrobienia”, liczone jako ⬜), których stary licznik nie obejmował. Dodatkowo BE-108/BE-109 (bez nagłówka `###`) są liczone w BE (stara notka dodawała „+2” osobno). Statusy żadnego ticketu nie zostały zmienione; DB bez zmian (87). Wcześniej podane „⬜ 8” obejmowało DB 2 + BE 6 + FE 0; teraz ⬜ = 16 (DB 2, BE 10, FE 4) właśnie przez te 8 ticketów EPIC-18.
 
@@ -70,7 +70,7 @@ Format komórek DB/BE/FE: ukończone/razem (— = brak ticketów w obszarze).
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9/9 | 9/9 | 7/7 | ✅ Zakończony |  |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27/31 | 22/26 | 3/4 | ⚠️ Zamknięty warunkowo | Kod i testy ukończone; DB-069/BE-137 odłożone z wyzwalaczem wolumenowym; 7 × 🚫 (DB-063/068/075, BE-130/136/140, FE-111); WP-4 opcjonalne. |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0/1 | 0/4 | — | ⏸ Wstrzymany | Wydzielony z EPIC-30 (tura 40); wstrzymany decyzją właściciela, 5 ⬜ (DB-083, BE-139, BE-148, BE-149, BE-150). |
-| EPIC-32 | UX i dostępność stanowiska agenta | — | — | 5/13 | 🔧 W toku | Wyłącznie FE; 8 ⬜ (FE-119…FE-126); ✅ FE-114 (hardening momentu dzwonienia, `322db0c1`), FE-115 (kontrast tokenów), FE-116 (palety hex → tokeny, ramki kontrolek, `--on-*`), FE-117 (landmarki i fokus) i FE-118 (skala typografii) — FE-115…118 z 2026-10-23, niezacommitowane do chwili zapisu. Nowy FE-126 (klawiatura list umiejętności) z niespełnionego kryterium FE-116 (d). Źródło: krytyka 17/40 i audyt 12/20 (Impeccable). |
+| EPIC-32 | UX i dostępność stanowiska agenta | — | 0/1 | 8/17 | 🔧 W toku | FE 9 ⬜ (FE-121…FE-125, FE-127…FE-130) + BE-153 ⬜ (`statusSince`); ✅ FE-119 (teksty/KPI/marka/i18n powierzchni agenta), FE-120 (domknięcia po hardeningu) i FE-126 (klawiatura list umiejętności) z 2026-10-23 (tura 50, niezacommitowane); ✅ FE-114 (hardening momentu dzwonienia, `322db0c1`), FE-115 (kontrast tokenów), FE-116 (palety hex → tokeny, ramki kontrolek, `--on-*`), FE-117 (landmarki i fokus) i FE-118 (skala typografii) — FE-115…118 z 2026-10-23, niezacommitowane do chwili zapisu. FE-126 (klawiatura list umiejętności) z niespełnionego kryterium FE-116 (d); FE-127…FE-130 i BE-153 z odkryć tury 50. Źródło: krytyka 17/40 i audyt 12/20 (Impeccable). |
 | Bez epiku | Fundament, RODO, ad hoc połączenia/email, porządki infrastruktury i silnika partycji | 21/21 | 11/12 | 7/7 | 🔧 W toku | Otwarty tylko BE-144 (blokada licencji AIStor). |
 
 Uwaga: „ukończone/razem” liczy razem tickety 🚫, np. EPIC-30 DB 27/31 = 27 ✅ + 1 ⬜ + 3 🚫.
@@ -124,13 +124,15 @@ Wstrzymany decyzją właściciela, nie ruszany; niezależny od zamknięcia EPIC-
 
 ### EPIC-32 – UX i dostępność stanowiska agenta
 
-Założony 2026-10-23 (tura 47) na podstawie krytyki `/impeccable critique` (2026-10-21, 17/40), audytu `/impeccable audit` (2026-10-22, 12/20), review `CR-FRONTEND.md` (2026-10-21) i `PRODUCT.md`/`DESIGN.md`. Tylko frontend, bez ticketów BE/DB. Cel zamknięcia: audyt ≥ 16/20, krytyka ≥ 28/40, 0 × P0/P1 (FE-125). Decyzje właściciela: priorytet „Moment dzwonienia” (FE-114 ✅), ACW jako niemodalny stan karty kontaktu (FE-122), zakres „Wszystko”. Otwarte pytania: D1 — KPI „cel 90%”/„z 8:00” usunąć czy zasilać z konfiguracji (FE-119; rekomendacja: usunąć); FE-122 — czy semantyka statusu agenta `AFTER_CONTACT` przy wielu kontaktach wymaga zmian po stronie API (nie zakładano ticketu BE). FE-114 ✅ jest na gałęzi `fix/agent-incoming-call-hardening` (przed merge do develop); otwarte kryterium: test z prawdziwym połączeniem przychodzącym.
+Założony 2026-10-23 (tura 47) na podstawie krytyki `/impeccable critique` (2026-10-21, 17/40), audytu `/impeccable audit` (2026-10-22, 12/20), review `CR-FRONTEND.md` (2026-10-21) i `PRODUCT.md`/`DESIGN.md`. Głównie frontend; jedyny ticket BE — BE-153 (`statusSince`, tura 50), bez ticketów DB (ewentualna migracja do ustalenia w BE-153). Cel zamknięcia: audyt ≥ 16/20, krytyka ≥ 28/40, 0 × P0/P1 (FE-125). Decyzje właściciela: priorytet „Moment dzwonienia” (FE-114 ✅), ACW jako niemodalny stan karty kontaktu (FE-122), zakres „Wszystko”. Decyzja D1 (KPI „cel 90%”/„z 8:00”): wariant (A) — usunięte (FE-119 ✅, tura 50). Otwarte pytania: FE-122 — czy semantyka statusu agenta `AFTER_CONTACT` przy wielu kontaktach wymaga zmian po stronie API (nie zakładano ticketu BE). FE-114 ✅ jest na gałęzi `fix/agent-incoming-call-hardening` (przed merge do develop); otwarte kryterium: test z prawdziwym połączeniem przychodzącym.
 
 Postęp tury 48 (2026-10-23): FE-115 ✅ i FE-117 ✅ (code review `CR-FRONTEND.md` 4/5; `/verify`: lint 0 błędów, FE 420 testów, BE `mvn verify` OK; WP-5 dla FE-117 w przeglądarce). Odblokowane FE-116 i FE-118. Do FE-116 przeniesiono: ramki kontrolek komponentów → `--border-control`, migrację `--on-danger`/`--on-success` (w tym ok. 20 miejsc supervisor/admin — zakres FE-116 rozszerzony, złożoność M/L), legacy `--color-text-primary`, listboxy bez `:focus-visible`, pigułkę „Available” w ciemnym motywie; do FE-119/FE-120/FE-124 dopisano drobne punkty z `add-break-modal` i `adhoc-email-modal`.
 
 Postęp tury 49 (2026-10-23): FE-116 ✅ i FE-118 ✅ — faza 1 (fundament tokenów) zamknięta. FE-116: statusy agenta jako `tone` + `data-status-tone` (zamiast hex), tokeny zamiast hex w social-contact/toast/kalendarzu/skeletonie/modalu przerwy/banerze, nowe tokeny `--on-warning` i `--border-control-hover`, ramki kontrolek → `--border-control` (~70 plików), `--on-danger`/`--on-success` w supervisor/admin, `--color-text-primary` → oklch; **niespełnione (d)** — opcje `.skill-dropdown__item` bez obsługi klawiatury → nowy **FE-126**. FE-118: tokeny `--fs-2xs`/`--fs-xs`, 24 wartości < 11 px → token, Geist Mono zamiast `monospace`, zero tekstu < 11 px; pas KPI zmierzony w pl przy 1366 px (`de` niezweryfikowane — przeniesione do FE-119). Code review `CR-FRONTEND.md` 3,5/5; `/verify`: lint 0 błędów, FE 34 pliki / 424 testy, BE `mvn verify` OK. WP-5 w przeglądarce (1366×768, oba motywy): menu i pigułka statusu, `ws-banner`, modal „Dodaj przerwę”, kalendarz; **niezweryfikowane:** supervisor/admin (MFA), kategorie wydarzeń kalendarza, toasty, social-contact. Dopisano: FE-119 (`aria-label` „Wybierz język”, pas KPI w `de`) i FE-124 (pozostałe `rgba`, rozmiary 0.7rem/0.72rem/0.71875rem, fallbacki hex).
 
-Kolejność faz: (1) fundament tokenów FE-115 ✅, FE-116 ✅, FE-117 ✅, FE-118 ✅ — zamknięta; (2) treść i domknięcia FE-119, FE-120, FE-126; (3) wiele kontaktów FE-121 (wymaga wcześniej `/impeccable shape`) → FE-122; (4) układ i wydajność FE-123 → FE-124; (5) zamknięcie FE-125.
+Postęp tury 50 (2026-10-23): FE-119 ✅, FE-120 ✅ i FE-126 ✅ — faza 2 zamknięta. FE-119: usunięte KPI „cel 90%”/„z 8:00” i pasek czasu pracy (D1 = A), marka z `core/brand.ts`, placeholder CHAT, usunięty martwy `agent-dashboard.component.ts`, jeden przycisk „Dodaj przerwę”, pełne i18n powierzchni agenta (parytet 4 języków 0 różnic), pas KPI zweryfikowany w przeglądarce w `de` przy 1334 px (domyka dług z FE-118). FE-120: ochrona szkicu `manual-callback-modal`, naprawiony istniejący błąd `confirm-dialog` (`onBackdropClick` niepodpięty, 9 użytkowników), ściąga bez zawijania, licznik przerwy `cc-status-elapsed` (czas startu po stronie klienta — API nie zwraca czasu zmiany statusu), jeden toast po dyspozycji, ponowienie karty klienta, domyślne wartości przerwy, listbox WAI-ARIA w typie przerwy. FE-126: wspólna dyrektywa `listbox-nav.directive.ts` w `admin-user-form`, `queue-form`, `user-form` i `add-break-modal` (WP-5 ograniczone — MFA, tylko testy). Code review `CR-FRONTEND.md` sekcja „EPIC-32 faza 2 — FE-119, FE-120, FE-126 — 2026-10-23” 4/5, wszystkie punkty Wymagane i Zalecane poprawione; `/verify`: lint 0 błędów (10 starych ostrzeżeń `no-console`), format OK, FE 47 plików / 497 testów; BE `mvn verify` OK (2670 testów, 0 błędów; uruchomione z JDK 21 — systemowa domyślna Java to teraz 25, na której Mockito/Byte Buddy nie działają). **Nowe tickety:** FE-127 (bug: `AdminUserFormComponent` nie ładuje `availableSkills`), FE-128 (i18n poza powierzchnią agenta: `admin-user-form`, `queue-form`, `softphone.service`), FE-129 (format KPI „Czas pracy” 225:56), FE-130 (licznik przerwy z `statusSince`, czeka na BE-153), BE-153 (`statusSince` w `GET /users/me` i zdarzeniu WS). Do FE-124 dopisano: `$ease-spring` (bounce) w `add-break-modal` i `manual-callback-modal`, gradient accent→violet w nagłówku `manual-callback-modal`, „side-tab” 3 px w `login.component.scss`. FE-125 zależy teraz także od FE-127…FE-129 (FE-130/BE-153 nie blokują zamknięcia audytu).
+
+Kolejność faz: (1) fundament tokenów FE-115 ✅, FE-116 ✅, FE-117 ✅, FE-118 ✅ — zamknięta; (2) treść i domknięcia FE-119 ✅, FE-120 ✅, FE-126 ✅ — zamknięta (tura 50), plus wynikowe FE-127, FE-128, FE-129; (3) wiele kontaktów FE-121 (wymaga wcześniej `/impeccable shape`) → FE-122; (4) układ i wydajność FE-123 → FE-124; (5) zamknięcie FE-125; poza zamknięciem: BE-153 → FE-130 (`statusSince`).
 
 | ID | Nazwa | Status |
 |----|-------|--------|
@@ -139,14 +141,19 @@ Kolejność faz: (1) fundament tokenów FE-115 ✅, FE-116 ✅, FE-117 ✅, FE-1
 | FE-116 | Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta (faza 1) | ✅ |
 | FE-117 | Landmarki i fokus: jeden `<main>`, unikalny `#main-content`, widoczny fokus, breadcrumb (faza 1) | ✅ |
 | FE-118 | Skala typografii: minimalny rozmiar tekstu i etykiety KPI (faza 1) | ✅ |
-| FE-119 | Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę” (faza 2) | ⬜ |
-| FE-120 | Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta (faza 2) | ⬜ |
+| FE-119 | Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę” (faza 2) | ✅ |
+| FE-120 | Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta (faza 2) | ✅ |
 | FE-121 | Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (faza 3) | ⬜ |
 | FE-122 | ACW (dyspozycja) jako niemodalny stan karty kontaktu (faza 3) | ⬜ |
 | FE-123 | Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów (faza 4) | ⬜ |
 | FE-124 | Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje (faza 4) | ⬜ |
 | FE-125 | Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` (faza 5) | ⬜ |
-| FE-126 | Obsługa klawiatury list umiejętności (`.skill-dropdown`) w admin-user-form, queue-form, user-form (faza 2) | ⬜ |
+| FE-126 | Obsługa klawiatury list umiejętności (`.skill-dropdown`) w admin-user-form, queue-form, user-form (faza 2) | ✅ |
+| FE-127 | [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta (wynik FE-126) | ⬜ |
+| FE-128 | i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` (wynik FE-119) | ⬜ |
+| FE-129 | Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) (wynik FE-119) | ⬜ |
+| FE-130 | Licznik przerwy `cc-status-elapsed` z `statusSince` z API; usunięcie adnotacji „w tej sesji” (czeka na BE-153) | ⬜ |
+| BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i zdarzeniu WS zmiany statusu (blokuje FE-130) | ⬜ |
 
 ### Bez epiku – porządki infrastruktury
 
@@ -177,7 +184,7 @@ Pozostałe niedomknięcia EPIC-30 (z kryteriów): starsze nieodhaczone `[ ]` w �
 2. DB-069: po spełnieniu wyzwalacza wolumenowego i zmianie PK — twardy punkt: weryfikacja `purge_campaign_contact_archive` (V143), zachować oba `SET enable_*=off`. BE-137 — dopiero po wyzwalaczu.
 3. EPIC-31 wstrzymany (decyzja właściciela); BE-144 — decyzja właściciela (licencja AIStor) otwarta.
 4. EPIC-18 (BE-T001…T004, FE-T001…T004) — testy jednostkowe do zaplanowania.
-5. EPIC-32 (UX i dostępność stanowiska agenta): FE-115…FE-118 ✅ (tury 48–49; faza 1 zamknięta) — zacommitować zmiany z gałęzi `feature/epic-32-agent-ux-a11y`; kolejne: FE-119 (z `aria-label` języka i weryfikacją KPI w `de`), FE-120, FE-126 (klawiatura list umiejętności) → potem `/impeccable shape` i FE-121/FE-122; decyzja właściciela D1 (KPI) przed FE-119; otwarte kryteria FE-114: merge `fix/agent-incoming-call-hardening` i test z prawdziwym połączeniem.
+5. EPIC-32 (UX i dostępność stanowiska agenta): FE-114…FE-120 i FE-126 ✅ (fazy 0–2 zamknięte, tura 50) — zacommitować zmiany z gałęzi `feature/epic-32-agent-ux-a11y` (na życzenie użytkownika); kolejność otwartych: (1) FE-121 i FE-122 poprzedzone `/impeccable shape` (faza 3; FE-121 → FE-122), (2) FE-123 (układ 1366×768), (3) FE-124 (styły; z dopiskami z tury 50), (4) FE-125 (ponowny audyt, po FE-127…FE-129), (5) nowe: FE-127 (bug `availableSkills`, S), FE-128 (i18n poza powierzchnią agenta, S), FE-129 (format „Czas pracy”, S) — mogą iść równolegle z fazą 3; BE-153 → FE-130 (`statusSince`) poza zamknięciem audytu. Otwarte kryteria FE-114: merge `fix/agent-incoming-call-hardening` i test z prawdziwym połączeniem.
 
 ## Znane problemy
 

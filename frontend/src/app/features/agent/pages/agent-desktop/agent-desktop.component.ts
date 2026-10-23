@@ -38,6 +38,7 @@ import { SocialContactComponent } from './social-contact/social-contact.componen
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
 import { AddBreakModalComponent } from '../../components/add-break-modal/add-break-modal.component';
+import { StatusElapsedComponent } from '../../components/status-elapsed/status-elapsed.component';
 import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 import { PluginPanelHostComponent } from '../../../../shared/components/plugin-panel-host/plugin-panel-host.component';
 import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
@@ -71,6 +72,7 @@ interface ToolbarManualAction {
     ManualCampaignPanelComponent,
     AgentCalendarComponent,
     AddBreakModalComponent,
+    StatusElapsedComponent,
     ContactDetailModalComponent,
     PluginPanelHostComponent,
   ],

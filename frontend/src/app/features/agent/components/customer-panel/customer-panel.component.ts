@@ -1,10 +1,13 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   OnChanges,
   SimpleChanges,
+  afterNextRender,
   inject,
   input,
   output,
@@ -45,6 +48,9 @@ export class CustomerPanelComponent implements OnChanges {
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly authService = inject(AuthService);
 
   protected readonly state = signal<PanelState>('empty');
@@ -55,7 +61,37 @@ export class CustomerPanelComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['cli'] && !changes['email']) return;
+    this.load();
+  }
 
+  /** Re-runs the lookup for the current CLI / email after a failed attempt (error state). */
+  protected retry(): void {
+    this.retryRequested = true;
+    this.load();
+  }
+
+  /** True after the agent pressed "retry"; focus is restored once the lookup settles. */
+  private retryRequested = false;
+
+  /** The retry button disappears while loading, so focus is parked on the card/retry button. */
+  private restoreFocusAfterRetry(): void {
+    if (!this.retryRequested) return;
+    this.retryRequested = false;
+    // Wait for the new state to render before looking up the target element.
+    afterNextRender(
+      () => {
+        const root = this.host.nativeElement;
+        const target =
+          this.state() === 'error'
+            ? root.querySelector<HTMLElement>('[data-retry]')
+            : root.querySelector<HTMLElement>('[data-card]');
+        target?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  private load(): void {
     const phone = this.cli();
     const emailAddr = this.email();
 
@@ -83,6 +119,7 @@ export class CustomerPanelComponent implements OnChanges {
           // 404 is handled inside CustomerLookupService (returns null).
           // Any other error reaching here is a 5xx or network failure.
           this.state.set('error');
+          this.restoreFocusAfterRetry();
           return throwError(() => err);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -91,6 +128,7 @@ export class CustomerPanelComponent implements OnChanges {
         next: (result) => {
           this.profile.set(result);
           this.state.set(result ? 'known' : 'unknown');
+          this.restoreFocusAfterRetry();
         },
         error: () => {
           // Error already handled in catchError above; suppress unhandled error.
@@ -112,16 +150,7 @@ export class CustomerPanelComponent implements OnChanges {
   }
 
   protected getChannelLabel(channel: ContactHistoryItem['channel']): string {
-    switch (channel) {
-      case 'PHONE':
-        return 'Telefon';
-      case 'EMAIL':
-        return 'Email';
-      case 'CHAT':
-        return 'Chat';
-      case 'SOCIAL':
-        return 'Social';
-    }
+    return this.transloco.translate(`agent.customerPanel.channels.${channel}`);
   }
 
   protected navigateToFullProfile(): void {

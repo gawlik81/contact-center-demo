@@ -4,7 +4,7 @@
     <button
       class="navbar__hamburger"
       type="button"
-      aria-label="Przelacz nawigacje boczna"
+      [attr.aria-label]="'nav.toggleSidenav' | transloco"
       [attr.aria-expanded]="sidenavOpen()"
       (click)="onToggleSidenav()"
     >
@@ -33,15 +33,15 @@
         </svg>
       </div>
       <div class="navbar__brand-text">
-        <span class="navbar__brand-name">Contact Center</span>
-        <span class="navbar__brand-sub">KMN Software</span>
+        <span class="navbar__brand-name">{{ brand.name }}</span>
+        <span class="navbar__brand-sub">{{ brand.vendor }}</span>
       </div>
     </div>
   </div>
 
   <!-- ── Center: KPI strip (agent only when authenticated) ── -->
   @if (auth.currentRole() === 'AGENT' && auth.currentPayload()) {
-    <div class="navbar__kpi-strip" aria-label="KPI agenta">
+    <div class="navbar__kpi-strip" role="group" [attr.aria-label]="'agent.desktop.kpiStripLabel' | transloco">
       <!-- Obsłużone -->
       <div class="kpi-tile kpi-tile--accent">
         <div class="kpi-tile__icon">
@@ -60,10 +60,10 @@
           </svg>
         </div>
         <div class="kpi-tile__body">
-          <span class="kpi-tile__label">Obsłużone</span>
+          <span class="kpi-tile__label">{{ 'agent.desktop.kpiHandled' | transloco }}</span>
           <div class="kpi-tile__value-row">
             <span class="kpi-tile__value">{{ kpi()?.contactsHandledToday ?? '—' }}</span>
-            <span class="kpi-tile__sub">dziś</span>
+            <span class="kpi-tile__sub">{{ 'agent.desktop.kpiHandledSub' | transloco }}</span>
           </div>
         </div>
       </div>
@@ -86,12 +86,11 @@
           </svg>
         </div>
         <div class="kpi-tile__body">
-          <span class="kpi-tile__label">SLA</span>
+          <span class="kpi-tile__label">{{ 'agent.desktop.kpiSla' | transloco }}</span>
           <div class="kpi-tile__value-row">
             <span class="kpi-tile__value">
               {{ kpi() ? (kpi()!.slaPercent | number: '1.0-0') + '%' : '—' }}
             </span>
-            <span class="kpi-tile__sub">cel 90%</span>
           </div>
           <div class="kpi-tile__bar">
             <div class="kpi-tile__bar-fill" [style.width]="(kpi()?.slaPercent ?? 0) + '%'"></div>
@@ -116,12 +115,12 @@
           </svg>
         </div>
         <div class="kpi-tile__body">
-          <span class="kpi-tile__label">AHT</span>
+          <span class="kpi-tile__label">{{ 'agent.desktop.kpiAht' | transloco }}</span>
           <div class="kpi-tile__value-row">
             <span class="kpi-tile__value">
               {{ kpi() ? formatSeconds(kpi()!.avgHandleTimeSeconds) : '—' }}
             </span>
-            <span class="kpi-tile__sub">śr. czas</span>
+            <span class="kpi-tile__sub">{{ 'agent.desktop.kpiAhtSub' | transloco }}</span>
           </div>
         </div>
       </div>
@@ -142,18 +141,11 @@
           </svg>
         </div>
         <div class="kpi-tile__body">
-          <span class="kpi-tile__label">Czas pracy</span>
+          <span class="kpi-tile__label">{{ 'agent.desktop.kpiWorkTime' | transloco }}</span>
           <div class="kpi-tile__value-row">
             <span class="kpi-tile__value">
               {{ kpi() ? formatSeconds(kpi()!.workTimeSeconds) : '—' }}
             </span>
-            <span class="kpi-tile__sub">z 8:00</span>
-          </div>
-          <div class="kpi-tile__bar">
-            <div
-              class="kpi-tile__bar-fill"
-              [style.width]="(kpi() ? Math.min((kpi()!.workTimeSeconds / 28800) * 100, 100) : 0) + '%'"
-            ></div>
           </div>
         </div>
       </div>
@@ -163,14 +155,14 @@
   <!-- ── Right: theme switcher + user chip + lang + logout ── -->
   <div class="navbar__right">
     <!-- Theme switcher -->
-    <div class="theme-switcher" role="group" aria-label="Motyw interfejsu">
+    <div class="theme-switcher" role="group" [attr.aria-label]="'nav.themeGroup' | transloco">
       <button
         type="button"
         class="theme-switcher__btn"
         [class.theme-switcher__btn--active]="theme.mode() === 'light'"
-        aria-label="Motyw jasny"
+        [attr.aria-label]="'nav.themeLight' | transloco"
         (click)="setTheme('light')"
-        title="Jasny"
+        [title]="'nav.themeLight' | transloco"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path
@@ -182,9 +174,9 @@
         type="button"
         class="theme-switcher__btn"
         [class.theme-switcher__btn--active]="theme.mode() === 'auto'"
-        aria-label="Motyw automatyczny"
+        [attr.aria-label]="'nav.themeAuto' | transloco"
         (click)="setTheme('auto')"
-        title="Auto"
+        [title]="'nav.themeAuto' | transloco"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path
@@ -196,9 +188,9 @@
         type="button"
         class="theme-switcher__btn"
         [class.theme-switcher__btn--active]="theme.mode() === 'dark'"
-        aria-label="Motyw ciemny"
+        [attr.aria-label]="'nav.themeDark' | transloco"
         (click)="setTheme('dark')"
-        title="Ciemny"
+        [title]="'nav.themeDark' | transloco"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path
@@ -224,7 +216,7 @@
         <span
           class="badge"
           [ngClass]="getRoleBadgeClass(auth.currentRole())"
-          aria-label="Rola: {{ getRoleLabel(auth.currentRole()) }}"
+          [attr.aria-label]="'nav.roleAria' | transloco: { role: getRoleLabel(auth.currentRole()) }"
           >{{ getRoleLabel(auth.currentRole()) }}</span
         >
       </div>
@@ -232,7 +224,7 @@
 
     <app-language-switcher />
 
-    <button class="navbar__logout" type="button" aria-label="Wyloguj sie z aplikacji" (click)="onLogout()">
+    <button class="navbar__logout" type="button" [attr.aria-label]="'nav.logout' | transloco" (click)="onLogout()">
       <svg
         viewBox="0 0 24 24"
         fill="none"

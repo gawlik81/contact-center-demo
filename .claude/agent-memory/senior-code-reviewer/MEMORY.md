@@ -19,3 +19,4 @@
 
 - [Manual security fixes verified](./feedback_manual_security_fixes_verified.md) — TenantServiceImpl + AuthServiceImpl IDOR fixes confirmed correct, don't re-flag
 - [FE-116/FE-118 token migration review](./project_fe116_fe118_token_migration_review.md) — 3.5/5 (2026-10-23): hover lighter than rest, misclassified/missed controls, WA badge 2:1, KPI@1366 unverified
+- [EPIC-32 phase 2 review (FE-119/120/126)](project_epic32_phase2_review.md) — 4/5 (2026-10-23): stale add-break validation, confirm-dialog no spec, KPI de@1366 unmeasured

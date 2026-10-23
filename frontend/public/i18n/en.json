@@ -92,6 +92,7 @@
       "title": "Sign In",
       "emailLabel": "Email address",
       "emailPlaceholder": "Enter your email address",
+      "signedInAs": "Signing in as {{ email }}",
       "passwordLabel": "Password",
       "submitButton": "Sign In",
       "nextButton": "Next",
@@ -191,7 +192,13 @@
     "settingsDispositionSets": "Disposition Sets",
     "settingsPlugins": "Plugins",
     "settingsDataRetention": "Data Retention",
-    "retentionPendingBadge": "{{ count }} data categories pending deletion"
+    "retentionPendingBadge": "{{ count }} data categories pending deletion",
+    "toggleSidenav": "Toggle side navigation",
+    "themeGroup": "Interface theme",
+    "themeLight": "Light theme",
+    "themeAuto": "Automatic theme",
+    "themeDark": "Dark theme",
+    "roleAria": "Role: {{ role }}"
   },
   "role": {
     "superAdmin": "Super Admin",
@@ -206,6 +213,8 @@
       "break": "On break",
       "afterContact": "After contact work",
       "offline": "Offline",
+      "breakDuration": "Break duration",
+      "breakDurationHint": "Time since the status changed in this session",
       "errorLoad": "Failed to load agent status.",
       "errorChange": "Failed to change status. Please try again."
     },
@@ -236,8 +245,15 @@
       "tabBarLabel": "Active contacts",
       "closeContact": "Close contact",
       "contactSince": "Since",
-      "chatPlaceholder": "Chat panel",
-      "chatPlaceholderSub": "Chat view will be loaded here",
+      "chatPlaceholder": "Chat is not available yet",
+      "chatPlaceholderSub": "This contact cannot be handled here. Close the tab.",
+      "kpiStripLabel": "Agent indicators",
+      "kpiHandled": "Handled",
+      "kpiHandledSub": "today",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "avg. time",
+      "kpiWorkTime": "Work time",
       "profileLabel": "Customer profile",
       "expandCustomerPanel": "Expand customer panel",
       "collapseCustomerPanel": "Collapse customer panel",
@@ -321,6 +337,9 @@
       "loadAgentsError": "Failed to load agent list.",
       "noQueuesAvailable": "No queues available.",
       "loadQueuesError": "Failed to load queue list.",
+      "loadingQueues": "Loading queue list",
+      "loadingAgents": "Loading agent list",
+      "transferTargetLabel": "Transfer target",
       "waitingContacts": "waiting",
       "availableAgents": "agents"
     },
@@ -339,8 +358,22 @@
       "save": "Save and close",
       "saving": "Saving...",
       "errorSave": "Failed to save disposition. Please try again.",
-      "successSave": "Disposition saved. Changing status to Available...",
-      "statusChanged": "Status changed to Available."
+      "fallbackNotice": "Showing system dispositions (custom ones could not be loaded).",
+      "successSave": "Disposition saved.",
+      "statusChangeError": "Disposition saved, but the status could not be changed. Change it manually."
+    },
+    "aiSummary": {
+      "title": "AI summary",
+      "generate": "Generate AI summary",
+      "generating": "Generating…",
+      "needsRecording": "AI summary requires a call recording",
+      "expand": "Expand AI summary",
+      "collapse": "Collapse AI summary",
+      "copyToNotes": "Copy to note",
+      "meta": "Model: {{ model }} · tokens: {{ tokens }}",
+      "errorNotConfigured": "Set up an AI provider in the supervisor settings.",
+      "errorUnavailable": "The AI service is temporarily unavailable. Please try again.",
+      "errorUnknown": "Failed to generate the summary. Please try again."
     },
     "customerPanel": {
       "empty": "Customer card will appear here when a contact is assigned.",
@@ -352,9 +385,17 @@
       "createProfileLabel": "Create customer profile for number",
       "viewProfile": "View full profile",
       "errorText": "Unable to load customer data (server error).",
+      "retry": "Try again",
+      "channels": {
+        "PHONE": "Phone",
+        "EMAIL": "Email",
+        "CHAT": "Chat",
+        "SOCIAL": "Social"
+      },
       "recentContacts": "Recent contacts",
       "noHistory": "No contact history",
       "lookupError": "Failed to load customer data.",
+      "contactDetailsDated": "Contact details from {{ date }}",
       "noteExpand": "Show more",
       "noteCollapse": "Show less",
       "externalId": "External ID"
@@ -411,7 +452,13 @@
         "OTHER": "Other"
       },
       "errorStartInPast": "Start time must be in the future.",
-      "errorConflict": "The break conflicts with an existing schedule entry."
+      "errorConflict": "The break conflicts with an existing schedule entry.",
+      "breakTypeRequired": "Select a break type.",
+      "startDateRequired": "Start date is required.",
+      "startTimeRequired": "Start time is required.",
+      "endDateRequired": "End date is required.",
+      "endTimeRequired": "End time is required.",
+      "endNotAfterStart": "The end time must be later than the start time."
     },
     "rescheduleCallback": {
       "title": "Reschedule callback",
@@ -463,9 +510,12 @@
     },
     "manualCampaign": {
       "title": "Manual campaigns",
-      "recordsLabel": "records to call",
       "refreshLabel": "Refresh manual campaigns list",
       "refreshTitle": "Refresh",
+      "sectionLabel": "Manual campaigns to dial",
+      "recordsPendingLabel": "Pending records: {{ count }}",
+      "campaignRecordsLabel": "Records of campaign {{ name }}",
+      "recordsListLabel": "Records to dial",
       "statusNotAvailable": "Change status to Available to make calls",
       "loadingLabel": "Loading campaigns...",
       "empty": "No active manual campaigns",
@@ -515,6 +565,8 @@
       "errorThread": "Failed to load email thread.",
       "errorPreview": "Failed to preview template.",
       "errorSend": "Failed to send reply. Please try again.",
+      "errorTemplate": "Failed to load the template.",
+      "uploadFailed": "Failed to upload file: {{ name }}",
       "from": "From",
       "to": "To",
       "loadOlder": "Load more",
@@ -546,6 +598,8 @@
       "loadingLabel": "Loading message history",
       "emptyText": "No messages in this conversation",
       "emptySub": "Send the first message below",
+      "errorLoad": "Failed to load message history.",
+      "errorSend": "Failed to send message. Please try again.",
       "historyLabel": "Message history",
       "loadEarlier": "Load earlier",
       "loadEarlierLabel": "Load earlier messages",
@@ -578,7 +632,6 @@
       "campaignDays": "Days",
       "callbackLabel": "Callback to",
       "addBreak": "Add break",
-      "addBreakLabel": "Add break",
       "errorLoad": "Failed to load calendar. Please try again.",
       "breakTypes": {
         "LUNCH": "Lunch",
@@ -781,7 +834,12 @@
       "scheduledDateLabel": "Callback date",
       "hourLabel": "Hour",
       "minuteLabel": "Minutes",
-      "notesPlaceholder": "Add callback notes..."
+      "notesPlaceholder": "Add callback notes...",
+      "discardMessage": "You have unsaved changes. Close the form without saving?",
+      "discardConfirm": "Discard changes",
+      "discardKeep": "Back to the form",
+      "successScheduled": "Callback scheduled for {{ date }}",
+      "customerFallback": "Customer"
     },
     "callbacksPage": {
       "title": "My callbacks",
@@ -821,6 +879,7 @@
       "searchLabel": "Search customer",
       "clearSearch": "Clear search",
       "searchMinChars": "Enter at least 2 characters to search",
+      "searchError": "Customer search failed. Please try again.",
       "found": "{{ count }} customers"
     },
     "manualCallback": {
@@ -2794,11 +2853,15 @@
         "tenantRequired": "Tenant is required.",
         "roleRequired": "Role is required."
       },
-      "activeHint": "Unchecking will prevent the user from logging in."
+      "activeHint": "Unchecking will prevent the user from logging in.",
+      "skillsSelectedLabel": "Selected skills",
+      "skillsAddPlaceholder": "Add skill...",
+      "saveEditLabel": "Save user changes"
     }
   },
   "language": {
     "select": "Select language",
+    "available": "Available languages",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",

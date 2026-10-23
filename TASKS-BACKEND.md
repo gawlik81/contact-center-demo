@@ -56,12 +56,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **143** | **0** | **10** | **3** | **156** | |
+| **RAZEM** | | **143** | **0** | **11** | **3** | **157** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -90,6 +91,12 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-148 | Przejście produkcji na rolę połączenia aplikacji BEZ BYPASSRLS i bez superusera (+ rola migrac… | ⬜ Nie rozpoczęte — parasol; WP-1 wykonane |
 | BE-149 | Ścieżki HTTP, audyt, logowanie i lookupy pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
 | BE-150 | Joby retencji/partycji, ETL i routing/dialer pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
+
+**EPIC-32 – UX i dostępność stanowiska agenta**
+
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ⬜ Do zrobienia — blokuje FE-130 |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8398,6 +8405,41 @@ backend/app/src/test/java/com/contactcenter/
 **Adnotacja (tura 35, 2026-10-11):** `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmienia też BE-151 (okres archiwizacji per tenant, funkcja SQL z DB-084); brak formalnej zależności — przy równoległej pracy uzgodnić kolejność merge; DB-084 zachowuje sygnaturę funkcji bez parametrów. **Tura 38:** BE-151 ✅ (`760fb263`) — WP-4 BE-120 (flaga w demo) czeka na FE-113 i ponowną zgodę właściciela.
 
 **Adnotacja (tura 36, 2026-10-11):** DB-083 `Zależy od` DB-084 (decyzja P6: DB-084 PRZED DB-083). Czujnik kandydatów archiwizacji kampanii (DB-083 pkt 3(v)) ma predykat identyczny z pętlą funkcji po DB-084 — próg per tenant (`tenant_campaign_archive_setting`, brak wiersza = 180) i `COALESCE(ended_at, updated_at)`; funkcja przełączana na definera przez `ALTER FUNCTION`, nie przez kopię ciała. W BE-150 testy joba pod `cc_app` mają obejmować ≥ 2 tenanty o RÓŻNYCH progach (parytet czujnika z wynikiem przebiegu). Brak nowej formalnej zależności BE-150 od DB-084 (przechodnia przez DB-083).
+
+## EPIC-32 – UX i dostępność stanowiska agenta
+
+**Ukończone 0/1** · ✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0
+
+> Epik frontendowy (tickety FE-114…FE-130 w `TASKS-FRONTEND.md`). Jedyny ticket BE — BE-153 — założony w turze 50 (2026-10-23) jako zależność follow-upu FE-130.
+
+### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
+
+**Typ:** Feature (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak twardych (kontekst: FE-120 ✅ — licznik przerwy liczony dziś po stronie klienta, bo API nie zwraca czasu zmiany statusu)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-130
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** API ma zwracać czas rozpoczęcia bieżącego statusu agenta (`statusSince`, ISO 8601 UTC) w odpowiedzi `GET /users/me` oraz w payloadzie WS zmiany statusu (w zgłoszeniu: `AgentStatusChangedPayload`; w kodzie zdarzenie `AgentStatusChangedEvent` w `api/user/dto`), aby licznik przerwy w UI przeżywał przeładowanie strony (FE-130).
+
+**Zakres:**
+- Ustalić źródło czasu zmiany statusu (czy `users` ma znacznik zmiany statusu; jeśli nie — czy wystarczy wartość utrzymywana w Redis/serwisie, czy potrzebna kolumna). Jeśli potrzebna migracja — osobny ticket DB zakładany wtedy (numer wolny: DB-088), NIE z góry.
+- `statusSince` w DTO `GET /users/me` i w `AgentStatusChangedEvent`; ustawiane przy każdej zmianie statusu (także przez `AgentBreakActivator`).
+- Tenant isolation; brak wycieku `statusSince` innych agentów przez endpointy bez uprawnień; OpenAPI zaktualizowane.
+
+**Kryteria akceptacji:**
+- [ ] `GET /users/me` zwraca `statusSince` zgodny z ostatnią zmianą statusu (test integracyjny)
+- [ ] Zdarzenie WS zmiany statusu zawiera `statusSince` (test)
+- [ ] Zmiana statusu przez `AgentBreakActivator` aktualizuje `statusSince`
+- [ ] Pole opcjonalne (zgodność wsteczna z FE bez FE-130); OpenAPI/dokumentacja zaktualizowane
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) brak trwałego źródła czasu zmiany statusu może wymagać migracji DB; (R2) zmiana kontraktu WS — zachować kompatybilność wsteczną.
+**Nie wchodzi w zakres:** historia statusów, raportowanie czasu w statusach, zmiany FE (FE-130).
+**Zależności (tura 50):** `Zależy od` brak; `Blokuje` FE-130.
 
 ## Bez epiku
 

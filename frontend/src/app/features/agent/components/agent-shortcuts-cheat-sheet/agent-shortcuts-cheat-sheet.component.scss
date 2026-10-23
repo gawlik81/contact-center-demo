@@ -7,7 +7,7 @@
   top: 4.5rem;
   right: 1.5rem;
   z-index: 8000;
-  width: min(26rem, calc(100vw - 3rem));
+  width: min(30rem, calc(100vw - 3rem));
   padding: 1rem 1.125rem;
   background: var(--bg-elevated);
   color: var(--text-1);
@@ -59,7 +59,7 @@
 
   &__row {
     display: grid;
-    grid-template-columns: 11rem 1fr;
+    grid-template-columns: 13rem 1fr;
     align-items: start;
     gap: 1rem;
   }
@@ -78,6 +78,8 @@
     color: var(--text-1);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
+    // A key cap is atomic: never break inside it (e.g. "Esc" wrapping onto its own line).
+    white-space: nowrap;
     font-family: 'Geist Mono', ui-monospace, monospace;
     font-size: 0.8125rem;
     text-align: center;

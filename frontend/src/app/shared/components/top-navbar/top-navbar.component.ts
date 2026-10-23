@@ -8,6 +8,7 @@ import { LanguageSwitcherComponent } from '../language-switcher/language-switche
 import { ThemeService, ThemeMode } from '../../../core/services/theme.service';
 import { AgentKpiService } from '../../services/agent-kpi.service';
 import { AgentKpiResponse } from '../../models/agent-kpi.model';
+import { BRAND } from '../../../core/brand';
 
 @Component({
   selector: 'cc-top-navbar',
@@ -27,8 +28,7 @@ export class TopNavbarComponent {
     initialValue: null,
   });
 
-  /** Expose Math so the template can call Math.min() without workarounds. */
-  protected readonly Math = Math;
+  protected readonly brand = BRAND;
 
   /** Whether the sidenav is currently open (used for aria-expanded) */
   readonly sidenavOpen = input<boolean>(false);

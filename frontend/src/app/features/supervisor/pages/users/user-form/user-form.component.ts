@@ -26,6 +26,7 @@ import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { AuthService } from '../../../../../core/services/auth.service';
 import { UserResponse, UserRole } from '../../../models/user.model';
+import { ListboxNavDirective } from '../../../../../shared/directives/listbox-nav.directive';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -39,7 +40,7 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'app-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, ListboxNavDirective],
   templateUrl: './user-form.component.html',
   styleUrl: './user-form.component.scss',
   host: {
@@ -164,17 +165,14 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   }
 
   onSkillInputBlur(): void {
-    // Delay to allow click on dropdown option to register first
-    setTimeout(() => this.showSkillDropdown.set(false), 150);
+    this.showSkillDropdown.set(false);
   }
 
-  onSkillInputKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const val = this.skillInput().trim();
-      if (val) {
-        this.addSkill(val);
-      }
+  /** Enter with no highlighted option: commit the typed text as a new skill. */
+  onSkillEnter(): void {
+    const val = this.skillInput().trim();
+    if (val) {
+      this.addSkill(val);
     }
   }
 

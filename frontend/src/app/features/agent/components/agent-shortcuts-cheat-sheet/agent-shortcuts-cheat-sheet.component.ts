@@ -14,8 +14,8 @@ import { TranslocoModule } from '@jsverse/transloco';
 import { AgentHotkeysService } from '../../services/agent-hotkeys.service';
 import { AGENT_SHORTCUTS } from '../../models/agent-shortcuts.model';
 
-/** Matches `width: min(26rem, ...)` in the stylesheet (26rem at the default 16px root). */
-const PANEL_WIDTH_PX = 416;
+/** Matches `width: min(30rem, ...)` in the stylesheet (30rem at the default 16px root). */
+const PANEL_WIDTH_PX = 480;
 
 interface CheatSheetRow {
   keys: string[];

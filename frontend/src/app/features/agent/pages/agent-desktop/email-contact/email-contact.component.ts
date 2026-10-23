@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -49,6 +49,7 @@ export class EmailContactComponent implements OnInit {
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
@@ -127,7 +128,7 @@ export class EmailContactComponent implements OnInit {
           this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id, 0, true);
         },
         error: () => {
-          this.error.set('Nie udalo sie zaladowac wiadomosci email.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorLoad'));
           this.loading.set(false);
         },
       });
@@ -158,7 +159,7 @@ export class EmailContactComponent implements OnInit {
           this.loadingMore.set(false);
         },
         error: () => {
-          this.error.set('Nie udalo sie zaladowac watku email.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorThread'));
           this.loading.set(false);
           this.loadingMore.set(false);
         },
@@ -222,7 +223,7 @@ export class EmailContactComponent implements OnInit {
           this.showVariableForm.set(false);
         },
         error: () => {
-          this.error.set('Nie udało się wczytać szablonu.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorTemplate'));
         },
       });
   }
@@ -289,7 +290,9 @@ export class EmailContactComponent implements OnInit {
           },
           error: () => {
             this.uploading.set(false);
-            this.uploadError.set('Nie udało się przesłać pliku: ' + file.name);
+            this.uploadError.set(
+              this.transloco.translate('agent.emailContact.uploadFailed', { name: file.name }),
+            );
           },
         });
     };
@@ -342,7 +345,7 @@ export class EmailContactComponent implements OnInit {
         },
         error: () => {
           this.sending.set(false);
-          this.error.set('Nie udalo sie wyslac odpowiedzi. Sprobuj ponownie.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorSend'));
         },
       });
   }

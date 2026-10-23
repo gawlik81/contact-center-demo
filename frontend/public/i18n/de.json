@@ -92,6 +92,7 @@
       "title": "Anmelden",
       "emailLabel": "E-Mail-Adresse",
       "emailPlaceholder": "E-Mail-Adresse eingeben",
+      "signedInAs": "Anmeldung als {{ email }}",
       "passwordLabel": "Passwort",
       "submitButton": "Anmelden",
       "nextButton": "Weiter",
@@ -191,7 +192,13 @@
     "settingsDispositionSets": "Dispositions-Sets",
     "settingsPlugins": "Plugins",
     "settingsDataRetention": "Datenaufbewahrung",
-    "retentionPendingBadge": "{{ count }} Datenkategorien warten auf Löschung"
+    "retentionPendingBadge": "{{ count }} Datenkategorien warten auf Löschung",
+    "toggleSidenav": "Seitennavigation umschalten",
+    "themeGroup": "Oberflächendesign",
+    "themeLight": "Helles Design",
+    "themeAuto": "Automatisches Design",
+    "themeDark": "Dunkles Design",
+    "roleAria": "Rolle: {{ role }}"
   },
   "role": {
     "superAdmin": "Hauptadministrator",
@@ -206,6 +213,8 @@
       "break": "Pause",
       "afterContact": "Nachbearbeitungszeit",
       "offline": "Offline",
+      "breakDuration": "Dauer der Pause",
+      "breakDurationHint": "Zeit seit der Statusänderung in dieser Sitzung",
       "errorLoad": "Agentenstatus konnte nicht geladen werden.",
       "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen."
     },
@@ -236,8 +245,15 @@
       "tabBarLabel": "Aktive Kontakte",
       "closeContact": "Kontakt schließen",
       "contactSince": "Seit",
-      "chatPlaceholder": "Chat-Bereich",
-      "chatPlaceholderSub": "Chat-Ansicht wird hier geladen",
+      "chatPlaceholder": "Chat ist noch nicht verfügbar",
+      "chatPlaceholderSub": "Dieser Kontakt kann hier nicht bearbeitet werden. Schließen Sie den Tab.",
+      "kpiStripLabel": "Agenten-Kennzahlen",
+      "kpiHandled": "Bearbeitet",
+      "kpiHandledSub": "heute",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "Ø Zeit",
+      "kpiWorkTime": "Arbeitszeit",
       "profileLabel": "Kundenprofil",
       "expandCustomerPanel": "Kundenpanel erweitern",
       "collapseCustomerPanel": "Kundenpanel reduzieren",
@@ -321,6 +337,9 @@
       "loadAgentsError": "Agentenliste konnte nicht geladen werden.",
       "noQueuesAvailable": "Keine Warteschlangen verfügbar.",
       "loadQueuesError": "Warteschlangenliste konnte nicht geladen werden.",
+      "loadingQueues": "Warteschlangenliste wird geladen",
+      "loadingAgents": "Agentenliste wird geladen",
+      "transferTargetLabel": "Transferziel",
       "waitingContacts": "wartend",
       "availableAgents": "Agenten"
     },
@@ -339,8 +358,22 @@
       "save": "Speichern und schließen",
       "saving": "Speichern...",
       "errorSave": "Disposition konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
-      "successSave": "Disposition gespeichert. Status wird auf Verfügbar geändert...",
-      "statusChanged": "Status auf Verfügbar geändert."
+      "fallbackNotice": "Systemdispositionen werden angezeigt (eigene konnten nicht geladen werden).",
+      "successSave": "Disposition gespeichert.",
+      "statusChangeError": "Disposition gespeichert, aber der Status konnte nicht geändert werden. Ändern Sie ihn manuell."
+    },
+    "aiSummary": {
+      "title": "KI-Zusammenfassung",
+      "generate": "KI-Zusammenfassung erstellen",
+      "generating": "Wird erstellt…",
+      "needsRecording": "Die KI-Zusammenfassung erfordert eine Gesprächsaufzeichnung",
+      "expand": "KI-Zusammenfassung aufklappen",
+      "collapse": "KI-Zusammenfassung zuklappen",
+      "copyToNotes": "In Notiz kopieren",
+      "meta": "Modell: {{ model }} · Tokens: {{ tokens }}",
+      "errorNotConfigured": "KI-Anbieter in den Supervisor-Einstellungen einrichten.",
+      "errorUnavailable": "Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.",
+      "errorUnknown": "Die Zusammenfassung konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
     },
     "customerPanel": {
       "emptyTitle": "Kein aktiver Kontakt",
@@ -352,9 +385,17 @@
       "createProfileLabel": "Kundenprofil für Nummer erstellen",
       "viewProfile": "Vollständiges Profil anzeigen",
       "errorText": "Kundendaten können nicht geladen werden (Serverfehler).",
+      "retry": "Erneut versuchen",
+      "channels": {
+        "PHONE": "Telefon",
+        "EMAIL": "E-Mail",
+        "CHAT": "Chat",
+        "SOCIAL": "Social"
+      },
       "recentContacts": "Letzte Kontakte",
       "noHistory": "Keine Kontakthistorie",
       "lookupError": "Kundendaten konnten nicht abgerufen werden.",
+      "contactDetailsDated": "Kontaktdetails vom {{ date }}",
       "noteExpand": "Mehr anzeigen",
       "noteCollapse": "Weniger anzeigen",
       "externalId": "Externe ID"
@@ -411,7 +452,13 @@
         "OTHER": "Andere"
       },
       "errorStartInPast": "Die Startzeit muss in der Zukunft liegen.",
-      "errorConflict": "Die Pause steht in Konflikt mit einem bestehenden Termineintrag."
+      "errorConflict": "Die Pause steht in Konflikt mit einem bestehenden Termineintrag.",
+      "breakTypeRequired": "Wählen Sie eine Pausenart aus.",
+      "startDateRequired": "Das Startdatum ist erforderlich.",
+      "startTimeRequired": "Die Startzeit ist erforderlich.",
+      "endDateRequired": "Das Enddatum ist erforderlich.",
+      "endTimeRequired": "Die Endzeit ist erforderlich.",
+      "endNotAfterStart": "Die Endzeit muss nach der Startzeit liegen."
     },
     "rescheduleCallback": {
       "title": "Rückruf verschieben",
@@ -463,9 +510,12 @@
     },
     "manualCampaign": {
       "title": "Manuelle Kampagnen",
-      "recordsLabel": "Datensätze zum Anrufen",
       "refreshLabel": "Liste der manuellen Kampagnen aktualisieren",
       "refreshTitle": "Aktualisieren",
+      "sectionLabel": "Manuelle Kampagnen zum Anwählen",
+      "recordsPendingLabel": "Ausstehende Datensätze: {{ count }}",
+      "campaignRecordsLabel": "Datensätze der Kampagne {{ name }}",
+      "recordsListLabel": "Datensätze zum Anwählen",
       "statusNotAvailable": "Status auf Verfügbar ändern, um Anrufe zu tätigen",
       "loadingLabel": "Kampagnen werden geladen...",
       "empty": "Keine aktiven manuellen Kampagnen",
@@ -515,6 +565,8 @@
       "errorThread": "E-Mail-Thread konnte nicht geladen werden.",
       "errorPreview": "Vorlagenvorschau fehlgeschlagen.",
       "errorSend": "Antwort konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+      "errorTemplate": "Vorlage konnte nicht geladen werden.",
+      "uploadFailed": "Datei konnte nicht hochgeladen werden: {{ name }}",
       "from": "Von",
       "to": "An",
       "loadOlder": "Mehr laden",
@@ -546,6 +598,8 @@
       "loadingLabel": "Nachrichtenverlauf wird geladen",
       "emptyText": "Keine Nachrichten in dieser Unterhaltung",
       "emptySub": "Senden Sie die erste Nachricht unten",
+      "errorLoad": "Nachrichtenverlauf konnte nicht geladen werden.",
+      "errorSend": "Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
       "historyLabel": "Nachrichtenverlauf",
       "loadEarlier": "Frühere laden",
       "loadEarlierLabel": "Frühere Nachrichten laden",
@@ -578,7 +632,6 @@
       "campaignDays": "Tage",
       "callbackLabel": "Rückruf an",
       "addBreak": "Pause hinzufügen",
-      "addBreakLabel": "Pause hinzufügen",
       "errorLoad": "Kalender konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
       "breakTypes": {
         "LUNCH": "Mittagspause",
@@ -781,7 +834,12 @@
       "scheduledDateLabel": "Rückrufdatum",
       "hourLabel": "Stunde",
       "minuteLabel": "Minuten",
-      "notesPlaceholder": "Rückrufnotiz hinzufügen..."
+      "notesPlaceholder": "Rückrufnotiz hinzufügen...",
+      "discardMessage": "Es gibt nicht gespeicherte Änderungen. Formular ohne Speichern schließen?",
+      "discardConfirm": "Änderungen verwerfen",
+      "discardKeep": "Zurück zum Formular",
+      "successScheduled": "Rückruf geplant für {{ date }}",
+      "customerFallback": "Kunde"
     },
     "callbacksPage": {
       "title": "Meine Rückrufe",
@@ -821,6 +879,7 @@
       "searchLabel": "Kunden suchen",
       "clearSearch": "Suche löschen",
       "searchMinChars": "Mindestens 2 Zeichen eingeben, um zu suchen",
+      "searchError": "Kundensuche fehlgeschlagen. Bitte versuchen Sie es erneut.",
       "found": "{{ count }} Kunden"
     },
     "manualCallback": {
@@ -2780,6 +2839,9 @@
       "cancel": "Abbrechen",
       "tenantPlaceholder": "-- Mandant auswählen --",
       "activeHint": "Deaktivieren verhindert die Anmeldung des Benutzers.",
+      "skillsSelectedLabel": "Ausgewählte Fähigkeiten",
+      "skillsAddPlaceholder": "Fähigkeit hinzufügen...",
+      "saveEditLabel": "Benutzeränderungen speichern",
       "errorCreate": "Benutzer konnte nicht erstellt werden.",
       "errorEdit": "Benutzer konnte nicht aktualisiert werden.",
       "errors": {
@@ -2799,6 +2861,7 @@
   },
   "language": {
     "select": "Sprache auswählen",
+    "available": "Verfügbare Sprachen",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",

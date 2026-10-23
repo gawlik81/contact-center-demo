@@ -270,7 +270,7 @@
               />
             </svg>
           }
-          Załącz plik
+          {{ 'agent.emailContact.attachFile' | transloco }}
         </button>
 
         @if (uploadError()) {
@@ -287,7 +287,7 @@
                   type="button"
                   class="attachment-remove"
                   (click)="removeAttachment(att.s3Key)"
-                  aria-label="Usuń załącznik"
+                  [attr.aria-label]="'agent.emailContact.removeAttachment' | transloco"
                 >
                   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path

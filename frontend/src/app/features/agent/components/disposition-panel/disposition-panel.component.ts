@@ -143,7 +143,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
             })),
           );
           this.dispositionsLoading.set(false);
-          this.dispositionsError.set('Używam dyspozycji systemowych (błąd pobierania)');
+          this.dispositionsError.set(this.transloco.translate('agent.disposition.fallbackNotice'));
         },
       });
   }
@@ -215,15 +215,14 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
           .changeStatus('AVAILABLE')
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
-            next: () => {
-              this.notifications.success(
-                this.transloco.translate('agent.disposition.statusChanged'),
-              );
-              this.saved.emit();
-            },
+            // `successSave` above makes no promise about the status; only a failure adds a toast.
+            next: () => this.saved.emit(),
             error: () => {
               // Disposition was saved successfully; status change failed.
               // Still close the tab — agent can change status manually.
+              this.notifications.error(
+                this.transloco.translate('agent.disposition.statusChangeError'),
+              );
               this.saved.emit();
             },
           });

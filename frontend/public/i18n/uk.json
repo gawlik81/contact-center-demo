@@ -92,6 +92,7 @@
       "title": "Вхід",
       "emailLabel": "Адреса e-mail",
       "emailPlaceholder": "Введіть адресу e-mail",
+      "signedInAs": "Вхід як {{ email }}",
       "passwordLabel": "Пароль",
       "submitButton": "Увійти",
       "nextButton": "Далі",
@@ -184,6 +185,12 @@
     "settingsPlugins": "Плагіни",
     "settingsDataRetention": "Зберігання даних",
     "retentionPendingBadge": "{{ count }} категорій даних очікують на видалення",
+    "toggleSidenav": "Перемкнути бічну навігацію",
+    "themeGroup": "Тема інтерфейсу",
+    "themeLight": "Світла тема",
+    "themeAuto": "Автоматична тема",
+    "themeDark": "Темна тема",
+    "roleAria": "Роль: {{ role }}",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт клієнтів",
@@ -206,6 +213,8 @@
       "break": "Перерва",
       "afterContact": "Після контакту",
       "offline": "Офлайн",
+      "breakDuration": "Тривалість перерви",
+      "breakDurationHint": "Час від зміни статусу в цій сесії",
       "errorLoad": "Не вдалося завантажити статус агента.",
       "errorChange": "Не вдалося змінити статус. Спробуйте ще раз."
     },
@@ -236,8 +245,15 @@
       "tabBarLabel": "Активні контакти",
       "closeContact": "Закрити контакт",
       "contactSince": "Від",
-      "chatPlaceholder": "Панель чату",
-      "chatPlaceholderSub": "Тут буде завантажено вигляд чату",
+      "chatPlaceholder": "Чат ще недоступний",
+      "chatPlaceholderSub": "Цей контакт не можна обробити тут. Закрийте вкладку.",
+      "kpiStripLabel": "Показники агента",
+      "kpiHandled": "Оброблено",
+      "kpiHandledSub": "сьогодні",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "сер. час",
+      "kpiWorkTime": "Робочий час",
       "profileLabel": "Профіль клієнта",
       "expandCustomerPanel": "Розгорнути панель клієнта",
       "collapseCustomerPanel": "Згорнути панель клієнта",
@@ -321,6 +337,9 @@
       "loadAgentsError": "Не вдалося завантажити список агентів.",
       "noQueuesAvailable": "Немає доступних черг.",
       "loadQueuesError": "Не вдалося завантажити список черг.",
+      "loadingQueues": "Завантаження списку черг",
+      "loadingAgents": "Завантаження списку агентів",
+      "transferTargetLabel": "Ціль трансферу",
       "waitingContacts": "очікує",
       "availableAgents": "агентів"
     },
@@ -339,8 +358,22 @@
       "save": "Зберегти та закрити",
       "saving": "Збереження...",
       "errorSave": "Не вдалося зберегти диспозицію. Спробуйте ще раз.",
-      "successSave": "Диспозицію збережено. Зміна статусу на Доступний...",
-      "statusChanged": "Статус змінено на Доступний."
+      "fallbackNotice": "Показано системні диспозиції (власні не вдалося завантажити).",
+      "successSave": "Диспозицію збережено.",
+      "statusChangeError": "Диспозицію збережено, але статус змінити не вдалося. Змініть його вручну."
+    },
+    "aiSummary": {
+      "title": "Підсумок ШІ",
+      "generate": "Створити підсумок ШІ",
+      "generating": "Створення…",
+      "needsRecording": "Підсумок ШІ потребує запису розмови",
+      "expand": "Розгорнути підсумок ШІ",
+      "collapse": "Згорнути підсумок ШІ",
+      "copyToNotes": "Копіювати в нотатку",
+      "meta": "Модель: {{ model }} · токенів: {{ tokens }}",
+      "errorNotConfigured": "Налаштуйте постачальника ШІ в налаштуваннях супервізора.",
+      "errorUnavailable": "Сервіс ШІ тимчасово недоступний. Спробуйте ще раз.",
+      "errorUnknown": "Не вдалося створити підсумок. Спробуйте ще раз."
     },
     "customerPanel": {
       "emptyTitle": "Немає активного контакту",
@@ -352,9 +385,17 @@
       "createProfileLabel": "Створити профіль клієнта для номера",
       "viewProfile": "Переглянути повний профіль",
       "errorText": "Неможливо завантажити дані клієнта (помилка сервера).",
+      "retry": "Спробувати ще раз",
+      "channels": {
+        "PHONE": "Телефон",
+        "EMAIL": "Електронна пошта",
+        "CHAT": "Чат",
+        "SOCIAL": "Соцмережі"
+      },
       "recentContacts": "Останні контакти",
       "noHistory": "Немає історії контактів",
       "lookupError": "Не вдалося отримати дані клієнта.",
+      "contactDetailsDated": "Деталі контакту від {{ date }}",
       "noteExpand": "Показати більше",
       "noteCollapse": "Показати менше",
       "externalId": "Зовнішній ID"
@@ -411,7 +452,13 @@
         "OTHER": "Інше"
       },
       "errorStartInPast": "Час початку має бути у майбутньому.",
-      "errorConflict": "Перерва конфліктує з наявним записом у розкладі."
+      "errorConflict": "Перерва конфліктує з наявним записом у розкладі.",
+      "breakTypeRequired": "Виберіть тип перерви.",
+      "startDateRequired": "Дата початку обов'язкова.",
+      "startTimeRequired": "Час початку обов'язковий.",
+      "endDateRequired": "Дата завершення обов'язкова.",
+      "endTimeRequired": "Час завершення обов'язковий.",
+      "endNotAfterStart": "Час завершення має бути пізніше за час початку."
     },
     "rescheduleCallback": {
       "title": "Перенести передзвін",
@@ -463,9 +510,12 @@
     },
     "manualCampaign": {
       "title": "Ручні кампанії",
-      "recordsLabel": "записів для дзвінка",
       "refreshLabel": "Оновити список ручних кампаній",
       "refreshTitle": "Оновити",
+      "sectionLabel": "Ручні кампанії для обдзвону",
+      "recordsPendingLabel": "Записів в очікуванні: {{ count }}",
+      "campaignRecordsLabel": "Записи кампанії {{ name }}",
+      "recordsListLabel": "Записи для обдзвону",
       "statusNotAvailable": "Змініть статус на Доступний для здійснення дзвінків",
       "loadingLabel": "Завантаження кампаній...",
       "empty": "Немає активних ручних кампаній",
@@ -515,6 +565,8 @@
       "errorThread": "Не вдалося завантажити ланцюжок email.",
       "errorPreview": "Не вдалося переглянути шаблон.",
       "errorSend": "Не вдалося надіслати відповідь. Спробуйте ще раз.",
+      "errorTemplate": "Не вдалося завантажити шаблон.",
+      "uploadFailed": "Не вдалося завантажити файл: {{ name }}",
       "from": "Від",
       "to": "Кому",
       "loadOlder": "Завантажити більше",
@@ -546,6 +598,8 @@
       "loadingLabel": "Завантаження історії повідомлень",
       "emptyText": "Немає повідомлень у цій розмові",
       "emptySub": "Надішліть перше повідомлення нижче",
+      "errorLoad": "Не вдалося завантажити історію повідомлень.",
+      "errorSend": "Не вдалося надіслати повідомлення. Спробуйте ще раз.",
       "historyLabel": "Історія повідомлень",
       "loadEarlier": "Завантажити раніші",
       "loadEarlierLabel": "Завантажити раніші повідомлення",
@@ -578,7 +632,6 @@
       "campaignDays": "Дні",
       "callbackLabel": "Передзвін до",
       "addBreak": "Додати перерву",
-      "addBreakLabel": "Додати перерву",
       "errorLoad": "Не вдалося завантажити календар. Спробуйте ще раз.",
       "breakTypes": {
         "LUNCH": "Обід",
@@ -781,7 +834,12 @@
       "scheduledDateLabel": "Дата передзвону",
       "hourLabel": "Година",
       "minuteLabel": "Хвилини",
-      "notesPlaceholder": "Додайте нотатку до передзвону..."
+      "notesPlaceholder": "Додайте нотатку до передзвону...",
+      "discardMessage": "Є незбережені зміни. Закрити форму без збереження?",
+      "discardConfirm": "Відхилити зміни",
+      "discardKeep": "Повернутися до форми",
+      "successScheduled": "Зворотний дзвінок заплановано на {{ date }}",
+      "customerFallback": "Клієнт"
     },
     "callbacksPage": {
       "title": "Мої зворотні дзвінки",
@@ -821,6 +879,7 @@
       "searchLabel": "Пошук клієнта",
       "clearSearch": "Очистити пошук",
       "searchMinChars": "Введіть мінімум 2 символи для пошуку",
+      "searchError": "Не вдалося виконати пошук клієнтів. Спробуйте ще раз.",
       "found": "{{ count }} клієнтів"
     },
     "manualCallback": {
@@ -2794,11 +2853,15 @@
         "tenantRequired": "Тенант обов'язковий.",
         "roleRequired": "Роль обов'язкова."
       },
-      "activeHint": "Знімення позначки заблокує можливість входу користувача."
+      "activeHint": "Знімення позначки заблокує можливість входу користувача.",
+      "skillsSelectedLabel": "Вибрані навички",
+      "skillsAddPlaceholder": "Додати навичку...",
+      "saveEditLabel": "Зберегти зміни користувача"
     }
   },
   "language": {
     "select": "Оберіть мову",
+    "available": "Доступні мови",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",

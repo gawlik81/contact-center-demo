@@ -92,6 +92,7 @@
       "title": "Logowanie",
       "emailLabel": "Adres e-mail",
       "emailPlaceholder": "Wpisz adres e-mail",
+      "signedInAs": "Logowanie jako {{ email }}",
       "passwordLabel": "Hasło",
       "submitButton": "Zaloguj się",
       "nextButton": "Dalej",
@@ -191,7 +192,13 @@
     "settingsDispositionSets": "Zestawy dyspozycji",
     "settingsPlugins": "Pluginy",
     "settingsDataRetention": "Retencja danych",
-    "retentionPendingBadge": "{{ count }} kategorii danych oczekuje na usunięcie"
+    "retentionPendingBadge": "{{ count }} kategorii danych oczekuje na usunięcie",
+    "toggleSidenav": "Przełącz nawigację boczną",
+    "themeGroup": "Motyw interfejsu",
+    "themeLight": "Motyw jasny",
+    "themeAuto": "Motyw automatyczny",
+    "themeDark": "Motyw ciemny",
+    "roleAria": "Rola: {{ role }}"
   },
   "role": {
     "superAdmin": "Administrator Główny",
@@ -206,6 +213,8 @@
       "break": "Przerwa",
       "afterContact": "Po kontakcie",
       "offline": "Offline",
+      "breakDuration": "Czas trwania przerwy",
+      "breakDurationHint": "Czas od zmiany statusu w tej sesji",
       "errorLoad": "Nie udało się pobrać statusu agenta.",
       "errorChange": "Nie udało się zmienić statusu. Spróbuj ponownie."
     },
@@ -236,8 +245,15 @@
       "tabBarLabel": "Aktywne kontakty",
       "closeContact": "Zamknij kontakt",
       "contactSince": "Od",
-      "chatPlaceholder": "Panel chatu",
-      "chatPlaceholderSub": "Tutaj zostanie załadowany widok chatu",
+      "chatPlaceholder": "Czat nie jest jeszcze dostępny",
+      "chatPlaceholderSub": "Ten kontakt nie może być tu obsłużony. Zamknij kartę.",
+      "kpiStripLabel": "Wskaźniki agenta",
+      "kpiHandled": "Obsłużone",
+      "kpiHandledSub": "dziś",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "śr. czas",
+      "kpiWorkTime": "Czas pracy",
       "profileLabel": "Profil klienta",
       "expandCustomerPanel": "Rozwiń panel klienta",
       "collapseCustomerPanel": "Zwiń panel klienta",
@@ -321,6 +337,9 @@
       "loadAgentsError": "Nie udało się załadować listy agentów.",
       "noQueuesAvailable": "Brak dostępnych kolejek.",
       "loadQueuesError": "Nie udało się załadować listy kolejek.",
+      "loadingQueues": "Ładowanie listy kolejek",
+      "loadingAgents": "Ładowanie listy agentów",
+      "transferTargetLabel": "Cel transferu",
       "waitingContacts": "czeka",
       "availableAgents": "agentów"
     },
@@ -339,8 +358,22 @@
       "save": "Zapisz i zamknij",
       "saving": "Zapisywanie...",
       "errorSave": "Nie udało się zapisać dyspozycji. Spróbuj ponownie.",
-      "successSave": "Dyspozycja zapisana. Zmieniam status na Dostępny...",
-      "statusChanged": "Status zmieniony na Dostępny."
+      "fallbackNotice": "Wyświetlono dyspozycje systemowe (nie udało się pobrać własnych).",
+      "successSave": "Dyspozycja zapisana.",
+      "statusChangeError": "Dyspozycja zapisana, ale nie udało się zmienić statusu. Zmień status ręcznie."
+    },
+    "aiSummary": {
+      "title": "Podsumowanie AI",
+      "generate": "Generuj podsumowanie AI",
+      "generating": "Generowanie…",
+      "needsRecording": "Podsumowanie AI wymaga nagrania rozmowy",
+      "expand": "Rozwiń podsumowanie AI",
+      "collapse": "Zwiń podsumowanie AI",
+      "copyToNotes": "Kopiuj do notatki",
+      "meta": "Model: {{ model }} · liczba tokenów: {{ tokens }}",
+      "errorNotConfigured": "Skonfiguruj dostawcę AI w ustawieniach supervisora.",
+      "errorUnavailable": "Serwis AI tymczasowo niedostępny. Spróbuj ponownie.",
+      "errorUnknown": "Nie udało się wygenerować podsumowania. Spróbuj ponownie."
     },
     "customerPanel": {
       "empty": "Karta klienta pojawi się tutaj po podjęciu rozmowy.",
@@ -352,9 +385,17 @@
       "createProfileLabel": "Utwórz profil klienta dla numeru",
       "viewProfile": "Zobacz pełny profil",
       "errorText": "Nie można pobrać danych klienta (błąd serwera).",
+      "retry": "Spróbuj ponownie",
+      "channels": {
+        "PHONE": "Telefon",
+        "EMAIL": "Email",
+        "CHAT": "Chat",
+        "SOCIAL": "Social"
+      },
       "recentContacts": "Ostatnie kontakty",
       "noHistory": "Brak historii kontaktów",
       "lookupError": "Nie udało się pobrać danych klienta.",
+      "contactDetailsDated": "Szczegóły kontaktu z dnia {{ date }}",
       "noteExpand": "Pokaż więcej",
       "noteCollapse": "Pokaż mniej",
       "externalId": "ID zewnętrzne"
@@ -411,7 +452,13 @@
         "OTHER": "Inna"
       },
       "errorStartInPast": "Czas rozpoczęcia musi być w przyszłości.",
-      "errorConflict": "Przerwa koliduje z istniejącym wpisem w harmonogramie."
+      "errorConflict": "Przerwa koliduje z istniejącym wpisem w harmonogramie.",
+      "breakTypeRequired": "Wybierz typ przerwy.",
+      "startDateRequired": "Data rozpoczęcia jest wymagana.",
+      "startTimeRequired": "Godzina rozpoczęcia jest wymagana.",
+      "endDateRequired": "Data zakończenia jest wymagana.",
+      "endTimeRequired": "Godzina zakończenia jest wymagana.",
+      "endNotAfterStart": "Czas zakończenia musi być późniejszy niż czas rozpoczęcia."
     },
     "rescheduleCallback": {
       "title": "Przesuń oddzwonienie",
@@ -463,9 +510,12 @@
     },
     "manualCampaign": {
       "title": "Kampanie manualne",
-      "recordsLabel": "rekordów do wydzwonienia",
       "refreshLabel": "Odświeżenie listy kampanii manualnych",
       "refreshTitle": "Odśwież",
+      "sectionLabel": "Kampanie manualne do wydzwonienia",
+      "recordsPendingLabel": "Rekordów oczekujących: {{ count }}",
+      "campaignRecordsLabel": "Rekordy kampanii {{ name }}",
+      "recordsListLabel": "Rekordy do wydzwonienia",
       "statusNotAvailable": "Zmień status na Dostępny aby dzwonić",
       "loadingLabel": "Wczytywanie kampanii...",
       "empty": "Brak aktywnych kampanii manualnych",
@@ -515,6 +565,8 @@
       "errorThread": "Nie udało się załadować wątku email.",
       "errorPreview": "Nie udało się podglądnąć szablonu.",
       "errorSend": "Nie udało się wysłać odpowiedzi. Spróbuj ponownie.",
+      "errorTemplate": "Nie udało się wczytać szablonu.",
+      "uploadFailed": "Nie udało się przesłać pliku: {{ name }}",
       "from": "Od",
       "to": "Do",
       "loadOlder": "Załaduj więcej",
@@ -546,6 +598,8 @@
       "loadingLabel": "Ładowanie historii wiadomości",
       "emptyText": "Brak wiadomości w tej konwersacji",
       "emptySub": "Wyślij pierwszą wiadomość poniżej",
+      "errorLoad": "Nie udało się załadować historii wiadomości.",
+      "errorSend": "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
       "historyLabel": "Historia wiadomości",
       "loadEarlier": "Załaduj wcześniejsze",
       "loadEarlierLabel": "Załaduj wcześniejsze wiadomości",
@@ -578,7 +632,6 @@
       "campaignDays": "Dni",
       "callbackLabel": "Oddzwonienie do",
       "addBreak": "Dodaj przerwę",
-      "addBreakLabel": "Dodaj przerwę",
       "errorLoad": "Nie udało się załadować kalendarza. Spróbuj ponownie.",
       "breakTypes": {
         "LUNCH": "Obiad",
@@ -781,7 +834,12 @@
       "scheduledDateLabel": "Data oddzwonienia",
       "hourLabel": "Godzina",
       "minuteLabel": "Minuty",
-      "notesPlaceholder": "Dodaj notatkę do oddzwonienia..."
+      "notesPlaceholder": "Dodaj notatkę do oddzwonienia...",
+      "discardMessage": "Masz niezapisane zmiany. Zamknąć formularz bez zapisywania?",
+      "discardConfirm": "Odrzuć zmiany",
+      "discardKeep": "Wróć do formularza",
+      "successScheduled": "Oddzwonienie zaplanowane na {{ date }}",
+      "customerFallback": "Klient"
     },
     "callbacksPage": {
       "title": "Moje oddzwonienia",
@@ -821,6 +879,7 @@
       "searchLabel": "Wyszukaj klienta",
       "clearSearch": "Wyczyść wyszukiwanie",
       "searchMinChars": "Wpisz minimum 2 znaki, aby wyszukać klientów",
+      "searchError": "Nie udało się wyszukać klientów. Spróbuj ponownie.",
       "found": "{{ count }} klientów"
     },
     "manualCallback": {
@@ -2794,11 +2853,15 @@
         "tenantRequired": "Tenant jest wymagany.",
         "roleRequired": "Rola jest wymagana."
       },
-      "activeHint": "Odznaczenie zablokuje możliwość logowania użytkownika."
+      "activeHint": "Odznaczenie zablokuje możliwość logowania użytkownika.",
+      "skillsSelectedLabel": "Wybrane skille",
+      "skillsAddPlaceholder": "Dodaj skill...",
+      "saveEditLabel": "Zapisz zmiany użytkownika"
     }
   },
   "language": {
     "select": "Wybierz język",
+    "available": "Dostępne języki",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",

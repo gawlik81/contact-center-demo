@@ -3,7 +3,7 @@
     <!-- Logo / Brand -->
     <header class="auth-header">
       <div class="brand-icon" aria-hidden="true">CC</div>
-      <h1 class="brand-name">Contact Center</h1>
+      <h1 class="brand-name">{{ brand.name }}</h1>
     </header>
 
     <!-- Error banner (shared for all steps) -->
@@ -27,7 +27,7 @@
               type="email"
               formControlName="email"
               autocomplete="email"
-              placeholder="przyklad@firma.pl"
+              [attr.placeholder]="'auth.login.emailPlaceholder' | transloco"
               [class.input-invalid]="emailStepInvalid()"
               aria-required="true"
               [attr.aria-describedby]="emailStepInvalid() ? 'email-step-error' : null"
@@ -56,7 +56,7 @@
       <div class="step-wrapper">
         <h2 class="step-title">{{ 'auth.login.title' | transloco }}</h2>
 
-        <p class="email-display" aria-label="Logujesz się jako {{ emailValue }}">
+        <p class="email-display" [attr.aria-label]="'auth.login.signedInAs' | transloco: { email: emailValue }">
           {{ emailValue }}
         </p>
 

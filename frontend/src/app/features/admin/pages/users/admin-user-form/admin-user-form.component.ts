@@ -27,6 +27,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
 import { Tenant } from '../../../../tenants/tenant.model';
 import { AdminUserResponse } from '../../../models/admin-user.model';
 import { UserRole } from '../../../../supervisor/models/user.model';
+import { ListboxNavDirective } from '../../../../../shared/directives/listbox-nav.directive';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -40,7 +41,7 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'cc-admin-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, ListboxNavDirective],
   templateUrl: './admin-user-form.component.html',
   styleUrl: './admin-user-form.component.scss',
   host: {
@@ -178,16 +179,14 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   }
 
   onSkillInputBlur(): void {
-    setTimeout(() => this.showSkillDropdown.set(false), 150);
+    this.showSkillDropdown.set(false);
   }
 
-  onSkillInputKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const val = this.skillInput().trim();
-      if (val) {
-        this.addSkill(val);
-      }
+  /** Enter with no highlighted option: commit the typed text as a new skill. */
+  onSkillEnter(): void {
+    const val = this.skillInput().trim();
+    if (val) {
+      this.addSkill(val);
     }
   }
 

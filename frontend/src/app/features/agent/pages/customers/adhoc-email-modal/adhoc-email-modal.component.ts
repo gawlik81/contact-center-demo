@@ -70,7 +70,10 @@ export class AdHocEmailModalComponent implements AfterViewInit {
 
   readonly customerDisplayName = computed(() => {
     const c = this.customer();
-    return [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Klient';
+    return (
+      [c.firstName, c.lastName].filter(Boolean).join(' ') ||
+      this.translocoService.translate('agent.manualCallbackModal.customerFallback')
+    );
   });
 
   readonly bodyHtmlTouched = signal(false);
@@ -255,7 +258,11 @@ export class AdHocEmailModalComponent implements AfterViewInit {
             }
           }),
           catchError(() => {
-            this.uploadError.set('Nie udało się przesłać pliku: ' + file.name);
+            this.uploadError.set(
+              this.translocoService.translate('agent.emailContact.uploadFailed', {
+                name: file.name,
+              }),
+            );
             return EMPTY;
           }),
           takeUntilDestroyed(this.destroyRef),

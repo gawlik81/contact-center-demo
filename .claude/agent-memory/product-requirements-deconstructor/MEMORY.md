@@ -25,3 +25,4 @@
 - [EPIC-32 po turze 48](project_epic32_tura48.md) — FE 3/12; reszta kontrastu przeniesiona do FE-116 (M/L)
 - [EPIC-32 po turze 49](project_epic32_tura49.md) — FE 5/13, nowy FE-126, 342/373, faza 1 zamknięta
 - [Tura 51: shape FE-121/122](project_tura51_shape.md) — FE-121 parasol FE-131..134, FE-135/136, BE-154..156, 345/387
+- [Tura 54: EPIC-32 FE-131/134, BE-155/158](project_tura54_epic32.md) — 349/390, BE-159 jako ⬜, wolne BE-160/FE-137/DB-088

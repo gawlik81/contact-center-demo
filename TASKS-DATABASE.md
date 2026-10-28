@@ -48,7 +48,7 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
 | **RAZEM** | | **82** | **0** | **2** | **3** | **87** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) nie ma ticketów DB: BE-155 (tura 2026-10-28) zakończony BEZ migracji, więc DB-088 NIE został założony i pozostaje następnym wolnym numerem (DB-087 = ostatni użyty); warunkowo DB-088 mógłby powstać z BE-157 (indeks pod `(tenant_id, agent_id, status)` na `contact`, jeśli `EXPLAIN` wykaże skan wszystkich partycji).
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 

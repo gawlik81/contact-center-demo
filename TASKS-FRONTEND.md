@@ -54,9 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 15 | 0 | 23 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 10 | 0 | 13 | 0 | 23 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **120** | **0** | **13** | **1** | **134** | |
+| **Razem** | | **122** | **0** | **17** | **1** | **140** | |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -78,12 +78,10 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ⬜ (Do zrobienia)
 - FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) — ⬜ (Do zrobienia)
 - FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ⬜ (Do zrobienia; czeka na BE-153)
-- FE-131 – WP-A (FE-121): magazyn szkiców per kontakt (e-mail, social, notatka PHONE), bez ponownego `acceptContact` — ⬜ (Do zrobienia)
-- FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ⬜ (Do zrobienia; po FE-131)
-- FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ⬜ (Do zrobienia; po FE-131)
-- FE-134 – WP-D (FE-121): status agenta w górnym pasku na `/agent/*`, CTA „Utwórz profil”/„Pełny profil” ukryte dla agenta — ⬜ (Do zrobienia)
+- FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ⬜ (Do zrobienia; po FE-131 ✅ — odblokowany)
+- FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ⬜ (Do zrobienia; po FE-131 ✅ — odblokowany)
 - FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154 i FE-133)
-- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po FE-122, FE-131 i BE-157)
+- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po FE-122, BE-157; FE-131 ✅)
 
 ---
 
@@ -5897,7 +5895,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 8/23** (✅ 8 · 🔧 0 · ⬜ 15 · 🚫 0) — status epiku: 🔧 W toku
+**Ukończone 10/23** (✅ 10 · 🔧 0 · ⬜ 13 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta).
@@ -5914,7 +5912,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-131 → FE-132`;  `FE-131 → FE-133`;  `FE-131, FE-133 → FE-122`;  `FE-134` (bez zależności, w dowolnym momencie);  `FE-121, FE-131…FE-134, FE-122 → FE-123`;  `BE-154, FE-133 → FE-135`;  `FE-122, FE-131, BE-157 → FE-136`;  `BE-158` (powiązany z FE-129, bez zależności);  `BE-154 → FE-135`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-131 ✅ → FE-132`;  `FE-131 ✅ → FE-133`;  `FE-131 ✅, FE-133 → FE-122`;  `FE-134 ✅` (bez zależności);  `FE-121, FE-131 ✅…FE-134 ✅, FE-122 → FE-123` (z pakietów brakuje FE-132, FE-133);  `BE-154, FE-133 → FE-135`;  `FE-122, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6204,7 +6202,7 @@ Wynik `/impeccable shape` dla pracy na wielu kontaktach (wspólny z FE-122). **D
 - skróty z FE-114 bez regresji → każdy pakiet.
 
 **Kryteria akceptacji parasola** (spełnione, gdy spełnione są pakiety):
-- [ ] FE-131 ✅ (szkice), FE-132 ✅ (zamykanie), FE-133 ✅ (znaczniki), FE-134 ✅ (powłoka)
+- [ ] FE-131 ✅ (szkice), FE-132 ✅ (zamykanie), FE-133 ✅ (znaczniki), FE-134 ✅ (powłoka) — **postęp 2026-10-28: ukończone FE-131 i FE-134; brakuje FE-132 i FE-133 (parasol zostaje ⬜)**
 - [ ] Skróty z FE-114 działają bez regresji po wszystkich pakietach (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
 - [ ] WP-1…WP-7 per pakiet
 
@@ -6216,7 +6214,7 @@ Wynik `/impeccable shape` dla pracy na wielu kontaktach (wspólny z FE-122). **D
 **Typ:** Frontend implementation (UX)
 **Priorytet:** Must Have
 **Złożoność:** L
-**Zależy od:** FE-131 (WP-A: magazyn szkiców), FE-133 (WP-C: znacznik ACW na karcie), FE-121 (parasol; brief zatwierdzony 2026-10-23)
+**Zależy od:** FE-131 ✅ (WP-A: magazyn szkiców), FE-133 (WP-C: znacznik ACW na karcie), FE-121 (parasol; brief zatwierdzony 2026-10-23)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak (R1 rozstrzygnięte w briefie: bez zmian BE; potwierdzone w analizie: dyspozycja jest per kontakt — `POST /contacts/{contactId}/disposition`, `SetDispositionRequest { dispositionCode, notes }`; do weryfikacji w kodzie: stan ACW/AFTER_CONTACT jest dziś statusem agenta, nie kontaktu — zob. ryzyko R1)
 **Blokuje:** FE-123, FE-125, FE-136
@@ -6261,7 +6259,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (layout / responsywność)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-121 (parasol), FE-131…FE-134 (pakiety FE-121), FE-122 (przebudowują pulpit), FE-118 ✅
+**Zależy od:** FE-121 (parasol), FE-131 ✅, FE-134 ✅, FE-132, FE-133 (pakiety FE-121), FE-122 (przebudowują pulpit), FE-118 ✅
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** FE-124, FE-125
@@ -6327,7 +6325,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Testing / Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-114…FE-124 (w tym FE-131…FE-134 jako pakiety FE-121), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
+**Zależy od:** FE-114…FE-124 (w tym FE-131 ✅…FE-134 ✅ jako pakiety FE-121; brakuje FE-132, FE-133), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** zamknięcie EPIC-32
@@ -6488,7 +6486,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Must Have
 **Złożoność:** S/M
 **Zależy od:** FE-121 (parasol; brief zatwierdzony 2026-10-23 — warunek procesowy, nie blokada techniczna); twardych zależności technicznych brak
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `senior-code-reviewer`, poprawki wdrożone; `npm test` 596 testów zielone, lint 0 błędów, format OK)
 **Czeka na BE:** brak
 **Blokuje:** FE-132, FE-133, FE-122, FE-136
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
@@ -6506,22 +6504,24 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - API magazynu udostępnia „czy jest niewysłany szkic dla contactId” (potrzebne dla WP-B i znacznika „Szkic” w WP-C) jako `computed`/signal.
 
 **Kryteria akceptacji (z AC FE-121):**
-- [ ] Szkic e-maila (treść, temat, szablon, zmienne, załączniki), odpowiedź social i notatka PHONE przeżywają przełączenie karty i powrót (test jednostkowy magazynu + komponentu, weryfikacja w przeglądarce)
-- [ ] Szkic jest usuwany po wysłaniu, zamknięciu kontaktu i zwrocie do kolejki
-- [ ] Powrót na kartę e-mail nie wywołuje ponownie `acceptContact` (test: dwa montaże = jedno wywołanie)
-- [ ] Szkice nie są zapisywane w `localStorage`/`sessionStorage`/IndexedDB (test/grep)
+- [x] Szkic e-maila (treść, temat, szablon, zmienne, załączniki), odpowiedź social i notatka PHONE przeżywają przełączenie karty i powrót (test jednostkowy magazynu + komponentu, weryfikacja w przeglądarce)
+- [x] Szkic jest usuwany po wysłaniu, zamknięciu kontaktu i zwrocie do kolejki
+- [x] Powrót na kartę e-mail nie wywołuje ponownie `acceptContact` (test: dwa montaże = jedno wywołanie)
+- [x] Szkice nie są zapisywane w `localStorage`/`sessionStorage`/IndexedDB (test/grep)
 - [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
 - [ ] WP-1…WP-7 (WP-7: `impeccable harden`)
 
 **Ryzyka:** (R1) komponenty e-mail/social mają dziś lokalne signal-e — migracja musi zachować zachowanie wysyłki i walidacji; (R2) załączniki w pamięci zwiększają zużycie RAM przy wielu kartach — limit rozmiaru już istnieje po stronie formularza, nie dublować; (R3) `adhoc-email-modal` i `manual-callback-modal` mają własną ochronę szkicu (FE-120) — poza zakresem.
 **Nie wchodzi w zakres:** zamykanie kart (FE-132), znaczniki (FE-133), formularz dyspozycji (FE-122; używa tego magazynu), trwałość szkiców po przeładowaniu strony.
 
+**Notatka z wykonania (2026-10-28):** magazyn szkiców per `contactId` (tylko pamięć). Poprawki z code review: (1) wysyłka e-maila niezależna od cyklu życia komponentu przez `EmailReplyService`, ze stanem wysyłania per kontakt; (2) `rekey` scala notatki; (3) `closeTab` czyści także `originalContactId`; (4) `clearAll` + reset kart przy wylogowaniu; (5) sanityzacja HTML przy przywracaniu szkicu; (6) ponowny montaż komponentu per karta przez `@for … track`. Weryfikacja: frontend 596 testów zielone, lint 0 błędów, format OK. **Otwarte dla FE-132:** potwierdzenie przy × gdy istnieje niewysłany szkic (API „czy jest szkic” jest gotowe).
+
 ### FE-132 – WP-B (FE-121): Bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” (e-mail/social)
 
 **Typ:** Frontend implementation (UX, a11y)
 **Priorytet:** Must Have
 **Złożoność:** S/M
-**Zależy od:** FE-131 (wiedza o niewysłanym szkicu), FE-121 (parasol)
+**Zależy od:** FE-131 ✅ (wiedza o niewysłanym szkicu), FE-121 (parasol)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak (istniejące API `abandonContact`; do potwierdzenia w kodzie nazwa i kontrakt metody w `ContactService`)
 **Blokuje:** FE-123
@@ -6556,7 +6556,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (UX, a11y)
 **Priorytet:** Must Have
 **Złożoność:** S/M
-**Zależy od:** FE-131 (znacznik „Szkic”), FE-121 (parasol); tokeny FE-116 ✅
+**Zależy od:** FE-131 ✅ (znacznik „Szkic”), FE-121 (parasol); tokeny FE-116 ✅
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak (znaczniki wyłącznie ze stanów znanych frontowi; „nowa wiadomość/nieprzeczytane” → BE-154 + FE-135)
 **Blokuje:** FE-122, FE-135, FE-123
@@ -6592,7 +6592,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-121 (parasol); twardych zależności technicznych brak
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; `npm test` 596 testów zielone, lint 0 błędów, format OK; zweryfikowane w przeglądarce przy 1366 i 1920 px)
 **Czeka na BE:** brak
 **Blokuje:** FE-123
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
@@ -6609,14 +6609,16 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - i18n w 4 językach, brak martwych kluczy.
 
 **Kryteria akceptacji (z AC FE-121):**
-- [ ] Status agenta widoczny i obsługiwalny z klawiatury na każdej stronie `/agent/*`, bez duplikatu w nagłówku pulpitu
-- [ ] Licznik przerwy i pigułka statusu przenoszone razem; testy FE-120 (licznik, toast) zielone
-- [ ] CTA „Utwórz profil” i „Pełny profil” nie są renderowane dla roli AGENT (test dla AGENT i dla roli z dostępem)
+- [x] Status agenta widoczny i obsługiwalny z klawiatury na każdej stronie `/agent/*`, bez duplikatu w nagłówku pulpitu
+- [x] Licznik przerwy i pigułka statusu przenoszone razem; testy FE-120 (licznik, toast) zielone
+- [x] CTA „Utwórz profil” i „Pełny profil” nie są renderowane dla roli AGENT (test dla AGENT i dla roli z dostępem)
 - [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
 - [ ] WP-1…WP-7 (WP-7: `impeccable polish`)
 
 **Ryzyka:** (R1) top-navbar jest wspólny dla ról — zmiana nie może pojawić się dla supervisor/admin (przegląd obu); (R2) kolizja z FE-123 (kompaktowy chrome) — FE-134 przed FE-123; (R3) FE-130 (licznik z `statusSince`) dotyka tego samego komponentu — uzgodnić kolejność merge.
 **Nie wchodzi w zakres:** nowe statusy agenta, zmiana semantyki `AFTER_CONTACT`, ekran profilu klienta dla agenta (CTA tylko ukryte).
+
+**Notatka z wykonania (2026-10-28):** status agenta w górnym pasku na `/agent/*`, tylko dla roli AGENT; CTA „Utwórz profil”/„Pełny profil” ukryte dla AGENT; `initStatus` przeniesiony do powłoki (idempotentny, z cleanup); a11y menu (Tab/Esc/`aria-controls`/komunikat); adaptacyjny pas KPI z container query (wariant kompaktowy i priorytet kafelków), sprawdzony w przeglądarce przy 1366 i 1920 px. **Otwarte (decyzja właściciela):** przycisk „Dodaj przerwę” istnieje tylko na desktopie (w nowym układzie bez odpowiednika w wąskim widoku).
 
 ### FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social (follow-up BE-154)
 
@@ -6647,7 +6649,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (odporność)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-122 (ACW jako stan karty), FE-131 (magazyn szkiców), BE-157 (lista aktywnych kontaktów agenta)
+**Zależy od:** FE-122 (ACW jako stan karty), FE-131 ✅ (magazyn szkiców), BE-157 (lista aktywnych kontaktów agenta); kontekstowo BE-155 ✅ (kanał SOCIAL i kolejka)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** BE-157 — `GET /api/agent/me/active-contacts` (tablica wszystkich aktywnych kontaktów agenta: `ASSIGNED`, `ACTIVE`, `ON_HOLD` i ACW; pole `phase` = `RINGING`/`IN_PROGRESS`/`WRAP_UP`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`; kolejność `assigned_at ASC`; maks. 20; `[]` gdy brak). Pytanie otwarte rozstrzygnięte 2026-10-23 (tura 52) — właściciel zatwierdził ticket BE-157. Stary `GET /api/agent/me/assigned-contact` zostaje (zgodność wsteczna), po FE-136 oznaczany jako deprecated.
 **Blokuje:** brak

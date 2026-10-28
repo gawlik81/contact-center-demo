@@ -6,8 +6,6 @@
   padding: 0 1rem;
   background: var(--bg-elevated, #ffffff);
   border-bottom: 1px solid var(--border-1, #e2e8f0);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -33,9 +31,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    padding: 6px;
+    width: 36px;
+    height: 36px;
+    padding: 0.5rem;
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radius-sm, 6px);
@@ -129,7 +127,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.25rem 0.625rem 0.25rem 0.375rem;
-    border-radius: 9999px;
+    border-radius: var(--radius-full, 9999px);
     border: 1px solid var(--border-1);
     background: var(--bg-subtle, #f8fafc);
     // Szerokość musi pomieścić pełny e-mail obok najdłuższej plakietki roli
@@ -194,6 +192,7 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
+    min-height: 2.25rem;
     padding: 0.375rem 0.75rem;
     background: none;
     border: 1px solid var(--border-control);
@@ -243,7 +242,7 @@
 .navbar__kpi-strip {
   display: flex;
   align-items: stretch;
-  gap: 5px;
+  gap: 0.375rem;
   flex: 1;
   // `safe` keeps the first tile reachable instead of clipping both ends equally.
   justify-content: safe center;
@@ -269,11 +268,7 @@
   // Never shrinks below its content: no mid-word clipping, no truncated value.
   min-width: max-content;
   flex: 0 0 auto;
-  transition: box-shadow 150ms ease;
-
-  &:hover {
-    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
-  }
+  // Read-only metric: flat at rest and on hover (no shadow, nothing that suggests a click).
 
   // Tone variants — only icon gets the color, tile stays neutral
   &--accent {
@@ -340,7 +335,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm, 6px);
     flex-shrink: 0;
 
     svg {
@@ -374,13 +369,15 @@
   }
 
   &__value {
-    font-size: 13.5px;
+    font-size: 0.84375rem; // 13.5px
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     line-height: 1.15;
     white-space: nowrap;
     flex-shrink: 0; // the number must never be clipped; ellipsis only on labels/captions
+    // Geist Mono is the data face in DESIGN.md (numerals, measurements): an intentional exception
+    // to the generic overused-font heuristic.
     font-family: 'Geist Mono', ui-monospace, monospace;
   }
 
@@ -403,7 +400,7 @@
   &__bar-fill {
     height: 100%;
     border-radius: 99px;
-    transition: width 360ms ease;
+    transition: width 360ms var(--ease-out, cubic-bezier(0, 0, 0.2, 1));
   }
 }
 
@@ -461,7 +458,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-full, 9999px);
   font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -518,6 +515,25 @@
   .kpi-tile__label,
   .kpi-tile__sub {
     @include kpi-sr-only;
+  }
+
+  // Compact tile = icon + value, centred on one line. The value is the only text left, so it
+  // steps up to 14px, and the SLA bar becomes an underline pinned to the tile bottom so it no
+  // longer lifts that tile's value off the centre line shared with the other tiles.
+  .kpi-tile {
+    position: relative;
+    gap: 0.5rem;
+  }
+
+  .kpi-tile__value {
+    font-size: 0.875rem;
+  }
+
+  .kpi-tile__bar {
+    position: absolute;
+    inset: auto 0.625rem 3px;
+    width: auto;
+    margin-top: 0;
   }
 }
 

@@ -216,14 +216,14 @@
       "breakDuration": "Dauer der Pause",
       "breakDurationHint": "Zeit seit der Statusänderung in dieser Sitzung",
       "errorLoad": "Agentenstatus konnte nicht geladen werden.",
-      "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen."
+      "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen.",
+      "changedAnnouncement": "Status geändert auf: {{status}}"
     },
     "desktop": {
       "title": "Agenten-Desktop",
       "noActiveContact": "Kein aktiver Kontakt",
       "yourStatus": "Ihr Status:",
-      "changeStatus": "Status ändern",
-      "changingStatus": "Status wird geändert...",
+      "statusTriggerLabel": "Status: {{status}}. Status ändern",
       "selectStatus": "Status auswählen",
       "connected": "Verbunden",
       "connecting": "Verbinden...",

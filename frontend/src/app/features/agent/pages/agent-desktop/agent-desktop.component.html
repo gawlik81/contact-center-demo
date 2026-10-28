@@ -11,7 +11,7 @@
   <app-disposition-panel
     [contactId]="wrappingTab()!.originalContactId ?? wrappingTab()!.contactId"
     [customerName]="wrappingTab()!.customerName"
-    [prefillNotes]="wrappingTab()!.note ?? ''"
+    [prefillNotes]="wrappingNote()"
     (saved)="onDispositionSaved()"
   />
 }
@@ -36,91 +36,27 @@
 }
 
 <div class="desktop">
-  <!-- ===== HEADER: status panel ===== -->
+  <!-- ===== HEADER: toolbar (agent status lives in the shell top bar, FE-134) ===== -->
   <header class="desktop__header">
-    <div class="status-panel">
-      <span class="status-panel__label">{{ 'agent.desktop.yourStatus' | transloco }}</span>
-      <div class="status-panel__control">
-        <button
-          #statusTrigger
-          type="button"
-          class="status-btn"
-          [attr.data-status-tone]="currentStatusConfig().tone"
-          [attr.aria-expanded]="statusMenuOpen()"
-          aria-haspopup="menu"
-          [attr.aria-label]="'agent.desktop.changeStatus' | transloco"
-          (click)="toggleStatusMenu()"
-          (keydown)="onStatusTriggerKeydown($event)"
-        >
-          <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-            <path [attr.d]="currentStatusConfig().icon" />
-          </svg>
-          <span class="status-btn__text">{{ currentStatusConfig().labelKey | transloco }}</span>
-          @if (statusService.isChanging()) {
-            <span class="status-btn__spinner" [attr.aria-label]="'agent.desktop.changingStatus' | transloco"></span>
-          } @else {
-            <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-          }
-        </button>
-
-        @if (statusMenuOpen()) {
-          <div class="status-menu" role="menu" [attr.aria-label]="'agent.desktop.selectStatus' | transloco">
-            @for (status of allStatuses; track status) {
-              <button
-                #statusItem
-                type="button"
-                class="status-menu__item"
-                [attr.data-status-tone]="statusConfig[status].tone"
-                role="menuitemradio"
-                tabindex="-1"
-                [attr.aria-checked]="statusService.currentStatus() === status"
-                [class.status-menu__item--active]="statusService.currentStatus() === status"
-                (click)="changeStatus(status)"
-                (keydown)="onStatusMenuKeydown($event)"
-              >
-                <svg class="status-menu__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path [attr.d]="statusConfig[status].icon" />
-                </svg>
-                <span>{{ statusConfig[status].labelKey | transloco }}</span>
-                @if (statusService.currentStatus() === status) {
-                  <svg class="status-menu__check" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                  </svg>
-                }
-              </button>
-            }
-          </div>
-          <!-- Overlay to close menu on outside click -->
-          <div class="status-menu-overlay" (click)="closeStatusMenu(true)" aria-hidden="true"></div>
-        }
-      </div>
-
-      @if (statusService.currentStatus() === 'BREAK') {
-        <cc-status-elapsed />
-      }
-
-      <button
-        type="button"
-        class="desktop__header-action-btn"
-        [class.desktop__header-action-btn--active]="hotkeys.cheatSheetOpen()"
-        data-cheat-sheet-trigger
-        aria-haspopup="dialog"
-        aria-controls="cheat-sheet-panel"
-        [attr.aria-expanded]="hotkeys.cheatSheetOpen()"
-        [attr.aria-keyshortcuts]="shortcuts.cheatSheet.aria"
-        [title]="('agent.shortcuts.open' | transloco) + ' (' + shortcuts.cheatSheet.label + ')'"
-        (click)="hotkeys.toggleCheatSheet()"
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"
-          />
-        </svg>
-        <span>{{ 'agent.shortcuts.open' | transloco }}</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      class="desktop__header-action-btn"
+      [class.desktop__header-action-btn--active]="hotkeys.cheatSheetOpen()"
+      data-cheat-sheet-trigger
+      aria-haspopup="dialog"
+      aria-controls="cheat-sheet-panel"
+      [attr.aria-expanded]="hotkeys.cheatSheetOpen()"
+      [attr.aria-keyshortcuts]="shortcuts.cheatSheet.aria"
+      [title]="('agent.shortcuts.open' | transloco) + ' (' + shortcuts.cheatSheet.label + ')'"
+      (click)="hotkeys.toggleCheatSheet()"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"
+        />
+      </svg>
+      <span>{{ 'agent.shortcuts.open' | transloco }}</span>
+    </button>
 
     <div class="header-info">
       <span
@@ -344,32 +280,33 @@
 
                     <!-- Body fills remaining vertical space; each inner component handles its own scroll -->
                     <div class="contact-panel__body">
-                      @switch (activeTab()!.type) {
-                        @case ('PHONE') {
-                          <app-softphone [tab]="activeTab()!" />
-                        }
-                        @case ('CHAT') {
-                          <div class="chat-placeholder" role="status">
-                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                            </svg>
-                            <p>{{ 'agent.desktop.chatPlaceholder' | transloco }}</p>
-                            <p class="chat-placeholder__sub">
-                              {{ 'agent.desktop.chatPlaceholderSub' | transloco }}
-                            </p>
-                          </div>
-                        }
-                        @case ('EMAIL') {
-                          <cc-email-contact
-                            [contactId]="activeTab()!.contactId"
-                            (replySent)="onEmailReplySent(activeTab()!, $event)"
-                          />
-                        }
-                        @case ('SOCIAL') {
-                          <cc-social-contact
-                            [contactId]="activeTab()!.contactId"
-                            [contactStatus]="activeTab()!.status"
-                          />
+                      <!-- track by tab id: switching between two tabs of the same type must remount the
+                           contact component, otherwise it keeps the previous contact's local state -->
+                      @for (current of [activeTab()!]; track current.id) {
+                        @switch (current.type) {
+                          @case ('PHONE') {
+                            <app-softphone [tab]="current" />
+                          }
+                          @case ('CHAT') {
+                            <div class="chat-placeholder" role="status">
+                              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                              </svg>
+                              <p>{{ 'agent.desktop.chatPlaceholder' | transloco }}</p>
+                              <p class="chat-placeholder__sub">
+                                {{ 'agent.desktop.chatPlaceholderSub' | transloco }}
+                              </p>
+                            </div>
+                          }
+                          @case ('EMAIL') {
+                            <cc-email-contact
+                              [contactId]="current.contactId"
+                              (replySent)="onEmailReplySent(current, $event)"
+                            />
+                          }
+                          @case ('SOCIAL') {
+                            <cc-social-contact [contactId]="current.contactId" [contactStatus]="current.status" />
+                          }
                         }
                       }
                     </div>

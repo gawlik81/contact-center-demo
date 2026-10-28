@@ -105,3 +105,67 @@ describe('CustomerPanelComponent error retry', () => {
     });
   });
 });
+
+describe('CustomerPanelComponent supervisor CTAs (FE-134)', () => {
+  const profile = {
+    id: 'cu-1',
+    firstName: 'Jan',
+    lastName: 'Kowalski',
+    phones: ['+48123456789'],
+    emails: [],
+    recentContacts: [],
+  } satisfies CustomerProfile;
+
+  function render(
+    role: string,
+    found: CustomerProfile | null,
+  ): { root: HTMLElement; fixture: ComponentFixture<CustomerPanelComponent> } {
+    TestBed.configureTestingModule({
+      imports: [
+        TranslocoTestingModule.forRoot({
+          langs: { pl } as never,
+          translocoConfig: { availableLangs: ['pl'], defaultLang: 'pl' },
+        }),
+      ],
+      providers: [
+        provideRouter([]),
+        {
+          provide: CustomerLookupService,
+          useValue: { lookupByPhone: () => of(found), lookupByEmail: vi.fn() },
+        },
+        { provide: AuthService, useValue: { currentRole: () => role } },
+      ],
+    });
+    const fixture = TestBed.createComponent(CustomerPanelComponent);
+    fixture.componentRef.setInput('cli', '+48123456789');
+    fixture.detectChanges();
+    return { root: fixture.nativeElement as HTMLElement, fixture };
+  }
+
+  it('does not render "Utwórz profil" for AGENT on an unknown number', () => {
+    const { root } = render('AGENT', null);
+    expect(root.querySelector('.cp--unknown')).not.toBeNull();
+    expect(root.querySelector('.cp__cta-btn')).toBeNull();
+    expect(root.textContent).not.toContain(pl.agent.customerPanel.createProfile);
+  });
+
+  it('does not render "Pełny profil" for AGENT on a known customer', () => {
+    const { root } = render('AGENT', profile);
+    expect(root.querySelector('.cp--known')).not.toBeNull();
+    expect(root.querySelector('.cp__profile-link')).toBeNull();
+  });
+
+  it.each(['SUPERVISOR', 'ADMIN'])('renders "Utwórz profil" for %s', (role) => {
+    const { root } = render(role, null);
+    expect(root.querySelector('.cp__cta-btn')?.textContent).toContain(
+      pl.agent.customerPanel.createProfile,
+    );
+  });
+
+  it.each(['SUPERVISOR', 'ADMIN'])('renders "Pełny profil" for %s', (role) => {
+    const { root } = render(role, profile);
+    expect(root.querySelector('.cp__profile-link')?.textContent).toContain(
+      pl.agent.customerPanel.viewProfile,
+    );
+  });
+});

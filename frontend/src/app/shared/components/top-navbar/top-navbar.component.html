@@ -39,11 +39,21 @@
     </div>
   </div>
 
+  <!-- ── Agent status switcher (FE-134): AGENT on /agent/* only ── -->
+  @if (showAgentStatus()) {
+    <cc-agent-status-switcher class="navbar__status" />
+  }
+
   <!-- ── Center: KPI strip (agent only when authenticated) ── -->
   @if (auth.currentRole() === 'AGENT' && auth.currentPayload()) {
     <div class="navbar__kpi-strip" role="group" [attr.aria-label]="'agent.desktop.kpiStripLabel' | transloco">
       <!-- Obsłużone -->
-      <div class="kpi-tile kpi-tile--accent">
+      <div
+        class="kpi-tile kpi-tile--accent"
+        [attr.title]="
+          ('agent.desktop.kpiHandled' | transloco) + ' (' + ('agent.desktop.kpiHandledSub' | transloco) + ')'
+        "
+      >
         <div class="kpi-tile__icon">
           <svg
             viewBox="0 0 24 24"
@@ -69,7 +79,7 @@
       </div>
 
       <!-- SLA -->
-      <div class="kpi-tile kpi-tile--success">
+      <div class="kpi-tile kpi-tile--success" [attr.title]="'agent.desktop.kpiSla' | transloco">
         <div class="kpi-tile__icon">
           <svg
             viewBox="0 0 24 24"
@@ -99,7 +109,10 @@
       </div>
 
       <!-- AHT -->
-      <div class="kpi-tile kpi-tile--violet">
+      <div
+        class="kpi-tile kpi-tile--violet"
+        [attr.title]="('agent.desktop.kpiAht' | transloco) + ' (' + ('agent.desktop.kpiAhtSub' | transloco) + ')'"
+      >
         <div class="kpi-tile__icon">
           <svg
             viewBox="0 0 24 24"
@@ -126,7 +139,7 @@
       </div>
 
       <!-- Czas pracy -->
-      <div class="kpi-tile kpi-tile--neutral">
+      <div class="kpi-tile kpi-tile--neutral" [attr.title]="'agent.desktop.kpiWorkTime' | transloco">
         <div class="kpi-tile__icon">
           <svg
             viewBox="0 0 24 24"

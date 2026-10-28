@@ -216,14 +216,14 @@
       "breakDuration": "Тривалість перерви",
       "breakDurationHint": "Час від зміни статусу в цій сесії",
       "errorLoad": "Не вдалося завантажити статус агента.",
-      "errorChange": "Не вдалося змінити статус. Спробуйте ще раз."
+      "errorChange": "Не вдалося змінити статус. Спробуйте ще раз.",
+      "changedAnnouncement": "Статус змінено на: {{status}}"
     },
     "desktop": {
       "title": "Панель агента",
       "noActiveContact": "Немає активного контакту",
       "yourStatus": "Ваш статус:",
-      "changeStatus": "Змінити статус",
-      "changingStatus": "Зміна статусу...",
+      "statusTriggerLabel": "Статус: {{status}}. Змінити статус",
       "selectStatus": "Оберіть статус",
       "connected": "Підключено",
       "connecting": "Підключення...",

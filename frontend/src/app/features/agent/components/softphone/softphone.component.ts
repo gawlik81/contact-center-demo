@@ -21,6 +21,7 @@ import { ScheduledCallbackDto } from '../../models/callback.model';
 import { AGENT_SHORTCUTS } from '../../models/agent-shortcuts.model';
 import { CallLifecycleService } from '../../services/call-lifecycle.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
+import { ContactDraftStore } from '../../services/contact-draft.store';
 import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
 import { TransferQueueListComponent } from '../transfer-queue-list/transfer-queue-list.component';
 
@@ -43,6 +44,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
 
   protected readonly softphone = inject(SoftphoneService);
   private readonly tabStore = inject(ContactTabStore);
+  private readonly drafts = inject(ContactDraftStore);
   private readonly calls = inject(CallLifecycleService);
 
   protected readonly session = this.softphone.session;
@@ -204,9 +206,13 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   protected readonly _showTransferPanel = signal(false);
   protected readonly _showNotePanel = signal(false);
 
-  protected readonly currentNote = computed(
-    () => this.tabStore.tabs().find((t) => t.id === this.tab.id)?.note ?? '',
-  );
+  /**
+   * A method on purpose: `tab` is a plain @Input, so a computed() would not notice a contactId
+   * change. Called from the template it re-reads the store signal on every render.
+   */
+  protected currentNote(): string {
+    return this.drafts.phoneNote(this.tab.contactId);
+  }
 
   /** Whether the schedule-callback modal is open */
   protected readonly _showCallbackModal = signal(false);
@@ -233,7 +239,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   }
 
   protected onNoteChange(value: string): void {
-    this.tabStore.updateTabNote(this.tab.id, value);
+    this.drafts.setPhoneNote(this.tab.contactId, value);
   }
 
   protected openCallbackModal(): void {

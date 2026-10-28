@@ -216,14 +216,14 @@
       "breakDuration": "Break duration",
       "breakDurationHint": "Time since the status changed in this session",
       "errorLoad": "Failed to load agent status.",
-      "errorChange": "Failed to change status. Please try again."
+      "errorChange": "Failed to change status. Please try again.",
+      "changedAnnouncement": "Status changed to: {{status}}"
     },
     "desktop": {
       "title": "Agent Desktop",
       "noActiveContact": "No active contact",
       "yourStatus": "Your status:",
-      "changeStatus": "Change status",
-      "changingStatus": "Changing status...",
+      "statusTriggerLabel": "Status: {{status}}. Change status",
       "selectStatus": "Select status",
       "connected": "Connected",
       "connecting": "Connecting...",

@@ -49,17 +49,19 @@
     <h3 class="cp__unknown-title">{{ 'agent.customerPanel.unknownTitle' | transloco }}</h3>
     <p class="cp__unknown-phone">{{ cli() }}</p>
     <p class="cp__unknown-desc">{{ 'agent.customerPanel.unknownDesc' | transloco }}</p>
-    <button
-      type="button"
-      class="cp__cta-btn"
-      (click)="navigateToCreateProfile()"
-      [attr.aria-label]="('agent.customerPanel.createProfileLabel' | transloco) + ' ' + cli()"
-    >
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-      </svg>
-      {{ 'agent.customerPanel.createProfile' | transloco }}
-    </button>
+    @if (canManageProfiles()) {
+      <button
+        type="button"
+        class="cp__cta-btn"
+        (click)="navigateToCreateProfile()"
+        [attr.aria-label]="('agent.customerPanel.createProfileLabel' | transloco) + ' ' + cli()"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        {{ 'agent.customerPanel.createProfile' | transloco }}
+      </button>
+    }
   </div>
 }
 
@@ -116,8 +118,8 @@
       </div>
     </div>
 
-    <!-- Full profile link – visible only to SUPERVISOR and ADMIN; AGENT has no access to /supervisor/** -->
-    @if (authService.currentRole() === 'SUPERVISOR' || authService.currentRole() === 'ADMIN') {
+    <!-- Full profile link – not rendered for AGENT (FE-134): the target is under /supervisor/** -->
+    @if (canManageProfiles()) {
       <button
         type="button"
         class="cp__profile-link"

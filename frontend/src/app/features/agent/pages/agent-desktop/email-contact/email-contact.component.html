@@ -199,7 +199,7 @@
               class="field-input"
               [value]="replySubject()"
               [attr.aria-label]="'agent.emailContact.subjectLabel' | transloco"
-              (input)="replySubject.set($any($event.target).value)"
+              (input)="onSubjectInput($any($event.target).value)"
             />
           </div>
 

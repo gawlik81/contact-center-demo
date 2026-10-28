@@ -7,6 +7,7 @@ import {
   OnInit,
   ViewChild,
   computed,
+  effect,
   inject,
   input,
   signal,
@@ -23,6 +24,8 @@ import {
   SocialMessageReceivedPayload,
 } from '../../../models/social-message.model';
 import { WsEvent } from '../../../models/ws-event.model';
+import { ContactTabStatus } from '../../../models/contact-tab.model';
+import { ContactDraftStore } from '../../../services/contact-draft.store';
 
 @Component({
   selector: 'cc-social-contact',
@@ -33,7 +36,7 @@ import { WsEvent } from '../../../models/ws-event.model';
 })
 export class SocialContactComponent implements OnInit {
   contactId = input.required<string>();
-  contactStatus = input<string>('ACTIVE');
+  contactStatus = input<ContactTabStatus>('ACTIVE');
 
   @ViewChild('messagesContainer') private messagesContainerRef?: ElementRef<HTMLDivElement>;
 
@@ -41,6 +44,7 @@ export class SocialContactComponent implements OnInit {
   private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
+  private readonly drafts = inject(ContactDraftStore);
 
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
@@ -53,14 +57,30 @@ export class SocialContactComponent implements OnInit {
   protected readonly currentPage = signal(0);
 
   protected readonly replyText = signal('');
+  private draftRestored = false;
 
-  protected readonly isReadOnly = computed(() => this.contactStatus() === 'COMPLETED');
+  /**
+   * A tab is WRAPPING (ACW) once the contact has ended: replying is no longer possible.
+   * ContactTabStatus has no 'COMPLETED' value; WRAPPING is the real "contact finished" state.
+   */
+  protected readonly isReadOnly = computed(() => this.contactStatus() === 'WRAPPING');
+  protected readonly readOnlyNoteId = computed(() => `social-readonly-${this.contactId()}`);
 
   protected readonly canSend = computed(
     () => this.replyText().trim().length > 0 && !this.sending() && !this.isReadOnly(),
   );
 
+  constructor() {
+    // Keep the reply draft in the store so it survives switching to another tab.
+    effect(() => {
+      const text = this.replyText();
+      if (this.draftRestored) this.drafts.setSocialReply(this.contactId(), text);
+    });
+  }
+
   ngOnInit(): void {
+    this.replyText.set(this.drafts.socialReply(this.contactId()));
+    this.draftRestored = true;
     this.loadMessages(0, true);
     this.subscribeToWsEvents();
   }
@@ -149,6 +169,7 @@ export class SocialContactComponent implements OnInit {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
+    if (this.isReadOnly()) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.sendMessage();

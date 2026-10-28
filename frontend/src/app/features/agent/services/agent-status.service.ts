@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, EMPTY, filter, Observable, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, filter, Observable, Subscription, switchMap, tap } from 'rxjs';
 import { TranslocoService } from '@jsverse/transloco';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
@@ -43,6 +43,9 @@ export class AgentStatusService {
   readonly statusSince = signal<number | null>(null);
 
   private currentUserId: string | null = null;
+  private initialized = false;
+  private unregisterConnect: (() => void) | null = null;
+  private subscriptions = new Subscription();
 
   /**
    * Fetches the current user profile via GET /api/users/me and initialises the agent status.
@@ -52,19 +55,40 @@ export class AgentStatusService {
    * missed during a temporary disconnect.
    */
   initStatus(): void {
+    // Idempotent: a second call while initialised must not stack another WS handler.
+    if (this.initialized) return;
+    this.initialized = true;
+
     this.applyStatus('OFFLINE');
     this.fetchAndSyncStatus();
 
-    this.ws.onConnect(() => this.fetchAndSyncStatus());
+    this.unregisterConnect = this.ws.onConnect(() => this.fetchAndSyncStatus());
 
-    this.ws.events$
-      .pipe(filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'))
-      .subscribe((e) => {
-        const payload = e.payload as AgentStatusChangedPayload;
-        if (payload.agentId === this.currentUserId) {
-          this.applyStatus(payload.status);
-        }
-      });
+    this.subscriptions.add(
+      this.ws.events$
+        .pipe(filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'))
+        .subscribe((e) => {
+          const payload = e.payload as AgentStatusChangedPayload;
+          if (payload.agentId === this.currentUserId) {
+            this.applyStatus(payload.status);
+          }
+        }),
+    );
+  }
+
+  /**
+   * Detaches everything `initStatus()` registered (WS connect callback, event stream, in-flight
+   * sync) and forgets the user, so a new login in the same tab starts clean. Called when the
+   * agent shell is destroyed (logout).
+   */
+  stopStatus(): void {
+    this.unregisterConnect?.();
+    this.unregisterConnect = null;
+    this.subscriptions.unsubscribe();
+    this.subscriptions = new Subscription();
+    this.currentUserId = null;
+    this.initialized = false;
+    this.isChanging.set(false);
   }
 
   /** Sets the status and restarts the elapsed-time origin only when the status really changes. */
@@ -75,7 +99,7 @@ export class AgentStatusService {
   }
 
   private fetchAndSyncStatus(): void {
-    this.http
+    const sub = this.http
       .get<UserResponse>(`${environment.apiUrl}/users/me`)
       .pipe(
         switchMap((user) => {
@@ -93,6 +117,7 @@ export class AgentStatusService {
         }),
       )
       .subscribe();
+    this.subscriptions.add(sub);
   }
 
   /**

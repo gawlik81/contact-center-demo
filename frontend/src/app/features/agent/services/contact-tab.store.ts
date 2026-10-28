@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { ContactDraftStore } from './contact-draft.store';
 import {
   CallDirection,
   ContactTab,
@@ -15,6 +16,8 @@ export type TabLimitReason = 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL' | null;
 
 @Injectable({ providedIn: 'root' })
 export class ContactTabStore {
+  private readonly drafts = inject(ContactDraftStore);
+
   readonly tabs = signal<ContactTab[]>([]);
 
   readonly activeTab = computed<ContactTab | null>(
@@ -92,6 +95,13 @@ export class ContactTabStore {
   }
 
   closeTab(id: string): void {
+    // Single exit point for every tab (close button, sent reply, disposition saved, call end,
+    // contact vanished): drop its drafts and accepted flag so nothing leaks to a later contact.
+    const closing = this.tabs().find((t) => t.id === id);
+    if (closing) {
+      this.drafts.clear(closing.contactId);
+      if (closing.originalContactId) this.drafts.clear(closing.originalContactId);
+    }
     this.tabs.update((current) => {
       const filtered = current.filter((t) => t.id !== id);
       // If we closed the active tab, activate the first remaining
@@ -101,6 +111,17 @@ export class ContactTabStore {
       }
       return filtered;
     });
+  }
+
+  /** Closes the tab of a contact (no-op when it is already gone). Used outside components. */
+  closeByContactId(contactId: string): void {
+    const tab = this.tabs().find((t) => t.contactId === contactId);
+    if (tab) this.closeTab(tab.id);
+  }
+
+  /** Drops every tab, e.g. when the agent session ends. Drafts are cleared separately. */
+  reset(): void {
+    this.tabs.set([]);
   }
 
   setActiveTab(id: string): void {
@@ -117,10 +138,6 @@ export class ContactTabStore {
    */
   markAsWrapping(id: string): void {
     this.updateTabStatus(id, 'WRAPPING');
-  }
-
-  updateTabNote(id: string, note: string): void {
-    this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
   }
 
   updateTabCustomerInfo(
@@ -148,6 +165,8 @@ export class ContactTabStore {
    * Optionally updates customerName when the consultation prefix must be removed.
    */
   updateTabContactId(id: string, newContactId: string, customerName?: string): void {
+    const previous = this.tabs().find((t) => t.id === id);
+    if (previous) this.drafts.rekey(previous.contactId, newContactId);
     this.tabs.update((current) =>
       current.map((t) => {
         if (t.id !== id) return t;

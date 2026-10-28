@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DecimalPipe, NgClass } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
@@ -9,11 +11,18 @@ import { ThemeService, ThemeMode } from '../../../core/services/theme.service';
 import { AgentKpiService } from '../../services/agent-kpi.service';
 import { AgentKpiResponse } from '../../models/agent-kpi.model';
 import { BRAND } from '../../../core/brand';
+import { AgentStatusSwitcherComponent } from '../../../features/agent/components/agent-status-switcher/agent-status-switcher.component';
 
 @Component({
   selector: 'cc-top-navbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass, DecimalPipe, LanguageSwitcherComponent, TranslocoModule],
+  imports: [
+    NgClass,
+    DecimalPipe,
+    LanguageSwitcherComponent,
+    TranslocoModule,
+    AgentStatusSwitcherComponent,
+  ],
   templateUrl: './top-navbar.component.html',
   styleUrl: './top-navbar.component.scss',
 })
@@ -29,6 +38,25 @@ export class TopNavbarComponent {
   });
 
   protected readonly brand = BRAND;
+
+  private readonly router = inject(Router);
+
+  /** Current URL, kept in a signal so OnPush re-evaluates after every navigation. */
+  private readonly url = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /**
+   * FE-134: the agent status switcher is shown to the AGENT role on every `/agent/*` page (and
+   * only there), so the top bar stays unchanged for supervisor and admin.
+   */
+  protected readonly showAgentStatus = computed(
+    () => this.auth.currentRole() === 'AGENT' && /^\/agent(\/|\?|#|$)/.test(this.url()),
+  );
 
   /** Whether the sidenav is currently open (used for aria-expanded) */
   readonly sidenavOpen = input<boolean>(false);

@@ -216,14 +216,14 @@
       "breakDuration": "Czas trwania przerwy",
       "breakDurationHint": "Czas od zmiany statusu w tej sesji",
       "errorLoad": "Nie udało się pobrać statusu agenta.",
-      "errorChange": "Nie udało się zmienić statusu. Spróbuj ponownie."
+      "errorChange": "Nie udało się zmienić statusu. Spróbuj ponownie.",
+      "changedAnnouncement": "Status zmieniony na: {{status}}"
     },
     "desktop": {
       "title": "Panel agenta",
       "noActiveContact": "Brak aktywnego kontaktu",
       "yourStatus": "Twój status:",
-      "changeStatus": "Zmień status",
-      "changingStatus": "Zmiana statusu...",
+      "statusTriggerLabel": "Status: {{status}}. Zmień status",
       "selectStatus": "Wybierz status",
       "connected": "Połączono",
       "connecting": "Łączenie...",

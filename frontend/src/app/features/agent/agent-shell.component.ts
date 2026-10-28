@@ -13,6 +13,8 @@ import { IncomingCallBannerComponent } from './components/incoming-call-banner/i
 import { WebSocketService } from '../../core/services/websocket.service';
 import { AgentStatusService } from './services/agent-status.service';
 import { SoftphoneService } from './services/softphone.service';
+import { ContactDraftStore } from './services/contact-draft.store';
+import { ContactTabStore } from './services/contact-tab.store';
 import { AgentRecoveryService } from './services/agent-recovery.service';
 import { AgentHotkeysService } from './services/agent-hotkeys.service';
 import { CallLifecycleService } from './services/call-lifecycle.service';
@@ -34,6 +36,8 @@ export class AgentShellComponent implements OnInit, OnDestroy {
   private readonly ws = inject(WebSocketService);
   private readonly statusService = inject(AgentStatusService);
   private readonly softphoneService = inject(SoftphoneService);
+  private readonly draftStore = inject(ContactDraftStore);
+  private readonly tabStore = inject(ContactTabStore);
   private readonly recoveryService = inject(AgentRecoveryService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -83,6 +87,10 @@ export class AgentShellComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Status is owned by the shell (not the desktop page) so it is loaded and kept in sync via
+    // WebSocket on every /agent/* route; the top-bar switcher and the desktop share this signal.
+    this.statusService.initStatus();
+    this.destroyRef.onDestroy(() => this.statusService.stopStatus());
     this.ws.connect();
     const unregisterRecovery = this.ws.onConnect(() => {
       this.recoveryService.recoverAfterReconnect();
@@ -96,5 +104,10 @@ export class AgentShellComponent implements OnInit, OnDestroy {
     // tab — reset its Twilio Device so the next agent who logs in starts
     // with a fresh Device instead of inheriting a stale/broken one.
     this.softphoneService.resetForLogout();
+    // Drafts hold customer message content in memory; do not let them outlive the session.
+    this.draftStore.clearAll();
+    // Tabs are a root singleton too: without this the next agent logging in on the same browser
+    // tab would see the previous agent's contacts (names, contactIds).
+    this.tabStore.reset();
   }
 }

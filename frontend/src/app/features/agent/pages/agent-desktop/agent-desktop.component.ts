@@ -24,6 +24,7 @@ import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
+import { ContactDraftStore } from '../../services/contact-draft.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
 import { AgentHotkeysService } from '../../services/agent-hotkeys.service';
@@ -38,16 +39,10 @@ import { SocialContactComponent } from './social-contact/social-contact.componen
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
 import { AddBreakModalComponent } from '../../components/add-break-modal/add-break-modal.component';
-import { StatusElapsedComponent } from '../../components/status-elapsed/status-elapsed.component';
 import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 import { PluginPanelHostComponent } from '../../../../shared/components/plugin-panel-host/plugin-panel-host.component';
 import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
 import { ManualActionDef, TenantPluginInstallationDto } from '../../../plugins/models/plugin.model';
-import {
-  AgentStatus,
-  ALL_AGENT_STATUSES,
-  AGENT_STATUS_CONFIG,
-} from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
 
@@ -72,7 +67,6 @@ interface ToolbarManualAction {
     ManualCampaignPanelComponent,
     AgentCalendarComponent,
     AddBreakModalComponent,
-    StatusElapsedComponent,
     ContactDetailModalComponent,
     PluginPanelHostComponent,
   ],
@@ -82,13 +76,18 @@ interface ToolbarManualAction {
 export class AgentDesktopComponent implements OnInit {
   @ViewChild(AgentCalendarComponent) private calendarRef?: AgentCalendarComponent;
   private readonly softphoneRef = viewChild(SoftphoneComponent);
-  private readonly statusTrigger = viewChild<ElementRef<HTMLButtonElement>>('statusTrigger');
-  private readonly statusItems = viewChildren<ElementRef<HTMLButtonElement>>('statusItem');
   private readonly tabButtons = viewChildren<ElementRef<HTMLButtonElement>>('tabBtn');
 
   private readonly ws = inject(WebSocketService);
   protected readonly statusService = inject(AgentStatusService);
   protected readonly tabStore = inject(ContactTabStore);
+  private readonly drafts = inject(ContactDraftStore);
+
+  /** PHONE note of the ACW tab; pre-fills the disposition form. */
+  protected readonly wrappingNote = computed(() => {
+    const tab = this.tabStore.wrappingTab();
+    return tab ? this.drafts.phoneNote(tab.contactId) : '';
+  });
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
@@ -101,11 +100,7 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly hotkeys = inject(AgentHotkeysService);
   protected readonly shortcuts = AGENT_SHORTCUTS;
 
-  protected readonly statusConfig = AGENT_STATUS_CONFIG;
-  protected readonly allStatuses = ALL_AGENT_STATUSES;
-
   protected readonly queueItems = this.queueStateService.queueItems;
-  protected readonly statusMenuOpen = signal(false);
   protected readonly now = signal(Date.now());
 
   protected readonly connectionState = this.ws.connectionState;
@@ -113,10 +108,6 @@ export class AgentDesktopComponent implements OnInit {
     () => this.connectionState() === 'DISCONNECTED' || this.connectionState() === 'ERROR',
   );
   protected readonly isReconnecting = computed(() => this.connectionState() === 'CONNECTING');
-
-  protected readonly currentStatusConfig = computed(
-    () => this.statusConfig[this.statusService.currentStatus()],
-  );
 
   protected readonly tabs = this.tabStore.tabs;
   protected readonly activeTab = this.tabStore.activeTab;
@@ -266,8 +257,6 @@ export class AgentDesktopComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.statusService.initStatus();
-
     interval(1000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
@@ -310,89 +299,6 @@ export class AgentDesktopComponent implements OnInit {
   protected onBreakSavedFromHeader(): void {
     this.addBreakOpen.set(false);
     this.calendarRef?.reload();
-  }
-
-  protected changeStatus(status: AgentStatus): void {
-    this.closeStatusMenu(true);
-    this.statusService.changeStatus(status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
-  }
-
-  protected toggleStatusMenu(): void {
-    if (this.statusMenuOpen()) {
-      this.closeStatusMenu(true);
-    } else {
-      this.openStatusMenu('current');
-    }
-  }
-
-  /** Closes the status menu; `returnFocus` puts focus back on the trigger (keyboard paths). */
-  protected closeStatusMenu(returnFocus = false): void {
-    this.statusMenuOpen.set(false);
-    if (returnFocus) this.statusTrigger()?.nativeElement.focus();
-  }
-
-  /** Index the status menu should focus once rendered; nudged by repeated arrow presses. */
-  private pendingStatusFocus: number | null = null;
-
-  private openStatusMenu(target: 'current' | 'first' | 'last'): void {
-    const count = this.allStatuses.length;
-    const current = this.allStatuses.indexOf(this.statusService.currentStatus());
-    this.pendingStatusFocus =
-      target === 'first' ? 0 : target === 'last' ? count - 1 : Math.max(current, 0);
-    this.statusMenuOpen.set(true);
-    afterNextRender(
-      () => {
-        const index = this.pendingStatusFocus;
-        this.pendingStatusFocus = null;
-        if (index !== null) this.statusItems()[index]?.nativeElement.focus();
-      },
-      { injector: this.injector },
-    );
-  }
-
-  /** WAI-ARIA menu button: Enter/Space/ArrowDown open on the first (or current) item, ArrowUp on the last. */
-  protected onStatusTriggerKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const count = this.allStatuses.length;
-    if (this.statusMenuOpen() && this.pendingStatusFocus !== null) {
-      // A second arrow press arrived before the menu rendered and took focus: move the target on.
-      const step = event.key === 'ArrowDown' ? 1 : -1;
-      this.pendingStatusFocus = (this.pendingStatusFocus + step + count) % count;
-      return;
-    }
-    this.openStatusMenu(event.key === 'ArrowDown' ? 'first' : 'last');
-  }
-
-  protected onStatusMenuKeydown(event: KeyboardEvent): void {
-    const items = this.statusItems().map((i) => i.nativeElement);
-    const index = items.indexOf(document.activeElement as HTMLButtonElement);
-    let next: number | null = null;
-    switch (event.key) {
-      case 'ArrowDown':
-        next = (index + 1) % items.length;
-        break;
-      case 'ArrowUp':
-        next = (index - 1 + items.length) % items.length;
-        break;
-      case 'Home':
-        next = 0;
-        break;
-      case 'End':
-        next = items.length - 1;
-        break;
-      case 'Escape':
-        event.preventDefault();
-        this.closeStatusMenu(true);
-        return;
-      case 'Tab':
-        this.closeStatusMenu();
-        return;
-    }
-    if (next !== null) {
-      event.preventDefault();
-      items[next]?.focus();
-    }
   }
 
   /** WAI-ARIA tabs: roving tabindex, arrows wrap, Home/End jump; selection follows focus. */

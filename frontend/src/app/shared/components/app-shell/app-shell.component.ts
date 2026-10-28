@@ -21,7 +21,7 @@ import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
   styleUrl: './app-shell.component.scss',
   host: {
     '(window:resize)': 'onResize()',
-    '(document:keydown.escape)': 'onEscape()',
+    '(document:keydown.escape)': 'onEscape($event)',
   },
 })
 export class AppShellComponent implements OnInit {
@@ -74,7 +74,10 @@ export class AppShellComponent implements OnInit {
   }
 
   /** Keyboard: close drawer on Escape */
-  onEscape(): void {
+  onEscape(event?: Event): void {
+    // An inner control (e.g. the agent status menu) already used this Esc: do not also close
+    // the drawer.
+    if (event?.defaultPrevented) return;
     if (this.windowWidth < this.DESKTOP_BREAKPOINT && this.sidenavOpen()) {
       this.sidenavOpen.set(false);
     }

@@ -8,6 +8,7 @@ import {
   OnChanges,
   SimpleChanges,
   afterNextRender,
+  computed,
   inject,
   input,
   output,
@@ -52,6 +53,15 @@ export class CustomerPanelComponent implements OnChanges {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly authService = inject(AuthService);
+
+  /**
+   * "Utwórz profil" / "Pełny profil" lead to /supervisor/**, which the AGENT role cannot open
+   * (route guard), so they are not rendered for it (FE-134). Roles that own those routes keep them.
+   */
+  protected readonly canManageProfiles = computed(() => {
+    const role = this.authService.currentRole();
+    return role === 'SUPERVISOR' || role === 'ADMIN';
+  });
 
   protected readonly state = signal<PanelState>('empty');
   protected readonly profile = signal<CustomerProfile | null>(null);

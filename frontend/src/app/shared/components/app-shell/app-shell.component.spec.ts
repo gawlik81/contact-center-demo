@@ -93,3 +93,25 @@ describe('AppShellComponent landmarks', () => {
     fixture.nativeElement.remove();
   });
 });
+
+describe('AppShellComponent Escape handling (FE-134)', () => {
+  function pressEscape(prevented: boolean): void {
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    if (prevented) event.preventDefault();
+    document.dispatchEvent(event);
+  }
+
+  it('closes the drawer on a free Escape but ignores an Escape already used by an inner control', () => {
+    const fixture = setup();
+    fixture.detectChanges();
+    const shell = fixture.componentInstance as unknown as { sidenavOpen: () => boolean };
+    fixture.componentInstance.onToggleSidenav();
+    expect(shell.sidenavOpen()).toBe(true);
+
+    pressEscape(true);
+    expect(shell.sidenavOpen()).toBe(true);
+
+    pressEscape(false);
+    expect(shell.sidenavOpen()).toBe(false);
+  });
+});

@@ -2209,14 +2209,16 @@ class ContactRepository extends TenantAwareRepository {
    *   <li>{@code contacts_count}   – liczba zakończonych kontaktów</li>
    *   <li>{@code avg_handle_time}  – AVG(duration_seconds), 0 gdy brak</li>
    *   <li>{@code sla_percent}      – % kontaktów z (assigned_at - queued_at) &lt; 30s, 0 gdy brak</li>
-   *   <li>{@code work_time_seconds} – sekundy od pierwszego started_at do NOW(), 0 gdy brak</li>
    * </ol>
+   *
+   * <p>BE-158: czas pracy NIE jest już liczony tym zapytaniem (wcześniej: od pierwszego ZAKOŃCZONEGO
+   * kontaktu dnia). Wylicza go {@code AgentSelfController} z {@code app_user.last_login_at}.
    *
    * @param agentId  UUID agenta
    * @param tenantId UUID tenanta
    * @param dayStart początek dnia UTC (włącznie)
    * @param dayEnd   koniec dnia UTC (wyłącznie)
-   * @return tablica Object[] z czterema wartościami liczbowymi
+   * @return tablica Object[] z trzema wartościami liczbowymi (contacts_count, avg_handle_time, sla_percent)
    */
   @Transactional(readOnly = true)
   public Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd) {
@@ -2237,8 +2239,7 @@ class ContactRepository extends TenantAwareRepository {
                             THEN 1.0 ELSE 0.0
                         END) * 100,
                         0
-                    )                                                               AS sla_percent,
-                    COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(c.started_at))), 0)   AS work_time_seconds
+                    )                                                               AS sla_percent
                 FROM contact c
                 WHERE c.tenant_id  = CAST(:tenantId AS uuid)
                   AND c.agent_id   = CAST(:agentId AS uuid)

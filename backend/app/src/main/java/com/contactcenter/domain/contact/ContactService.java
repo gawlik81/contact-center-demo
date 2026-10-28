@@ -684,7 +684,7 @@ public interface ContactService {
      * @param tenantId UUID tenanta
      * @param dayStart początek dnia UTC (włącznie)
      * @param dayEnd   koniec dnia UTC (wyłącznie)
-     * @return tablica Object[] z czterema wartościami liczbowymi
+     * @return tablica Object[] z trzema wartościami liczbowymi (contacts_count, avg_handle_time, sla_percent)
      */
     Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd);
 

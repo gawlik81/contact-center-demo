@@ -5,6 +5,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.user.UserService;
+import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.security.JwtAuthFilter;
 import com.contactcenter.security.JwtParser;
 import com.contactcenter.security.JwtParser.JwtClaims;
@@ -123,9 +124,11 @@ class AgentSelfControllerTest {
                 .build();
     }
 
-    private static Object[] kpiRow(Object count, Object aht, Object sla, Object workTime) {
-        return new Object[]{count, aht, sla, workTime};
+    /** Row shape of findAgentKpiToday after BE-158: [contacts_count, avg_handle_time, sla_percent]. */
+    private static Object[] kpiRow(Object count, Object aht, Object sla) {
+        return new Object[]{count, aht, sla};
     }
+
 
     // =========================================================================
     // GET /api/agent/me/assigned-contact
@@ -304,25 +307,31 @@ class AgentSelfControllerTest {
     class Kpi {
 
         @Test
-        @DisplayName("200 z zamapowanymi czterema metrykami KPI")
+        @DisplayName("200 z zamapowanymi metrykami KPI; czas pracy od logowania")
         void should_return200WithMappedKpi_when_agentHandledContacts() throws Exception {
-            // kolejność wiersza: [count, avgHandleTime, slaPercent, workTime] - różne typy Number jak z natywnego SQL
+            // kolejność wiersza: [count, avgHandleTime, slaPercent] - różne typy Number jak z natywnego SQL
             when(contactService.findAgentKpiToday(eq(AGENT_ID), eq(TENANT_ID), any(), any()))
-                    .thenReturn(kpiRow(7L, new java.math.BigDecimal("123.5"), 85.7d, 3600.9d));
+                    .thenReturn(kpiRow(7L, new java.math.BigDecimal("123.5"), 85.7d));
+            when(userService.findLastLoginAt(AGENT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(Instant.now().minusSeconds(60)));
 
             mockMvc.perform(get(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.contactsHandledToday").value(7))
                     .andExpect(jsonPath("$.avgHandleTimeSeconds").value(123.5))
                     .andExpect(jsonPath("$.slaPercent").value(85.7))
-                    .andExpect(jsonPath("$.workTimeSeconds").value(3600));
+                    // login 60 s temu (o ile test nie przekroczy północy UTC) - tolerancja na czas wykonania
+                    .andExpect(jsonPath("$.workTimeSeconds").value(
+                            org.hamcrest.Matchers.allOf(
+                                    org.hamcrest.Matchers.greaterThanOrEqualTo(0),
+                                    org.hamcrest.Matchers.lessThanOrEqualTo(65))));
         }
 
         @Test
         @DisplayName("200 z samymi zerami gdy agent nie obsłużył dziś kontaktu (stan pusty)")
         void should_return200WithZeros_when_noContactsToday() throws Exception {
             when(contactService.findAgentKpiToday(eq(AGENT_ID), eq(TENANT_ID), any(), any()))
-                    .thenReturn(kpiRow(0L, 0, 0, 0));
+                    .thenReturn(kpiRow(0L, 0, 0));
 
             mockMvc.perform(get(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
                     .andExpect(status().isOk())
@@ -335,7 +344,7 @@ class AgentSelfControllerTest {
         @Test
         @DisplayName("zakres dnia to pełna doba UTC [00:00, +24h) obejmująca bieżącą chwilę")
         void should_queryFullUtcDay_when_calculatingKpi() throws Exception {
-            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0, 0));
+            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0));
             Instant before = Instant.now();
 
             mockMvc.perform(get(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
@@ -356,7 +365,7 @@ class AgentSelfControllerTest {
         @Test
         @DisplayName("agentId i tenantId pochodzą z JWT, parametry żądania są ignorowane")
         void should_useAgentAndTenantFromJwt_when_requestParamsTryToOverride() throws Exception {
-            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0, 0));
+            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0));
 
             mockMvc.perform(get(KPI)
                             .param("agentId", OTHER_AGENT_ID.toString())
@@ -373,7 +382,7 @@ class AgentSelfControllerTest {
         @ValueSource(strings = {"AGENT", "SUPERVISOR", "ADMIN"})
         @DisplayName("role AGENT/SUPERVISOR/ADMIN są dopuszczone")
         void should_allowRole(String role) throws Exception {
-            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0, 0));
+            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(kpiRow(0L, 0, 0));
 
             mockMvc.perform(get(KPI).header("Authorization", bearerFor(role, TENANT_ID, AGENT_ID)))
                     .andExpect(status().isOk());
@@ -394,6 +403,155 @@ class AgentSelfControllerTest {
             mockMvc.perform(get(KPI)).andExpect(status().isUnauthorized());
 
             verifyNoInteractions(contactService);
+        }
+
+        // ---------------------------------------------------------------------
+        // BE-158 (a): odporne mapowanie wiersza
+        // ---------------------------------------------------------------------
+
+        private AgentSelfController directController() {
+            TenantContext.setTenantId(TENANT_ID);
+            TenantContext.setUserId(AGENT_ID);
+            return new AgentSelfController(contactService, queueService, userService);
+        }
+
+        @Test
+        @DisplayName("null w dowolnej kolumnie wiersza daje 0 dla tej kolumny")
+        void should_mapNullColumnsToZero() throws Exception {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(new Object[]{null, null, null});
+
+            mockMvc.perform(get(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.contactsHandledToday").value(0))
+                    .andExpect(jsonPath("$.avgHandleTimeSeconds").value(0.0))
+                    .andExpect(jsonPath("$.slaPercent").value(0.0));
+        }
+
+        @Test
+        @DisplayName("tylko jedna kolumna null: pozostałe wartości zachowane")
+        void should_keepOtherColumns_when_oneColumnNull() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(new Object[]{5L, null, 50.0d});
+
+            AgentKpiResponse body = directController().getKpi().getBody();
+
+            assertThat(body.contactsHandledToday()).isEqualTo(5);
+            assertThat(body.avgHandleTimeSeconds()).isZero();
+            assertThat(body.slaPercent()).isEqualTo(50.0);
+        }
+
+        @Test
+        @DisplayName("wiersz za krótki: IllegalStateException z opisem kształtu i agentId, nie AIOOBE")
+        void should_throwIllegalState_when_rowTooShort() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(new Object[]{1L, 2.0d});
+
+            assertThatThrownBy(() -> directController().getKpi())
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("row shape")
+                    .hasMessageContaining("length=2")
+                    .hasMessageContaining(AGENT_ID.toString());
+        }
+
+        @Test
+        @DisplayName("wiersz null: IllegalStateException, nie NPE")
+        void should_throwIllegalState_when_rowNull() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any())).thenReturn(null);
+
+            assertThatThrownBy(() -> directController().getKpi())
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("null");
+        }
+
+        @Test
+        @DisplayName("wartość nie-Number: IllegalStateException z klasą wartości, nie ClassCastException")
+        void should_throwIllegalState_when_valueNotNumber() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(new Object[]{1L, "abc", 2.0d});
+
+            assertThatThrownBy(() -> directController().getKpi())
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("column 1")
+                    .hasMessageContaining("java.lang.String");
+        }
+
+        @Test
+        @DisplayName("zły kształt wiersza przez HTTP kończy się 500, nie wyciekiem ClassCastException")
+        void should_return500_when_rowMalformed() throws Exception {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(new Object[]{1L});
+
+            mockMvc.perform(get(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isInternalServerError());
+        }
+
+        // ---------------------------------------------------------------------
+        // BE-158 (b): workTimeSeconds od logowania
+        // ---------------------------------------------------------------------
+
+        private final Instant dayStart = Instant.parse("2026-10-28T00:00:00Z");
+
+        @Test
+        @DisplayName("czas pracy = now - lastLoginAt gdy logowanie dziś")
+        void workTime_fromLogin() {
+            Instant now = Instant.parse("2026-10-28T10:00:00Z");
+            assertThat(AgentSelfController.computeWorkTimeSeconds(
+                    Instant.parse("2026-10-28T08:30:00Z"), dayStart, now)).isEqualTo(5400);
+        }
+
+        @Test
+        @DisplayName("lastLoginAt == null -> 0")
+        void workTime_nullLogin() {
+            assertThat(AgentSelfController.computeWorkTimeSeconds(null, dayStart,
+                    Instant.parse("2026-10-28T10:00:00Z"))).isZero();
+        }
+
+        @Test
+        @DisplayName("logowanie przed północą UTC: liczone od północy")
+        void workTime_loginBeforeMidnight() {
+            Instant now = Instant.parse("2026-10-28T01:00:00Z");
+            assertThat(AgentSelfController.computeWorkTimeSeconds(
+                    Instant.parse("2026-10-27T22:00:00Z"), dayStart, now)).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("lastLoginAt w przyszłości (rozjazd zegarów) -> 0, nigdy ujemny")
+        void workTime_futureLogin() {
+            assertThat(AgentSelfController.computeWorkTimeSeconds(
+                    Instant.parse("2026-10-28T12:00:05Z"), dayStart,
+                    Instant.parse("2026-10-28T12:00:00Z"))).isZero();
+        }
+
+        @Test
+        @DisplayName("brak użytkownika / brak lastLoginAt: workTimeSeconds = 0, pozostałe KPI bez zmian")
+        void workTime_zeroWithoutLogin_otherKpiUnchanged() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(kpiRow(3L, 90.0d, 100.0d));
+            when(userService.findLastLoginAt(AGENT_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            AgentKpiResponse body = directController().getKpi().getBody();
+
+            assertThat(body.workTimeSeconds()).isZero();
+            assertThat(body.contactsHandledToday()).isEqualTo(3);
+            assertThat(body.avgHandleTimeSeconds()).isEqualTo(90.0);
+            assertThat(body.slaPercent()).isEqualTo(100.0);
+        }
+
+        @Test
+        @DisplayName("czas pracy nie zależy od liczby kontaktów: agent po logowaniu bez kontaktów ma > 0")
+        void workTime_independentOfContacts() {
+            when(contactService.findAgentKpiToday(any(), any(), any(), any()))
+                    .thenReturn(kpiRow(0L, 0, 0));
+            when(userService.findLastLoginAt(AGENT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(Instant.now().minusSeconds(30)));
+
+            AgentKpiResponse body = directController().getKpi().getBody();
+
+            // 0 tylko gdy test trafi dokładnie na północ UTC (login w poprzedniej dobie, 30 s temu)
+            assertThat(body.workTimeSeconds()).isBetween(0L, 35L);
+            assertThat(body.contactsHandledToday()).isZero();
         }
     }
 }

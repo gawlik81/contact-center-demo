@@ -216,6 +216,14 @@ public interface UserService {
     Optional<AppUser> findAgentByIdAndTenantId(UUID agentId, UUID tenantId);
 
     /**
+     * Zwraca wyłącznie moment ostatniego pełnego logowania użytkownika (BE-158) – lekka projekcja
+     * dla {@code GET /api/agent/me/kpi}.
+     *
+     * @return czas logowania lub empty (brak użytkownika w tenancie / nigdy nie zalogowany)
+     */
+    Optional<java.time.Instant> findLastLoginAt(UUID userId, UUID tenantId);
+
+    /**
      * Zlicza łączną liczbę agentów dla tenanta (is_deleted=false, role=AGENT).
      *
      * @param tenantId UUID tenanta

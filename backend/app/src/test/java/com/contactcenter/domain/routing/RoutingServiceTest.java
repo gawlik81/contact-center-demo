@@ -84,13 +84,16 @@ class RoutingServiceTest {
     @Mock
     private ContactEventService contactEventService;
 
+    @Mock
+    private com.contactcenter.domain.social.SocialDefaultQueueResolver socialDefaultQueueResolver;
+
     private RoutingServiceImpl routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new RoutingServiceImpl(routingEngine, queueService,
                 customerService, rabbitTemplate, queueAssignmentService, userService,
-                broadcaster, contactService, contactEventService);
+                broadcaster, contactService, contactEventService, socialDefaultQueueResolver);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentService.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);
@@ -438,6 +441,70 @@ class RoutingServiceTest {
 
             // Routing nie powinien być wywołany dla kontaktu bez queueId
             verify(routingEngine, never()).findBestAgent(any());
+        }
+
+        private Contact socialContactWithoutQueue() {
+            return Contact.builder()
+                    .contactId(CONTACT_ID).tenantId(TENANT_ID).queueId(null)
+                    .channel("SOCIAL_WHATSAPP").direction("INBOUND").status("QUEUED")
+                    .remoteAddress("48123456789")
+                    .startedAt(Instant.now()).queuedAt(Instant.now())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("BE-155: kontakt social bez queueId dostaje domyślną kolejkę i jest routowany (nie ERROR)")
+        void shouldAssignDefaultQueueToSocialContactAndRoute() {
+            Contact social = socialContactWithoutQueue();
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(social));
+            when(socialDefaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.of(QUEUE_ID));
+            when(contactService.updateQueueId(CONTACT_ID, TENANT_ID, QUEUE_ID)).thenReturn(1);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildQueue("FIRST_AVAILABLE", List.of())));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(social));
+            when(routingEngine.findBestAgent(any()))
+                    .thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
+            when(contactService.updateContactEntity(any())).thenReturn(1);
+
+            routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+
+            verify(contactService).updateQueueId(CONTACT_ID, TENANT_ID, QUEUE_ID);
+            verify(routingEngine).findBestAgent(any());
+            assertThat(social.getStatus()).isNotEqualTo("ERROR");
+            assertThat(social.getEndedAt()).isNull();
+        }
+
+        @Test
+        @DisplayName("BE-155: kontakt social bez queueId i tenant bez kolejki → zostaje QUEUED, nie ERROR")
+        void shouldLeaveSocialContactQueuedWhenTenantHasNoQueue() {
+            Contact social = socialContactWithoutQueue();
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(social));
+            when(socialDefaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.empty());
+
+            routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+
+            assertThat(social.getStatus()).isEqualTo("QUEUED");
+            assertThat(social.getEndedAt()).isNull();
+            verify(contactService, never()).updateContactEntity(any());
+            verify(routingEngine, never()).findBestAgent(any());
+        }
+
+        @Test
+        @DisplayName("kontakt nie-social bez queueId nadal kończy się ERROR (bez zmiany)")
+        void shouldStillErrorNonSocialContactWithoutQueue() {
+            Contact voice = Contact.builder()
+                    .contactId(CONTACT_ID).tenantId(TENANT_ID).queueId(null)
+                    .channel("PHONE").direction("INBOUND").status("QUEUED")
+                    .startedAt(Instant.now()).queuedAt(Instant.now()).build();
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(voice));
+
+            routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+
+            assertThat(voice.getStatus()).isEqualTo("ERROR");
+            verify(socialDefaultQueueResolver, never()).resolve(any());
         }
     }
 

@@ -57,9 +57,9 @@ class SocialMessageOrphanPurgeIntegrationTest {
     static void startContext() {
         pool = PostgresTestDatabase.superuserPool(2);
         jdbc = new JdbcTemplate(pool);
-        // SocialMessageServiceImpl ma 5 zależności konstruktorowych (@RequiredArgsConstructor); dla
+        // SocialMessageServiceImpl ma 6 zależności konstruktorowych (@RequiredArgsConstructor); dla
         // metod BE-127 (countOrphansOlderThan/purgeOrphansOlderThan) używana jest WYŁĄCZNIE
-        // socialMessageRepository — pozostałe 4 rejestrujemy jako mocki Mockito, nigdy niewywoływane
+        // socialMessageRepository — pozostałe 5 rejestrujemy jako mocki Mockito, nigdy niewywoływane
         // w tych testach (wzorzec: prawdziwy bean tam, gdzie test sprawdza logikę; mock tam, gdzie
         // Spring wymaga tylko obecności zależności do skonstruowania beana).
         ctx = JpaTestContext.create(
@@ -71,6 +71,7 @@ class SocialMessageOrphanPurgeIntegrationTest {
                     c.getBeanFactory().registerSingleton("contactService", mock(ContactService.class));
                     c.getBeanFactory().registerSingleton("socialAdapterRegistry", mock(SocialAdapterRegistry.class));
                     c.getBeanFactory().registerSingleton("rabbitTemplate", mock(RabbitTemplate.class));
+                    c.getBeanFactory().registerSingleton("socialDefaultQueueResolver", mock(SocialDefaultQueueResolver.class));
                 });
         service = ctx.getBean(SocialMessageService.class);
         repository = ctx.getBean(SocialMessageRepository.class);

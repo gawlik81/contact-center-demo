@@ -496,6 +496,12 @@ class UserServiceImpl implements UserService {
 
     @Transactional(readOnly = true)
     @Override
+    public Optional<java.time.Instant> findLastLoginAt(UUID userId, UUID tenantId) {
+        return appUserRepository.findLastLoginAt(userId, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
     public long countAgentsByTenantId(UUID tenantId) {
         return appUserRepository.countAgentsByTenantId(tenantId);
     }

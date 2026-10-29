@@ -48,9 +48,11 @@ class StubCustomerPanel {
 @Component({ selector: 'app-disposition-panel', template: '' })
 class StubDispositionPanel {
   contactId = input<string>('');
+  tabId = input<string>('');
+  draftKey = input<string>('');
+  wrappingSince = input<number | null>(null);
   customerName = input<string>('');
   prefillNotes = input<string>('');
-  saved = output<void>();
 }
 
 @Component({ selector: 'app-softphone', template: '' })
@@ -861,6 +863,68 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
       } as never);
       await settle();
       expect(store.activeTab()?.id).toBe('p');
+    });
+  });
+
+  describe('ACW as tab content (FE-122)', () => {
+    it('shows the disposition form inside the PHONE tab panel instead of the softphone', async () => {
+      open('p', 'PHONE', { status: 'WRAPPING' });
+      await settle();
+      const panel = root.querySelector('[role="tabpanel"] app-disposition-panel');
+      expect(panel).not.toBeNull();
+      expect(root.querySelector('app-softphone')).toBeNull();
+      // nothing modal around the form: no dialog in the panel, nothing inert on the page
+      expect(root.querySelector('[role="tabpanel"] dialog')).toBeNull();
+      expect(root.querySelector('[inert]')).toBeNull();
+    });
+
+    it('keeps the ACW tab and its marker while the agent works on another tab, and returns to the form', async () => {
+      open('p', 'PHONE', { status: 'WRAPPING' });
+      open('m', 'EMAIL');
+      store.setActiveTab('m');
+      await settle();
+      expect(root.querySelector('app-disposition-panel')).toBeNull();
+      expect(root.querySelector('cc-email-contact')).not.toBeNull();
+      expect(markers('tab-p')).toEqual(['ACW']);
+
+      store.setActiveTab('p');
+      await settle();
+      expect(root.querySelector('app-disposition-panel')).not.toBeNull();
+    });
+
+    it('Esc inside the form (real template, note field focused) closes nothing and keeps ACW', async () => {
+      open('p', 'PHONE', { status: 'WRAPPING' });
+      await settle();
+      const field = document.createElement('textarea');
+      root.querySelector('[role="tabpanel"]')!.appendChild(field);
+      field.focus();
+      const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      field.dispatchEvent(esc);
+      await settle();
+
+      expect(store.tabs()).toHaveLength(1);
+      expect(store.tabs()[0].status).toBe('WRAPPING');
+      expect(root.querySelector('app-disposition-panel')).not.toBeNull();
+      expect(document.activeElement).toBe(field);
+    });
+
+    it('clicking the ACW tab asks the form to take focus; arrow-key browsing does not', async () => {
+      open('m', 'EMAIL');
+      open('p', 'PHONE', { status: 'WRAPPING' });
+      store.setActiveTab('m');
+      await settle();
+
+      key(tabEl('tab-m'), 'ArrowRight'); // lands on the ACW tab by keyboard browsing
+      await settle();
+      expect(store.activeTab()?.id).toBe('p');
+      expect(store.consumeAcwFocus('p')).toBe(false);
+      expect(document.activeElement).toBe(tabEl('tab-p'));
+
+      store.setActiveTab('m');
+      await settle();
+      tabEl('tab-p').click();
+      await settle();
+      expect(store.consumeAcwFocus('p')).toBe(true);
     });
   });
 });

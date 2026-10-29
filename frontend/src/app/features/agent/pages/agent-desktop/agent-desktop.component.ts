@@ -34,6 +34,7 @@ import { ConfirmDialogComponent } from '../../../../shared/components/confirm-di
 import { ContactService } from '../../services/contact.service';
 import { TabMarker, resolveTabMarker, sessionMatchesTab } from '../../models/contact-tab-marker';
 import { CallLifecycleService } from '../../services/call-lifecycle.service';
+import { DispositionSaveService } from '../../services/disposition-save.service';
 import { CallState } from '../../models/call-session.model';
 import { QueueStateService } from '../../services/queue-state.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
@@ -48,7 +49,7 @@ import { ContactDetailModalComponent } from '../../../../shared/components/conta
 import { PluginPanelHostComponent } from '../../../../shared/components/plugin-panel-host/plugin-panel-host.component';
 import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
 import { ManualActionDef, TenantPluginInstallationDto } from '../../../plugins/models/plugin.model';
-import { ContactTab } from '../../models/contact-tab.model';
+import { ContactTab, acwDraftKey } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
 
 /**
@@ -108,12 +109,16 @@ export class AgentDesktopComponent implements OnInit {
   private readonly drafts = inject(ContactDraftStore);
   private readonly contactService = inject(ContactService);
   private readonly calls = inject(CallLifecycleService);
+  private readonly dispositionSave = inject(DispositionSaveService);
 
-  /** PHONE note of the ACW tab; pre-fills the disposition form. */
-  protected readonly wrappingNote = computed(() => {
-    const tab = this.tabStore.wrappingTab();
-    return tab ? this.drafts.phoneNote(tab.contactId) : '';
-  });
+  /** PHONE note typed during the call; pre-fills the disposition form. */
+  protected phoneNoteOf(tab: ContactTab): string {
+    return this.drafts.phoneNote(acwDraftKey(tab));
+  }
+
+  protected draftKeyOf(tab: ContactTab): string {
+    return acwDraftKey(tab);
+  }
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
@@ -186,6 +191,12 @@ export class AgentDesktopComponent implements OnInit {
 
   constructor() {
     this.destroyRef.onDestroy(() => (this.destroyed = true));
+    // The ACW tab is closed by DispositionSaveService (it outlives this page); focus lost with
+    // the form goes to the neighbour tab, exactly like after any other tab removal.
+    this.dispositionSave.closed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
+      const neighbour = this.tabs().find((t) => t.id === e.neighbourTabId) ?? null;
+      this.focusAfterRemoval(neighbour);
+    });
   }
 
   /**
@@ -218,7 +229,7 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly ringingAnnouncement = signal('');
 
   /** Calendar tab visibility */
-  protected readonly calendarTabActive = signal(false);
+  protected readonly calendarTabActive = this.tabStore.calendarOpen;
 
   /** Add-break modal visibility */
   protected readonly addBreakOpen = signal(false);
@@ -457,6 +468,11 @@ export class AgentDesktopComponent implements OnInit {
   }
 
   protected setActiveTab(tab: ContactTab): void {
+    // Activating the ACW tab on purpose (click / Enter / Space on it) is an explicit request to
+    // fill in the disposition: the form takes focus. Arrow-key browsing never gets here.
+    if (tab.type === 'PHONE' && tab.status === 'WRAPPING' && !tab.isActive) {
+      this.tabStore.requestAcwFocus(tab.id);
+    }
     this.tabStore.setActiveTab(tab.id);
   }
 
@@ -880,17 +896,6 @@ export class AgentDesktopComponent implements OnInit {
   ) => installation.id;
   protected readonly trackByToolbarAction = (_i: number, item: ToolbarManualAction) =>
     `${item.installationId}:${item.action.actionId}`;
-
-  /**
-   * Called when the DispositionPanelComponent emits `saved`.
-   * Closes the WRAPPING tab – the agent is now AVAILABLE (status changed by DispositionPanel).
-   */
-  protected onDispositionSaved(): void {
-    const tab = this.tabStore.wrappingTab();
-    if (tab) {
-      this.tabStore.closeTab(tab.id);
-    }
-  }
 
   protected onEmailReplySent(tab: ContactTab, sent: boolean): void {
     this.tabStore.closeTab(tab.id);

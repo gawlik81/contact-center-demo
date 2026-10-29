@@ -1,14 +1,5 @@
-<dialog
-  #dialogEl
-  class="disposition-dialog"
-  (cancel)="$event.preventDefault()"
-  tabindex="-1"
-  (keydown.escape)="$event.preventDefault()"
-  (close)="onDialogClose()"
-  aria-labelledby="disposition-dialog-title"
->
-  <div class="disposition-dialog__backdrop"></div>
-
+<!-- Inline ACW form (non-modal): the rest of the page stays usable, Esc does nothing here. -->
+<section class="disposition-dialog" aria-labelledby="disposition-dialog-title">
   <div class="disposition-dialog__panel">
     <!-- Header -->
     <header class="disposition-dialog__header">
@@ -20,21 +11,17 @@
         </svg>
       </div>
       <div class="disposition-dialog__title-block">
-        <h2 id="disposition-dialog-title" class="disposition-dialog__title">
+        <h3 id="disposition-dialog-title" class="disposition-dialog__title">
           {{ 'agent.disposition.title' | transloco }}
-        </h2>
+        </h3>
         @if (customerName()) {
           <p class="disposition-dialog__subtitle">{{ customerName() }}</p>
         }
       </div>
-      <div class="disposition-dialog__acw" aria-live="polite" aria-atomic="true">
+      <!-- Visual clock only: no live region, so a screen reader is never fed one update a second -->
+      <div class="disposition-dialog__acw">
         <span class="acw__label">{{ 'agent.disposition.acwLabel' | transloco }}</span>
-        <span
-          class="acw__timer"
-          [attr.aria-label]="('agent.disposition.acwTimer' | transloco) + ' ' + formattedAcwTime()"
-        >
-          {{ formattedAcwTime() }}
-        </span>
+        <span class="acw__timer">{{ formattedAcwTime() }}</span>
       </div>
     </header>
 
@@ -53,8 +40,15 @@
             }
           </div>
         } @else {
-          <div class="disp-grid" role="radiogroup" aria-labelledby="disp-code-label" aria-required="true">
-            @for (d of availableDispositions(); track d.code) {
+          <div
+            class="disp-grid"
+            role="radiogroup"
+            aria-labelledby="disp-code-label"
+            aria-required="true"
+            [attr.aria-invalid]="showCodeError() ? 'true' : null"
+            [attr.aria-describedby]="showCodeError() ? 'disp-code-error' : null"
+          >
+            @for (d of availableDispositions(); track d.code; let i = $index) {
               <button
                 type="button"
                 class="disp-card"
@@ -63,7 +57,9 @@
                 [ngClass]="toneClass(d.tone)"
                 role="radio"
                 [attr.aria-checked]="selectedCode() === d.code"
+                [attr.tabindex]="isTabStop(d.code, i) ? 0 : -1"
                 (click)="selectCode(d.code)"
+                (keydown)="onRadioKeydown($event, i)"
               >
                 <span class="disp-card__dot"></span>
                 <span class="disp-card__label">{{ d.label }}</span>
@@ -86,12 +82,12 @@
           </div>
         }
         @if (dispositionsError()) {
-          <span class="form-field__hint form-field__hint--warn" role="alert">
+          <span class="form-field__hint form-field__hint--warn" role="status">
             {{ dispositionsError() }}
           </span>
         }
-        @if (selectedCode().length === 0) {
-          <span class="form-field__hint" role="alert">
+        @if (showCodeError()) {
+          <span id="disp-code-error" class="form-field__hint form-field__hint--error" role="alert">
             {{ 'agent.disposition.codeRequired' | transloco }}
           </span>
         }
@@ -111,10 +107,8 @@
           [attr.placeholder]="'agent.disposition.notesPlaceholder' | transloco"
           [value]="notes()"
           (input)="onNotesChange($any($event.target).value)"
-          aria-multiline="true"
-          [attr.aria-label]="'agent.disposition.notesAriaLabel' | transloco"
         ></textarea>
-        <span class="form-field__char-count" aria-live="polite"> {{ notes().length }}/1000 </span>
+        <span class="form-field__char-count">{{ notes().length }}/1000</span>
       </div>
       <!-- AI Summary Section (FE-089) -->
       <app-ai-summary-panel
@@ -130,7 +124,7 @@
       <button
         type="button"
         class="btn btn--primary"
-        [disabled]="!canSave()"
+        [disabled]="isSaving()"
         [attr.aria-busy]="isSaving()"
         [attr.aria-label]="'agent.disposition.saveLabel' | transloco"
         (click)="save()"
@@ -147,4 +141,4 @@
       </button>
     </footer>
   </div>
-</dialog>
+</section>

@@ -149,65 +149,45 @@ describe('native <dialog> Esc handling', () => {
     });
   });
 
-  describe('disposition-panel', () => {
-    function createPanel(wrapping: boolean) {
+  describe('disposition-panel (FE-122: inline, not a dialog)', () => {
+    function createPanel() {
       const store = TestBed.inject(ContactTabStore);
-      store.tabs.set(
-        wrapping
-          ? [
-              {
-                id: 'tab-1',
-                type: 'PHONE',
-                contactId: 'c-1',
-                customerName: 'Jan',
-                customerIdentifier: '+48123456789',
-                status: 'WRAPPING',
-                isActive: true,
-                startedAt: new Date(),
-              },
-            ]
-          : [],
-      );
+      store.tabs.set([
+        {
+          id: 'tab-1',
+          type: 'PHONE',
+          contactId: 'c-1',
+          customerName: 'Jan',
+          customerIdentifier: '+48123456789',
+          status: 'WRAPPING',
+          isActive: true,
+          startedAt: new Date(),
+        },
+      ]);
       const fixture = TestBed.createComponent(DispositionPanelComponent);
       fixture.componentRef.setInput('contactId', 'c-1');
+      fixture.componentRef.setInput('tabId', 'tab-1');
       fixture.detectChanges();
       return fixture;
     }
 
-    it('prevents Esc (cancel and keydown) and keeps the dialog open so the agent cannot skip ACW', () => {
-      const fixture = createPanel(true);
-      const { event, dialog } = pressEsc(fixture);
-      const keydown = new KeyboardEvent('keydown', {
-        key: 'Escape',
-        cancelable: true,
-        bubbles: true,
-      });
-      dialog.dispatchEvent(keydown);
-
-      expect(event.defaultPrevented).toBe(true);
-      expect(keydown.defaultPrevented).toBe(true);
-      expect(dialog.hasAttribute('open')).toBe(true);
+    it('is not a <dialog> and never calls showModal', () => {
+      const showModal = vi.spyOn(HTMLDialogElement.prototype, 'showModal');
+      const fixture = createPanel();
+      expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+      expect(showModal).not.toHaveBeenCalled();
+      showModal.mockRestore();
     });
 
-    it('re-opens the dialog when Chromium closes it anyway while the tab is still WRAPPING', () => {
-      const fixture = createPanel(true);
-      const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    it('Esc does nothing: the form stays and the tab stays in ACW', () => {
+      const fixture = createPanel();
+      const form = fixture.nativeElement.querySelector('section') as HTMLElement;
+      const esc = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, bubbles: true });
+      form.dispatchEvent(esc);
+      fixture.detectChanges();
 
-      dialog.close();
-      dialog.dispatchEvent(new Event('close'));
-
-      expect(dialog.hasAttribute('open')).toBe(true);
-    });
-
-    it('does not re-open once the wrapping tab is gone (after saving)', () => {
-      const fixture = createPanel(true);
-      const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
-      TestBed.inject(ContactTabStore).tabs.set([]);
-
-      dialog.close();
-      dialog.dispatchEvent(new Event('close'));
-
-      expect(dialog.hasAttribute('open')).toBe(false);
+      expect(fixture.nativeElement.querySelector('section')).not.toBeNull();
+      expect(TestBed.inject(ContactTabStore).tabs()[0].status).toBe('WRAPPING');
     });
   });
 

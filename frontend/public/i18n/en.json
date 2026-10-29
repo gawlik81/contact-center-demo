@@ -377,21 +377,18 @@
     "disposition": {
       "title": "End contact",
       "acwLabel": "ACW time",
-      "acwTimer": "After contact time:",
       "codeLabel": "Disposition",
       "codeRequired": "Please select a disposition before saving",
       "codePlaceholder": "-- Select disposition --",
       "notesLabel": "Note",
       "notesOptional": "(optional)",
       "notesPlaceholder": "Add a note to the contact...",
-      "notesAriaLabel": "Contact note, optional",
       "saveLabel": "Save disposition and set status to available",
       "save": "Save and close",
       "saving": "Saving...",
       "errorSave": "Failed to save disposition. Please try again.",
       "fallbackNotice": "Showing system dispositions (custom ones could not be loaded).",
-      "successSave": "Disposition saved.",
-      "statusChangeError": "Disposition saved, but the status could not be changed. Change it manually."
+      "successSave": "Disposition saved."
     },
     "aiSummary": {
       "title": "AI summary",
@@ -443,6 +440,12 @@
       "hide": "Hide notification",
       "inCall": "Call in progress",
       "openDesktop": "Go to desktop"
+    },
+    "acwBanner": {
+      "title": "Disposition is waiting",
+      "action": "Complete disposition",
+      "announcement": "The call with {{who}} has ended. Complete the disposition.",
+      "more": "+{{count}} more"
     },
     "addBreak": {
       "titleAdd": "Add break",

@@ -48,9 +48,11 @@ export class ContactService {
     notes: string,
   ): Observable<ContactResponse> {
     const body: SetDispositionRequest = { dispositionCode, notes };
+    // DispositionSaveService shows the single, specific error toast itself.
     return this.http.patch<ContactResponse>(
       `${environment.apiUrl}/contacts/${contactId}/disposition`,
       body,
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
     );
   }
 

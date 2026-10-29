@@ -5,12 +5,13 @@ import {
   ElementRef,
   OnDestroy,
   OnInit,
+  afterNextRender,
   computed,
   inject,
+  Injector,
+  NgZone,
   input,
-  output,
   signal,
-  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -18,9 +19,9 @@ import { NgClass } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, EMPTY, filter, tap } from 'rxjs';
 import { ContactService } from '../../services/contact.service';
-import { AgentStatusService } from '../../services/agent-status.service';
+import { DispositionSaveService } from '../../services/disposition-save.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
-import { NotificationService } from '../../../../core/services/notification.service';
+import { ContactDraftStore } from '../../services/contact-draft.store';
 import { DISPOSITION_CODES } from '../../models/disposition.model';
 import { AiSummaryPanelComponent } from '../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 import { CustomDispositionService } from '../../../../features/dispositions/services/custom-disposition.service';
@@ -44,23 +45,29 @@ interface AvailableDispositionForPanel {
 export class DispositionPanelComponent implements OnInit, OnDestroy {
   /** ID zakładki/kontaktu – wymagane aby wiedzieć co zapisać */
   readonly contactId = input.required<string>();
+  /** Key of the ACW drafts (see `acwDraftKey`); defaults to `contactId`. */
+  readonly draftKey = input<string>('');
+  /** ID of the PHONE tab this form belongs to (focus requests are addressed to it). */
+  readonly tabId = input<string>('');
+  /** Epoch ms when ACW started; the timer is derived from it so it survives remounts. */
+  readonly wrappingSince = input<number | null>(null);
   /** Nazwa klienta do wyświetlenia w nagłówku */
   readonly customerName = input<string>('');
   /** Notatka z rozmowy wpisana przez agenta – pre-fills pole notatki */
   readonly prefillNotes = input<string>('');
-  /** Emitowane po poprawnym zapisie dyspozycji */
-  readonly saved = output<void>();
 
   private readonly contactService = inject(ContactService);
-  private readonly statusService = inject(AgentStatusService);
-  private readonly notifications = inject(NotificationService);
+  private readonly saver = inject(DispositionSaveService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
   private readonly customDispositionService = inject(CustomDispositionService);
   private readonly wsService = inject(WebSocketService);
   private readonly tabStore = inject(ContactTabStore);
-
-  private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
+  private readonly drafts = inject(ContactDraftStore);
+  private readonly key = computed(() => this.draftKey() || this.contactId());
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly ngZone = inject(NgZone);
 
   protected readonly availableDispositions = signal<AvailableDispositionForPanel[]>([]);
   protected readonly dispositionsLoading = signal(false);
@@ -68,39 +75,43 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
 
   protected readonly selectedCode = signal<string>('');
   protected readonly notes = signal<string>('');
-  protected readonly isSaving = signal(false);
+  protected readonly isSaving = computed(() => this.saver.isSaving(this.contactId()));
+  /** Validation is shown only after the agent tried to save. */
+  protected readonly submitAttempted = signal(false);
+  protected readonly showCodeError = computed(
+    () => this.submitAttempted() && this.selectedCode().length === 0,
+  );
 
-  /** ACW timer – sekundy */
-  protected readonly acwSeconds = signal(0);
-  private acwInterval: ReturnType<typeof setInterval> | null = null;
+  /** ACW timer: a visual clock only, deliberately outside any live region. */
+  private readonly now = signal(Date.now());
+  private readonly mountedAt = Date.now();
+  private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private pendingFocus = false;
 
   protected readonly formattedAcwTime = computed(() => {
-    const total = this.acwSeconds();
+    const since = this.wrappingSince() ?? this.mountedAt;
+    const total = Math.max(0, Math.floor((this.now() - since) / 1000));
     const m = Math.floor(total / 60);
     const s = total % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   });
 
-  protected readonly canSave = computed(() => this.selectedCode().length > 0 && !this.isSaving());
-
   readonly hasRecording = signal(false);
 
-  /**
-   * Chromium may close a modal <dialog> on a repeated Esc even though `cancel` was prevented
-   * (CloseWatcher: no user activation). The agent must not leave ACW without saving, so while the
-   * tab is still WRAPPING the dialog is shown again.
-   */
-  protected onDialogClose(): void {
-    const dialog = this.dialogRef().nativeElement;
-    if (!dialog.open && this.tabStore.wrappingTab() !== null) dialog.showModal();
-  }
-
   ngOnInit(): void {
-    this.dialogRef().nativeElement.showModal();
-    if (this.prefillNotes()) {
+    // A remount (tab switch) restores what the agent had entered; the note typed during the call
+    // only pre-fills a form that has no draft yet.
+    const draft = this.drafts.dispositionDraft(this.key());
+    if (draft) {
+      this.selectedCode.set(draft.code);
+      this.notes.set(draft.notes);
+    } else if (this.prefillNotes()) {
       this.notes.set(this.prefillNotes());
     }
-    this.startAcwTimer();
+    // Outside the zone: the signal marks this view, no application-wide tick every second.
+    this.ngZone.runOutsideAngular(() => {
+      this.tickInterval = setInterval(() => this.now.set(Date.now()), 1000);
+    });
 
     this.contactService
       .getContact(this.contactId())
@@ -119,51 +130,114 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
       )
       .subscribe(() => this.hasRecording.set(true));
 
+    const cached = this.drafts.availableDispositions(this.contactId());
+    if (cached) {
+      this.applyOptions(cached);
+    } else {
+      this.loadDispositions();
+    }
+
+    // Focus only on an explicit request (ACW tab activated, banner button, call ended on this
+    // tab). A plain mount (tab switch, history navigation) never moves it.
+    if (this.tabId() !== '' && this.tabStore.consumeAcwFocus(this.tabId())) {
+      this.focusFirstField();
+    }
+  }
+
+  private loadDispositions(): void {
     this.dispositionsLoading.set(true);
     this.customDispositionService
       .getAvailableDispositions(this.contactId())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (dispositions) => {
-          this.availableDispositions.set(
-            dispositions.map((d) => ({ code: d.dispositionCode, label: d.label, tone: d.tone })),
-          );
-          this.dispositionsLoading.set(false);
+          const options = dispositions.map((d) => ({
+            code: d.dispositionCode,
+            label: d.label,
+            tone: d.tone,
+          }));
+          this.drafts.setAvailableDispositions(this.contactId(), options);
+          this.applyOptions(options);
         },
         error: (err) => {
           console.warn(
             '[DispositionPanel] Failed to load dispositions from API, using fallback',
             err,
           );
-          this.availableDispositions.set(
+          // Not cached: the next mount tries the API again.
+          this.applyOptions(
             DISPOSITION_CODES.map((d) => ({
               code: d.code,
               label: this.transloco.translate(d.labelKey),
               tone: 'neutral',
             })),
           );
-          this.dispositionsLoading.set(false);
           this.dispositionsError.set(this.transloco.translate('agent.disposition.fallbackNotice'));
         },
       });
   }
 
-  ngOnDestroy(): void {
-    this.stopAcwTimer();
-  }
-
-  private startAcwTimer(): void {
-    this.acwSeconds.set(0);
-    this.acwInterval = setInterval(() => {
-      this.acwSeconds.update((v) => v + 1);
-    }, 1000);
-  }
-
-  private stopAcwTimer(): void {
-    if (this.acwInterval !== null) {
-      clearInterval(this.acwInterval);
-      this.acwInterval = null;
+  private applyOptions(options: AvailableDispositionForPanel[]): void {
+    this.availableDispositions.set(options);
+    this.dispositionsLoading.set(false);
+    // A drafted code that this list does not offer (fallback list vs API list) must not be sent.
+    if (this.selectedCode() && !options.some((o) => o.code === this.selectedCode())) {
+      this.selectedCode.set('');
+      this.persistDraft();
     }
+    this.flushPendingFocus();
+  }
+
+  /** Roving tabindex: the chosen code, else the first one, is the single tab stop. */
+  protected isTabStop(code: string, index: number): boolean {
+    const selected = this.selectedCode();
+    return selected ? selected === code : index === 0;
+  }
+
+  /** Radio-group keyboard model: arrows move AND select (wrapping), like native radios. */
+  protected onRadioKeydown(event: KeyboardEvent, index: number): void {
+    const list = this.availableDispositions();
+    let next: number | null = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % list.length;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      next = (index - 1 + list.length) % list.length;
+    } else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = list.length - 1;
+    if (next === null) return;
+    event.preventDefault();
+    this.selectCode(list[next].code);
+    afterNextRender(
+      () => this.host.nativeElement.querySelectorAll<HTMLElement>('.disp-card')[next!]?.focus(),
+      { injector: this.injector },
+    );
+  }
+
+  ngOnDestroy(): void {
+    if (this.tickInterval !== null) clearInterval(this.tickInterval);
+  }
+
+  /** Focuses the selected code (or the first one); waits for the list when it is still loading. */
+  private focusFirstField(): void {
+    this.pendingFocus = true;
+    if (!this.dispositionsLoading()) this.flushPendingFocus();
+  }
+
+  private flushPendingFocus(): void {
+    if (!this.pendingFocus) return;
+    this.pendingFocus = false;
+    afterNextRender(
+      () => {
+        const cards = Array.from(
+          this.host.nativeElement.querySelectorAll<HTMLElement>('.disp-card'),
+        );
+        const target =
+          cards.find((c) => c.getAttribute('aria-checked') === 'true') ??
+          cards[0] ??
+          this.host.nativeElement.querySelector<HTMLElement>('textarea');
+        target?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   protected toneClass(tone: string): string {
@@ -178,54 +252,43 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
 
   protected selectCode(code: string): void {
     this.selectedCode.set(code);
+    this.persistDraft();
   }
 
   protected onNotesChange(value: string): void {
     this.notes.set(value);
+    this.persistDraft();
   }
 
   protected onAiSummaryCopy(summary: string): void {
     const current = this.notes().trim();
     this.notes.set(current ? current + '\n\n' + summary : summary);
+    this.persistDraft();
+  }
+
+  /** Keeps the form across tab switches; the store is cleared when the tab closes. */
+  private persistDraft(): void {
+    this.drafts.setDispositionDraft(this.key(), {
+      code: this.selectedCode(),
+      notes: this.notes(),
+    });
   }
 
   protected save(): void {
-    if (!this.canSave()) return;
-
-    this.isSaving.set(true);
-    this.stopAcwTimer();
-
-    this.contactService
-      .setDisposition(this.contactId(), this.selectedCode(), this.notes())
-      .pipe(
-        catchError(() => {
-          this.notifications.error(this.transloco.translate('agent.disposition.errorSave'));
-          this.isSaving.set(false);
-          this.startAcwTimer();
-          return EMPTY;
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(() => {
-        this.isSaving.set(false);
-        this.notifications.success(this.transloco.translate('agent.disposition.successSave'));
-        // Wait for status change confirmation before emitting saved — prevents the tab from
-        // closing before the server acknowledges the AVAILABLE status change.
-        this.statusService
-          .changeStatus('AVAILABLE')
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({
-            // `successSave` above makes no promise about the status; only a failure adds a toast.
-            next: () => this.saved.emit(),
-            error: () => {
-              // Disposition was saved successfully; status change failed.
-              // Still close the tab — agent can change status manually.
-              this.notifications.error(
-                this.transloco.translate('agent.disposition.statusChangeError'),
-              );
-              this.saved.emit();
-            },
-          });
-      });
+    if (this.isSaving()) return;
+    if (this.selectedCode().length === 0) {
+      // Validation starts here, not on render; the error is announced once and the agent lands
+      // on the field that needs fixing.
+      this.submitAttempted.set(true);
+      this.focusFirstField();
+      return;
+    }
+    // The request outlives this component (the agent may switch tabs meanwhile).
+    this.saver.save({
+      tabId: this.tabId(),
+      contactId: this.contactId(),
+      code: this.selectedCode(),
+      notes: this.notes(),
+    });
   }
 }

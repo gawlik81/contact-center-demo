@@ -17,6 +17,19 @@ export interface EmailDraft {
   attachments: PendingAttachment[];
 }
 
+/** Unsaved ACW form: selected code and note. Memory only, like every other draft. */
+export interface DispositionDraft {
+  code: string;
+  notes: string;
+}
+
+/** A selectable disposition code in the ACW form. */
+export interface DispositionOption {
+  code: string;
+  label: string;
+  tone: string;
+}
+
 /**
  * Per-contact drafts for the agent desktop (email reply, social reply, PHONE note) and the
  * "already accepted" flag, keyed by `contactId`.
@@ -32,6 +45,8 @@ export class ContactDraftStore {
   private readonly emailDrafts = signal<Readonly<Record<string, EmailDraft>>>({});
   private readonly socialReplies = signal<Readonly<Record<string, string>>>({});
   private readonly phoneNotes = signal<Readonly<Record<string, string>>>({});
+  private readonly dispositionDrafts = signal<Readonly<Record<string, DispositionDraft>>>({});
+  private readonly dispositionOptions = signal<Readonly<Record<string, DispositionOption[]>>>({});
   private readonly acceptedIds = signal<ReadonlySet<string>>(new Set());
   private readonly sendingIds = signal<ReadonlySet<string>>(new Set());
   private readonly sendFailedIds = signal<ReadonlySet<string>>(new Set());
@@ -92,6 +107,31 @@ export class ContactDraftStore {
     this.phoneNotes.update((cur) =>
       note.trim().length === 0 ? omit(cur, contactId) : { ...cur, [contactId]: note },
     );
+  }
+
+  // ── Disposition (ACW form) ─────────────────────────────────────────────────
+  // Not part of draftContactIds: the ACW tab cannot be closed without saving, so no close guard
+  // or "Draft" marker is needed; the ACW marker already outranks it.
+
+  dispositionDraft(contactId: string): DispositionDraft | null {
+    return this.dispositionDrafts()[contactId] ?? null;
+  }
+
+  setDispositionDraft(contactId: string, draft: DispositionDraft): void {
+    this.dispositionDrafts.update((cur) => ({ ...cur, [contactId]: draft }));
+  }
+
+  /**
+   * Dispositions offered for a contact, cached for the ACW so that returning to the card does not
+   * refetch and flash a skeleton (the campaign/queue of a contact does not change meanwhile).
+   * Only the API answer is cached, never the offline fallback list.
+   */
+  availableDispositions(contactId: string): DispositionOption[] | null {
+    return this.dispositionOptions()[contactId] ?? null;
+  }
+
+  setAvailableDispositions(contactId: string, options: DispositionOption[]): void {
+    this.dispositionOptions.update((cur) => ({ ...cur, [contactId]: options }));
   }
 
   // ── acceptContact guard ────────────────────────────────────────────────────
@@ -155,6 +195,8 @@ export class ContactDraftStore {
     this.clearEmailDraft(contactId);
     this.socialReplies.update((cur) => omit(cur, contactId));
     this.phoneNotes.update((cur) => omit(cur, contactId));
+    this.dispositionDrafts.update((cur) => omit(cur, contactId));
+    this.dispositionOptions.update((cur) => omit(cur, contactId));
     this.unmarkAccepted(contactId);
   }
 
@@ -168,6 +210,7 @@ export class ContactDraftStore {
     const email = this.emailDrafts()[oldContactId];
     const social = this.socialReplies()[oldContactId];
     const note = this.phoneNotes()[oldContactId];
+    const disposition = this.dispositionDrafts()[oldContactId];
     const wasAccepted = this.acceptedIds().has(oldContactId);
     this.clear(oldContactId);
     if (email && !this.emailDrafts()[newContactId]) this.setEmailDraft(newContactId, email);
@@ -178,6 +221,9 @@ export class ContactDraftStore {
       const existing = this.phoneNotes()[newContactId];
       this.setPhoneNote(newContactId, existing ? `${existing}\n${note}` : note);
     }
+    if (disposition && !this.dispositionDrafts()[newContactId]) {
+      this.setDispositionDraft(newContactId, disposition);
+    }
     if (wasAccepted) this.markAccepted(newContactId);
   }
 
@@ -186,6 +232,8 @@ export class ContactDraftStore {
     this.emailDrafts.set({});
     this.socialReplies.set({});
     this.phoneNotes.set({});
+    this.dispositionDrafts.set({});
+    this.dispositionOptions.set({});
     this.acceptedIds.set(new Set());
     this.sendingIds.set(new Set());
     this.sendFailedIds.set(new Set());

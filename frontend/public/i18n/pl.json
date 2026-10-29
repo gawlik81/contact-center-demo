@@ -377,21 +377,18 @@
     "disposition": {
       "title": "Zakończ kontakt",
       "acwLabel": "Czas ACW",
-      "acwTimer": "Czas po kontakcie:",
       "codeLabel": "Dyspozycja",
       "codeRequired": "Wybierz dyspozycję przed zapisem",
       "codePlaceholder": "-- Wybierz dyspozycję --",
       "notesLabel": "Notatka",
       "notesOptional": "(opcjonalna)",
       "notesPlaceholder": "Dodaj notatkę do kontaktu...",
-      "notesAriaLabel": "Notatka do kontaktu, opcjonalna",
       "saveLabel": "Zapisz dyspozycję i zmień status na dostępny",
       "save": "Zapisz i zamknij",
       "saving": "Zapisywanie...",
       "errorSave": "Nie udało się zapisać dyspozycji. Spróbuj ponownie.",
       "fallbackNotice": "Wyświetlono dyspozycje systemowe (nie udało się pobrać własnych).",
-      "successSave": "Dyspozycja zapisana.",
-      "statusChangeError": "Dyspozycja zapisana, ale nie udało się zmienić statusu. Zmień status ręcznie."
+      "successSave": "Dyspozycja zapisana."
     },
     "aiSummary": {
       "title": "Podsumowanie AI",
@@ -443,6 +440,12 @@
       "hide": "Ukryj powiadomienie",
       "inCall": "Rozmowa w toku",
       "openDesktop": "Przejdź do pulpitu"
+    },
+    "acwBanner": {
+      "title": "Dyspozycja czeka na uzupełnienie",
+      "action": "Uzupełnij dyspozycję",
+      "announcement": "Rozmowa z {{who}} zakończona. Uzupełnij dyspozycję.",
+      "more": "+{{count}} kolejne"
     },
     "addBreak": {
       "titleAdd": "Dodaj przerwę",

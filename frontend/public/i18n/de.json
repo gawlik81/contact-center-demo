@@ -377,21 +377,18 @@
     "disposition": {
       "title": "Kontakt beenden",
       "acwLabel": "ACW-Zeit",
-      "acwTimer": "Nachbearbeitungszeit:",
       "codeLabel": "Disposition",
       "codeRequired": "Bitte wählen Sie eine Disposition vor dem Speichern",
       "codePlaceholder": "-- Disposition auswählen --",
       "notesLabel": "Notiz",
       "notesOptional": "(optional)",
       "notesPlaceholder": "Notiz zum Kontakt hinzufügen...",
-      "notesAriaLabel": "Kontaktnotiz, optional",
       "saveLabel": "Disposition speichern und Status auf verfügbar setzen",
       "save": "Speichern und schließen",
       "saving": "Speichern...",
       "errorSave": "Disposition konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
       "fallbackNotice": "Systemdispositionen werden angezeigt (eigene konnten nicht geladen werden).",
-      "successSave": "Disposition gespeichert.",
-      "statusChangeError": "Disposition gespeichert, aber der Status konnte nicht geändert werden. Ändern Sie ihn manuell."
+      "successSave": "Disposition gespeichert."
     },
     "aiSummary": {
       "title": "KI-Zusammenfassung",
@@ -443,6 +440,12 @@
       "hide": "Benachrichtigung ausblenden",
       "inCall": "Gespräch läuft",
       "openDesktop": "Zum Desktop"
+    },
+    "acwBanner": {
+      "title": "Dispositionscode fehlt noch",
+      "action": "Disposition ausfüllen",
+      "announcement": "Das Gespräch mit {{who}} ist beendet. Bitte die Disposition ausfüllen.",
+      "more": "+{{count}} weitere"
     },
     "addBreak": {
       "titleAdd": "Pause hinzufügen",

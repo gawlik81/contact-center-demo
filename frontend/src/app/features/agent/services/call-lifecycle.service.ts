@@ -5,6 +5,7 @@ import { filter } from 'rxjs';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { isEditableElement } from '../../../shared/utils/focus.util';
 import { currentUrlSignal } from '../../../shared/utils/router-url.util';
 import { AgentStatusService } from './agent-status.service';
 import { ContactTabStore } from './contact-tab.store';
@@ -71,12 +72,28 @@ export class CallLifecycleService {
             .tabs()
             .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
           if (phoneTab) {
+            const wantsFocus = this.shouldMoveFocusToForm(phoneTab.isActive);
             this.tabStore.markAsWrapping(phoneTab.id);
+            if (wantsFocus) this.tabStore.requestAcwFocus(phoneTab.id);
           }
         }
       });
     }
   });
+
+  /**
+   * The call ended on the PHONE tab the agent is looking at on the desktop: the hang-up button
+   * disappears under their focus, so the disposition form takes it over. Never when the call
+   * ended elsewhere (other page / other tab / calendar view: the banner handles those) nor while
+   * the agent is typing somewhere (e.g. the call note).
+   */
+  private shouldMoveFocusToForm(tabIsActive: boolean): boolean {
+    if (!tabIsActive || !this.isOnDesktop() || this.tabStore.calendarOpen()) return false;
+    const el = document.activeElement;
+    if (isEditableElement(el)) return false;
+    const lost = !el || el === document.body;
+    return lost || !!el.closest('app-softphone');
+  }
 
   /**
    * When a call transitions to ACTIVE (agent answers), sets the agent status to BUSY

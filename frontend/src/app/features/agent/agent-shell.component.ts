@@ -18,15 +18,24 @@ import { ContactTabStore } from './services/contact-tab.store';
 import { AgentRecoveryService } from './services/agent-recovery.service';
 import { AgentHotkeysService } from './services/agent-hotkeys.service';
 import { CallLifecycleService } from './services/call-lifecycle.service';
+import { AcwBannerComponent } from './components/acw-banner/acw-banner.component';
 import { AgentShortcutsCheatSheetComponent } from './components/agent-shortcuts-cheat-sheet/agent-shortcuts-cheat-sheet.component';
 
 @Component({
   selector: 'app-agent-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AppShellComponent, IncomingCallBannerComponent, AgentShortcutsCheatSheetComponent],
+  imports: [
+    AppShellComponent,
+    IncomingCallBannerComponent,
+    AcwBannerComponent,
+    AgentShortcutsCheatSheetComponent,
+  ],
   // Component-level provider: the global keydown listener lives only while the agent shell does.
   providers: [AgentHotkeysService],
   template: `
+    <!-- Early in the DOM so a keyboard user reaches it without tabbing through the whole page;
+         it is position: fixed, so its visual place does not depend on this order. -->
+    <cc-acw-banner />
     <cc-app-shell />
     <cc-incoming-call-banner />
     <cc-agent-shortcuts-cheat-sheet />

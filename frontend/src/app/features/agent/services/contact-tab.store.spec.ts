@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { of } from 'rxjs';
 import { ContactTab } from '../models/contact-tab.model';
+import { ContactDraftStore } from './contact-draft.store';
 import { AgentRecoveryService } from './agent-recovery.service';
 import {
   ContactTabStore,
@@ -211,5 +212,89 @@ describe('AgentRecoveryService with the inactive-by-default tabs', () => {
 
     expect(store.tabs()).toHaveLength(MAX_ASYNC_TABS);
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContactTabStore ACW state (FE-122)', () => {
+  let store: ContactTabStore;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    store = TestBed.inject(ContactTabStore);
+    store.reset();
+  });
+
+  it('stamps the start of ACW once and lists the ACW tabs even when they are not active', () => {
+    store.openTab(tabInput('m', 'EMAIL'));
+    store.openTab(tabInput('p', 'PHONE'));
+    expect(store.acwTabs()).toEqual([]);
+
+    store.markAsWrapping('p');
+    const since = store.tabs().find((t) => t.id === 'p')!.wrappingSince;
+    expect(since).toBeTypeOf('number');
+    expect(store.activeTab()?.id).toBe('m');
+    expect(store.acwTabs().map((t) => t.id)).toEqual(['p']);
+    expect(store.wrappingTab()).toBeNull(); // only the ACTIVE tab counts as "in front"
+
+    store.markAsWrapping('p'); // repeated call must not restart the timer
+    expect(store.tabs().find((t) => t.id === 'p')!.wrappingSince).toBe(since);
+  });
+
+  it('hands a focus request to the form exactly once and only to its tab', () => {
+    store.requestAcwFocus('p');
+    expect(store.consumeAcwFocus('other')).toBe(false);
+    expect(store.consumeAcwFocus('p')).toBe(true);
+    expect(store.consumeAcwFocus('p')).toBe(false);
+  });
+
+  it('closing the ACW tab drops its disposition draft through the single cleanup point', () => {
+    const drafts = TestBed.inject(ContactDraftStore);
+    store.openTab(tabInput('p', 'PHONE'));
+    store.markAsWrapping('p');
+    drafts.setDispositionDraft('c-p', { code: 'SOLD', notes: '' });
+    store.closeTab('p');
+    expect(drafts.dispositionDraft('c-p')).toBeNull();
+  });
+
+  it('drops wrappingSince when the tab leaves WRAPPING, so a later ACW starts from zero', () => {
+    vi.useFakeTimers();
+    try {
+      store.openTab(tabInput('p', 'PHONE'));
+      vi.setSystemTime(1_000_000);
+      store.markAsWrapping('p');
+      expect(store.tabs()[0].wrappingSince).toBe(1_000_000);
+
+      store.updateTabStatus('p', 'ACTIVE');
+      expect(store.tabs()[0].wrappingSince).toBeUndefined();
+
+      vi.setSystemTime(5_000_000);
+      store.markAsWrapping('p');
+      expect(store.tabs()[0].wrappingSince).toBe(5_000_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lists ACW tabs longest-waiting first and shares the calendar flag, reset on logout', () => {
+    store.openTab(tabInput('a', 'PHONE'));
+    store.tabs.update((t) => [
+      ...t,
+      {
+        ...t[0],
+        id: 'b',
+        contactId: 'c-b',
+        status: 'WRAPPING',
+        wrappingSince: 100,
+        isActive: false,
+      },
+    ]);
+    store.tabs.update((t) =>
+      t.map((x) => (x.id === 'a' ? { ...x, status: 'WRAPPING', wrappingSince: 500 } : x)),
+    );
+    expect(store.acwTabs().map((t) => t.id)).toEqual(['b', 'a']);
+
+    store.calendarOpen.set(true);
+    store.reset();
+    expect(store.calendarOpen()).toBe(false);
   });
 });

@@ -205,6 +205,85 @@ describe('CallLifecycleService', () => {
       expect(store.tabs().find((t) => t.type === 'PHONE')?.status).toBe('WRAPPING');
     });
 
+    it('a call ended on /agent/customers leaves a pending ACW tab and does not move focus (FE-122)', async () => {
+      await setup('/agent/customers');
+      const field = document.createElement('input');
+      document.body.appendChild(field);
+      field.focus();
+      ring();
+      service.answerRingingCall();
+      TestBed.tick();
+      field.focus();
+
+      service.hangupOrReject();
+      TestBed.tick();
+
+      const tab = store.acwTabs()[0];
+      expect(tab).toBeDefined();
+      expect(tab.wrappingSince).toBeTypeOf('number');
+      expect(document.activeElement).toBe(field);
+      field.remove();
+    });
+
+    describe('focus handed to the ACW form (only when the call ends under the agent focus)', () => {
+      const endCall = () => {
+        ring();
+        service.answerRingingCall();
+        store.setActiveTab(store.tabs()[0].id);
+        TestBed.tick();
+      };
+      const hangUp = () => {
+        service.hangupOrReject();
+        TestBed.tick();
+      };
+
+      it('requests it when the active desktop tab ends with focus inside the softphone', async () => {
+        await setup('/agent/desktop');
+        const host = document.createElement('app-softphone');
+        const btn = document.createElement('button');
+        host.appendChild(btn);
+        document.body.appendChild(host);
+        endCall();
+        btn.focus();
+        hangUp();
+        expect(store.consumeAcwFocus(store.tabs()[0].id)).toBe(true);
+      });
+
+      it('requests it when the focus is lost (hotkey hang-up), not when the agent types', async () => {
+        await setup('/agent/desktop');
+        endCall();
+        (document.activeElement as HTMLElement | null)?.blur();
+        hangUp();
+        expect(store.consumeAcwFocus(store.tabs()[0].id)).toBe(true);
+      });
+
+      it('does not request it while the agent is typing', async () => {
+        await setup('/agent/desktop');
+        const input = document.createElement('textarea');
+        document.body.appendChild(input);
+        endCall();
+        input.focus();
+        hangUp();
+        expect(store.consumeAcwFocus(store.tabs()[0].id)).toBe(false);
+        expect(document.activeElement).toBe(input);
+      });
+
+      it('does not request it off the desktop, behind another tab or behind the calendar', async () => {
+        await setup('/agent/customers');
+        endCall();
+        hangUp();
+        expect(store.consumeAcwFocus(store.tabs()[0].id)).toBe(false);
+      });
+
+      it('does not request it while the calendar covers the tab', async () => {
+        await setup('/agent/desktop');
+        endCall();
+        store.calendarOpen.set(true);
+        hangUp();
+        expect(store.consumeAcwFocus(store.tabs()[0].id)).toBe(false);
+      });
+    });
+
     it('a remote hangup (CALL_HANGUP) off-desktop also enters ACW', async () => {
       await setup('/agent/customers');
       ring();

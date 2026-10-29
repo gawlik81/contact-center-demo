@@ -159,6 +159,39 @@ describe('ContactDraftStore', () => {
     expect(local).not.toHaveBeenCalled();
     local.mockRestore();
   });
+
+  it('caches the offered dispositions per contact and drops them with the contact', () => {
+    store.setAvailableDispositions('c1', [{ code: 'SOLD', label: 'S', tone: 'positive' }]);
+    expect(store.availableDispositions('c1')).toHaveLength(1);
+    expect(store.availableDispositions('c2')).toBeNull();
+    store.clear('c1');
+    expect(store.availableDispositions('c1')).toBeNull();
+    store.setAvailableDispositions('c3', []);
+    store.clearAll();
+    expect(store.availableDispositions('c3')).toBeNull();
+  });
+
+  it('rekey keeps the disposition draft under the new contactId (attended transfer bridge)', () => {
+    store.setDispositionDraft('old', { code: 'SOLD', notes: 'n' });
+    store.rekey('old', 'new');
+    expect(store.dispositionDraft('old')).toBeNull();
+    expect(store.dispositionDraft('new')).toEqual({ code: 'SOLD', notes: 'n' });
+  });
+
+  it('keeps the disposition draft per contact and drops it with the single cleanup point', () => {
+    store.setDispositionDraft('c1', { code: 'SOLD', notes: 'n' });
+    store.setDispositionDraft('c2', { code: 'NO_ANSWER', notes: '' });
+    expect(store.dispositionDraft('c1')).toEqual({ code: 'SOLD', notes: 'n' });
+    // it is not an "unsent draft": ACW closes only by saving, no Draft marker / close guard
+    expect(store.hasUnsentDraft('c1')).toBe(false);
+
+    store.clear('c1');
+    expect(store.dispositionDraft('c1')).toBeNull();
+    expect(store.dispositionDraft('c2')?.code).toBe('NO_ANSWER');
+
+    store.clearAll();
+    expect(store.dispositionDraft('c2')).toBeNull();
+  });
 });
 
 describe('ContactTabStore + ContactDraftStore', () => {

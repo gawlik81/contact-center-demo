@@ -159,6 +159,8 @@ export class ContactTabStore {
   /** Drops every tab, e.g. when the agent session ends. Drafts are cleared separately. */
   reset(): void {
     this.tabs.set([]);
+    this.acwFocusTabId.set(null);
+    this.calendarOpen.set(false);
   }
 
   setActiveTab(id: string): void {
@@ -166,8 +168,52 @@ export class ContactTabStore {
   }
 
   updateTabStatus(id: string, status: ContactTabStatus): void {
-    this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, status } : t)));
+    this.tabs.update((current) =>
+      current.map((t) => {
+        if (t.id !== id) return t;
+        // Stamp the start of ACW on entering it (kept while it lasts, so the timer survives
+        // remounts of the form) and drop it on leaving, so a later ACW starts from zero.
+        const wrappingSince =
+          status === 'WRAPPING'
+            ? t.status === 'WRAPPING'
+              ? (t.wrappingSince ?? Date.now())
+              : Date.now()
+            : undefined;
+        return { ...t, status, wrappingSince };
+      }),
+    );
   }
+
+  // ── ACW focus request ──────────────────────────────────────────────────────
+  // Focus moves into the disposition form only on an explicit agent action (activating the ACW
+  // tab, the "complete the disposition" banner), never on a render. The request outlives the
+  // form because it may be made before the form is mounted (banner -> navigation -> mount).
+
+  private readonly acwFocusTabId = signal<string | null>(null);
+
+  requestAcwFocus(tabId: string): void {
+    this.acwFocusTabId.set(tabId);
+  }
+
+  /** True once (and clears the request) when focus was requested for this tab. */
+  consumeAcwFocus(tabId: string): boolean {
+    if (this.acwFocusTabId() !== tabId) return false;
+    this.acwFocusTabId.set(null);
+    return true;
+  }
+
+  /** Tabs waiting for their disposition, longest-waiting first (ACW of a call that has ended). */
+  readonly acwTabs = computed<ContactTab[]>(() =>
+    this.tabs()
+      .filter((t) => t.type === 'PHONE' && t.status === 'WRAPPING')
+      .sort((a, b) => (a.wrappingSince ?? 0) - (b.wrappingSince ?? 0)),
+  );
+
+  /**
+   * The desktop shows the calendar instead of the contact tabs. Shared (not desktop-local) so the
+   * ACW banner knows that a WRAPPING tab which is "active" is in fact hidden behind the calendar.
+   */
+  readonly calendarOpen = signal(false);
 
   /**
    * Puts the tab into WRAPPING state (After Contact Work).

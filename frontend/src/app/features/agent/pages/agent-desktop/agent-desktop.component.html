@@ -21,16 +21,6 @@
   <app-add-break-modal (saved)="onBreakSavedFromHeader()" (cancelled)="addBreakOpen.set(false)" />
 }
 
-<!-- After Contact Work – Disposition Panel -->
-@if (wrappingTab()) {
-  <app-disposition-panel
-    [contactId]="wrappingTab()!.originalContactId ?? wrappingTab()!.contactId"
-    [customerName]="wrappingTab()!.customerName"
-    [prefillNotes]="wrappingNote()"
-    (saved)="onDispositionSaved()"
-  />
-}
-
 <!-- WebSocket disconnection banner -->
 @if (isOffline()) {
   <div class="ws-banner" role="alert" aria-live="assertive">
@@ -367,7 +357,19 @@
                       @for (current of [activeTab()!]; track current.id) {
                         @switch (current.type) {
                           @case ('PHONE') {
-                            <app-softphone [tab]="current" />
+                            @if (current.status === 'WRAPPING') {
+                              <!-- ACW: the disposition form is the content of the card (non-modal) -->
+                              <app-disposition-panel
+                                [contactId]="current.originalContactId ?? current.contactId"
+                                [tabId]="current.id"
+                                [draftKey]="draftKeyOf(current)"
+                                [wrappingSince]="current.wrappingSince ?? null"
+                                [customerName]="current.customerName"
+                                [prefillNotes]="phoneNoteOf(current)"
+                              />
+                            } @else {
+                              <app-softphone [tab]="current" />
+                            }
                           }
                           @case ('CHAT') {
                             <div class="chat-placeholder" role="status">

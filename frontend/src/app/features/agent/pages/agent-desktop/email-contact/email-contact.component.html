@@ -28,10 +28,10 @@
         </span>
       </div>
       <div class="email-header__meta">
-        <span class="email-header__from">
+        <span class="email-header__from" [title]="rootMessage()!.fromAddress">
           <strong>{{ 'agent.emailContact.from' | transloco }}:</strong> {{ rootMessage()!.fromAddress }}
         </span>
-        <span class="email-header__to">
+        <span class="email-header__to" [title]="rootMessage()!.toAddresses.join(', ')">
           <strong>{{ 'agent.emailContact.to' | transloco }}:</strong> {{ rootMessage()!.toAddresses.join(', ') }}
         </span>
       </div>

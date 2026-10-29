@@ -85,6 +85,11 @@
       </span>
     </div>
 
+    <!-- ACW reminder as an inline chip in the free space of the toolbar (FE-123): the contact
+         column keeps its height. Visible only here; on other agent pages the shell shows the
+         floating card, and only that instance owns the live region. -->
+    <cc-acw-banner placement="toolbar" />
+
     <!-- Quick actions: Calendar + Add Break -->
     <div class="desktop__header-actions">
       <button
@@ -331,9 +336,20 @@
                       <div class="contact-panel__avatar" aria-hidden="true">
                         {{ activeTab()!.customerName.charAt(0).toUpperCase() }}
                       </div>
-                      <div class="contact-panel__info">
+                      <!-- title: full text where the compact one-row header ellipsizes it -->
+                      <div
+                        class="contact-panel__info"
+                        [attr.title]="
+                          activeTab()!.customerName +
+                          (activeTab()!.customerIdentifier !== activeTab()!.customerName
+                            ? ' · ' + activeTab()!.customerIdentifier
+                            : '')
+                        "
+                      >
                         <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
-                        <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
+                        @if (activeTab()!.customerIdentifier !== activeTab()!.customerName) {
+                          <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
+                        }
                         <p class="contact-panel__since">
                           {{ 'agent.desktop.contactSince' | transloco }}
                           {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}

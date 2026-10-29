@@ -1,4 +1,5 @@
 /* You can add global styles to this file, and also import other style files */
+@use './app/shared/styles/breakpoints' as bp;
 
 // ── Base reset ────────────────────────────────────────────────────────────────
 *,
@@ -56,6 +57,51 @@ body {
   // 2xs: uppercase labels, pills, counters, KPI captions. xs: small secondary text.
   --fs-2xs: 0.6875rem; // 11px
   --fs-xs: 0.75rem; // 12px
+
+  // Chrome heights (FE-123). One place so the shell, the sidenav and the agent desktop agree.
+  // Normal: navbar 64 + toolbar 48 + tab bar 44 = 156px. Compact (<= 720px tall viewport,
+  // e.g. 1366x768 with browser chrome): 48 + 36 + 36 = 120px.
+  --navbar-h: 64px;
+  --desktop-toolbar-h: 48px;
+  --desktop-tabbar-h: 44px;
+  // Flexible agent columns: queue sidebar and customer panel give way before the contact content.
+  --desktop-sidebar-w: clamp(13.5rem, 17vw, 16.5rem); // 216..264px, 232px at 1366
+  --desktop-customer-w: clamp(14rem, 19vw, 17.5rem); // 224..280px, 260px at 1366
+  // Sidenav widths (single source for the sidenav and for what must stay clear of it).
+  --sidenav-w: 232px;
+  --sidenav-collapsed-w: 72px;
+  // Strip at the bottom of the shell reserved for the fixed ACW banner (0 when it is absent).
+  --shell-reserve-bottom: 0px;
+
+  @include bp.compact-height {
+    --navbar-h: 48px;
+    --desktop-toolbar-h: 36px;
+    --desktop-tabbar-h: 36px;
+  }
+}
+
+// Width the sidenav occupies at the left edge of the viewport: 0 while it is an overlay drawer
+// (< xl). `app-shell` toggles `sidenav-collapsed` on <html>. The floating ACW card starts after
+// it, so it never covers the collapse toggle, the connection indicator or the rail (FE-123).
+html {
+  --shell-sidenav-w: 0px;
+
+  @include bp.up(xl) {
+    --shell-sidenav-w: var(--sidenav-w);
+
+    &.sidenav-collapsed {
+      --shell-sidenav-w: var(--sidenav-collapsed-w);
+    }
+  }
+}
+
+// Set by cc-acw-banner while the banner is on screen (FE-123).
+html.has-acw-banner {
+  --shell-reserve-bottom: 4rem;
+
+  @include bp.compact-height {
+    --shell-reserve-bottom: 3rem;
+  }
 }
 
 // ── New Design System Tokens (oklch) ─────────────────────────────────────────

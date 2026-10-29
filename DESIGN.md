@@ -220,10 +220,33 @@ Tokeny rozmiaru w `styles.scss` (`:root`): `--fs-2xs` = 0.6875rem (11 px), `--fs
 
 Aplikacja to powłoka z nawigacją boczną i górnym paskiem (64 px). Nawigacja ma 232 px, a po zwinięciu 72 px (same ikony). Treść wypełnia resztę.
 
-- **Desktop (≥ 1280 px):** nawigacja jest statyczna, zawsze widoczna i zwijalna.
+- **Desktop (≥ 1280 px):** nawigacja jest statyczna, zawsze widoczna i zwijalna. Agent na oknie ≤ 1440 px, który nie wybrał inaczej, startuje ze zwiniętą nawigacją (rail 72 px); wybór użytkownika zawsze wygrywa.
 - **Tablet (1024–1279 px):** nawigacja to szuflada nad treścią, pod górnym paskiem, z przyciemnieniem tła.
-- **< 1024 px:** szuflada na całą wysokość. Powłoka ma dodatkowe dostosowania poniżej 600 px.
+- **< 1024 px:** szuflada na całą wysokość. Powłoka ma dodatkowe dostosowania poniżej 640 px.
 - Produkt celuje w 1366×768–4K, więc węższe układy to zapas, a nie główny scenariusz.
+
+### Skala breakpointów (FE-123)
+
+Jedna skala, jedno źródło: `frontend/src/app/shared/styles/_breakpoints.scss` (SCSS nie czyta `var()` w `@media`). W powierzchni agenta i powłoce zabroniony jest literał `px` w `@media`; używa się mixinów `bp.down(xs|sm|md|lg|xl|xxl)` (≤, włącznie), `bp.below`, `bp.up` i `bp.compact-height`.
+
+| Krok | Szerokość | Znaczenie |
+|------|-----------|-----------|
+| `xs` | 480 px | wąski telefon |
+| `sm` | 640 px | telefon: znika tekst „Wyloguj”, sidebar kolejki, karta klienta w nagłówkach |
+| `md` | 768 px | mały tablet: panel klienta agenta znika, kalendarz i callbacki przechodzą na jedną kolumnę |
+| `lg` | 1024 px | tablet: pasek KPI znika, tekst marki znika, e-mail układa wątek nad odpowiedzią |
+| `xl` | 1280 px | nawigacja boczna staje się statyczną kolumną |
+| `xxl` | 1440 px | ciasny laptop: znika etykieta „Status:”, nawigacja agenta startuje jako rail |
+
+Wysokość: `compact` = viewport ≤ 720 px (laptop 1366×768 z paskiem przeglądarki).
+
+### Budżet wysokości chrome (agent)
+
+Tokeny w `styles.scss`: `--navbar-h`, `--desktop-toolbar-h`, `--desktop-tabbar-h`. Normalnie 64 + 48 + 44 = 156 px; w trybie `compact` 48 + 36 + 36 = **120 px** (cel ticketu: ≤ 120 px przy 1366×768). Przypomnienie ACW na pulpicie agenta to chip w pasku narzędzi (`cc-acw-banner placement="toolbar"`, 0 px wysokości kolumny kontaktu). Na pozostałych stronach agenta pływa karta w rogu i dokłada rezerwę `--shell-reserve-bottom` (4 rem, w `compact` 3 rem) tylko gdy jest widoczna; shell dolicza ją do dolnego paddingu obszaru treści. W `compact` nagłówek kontaktu, nagłówek e-maila i panel podsumowania AI są jednowierszowe/zwarte (ok. 37 / 46 / 42 px).
+
+### Kolumny pulpitu agenta
+
+Bez stałych szerokości: panel kolejki `--desktop-sidebar-w` = `clamp(13.5rem, 17vw, 16.5rem)` (216–264 px), panel klienta `--desktop-customer-w` = `clamp(14rem, 19vw, 17.5rem)` (224–280 px). Treść kontaktu bierze resztę (`flex: 1`); e-mail ma minima kolumn: wątek 18 rem, odpowiedź 17,5 rem.
 
 Rytm odstępów: 4 / 6 / 8 / 10 / 12 / 16 px. Najczęstsze odstępy między elementami to 0.5rem, 0.75rem i 1rem, a w gęstych grupach (ikona + etykieta) 0.375rem. Lista nawigacji ma odstęp 2 px i wewnętrzny padding 10 px.
 

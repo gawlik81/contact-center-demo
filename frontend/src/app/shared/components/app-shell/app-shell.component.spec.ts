@@ -6,6 +6,7 @@ import pl from '../../../../../public/i18n/pl.json';
 import { AppShellComponent } from './app-shell.component';
 import { TopNavbarComponent } from '../top-navbar/top-navbar.component';
 import { SidenavComponent } from '../sidenav/sidenav.component';
+import { AuthService } from '../../../core/services/auth.service';
 import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
 
 @Component({ selector: 'cc-top-navbar', template: '' })
@@ -113,5 +114,68 @@ describe('AppShellComponent Escape handling (FE-134)', () => {
 
     pressEscape(false);
     expect(shell.sidenavOpen()).toBe(false);
+  });
+});
+
+describe('AppShellComponent sidenav on resize (FE-123)', () => {
+  function resizeTo(width: number): void {
+    vi.stubGlobal('innerWidth', width);
+    window.dispatchEvent(new Event('resize'));
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function open(fixture: ReturnType<typeof setup>): () => boolean {
+    const shell = fixture.componentInstance as unknown as { sidenavOpen: () => boolean };
+    return () => shell.sidenavOpen();
+  }
+
+  it('closes the overlay drawer when the window narrows below xl and restores it on return', () => {
+    vi.stubGlobal('innerWidth', 1366);
+    const fixture = setup();
+    fixture.detectChanges();
+    const isOpen = open(fixture);
+    expect(isOpen()).toBe(true);
+
+    resizeTo(1024);
+    expect(isOpen()).toBe(false);
+
+    resizeTo(1366);
+    expect(isOpen()).toBe(true);
+  });
+
+  it('does not touch a drawer the user opened while the window stays below xl', () => {
+    vi.stubGlobal('innerWidth', 1100);
+    const fixture = setup();
+    fixture.detectChanges();
+    const isOpen = open(fixture);
+    fixture.componentInstance.onToggleSidenav();
+    expect(isOpen()).toBe(true);
+
+    resizeTo(1000); // still tablet-width: no crossing, no change
+    expect(isOpen()).toBe(true);
+  });
+});
+
+describe('AppShellComponent initial sidenav state (FE-123)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+    document.documentElement.classList.remove('sidenav-collapsed');
+  });
+
+  it('starts collapsed in the first frame for an agent on a laptop window, and tells <html>', () => {
+    localStorage.clear();
+    vi.stubGlobal('innerWidth', 1334);
+    TestBed.configureTestingModule({
+      providers: [{ provide: AuthService, useValue: { currentRole: () => 'AGENT' } }],
+    });
+    const fixture = setup();
+    const shell = fixture.componentInstance as unknown as { sidenavCollapsed: () => boolean };
+    expect(shell.sidenavCollapsed()).toBe(true); // before any sidenav output was emitted
+    fixture.detectChanges();
+    expect(document.documentElement.classList.contains('sidenav-collapsed')).toBe(true);
+    fixture.destroy();
+    expect(document.documentElement.classList.contains('sidenav-collapsed')).toBe(false);
   });
 });

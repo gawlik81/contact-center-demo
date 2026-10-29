@@ -1,8 +1,10 @@
+@use '../../styles/breakpoints' as bp;
+
 .navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: var(--navbar-h);
   padding: 0 1rem;
   background: var(--bg-elevated, #ffffff);
   border-bottom: 1px solid var(--border-1, #e2e8f0);
@@ -23,7 +25,10 @@
     display: flex;
     align-items: center;
     gap: 0.625rem;
-    flex-shrink: 0;
+    // The user chip may shrink (ellipsis on the e-mail); the controls around it never do. Without
+    // this the bar overflowed horizontally around 945px (Logout clipped).
+    flex-shrink: 1;
+    min-width: 0;
   }
 
   // Hamburger button
@@ -91,7 +96,8 @@
     flex-direction: column;
     gap: 0;
 
-    @media (max-width: 640px) {
+    // Logo only on tablet-width windows: the text is the first thing to give way (FE-123).
+    @include bp.down(lg) {
       display: none;
     }
   }
@@ -135,17 +141,20 @@
     // flex-shrink: 0, więc bez odpowiedniego zapasu e-mail i tak obcina się
     // przez ellipsis, niezależnie od min-width na user-info.
     max-width: 460px;
+    min-width: 0;
+    flex-shrink: 1;
 
-    @media (max-width: 900px) {
+    @include bp.down(lg) {
       max-width: 260px;
     }
 
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       display: none;
     }
   }
 
   &__user-avatar {
+    flex-shrink: 0;
     width: 26px;
     height: 26px;
     border-radius: 50%;
@@ -226,7 +235,7 @@
   }
 
   &__logout-label {
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       display: none;
     }
   }
@@ -252,7 +261,7 @@
   // not the viewport: the tiers below depend on that, and on translated labels (pl/en/de/uk).
   container: kpi / inline-size;
 
-  @media (max-width: 1100px) {
+  @include bp.down(lg) {
     display: none;
   }
 }
@@ -269,6 +278,11 @@
   min-width: max-content;
   flex: 0 0 auto;
   // Read-only metric: flat at rest and on hover (no shadow, nothing that suggests a click).
+
+  // Low viewport: the strip must fit the 48px bar (tile = 2+2 padding + label + value + bar).
+  @include bp.compact-height {
+    padding-block: 2px;
+  }
 
   // Tone variants — only icon gets the color, tile stays neutral
   &--accent {

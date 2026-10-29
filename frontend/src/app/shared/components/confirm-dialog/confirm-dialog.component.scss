@@ -1,3 +1,5 @@
+@use '../../styles/breakpoints' as bp;
+
 .confirm-dialog {
   border: none;
   border-radius: var(--radius-md);
@@ -19,7 +21,7 @@
     backdrop-filter: blur(2px);
   }
 
-  @media (max-width: 480px) {
+  @include bp.down(xs) {
     max-width: calc(100% - 32px);
   }
 

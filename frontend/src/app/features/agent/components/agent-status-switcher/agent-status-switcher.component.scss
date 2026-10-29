@@ -1,3 +1,5 @@
+@use '../../../../shared/styles/breakpoints' as bp;
+
 // Exponential ease-out (quint-like): decelerates smoothly, no overshoot.
 $ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -19,7 +21,7 @@ $ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
     // Tight top bar (KPI strip, long de/uk labels): the pill alone carries the status; its
     // accessible name keeps the "Status:" label.
-    @media (max-width: 1440px) {
+    @include bp.down(xxl) {
       display: none;
     }
   }

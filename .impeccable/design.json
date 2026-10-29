@@ -667,18 +667,13 @@
       }
     ],
     "breakpoints": [
-      {
-        "name": "compact",
-        "value": "600px"
-      },
-      {
-        "name": "tablet",
-        "value": "1024px"
-      },
-      {
-        "name": "desktop",
-        "value": "1280px"
-      }
+      { "name": "xs", "value": "480px" },
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "xxl", "value": "1440px" },
+      { "name": "compact-height", "value": "max-height: 720px" }
     ]
   },
   "components": [

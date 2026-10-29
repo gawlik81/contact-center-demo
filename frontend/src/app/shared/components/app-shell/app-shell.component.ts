@@ -1,8 +1,19 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { TranslocoModule } from '@jsverse/transloco';
+import { AuthService } from '../../../core/services/auth.service';
 import { BreadcrumbService } from '../../../core/services/breadcrumb.service';
+import { BREAKPOINT_XL } from '../../styles/breakpoints';
+import { initialSidenavCollapsed } from '../../utils/sidenav-collapsed';
 import { TopNavbarComponent } from '../top-navbar/top-navbar.component';
 import { SidenavComponent } from '../sidenav/sidenav.component';
 import { BreadcrumbsComponent } from '../breadcrumbs/breadcrumbs.component';
@@ -29,27 +40,52 @@ export class AppShellComponent implements OnInit {
   protected readonly breadcrumbService = inject(BreadcrumbService);
   protected readonly sidenavOpen = signal(false);
 
-  /** Whether the sidenav is in collapsed (icon-only) mode */
-  protected readonly sidenavCollapsed = signal(false);
+  /**
+   * Whether the sidenav is in collapsed (icon-only) mode. Computed synchronously from the same
+   * source as the sidenav itself, so the first frame is already right (no wide-then-rail jump).
+   */
+  protected readonly sidenavCollapsed = signal(
+    initialSidenavCollapsed(
+      inject(AuthService).currentRole(),
+      inject(DOCUMENT).defaultView ?? undefined,
+    ),
+  );
 
-  /** On desktop (>=1280px) the sidenav is always visible */
-  private readonly DESKTOP_BREAKPOINT = 1280;
+  /** `sidenav-collapsed` on <html> lets fixed overlays (ACW card) stay clear of the sidenav. */
+  private readonly rootClassEffect = effect(() => {
+    this.document.documentElement.classList.toggle('sidenav-collapsed', this.sidenavCollapsed());
+  });
+
+  private readonly releaseRootClass = inject(DestroyRef).onDestroy(() =>
+    this.document.documentElement.classList.remove('sidenav-collapsed'),
+  );
+
+  /** Last known side of the breakpoint, so a resize acts only when the window crosses it. */
+  private wasDesktop = false;
 
   private get windowWidth(): number {
     return this.document.defaultView?.innerWidth ?? 0;
   }
 
+  private get isDesktop(): boolean {
+    return this.windowWidth >= BREAKPOINT_XL;
+  }
+
   ngOnInit(): void {
     // Open sidenav by default on desktop
-    if (this.windowWidth >= this.DESKTOP_BREAKPOINT) {
+    this.wasDesktop = this.isDesktop;
+    if (this.wasDesktop) {
       this.sidenavOpen.set(true);
     }
   }
 
   onResize(): void {
-    if (this.windowWidth >= this.DESKTOP_BREAKPOINT) {
-      this.sidenavOpen.set(true);
-    }
+    const desktop = this.isDesktop;
+    if (desktop === this.wasDesktop) return; // same side: keep what the user chose (drawer etc.)
+    this.wasDesktop = desktop;
+    // Crossing into desktop restores the column; crossing out closes it, otherwise the overlay
+    // drawer (with its backdrop) would open by itself on top of the page (FE-123).
+    this.sidenavOpen.set(desktop);
   }
 
   onToggleSidenav(): void {
@@ -58,7 +94,7 @@ export class AppShellComponent implements OnInit {
 
   onCloseSidenav(): void {
     // Only close on mobile/tablet; on desktop keep open
-    if (this.windowWidth < this.DESKTOP_BREAKPOINT) {
+    if (!this.isDesktop) {
       this.sidenavOpen.set(false);
     }
   }
@@ -78,7 +114,7 @@ export class AppShellComponent implements OnInit {
     // An inner control (e.g. the agent status menu) already used this Esc: do not also close
     // the drawer.
     if (event?.defaultPrevented) return;
-    if (this.windowWidth < this.DESKTOP_BREAKPOINT && this.sidenavOpen()) {
+    if (!this.isDesktop && this.sidenavOpen()) {
       this.sidenavOpen.set(false);
     }
   }

@@ -5,17 +5,19 @@ import { TranslocoService, TranslocoTestingModule } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 import pl from '../../../../../../public/i18n/pl.json';
 import { ContactTabStore } from '../../services/contact-tab.store';
-import { AcwBannerComponent } from './acw-banner.component';
+import { ACW_BANNER_ROOT_CLASS, AcwBannerComponent } from './acw-banner.component';
 
 @Component({ template: '' })
 class BlankComponent {}
 
 describe('AcwBannerComponent', () => {
   let fixture: ComponentFixture<AcwBannerComponent>;
+  let toolbar: ComponentFixture<AcwBannerComponent>;
   let store: ContactTabStore;
   let router: Router;
 
   const banner = () => fixture.nativeElement.querySelector('.acw-banner') as HTMLElement | null;
+  const chip = () => toolbar.nativeElement.querySelector('.acw-banner') as HTMLElement | null;
   const live = () =>
     (fixture.nativeElement.querySelector('[role="status"]') as HTMLElement).textContent!.trim();
 
@@ -66,6 +68,8 @@ describe('AcwBannerComponent', () => {
     router = TestBed.inject(Router);
     await router.navigateByUrl('/agent/customers');
     fixture = TestBed.createComponent(AcwBannerComponent);
+    toolbar = TestBed.createComponent(AcwBannerComponent);
+    toolbar.componentRef.setInput('placement', 'toolbar');
   });
 
   it('is absent when no call waits for its disposition', () => {
@@ -88,6 +92,23 @@ describe('AcwBannerComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[role="alert"], [aria-live="assertive"]'),
     ).toBeNull();
+  });
+
+  it('reserves room in the shell while visible and releases it when gone (FE-123)', () => {
+    const rootClasses = document.documentElement.classList;
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
+    expect(rootClasses.contains(ACW_BANNER_ROOT_CLASS)).toBe(true);
+    store.closeTab('p');
+    fixture.detectChanges();
+    expect(rootClasses.contains(ACW_BANNER_ROOT_CLASS)).toBe(false);
+  });
+
+  it('releases the reserved room when destroyed', () => {
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
+    fixture.destroy();
+    expect(document.documentElement.classList.contains(ACW_BANNER_ROOT_CLASS)).toBe(false);
   });
 
   it('never moves focus when it appears', async () => {
@@ -121,11 +142,81 @@ describe('AcwBannerComponent', () => {
     openPhone('WRAPPING', true);
     await router.navigateByUrl('/agent/desktop');
     fixture.detectChanges();
+    toolbar.detectChanges();
     expect(banner()).toBeNull();
+    expect(chip()).toBeNull();
 
     store.setActiveTab('m');
     fixture.detectChanges();
+    toolbar.detectChanges();
+    // On the desktop the reminder is the toolbar chip; the floating card steps aside.
+    expect(chip()).not.toBeNull();
+    expect(banner()).toBeNull();
+  });
+
+  it('the chip shows only on the desktop, the floating card only elsewhere, never both', async () => {
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
+    toolbar.detectChanges();
+    expect(banner()).not.toBeNull(); // /agent/customers
+    expect(chip()).toBeNull();
+
+    await router.navigateByUrl('/agent/desktop');
+    fixture.detectChanges();
+    toolbar.detectChanges();
+    expect(banner()).toBeNull();
+    expect(chip()).not.toBeNull();
+  });
+
+  it('only the floating card reserves room under the content (the chip takes none)', async () => {
+    const root = document.documentElement.classList;
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
+    toolbar.detectChanges();
+    expect(root.contains(ACW_BANNER_ROOT_CLASS)).toBe(true);
+
+    await router.navigateByUrl('/agent/desktop');
+    fixture.detectChanges();
+    toolbar.detectChanges();
+    expect(root.contains(ACW_BANNER_ROOT_CLASS)).toBe(false);
+  });
+
+  it('the toolbar instance has no live region of its own (no duplicate announcement)', async () => {
+    await router.navigateByUrl('/agent/desktop');
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
+    toolbar.detectChanges();
+    expect(toolbar.nativeElement.querySelector('[role="status"]')).toBeNull();
+    expect(live()).toContain('Jan Kowalski'); // the shell instance still announces, once
+  });
+
+  it('/agent/desktop-foo is not the desktop (segment match)', async () => {
+    TestBed.inject(Router).resetConfig([
+      { path: 'agent/desktop-foo', component: BlankComponent },
+      { path: 'agent/desktop', component: BlankComponent },
+    ]);
+    await router.navigateByUrl('/agent/desktop-foo?x=1');
+    openPhone('WRAPPING', false);
+    fixture.detectChanges();
     expect(banner()).not.toBeNull();
+    await router.navigateByUrl('/agent/desktop?x=1');
+    fixture.detectChanges();
+    expect(banner()).toBeNull();
+  });
+
+  it('the chip names the oldest card, shows +N and its button goes to the card', async () => {
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    await router.navigateByUrl('/agent/desktop');
+    openPhone('WRAPPING', false);
+    toolbar.detectChanges();
+    expect(chip()!.textContent).toContain('Jan Kowalski');
+    expect(chip()!.getAttribute('title')).toBeNull(); // no copy of the aria-label
+    expect(chip()!.querySelector('.acw-banner__who')!.getAttribute('title')).toBe('Jan Kowalski');
+
+    (chip()!.querySelector('button') as HTMLButtonElement).click();
+    expect(store.activeTab()?.id).toBe('p');
+    expect(store.consumeAcwFocus('p')).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(['/agent/desktop']);
   });
 
   it('disappears once the disposition is saved (tab closed)', () => {
@@ -142,10 +233,10 @@ describe('AcwBannerComponent', () => {
     openPhone('WRAPPING', true);
     await router.navigateByUrl('/agent/desktop');
     store.calendarOpen.set(true);
-    fixture.detectChanges();
-    expect(banner()).not.toBeNull();
+    toolbar.detectChanges();
+    expect(chip()).not.toBeNull();
 
-    (banner()!.querySelector('button') as HTMLButtonElement).click();
+    (chip()!.querySelector('button') as HTMLButtonElement).click();
     expect(store.calendarOpen()).toBe(false);
     expect(navigate).toHaveBeenCalled();
   });
@@ -158,12 +249,14 @@ describe('AcwBannerComponent', () => {
     openPhone('ACTIVE', true);
     store.calendarOpen.set(true);
     fixture.detectChanges();
-    expect(banner()).toBeNull();
+    toolbar.detectChanges();
+    expect(chip()).toBeNull();
 
     store.markAsWrapping('p');
     fixture.detectChanges();
+    toolbar.detectChanges();
     await fixture.whenStable();
-    expect(banner()).not.toBeNull();
+    expect(chip()).not.toBeNull();
     expect(store.calendarOpen()).toBe(true); // we rely on the banner, the calendar stays
     expect(document.activeElement).toBe(field);
     field.remove();
@@ -183,15 +276,17 @@ describe('AcwBannerComponent', () => {
       subtree: true,
     });
 
-    await router.navigateByUrl('/agent/desktop'); // other tab active: still visible
+    await router.navigateByUrl('/agent/desktop'); // other tab active: the chip takes over
     fixture.detectChanges();
-    store.setActiveTab('p'); // in front: banner hides
+    toolbar.detectChanges();
+    store.setActiveTab('p'); // in front: reminder hides
     fixture.detectChanges();
-    store.setActiveTab('m'); // behind again: banner returns
+    store.setActiveTab('m'); // behind again: reminder returns
     fixture.detectChanges();
+    toolbar.detectChanges();
     await Promise.resolve();
 
-    expect(banner()).not.toBeNull();
+    expect(chip()).not.toBeNull();
     expect(live()).toBe(first);
     expect(changes).toEqual([]);
   });

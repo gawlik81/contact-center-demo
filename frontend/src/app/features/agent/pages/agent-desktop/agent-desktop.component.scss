@@ -1,3 +1,5 @@
+@use '../../../../shared/styles/breakpoints' as bp;
+
 // ===== WS / Limit Banners =====
 
 .ws-banner {
@@ -92,7 +94,7 @@
   min-height: 0;
   overflow: hidden;
 
-  @media (max-width: 600px) {
+  @include bp.down(sm) {
     margin: -1rem;
     width: calc(100% + 2rem);
   }
@@ -117,12 +119,12 @@
     border-bottom: 1px solid var(--border-1, #e2e8f0);
     flex-shrink: 0;
     gap: 0.875rem;
-    height: 48px;
+    // 48px, 36px on a low viewport (--desktop-toolbar-h, styles.scss). Buttons keep >= 28px height.
+    height: var(--desktop-toolbar-h);
     box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.03));
 
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       padding: 0 1rem;
-      height: 44px;
     }
   }
 
@@ -139,6 +141,7 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.75rem;
+    min-height: 1.75rem;
     border-radius: var(--radius-md, 10px);
     background: transparent;
     border: 1px solid transparent;
@@ -186,7 +189,7 @@
 
   // ── Left sidebar: queue panel ─────────────────────────────────────────────
   &__sidebar {
-    width: 264px;
+    width: var(--desktop-sidebar-w);
     flex-shrink: 0;
     background: var(--bg-sidebar, #f8fafc);
     border-right: 1px solid var(--border-1, #e2e8f0);
@@ -204,11 +207,7 @@
       border-radius: 2px;
     }
 
-    @media (max-width: 960px) {
-      width: 220px;
-    }
-
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       display: none;
     }
   }
@@ -239,7 +238,7 @@
 
   // ── Right panel: customer profile ─────────────────────────────────────────
   &__customer-panel {
-    width: 280px;
+    width: var(--desktop-customer-w);
     flex-shrink: 0;
     background: var(--bg-elevated, #ffffff);
     border-left: 1px solid var(--border-1, #e2e8f0);
@@ -258,11 +257,7 @@
       border-radius: 2px;
     }
 
-    @media (max-width: 1200px) {
-      width: 240px;
-    }
-
-    @media (max-width: 900px) {
+    @include bp.down(md) {
       display: none;
     }
 
@@ -641,7 +636,7 @@
     border-bottom: 1px solid var(--border-1, #e2e8f0);
     overflow-x: auto;
     flex-shrink: 0;
-    height: 44px;
+    height: var(--desktop-tabbar-h);
     scrollbar-width: none;
 
     &::-webkit-scrollbar {
@@ -887,11 +882,18 @@
     background: var(--bg-elevated, #ffffff);
     flex-shrink: 0;
     box-shadow: var(--shadow-sm, 0 1px 0 #e2e8f0);
+
+    // Low viewport: name, identifier and start time share ONE row (see __info), so the header is
+    // ~37px instead of ~67px.
+    @include bp.compact-height {
+      padding: 4px 16px;
+    }
   }
 
   &__avatar {
     width: 36px;
     height: 36px;
+
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent, #3b82f6) 0%, var(--violet, #8b5cf6) 100%);
     display: flex;
@@ -903,6 +905,13 @@
     flex-shrink: 0;
     letter-spacing: -0.01em;
     box-shadow: 0 0 0 2px var(--accent-soft, rgba(59, 130, 246, 0.2));
+
+    // After the base declarations: an @include before them would lose to the later font-size.
+    @include bp.compact-height {
+      width: 28px;
+      height: 28px;
+      font-size: 0.8125rem;
+    }
   }
 
   &__info {
@@ -911,6 +920,12 @@
     display: flex;
     flex-direction: column;
     gap: 0;
+
+    @include bp.compact-height {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
   }
 
   &__name {
@@ -923,6 +938,11 @@
     text-overflow: ellipsis;
     letter-spacing: -0.015em;
     line-height: 1.3;
+
+    @include bp.compact-height {
+      flex: 0 1 auto;
+      max-width: 55%;
+    }
   }
 
   &__identifier {
@@ -933,6 +953,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.4;
+
+    @include bp.compact-height {
+      flex: 1 1 0;
+      min-width: 0;
+    }
   }
 
   &__since {
@@ -941,6 +966,11 @@
     margin: 0;
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
+
+    @include bp.compact-height {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
   }
 
   &__type-badge {

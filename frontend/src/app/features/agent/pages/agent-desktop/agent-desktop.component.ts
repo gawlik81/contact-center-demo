@@ -37,6 +37,7 @@ import { CallLifecycleService } from '../../services/call-lifecycle.service';
 import { DispositionSaveService } from '../../services/disposition-save.service';
 import { CallState } from '../../models/call-session.model';
 import { QueueStateService } from '../../services/queue-state.service';
+import { AcwBannerComponent } from '../../components/acw-banner/acw-banner.component';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
@@ -93,6 +94,7 @@ interface ToolbarManualAction {
     ContactDetailModalComponent,
     PluginPanelHostComponent,
     ConfirmDialogComponent,
+    AcwBannerComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',

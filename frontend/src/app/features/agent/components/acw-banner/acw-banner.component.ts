@@ -1,24 +1,40 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
+  input,
   signal,
   untracked,
 } from '@angular/core';
-import { Router } from '@angular/router';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { currentUrlSignal } from '../../../../shared/utils/router-url.util';
+import { AcwReminderService } from '../../services/acw-reminder.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
+
+/**
+ * Class on `<html>` while the FLOATING card is on screen. styles.scss turns it into
+ * `--shell-reserve-bottom`, which the shell adds to the bottom padding of its content area, so the
+ * card never covers the contact content or its buttons (FE-123).
+ */
+export const ACW_BANNER_ROOT_CLASS = 'has-acw-banner';
 
 /**
  * Reminder that a finished call still needs its disposition (ACW), shown when the form is not in
  * front of the agent: the call ended on another agent page (e.g. /agent/customers), on the
  * desktop while another tab is active, or while the calendar view covers the tab.
  *
- * Non-modal and passive: it is announced politely (once per ACW tab, through a persistent status
- * region) and never takes focus. Focus moves into the form only when the agent presses the button.
+ * Two placements share one state (AcwReminderService):
+ * - `floating` (agent shell, every agent page): a fixed card, hidden on the desktop. It also owns
+ *   the single polite live region, so the announcement happens once per ACW tab wherever the
+ *   reminder is drawn, and the reserved room under the content.
+ * - `toolbar` (desktop toolbar): an inline chip in the free space of the 36px bar, so the contact
+ *   column keeps its whole height. No live region of its own.
+ *
+ * Non-modal and passive: it never takes focus; focus moves into the form only when the agent
+ * presses the button.
  */
 @Component({
   selector: 'cc-acw-banner',
@@ -29,33 +45,41 @@ import { ContactTabStore } from '../../services/contact-tab.store';
 })
 export class AcwBannerComponent {
   private readonly tabStore = inject(ContactTabStore);
-  private readonly router = inject(Router);
+  private readonly reminder = inject(AcwReminderService);
   private readonly transloco = inject(TranslocoService);
-  private readonly url = currentUrlSignal();
+  private readonly rootClassList = inject(DOCUMENT).documentElement.classList;
 
-  /** The ACW tab waiting longest, unless the form is already in front of the agent. */
-  protected readonly pendingTab = computed(() => {
-    const tab = this.tabStore.acwTabs()[0];
-    if (!tab) return null;
-    const inFront =
-      this.url().startsWith('/agent/desktop') && tab.isActive && !this.tabStore.calendarOpen();
-    return inFront ? null : tab;
-  });
+  readonly placement = input<'floating' | 'toolbar'>('floating');
 
-  /** Further ACW tabs besides the one shown (future-proof: today there is one PHONE tab). */
-  protected readonly moreCount = computed(() => Math.max(0, this.tabStore.acwTabs().length - 1));
+  protected readonly isFloating = computed(() => this.placement() === 'floating');
+  protected readonly pendingTab = this.reminder.pendingTab;
+  protected readonly moreCount = this.reminder.moreCount;
+  protected readonly who = this.reminder.who;
 
-  /** Name for the banner; falls back to the number when the lookup did not resolve a name. */
-  protected readonly who = computed(() => {
-    const tab = this.pendingTab();
-    return tab ? tab.customerName || tab.customerIdentifier : '';
-  });
+  /** The card for this placement is on screen: toolbar only on the desktop, floating elsewhere. */
+  protected readonly visible = computed(
+    () =>
+      this.pendingTab() !== null &&
+      (this.isFloating() ? !this.reminder.onDesktop() : this.reminder.onDesktop()),
+  );
 
   /** Text of the persistent status region; changes only for an ACW tab not announced before. */
   protected readonly announcement = signal('');
   private announcedIds = new Set<string>();
 
+  private readonly reserveSpaceEffect = effect(() => {
+    // Only the floating card takes room under the content; the toolbar chip takes none and must
+    // not touch the class the floating instance owns.
+    if (!this.isFloating()) return;
+    this.rootClassList.toggle(ACW_BANNER_ROOT_CLASS, this.visible());
+  });
+
+  private readonly releaseOnDestroy = inject(DestroyRef).onDestroy(() => {
+    if (this.isFloating()) this.rootClassList.remove(ACW_BANNER_ROOT_CLASS);
+  });
+
   private readonly announceEffect = effect(() => {
+    if (!this.isFloating()) return;
     const pending = this.pendingTab();
     const liveIds = new Set(this.tabStore.acwTabs().map((t) => t.id));
     untracked(() => {
@@ -73,12 +97,6 @@ export class AcwBannerComponent {
   });
 
   protected complete(): void {
-    const tab = this.pendingTab();
-    if (!tab) return;
-    // The calendar view would hide the form: leave it (an explicit action of the agent).
-    this.tabStore.calendarOpen.set(false);
-    this.tabStore.setActiveTab(tab.id);
-    this.tabStore.requestAcwFocus(tab.id);
-    void this.router.navigate(['/agent/desktop']);
+    this.reminder.complete();
   }
 }

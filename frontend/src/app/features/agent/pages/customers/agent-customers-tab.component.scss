@@ -1,3 +1,5 @@
+@use '../../../../shared/styles/breakpoints' as bp;
+
 // ===== Host =====
 :host {
   display: flex;
@@ -284,7 +286,7 @@
   animation: drawer-enter 200ms ease;
   z-index: 10;
 
-  @media (max-width: 680px) {
+  @include bp.down(sm) {
     width: 100%;
     border-left: none;
     border-top: 1px solid var(--border-1);

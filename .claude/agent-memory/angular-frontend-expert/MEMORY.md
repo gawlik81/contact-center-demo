@@ -94,3 +94,4 @@
 - [FE-110 CR fixes](./project_fe110_cr_fixes.md) – CAMPAIGN_DATA opis=tylko archiwum, hinty tylko CONTACT_INTERACTIONS, parytet i18n przez JSON import (resolveJsonModule)
 - [FE-119 hardcoded copy, BRAND, CHAT, aiSummary i18n](./project_fe119_hardcoded_copy.md) – KPI bez fałszywych celów (navbar), core/brand.ts, jeden przycisk przerwy w nagłówku, agent.aiSummary.*, testy OnPush+transloco per język
 - [FE-122 ACW inline (2026-10-29)](./project_fe122_acw_inline.md) – panel jako treść karty PHONE, DispositionSaveService, cc-acw-banner, focus request w ContactTabStore
+- [FE-123 layout 1366x768 (2026-10-29)](./project_fe123_layout_1366.md) – skala breakpointow (_breakpoints.scss), tokeny wysokosci chrome, rezerwa dla bannera ACW, rail sidenavu agenta

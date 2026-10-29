@@ -1,3 +1,5 @@
+@use '../../../../shared/styles/breakpoints' as bp;
+
 // ── Page layout ────────────────────────────────────────────────────────────────
 .callbacks-page {
   &__header {
@@ -211,13 +213,13 @@
 }
 
 // ── Responsive column hiding ────────────────────────────────────────────────
-@media (max-width: 480px) {
+@include bp.down(xs) {
   .hide-xs {
     display: none;
   }
 }
 
-@media (max-width: 768px) {
+@include bp.down(md) {
   .hide-sm {
     display: none;
   }

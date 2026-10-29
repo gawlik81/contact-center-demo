@@ -1,3 +1,5 @@
+@use '../../styles/breakpoints' as bp;
+
 :host {
   display: block;
 }
@@ -176,7 +178,7 @@
     flex: 1;
   }
 
-  @media (max-width: 480px) {
+  @include bp.down(xs) {
     flex-direction: column;
   }
 }

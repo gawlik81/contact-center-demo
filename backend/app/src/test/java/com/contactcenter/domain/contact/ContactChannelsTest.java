@@ -28,4 +28,16 @@ class ContactChannelsTest {
     void isSocial(String channel, boolean expected) {
         assertThat(ContactChannels.isSocial(channel)).isEqualTo(expected);
     }
+
+    @ParameterizedTest
+    @CsvSource({"EMAIL,true", "CHAT,true", "SOCIAL_FACEBOOK,true", "SOCIAL_INSTAGRAM,true", "SOCIAL_WHATSAPP,true",
+            "PHONE,false", "VOICEBOT,false"})
+    void isAsync(String channel, boolean expected) {
+        assertThat(ContactChannels.isAsync(channel)).isEqualTo(expected);
+    }
+
+    @Test
+    void nullIsNotAsync() {
+        assertThat(ContactChannels.isAsync(null)).isFalse();
+    }
 }

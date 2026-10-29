@@ -23,6 +23,8 @@ import java.util.UUID;
  * @param contactChannel    kanał kontaktu: VOICE, EMAIL, CHAT
  * @param eligibleAgentIds  zbiór UUID agentów uprawnionych do obsługi kolejki;
  *                          {@code null} oznacza all_agents=TRUE (brak filtru – wszyscy agenci tenanta)
+ * @param excludedAgentIds  agenci wykluczeni dla TEGO kontaktu (anti-ping-pong po zwrocie do kolejki,
+ *                          BE-160/BE-156); pusty zbiór = brak wykluczeń. Dotyczy wszystkich strategii i sticky
  */
 public record RoutingRequest(
         UUID tenantId,
@@ -31,8 +33,26 @@ public record RoutingRequest(
         List<String> requiredSkills,
         UUID preferredAgentId,
         String contactChannel,
-        Set<UUID> eligibleAgentIds
+        Set<UUID> eligibleAgentIds,
+        Set<UUID> excludedAgentIds
 ) {
+
+    /** Compact constructor: a missing exclusion set means "no exclusions". */
+    public RoutingRequest {
+        excludedAgentIds = excludedAgentIds != null ? excludedAgentIds : Set.of();
+    }
+
+    /** Request without per-contact exclusions (phone path, legacy callers). */
+    public RoutingRequest(UUID tenantId, UUID queueId, String routingStrategy, List<String> requiredSkills,
+                          UUID preferredAgentId, String contactChannel, Set<UUID> eligibleAgentIds) {
+        this(tenantId, queueId, routingStrategy, requiredSkills, preferredAgentId, contactChannel,
+                eligibleAgentIds, Set.of());
+    }
+
+    /** True when the agent must not receive this contact (it was just returned to the queue by them). */
+    public boolean isExcluded(UUID agentId) {
+        return excludedAgentIds.contains(agentId);
+    }
 
     /** Zwraca true gdy skonfigurowany jest sticky agent. */
     public boolean hasStickyAgent() {
@@ -69,6 +89,12 @@ public record RoutingRequest(
      */
     public static RoutingRequest of(Contact contact, Queue queue, UUID tenantId,
                                     Set<UUID> eligibleAgentIds) {
+        return of(contact, queue, tenantId, eligibleAgentIds, Set.of());
+    }
+
+    /** Same as above with the agents excluded for this contact (BE-160 anti-ping-pong). */
+    public static RoutingRequest of(Contact contact, Queue queue, UUID tenantId,
+                                    Set<UUID> eligibleAgentIds, Set<UUID> excludedAgentIds) {
         return new RoutingRequest(
                 tenantId,
                 queue.getQueueId(),
@@ -76,7 +102,8 @@ public record RoutingRequest(
                 queue.getRequiredSkills() != null ? new ArrayList<>(queue.getRequiredSkills()) : List.of(),
                 contact.getAgentId(),   // sticky agent (może być null)
                 contact.getChannel(),
-                eligibleAgentIds
+                eligibleAgentIds,
+                excludedAgentIds
         );
     }
 }

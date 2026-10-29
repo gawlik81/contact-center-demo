@@ -558,3 +558,7 @@ agent:
       # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
       # fixedDelay: co 30s po zakończeniu poprzedniego cyklu.
       interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:30000}
+
+# BE-160 / BE-156: how long an agent who returned an async contact to the queue is excluded from receiving it again
+routing:
+  release-exclusion-ttl: 5m

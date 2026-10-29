@@ -23,6 +23,10 @@ import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
+import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.ReleaseExclusionStore;
+import com.contactcenter.domain.social.SocialDefaultQueueResolver;
+import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -43,7 +47,10 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -93,6 +100,8 @@ class ContactServiceImpl implements ContactService {
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
+    private final ReleaseExclusionStore releaseExclusionStore;
 
     /**
      * Wymagany do rozwiązywania nazw agentów (resolveAgentName, transfer metadata).
@@ -118,6 +127,22 @@ class ContactServiceImpl implements ContactService {
     @Lazy
     public void setExtensionPointPublisher(ExtensionPointPublisher extensionPointPublisher) {
         this.extensionPointPublisher = extensionPointPublisher;
+    }
+
+    /**
+     * Resolves the default queue of a social contact that has none (BE-160, like BE-155).
+     * {@code @Lazy} setter. The cycle is NOT proven away: ContactServiceImpl -> SocialDefaultQueueResolver ->
+     * TenantServiceImpl, and TenantServiceImpl already sits on the known cycle
+     * UserServiceImpl -> ContactServiceImpl -> TwilioTelephonyAdapter -> TenantServiceImpl -> UserServiceImpl
+     * (broken there by @Lazy setters). Constructor injection could not be verified: the only full-context
+     * test (ContactCenterApplicationIT) excludes DataSource/JPA, so it would not start the repositories.
+     */
+    private SocialDefaultQueueResolver socialDefaultQueueResolver;
+
+    @Autowired
+    @Lazy
+    public void setSocialDefaultQueueResolver(SocialDefaultQueueResolver socialDefaultQueueResolver) {
+        this.socialDefaultQueueResolver = socialDefaultQueueResolver;
     }
 
     private static final Set<String> TERMINAL_CONTACT_STATUSES =
@@ -490,6 +515,7 @@ class ContactServiceImpl implements ContactService {
             throw new InvalidOperationException(
                     "Agent może aktualizować tylko kontakty przypisane do siebie: " + contactId);
         }
+        rejectAgentOnUnownedQueuedAsync(contact, isAgent);
 
         // PATCH semantics – null = bez zmiany
         if (request.agentId() != null) {
@@ -554,6 +580,8 @@ class ContactServiceImpl implements ContactService {
             throw new InvalidOperationException(
                     "Agent może ustawiać disposition tylko na własnych kontaktach: " + contactId);
         }
+
+        rejectAgentOnUnownedQueuedAsync(contact, isAgent);
 
         // Walidacja statusu – disposition ma sens tylko po zakończeniu kontaktu
         if ("QUEUED".equals(contact.getStatus()) || "ACTIVE".equals(contact.getStatus())) {
@@ -645,10 +673,18 @@ class ContactServiceImpl implements ContactService {
                     "Kontakt jest przypisany do innego agenta: " + contactId);
         }
 
-        Instant now = Instant.now();
-        contact.setStatus("ACTIVE");
-        contact.setUpdatedAt(now);
-        contactRepository.update(contact);
+        // Conditional UPDATE (status ASSIGNED + owner): a lost race with release / re-assignment must not
+        // overwrite the new state with a stale full-entity write (BE-160 review; the rest is BE-159)
+        int updated = contactRepository.acceptIfAssigned(contactId, tenantId, agentId);
+        if (updated == 0) {
+            Contact current = findContactOrThrow(contactId, tenantId);
+            if ("ACTIVE".equals(current.getStatus()) && agentId.equals(current.getAgentId())) {
+                return getContactInternal(contactId, tenantId);
+            }
+            throw new InvalidOperationException(
+                    "Kontakt zmienił stan lub właściciela w trakcie akceptacji (status: " +
+                    current.getStatus() + "): " + contactId);
+        }
 
         log.info("[ContactService] Kontakt zaakceptowany przez agenta: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);
@@ -676,6 +712,9 @@ class ContactServiceImpl implements ContactService {
             throw new InvalidOperationException(
                     "Kontakt jest przypisany do innego agenta: " + contactId);
         }
+        // BE-160: QUEUED async contact with no agent (e.g. returned to the queue) is not the caller's any more
+        String role = TenantContext.getUserRole();
+        rejectAgentOnUnownedQueuedAsync(contact, "AGENT".equals(role) || "ROLE_AGENT".equals(role));
 
         Instant now = Instant.now();
         contact.setStatus("ABANDONED");
@@ -690,6 +729,116 @@ class ContactServiceImpl implements ContactService {
                 contactId, agentId, tenantId);
 
         return getContactInternal(contactId, tenantId);
+    }
+
+    // =========================================================================
+    // Return of an async contact to the queue (BE-160)
+    // =========================================================================
+
+    @Transactional
+    @Audited(action = "CONTACT_RELEASED", entityType = "CONTACT")
+    @Override
+    public ContactResponse releaseContact(UUID contactId, UUID tenantId, UUID agentId) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        if (!ContactChannels.isAsync(contact.getChannel())) {
+            throw new InvalidOperationException(
+                    "Zwrot do kolejki dotyczy tylko kanałów asynchronicznych (EMAIL, CHAT, SOCIAL): " + contactId);
+        }
+
+        // Idempotency - already waiting in the queue with no agent. Ownership cannot be proven here (agent_id
+        // was cleared), so any caller gets 200. Known limitation: the @Audited aspect still writes a
+        // CONTACT_RELEASED entry for this no-op (the aspect has no skip hook; deferred).
+        if ("QUEUED".equals(contact.getStatus()) && contact.getAgentId() == null) {
+            return getContactInternal(contactId, tenantId);
+        }
+
+        if (!"ASSIGNED".equals(contact.getStatus()) && !"ACTIVE".equals(contact.getStatus())) {
+            throw new InvalidOperationException(
+                    "Kontakt nie jest w stanie przypisanym do agenta (aktualny status: " +
+                    contact.getStatus() + "): " + contactId);
+        }
+
+        if (!agentId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Kontakt jest przypisany do innego agenta: " + contactId);
+        }
+
+        UUID queueId = resolveReleaseQueueId(contact, tenantId);
+
+        // One instant for queued_at and the new QUEUE stage. queued_at is reset on purpose (owner decision):
+        // the returned contact goes to the END of the FIFO queue; first-response SLA from the original
+        // queued_at is not preserved.
+        Instant now = Instant.now();
+        Instant assignedAt = contact.getAssignedAt();
+
+        int updated = contactRepository.releaseToQueue(contactId, tenantId, agentId, queueId, now);
+        if (updated == 0) {
+            // Lost a race with routing / accept / another release: re-read and decide
+            Contact current = findContactOrThrow(contactId, tenantId);
+            if ("QUEUED".equals(current.getStatus()) && current.getAgentId() == null) {
+                return getContactInternal(contactId, tenantId);
+            }
+            throw new InvalidOperationException(
+                    "Kontakt zmienił stan w trakcie zwrotu do kolejki (status: " +
+                    current.getStatus() + "): " + contactId);
+        }
+
+        // Stages. Routing does not open AGENT / close QUEUE for async contacts, so usually only a QUEUE stage
+        // (if any) is open: it ended when the agent took the contact (assigned_at), not now. Missing stages
+        // are expected here (DEBUG). Then start a fresh QUEUE stage.
+        contactEventService.closeQueueIfOpen(contactId, tenantId, assignedAt != null ? assignedAt : now);
+        contactEventService.closeAgentIfOpen(contactId, tenantId);
+        String queueName = queueService.findQueueEntity(queueId, tenantId).map(Queue::getName).orElse(null);
+        contactEventService.openQueue(contactId, tenantId, queueId, queueName, now);
+
+        publishContactQueuedAfterCommit(new ContactQueuedMessage(contactId, queueId, tenantId), agentId);
+
+        log.info("[ContactService] Kontakt zwrócony do kolejki: contactId={}, agentId={}, queueId={}, tenant={}",
+                contactId, agentId, queueId, tenantId);
+
+        return getContactInternal(contactId, tenantId);
+    }
+
+    /** Queue of the contact; for a social contact without one, the tenant's default social queue (BE-155). */
+    private UUID resolveReleaseQueueId(Contact contact, UUID tenantId) {
+        if (contact.getQueueId() != null) {
+            return contact.getQueueId();
+        }
+        if (ContactChannels.isSocial(contact.getChannel())) {
+            Optional<UUID> resolved = socialDefaultQueueResolver.resolve(tenantId);
+            if (resolved.isPresent()) {
+                return resolved.get();
+            }
+        }
+        throw new InvalidOperationException(
+                "Kontakt nie ma kolejki, do której można go zwrócić: " + contact.getContactId());
+    }
+
+    /** Records the exclusion and publishes after the DB commit so routing never sees the pre-release row. */
+    private void publishContactQueuedAfterCommit(ContactQueuedMessage message, UUID releasingAgentId) {
+        Runnable publish = () -> {
+            // Exclusion first, so the routing pass triggered below already sees it (anti-ping-pong, BE-156 slice);
+            // the store swallows Redis errors (then: no exclusion, routing keeps working)
+            releaseExclusionStore.exclude(message.tenantId(), message.contactId(), releasingAgentId);
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RabbitMQConfig.RK_CONTACT_QUEUED, message);
+            } catch (Exception e) {
+                // Row is already QUEUED: the poller / agent.status.changed retry will still pick it up
+                log.error("[ContactService] Nie udało się opublikować contact.queued po zwrocie: contactId={}, error={}",
+                        message.contactId(), e.getMessage(), e);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 
     // =========================================================================
@@ -1562,6 +1711,19 @@ class ContactServiceImpl implements ContactService {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /**
+     * BE-160: after a release an async contact legitimately sits in QUEUED with no agent, so the generic
+     * "agentId != null && != caller" ownership checks no longer protect it. An AGENT caller must not
+     * touch such a contact (it is no longer theirs); SUPERVISOR/ADMIN keep their behaviour.
+     */
+    private void rejectAgentOnUnownedQueuedAsync(Contact contact, boolean isAgent) {
+        if (isAgent && contact.getAgentId() == null && "QUEUED".equals(contact.getStatus())
+                && ContactChannels.isAsync(contact.getChannel())) {
+            throw new InvalidOperationException(
+                    "Kontakt czeka w kolejce i nie jest już przypisany do agenta: " + contact.getContactId());
+        }
+    }
 
     private Contact findContactOrThrow(UUID contactId, UUID tenantId) {
         return contactRepository.findById(contactId, tenantId)

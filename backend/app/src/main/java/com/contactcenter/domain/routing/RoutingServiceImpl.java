@@ -61,6 +61,7 @@ class RoutingServiceImpl implements RoutingService {
     private final ContactService contactService;
     private final ContactEventService contactEventService;
     private final SocialDefaultQueueResolver socialDefaultQueueResolver;
+    private final ReleaseExclusionStore releaseExclusionStore;
 
     // =========================================================================
     // Główna metoda routingu
@@ -99,7 +100,12 @@ class RoutingServiceImpl implements RoutingService {
         }
 
         // 4. Zbuduj RoutingRequest
-        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds);
+        // BE-160 anti-ping-pong: agents who just returned this async contact to the queue are skipped.
+        // Phone contacts are never excluded, so the phone path does not even touch Redis.
+        Set<UUID> excludedAgentIds = ContactChannels.isAsync(contact.getChannel())
+                ? releaseExclusionStore.excludedAgents(tenantId, contactId)
+                : Set.of();
+        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds, excludedAgentIds);
 
         // 5. Wywołaj silnik routingu
         Optional<RoutingResult> result = routingEngine.findBestAgent(request);

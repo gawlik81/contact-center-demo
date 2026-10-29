@@ -567,4 +567,73 @@ class DefaultRoutingEngineTest {
             assertThat(result.get().isSticky()).isTrue();
         }
     }
+
+    // =========================================================================
+    // Per-contact exclusions (BE-160 anti-ping-pong)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Wykluczenia per kontakt po zwrocie do kolejki (BE-160)")
+    class ReleaseExclusions {
+
+        private RoutingRequest excluding(String strategy, UUID preferred, Set<UUID> excluded) {
+            return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, List.of(), preferred, "EMAIL", null, excluded);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("wykluczony agent jest pomijany przez kazda strategie, wybierany jest drugi")
+        void skipsExcludedAgentInEveryStrategy(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
+            lenient().when(userService.countActiveContactsByAgentIds(eq(TENANT_ID), anyList())).thenReturn(List.of());
+
+            Optional<RoutingResult> result = engine.findBestAgent(excluding(strategy, null, Set.of(AGENT_A)));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("jedyny kandydat wykluczony -> brak agenta (kontakt zostaje QUEUED)")
+        void onlyExcludedCandidateYieldsEmpty(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A));
+
+            assertThat(engine.findBestAgent(excluding(strategy, null, Set.of(AGENT_A)))).isEmpty();
+        }
+
+        @Test
+        @DisplayName("sticky agent wykluczony -> sticky pominiety, fallback na strategie")
+        void excludedStickyIsSkipped() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+
+            Optional<RoutingResult> result =
+                    engine.findBestAgent(excluding("FIRST_AVAILABLE", AGENT_A, Set.of(AGENT_A)));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+            assertThat(result.get().isSticky()).isFalse();
+        }
+
+        @Test
+        @DisplayName("wiele wykluczonych agentow naraz (release przez A, potem przez B)")
+        void multipleExcludedAgents() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B, AGENT_C));
+
+            Optional<RoutingResult> result =
+                    engine.findBestAgent(excluding("FIRST_AVAILABLE", null, Set.of(AGENT_A, AGENT_B)));
+
+            assertThat(result.get().agentId()).isEqualTo(AGENT_C);
+        }
+
+        @Test
+        @DisplayName("brak wykluczen (siedmioargumentowy konstruktor) -> zachowanie bez zmian")
+        void noExclusionsBehavesAsBefore() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+
+            assertThat(engine.findBestAgent(buildRequest("FIRST_AVAILABLE", List.of(), null)).get().agentId())
+                    .isEqualTo(AGENT_A);
+        }
+    }
 }

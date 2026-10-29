@@ -26,6 +26,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,13 +89,17 @@ class RoutingServiceTest {
     @Mock
     private com.contactcenter.domain.social.SocialDefaultQueueResolver socialDefaultQueueResolver;
 
+    @Mock
+    private ReleaseExclusionStore releaseExclusionStore;
+
     private RoutingServiceImpl routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new RoutingServiceImpl(routingEngine, queueService,
                 customerService, rabbitTemplate, queueAssignmentService, userService,
-                broadcaster, contactService, contactEventService, socialDefaultQueueResolver);
+                broadcaster, contactService, contactEventService, socialDefaultQueueResolver,
+                releaseExclusionStore);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentService.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);
@@ -521,6 +527,43 @@ class RoutingServiceTest {
                 .requiredSkills(skills)
                 .active(true)
                 .build();
+    }
+
+        @Nested
+    @DisplayName("routeContact - wykluczenia po zwrocie do kolejki (BE-160)")
+    class ReleaseExclusions {
+
+        @Test
+        @DisplayName("kontakt async: wykluczeni agenci z magazynu trafiaja do RoutingRequest")
+        void passesExcludedAgentsForAsyncContact() {
+            Contact contact = buildContact();
+            contact.setChannel("EMAIL");
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue("FIRST_AVAILABLE", List.of())));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(releaseExclusionStore.excludedAgents(TENANT_ID, CONTACT_ID)).thenReturn(Set.of(AGENT_ID));
+            when(routingEngine.findBestAgent(any())).thenReturn(Optional.empty());
+
+            Optional<UUID> result = routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
+
+            assertThat(result).isEmpty();
+            ArgumentCaptor<RoutingRequest> captor = ArgumentCaptor.forClass(RoutingRequest.class);
+            verify(routingEngine).findBestAgent(captor.capture());
+            assertThat(captor.getValue().excludedAgentIds()).containsExactly(AGENT_ID);
+            verify(contactService, never()).updateContactEntity(any());
+        }
+
+        @Test
+        @DisplayName("kontakt telefoniczny: magazyn wykluczen nie jest w ogole odpytywany")
+        void phoneContactNeverQueriesStore() {
+            Contact contact = buildContact(); // channel VOICE (phone path)
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue("FIRST_AVAILABLE", List.of())));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(routingEngine.findBestAgent(any())).thenReturn(Optional.empty());
+
+            routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
+
+            verifyNoInteractions(releaseExclusionStore);
+        }
     }
 
     private Contact buildContact() {

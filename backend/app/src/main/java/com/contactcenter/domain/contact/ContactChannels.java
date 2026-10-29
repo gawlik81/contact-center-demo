@@ -28,6 +28,11 @@ public final class ContactChannels {
         return channel != null && (SOCIAL_TYPE.equals(channel) || channel.startsWith(SOCIAL_PREFIX));
     }
 
+    /** True for the channels handled asynchronously by agents (no live audio): EMAIL, CHAT and SOCIAL_*. */
+    public static boolean isAsync(String channel) {
+        return "EMAIL".equals(channel) || "CHAT".equals(channel) || isSocial(channel);
+    }
+
     /**
      * Maps a persisted channel to the agent desktop contact type.
      * {@code null} (legacy rows without a channel) maps to {@code PHONE} - the single null contract for

@@ -828,6 +828,87 @@ class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // BE-160: return of an agent-held async contact to the queue
+  // =========================================================================
+
+  /**
+   * Conditionally returns an agent-held contact to {@code QUEUED} (BE-160).
+   *
+   * <p>The WHERE clause carries {@code status IN ('ASSIGNED','ACTIVE')} AND {@code agent_id = :agentId}
+   * (plus tenant), so the update is atomic against a concurrent routing pass / accept / other release:
+   * whoever changed the row first wins, the loser gets 0 rows. Sets {@code agent_id = NULL},
+   * {@code assigned_at = NULL}, {@code queued_at = :queuedAt} (owner decision: the returned contact goes to the END of the FIFO queue; the same instant opens the new QUEUE stage) and fills
+   * {@code queue_id} only when it is missing. No {@code started_at} in WHERE (partition key is unknown to
+   * the caller; PostgreSQL scans partitions by contact_id + tenant_id, same as {@link #assignAgent}).
+   *
+   * @return updated rows (0 = contact not found, other tenant, other agent or no longer agent-held)
+   */
+  @Transactional
+  public int releaseToQueue(UUID contactId, UUID tenantId, UUID agentId, UUID queueId, Instant queuedAt) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET agent_id    = NULL,
+                   assigned_at = NULL,
+                   status      = 'QUEUED',
+                   queued_at   = ?,
+                   queue_id    = COALESCE(queue_id, ?::uuid),
+                   updated_at  = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND agent_id   = ?::uuid
+               AND status IN ('ASSIGNED', 'ACTIVE')
+            """,
+        java.sql.Timestamp.from(queuedAt),
+        queueId.toString(),
+        contactId.toString(),
+        tenantId.toString(),
+        agentId.toString());
+
+    // Native UPDATE via JdbcTemplate bypasses the EntityManager - drop the L1 cache
+    em.flush();
+    em.clear();
+
+    log.info("[ContactRepo] releaseToQueue: contactId={}, agentId={}, queueId={}, rows={}",
+        contactId, agentId, queueId, updated);
+    return updated;
+  }
+
+  /**
+   * Conditionally moves a contact {@code ASSIGNED -> ACTIVE} for the owning agent (BE-160 review).
+   *
+   * <p>Unlike {@link #update(Contact)} (unconditional full-state write) the WHERE clause carries
+   * {@code status = 'ASSIGNED' AND agent_id = :agentId}, so an accept that lost a race with
+   * {@link #releaseToQueue} or a re-assignment cannot resurrect the old owner.
+   *
+   * @return updated rows (0 = not found, other tenant/agent, or no longer ASSIGNED)
+   */
+  @Transactional
+  public int acceptIfAssigned(UUID contactId, UUID tenantId, UUID agentId) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'ACTIVE',
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND agent_id   = ?::uuid
+               AND status     = 'ASSIGNED'
+            """,
+        contactId.toString(), tenantId.toString(), agentId.toString());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] acceptIfAssigned: contactId={}, agentId={}, rows={}", contactId, agentId, updated);
+    return updated;
+  }
+
+  // =========================================================================
   // Aktualizacja agent_id (attended transfer – przepisanie kontaktu na Agent2)
   // =========================================================================
 

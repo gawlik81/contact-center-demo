@@ -110,7 +110,7 @@ class SocialContactToAgentFlowTest {
         routingService = new RoutingServiceImpl(routingEngine, queueService, mock(CustomerService.class),
                 rabbitTemplate, queueAssignmentService, mock(UserService.class),
                 mock(WebSocketEventBroadcaster.class), contactService, mock(ContactEventService.class),
-                resolver);
+                resolver, mock(ReleaseExclusionStore.class));
 
         // Repositories are package-private in domain.social: mocked reflectively with name-based answers
         Object integrationRepository = mock(Class.forName(

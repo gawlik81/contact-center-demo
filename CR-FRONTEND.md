@@ -1902,3 +1902,86 @@ Zakres: `contact-draft.store.ts` (+spec), `contact-tab.store.ts`, `contact-tab.m
 
 ### Summary
 **Ocena: 3,5/5** — dobrze przemyślany i czytelny magazyn szkiców oraz poprawny wzorzec menu button z solidnymi testami jednostkowymi, ale zniszczenie komponentu w trakcie wysyłki może zdublować e-mail, `currentNote` opiera się na niereaktywnym `@Input`, cichy × kasuje szkice, a kluczowe decyzje (`@for track`, `clearAll`, pojedynczy `initStatus`) nie mają testów.
+
+---
+
+## Review: FE-132 (bezpieczne zamykanie kart) + FE-133 (znaczniki stanu, nowy kontakt bez przejmowania karty) — 2026-10-29
+
+Zakres: `agent-desktop.component.{ts,html,scss}`, `agent-desktop.tabs.spec.ts`, `agent-desktop.remount.spec.ts`, `contact-tab.store.{ts,spec.ts}`, `contact.service.ts`, `models/contact-tab-marker.{ts,spec.ts}`, `public/i18n/{pl,en,de,uk}.json`.
+Znana otwarta kwestia (poza oceną): `POST /abandon` = terminalne ABANDONED, nie prawdziwy zwrot do kolejki.
+
+### Bugs / Critical Issues
+
+- **[MAJOR-1] `agent-desktop.component.ts` `confirmClose()` (HANGUP) ~l.505-510 + `requestClose` l.~470** — po potwierdzeniu: `hangupCall()` i NATYCHMIAST `tabStore.closeTab()`. `CallLifecycleService.endedEffect` (call-lifecycle.service.ts:59-75) reaguje na `ENDED`: ustawia status agenta `AFTER_CONTACT` i szuka karty PHONE do `markAsWrapping`. Karta już nie istnieje, więc: brak panelu dyspozycji (ACW), brak dyspozycji dla kontaktu, a agent zostaje w `AFTER_CONTACT` bez ścieżki powrotu (powrót do AVAILABLE robi zapis dyspozycji). Zachowanie odziedziczone ze starego `closeTab`, ale FE-132 jawnie mówi, że „dyspozycję zamyka się zapisem, nie ×", więc rozłączenie z × powinno prowadzić do ACW, nie usuwać karty. Test (`closing PHONE tabs`) mockuje `hangupCall` i asercjonuje `tabs.toHaveLength(0)`, czyli utrwala błąd. **Fix:** po `hangupCall()` NIE zamykać karty (lifecycle przełączy ją na WRAPPING i pokaże dyspozycję); fokus przenieść na panel dyspozycji; test z prawdziwym `CallLifecycleService` (karta -> `WRAPPING`, marker ACW).
+- **[MAJOR-2] `confirmClose()` ~l.495-505 — wyścig „stan zmienił się przy otwartym dialogu"** — sprawdzane jest tylko `tabs().find(id)`. Gdy klient rozłączy się przy otwartym dialogu, karta PHONE przechodzi na `WRAPPING` (istnieje), a potwierdzenie i tak wykona `hangupCall()` (no-op/`session.set(null)`) i usunie kartę z dyspozycją niezapisaną (utrata ACW). Dla RETURN: dialog „zwróć kontakt ze szkicem" wisi dla karty, której już nie ma, a potwierdzenie cicho nic nie robi. **Fix:** w `confirmClose` re-walidować: HANGUP tylko gdy `tab.status !== 'WRAPPING'` i `session()?.contactId === tab.contactId`; dodatkowo `effect`, który zamyka `pendingClose`, gdy karta zniknie lub wejdzie w `WRAPPING`. Test: zmiana stanu przy otwartym dialogu.
+- **[MAJOR-3] `onTabKeydown` l.~369 — `Delete` bez `event.repeat`** — przytrzymany/powtarzany klawisz: pierwszy keydown uruchamia zwrot (EMAIL bez szkicu = natychmiast, bez pytania), karta znika, fokus przeskakuje na sąsiednią kartę (`removeTabAndMoveFocus`), kolejny auto-repeat keydown trafia w TĘ kartę i zwraca następny kontakt. Straty: kaskadowe, nieodwracalne ABANDONED kilku kontaktów. **Fix:** `if (event.repeat) return;` przed `requestClose`; test z `repeat: true`.
+- **[MAJOR-4] `removeTabAndMoveFocus` l.~536-548 + `returnToQueue` — kradzież fokusu po asynchronicznym sukcesie** — fokus ustawiany bezwarunkowo po odpowiedzi API. Agent, który po kliknięciu × przeszedł na inną kartę i pisze w edytorze, dostaje fokus skradziony do paska kart po ~100-500 ms (utrata wpisywanego znaku/zaznaczenia). Łamie też ducha FE-133 („fokus nie jest kradziony"). **Fix:** przenosić fokus tylko gdy `document.activeElement` jest na zamykanej karcie/jej ×, w `body` lub w usuwanym panelu (zapamiętać „focus was inside" w `requestClose`, nie po odpowiedzi). Test: fokus w edytorze innej karty w trakcie zwrotu.
+- **[MEDIUM-5] `confirmClose` HANGUP dla `RINGING`** — × / Delete na dzwoniącej karcie PHONE pyta „Rozłączyć rozmowę?" i woła `hangupCall()`, a ta gałąź (`softphone.service.ts:295`) dla `RINGING` tylko zeruje sesję, bez `activeCall.reject()` i bez HTTP. Połączenie dzwoni dalej po stronie Twilio/backendu, a agent nie ma karty. **Fix:** dla `session.state==='RINGING'` użyć `CallLifecycleService.rejectRingingCall()` (usuwa kartę i odrzuca) albo wyłączyć × na dzwoniącej karcie; osobny tekst potwierdzenia „Odrzucić połączenie?".
+- **[MEDIUM-6] `returnToQueue` error path** — każdy błąd = „karta pozostaje, spróbuj ponownie". Dla 404/409 (kontakt przepisany innemu agentowi po timeout `ContactAssignmentMonitor`, już zamknięty) ponowna próba nigdy się nie uda, a karta jest nieusuwalna (zombie; szkic też zostaje). Spec R1 mówi „4xx komunikat, nie zamykać", ale bez wyjścia awaryjnego agent jest uwięziony. **Fix:** rozróżnić status: 404/409 -> komunikat „kontakt nie jest już Twój" + zamknięcie karty (po potwierdzeniu, gdy jest szkic); inne błędy -> obecne zachowanie. Test dla 409 (dziś asercja „karta zostaje" dla 409 utrwala pułapkę).
+- **[MEDIUM-7] `newContactEffect` l.~300-318 — fałszywe „Nowy kontakt" przy montażu** — `knownTabIds` startuje pusty, a `ContactTabStore` jest singletonem root. Przy każdym ponownym wejściu na `/agent/desktop` (powrót z innej trasy) wszystkie istniejące nieaktywne karty nie-PHONE są „świeże" i ogłaszany jest pierwszy z nich jako nowy kontakt. Poza tym `find` ogłasza tylko jedną kartę, gdy w jednym ticku dojdzie kilka (np. recovery), a tekst nie jest nigdy czyszczony, więc identyczny komunikat (ten sam klient, ten sam kanał) nie zostanie ogłoszony ponownie. **Fix:** zainicjować `knownTabIds` z aktualnych kart przy tworzeniu komponentu (pierwszy przebieg tylko zapisuje), ogłaszać wszystkie nowe (łączyć lub kolejkować), czyścić tekst po renderze jak w `ringingAnnouncement` (clear -> `afterNextRender` -> set). Test: remount z 2 kartami nie ogłasza; dwa kontakty naraz.
+- **[LOW-8] Brak ochrony treści karty podczas zwrotu** — w trakcie `returningTabIds` panel e-mail/social jest aktywny; agent może wysłać odpowiedź, a potem `abandon` zakończy się sukcesem (ABANDONED po wysłanej odpowiedzi). **Fix:** `inert`/wyłączenie panelu karty w locie albo ignorowanie wyniku, gdy karta zniknęła i oznaczenie kontaktu jako wysłany.
+
+### Security Concerns
+_None identified._ (`SKIP_ERROR_TOAST` przez `HttpContext` używany poprawnie; brak interpolacji HTML; nazwy kontaktów renderowane przez interpolację Angulara.)
+
+### Architecture / Pattern Violations
+
+- **[MEDIUM-9] `agent-desktop.component.html` l.~232-318 — ryzyko `aria-required-children` (axe ≥ 4.5)** — `role="tablist"` zawiera dzieci `div[role=presentation]`, a w nich obok `role="tab"` także `<button>` × i `<span class="sr-only">`. Presentation przezroczyste dla przypisania kart, ale axe zgłasza „element has children which are not allowed: button" (tablist dopuszcza tylko `tab`). Test strukturalny sprawdza tylko brak potomka w tabie, nie reguł axe. **Fix (wybrać):** (a) przenieść × poza `tablist` (np. grupa/pasek akcji obok, powiązana `aria-label`), albo (b) wrapper `div role="presentation"` zostawić, ale × i opis dać `role="presentation"`-neutralnie przez układ DOM: tablist -> karty, a × w osobnym kontenerze pozycjonowanym CSS (absolute). Dodać test axe (`axe-core`/`vitest-axe`) na prawdziwym szablonie lub przynajmniej asercję „dzieci tablist = tylko tab/presentation z jednym tab".
+- **[LOW-10] `agent-desktop.component.ts` `ngOnInit` `destroyRef.onDestroy(() => destroyed = true)`** — rejestrować w konstruktorze/polu; rozważyć `AbortSignal`/`takeUntilDestroyed` zamiast flagi. Subskrypcja `abandonContact().subscribe` bez `takeUntil` jest celowa (zwrot ma się domknąć), ale po zniszczeniu i tak woła `notifications`/`tabStore` — dopuszczalne, warto opisać komentarzem.
+- **[LOW-11] `ContactService.abandonContact(id, skipErrorToast=false)`** — flaga boolean w API serwisu; lepiej osobna metoda lub obiekt opcji, bo wołający nie widzi znaczenia `true` (`abandonContact('c', true)`).
+
+### Improvements & Suggestions
+
+- **Focus po anulowaniu (`askToClose`, `rememberFocus`)** — przy kliknięciu myszą na × w Safari/Firefox (macOS) przyciski nie dostają fokusu, więc `activeElement` = `body` i powrót fokusu nic nie robi. Zapamiętać element z `event.currentTarget`/przekazać go do `requestClose(tab, trigger)`.
+- **Fokus po zamknięciu nieaktywnej karty** — fokus ląduje na aktywnej karcie, nie na sąsiedniej zamkniętej (spec: „sąsiednia karta lub region"). Przy zamykaniu nieaktywnej karty wskazać sąsiada.
+- **Zablokowane × bez informacji dla `Delete`** — `requestClose` na `WRAPPING` cicho wraca; Delete na karcie ACW nie daje żadnego komunikatu. Rozważyć ogłoszenie powodu (polite) lub focus na `aria-describedby`.
+- **`closeLabel` dla PHONE** — „Rozłącz i zamknij" także dla zablokowanego ACW i dla RINGING (mylące). Rozdzielić etykiety wg stanu.
+- **`title` + `aria-label` na `role=tab`** — czytnik może powtórzyć nazwę jako opis. `title` zostawić tylko dla widocznego skrótu (lub `aria-description` pominąć).
+- **Tokeny** — nowe fallbacki hex w `__close`: `var(--text-3, #64748b)`, `var(--danger-text, #dc2626)` (kryterium „bez literałów hex"); usunąć fallbacki, tokeny istnieją w obu motywach. Marker używa wyłącznie par `*-soft`/`*-text` (OK). Zmierzyć kontrast (`--neutral-text` 40%L na `--neutral-soft` 94%L jasny; 80%L/28%L ciemny — wizualnie OK, brak pomiaru w testach). Disabled × `opacity:.5` — wyjątek WCAG, ale powód jest podany tekstowo (dobrze).
+- **Martwy klucz i18n** `agent.desktop.closeContact` (nieużywany po zmianie) — usunąć z 4 plików.
+- **Tłumaczenia metod w szablonie** (`tabAriaLabel`, `markerLabel`, `closeLabel`) — `translate()` nie jest reaktywne na zmianę języka przy OnPush; wzorzec odziedziczony po `getTabTypeLabel`, ale przy zmianie języka etykiety odświeżą się dopiero po zmianie kart. Użyć `translateSignal`/`selectTranslate` lub pipe.
+- **Marker po `updateTabContactId`** — marker PHONE porównuje `session.contactId === tab.contactId`; po moście attended-transfer (`contactId` karty -> UUID) sesja może nadal mieć `CA_…`. Sprawdzić i objąć testem (`originalContactId`).
+- **`MAX_ASYNC_TABS`** nie liczy `SOCIAL` (liczone tylko CHAT/EMAIL) — kontakty social omijają limit 3 (wpływ tylko na `MAX_TOTAL`). Poza zakresem (BE-156), ale warto zanotować.
+
+### Testy — luki względem AC
+
+- `Delete does nothing while typing in the editor`: zdarzenie wysyłane na `#reply` (stub), które nie jest potomkiem karty, więc test nie może się wywalić i nie dowodzi niczego o scoping (realna ochrona to `event.target !== currentTarget` — test na `.contact-tab__close`/zagnieżdżonym elemencie wnętrza karty brakuje). Brak testu `repeat`.
+- Brak: wyścigu stanu przy otwartym dialogu (MAJOR-2), podwójnego kliknięcia × (guard `returningTabIds`, w locie z `Subject`), karty znikającej w locie, zwrotu bez zmiany fokusu na edytor (MAJOR-4), `Escape` w dialogu zamknięcia (fokus wraca na opener — test sprawdza tylko `tabs.length`, nie `activeElement`), 404, remountu z kartami (MEDIUM-7), `HANGUP` z prawdziwym lifecycle (MAJOR-1), RINGING × (MEDIUM-5), roving tabindex po zamknięciu/dodaniu, `aria-disabled` na × jako realnego blokowania `Delete`.
+- Test „makes the first tab active and does not announce it" nie asercjonuje braku ogłoszenia (`live.textContent` pusty).
+- Test marker `RINGING` nie sprawdza kombinacji z `DRAFT` (RINGING + szkic -> `Szkic`, zgodne z implementacją, ale niezapisane).
+- `agent-desktop.remount.spec.ts`: poprawne dostosowanie (`setActiveTab`), brak uwag.
+- Nie uruchamiano testów/lintu w ramach przeglądu (tylko analiza statyczna).
+
+### Positive Observations
+
+- `resolveTabMarker` to czysta funkcja z poprawnymi priorytetami; źródło prawdy stanu hold = `SoftphoneService.session()` per `contactId`, RINGING poprawnie NIE daje „Rozmowa", `tab.status==='HOLD'` świadomie ignorowany.
+- `openTab` z jawnym `isActive` + „pierwsza karta aktywna"; wszystkie ścieżki PHONE (`incoming`, `outbound`, `contact-assigned`, recovery, konsultacja) wołają `softphoneService.incomingCall` zaraz po `openTab`, więc `ringingEffect` aktywuje kartę — brak regresji FE-114 (zweryfikowane w kodzie). `closeTab` aktywuje sąsiada zamiast pierwszej karty.
+- × jako rodzeństwo `role="tab"`, `aria-disabled` zamiast `disabled` (zachowuje fokus), `aria-describedby` z powodem, cel 24x24 px, `Delete` ograniczony `event.target === currentTarget`.
+- Brak usunięcia karty/szkicu przy błędzie API; `SKIP_ERROR_TOAST` zamiast podwójnego toastu; zwrot jednokrotny dzięki `returningTabIds`.
+- i18n kompletne w pl/en/de/uk (te same klucze, poprawne diakrytyki, parametr `{{name}}`); testy na prawdziwym szablonie z podmienionymi tylko ciężkimi dziećmi.
+
+### Summary
+**Ocena: 3/5** — czysta implementacja znaczników i dobre odwzorowanie struktury ARIA, ale przepływ rozłączenia z × omija ACW, kilka wyścigów (zmiana stanu przy otwartym dialogu, auto-repeat Delete, kradzież fokusu po odpowiedzi API) i fałszywe ogłoszenie przy remoncie wymagają poprawek przed zamknięciem FE-132/FE-133.
+
+### Priorytety
+1. MAJOR-1/2 (hangup omija ACW, rewalidacja stanu w `confirmClose`), MAJOR-3 (`event.repeat`), MAJOR-4 (kradzież fokusu) — przed commitem.
+2. MEDIUM-5 (RINGING), MEDIUM-6 (404/409 uwięziona karta), MEDIUM-7 (ogłoszenie przy montażu), MEDIUM-9 (axe `aria-required-children`).
+3. Testy z listy luk, tokeny bez hex, martwy klucz i18n, LOW-8/10/11.
+
+### Status poprawek (FE-132/FE-133, runda 2 — 2026-10-29)
+- **MAJOR-1** naprawione: HANGUP wywołuje tylko `hangupCall()`, karta przechodzi na WRAPPING przez `CallLifecycleService`; test z prawdziwym lifecycle.
+- **MAJOR-2** naprawione: `confirmClose` re-waliduje stan, `pendingGuardEffect` zamyka dialog gdy karta zniknie/wejdzie w ACW/zmieni się stan połączenia.
+- **MAJOR-3** naprawione: `event.repeat` ignorowany dla Delete (test).
+- **MAJOR-4** naprawione: fokus przenoszony tylko gdy po usunięciu karty wylądował na `<body>` (test: edytor innej karty w trakcie zwrotu).
+- **MEDIUM-5** naprawione: × na dzwoniącej karcie = potwierdzenie „Odrzucić?” + `rejectRingingCall()`; PHONE bez połączenia (stale) zamykany bez dialogu.
+- **MEDIUM-6** naprawione: 404/409 z `/release` zamyka kartę z komunikatem „nie jest już przypisany do Ciebie”, inne błędy zostawiają kartę i szkic (testy).
+- **MEDIUM-7** naprawione: `knownTabIds` z aktualnych kart, ogłaszane wszystkie nowe, tekst czyszczony przed ustawieniem (testy remount/wiele naraz).
+- **MEDIUM-9** naprawione: tablist bez dzieci DOM, `aria-owns` wskazuje tylko karty, × w osobnym elemencie obok karty; axe-core nie ma w zależnościach, więc test strukturalny zamiast axe.
+- **LOW-8** naprawione: panel karty `inert` + `aria-busy` w trakcie zwrotu. **LOW-10** naprawione: `destroyed` przez `DestroyRef` w konstruktorze. **LOW-11** naprawione: `abandonContact` bez flagi, osobna `releaseContact`.
+- Improvements: fokus po Escape/anulowaniu wraca na trigger (fallback Safari), fokus na sąsiedzie także po zamknięciu nieaktywnej karty, ogłoszenie powodu przy Delete na ACW, etykiety × per stan, `title` tylko na nazwie, brak fallbacków hex w `__close`, usunięty klucz `closeContact`, etykiety reaktywne na zmianę języka, dopasowanie sesji do karty także po `originalContactId` (most attended-transfer) — wszystkie naprawione.
+- **Odroczone:** `MAX_ASYNC_TABS` nie liczy SOCIAL (BE-156, poza zakresem).
+
+### Status poprawek — runda 3 (test w przeglądarce, 2026-10-29)
+- **Wyścig release vs ponowne przypisanie:** `ContactTabStore` śledzi `beginRelease/noteAssignedDuringRelease/endRelease`; przypisanie tego samego `contactId` w trakcie zwrotu (alert service + recovery) jest odkładane, a po sukcesie karta jest otwierana ponownie (nieaktywna, z ogłoszeniem „Nowy kontakt”). Błąd zwrotu przy ponownym przypisaniu zostawia kartę. Testy: komponent, store, alert service.
+- **Delete po ArrowRight:** fokus przenoszony synchronicznie w handlerze strzałek (test z dwoma zdarzeniami bez `await`).
+- **Nazwy kart:** `normalizeContactName` (nowy `models/contact-name.ts`) stosowane w jednym miejscu (`openTab`, `updateTabCustomerInfo`) oraz w obsłudze przypisań async; ta sama nazwa w karcie, `aria-label`, `title`, ogłoszeniu i toaście.

@@ -56,7 +56,7 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 2 | 0 | 5 | 0 | 7 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 3 | 0 | 5 | 0 | 8 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
@@ -101,6 +101,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
 | BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ⬜ Do zrobienia — blokuje FE-136 |
 | BE-159 | Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela; powiązany z BE-156) | ⬜ Do zrobienia — propozycja |
+| BE-160 | `POST /api/contacts/{id}/release` — zwrot kontaktu async do kolejki (koniec FIFO), `ReleaseExclusionStore` (wycinek BE-156), poprawki CR (`acceptIfAssigned`, guard AGENT) | ✅ Ukończone (2026-10-29) — blokuje FE-132 (✅) |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8414,9 +8415,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 2/7** · ✅ 2 · 🔧 0 · ⬜ 5 · 🚫 0
+**Ukończone 3/8** · ✅ 3 · 🔧 0 · ⬜ 5 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Następne wolne numery: BE-160, FE-137, DB-088.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Następne wolne numery: BE-161, FE-137, DB-088.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8529,7 +8530,7 @@ backend/app/src/test/java/com/contactcenter/
 **Typ:** Feature / Bug (Backend, routing)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** brak (kontekst: BE-159 — propozycja warunkowego przydziału, ta sama ścieżka `routeContact`/`assignContactToAgent`; uzgodnić kolejność merge)
+**Zależy od:** brak (kontekst: BE-159 — propozycja warunkowego przydziału, ta sama ścieżka `routeContact`/`assignContactToAgent`; uzgodnić kolejność merge); kontekst: BE-160 ✅ (wycinek anti-ping-pong zrobiony tam)
 **Status:** ⬜ Do zrobienia
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
@@ -8555,6 +8556,17 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) zmiana routingu wpływa na wszystkie kolejki — wprowadzić za konfiguracją/flagą lub z domyślnym „brak limitu”; (R2) kolizja z BE-150 (routing pod rolą `cc_app`) — uzgodnić kolejność merge; (R3) różne definicje „otwartego kontaktu” (PHONE vs async).
 **Nie wchodzi w zakres:** nowe strategie routingu, zmiany FE (limity kart FE zostają do uzgodnienia), kanał social bez kolejki (BE-155).
 **Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak.
+
+**Wycinek zrealizowany w BE-160 ✅ (2026-10-29):** anti-ping-pong po zwrocie — `ReleaseExclusionStore` w Redis (`routing:release-excl:{tenant}:{contact}`, TTL `routing.release-exclusion-ttl` = 5 min); routing pomija wykluczonych agentów dla kanałów async. Limit `max_concurrent_contacts_per_agent` NADAL niezaimplementowany.
+**Poza wycinkiem — pozostaje do zrobienia w BE-156:**
+- trwała historia „kto miał kontakt” (dziś tylko klucz Redis z TTL);
+- wykluczenie także przy odrzuceniu / przekroczeniu czasu `ContactAssignmentMonitor` oraz przy re-kolejkowaniu;
+- konfiguracja per kolejka/tenant (dziś jedno globalne `routing.release-exclusion-ttl`);
+- telefonia (wykluczenie dotyczy tylko kanałów async);
+- zamykanie wiersza `QUEUE` / otwieranie `AGENT` w routingu i `accept`;
+- reguły „wszyscy wykluczeni” (co robi routing, gdy każdy dostępny agent jest na liście wykluczeń);
+- test realnego silnika routingu z Redis (BE-160 testuje przez mock/podmianę store).
+**Ryzyko (odkryte w BE-160):** `terminateStaleQueuedContacts` kończy jako `ABANDONED` kontakty `QUEUED` starsze niż 30 min także dla kanałów async — zwrócony e-mail (`queued_at=NOW()` resetuje wiek, ale przy braku agentów > 30 min) może przepaść. Rozstrzygnąć przy BE-156 (wyłączyć async z tego sprzątania albo dłuższy próg).
 
 ### BE-157 – Lista aktywnych kontaktów agenta: `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu)
 
@@ -8698,6 +8710,46 @@ backend/app/src/test/java/com/contactcenter/
 
 **Nie wchodzi w zakres:** limit równoległych kontaktów (BE-156), nowe strategie routingu, zmiany FE.
 **Zależności:** `Zależy od` brak; `Blokuje` brak; powiązany z BE-156 (uzgodnić kolejność merge — ta sama metoda).
+
+**Ścieżki zapisu NADAL bez guardu (stan po BE-160, 2026-10-29; do objęcia przez BE-159):** BE-160 dodał warunkowy zapis tylko w `acceptContact` (`acceptIfAssigned`) i w nowym `release`; pozostałe nadal piszą bezwarunkowo:
+- `ContactRepository.update` — używane przez `updateContact`, `setDisposition`, `abandonContact`, `terminateStaleQueuedContacts`;
+- `RoutingServiceImpl.assignContactToAgent` / `updateContactEntity` oraz ścieżka `ERROR`;
+- `onDirectAgentAssignment`;
+- `ContactAssignmentMonitor.handleMaxRetriesExceeded`;
+- `EmailContactCreator.updateContactEntity` (~l. 294);
+- `ContactRepository.assignAgent` (bez warunku na `agent_id`) i `updateAgentId` (bez żadnego warunku).
+
+### BE-160 – `POST /api/contacts/{id}/release`: zwrot kontaktu async do kolejki (koniec FIFO) + anti-ping-pong (wycinek BE-156) + poprawki code review
+
+**Typ:** Feature / Hardening (Backend, kontakty i routing)
+**Priorytet:** Must Have (wymagany przez FE-132)
+**Złożoność:** M
+**Zależy od:** brak (kontekst: BE-156 — wycinek anti-ping-pong zrealizowany tutaj; BE-159 — pozostałe ścieżki zapisu bez guardu)
+**Status:** ✅ Ukończone (2026-10-29; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; testy MockMvc i współbieżności; `mvn verify` backend 2839 testów BUILD SUCCESS, JDK 21; frontend 676 testów zielone)
+**Blokuje:** FE-132 (✅ — front używa tego endpointu do „Zwróć do kolejki” dla EMAIL/SOCIAL)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie przy FE-132: `abandonContact` kończy kontakt jako ABANDONED, więc nie nadaje się do zwrotu e-mail/social)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert` dla testów współbieżności)
+
+**Opis:** Nowy endpoint `POST /api/contacts/{id}/release` zwraca kontakt kanału async (EMAIL/SOCIAL) do kolejki, tak by inny agent mógł go obsłużyć.
+
+**Zakres (zrealizowany):**
+- Warunkowy `UPDATE`: kontakt wraca do `QUEUED`, `agent_id = NULL`, `queued_at = NOW()` (kontakt trafia na KONIEC kolejki FIFO — decyzja właściciela).
+- `closeQueueIfOpen(ended_at = assigned_at)` — zamknięcie otwartego segmentu historii; zdarzenie `contact.queued` publikowane `afterCommit`.
+- Kody: 200 (idempotentnie — powtórne wywołanie również zwraca 200), 404 (brak kontaktu), 409 (konflikt stanu kontaktu).
+- Wycinek BE-156 (anti-ping-pong): `ReleaseExclusionStore` w Redis, klucz `routing:release-excl:{tenant}:{contact}`, TTL `routing.release-exclusion-ttl` (domyślnie 5 min); routing pomija wykluczonych agentów dla kanałów async, żeby zwrócony kontakt nie wrócił od razu do tego samego agenta.
+- Poprawki z code review: `acceptContact` warunkowy (`acceptIfAssigned`); guard roli AGENT na `QUEUED` async bez agenta w `abandon` / `updateContact` / `setDisposition`.
+
+**Kryteria akceptacji:**
+- [x] `POST /api/contacts/{id}/release` ustawia `QUEUED`, `agent_id NULL`, `queued_at = NOW()` (koniec FIFO)
+- [x] Warunkowy UPDATE + `closeQueueIfOpen(ended_at = assigned_at)`; `contact.queued` publikowane po commicie
+- [x] 404 dla nieistniejącego kontaktu, 409 dla konfliktu stanu, idempotentny 200
+- [x] `ReleaseExclusionStore` (Redis, TTL `routing.release-exclusion-ttl` = 5 min); routing pomija wykluczonych dla kanałów async
+- [x] `acceptContact` warunkowy (`acceptIfAssigned`); guard AGENT na `QUEUED` async bez agenta w `abandon` / `updateContact` / `setDisposition`
+- [x] Testy MockMvc i współbieżności (release vs ponowny przydział); `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** reszta BE-156 (limity, trwała historia, timeout monitora, konfiguracja per kolejka, telefonia, „wszyscy wykluczeni”, test z realnym Redis — zob. BE-156); pozostałe ścieżki zapisu bez guardu (BE-159); zmiany FE (FE-132).
+**Ryzyko znane:** `terminateStaleQueuedContacts` kończy `ABANDONED` kontakty `QUEUED` > 30 min także async — zwrócony mail może przepaść (zob. BE-156).
+**Zależności:** `Zależy od` brak; `Blokuje` FE-132 ✅; powiązane: BE-156 (wycinek), BE-159.
 
 ## Bez epiku
 

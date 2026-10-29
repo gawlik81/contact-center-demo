@@ -2056,3 +2056,78 @@ _None identified._ (Brak nowych wektorów; szkic dyspozycji tylko w pamięci, cz
 - **MEDIUM-6 — naprawione.** Cache dostępnych dyspozycji per contactId w `ContactDraftStore` (czyszczony w `clear`/`clearAll`; lista awaryjna nie jest cache'owana). Zapamiętany kod spoza załadowanej listy jest odrzucany.
 - **LOW-7 — naprawione** (sortowanie po `wrappingSince`, "+N"). **LOW-8 — naprawione** (baner wcześnie w DOM powłoki, `<section>` z `aria-label`, pozycja wizualna bez zmian; skrót FE-114 nie dodany, odroczony). **LOW-9 — naprawione** (ogłoszenie raz per tab.id). **LOW-10 — naprawione** (`acwDraftKey`, test `rekey`). **LOW-11 — naprawione** (roving tabindex + strzałki/Home/End, `<label for>` bez `aria-label`; hierarchia: `h2` nazwy kontaktu w panelu karty, formularz `h3`).
 - Ulepszenia: zegar poza strefą (`runOutsideAngular`); wylogowanie w trakcie zapisu nie zmienia statusu (guard `isAuthenticated`) i zwalnia formularz. Odroczone: sprawdzenie w przeglądarce, czy stały baner nie zasłania treści przy 1366x768 (FE-123).
+
+---
+
+## Review: FE-123 — układ 1366×768 (skala breakpointów, tokeny chrome, kolumny `clamp()`, rail sidenava agenta, `AcwReminderService` + `cc-acw-banner` floating/toolbar) — 2026-10-29
+
+Zakres: niezacommitowane zmiany na `feature/epic-32-agent-ux-a11y` (23 pliki zmienione + `_breakpoints.scss`, `sidenav.component.spec.ts`, `acw-reminder.service.ts`). Testy `acw-banner`, `sidenav`, `app-shell` uruchomione lokalnie: 3 pliki, 28 testów zielonych. Nie uruchamiałem przeglądarki, więc kryteria pomiarowe (chrome ≤ 120/591, brak scrolla poziomego) oceniam tylko z kodu.
+
+### 🐛 Bugs / Critical Issues
+
+- **MAJOR-1 — `acw-banner.component.scss:25-28` + `sidenav.component.scss:344-353`: pływający baner zasłania stopkę sidenava (przełącznik zwijania i wskaźnik połączenia).** Baner jest `position: fixed; inset-inline-start: 1.5rem; inset-block-end: .375rem; z-index: 800`, szerokość do 28rem. Rezerwa `--shell-reserve-bottom` jest dodawana tylko do `padding-bottom` `.shell__content`, która zaczyna się za sidenavem (232 px lub rail 72 px). Baner dalej wisi nad lewym dolnym rogiem, czyli nad `.sidenav__footer` (toggle + `connection`) i nad dolnymi pozycjami menu na niskim oknie. Przy 1366 px baner (24…472 px) przykrywa całą szerokość raila i część treści. Skutek: przy aktywnym ACW agent nie kliknie przełącznika zwijania (WCAG 2.4.11 Focus Not Obscured, przy fokusie na toggle element jest całkowicie przykryty), a komentarz w SCSS („baner siedzi POD treścią") nie jest prawdziwy dla lewej kolumny. Sam FE-122 zostawił ten punkt do weryfikacji w FE-123. **Fix:** odsunąć baner od sidenava (`inset-inline-start: calc(var(--shell-sidenav-w, 0px) + 1.5rem)`, token ustawiany przez `app-shell` z `sidenavCollapsed`/breakpointu) albo wyrenderować baner w obrębie `.shell__main` (`position: absolute` względem kolumny treści) i wtedy rezerwa jest spójna z miejscem. Dodać test/E2E: przy `has-acw-banner` przełącznik sidenava jest klikalny.
+- **MAJOR-2 — `sidenav.component.ts:302,475-488`: domyślny rail dla agenta praktycznie nie zadziała na żadnej przeglądarce, która już uruchomiła aplikację.** Dotychczasowy efekt zapisywał `cc_sidenav_collapsed` przy każdym utworzeniu sidenava (także wartość `false`, której użytkownik nigdy nie wybrał). Każdy agent, który wcześniej otworzył pulpit, ma w `localStorage` zapisane `'false'`, a nowa logika uznaje zapisaną wartość za wybór użytkownika (`stored !== null`) i rail się nie włącza. Rail pojawi się tylko na świeżych profilach, więc ręczna weryfikacja 1366×768 u developera/testera pokaże rozwinięty sidenav, a AC „160 px dla treści" będzie spełnione tylko częściowo. **Fix:** nowy klucz (`cc_sidenav_collapsed_v2`) zapisywany wyłącznie w `toggleCollapsed()`, stary klucz ignorowany (opcjonalnie jednorazowo usunięty), plus test „stary klucz `false` nie blokuje domyślnego raila".
+
+### ⚠️ Security Concerns
+
+_None identified._
+
+### 🏗️ Architecture / Pattern Violations
+
+- **MEDIUM-3 — `top-navbar.component.scss` (`__brand-text` `down(lg)`, KPI `down(lg)`): zmiany wspólnego navbara zmieniają zachowanie supervisora i admina (R2).** Tekst marki znika teraz dla WSZYSTKICH ról przy ≤ 1024 px (wcześniej ≤ 640), a pasek KPI pojawia się już od 1025 px (wcześniej od 1101). Zakres 1025–1100 px: KPI + hamburger + marka z tekstem + status + chip użytkownika + Wyloguj w jednym wierszu; nic w diffie nie dowodzi, że mieści się bez przewijania (poprzedni próg 1100 istniał właśnie po to, by tego uniknąć). Kontener `kpi` ma tiery, ale ich granice zależą od tłumaczeń (de/uk). **Fix:** zmierzyć 1025/1100/1280 px w pl i de dla AGENT i SUPERVISOR; jeśli ciasno, zostawić KPI od `1101` (osobny krok skali albo `bp.down(xl)`), a ukrywanie marki ograniczyć do tego, co faktycznie potrzebne wokół 945–1024 px.
+- **MEDIUM-4 — `app-shell.component.ts:36`, `sidenav.component.ts:269` vs `_breakpoints.scss`: wartości TS powielają skalę bez żadnego strażnika.** `DESKTOP_BREAKPOINT = 1280` i `AGENT_RAIL_MAX_WIDTH = 1440` są zgodne z `xl`/`xxl` dzisiaj, ale rozjazd nastąpi przy pierwszej zmianie skali i nic go nie złapie (testy używają literałów 1334/1366/1440). **Fix:** test spec czytający `_breakpoints.scss` (import `?raw`, regex na `xl:`/`xxl:`) i porównujący z stałymi; albo jedno źródło w TS (`breakpoints.ts`) walidowane tym samym testem.
+- **MEDIUM-5 — AC „breakpointy z jednej skali (grep)": poza agentem i powłoką zostają ok. 50 literałów `@media (max-width: Npx)` w 11 różnych wartościach** (480/520/540/560/600/620/640/768/900/1024…; supervisor, admin, tenants, auth), w tym wspólne komponenty używane na pulpicie agenta: `contact-detail-modal` (600), `confirm-dialog` (480), `disposition-list-editor` (480). Zakres tiketu mówi „agent + powłoka", ale AC mówi o grepie bez zawężenia. **Fix:** albo przepisać wspólne komponenty (3 pliki, trywialne), albo zawęzić AC w TASKS do powierzchni agenta i dopisać follow-up dla reszty.
+- **LOW-6 — `agent-desktop.component.scss:~885-975`: deklaracje po `@include` z blokiem `@media` (mixed-decls).** W `&__avatar` mixin stoi przed `border-radius`, `background`, `display`…; Dart Sass traktuje deklaracje po zagnieżdżonej regule jako „mixed declarations" (ostrzeżenie deprecacji, a w przyszłości zmiana kolejności kaskady). **Fix:** przenieść `@include bp.compact-height` na koniec bloku (jak w pozostałych selektorach).
+
+### 🔧 Improvements & Suggestions
+
+- **Chrome na 768 px bez paska przeglądarki / F11:** `compact-height` to `max-height: 720px`. Okno 1366×768 w trybie pełnoekranowym (viewport 768) NIE jest kompaktowe i ma chrome 156 px. AC mówi o 591 px (okno z paskami), więc to zgodne, ale warto to jawnie opisać w DESIGN.md albo podnieść próg do 768, jeśli stanowiska działają w kiosku.
+- **Budżet chrome = dokładnie 120 px (48+36+36), bez marginesu:** nie liczy się `shell__breadcrumbs` (min-height 34 px; sprawdzić, czy renderuje się na `/agent/desktop`), nagłówka kontaktu (~37 px), nagłówka e-maila (~46 px) ani panelu AI summary (~44 px). Dopóki nie ma pomiaru (screenshot/E2E 1366×768, `getBoundingClientRect` obszaru treści ≥ 450 px), AC 1 jest niezweryfikowane. Pomiar zalecam dopisać do FE-123 jako dowód (pl i de).
+- **`styles.scss:70` `--desktop-main-min: 30rem` nie jest używany nigdzie** (martwy token, a opis zakresu „sensowne minimum dla treści (e-mail, czat)" spełnia tylko e-mail przez `min-width: 18rem`/`17.5rem`). Użyć jako `min-width` `.desktop__main` albo usunąć. Czat nie ma żadnego minimum.
+- **`sidenav.component.ts:302` + `app-shell.component.ts:32`:** `sidenavCollapsed` w powłoce startuje jako `false`, a prawdziwa wartość dociera dopiero z efektu sidenava. Przy domyślnym railu agenta pierwsza klatka ma szeroki sidenav i animowany (`transition: margin-left .25s`) skok do 72 px przy każdym wejściu. **Fix:** inicjalizować `sidenavCollapsed` z tego samego źródła (np. wyeksportowana funkcja `defaultCollapsed(role)` lub `output` emitowany synchronicznie w `ngOnInit`) i wyłączyć transition do pierwszego renderu.
+- **Dostępność skróconych treści:** `title` na `.contact-panel__info`, `.email-header__from/__to` działa tylko dla myszy. Przy nagłówku jednowierszowym z `ellipsis` użytkownik klawiatury/ekranu dotykowego nie dostanie pełnego adresu (WCAG 1.4.10/1.3.1 spełnione przez DOM, ale praktyczny dostęp nie). Pełny adres jest w wątku poniżej, więc to niski priorytet; rozważyć przełącznik „pokaż nagłówek" albo zostawić zawijanie dla `to` (adresy są dłuższe niż etykiety).
+- **`acw-banner.component.html`:** na `<section>` jest jednocześnie `aria-label` i `title` (toolbar) o prawie tej samej treści; czytniki powtórzą nazwę jako opis. Wystarczy `title` na nazwie klienta w chipie albo `aria-describedby` zamiast `title`.
+- **`acw-reminder.service.ts:17`:** `onDesktop` = `startsWith('/agent/desktop')` dopasuje także `/agent/desktop-xyz` (obecnie brak takich tras). Dopasować segmentowo (`url.split(/[?#]/)[0]` równe lub zaczynające się od `/agent/desktop/`). Singleton `providedIn: 'root'` z `toSignal` zostaje po wylogowaniu, ale stan pochodzi z `ContactTabStore` (czyszczony w `reset`), więc brak wycieku.
+- **Zoom 200% (R3):** przy 1366 px CSS wychodzi ~683×~325 px; sidenav jest szufladą, kolumna klienta ukryta (`down(md)`), ale chrome 120 px to wtedy ok. 37% wysokości. Nie ma testu ani opisu weryfikacji; dopisać do raportu z pomiaru (WCAG 1.4.4/1.4.10).
+- Tokeny chrome w DESIGN.md i `design.json` dopisane (skala, `has-acw-banner`) — dobrze; dopisać ostrzeżenie o MAJOR-2 (klucz localStorage) i wartość 1440 inkluzywną (`<=`) zarówno w CSS, jak i `innerWidth`.
+
+### ✅ Positive Observations
+
+- **Regresje FE-122 (punkt 1) — brak.** Region `role="status"` jest renderowany tylko w instancji `floating` (agent shell), stały i niezależny od miejsca rysowania karty; `announceEffect` czyta `pendingTab` (nie `visible`), więc przejście trasa↔pulpit nie ogłasza ponownie, a chip w toolbarze nie dubluje (test „toolbar instance has no live region" + test „first/live/changes" z MutationObserver).
+- Widoczność przy otwartym kalendarzu zachowana: `pendingTab` uwzględnia `calendarOpen`, a chip jest w `<header>` pulpitu, który renderuje się także przy kalendarzu. `complete()` w serwisie ma identyczną sekwencję jak wcześniej (zamknięcie kalendarza, `setActiveTab`, `requestAcwFocus`, nawigacja) — fokus z przycisku tylko na jawną akcję, bez `focus()` przy pojawieniu się.
+- Sprzątanie klasy `has-acw-banner`: `effect` przełącza klasę tylko z instancji `floating`, `DestroyRef.onDestroy` ją zdejmuje (testy: destroy, przejście na pulpit). Wylogowanie niszczy powłokę agenta, więc klasa znika; instancja toolbar nie dotyka klasy.
+- Regresje FE-121/131…134 (punkt 2) — brak: w `agent-desktop.component.html` doszły tylko `<cc-acw-banner placement="toolbar" />` w nagłówku (poza `tablist`) i `title`/warunek na identyfikatorze w nagłówku kontaktu; `aria-owns`, × poza `role=tab` i handler skrótów FE-114 nietknięte. Cel × w pasku kart 24×24 (WCAG 2.5.8), przyciski toolbar `min-height: 1.75rem`, chip `1.5rem`.
+- App-shell: zamykanie szuflady dzieje się tylko przy przekroczeniu `xl` (`wasDesktop`), więc ręcznie otwarta szuflada na wąskim oknie nie jest ruszana; `host: '(window:resize)'` (Angular sprząta listener), dostęp przez `document.defaultView?.innerWidth ?? 0` (SSR-safe). Sidenav używa `typeof window` i `try/catch` na `localStorage`; zapis przeniesiony z efektu do `toggleCollapsed()` — poprawna decyzja, test „nie zamraża wartości pochodnej".
+- Rola agenta jest znana synchronicznie (`currentRole` = computed z tokenu), więc „rola wyliczana przed znaną rolą" nie wystąpi przy normalnym wejściu; supervisor/admin zachowują domyślnie rozwinięty sidenav (test R2).
+- Skala w jednym partialu z walidacją nazwy (`@error`), mixiny `down/below/up/compact-height`; w całej powierzchni agenta, powłoce, sidenavie, navbarze i `ai-summary-panel` nie ma literału `px` w `@media` (zweryfikowane grepem); kolumny przez `clamp()` w tokenach, `min-width` w e-mailu; tablet-width navbar bez przepełnienia (`flex-shrink`/`min-width: 0` na chipie użytkownika).
+
+### Testy — jakość
+- Dobre: parytet placementów ACW, sprzątanie klasy, przejście przez `xl` w `app-shell`, tabela ról/szerokości w sidenavie.
+- Brakuje: (a) testu starego klucza `cc_sidenav_collapsed='false'` (MAJOR-2), (b) testu spójności TS↔SCSS (MEDIUM-4), (c) żadnego automatycznego pomiaru układu (1366×768 pl/de, 1024, 1025–1100, zoom 200%), (d) kolizji banera z toggle sidenava (MAJOR-1).
+
+### Summary
+**Ocena: 3.5/5** — czysty, dobrze przetestowany podział ACW (jedno ogłoszenie, sprzątanie klasy, brak regresji FE-121/122) i spójna skala breakpointów, ale pływający baner nadal zasłania stopkę sidenava, domyślny rail agenta nie zadziała dla przeglądarek ze starym zapisem w `localStorage`, a kryteria pomiarowe (chrome ≤ 120/591, brak scrolla 1025–1100 i w `de`) nie mają żadnego dowodu.
+
+### Priorytety
+**Wymagane (przed commitem):**
+1. MAJOR-1: baner nie może zasłaniać stopki sidenava (offset o szerokość sidenava albo render w kolumnie treści).
+2. MAJOR-2: nowy klucz `localStorage` dla zapisu tylko z `toggleCollapsed()` + test starego klucza.
+3. MEDIUM-3: pomiar/weryfikacja navbara 1025–1100 px (pl, de; AGENT i SUPERVISOR) i decyzja, czy zmiana ma dotyczyć innych ról.
+4. Dowód pomiarowy AC 1 i 2 (screenshot/E2E 1366×768 pl+de, 1024) wpisany do FE-123.
+
+**Zalecane:** MEDIUM-4 (test TS↔SCSS), MEDIUM-5 (3 wspólne komponenty albo zawężenie AC), usunięcie/użycie `--desktop-main-min`, inicjalizacja `sidenavCollapsed` bez skoku, dopasowanie segmentowe `onDesktop`, opis kiosku 768 px, zoom 200%.
+
+**Drobne:** LOW-6 (mixed-decls w `&__avatar`), zdublowany komentarz „Low viewport:" w `agent-desktop.component.scss` (nagłówek kontaktu), import `AcwBannerComponent` stoi nad importami `@angular/core` w `agent-desktop.component.ts`, `title`+`aria-label` na chipie, `bp.below` zamiast ręcznego `- 1px` w `sidenav.component.scss`.
+
+### Status ustaleń FE-123 (aktualizacja 2026-10-29, runda 3 — po poprawkach)
+
+Ocena z rundy 1 pozostaje 3,5/5; poniżej stan ustaleń po rundach 2 i 3 (`/verify`: FE lint 0 błędów, format OK, 64 pliki / 745 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty).
+
+- **MAJOR-1 (baner zasłaniał stopkę sidenava): NAPRAWIONE** — pływający `cc-acw-banner` jest odsunięty o `--shell-sidenav-w`.
+- **MAJOR-2 (stary klucz `localStorage` zamrażał domyślny rail): NAPRAWIONE** — nowy klucz `cc_sidenav_collapsed_v2` zapisywany tylko w `toggleCollapsed()`; stary klucz `cc_sidenav_collapsed` ignorowany i usuwany; test starego klucza dodany.
+- **MEDIUM-3 (navbar 1025–1100 px, zmiana wspólna dla ról): ZWERYFIKOWANE POMIAREM** w przeglądarce — brak przepełnienia.
+- **MEDIUM-4 (TS↔SCSS bez strażnika): NAPRAWIONE** — `breakpoints.ts` + test parytetu z `_breakpoints.scss`.
+- **MEDIUM-5 (literały `px` w `@media` poza agentem): CZĘŚCIOWO** — 3 wspólne komponenty (`contact-detail-modal`, `confirm-dialog`, `disposition-list-editor`) przeniesione na skalę; pozostałe 27 plików (admin/auth/supervisor/tenants) → nowy ticket FE-137.
+- **LOW-6 i pozostałe zalecenia/drobne (pomiar chrome, `--desktop-main-min`, inicjalizacja `sidenavCollapsed`, dopasowanie segmentowe `onDesktop`, `title`+`aria-label`, kolejność importów): NAPRAWIONE** w rundzie 3.
+- **Dowód pomiarowy (AC 1 i 2): DOSTARCZONY** — 1366×768 (viewport 1334×549): chrome 156 → 120 px, treść kontaktu 558 → 782 px, wątek e-maila 229 → 303 px; brak poziomego scrolla przy 1024/1027/1100/1366/1888 px w pl/de/en; 1920×1080 bez zmian.
+- **Otwarte (poza zakresem):** chip/baner ACW niezweryfikowany na żywo (Twilio), widoki supervisor/admin niezweryfikowane (MFA); formularz odpowiedzi e-mail przy 1024 px wymaga przewijania.

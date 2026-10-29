@@ -54,7 +54,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 14 | 0 | 9 | 0 | 23 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 15 | 0 | 9 | 0 | 24 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | **Razem** | | **122** | **0** | **17** | **1** | **140** | |
 
@@ -71,7 +71,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 
 - FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134) — ✅ (2026-10-29; wszystkie pakiety FE-131…FE-134 ukończone)
 - FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu — ✅ (2026-10-29; niemodalny `DispositionPanel` w karcie `WRAPPING`, baner `cc-acw-banner`; otwarte: weryfikacja na żywo Twilio, skrót FE-114, baner przy 1366×768 → FE-123, ACW po F5 → FE-136)
-- FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ⬜ (Do zrobienia)
+- FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ✅ (2026-10-29)
 - FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ⬜ (Do zrobienia)
 - FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` — ⬜ (Do zrobienia)
 - FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ⬜ (Do zrobienia)
@@ -82,6 +82,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ✅ (2026-10-29)
 - FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154; FE-133 ✅)
 - FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po BE-157; FE-122 ✅, FE-131 ✅)
+- FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta/powłoką na skalę breakpointów (`_breakpoints.scss`) — ⬜ (Do zrobienia; wynik FE-123, nie blokuje FE-125)
 
 ---
 
@@ -5895,11 +5896,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 14/23** (✅ 14 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
+**Ukończone 15/24** (✅ 15 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -5912,7 +5913,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123` (wszystkie pakiety ukończone);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6268,8 +6269,8 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (layout / responsywność)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-121 ✅ (parasol), FE-131 ✅, FE-134 ✅, FE-132 ✅, FE-133 ✅ (pakiety FE-121), FE-122 ✅ (przebudowują pulpit), FE-118 ✅
-**Status:** ⬜ Do zrobienia
+**Zależy od:** FE-121 ✅ (parasol), FE-131 ✅, FE-134 ✅, FE-132 ✅, FE-133 ✅ (pakiety FE-121), FE-122 ✅ (przebudowują pulpit), FE-118 ✅, FE-116 ✅ (tokeny i skala typografii, na których stoją tokeny chrome)
+**Status:** ✅ Ukończone (2026-10-29, tura 57; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` sekcja „Review: FE-123” 3,5/5 — wszystkie MAJOR i zalecenia naprawione w rundzie 3; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 64 pliki / 745 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
 **Blokuje:** FE-124, FE-125
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
@@ -6284,13 +6285,23 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Weryfikacja: 1366×768, 1920×1080, 2560×1440, szerokość ~1024 px, język `de`.
 
 **Kryteria akceptacji:**
-- [ ] Przy 1366×768 chrome zajmuje ≤ 120 z 591 px (lub uzasadniony inny próg ustalony w `shape`), treść kontaktu widoczna bez przewijania całej strony
-- [ ] Brak poziomego przewijania w 1366×768, 1024 px i w języku `de`
-- [ ] Kolumny bez stałych 264/280 px; breakpointy z jednej skali (grep)
-- [ ] Brak regresji skrótów, fokusu i stanów kart (FE-121/FE-122)
-- [ ] WP-1…WP-6 (WP-5 przy 1366×768 obowiązkowo)
+- [x] Przy 1366×768 chrome zajmuje ≤ 120 z 591 px (lub uzasadniony inny próg ustalony w `shape`), treść kontaktu widoczna bez przewijania całej strony
+- [x] Brak poziomego przewijania w 1366×768, 1024 px i w języku `de`
+- [x] Kolumny bez stałych 264/280 px; breakpointy z jednej skali (grep)
+- [x] Brak regresji skrótów, fokusu i stanów kart (FE-121/FE-122)
+- [x] WP-1…WP-6 (WP-5 przy 1366×768 obowiązkowo; dowody niżej; WP-5 dla chipa/banera ACW na żywo — zob. „Otwarte”)
 
 **Notatka (2026-10-29, z FE-122):** zweryfikować, czy stały baner `cc-acw-banner` w powłoce agenta nie zasłania treści kontaktu przy 1366×768 (wlicza się do budżetu chrome ≤ 120 px); baner jest widoczny także przy otwartym kalendarzu.
+**Notatka wykonania (2026-10-29, tura 57):**
+- **Skala breakpointów:** `frontend/src/app/shared/styles/_breakpoints.scss` (mixiny `down/below/up/compact-height`, walidacja nazwy `@error`) + `breakpoints.ts` z testem parytetu TS↔SCSS (zamyka MEDIUM-4 z CR). Wartości: `xs` 480, `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `xxl` 1440; `compact-height` ≤ 720 px. Z 10 ad-hoc breakpointów do jednej skali w powierzchni agenta, powłoce, sidenavie, navbarze i `ai-summary-panel` (grep: brak literału `px` w `@media`).
+- **Tokeny wysokości chrome:** `--navbar-h` 64/48, `--desktop-toolbar-h` 48/36, `--desktop-tabbar-h` 44/36 (wartość pierwsza = normalna, druga = `compact-height`).
+- **Kolumny `clamp()`:** `--desktop-sidebar-w`, `--desktop-customer-w` zamiast stałych 264/280 px (przy 1920×1080 wynik bez zmian: 264/280).
+- **Sidenav:** rail 72 px domyślnie dla roli AGENT przy oknie ≤ 1440 px (`<=`, inkluzywnie); klucz `localStorage` **`cc_sidenav_collapsed_v2`** zapisywany WYŁĄCZNIE przy ręcznym przełączeniu (`toggleCollapsed()`); stary klucz `cc_sidenav_collapsed` jest ignorowany i usuwany (wcześniej zapisywał `'false'` przy każdym utworzeniu, co zamrażało domyślny stan — MAJOR-2 z CR). Supervisor/admin zachowują domyślnie rozwinięty sidenav. Szuflada sidenava nie otwiera się sama przy zwężeniu okna poniżej `xl` (zamykanie tylko przy przekroczeniu `xl`).
+- **Przypomnienie ACW:** `AcwReminderService` + `cc-acw-banner` w dwóch placementach: chip w pasku pulpitu (`placement="toolbar"`) oraz pływający baner poza pulpitem, odsunięty o `--shell-sidenav-w` (nie zasłania stopki sidenava — MAJOR-1 z CR); region `role="status"` tylko w instancji `floating`.
+- **Kompaktowe nagłówki:** kontakt, e-mail i `ai-summary-panel`; układ pionowy e-maila od ≤ 1024 px; wspólne modale (`contact-detail-modal`, `confirm-dialog`, `disposition-list-editor`) przeniesione na skalę.
+- **Dowody (WP-5, przeglądarka, 1366×768, viewport 1334×549):** chrome 156 → 120 px; szerokość treści kontaktu 558 → 782 px; wątek e-maila 229 → 303 px; brak poziomego scrolla przy 1024/1027/1100/1366/1888 px w językach pl/de/en; 1920×1080 bez zmian (paski 64/48/44, kolumny 264/280). MEDIUM-3 (navbar przy 1025–1100 px, zmiana wspólna dla ról) zweryfikowany pomiarem w przeglądarce: brak przepełnienia.
+- **Code review:** `senior-code-reviewer` 3,5/5; wszystkie MAJOR (baner zasłaniający sidenav, stary klucz `localStorage`) i zalecenia naprawione w rundzie 3 (zob. `CR-FRONTEND.md`).
+- **Otwarte (poza zakresem tego ticketu, zapisane tutaj):** (1) chip/baner ACW niezweryfikowany na żywo (wymaga prawdziwej rozmowy Twilio) oraz widoki supervisor/admin niezweryfikowane w przeglądarce (MFA) — kryteria pokryte testami jednostkowymi; (2) przy 1024 px (układ pionowy) formularz odpowiedzi e-mail wymaga przewijania; (3) 27 plików poza agentem/powłoką (admin, auth, supervisor, tenants) ma nadal literały `px` w `@media` → FE-137; (4) toast „Resource not found” przy kontakcie od nieznanego klienta — niezbadany (kandydat na bug do analizy `debug-specialist`, bez numeru); (5) kontakt `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu → FE-136 / BE-157 (zob. notatka w FE-136).
 **Ryzyka:** (R1) kolizje z FE-121/FE-122 — realizować po nich; (R2) zmiany w SCSS top-navbara wspólnego dla ról — przegląd supervisor/admin; (R3) rozmiary celów (clamp) a zoom 200% (WCAG 1.4.4/1.4.10).
 **Nie wchodzi w zakres:** układ mobilny/tablet, przebudowa nawigacji, optymalizacja rozmiaru stylów (FE-124).
 
@@ -6299,7 +6310,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (wydajność / refaktor)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-116 ✅, FE-118 ✅, FE-123 (tura 49: FE-116 i FE-118 ukończone; zostaje FE-123)
+**Zależy od:** FE-116 ✅, FE-118 ✅, FE-123 ✅ (tura 49: FE-116 i FE-118 ukończone; FE-123 ✅ 2026-10-29 — odblokowany)
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** FE-125
@@ -6335,7 +6346,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Testing / Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-114…FE-124 (w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
+**Zależy od:** FE-114…FE-124 (FE-123 ✅ od 2026-10-29; w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** zamknięcie EPIC-32
@@ -6688,9 +6699,39 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - [ ] WP-1…WP-7
 
 **Notatka (2026-10-29, z FE-122):** po F5 stan ACW karty (`wrappingSince`, szkic dyspozycji) nie jest odtwarzany — odtworzenie karty ACW z `phase=WRAP_UP` należy do tego ticketu (R3); szkice w pamięci nie są trwałe (RODO).
+**Notatka (2026-10-29, z FE-123 — niezbadany objaw):** kontakt w stanie `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu — `agent-recovery.service` korzysta dziś z `GET /api/agent/me/assigned-contact`, który zwraca tylko kontakt `ASSIGNED`. To jest już pokryte zakresem tego ticketu i BE-157 (`active-contacts` obejmuje `ACTIVE`/`ON_HOLD`, `phase=IN_PROGRESS`), więc NIE zakładano osobnego ticketu BE. Do sprawdzenia przy realizacji: scenariusz „wylogowanie → ponowne logowanie” (nie tylko F5) — czy `agent-recovery.service` jest uruchamiany także po ponownym zalogowaniu bez przeładowania strony, oraz test z kontaktem `ACTIVE` bez ponownego `acceptContact`.
 **Ryzyka:** (R1) kontakty `SOCIAL` pojawią się na liście dopiero po BE-155 (bug kanału); ACW to stan pochodny backendu (`COMPLETED` bez dyspozycji, tylko `PHONE`, okno 12 h) — czas ACW to `endedAt`, nie dokładny moment wejścia; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`) — zob. BE-156.
 **Nie wchodzi w zakres:** trwałość szkiców po przeładowaniu, odtwarzanie rozmowy WebRTC.
 
+
+### FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta i powłoką na skalę breakpointów
+
+**Typ:** Frontend implementation (refaktor stylów)
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** FE-123 ✅ (skala `_breakpoints.scss`, `breakpoints.ts` i test parytetu)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (nie blokuje FE-125; zamyka MEDIUM-5 z `CR-FRONTEND.md` „Review: FE-123”)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable layout`/`polish` (przegląd wizualny supervisor/admin)
+
+**Opis:** FE-123 przeniósł na skalę (`xs` 480, `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `xxl` 1440, `compact-height` ≤ 720) powierzchnię agenta, powłokę, sidenav, navbar, `ai-summary-panel` i wspólne modale. Poza tym zostają 27 plików (admin, auth, supervisor, tenants) z literałami `px` w `@media` (ok. 50 wystąpień, ok. 11 różnych wartości: 480/520/540/560/600/620/640/768/900/1024…).
+
+**Zakres:**
+- Zamiana literałów na mixiny `down/below/up` ze skali; wartości nieleżące na skali (520/540/560/600/620/900) przypisać do najbliższego progu po przeglądzie wizualnym każdego widoku (zmiana progu może przesunąć zawijanie układu).
+- Strażnik: test/skrypt (grep w CI lub test spec) zgłaszający nowy literał `px` w `@media` w `frontend/src`.
+- Weryfikacja w przeglądarce: widoki admin, supervisor, auth, tenants przy 480/768/1024/1366 px (wymaga logowania z MFA — wcześniej niezweryfikowane).
+
+**Kryteria akceptacji:**
+- [ ] `grep -rE "@media[^{]*[0-9]+px" frontend/src --include=*.scss` zwraca 0 wyników poza `_breakpoints.scss`
+- [ ] Brak poziomego przewijania w 480/768/1024/1366 px w widokach admin, supervisor, auth, tenants (pl/de/en)
+- [ ] Strażnik przed nowymi literałami `px` w `@media`
+- [ ] Brak regresji pulpitu agenta (FE-123)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) zmiana progu (np. 600 → 640) zmienia moment zawijania — przegląd wizualny każdego widoku; (R2) widoki supervisor/admin wymagają MFA przy teście ręcznym.
+**Nie wchodzi w zakres:** przebudowa układów, układ mobilny/tablet, optymalizacja rozmiaru stylów (FE-124).
 
 ## Bez epiku
 

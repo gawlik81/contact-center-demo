@@ -1,3 +1,4 @@
+import { normalizeContactName } from '../models/contact-name';
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
@@ -356,7 +357,10 @@ export class IncomingCallAlertService implements OnDestroy {
    * component is not mounted on the other agent routes. On the desktop itself the new tab is
    * visible, so only a toast is shown.
    */
-  private handleAsyncContactAssigned(payload: ContactAssignedPayload): void {
+  private handleAsyncContactAssigned(raw: ContactAssignedPayload): void {
+    const payload = { ...raw, customerName: normalizeContactName(raw.customerName) };
+    // Re-assigned while the agent is returning it: the tab is re-opened after the release ends.
+    if (this.tabStore.noteAssignedDuringRelease(payload)) return;
     const onDesktop = this.isOnDesktop();
     const exists = this.tabStore.tabs().some((t) => t.contactId === payload.contactId);
     if (exists) return; // re-delivery (e.g. WS reconnect) of a contact that is already open

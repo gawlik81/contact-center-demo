@@ -243,7 +243,6 @@
       "noActiveContacts": "Brak aktywnych kontaktów",
       "noActiveContactsSub": "Oczekuj na przydzielenie kontaktu lub odbierz połączenie z kolejki",
       "tabBarLabel": "Aktywne kontakty",
-      "closeContact": "Zamknij kontakt",
       "contactSince": "Od",
       "chatPlaceholder": "Czat nie jest jeszcze dostępny",
       "chatPlaceholderSub": "Ten kontakt nie może być tu obsłużony. Zamknij kartę.",
@@ -271,7 +270,39 @@
       "pluginActionSuccess": "Akcja pluginu wykonana.",
       "ringingAnnouncement": "Połączenie przychodzące: {{ who }}",
       "ringingAnnouncementQueue": "Kolejka: {{ queue }}",
-      "ringingAnnouncementUnknown": "Połączenie przychodzące"
+      "ringingAnnouncementUnknown": "Połączenie przychodzące",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "Wstrzymana",
+        "CALL": "Rozmowa",
+        "DRAFT": "Szkic"
+      },
+      "tabMarkerSr": {
+        "ACW": "dyspozycja po rozmowie (ACW)",
+        "HOLD": "rozmowa wstrzymana",
+        "CALL": "trwa rozmowa",
+        "DRAFT": "niewysłany szkic"
+      },
+      "newContactAnnouncement": "Nowy kontakt: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Rozłącz i zamknij kontakt {{name}}",
+        "closeAsync": "Zwróć do kolejki i zamknij kontakt {{name}}",
+        "wrapping": "Zapisz dyspozycję, aby zamknąć tę kartę",
+        "busy": "Trwa zwracanie kontaktu do kolejki",
+        "confirmHangup": "Rozłączyć rozmowę z {{name}} i zamknąć kartę?",
+        "confirmHangupAction": "Rozłącz",
+        "confirmReturn": "Kontakt {{name}} ma niewysłany szkic odpowiedzi. Zwrócenie kontaktu do kolejki usunie ten szkic. Kontynuować?",
+        "confirmReturnAction": "Zwróć do kolejki",
+        "cancel": "Anuluj",
+        "returned": "Kontakt {{name}} został zwrócony do kolejki",
+        "returnError": "Nie udało się zwrócić kontaktu {{name}} do kolejki. Karta pozostaje otwarta, spróbuj ponownie.",
+        "closeReject": "Odrzuć połączenie od {{name}}",
+        "closeStale": "Zamknij kartę {{name}}",
+        "closeWrapping": "Zamknięcie niedostępne, zapisz dyspozycję dla {{name}}",
+        "confirmReject": "Odrzucić połączenie od {{name}}?",
+        "confirmRejectAction": "Odrzuć",
+        "notYours": "Kontakt {{name}} nie jest już przypisany do Ciebie. Karta została zamknięta."
+      }
     },
     "softphone": {
       "incomingCall": "Połączenie przychodzące",

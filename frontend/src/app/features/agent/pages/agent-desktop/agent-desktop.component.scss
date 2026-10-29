@@ -223,6 +223,11 @@
 
   // ── Tab workspace ─────────────────────────────────────────────────────────
   &__main {
+    // Programmatic focus target after the last tab is closed (not a control): no focus ring.
+    &:focus {
+      outline: none;
+    }
+
     flex: 1;
     overflow: hidden;
     display: flex;
@@ -644,6 +649,14 @@
     }
   }
 
+  // Carries role="tablist" + aria-owns only; takes no space (the tabs live in the bar itself).
+  &__tablist {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
   &__panel {
     flex: 1;
     overflow: hidden;
@@ -654,33 +667,23 @@
   }
 }
 
-.contact-tab {
+// A tab = wrapper (visual tab: border, background, active underline) holding the real
+// `role="tab"` button and its sibling close button. The close button must never be nested in the tab.
+.contact-tab-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  background: transparent;
-  border: none;
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
   border-right: 1px solid var(--border-1, #e2e8f0);
-  cursor: pointer;
-  font-size: 0.8125rem;
-  font-weight: 500;
   color: var(--text-2, #64748b);
   transition:
     background var(--duration-fast, 120ms),
     color var(--duration-fast, 120ms);
-  white-space: nowrap;
-  position: relative;
-  height: 100%;
-  min-width: 0;
 
   &:first-child {
     border-left: 1px solid var(--border-1, #e2e8f0);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--accent, #1a56db);
-    outline-offset: -3px;
   }
 
   &:hover:not(&--active) {
@@ -691,7 +694,6 @@
   &--active {
     background: var(--bg-elevated, #ffffff);
     color: var(--text-1, #1e293b);
-    font-weight: 600;
 
     &::after {
       content: '';
@@ -713,6 +715,32 @@
   &--email#{&}--active::after {
     background: var(--violet, #9333ea);
   }
+}
+
+.contact-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0 4px 0 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent, #1a56db);
+    outline-offset: -3px;
+  }
+
+  &--active {
+    font-weight: 600;
+  }
 
   &__icon {
     width: 14px;
@@ -726,8 +754,10 @@
     }
   }
 
+  // Long names: ellipsis here, the full name is in the tab's title and accessible name.
   &__name {
     flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 130px;
@@ -742,50 +772,94 @@
     text-transform: uppercase;
     flex-shrink: 0;
 
-    .contact-tab--phone & {
+    .contact-tab-item--phone & {
       background: var(--accent-soft, #dbeafe);
       color: var(--accent-text, #1d4ed8);
     }
-    .contact-tab--chat & {
+    .contact-tab-item--chat & {
       background: var(--success-soft, #dcfce7);
       color: var(--success-text, #15803d);
     }
-    .contact-tab--email & {
+    .contact-tab-item--email & {
       background: var(--violet-soft, #f3e8ff);
       color: var(--violet-text, #7e22ce);
     }
-    .contact-tab--social & {
+    .contact-tab-item--social & {
       background: var(--warning-soft, #fff7ed);
       color: var(--warning-text, #c2410c);
     }
+  }
+
+  // State marker (FE-133): exactly one per tab. Icon + text, tone from the soft/text token pair
+  // (the pairs are designed to keep >= 4.5:1 text and >= 3:1 icon in both themes).
+  &__marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    padding: 1px 6px 1px 4px;
+    border-radius: 9999px;
+    border: 1px solid currentColor;
+    font-size: var(--fs-2xs);
+    font-weight: 700;
+    line-height: 1.4;
+
+    &--acw {
+      background: var(--violet-soft);
+      color: var(--violet-text);
+    }
+    &--hold {
+      background: var(--warning-soft);
+      color: var(--warning-text);
+    }
+    &--call {
+      background: var(--success-soft);
+      color: var(--success-text);
+    }
+    &--draft {
+      background: var(--neutral-soft);
+      color: var(--neutral-text);
+    }
+  }
+
+  &__marker-icon {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
   }
 
   &__close {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
+    margin: 0 8px 0 2px;
     border: none;
     background: transparent;
     border-radius: var(--radius-sm, 6px);
     cursor: pointer;
-    color: var(--text-muted, #94a3b8);
+    // Control icon: >= 3:1 on both tab backgrounds (text-3 is a 4.5:1 text token)
+    color: var(--text-3);
     padding: 0;
     flex-shrink: 0;
-    margin-left: 2px;
     transition:
       background var(--duration-fast, 120ms),
       color var(--duration-fast, 120ms);
 
     svg {
-      width: 11px;
-      height: 11px;
+      width: 12px;
+      height: 12px;
     }
 
-    &:hover {
-      background: var(--danger-soft, #fee2e2);
-      color: var(--danger, #dc2626);
+    &:hover:not(&--disabled) {
+      background: var(--danger-soft);
+      color: var(--danger-text);
+    }
+
+    &--disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     &:focus-visible {

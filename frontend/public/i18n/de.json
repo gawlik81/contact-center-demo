@@ -243,7 +243,6 @@
       "noActiveContacts": "Keine aktiven Kontakte",
       "noActiveContactsSub": "Warten Sie auf eine Kontaktzuweisung oder nehmen Sie einen Anruf aus der Warteschlange an",
       "tabBarLabel": "Aktive Kontakte",
-      "closeContact": "Kontakt schließen",
       "contactSince": "Seit",
       "chatPlaceholder": "Chat ist noch nicht verfügbar",
       "chatPlaceholderSub": "Dieser Kontakt kann hier nicht bearbeitet werden. Schließen Sie den Tab.",
@@ -271,7 +270,39 @@
       "pluginActionSuccess": "Plugin-Aktion abgeschlossen.",
       "ringingAnnouncement": "Eingehender Anruf: {{ who }}",
       "ringingAnnouncementQueue": "Warteschlange: {{ queue }}",
-      "ringingAnnouncementUnknown": "Eingehender Anruf"
+      "ringingAnnouncementUnknown": "Eingehender Anruf",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "Gehalten",
+        "CALL": "Im Gespräch",
+        "DRAFT": "Entwurf"
+      },
+      "tabMarkerSr": {
+        "ACW": "Nachbearbeitung (ACW)",
+        "HOLD": "Gespräch gehalten",
+        "CALL": "Gespräch läuft",
+        "DRAFT": "nicht gesendeter Entwurf"
+      },
+      "newContactAnnouncement": "Neuer Kontakt: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Auflegen und Kontakt {{name}} schließen",
+        "closeAsync": "In die Warteschlange zurückgeben und Kontakt {{name}} schließen",
+        "wrapping": "Speichern Sie die Disposition, um diesen Tab zu schließen",
+        "busy": "Kontakt wird in die Warteschlange zurückgegeben",
+        "confirmHangup": "Gespräch mit {{name}} beenden und Tab schließen?",
+        "confirmHangupAction": "Auflegen",
+        "confirmReturn": "Für den Kontakt {{name}} gibt es einen nicht gesendeten Antwortentwurf. Beim Zurückgeben in die Warteschlange geht er verloren. Fortfahren?",
+        "confirmReturnAction": "In Warteschlange zurückgeben",
+        "cancel": "Abbrechen",
+        "returned": "Kontakt {{name}} wurde in die Warteschlange zurückgegeben",
+        "returnError": "Kontakt {{name}} konnte nicht in die Warteschlange zurückgegeben werden. Der Tab bleibt offen, bitte erneut versuchen.",
+        "closeReject": "Anruf von {{name}} abweisen",
+        "closeStale": "Tab {{name}} schließen",
+        "closeWrapping": "Schließen nicht möglich, Disposition für {{name}} speichern",
+        "confirmReject": "Anruf von {{name}} abweisen?",
+        "confirmRejectAction": "Abweisen",
+        "notYours": "Kontakt {{name}} ist Ihnen nicht mehr zugewiesen. Der Tab wurde geschlossen."
+      }
     },
     "softphone": {
       "incomingCall": "Eingehender Anruf",

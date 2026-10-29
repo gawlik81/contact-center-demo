@@ -131,6 +131,8 @@ describe('AgentDesktopComponent contact body remount (real template)', () => {
     openEmail('c1');
     await settle();
     openEmail('c2');
+    // A new contact no longer takes over the active tab (FE-133): the agent switches explicitly.
+    store.setActiveTab('tab-c2');
     await settle();
     expect(log.created).toEqual(['c1', 'c2']);
 

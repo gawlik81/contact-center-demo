@@ -131,6 +131,19 @@ describe('IncomingCallAlertService', () => {
     });
   });
 
+  describe('CONTACT_ASSIGNED for a contact whose release is in flight', () => {
+    beforeEach(() => setup('/agent/desktop'));
+
+    it('does not dedupe against the closing tab but defers the assignment to the release', () => {
+      emitAssigned('EMAIL', 'c-mail');
+      store.beginRelease('c-mail');
+      emitAssigned('EMAIL', 'c-mail');
+      expect(store.tabs().filter((t) => t.contactId === 'c-mail')).toHaveLength(1);
+      expect(notifications.info).not.toHaveBeenCalledTimes(2);
+      expect(store.endRelease('c-mail')).toMatchObject({ contactId: 'c-mail', type: 'EMAIL' });
+    });
+  });
+
   describe('non-phone CONTACT_ASSIGNED on the desktop', () => {
     beforeEach(() => setup('/agent/desktop'));
 

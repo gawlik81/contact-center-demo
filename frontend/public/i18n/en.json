@@ -243,7 +243,6 @@
       "noActiveContacts": "No active contacts",
       "noActiveContactsSub": "Wait for a contact assignment or pick up a call from the queue",
       "tabBarLabel": "Active contacts",
-      "closeContact": "Close contact",
       "contactSince": "Since",
       "chatPlaceholder": "Chat is not available yet",
       "chatPlaceholderSub": "This contact cannot be handled here. Close the tab.",
@@ -271,7 +270,39 @@
       "pluginActionSuccess": "Plugin action completed.",
       "ringingAnnouncement": "Incoming call: {{ who }}",
       "ringingAnnouncementQueue": "Queue: {{ queue }}",
-      "ringingAnnouncementUnknown": "Incoming call"
+      "ringingAnnouncementUnknown": "Incoming call",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "On hold",
+        "CALL": "In call",
+        "DRAFT": "Draft"
+      },
+      "tabMarkerSr": {
+        "ACW": "after-call work (ACW)",
+        "HOLD": "call on hold",
+        "CALL": "call in progress",
+        "DRAFT": "unsent draft"
+      },
+      "newContactAnnouncement": "New contact: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Hang up and close contact {{name}}",
+        "closeAsync": "Return to queue and close contact {{name}}",
+        "wrapping": "Save the disposition to close this tab",
+        "busy": "Returning the contact to the queue",
+        "confirmHangup": "Hang up the call with {{name}} and close the tab?",
+        "confirmHangupAction": "Hang up",
+        "confirmReturn": "Contact {{name}} has an unsent reply draft. Returning the contact to the queue will discard it. Continue?",
+        "confirmReturnAction": "Return to queue",
+        "cancel": "Cancel",
+        "returned": "Contact {{name}} was returned to the queue",
+        "returnError": "Could not return contact {{name}} to the queue. The tab stays open, please try again.",
+        "closeReject": "Reject the call from {{name}}",
+        "closeStale": "Close tab {{name}}",
+        "closeWrapping": "Closing unavailable, save the disposition for {{name}}",
+        "confirmReject": "Reject the call from {{name}}?",
+        "confirmRejectAction": "Reject",
+        "notYours": "Contact {{name}} is no longer assigned to you. The tab was closed."
+      }
     },
     "softphone": {
       "incomingCall": "Incoming call",

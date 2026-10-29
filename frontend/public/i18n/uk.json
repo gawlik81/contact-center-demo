@@ -243,7 +243,6 @@
       "noActiveContacts": "Немає активних контактів",
       "noActiveContactsSub": "Очікуйте призначення контакту або прийміть дзвінок з черги",
       "tabBarLabel": "Активні контакти",
-      "closeContact": "Закрити контакт",
       "contactSince": "Від",
       "chatPlaceholder": "Чат ще недоступний",
       "chatPlaceholderSub": "Цей контакт не можна обробити тут. Закрийте вкладку.",
@@ -271,7 +270,39 @@
       "pluginActionSuccess": "Дію плагіна виконано.",
       "ringingAnnouncement": "Вхідний дзвінок: {{ who }}",
       "ringingAnnouncementQueue": "Черга: {{ queue }}",
-      "ringingAnnouncementUnknown": "Вхідний дзвінок"
+      "ringingAnnouncementUnknown": "Вхідний дзвінок",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "Утримується",
+        "CALL": "Розмова",
+        "DRAFT": "Чернетка"
+      },
+      "tabMarkerSr": {
+        "ACW": "післядзвінкова обробка (ACW)",
+        "HOLD": "розмову утримано",
+        "CALL": "триває розмова",
+        "DRAFT": "невідправлена чернетка"
+      },
+      "newContactAnnouncement": "Новий контакт: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Завершити виклик і закрити контакт {{name}}",
+        "closeAsync": "Повернути в чергу і закрити контакт {{name}}",
+        "wrapping": "Збережіть результат, щоб закрити цю вкладку",
+        "busy": "Контакт повертається в чергу",
+        "confirmHangup": "Завершити розмову з {{name}} і закрити вкладку?",
+        "confirmHangupAction": "Завершити",
+        "confirmReturn": "Для контакту {{name}} є невідправлена чернетка відповіді. Повернення в чергу видалить її. Продовжити?",
+        "confirmReturnAction": "Повернути в чергу",
+        "cancel": "Скасувати",
+        "returned": "Контакт {{name}} повернуто в чергу",
+        "returnError": "Не вдалося повернути контакт {{name}} в чергу. Вкладка залишається відкритою, спробуйте ще раз.",
+        "closeReject": "Відхилити дзвінок від {{name}}",
+        "closeStale": "Закрити вкладку {{name}}",
+        "closeWrapping": "Закриття недоступне, збережіть результат для {{name}}",
+        "confirmReject": "Відхилити дзвінок від {{name}}?",
+        "confirmRejectAction": "Відхилити",
+        "notYours": "Контакт {{name}} більше не призначено вам. Вкладку закрито."
+      }
     },
     "softphone": {
       "incomingCall": "Вхідний дзвінок",

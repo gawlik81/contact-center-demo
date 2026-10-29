@@ -7,6 +7,7 @@ import {
   ContactType,
 } from '../models/contact-tab.model';
 import { ContactAssignedPayload, CallIncomingPayload } from '../models/ws-event.model';
+import { normalizeContactName } from '../models/contact-name';
 
 export const MAX_PHONE_TABS = 1;
 export const MAX_ASYNC_TABS = 3;
@@ -81,16 +82,25 @@ export class ContactTabStore {
     });
   }
 
+  /**
+   * Adds a tab. A new contact never steals the active tab from an agent who is working on
+   * another one (FE-133): the tab is added inactive. It becomes active only when
+   * - there is no tab yet (the first one is active), or
+   * - the caller explicitly passes `isActive: true` (an explicit agent action).
+   * A ringing call is activated by the desktop's ringing effect / the incoming-call banner, not here.
+   */
   openTab(tab: Omit<ContactTab, 'isActive'> & { isActive?: boolean }): TabLimitReason {
     const limitReason = this.checkLimits(tab.type);
     if (limitReason !== null) return limitReason;
 
-    const newTab: ContactTab = { ...tab, isActive: false };
-    this.tabs.update((current) => {
-      // Deactivate all, activate new one
-      const deactivated = current.map((t) => ({ ...t, isActive: false }));
-      return [...deactivated, { ...newTab, isActive: true }];
-    });
+    const activate = tab.isActive === true || this.tabs().length === 0;
+    // One place for every open path (WS events, recovery, consultation): same display name.
+    const named = { ...tab, customerName: normalizeContactName(tab.customerName) };
+    this.tabs.update((current) =>
+      activate
+        ? [...current.map((t) => ({ ...t, isActive: false })), { ...named, isActive: true }]
+        : [...current, { ...named, isActive: false }],
+    );
     return null;
   }
 
@@ -103,14 +113,41 @@ export class ContactTabStore {
       if (closing.originalContactId) this.drafts.clear(closing.originalContactId);
     }
     this.tabs.update((current) => {
+      const index = current.findIndex((t) => t.id === id);
       const filtered = current.filter((t) => t.id !== id);
-      // If we closed the active tab, activate the first remaining
-      const hadActive = current.find((t) => t.id === id)?.isActive ?? false;
+      // If we closed the active tab, activate its neighbour (the next one, else the last)
+      const hadActive = index >= 0 && current[index].isActive;
       if (hadActive && filtered.length > 0) {
-        return filtered.map((t, i) => ({ ...t, isActive: i === 0 }));
+        const next = Math.min(index, filtered.length - 1);
+        return filtered.map((t, i) => ({ ...t, isActive: i === next }));
       }
       return filtered;
     });
+  }
+
+  // ── Release (return to queue) in flight ────────────────────────────────────
+  // While POST /release is pending the backend may re-assign the SAME contact to this agent. The
+  // assignment event would be deduplicated against the still-existing tab, and the release
+  // success would then remove the tab: the contact would be assigned but have no tab.
+
+  private readonly releasing = new Map<string, ContactAssignedPayload | null>();
+
+  beginRelease(contactId: string): void {
+    this.releasing.set(contactId, null);
+  }
+
+  /** True (and the payload is kept) when the contact is being released: do not open a tab now. */
+  noteAssignedDuringRelease(payload: ContactAssignedPayload): boolean {
+    if (!this.releasing.has(payload.contactId)) return false;
+    this.releasing.set(payload.contactId, payload);
+    return true;
+  }
+
+  /** Ends the release; returns the assignment that arrived meanwhile, if any. */
+  endRelease(contactId: string): ContactAssignedPayload | null {
+    const reassigned = this.releasing.get(contactId) ?? null;
+    this.releasing.delete(contactId);
+    return reassigned;
   }
 
   /** Closes the tab of a contact (no-op when it is already gone). Used outside components. */
@@ -151,7 +188,7 @@ export class ContactTabStore {
         if (t.contactId !== contactId) return t;
         return {
           ...t,
-          customerName,
+          customerName: normalizeContactName(customerName),
           ...(direction !== undefined ? { direction } : {}),
           ...(customerId !== undefined ? { customerId } : {}),
         };

@@ -1,6 +1,21 @@
 <!-- Assertive announcement of a ringing call (the incoming-call banner is hidden on the desktop) -->
 <div class="sr-only" role="alert">{{ ringingAnnouncement() }}</div>
 
+<!-- Polite announcement of a new contact that did not take the active tab (FE-133) -->
+<div class="sr-only" role="status" aria-live="polite">{{ politeAnnouncement() }}</div>
+
+<!-- Close-tab confirmation: hang up a live call / return a contact that has an unsent draft -->
+@if (pendingClose(); as pending) {
+  <app-confirm-dialog
+    [message]="closeConfirmMessage(pending)"
+    [confirmLabel]="closeConfirmLabel(pending)"
+    [cancelLabel]="'agent.desktop.tabClose.cancel' | transloco"
+    [danger]="true"
+    (confirmed)="confirmClose()"
+    (cancelled)="cancelClose()"
+  />
+}
+
 <!-- Add Break Modal -->
 @if (addBreakOpen()) {
   <app-add-break-modal (saved)="onBreakSavedFromHeader()" (cancelled)="addBreakOpen.set(false)" />
@@ -189,7 +204,12 @@
 
     <!-- MAIN: contact tabs + customer panel -->
     <div class="desktop__content-area">
-      <section class="desktop__main" [attr.aria-label]="'agent.desktop.mainRegionLabel' | transloco">
+      <section
+        #mainRegion
+        class="desktop__main"
+        tabindex="-1"
+        [attr.aria-label]="'agent.desktop.mainRegionLabel' | transloco"
+      >
         @if (calendarTabActive()) {
           <!-- ── Calendar view ── -->
           <app-agent-calendar />
@@ -210,35 +230,90 @@
           } @else {
             <div class="contact-tabs">
               <!-- Tab bar -->
-              <div class="contact-tabs__bar" role="tablist" [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco">
+              <div class="contact-tabs__bar">
+                <!-- The tablist owns ONLY the tabs (by id). The close buttons sit next to their tab
+                     in the DOM and visually, but are not tablist content, so the tablist keeps
+                     the required "owns only tabs" structure. -->
+                <div
+                  class="contact-tabs__tablist"
+                  role="tablist"
+                  [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco"
+                  [attr.aria-owns]="tabDomIds()"
+                ></div>
                 @for (tab of tabs(); track trackByTabId($index, tab)) {
-                  <button
-                    #tabBtn
-                    type="button"
-                    class="contact-tab"
-                    role="tab"
-                    [attr.tabindex]="isTabStop(tab) ? 0 : -1"
-                    [class.contact-tab--active]="tab.isActive"
-                    [class.contact-tab--phone]="tab.type === 'PHONE'"
-                    [class.contact-tab--chat]="tab.type === 'CHAT'"
-                    [class.contact-tab--email]="tab.type === 'EMAIL'"
-                    [class.contact-tab--social]="tab.type === 'SOCIAL'"
-                    [attr.aria-selected]="tab.isActive"
-                    [attr.aria-controls]="'tab-panel-' + tab.id"
-                    [id]="'tab-' + tab.id"
-                    (click)="setActiveTab(tab)"
-                    (keydown)="onTabKeydown($event, tab)"
+                  <!-- The close button is a SIBLING of the tab, never its descendant (nested
+                       interactive content inside role="tab" is invalid ARIA). -->
+                  <div
+                    class="contact-tab-item"
+                    role="presentation"
+                    [class.contact-tab-item--active]="tab.isActive"
+                    [class.contact-tab-item--phone]="tab.type === 'PHONE'"
+                    [class.contact-tab-item--chat]="tab.type === 'CHAT'"
+                    [class.contact-tab-item--email]="tab.type === 'EMAIL'"
+                    [class.contact-tab-item--social]="tab.type === 'SOCIAL'"
                   >
-                    <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                      <path [attr.d]="getTabTypeIcon(tab)" />
-                    </svg>
-                    <span class="contact-tab__name">{{ tab.customerName }}</span>
-                    <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
                     <button
+                      #tabBtn
+                      type="button"
+                      class="contact-tab"
+                      role="tab"
+                      [attr.tabindex]="isTabStop(tab) ? 0 : -1"
+                      [class.contact-tab--active]="tab.isActive"
+                      [attr.aria-selected]="tab.isActive"
+                      [attr.aria-controls]="'tab-panel-' + tab.id"
+                      [attr.aria-label]="tabAriaLabel(tab)"
+                      [id]="'tab-' + tab.id"
+                      (click)="setActiveTab(tab)"
+                      (keydown)="onTabKeydown($event, tab)"
+                    >
+                      <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                        <path [attr.d]="getTabTypeIcon(tab)" />
+                      </svg>
+                      <span class="contact-tab__name" [attr.title]="tab.customerName">{{ tab.customerName }}</span>
+                      <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
+                      @if (markerOf(tab); as marker) {
+                        <span class="contact-tab__marker contact-tab__marker--{{ marker | lowercase }}">
+                          <svg
+                            class="contact-tab__marker-icon"
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            @switch (marker) {
+                              @case ('ACW') {
+                                <path
+                                  d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"
+                                />
+                              }
+                              @case ('HOLD') {
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                              }
+                              @case ('CALL') {
+                                <path
+                                  d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+                                />
+                              }
+                              @case ('DRAFT') {
+                                <path
+                                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                />
+                              }
+                            }
+                          </svg>
+                          <span class="contact-tab__marker-text">{{ markerLabel(marker) }}</span>
+                        </span>
+                      }
+                    </button>
+                    <button
+                      #closeBtn
                       type="button"
                       class="contact-tab__close"
-                      [attr.aria-label]="('agent.desktop.closeContact' | transloco) + ' ' + tab.customerName"
-                      (click)="closeTab($event, tab)"
+                      [class.contact-tab__close--disabled]="isCloseDisabled(tab)"
+                      [attr.aria-label]="closeLabel(tab)"
+                      [attr.aria-disabled]="isCloseDisabled(tab) ? 'true' : null"
+                      [attr.aria-describedby]="isCloseDisabled(tab) ? 'tab-close-reason-' + tab.id : null"
+                      [attr.title]="closeDisabledReason(tab) ?? closeLabel(tab)"
+                      (click)="requestClose(tab, closeBtn)"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -246,7 +321,10 @@
                         />
                       </svg>
                     </button>
-                  </button>
+                    @if (closeDisabledReason(tab); as reason) {
+                      <span class="sr-only" [id]="'tab-close-reason-' + tab.id">{{ reason }}</span>
+                    }
+                  </div>
                 }
               </div>
 
@@ -279,7 +357,11 @@
                     </div>
 
                     <!-- Body fills remaining vertical space; each inner component handles its own scroll -->
-                    <div class="contact-panel__body">
+                    <div
+                      class="contact-panel__body"
+                      [attr.inert]="isReturning(activeTab()) ? '' : null"
+                      [attr.aria-busy]="isReturning(activeTab()) ? 'true' : null"
+                    >
                       <!-- track by tab id: switching between two tabs of the same type must remount the
                            contact component, otherwise it keeps the previous contact's local state -->
                       @for (current of [activeTab()!]; track current.id) {

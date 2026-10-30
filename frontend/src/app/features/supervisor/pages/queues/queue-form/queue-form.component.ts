@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -43,6 +43,7 @@ export class QueueFormComponent implements OnInit, AfterViewInit {
   private readonly queueService = inject(QueueService);
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -160,26 +161,27 @@ export class QueueFormComponent implements OnInit, AfterViewInit {
     this.selectedSkills.update((list) => list.filter((s) => s !== skill));
   }
 
+  // Error getters return i18n keys; the template resolves them with the transloco pipe.
   get nameError(): string | null {
     const ctrl = this.form.get('name')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwa jest wymagana.';
-    if (ctrl.hasError('maxlength')) return 'Nazwa nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return 'supervisor.queueForm.errors.nameRequired';
+    if (ctrl.hasError('maxlength')) return 'supervisor.queueForm.errors.nameMaxLength';
     return null;
   }
 
   get routingStrategyError(): string | null {
     const ctrl = this.form.get('routingStrategy')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Strategia routingu jest wymagana.';
+    if (ctrl.hasError('required')) return 'supervisor.queueForm.errors.routingStrategyRequired';
     return null;
   }
 
   get emailAddressError(): string | null {
     const ctrl = this.form.get('emailAddress')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('email')) return 'Podaj prawidlowy adres email.';
-    if (ctrl.hasError('maxlength')) return 'Adres email nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('email')) return 'supervisor.userForm.errors.emailInvalid';
+    if (ctrl.hasError('maxlength')) return 'supervisor.userForm.errors.emailMaxLength';
     return null;
   }
 
@@ -210,12 +212,14 @@ export class QueueFormComponent implements OnInit, AfterViewInit {
         .subscribe({
           next: () => {
             this.submitting.set(false);
-            this.notifications.success(`Kolejka "${raw.name}" zostala zaktualizowana.`);
+            this.notifications.success(
+              this.transloco.translate('supervisor.queueForm.successEdit', { name: raw.name }),
+            );
             this.saved.emit();
           },
           error: () => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie zaktualizowac kolejki. Sprobuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.queueForm.errorEdit'));
           },
         });
     } else {
@@ -230,12 +234,16 @@ export class QueueFormComponent implements OnInit, AfterViewInit {
         .subscribe({
           next: (created) => {
             this.submitting.set(false);
-            this.notifications.success(`Kolejka "${created.name}" zostala utworzona.`);
+            this.notifications.success(
+              this.transloco.translate('supervisor.queueForm.successCreate', {
+                name: created.name,
+              }),
+            );
             this.saved.emit();
           },
           error: () => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie utworzyc kolejki. Sprobuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.queueForm.errorCreate'));
           },
         });
     }

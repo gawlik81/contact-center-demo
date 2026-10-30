@@ -51,7 +51,7 @@
               [attr.aria-invalid]="nameError ? 'true' : null"
             />
             @if (nameError) {
-              <span id="queue-name-error" class="form-error" role="alert">{{ nameError }}</span>
+              <span id="queue-name-error" class="form-error" role="alert">{{ nameError | transloco }}</span>
             }
           </div>
 
@@ -71,7 +71,7 @@
               [attr.aria-invalid]="emailAddressError ? 'true' : null"
             />
             @if (emailAddressError) {
-              <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError }}</span>
+              <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError | transloco }}</span>
             } @else {
               <span id="queue-email-hint" class="form-hint">{{ 'supervisor.queueForm.emailHint' | transloco }}</span>
             }
@@ -102,7 +102,9 @@
               }
             </select>
             @if (routingStrategyError) {
-              <span id="routing-strategy-error" class="form-error" role="alert">{{ routingStrategyError }}</span>
+              <span id="routing-strategy-error" class="form-error" role="alert">{{
+                routingStrategyError | transloco
+              }}</span>
             }
           </div>
 

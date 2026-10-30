@@ -385,7 +385,11 @@
       "loadingAgents": "Agentenliste wird geladen",
       "transferTargetLabel": "Transferziel",
       "waitingContacts": "wartend",
-      "availableAgents": "Agenten"
+      "availableAgents": "Agenten",
+      "errors": {
+        "tokenFetch": "Das Telefonie-Token konnte nicht abgerufen werden. Seite neu laden oder später erneut versuchen.",
+        "device": "Ein Telefoniefehler im Browser ist aufgetreten. Seite neu laden, um es erneut zu versuchen."
+      }
     },
     "disposition": {
       "title": "Kontakt beenden",
@@ -1179,7 +1183,16 @@
       "assignmentTitle": "Agentenzuweisung",
       "assignmentHint": "Warteschlange speichern, um die Agentenzuweisung zu konfigurieren.",
       "saveLabel": "Warteschlange speichern",
-      "dispositionsTitle": "Dispositionen nach Kontakt"
+      "dispositionsTitle": "Dispositionen nach Kontakt",
+      "errors": {
+        "nameRequired": "Name ist erforderlich.",
+        "nameMaxLength": "Name darf nicht mehr als 100 Zeichen enthalten.",
+        "routingStrategyRequired": "Routing-Strategie auswählen."
+      },
+      "successCreate": "Warteschlange „{{name}}“ wurde erstellt.",
+      "successEdit": "Warteschlange „{{name}}“ wurde aktualisiert.",
+      "errorCreate": "Die Warteschlange konnte nicht erstellt werden. Bitte erneut versuchen.",
+      "errorEdit": "Die Warteschlange konnte nicht aktualisiert werden. Bitte erneut versuchen."
     },
     "queueDelete": {
       "title": "Warteschlange löschen",
@@ -2903,7 +2916,9 @@
       "passwordHint": "Min. 8 Zeichen, 1 Großbuchstabe, 1 Ziffer.",
       "superAdminHint": "Der Hauptadministrator ist global und keinem Mandanten zugeordnet.",
       "successCreate": "Benutzer wurde erstellt.",
-      "successEdit": "Benutzer wurde aktualisiert."
+      "successEdit": "Benutzer wurde aktualisiert.",
+      "skillsLoadError": "Fähigkeitsvorschläge konnten nicht geladen werden. Fähigkeiten manuell eingeben und Enter drücken.",
+      "skillsEmpty": "Es sind noch keine Fähigkeiten definiert. Namen eingeben und Enter drücken."
     }
   },
   "language": {

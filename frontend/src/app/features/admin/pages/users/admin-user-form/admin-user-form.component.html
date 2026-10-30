@@ -39,7 +39,7 @@
             }
           </select>
           @if (tenantIdError) {
-            <span id="tenantId-error" class="form-error" role="alert">{{ tenantIdError }}</span>
+            <span id="tenantId-error" class="form-error" role="alert">{{ tenantIdError | transloco }}</span>
           }
         </div>
       }
@@ -59,7 +59,7 @@
           [attr.aria-invalid]="firstNameError ? 'true' : null"
         />
         @if (firstNameError) {
-          <span id="adm-firstName-error" class="form-error" role="alert">{{ firstNameError }}</span>
+          <span id="adm-firstName-error" class="form-error" role="alert">{{ firstNameError | transloco }}</span>
         }
       </div>
 
@@ -78,7 +78,7 @@
           [attr.aria-invalid]="lastNameError ? 'true' : null"
         />
         @if (lastNameError) {
-          <span id="adm-lastName-error" class="form-error" role="alert">{{ lastNameError }}</span>
+          <span id="adm-lastName-error" class="form-error" role="alert">{{ lastNameError | transloco }}</span>
         }
       </div>
 
@@ -97,7 +97,7 @@
           [attr.aria-invalid]="emailError ? 'true' : null"
         />
         @if (emailError) {
-          <span id="adm-email-error" class="form-error" role="alert">{{ emailError }}</span>
+          <span id="adm-email-error" class="form-error" role="alert">{{ emailError | transloco }}</span>
         }
       </div>
 
@@ -117,7 +117,7 @@
             [attr.aria-invalid]="passwordError ? 'true' : null"
           />
           @if (passwordError) {
-            <span id="adm-password-error" class="form-error" role="alert">{{ passwordError }}</span>
+            <span id="adm-password-error" class="form-error" role="alert">{{ passwordError | transloco }}</span>
           } @else {
             <span id="adm-password-hint" class="form-hint">{{ 'admin.userForm.passwordHint' | transloco }}</span>
           }
@@ -131,7 +131,7 @@
         </label>
         <select id="adm-role" class="form-select" formControlName="role" aria-required="true">
           @for (opt of roleOptions(); track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
+            <option [value]="opt.value">{{ opt.labelKey | transloco }}</option>
           }
         </select>
         @if (isSuperAdminRoleSelected) {
@@ -183,6 +183,7 @@
               aria-autocomplete="list"
               [attr.aria-expanded]="showSkillDropdown() && filteredSkills().length > 0"
               aria-controls="adm-skill-dropdown"
+              aria-describedby="adm-skill-status"
               (input)="onSkillInputChange($event)"
               (focus)="onSkillInputFocus()"
               (blur)="onSkillInputBlur()"
@@ -220,7 +221,25 @@
             }
           </div>
         </div>
-        <span class="form-hint">{{ 'supervisor.userForm.skillsHint' | transloco }}</span>
+        <span class="form-hint" id="adm-skill-status">
+          @if (skillsLoading()) {
+            {{ 'common.loading_data' | transloco }}
+          } @else if (skillsLoadFailed()) {
+            {{ 'admin.userForm.skillsLoadError' | transloco }}
+          } @else if (availableSkills().length === 0) {
+            {{ 'admin.userForm.skillsEmpty' | transloco }}
+          } @else {
+            {{ 'supervisor.userForm.skillsHint' | transloco }}
+          }
+        </span>
+        <!-- Live region always in the DOM; announces only the failed / empty states (not loading). -->
+        <span class="sr-only" role="status" data-testid="adm-skill-live">
+          @if (skillsLoadFailed()) {
+            {{ 'admin.userForm.skillsLoadError' | transloco }}
+          } @else if (!skillsLoading() && availableSkills().length === 0) {
+            {{ 'admin.userForm.skillsEmpty' | transloco }}
+          }
+        </span>
       </div>
     </form>
 

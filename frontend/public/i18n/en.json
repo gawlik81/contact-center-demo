@@ -385,7 +385,11 @@
       "loadingAgents": "Loading agent list",
       "transferTargetLabel": "Transfer target",
       "waitingContacts": "waiting",
-      "availableAgents": "agents"
+      "availableAgents": "agents",
+      "errors": {
+        "tokenFetch": "Could not fetch the telephony token. Refresh the page or try again later.",
+        "device": "A browser telephony error occurred. Refresh the page to try again."
+      }
     },
     "disposition": {
       "title": "End contact",
@@ -1179,7 +1183,16 @@
       "assignmentTitle": "Agent assignment",
       "assignmentHint": "Save the queue to configure agent assignment.",
       "saveLabel": "Save queue",
-      "dispositionsTitle": "Post-contact dispositions"
+      "dispositionsTitle": "Post-contact dispositions",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameMaxLength": "Name cannot exceed 100 characters.",
+        "routingStrategyRequired": "Select a routing strategy."
+      },
+      "successCreate": "Queue \"{{name}}\" was created.",
+      "successEdit": "Queue \"{{name}}\" was updated.",
+      "errorCreate": "Could not create the queue. Try again.",
+      "errorEdit": "Could not update the queue. Try again."
     },
     "queueDelete": {
       "title": "Delete queue",
@@ -2903,7 +2916,9 @@
       "activeHint": "Unchecking will prevent the user from logging in.",
       "skillsSelectedLabel": "Selected skills",
       "skillsAddPlaceholder": "Add skill...",
-      "saveEditLabel": "Save user changes"
+      "saveEditLabel": "Save user changes",
+      "skillsLoadError": "Could not load skill suggestions. Type skills manually and press Enter.",
+      "skillsEmpty": "No skills are defined yet. Type a name and press Enter."
     }
   },
   "language": {

@@ -385,7 +385,11 @@
       "loadingAgents": "Ładowanie listy agentów",
       "transferTargetLabel": "Cel transferu",
       "waitingContacts": "czeka",
-      "availableAgents": "agentów"
+      "availableAgents": "agentów",
+      "errors": {
+        "tokenFetch": "Nie udało się pobrać tokenu telefonii. Odśwież stronę lub spróbuj ponownie później.",
+        "device": "Wystąpił błąd telefonii w przeglądarce. Odśwież stronę, aby spróbować ponownie."
+      }
     },
     "disposition": {
       "title": "Zakończ kontakt",
@@ -1179,7 +1183,16 @@
       "assignmentTitle": "Przypisanie agentów",
       "assignmentHint": "Zapisz kolejkę, aby skonfigurować przypisanie agentów.",
       "saveLabel": "Zapisz kolejkę",
-      "dispositionsTitle": "Dyspozycje po kontakcie"
+      "dispositionsTitle": "Dyspozycje po kontakcie",
+      "errors": {
+        "nameRequired": "Nazwa jest wymagana.",
+        "nameMaxLength": "Nazwa nie może przekraczać 100 znaków.",
+        "routingStrategyRequired": "Wybierz strategię routingu."
+      },
+      "successCreate": "Kolejka „{{name}}” została utworzona.",
+      "successEdit": "Kolejka „{{name}}” została zaktualizowana.",
+      "errorCreate": "Nie udało się utworzyć kolejki. Spróbuj ponownie.",
+      "errorEdit": "Nie udało się zaktualizować kolejki. Spróbuj ponownie."
     },
     "queueDelete": {
       "title": "Usuń kolejkę",
@@ -2903,7 +2916,9 @@
       "activeHint": "Odznaczenie zablokuje możliwość logowania użytkownika.",
       "skillsSelectedLabel": "Wybrane skille",
       "skillsAddPlaceholder": "Dodaj skill...",
-      "saveEditLabel": "Zapisz zmiany użytkownika"
+      "saveEditLabel": "Zapisz zmiany użytkownika",
+      "skillsLoadError": "Nie udało się wczytać podpowiedzi skilli. Wpisz skille ręcznie i naciśnij Enter.",
+      "skillsEmpty": "Brak zdefiniowanych skilli. Wpisz nazwę i naciśnij Enter."
     }
   },
   "language": {

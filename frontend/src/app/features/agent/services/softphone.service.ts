@@ -17,6 +17,11 @@ import { CallSession, TransferAgentItem, TransferQueueItem } from '../models/cal
 import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
 import { environment } from '../../../../environments/environment';
 
+/** i18n keys for Twilio Device errors exposed through `twilioDeviceError`. */
+export type TwilioDeviceErrorKey =
+  | 'agent.softphone.errors.tokenFetch'
+  | 'agent.softphone.errors.device';
+
 interface VoiceTokenResponse {
   token: string;
   identity: string;
@@ -57,8 +62,11 @@ export class SoftphoneService implements OnDestroy {
 
   /** True while Twilio Device is registering or registered */
   readonly twilioDeviceReady = signal<boolean>(false);
-  /** Last error from Twilio Device initialization (for diagnostics) */
-  readonly twilioDeviceError = signal<string | null>(null);
+  /**
+   * i18n key of the last Twilio Device initialization error. Consumers must resolve it with
+   * the transloco pipe; raw error detail goes to the console only.
+   */
+  readonly twilioDeviceError = signal<TwilioDeviceErrorKey | null>(null);
 
   // ── UI timers ──────────────────────────────────────────────────────────────
   private durationInterval: ReturnType<typeof setInterval> | null = null;
@@ -72,6 +80,14 @@ export class SoftphoneService implements OnDestroy {
   private secondLegCallId: string | null = null;
 
   // ── Twilio Device lifecycle ────────────────────────────────────────────────
+
+  /** Factory seam for the Twilio Device (overridden in tests; the SDK needs WebRTC). */
+  protected createTwilioDevice(token: string): Device {
+    return new Device(token, {
+      logLevel: 1,
+      codecPreferences: [TwilioCall.Codec.Opus, TwilioCall.Codec.PCMU],
+    });
+  }
 
   /**
    * Initializes the Twilio Voice Device by fetching an Access Token with VoiceGrant
@@ -101,7 +117,7 @@ export class SoftphoneService implements OnDestroy {
         '[SoftphoneService] Nie udało się pobrać voice-token — Twilio Device nie zostanie zainicjalizowany.',
         msg,
       );
-      this.twilioDeviceError.set(`Brak tokenu: ${msg}`);
+      this.twilioDeviceError.set('agent.softphone.errors.tokenFetch');
       return;
     }
 
@@ -109,10 +125,7 @@ export class SoftphoneService implements OnDestroy {
     this.destroyTwilioDevice();
 
     try {
-      const device = new Device(response.token, {
-        logLevel: 1,
-        codecPreferences: [TwilioCall.Codec.Opus, TwilioCall.Codec.PCMU],
-      });
+      const device = this.createTwilioDevice(response.token);
 
       device.on('incoming', (call: TwilioCall) => this.handleIncomingCall(call));
 
@@ -128,7 +141,7 @@ export class SoftphoneService implements OnDestroy {
 
       device.on('error', (error: Error) => {
         console.error('[SoftphoneService] Twilio Device error:', error.message);
-        this.twilioDeviceError.set(error.message);
+        this.twilioDeviceError.set('agent.softphone.errors.device');
         this.twilioDeviceReady.set(false);
       });
 
@@ -139,7 +152,7 @@ export class SoftphoneService implements OnDestroy {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[SoftphoneService] Błąd inicjalizacji Twilio Device:', msg);
-      this.twilioDeviceError.set(msg);
+      this.twilioDeviceError.set('agent.softphone.errors.device');
       this.twilioDeviceReady.set(false);
     }
   }

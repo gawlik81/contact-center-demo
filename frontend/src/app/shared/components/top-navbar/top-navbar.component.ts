@@ -82,19 +82,22 @@ export class TopNavbarComponent {
     initialValue: this.transloco.getActiveLang(),
   });
 
+  /** Plural rules per language (built once per language change, not on every recompute). */
+  private readonly pluralRules = computed(() => new Intl.PluralRules(this.lang()));
+
+  // i18n note: all four plural keys exist in every language on purpose. top-navbar.kpi-layout.spec
+  // types en/de/uk by the shape of pl.json, so key sets must match; en/de never select few/many.
   /**
    * Work time for assistive tech as translation parts, e.g. "3 godziny" + "45 minut".
    * Only keys and counts live here; the `transloco` pipe in the template resolves the text and
    * re-renders once the language file has loaded. Zero parts are dropped ("45 minut", "1 godzina"),
    * except a lone "0 minut" so the value is never empty.
    */
-  // i18n note: all four plural keys exist in every language on purpose. top-navbar.kpi-layout.spec
-  // types en/de/uk by the shape of pl.json, so key sets must match; en/de never select few/many.
   protected readonly workTimeParts = computed(() => {
     const seconds = this.kpi()?.workTimeSeconds;
     if (seconds == null) return [];
     const { hours, minutes } = splitHoursMinutes(seconds);
-    const rules = new Intl.PluralRules(this.lang());
+    const rules = this.pluralRules();
     const parts: { key: string; count: number }[] = [];
     if (hours > 0) {
       parts.push({ key: `agent.desktop.kpiWorkTimeHours_${rules.select(hours)}`, count: hours });

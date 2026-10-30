@@ -1,8 +1,17 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { TranslocoTestingModule } from '@jsverse/transloco';
+import {
+  provideTransloco,
+  TRANSLOCO_LOADER,
+  TranslocoService,
+  TranslocoTestingModule,
+} from '@jsverse/transloco';
+import { delay, firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import de from '../../../../../../public/i18n/de.json';
+import en from '../../../../../../public/i18n/en.json';
 import pl from '../../../../../../public/i18n/pl.json';
+import uk from '../../../../../../public/i18n/uk.json';
 import { QueueItem } from '../../models/queue-item.model';
 import { QueueStateService } from '../../services/queue-state.service';
 import { QueuePanelComponent, TYPE_ICONS } from './queue-panel.component';
@@ -169,5 +178,51 @@ describe('QueuePanelComponent', () => {
     const badge = (fixture.nativeElement as HTMLElement).querySelector('.queue-panel__badge')!;
     expect(badge.textContent?.trim()).toBe(String(count));
     expect(badge.getAttribute('aria-label')).toBe(label);
+  });
+});
+
+describe('QueuePanelComponent badge label with asynchronously loaded language files', () => {
+  it('never exposes a translation key after switching to a not-yet-loaded language', async () => {
+    const dicts = { pl, en, de, uk } as unknown as Record<string, unknown>;
+    TestBed.configureTestingModule({
+      imports: [QueuePanelComponent],
+      providers: [
+        provideTransloco({
+          config: { availableLangs: ['pl', 'en', 'de', 'uk'], defaultLang: 'pl' },
+        }),
+        {
+          provide: TRANSLOCO_LOADER,
+          useValue: { getTranslation: (l: string) => of(dicts[l] as never).pipe(delay(40)) },
+        },
+        {
+          provide: QueueStateService,
+          useValue: { queueItems: signal<QueueItem[]>([makeItem(), makeItem({ id: 'q-2' })]) },
+        },
+      ],
+    });
+    const transloco = TestBed.inject(TranslocoService);
+    await firstValueFrom(transloco.load('pl'));
+    const fixture = TestBed.createComponent(QueuePanelComponent);
+    const root = fixture.nativeElement as HTMLElement;
+    const label = () => root.querySelector('.queue-panel__badge')?.getAttribute('aria-label') ?? '';
+    let loading = 'pl';
+    const settle = async () => {
+      await firstValueFrom(transloco.load(loading));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    fixture.detectChanges();
+    await settle();
+    expect(label()).toBe('2 oczekujących');
+
+    loading = 'en';
+    transloco.setActiveLang('en'); // en is not loaded yet: the loader answers after 40 ms
+    fixture.detectChanges();
+    expect(label()).not.toContain('agent.');
+    expect(label()).not.toBe('');
+
+    await settle();
+    expect(label()).toBe('2 waiting');
   });
 });

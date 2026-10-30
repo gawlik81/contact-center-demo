@@ -40,11 +40,20 @@ export class QueuePanelComponent {
     initialValue: this.transloco.getActiveLang(),
   });
 
-  /** "3 oczekujących": the plural form comes from Intl.PluralRules, the text from the i18n key. */
+  /** Plural rules per language (built once per language change, not on every recompute). */
+  private readonly pluralRules = computed(() => new Intl.PluralRules(this.lang()));
+
+  /**
+   * "3 oczekujących": only the i18n key (plural category from Intl.PluralRules) and the count are
+   * computed here. The `transloco` pipe in the template resolves the text, so it re-renders once a
+   * not-yet-loaded language file arrives (translate() inside a computed would freeze the raw key).
+   */
   protected readonly badgeLabel = computed(() => {
     const count = this.items().length;
-    const category = new Intl.PluralRules(this.lang()).select(count);
-    return this.transloco.translate(`agent.desktop.queueWaitingCount_${category}`, { count });
+    return {
+      key: `agent.desktop.queueWaitingCount_${this.pluralRules().select(count)}`,
+      count,
+    };
   });
 
   constructor() {

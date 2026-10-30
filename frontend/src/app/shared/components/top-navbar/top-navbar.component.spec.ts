@@ -156,6 +156,15 @@ describe('TopNavbarComponent copy (FE-119)', () => {
     }
   });
 
+  it('reads the Handled tile without KPI as "label, sub, no data" (FE-129 NIT-1)', async () => {
+    await setup('pl', null);
+    const tile = root.querySelectorAll('.kpi-tile')[0];
+    const read = Array.from(tile.querySelectorAll('.kpi-tile__label, .kpi-tile__sub, .sr-only'))
+      .map((n) => n.textContent?.trim())
+      .join(', ');
+    expect(read).toBe('Obsłużone, dziś, brak danych');
+  });
+
   it('keeps visible values exposed and AHT with units when KPI is present', async () => {
     await setup('en', KPI);
     expect(root.querySelectorAll('.kpi-tile')[0].querySelector('.sr-only')).toBeNull();
@@ -280,8 +289,9 @@ describe('TopNavbarComponent work-time text with asynchronously loaded language 
       (root.querySelectorAll('.kpi-tile')[3].querySelector('.sr-only')?.textContent ?? '')
         .replace(/\s+/g, ' ')
         .trim();
+    let loading = 'pl';
     const settle = async () => {
-      await new Promise((r) => setTimeout(r, 120));
+      await firstValueFrom(transloco.load(loading));
       fixture.detectChanges();
       await fixture.whenStable();
       fixture.detectChanges();
@@ -290,9 +300,12 @@ describe('TopNavbarComponent work-time text with asynchronously loaded language 
     await settle();
     expect(text()).toBe('3 godziny 45 minut');
 
+    loading = 'en';
     transloco.setActiveLang('en'); // en is not loaded yet: the loader answers after 40 ms
     fixture.detectChanges();
+    // Loading window: the previous text stays (pipe instances survive via track $index).
     expect(text()).not.toContain('agent.desktop');
+    expect(text()).not.toBe('');
 
     await settle();
     expect(text()).toBe('3 hours 45 minutes');

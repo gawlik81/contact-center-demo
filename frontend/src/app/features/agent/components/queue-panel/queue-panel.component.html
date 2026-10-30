@@ -2,7 +2,8 @@
   <div class="queue-panel__header">
     <h2 class="queue-panel__title">{{ 'agent.desktop.queueTitle' | transloco }}</h2>
     @if (items().length > 0) {
-      <span class="queue-panel__badge" [attr.aria-label]="badgeLabel()">
+      @let badge = badgeLabel();
+      <span class="queue-panel__badge" [attr.aria-label]="badge.key | transloco: { count: badge.count }">
         {{ items().length }}
       </span>
     }

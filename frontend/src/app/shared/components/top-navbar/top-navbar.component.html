@@ -75,10 +75,10 @@
             <span class="kpi-tile__value" [attr.aria-hidden]="kpi() ? null : 'true'">{{
               kpi()?.contactsHandledToday ?? '—'
             }}</span>
+            <span class="kpi-tile__sub">{{ 'agent.desktop.kpiHandledSub' | transloco }}</span>
             @if (!kpi()) {
               <span class="sr-only">{{ 'agent.desktop.kpiNoData' | transloco }}</span>
             }
-            <span class="kpi-tile__sub">{{ 'agent.desktop.kpiHandledSub' | transloco }}</span>
           </div>
         </div>
       </div>
@@ -175,7 +175,8 @@
               {{ kpi() ? formatHoursMinutes(kpi()!.workTimeSeconds) : '—' }}
             </span>
             <span class="sr-only">
-              @for (part of workTimeParts(); track part.key) {
+              <!-- track by index: the pipe instance survives a language switch and keeps the previous text until the new file loads -->
+              @for (part of workTimeParts(); track $index) {
                 {{ part.key | transloco: { count: part.count } }}{{ $last ? '' : ' ' }}
               } @empty {
                 {{ 'agent.desktop.kpiNoData' | transloco }}

@@ -1,5 +1,6 @@
+@use '../../../../../shared/styles/focus' as *;
 // Ad Hoc Email Dialog
-// Visual style aligned with ManualCallbackModalComponent — dark gradient header, native <dialog>.
+// Visual style aligned with ManualCallbackModalComponent — flat accent header, native <dialog>.
 
 @use '../../../../../shared/styles/resizable-dialog' as *;
 
@@ -9,7 +10,6 @@
   box-sizing: border-box;
 }
 
-$ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Entry animation ────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 520px;
   max-height: 92vh;
   background: var(--bg-elevated);
-  animation: dialog-enter 280ms $ease-spring both;
+  animation: dialog-enter 280ms var(--ease-out-expo) both;
   overflow: hidden;
 
   // `ResizableDialogDirective` pins explicit width/height (in px) via inline styles once the
@@ -82,20 +82,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
     flex-shrink: 0;
-    background: linear-gradient(
-      135deg,
-      var(--accent) 0%,
-      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
-    );
+    background: var(--accent);
     position: relative;
-
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 60%);
-      pointer-events: none;
-    }
   }
 
   &__header-inner {
@@ -109,7 +97,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.15);
+    background: color-mix(in oklch, var(--accent-fg) 15%, transparent);
     color: var(--accent-fg);
     display: flex;
     align-items: center;
@@ -137,7 +125,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   &__subtitle {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--accent-fg);
+    font-weight: 500;
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -213,9 +202,9 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   width: 32px;
   height: 32px;
   border: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in oklch, var(--accent-fg) 12%, transparent);
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--accent-fg);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -231,7 +220,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.22);
+    background: color-mix(in oklch, var(--accent-fg) 22%, transparent);
     color: var(--accent-fg);
   }
 
@@ -240,7 +229,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline: 2px solid var(--accent-fg);
     outline-offset: 2px;
   }
 
@@ -286,7 +275,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.875rem;
   font-family: inherit;
   color: var(--text-1);
-  background: var(--bg-input, var(--bg-surface));
+  background: var(--bg-input);
   border: 1.5px solid var(--border-control);
   border-radius: var(--radius-md);
   width: 100%;
@@ -303,11 +292,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     border-color: var(--border-control-hover);
   }
 
-  &:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
+  @include field-focus;
 
   &--textarea {
     resize: vertical;
@@ -328,9 +313,10 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     border-color 180ms $ease-standard,
     box-shadow 180ms $ease-standard;
 
-  &:focus-within {
+  &:has(.editor-content:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 }
 
@@ -372,11 +358,6 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
   a {
     color: var(--accent-text);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
   }
 }
 
@@ -433,7 +414,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 0.875rem;
   font-family: inherit;
   color: var(--text-1);
-  background: var(--bg-input, var(--bg-surface));
+  background: var(--bg-input);
   border: 1.5px solid var(--border-control);
   border-radius: var(--radius-md);
   width: 100%;
@@ -451,11 +432,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     border-color: var(--border-control-hover);
   }
 
-  &:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
+  @include field-focus;
 }
 
 .form-error {
@@ -520,21 +497,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-save {
-  background: linear-gradient(
-    135deg,
-    var(--accent) 0%,
-    color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
-  );
+  background: var(--accent);
   color: var(--accent-fg);
-  box-shadow:
-    0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
-    0 4px 12px color-mix(in oklch, var(--accent) 25%, transparent);
 
   &:hover:not(:disabled) {
-    box-shadow:
-      0 2px 4px color-mix(in oklch, var(--accent) 35%, transparent),
-      0 6px 16px color-mix(in oklch, var(--accent) 30%, transparent);
-    transform: translateY(-1px);
+    background: color-mix(in oklch, var(--accent) 88%, black);
   }
 
   &:focus-visible {

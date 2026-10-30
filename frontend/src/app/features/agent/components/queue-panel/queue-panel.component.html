@@ -1,0 +1,43 @@
+<div class="queue-panel">
+  <div class="queue-panel__header">
+    <h2 class="queue-panel__title">{{ 'agent.desktop.queueTitle' | transloco }}</h2>
+    @if (items().length > 0) {
+      <span class="queue-panel__badge" [attr.aria-label]="badgeLabel()">
+        {{ items().length }}
+      </span>
+    }
+  </div>
+
+  @if (items().length === 0) {
+    <div class="queue-panel__empty-state">
+      <svg class="queue-panel__empty-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"
+        />
+      </svg>
+      <p class="queue-panel__empty-text">{{ 'agent.desktop.queueEmpty' | transloco }}</p>
+    </div>
+  } @else {
+    <ul class="queue-list" role="list">
+      @for (item of items(); track trackByQueueId($index, item)) {
+        @let wait = getWaitingTime(item.waitingSince);
+        <li class="queue-item">
+          <div class="queue-item__avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path [attr.d]="getQueueTypeIcon(item)" />
+            </svg>
+          </div>
+          <div class="queue-item__info">
+            <span class="queue-item__name">{{ item.customerName }}</span>
+            <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
+            <span class="queue-item__queue">{{ item.queueName }}</span>
+          </div>
+          <div class="queue-item__wait">
+            <span class="sr-only">{{ 'agent.desktop.queueWaitTime' | transloco }} {{ wait }}</span>
+            <span aria-hidden="true">{{ wait }}</span>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

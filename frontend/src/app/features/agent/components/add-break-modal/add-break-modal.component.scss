@@ -1,4 +1,4 @@
-$ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+@use '../../../../shared/styles/focus' as *;
 $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Dialog shell ──────────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 480px;
   background: var(--bg-elevated);
   overflow: hidden;
-  animation: panel-in 320ms $ease-spring forwards;
+  animation: panel-in 320ms var(--ease-out-expo) forwards;
 
   &::backdrop {
     background: color-mix(in oklch, oklch(0% 0 0) 60%, transparent);
@@ -250,7 +250,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     padding: 11px 12px;
     font-size: 0.9375rem;
     color: var(--text-1);
-    background: var(--bg-input, var(--bg-surface));
+    background: var(--bg-input);
     border: 1.5px solid var(--border-control);
     border-radius: var(--radius-md);
     font-family: inherit;
@@ -268,11 +268,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       border-color: var(--border-control-hover);
     }
 
-    &:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
+    @include field-focus;
   }
 
   &__select {
@@ -280,7 +276,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     padding-right: 2rem;
     font-size: 0.9375rem;
     color: var(--text-1);
-    background: var(--bg-input, var(--bg-surface));
+    background: var(--bg-input);
     border: 1.5px solid var(--border-control);
     border-radius: var(--radius-md);
     font-family: inherit;
@@ -299,11 +295,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       border-color: var(--border-control-hover);
     }
 
-    &:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
+    @include field-focus;
   }
 
   &__textarea {
@@ -315,7 +307,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     resize: vertical;
     font-family: inherit;
     line-height: 1.6;
-    background: var(--bg-input, var(--bg-surface));
+    background: var(--bg-input);
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
@@ -329,11 +321,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       border-color: var(--border-control-hover);
     }
 
-    &:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
+    @include field-focus;
   }
 
   &__hint {
@@ -631,11 +619,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       border-color: var(--border-control-hover);
     }
 
-    &:focus-visible {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
+    @include field-focus;
   }
 
   &__chevron {

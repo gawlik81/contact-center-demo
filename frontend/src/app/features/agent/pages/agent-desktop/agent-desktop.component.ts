@@ -1,3 +1,4 @@
+import { LowerCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,9 +18,8 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
-import { DatePipe, LowerCasePipe } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { catchError, interval, of } from 'rxjs';
+import { catchError, of } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AgentStatusService } from '../../services/agent-status.service';
@@ -36,13 +36,16 @@ import { TabMarker, resolveTabMarker, sessionMatchesTab } from '../../models/con
 import { CallLifecycleService } from '../../services/call-lifecycle.service';
 import { DispositionSaveService } from '../../services/disposition-save.service';
 import { CallState } from '../../models/call-session.model';
-import { QueueStateService } from '../../services/queue-state.service';
 import { AcwBannerComponent } from '../../components/acw-banner/acw-banner.component';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
 import { EmailContactComponent } from './email-contact/email-contact.component';
 import { SocialContactComponent } from './social-contact/social-contact.component';
+import { ContactHeaderComponent } from '../../components/contact-header/contact-header.component';
+import { NoContactsComponent } from '../../components/no-contacts/no-contacts.component';
+import { WsBannerComponent } from '../../components/ws-banner/ws-banner.component';
+import { QueuePanelComponent } from '../../components/queue-panel/queue-panel.component';
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
 import { AddBreakModalComponent } from '../../components/add-break-modal/add-break-modal.component';
@@ -51,7 +54,6 @@ import { PluginPanelHostComponent } from '../../../../shared/components/plugin-p
 import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
 import { ManualActionDef, TenantPluginInstallationDto } from '../../../plugins/models/plugin.model';
 import { ContactTab, acwDraftKey } from '../../models/contact-tab.model';
-import { QueueItem } from '../../models/queue-item.model';
 
 /**
  * What the close button / Delete does for a tab:
@@ -80,7 +82,6 @@ interface ToolbarManualAction {
   selector: 'app-agent-desktop',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     LowerCasePipe,
     TranslocoModule,
     SoftphoneComponent,
@@ -89,6 +90,10 @@ interface ToolbarManualAction {
     EmailContactComponent,
     SocialContactComponent,
     ManualCampaignPanelComponent,
+    QueuePanelComponent,
+    ContactHeaderComponent,
+    NoContactsComponent,
+    WsBannerComponent,
     AgentCalendarComponent,
     AddBreakModalComponent,
     ContactDetailModalComponent,
@@ -125,16 +130,12 @@ export class AgentDesktopComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
   private readonly transloco = inject(TranslocoService);
-  private readonly queueStateService = inject(QueueStateService);
   protected readonly authService = inject(AuthService);
   private readonly pluginAdminService = inject(PluginAdminService);
   private readonly http = inject(HttpClient);
   private readonly injector = inject(Injector);
   protected readonly hotkeys = inject(AgentHotkeysService);
   protected readonly shortcuts = AGENT_SHORTCUTS;
-
-  protected readonly queueItems = this.queueStateService.queueItems;
-  protected readonly now = signal(Date.now());
 
   protected readonly connectionState = this.ws.connectionState;
   protected readonly isOffline = computed(
@@ -390,10 +391,6 @@ export class AgentDesktopComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    interval(1000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.now.set(Date.now()));
-
     // EPIC-28 / FE-100: load agent-visible plugin installations once. Failure is non-fatal —
     // the desktop must keep working even if the plugin subsystem is unavailable, so we swallow
     // the error here (no toast) and simply keep the panel/toolbar empty (zero layout impact).
@@ -770,13 +767,6 @@ export class AgentDesktopComponent implements OnInit {
     );
   }
 
-  protected getWaitingTime(waitingSince: Date): string {
-    const diffMs = this.now() - new Date(waitingSince).getTime();
-    const minutes = Math.floor(diffMs / 60_000);
-    const seconds = Math.floor((diffMs % 60_000) / 1_000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }
-
   protected getTabTypeIcon(tab: ContactTab): string {
     switch (tab.type) {
       case 'PHONE':
@@ -801,19 +791,6 @@ export class AgentDesktopComponent implements OnInit {
         return this.transloco.translate('agent.desktop.tabEmail');
       case 'SOCIAL':
         return this.transloco.translate('agent.desktop.tabSocial');
-    }
-  }
-
-  protected getQueueTypeIcon(item: QueueItem): string {
-    switch (item.type) {
-      case 'PHONE':
-        return 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z';
-      case 'CHAT':
-        return 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z';
-      case 'EMAIL':
-        return 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z';
-      case 'SOCIAL':
-        return 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z';
     }
   }
 
@@ -891,7 +868,6 @@ export class AgentDesktopComponent implements OnInit {
   }
 
   protected readonly trackByTabId = (_i: number, tab: ContactTab) => tab.id;
-  protected readonly trackByQueueId = (_i: number, item: QueueItem) => item.id;
   protected readonly trackByInstallationId = (
     _i: number,
     installation: TenantPluginInstallationDto,

@@ -1,0 +1,13 @@
+<div class="ws-banner" role="alert" aria-live="assertive">
+  <svg class="ws-banner__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+  </svg>
+  @if (reconnecting()) {
+    <span class="ws-banner__text">
+      {{ 'agent.desktop.wsReconnecting' | transloco
+      }}<span class="ws-banner__dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+    </span>
+  } @else {
+    <span class="ws-banner__text">{{ 'agent.desktop.wsDisconnected' | transloco }}</span>
+  }
+</div>

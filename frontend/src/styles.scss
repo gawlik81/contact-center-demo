@@ -47,7 +47,10 @@ body {
 
   // Transitions
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  // Legacy name for --ease-out-expo (same curve, no overshoot).
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --duration-fast: 120ms;
   --duration-normal: 200ms;
@@ -57,6 +60,9 @@ body {
   // 2xs: uppercase labels, pills, counters, KPI captions. xs: small secondary text.
   --fs-2xs: 0.6875rem; // 11px
   --fs-xs: 0.75rem; // 12px
+  --fs-sm: 0.8125rem; // 13px
+  // Numeric / measured values (timers, counters).
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
 
   // Chrome heights (FE-123). One place so the shell, the sidenav and the agent desktop agree.
   // Normal: navbar 64 + toolbar 48 + tab bar 44 = 156px. Compact (<= 720px tall viewport,
@@ -307,6 +313,19 @@ select {
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 14px;
+}
+
+// ── Screen-reader-only text ────────────────────────────────────────────────────
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 // ── Reduced motion support ─────────────────────────────────────────────────────

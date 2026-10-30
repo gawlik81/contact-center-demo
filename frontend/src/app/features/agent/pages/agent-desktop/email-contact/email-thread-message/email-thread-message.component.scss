@@ -19,9 +19,9 @@ $outbound-badge-text: var(--violet-text);
   border-radius: 10px;
   border: 1px solid var(--border-1);
   overflow: hidden;
-  animation: msg-enter 240ms var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation: msg-enter 240ms var(--ease-out-expo) both;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--duration-fast, 120ms);
+  transition: box-shadow var(--duration-fast);
 
   &:hover {
     box-shadow: var(--shadow-md);
@@ -48,14 +48,14 @@ $outbound-badge-text: var(--violet-text);
     justify-content: space-between;
     gap: 0.5rem;
     padding: 0.625rem 1rem 0.5rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid color-mix(in oklch, var(--text-1) 6%, transparent);
 
     .thread-message--inbound & {
-      background: rgba(37, 99, 235, 0.04);
+      background: color-mix(in oklch, var(--accent) 4%, transparent);
     }
 
     .thread-message--outbound & {
-      background: rgba(124, 58, 237, 0.04);
+      background: color-mix(in oklch, var(--violet) 4%, transparent);
     }
   }
 
@@ -82,13 +82,13 @@ $outbound-badge-text: var(--violet-text);
     .thread-message--inbound & {
       background: $inbound-badge-bg;
       color: $inbound-badge-text;
-      border: 1px solid rgba(37, 99, 235, 0.2);
+      border: 1px solid color-mix(in oklch, var(--accent) 20%, transparent);
     }
 
     .thread-message--outbound & {
       background: $outbound-badge-bg;
       color: $outbound-badge-text;
-      border: 1px solid rgba(124, 58, 237, 0.2);
+      border: 1px solid color-mix(in oklch, var(--violet) 20%, transparent);
     }
   }
 
@@ -128,7 +128,7 @@ $outbound-badge-text: var(--violet-text);
     width: 100%;
     border: none;
     background: transparent;
-    transition: height 180ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+    transition: height 180ms var(--ease-standard);
     min-height: 52px;
   }
 
@@ -136,7 +136,7 @@ $outbound-badge-text: var(--violet-text);
 
   &__attachments {
     padding: 0.5rem 1rem 0.625rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    border-top: 1px solid color-mix(in oklch, var(--text-1) 6%, transparent);
     background: var(--bg-subtle);
   }
 
@@ -178,16 +178,14 @@ $outbound-badge-text: var(--violet-text);
   color: var(--text-2);
   max-width: 220px;
   transition:
-    background var(--duration-fast, 120ms),
-    border-color var(--duration-fast, 120ms),
-    color var(--duration-fast, 120ms),
-    box-shadow var(--duration-fast, 120ms);
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast);
 
   &:hover {
-    background: var(--bg-elevated);
+    background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent-text);
-    box-shadow: var(--shadow-xs, var(--shadow-sm));
   }
 
   &:focus-visible {

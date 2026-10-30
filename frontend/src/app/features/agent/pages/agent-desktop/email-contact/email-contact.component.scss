@@ -302,9 +302,8 @@
     }
 
     &:hover:not(:disabled) {
-      background: var(--bg-elevated);
+      background: var(--bg-subtle);
       border-color: var(--border-control-hover);
-      box-shadow: var(--shadow-xs, var(--shadow-sm));
     }
 
     &:disabled {
@@ -418,9 +417,11 @@
       border-color var(--duration-fast, 120ms),
       box-shadow var(--duration-fast, 120ms);
 
-    &:focus-within {
+    // One ring on the wrapper only (editor itself has outline: none).
+    &:has(.email-reply__editor:focus-visible) {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
     }
   }
 
@@ -456,11 +457,6 @@
     }
     a {
       color: var(--accent-text);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: -2px;
     }
   }
 

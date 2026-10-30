@@ -27,19 +27,28 @@ describe('SocialIntegrationsComponent - WhatsApp connect dialog', () => {
   let successSpy: ReturnType<typeof vi.fn>;
   let errorSpy: ReturnType<typeof vi.fn>;
 
-  beforeAll(() => {
-    // jsdom's <dialog> element does not implement showModal()/close() - stub them
-    // the same way other dialog-based component specs in this repo do.
-    if (!HTMLDialogElement.prototype.showModal) {
-      HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-        this.setAttribute('open', '');
-      };
-    }
-    if (!HTMLDialogElement.prototype.close) {
-      HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-        this.removeAttribute('open');
-      };
-    }
+  // jsdom's <dialog> does not implement showModal()/close(). Install the stubs unconditionally
+  // before every test and remove them afterwards, so the suite never depends on a prototype
+  // patched (or left unpatched) by another spec or on an earlier test's leftovers.
+  const dialogProto = HTMLDialogElement.prototype as unknown as Record<string, unknown>;
+  const originalDialogMethods = {
+    showModal: dialogProto['showModal'],
+    close: dialogProto['close'],
+  };
+
+  beforeEach(() => {
+    dialogProto['showModal'] = function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    dialogProto['close'] = function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    };
+  });
+
+  afterEach(() => {
+    fixture?.destroy();
+    dialogProto['showModal'] = originalDialogMethods.showModal;
+    dialogProto['close'] = originalDialogMethods.close;
   });
 
   beforeEach(async () => {

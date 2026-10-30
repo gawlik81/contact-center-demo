@@ -2212,3 +2212,63 @@ Ocena senior-code-reviewer: 3,5/5. Wszystkie ustalenia naprawione w rundzie 2:
 **Runda 3 (znalezisko z przeglądarki):** podwójny pierścień fokusu w edytorach e-maila (`adhoc-email-modal`, `email-reply` w `email-contact`) — naprawione: jeden pierścień na wrapperze przez `:has(...:focus-visible)` (`editor-content` outline none, wrapper outline 2 px, offset 2 px; zweryfikowane w przeglądarce dla `adhoc`).
 
 **Otwarte (poza zakresem FE-124):** `--color-primary` bez definicji w `customer-panel.component.scss:417` i nieużywany klucz `agent.desktop.queueWaiting` → FE-125; komponenty ponad 12 kB i bundle initial 567 kB > 500 kB → FE-138; niezweryfikowane na żywo: lista kolejki z pozycjami (WS, 9 testów), `prefers-reduced-motion`, edytor odpowiedzi na pulpicie po rundzie 3.
+
+---
+
+## Review: FE-125 (część A) — 2026-10-30
+
+Zakres: `customer-panel.component.scss`, `agent-customers-tab.component.scss` (`--color-primary` → `--accent`), usunięty klucz `agent.desktop.queueWaiting` (pl/en/de/uk), `queue-panel` (`normalizeContactName` + test), `agent-desktop.component.ts` (`announce()` czyści region live po `ANNOUNCEMENT_CLEAR_MS` = 2000) + test. Uruchomiono `agent-desktop.tabs.spec.ts` i `queue-panel*.spec.ts`: 60/60 zielone.
+
+### 🐛 Bugs / Critical Issues
+_None identified._ (brak blockerów)
+
+### MAJOR
+_None identified._
+
+### MEDIUM
+- **MEDIUM-1 `agent-desktop.component.ts:405-410`** Callback `afterNextRender` ustawia `announcementTimer = setTimeout(...)` bez wcześniejszego `clearTimeout`. `clearTimeout` jest tylko na początku `announce()`. Dwa wywołania `announce()` przed renderem (np. `newContactEffect` + `requestClose`) kolejkują dwa callbacki: oba odpalają się w tym samym renderze, drugi nadpisuje uchwyt pierwszego timera, który nigdy nie zostanie anulowany. Skutki: (a) osierocony timer po `ngOnDestroy` (destroy czyści tylko ostatni uchwyt, a callback timera dotyka sygnału zniszczonego komponentu), (b) wcześniejsze wyczyszczenie tekstu drugiego ogłoszenia. Naprawa: `clearTimeout(this.announcementTimer)` tuż przed `setTimeout` w callbacku (i `if (this.destroyed) return;` na jego początku).
+- **MEDIUM-2 `agent-desktop.component.ts:~59` (`ANNOUNCEMENT_CLEAR_MS = 2000`)** 2 s to dolna granica. Ogłoszenie w `role="status"` jest kolejkowane przez czytnik w momencie wstawienia tekstu, więc usunięcie węzła zwykle nie ucina mowy (NVDA/JAWS z Chrome/Firefox), ale zachowanie nie jest zagwarantowane. Przy wolnej mowie i długim tekście (`newContactAnnouncement` łączy kilka kontaktów przez join) oraz VoiceOver/Safari ryzyko ucięcia lub zgubienia jest realne, a testu na czytnikach nie ma. Zalecenie: 5000–10000 ms (koszt zerowy, `sr-only`), albo opis w komentarzu, że 2 s nie weryfikowano na czytnikach. Wartość to jedna stała, więc zmiana jest trywialna.
+
+### MINOR
+- **MINOR-1 `agent-desktop.tabs.spec.ts:725-754`** Test sprawdza tylko ścieżkę główną. Brak przypadków: (a) drugi `announce()` w oknie 2 s resetuje timer (nowy tekst nie jest czyszczony po resztce starego okna), (b) `destroy` anuluje timer (`vi.getTimerCount() === 0` po `fixture.destroy()`), (c) dwa ogłoszenia w jednym ticku (MEDIUM-1). Asercje `toContain` zamiast `toBe` osłabiają test. Fake timers są poprawnie izolowane (`useFakeTimers` po pierwszym `settle()`, `afterEach(useRealTimers)`); ryzyko: padnięta asercja przed `afterEach` nadal przywraca zegar, więc inne testy w pliku nie ucierpią.
+- **MINOR-2 `queue-panel.component.spec.ts`** Nowy test pokrywa `Name <mail>` i `<mail>`, ale nie `''`, białych znaków ani `null`. `normalizeContactName` obsługuje `null`/`undefined`/`''` (zwraca `''`), więc kod jest bezpieczny, ale brakuje testu regresji. Przy pustej nazwie w kolejce zostaje pusty `<span class="queue-item__name">`; rozważ fallback do `customerIdentifier` (`displayName(item.customerName) || item.customerIdentifier`) i wtedy ukrycie zduplikowanej linii identyfikatora.
+- **MINOR-3 `queue-panel.component.ts:72`** `protected readonly displayName = normalizeContactName;` stoi po metodach, między nimi a `trackByQueueId`; przenieść do bloku pól. Wywołanie funkcji w szablonie jest tanie (regex, OnPush), pipe nie jest potrzebny.
+- **MINOR-4** Pozostałe `--color-primary` (z fallbackami hex) są w `supervisor/.../disposition-sets-page.component.scss` (l. 103-423). Token nadal niezdefiniowany, więc w całości działa na fallbackach. Poza zakresem FE-125A; do osobnego zadania. Zmiana w `customer-panel` (l. 417) i `agent-customers-tab` (l. 569) jest poprawna: `--accent` jest zdefiniowany w obu motywach (`styles.scss:137`, `:197`), a usunięcie fallbacku `#1976d2` ujednolica kolor linku.
+
+### ⚠️ Security Concerns
+_None identified._
+
+### 🏗️ Architecture / Pattern Violations
+_None identified._
+
+### Weryfikacja punktów zadania
+1. **Timer / sprzątanie / SSR:** `destroyRef.onDestroy` czyści timer (dobrze), `clearTimeout(undefined)` jest bezpieczne. SSR bezpieczne: `afterNextRender` nie wykonuje się na serwerze, więc `setTimeout` nigdy tam nie powstaje. Wyjątek: osierocony timer z MEDIUM-1.
+2. **Czyszczenie po 2 s:** patrz MEDIUM-2.
+3. **clear → set w jednym ticku przy OnPush:** działa. `set('')` jest zapisem sygnału czytanym w szablonie (zaznacza widok), a `afterNextRender` odpala się po renderze z pustym tekstem, więc DOM faktycznie zmienia się dwa razy (potwierdza test z ponownym ogłoszeniem tego samego tekstu). Czyszczący timer też zapisuje sygnał, więc OnPush odświeży widok bez ręcznego `markForCheck`.
+4. **`normalizeContactName`:** null/undefined/`''` → `''`; regex bezpieczny (leniwy `.*?`, kotwica `$`, brak katastrofalnego backtrackingu). Patrz MINOR-2 (pusty span).
+5. **Klucz i18n:** `agent.desktop.queueWaiting` nie jest używany nigdzie. Jedyne dynamiczne użycie to `` `agent.desktop.queueWaitingCount_${category}` `` (`queue-panel.component.ts:47`), który ma osobny prefiks z `_`, więc usunięcie jest bezpieczne. `supervisor.dashboard.queueWaiting` to inny, żywy klucz (nietknięty).
+6. **JSON:** wszystkie 4 pliki parsują się poprawnie, w każdym usunięto dokładnie jedną linię (brak wiszącego przecinka, bo kolejny klucz istnieje).
+7. **Testy:** zielone (60/60), fake timers nie wpływają na pozostałe testy pliku (patrz MINOR-1).
+
+### ✅ Positive Observations
+- Sprzątanie timera przez `DestroyRef` zamiast `ngOnDestroy`, spójnie z resztą komponentu; stała nazwana i opisana komentarzem.
+- Mechanizm clear → set zachowany i teraz przetestowany dla powtórzonego tekstu.
+- Zamiana `--color-primary` na istniejący token `--accent` bez fallbacku hex, zgodnie z kierunkiem FE-124.
+- Usunięcie klucza we wszystkich 4 językach naraz, zweryfikowane brakiem konkatenacji.
+
+### Summary
+**Ocena: 4/5** — drobna, bezpieczna zmiana bez blockerów; do poprawy: osierocony timer przy dwóch ogłoszeniach w jednym ticku (MEDIUM-1), zbyt krótkie okno 2 s bez weryfikacji na czytnikach (MEDIUM-2) i braki w testach (reset timera, destroy, wartości puste).
+
+### Priorytety
+**Zalecane przed commitem:** MEDIUM-1 (`clearTimeout` w callbacku + guard `destroyed`), MEDIUM-2 (zwiększyć stałą lub odnotować brak weryfikacji na czytnikach).
+**Drobne:** MINOR-1..3; MINOR-4 do osobnego zadania.
+
+### Status ustaleń FE-125 (aktualizacja 2026-10-30, runda 2 — po poprawkach)
+
+Ocena senior-code-reviewer (część A): 4/5. Ustalenia z rundy 1 naprawione w rundzie 2:
+- **MEDIUM-1** osierocony timer regionu live — naprawione (`clearTimeout` w callbacku, brak osieroconych timerów po `destroy`).
+- **MEDIUM-2** okno czyszczenia 2 s → 7 s (`ANNOUNCEMENT_CLEAR_MS`) — naprawione; wartość niezweryfikowana na czytnikach ekranu (dług weryfikacji).
+- **Wszystkie MINOR (1–3)** — naprawione (rozszerzone testy timera i `normalizeContactName`, fallback do identyfikatora dla pustej nazwy w kolejce, porządek pól).
+- **MINOR-4** `--color-primary` (i 7 innych niezdefiniowanych tokenów `--color-*`) w supervisor `disposition-sets-page.component.scss` — poza zakresem FE-125 → **FE-141**.
+- **Otwarte (poza zakresem):** gradienty → FE-139; fallbacki hex → FE-140; drobne P3 → FE-142; weryfikacja na żywo: czytnik ekranu (`tablist` z `aria-owns`), prawdziwe połączenie przychodzące/ACW (Twilio), emulacja `prefers-reduced-motion`, znaczniki PHONE/„Szkic”.
+- `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 770 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-21T18:29:12+00:00",
+  "generatedAt": "2026-10-30T05:40:00+00:00",
   "title": "Design System: Contact Center (nazwa robocza)",
   "extensions": {
     "colorMeta": {
@@ -591,7 +591,7 @@
       },
       "body-small": {
         "displayName": "Body small",
-        "purpose": "Metadane, opisy pod polami."
+        "purpose": "Metadane, opisy pod polami (--fs-sm, 13 px)."
       },
       "label": {
         "displayName": "Label",
@@ -599,7 +599,7 @@
       },
       "mono": {
         "displayName": "Mono",
-        "purpose": "ID, numery telefonów, czasy trwania."
+        "purpose": "ID, numery telefonów, czasy trwania (var(--font-mono))."
       }
     },
     "shadows": [
@@ -638,7 +638,17 @@
       {
         "name": "ease-spring",
         "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "Wysuwanie szuflady nawigacji."
+        "purpose": "Stara nazwa --ease-out-expo (ta sama krzywa, bez odbicia); w nowym kodzie używaj --ease-out-expo."
+      },
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Wysuwane szuflady i panele; bez odbicia."
+      },
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Wejścia elementów, łagodne wyhamowanie."
       },
       {
         "name": "ease-out",
@@ -667,13 +677,116 @@
       }
     ],
     "breakpoints": [
-      { "name": "xs", "value": "480px" },
-      { "name": "sm", "value": "640px" },
-      { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" },
-      { "name": "xxl", "value": "1440px" },
-      { "name": "compact-height", "value": "max-height: 720px" }
+      {
+        "name": "xs",
+        "value": "480px"
+      },
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "xxl",
+        "value": "1440px"
+      },
+      {
+        "name": "compact-height",
+        "value": "max-height: 720px"
+      }
+    ],
+    "chromeTokens": [
+      {
+        "name": "navbar-h",
+        "value": "64px (compact: 48px)",
+        "purpose": "Wysokość górnego paska powłoki."
+      },
+      {
+        "name": "desktop-toolbar-h",
+        "value": "48px (compact: 36px)",
+        "purpose": "Pasek narzędzi pulpitu agenta."
+      },
+      {
+        "name": "desktop-tabbar-h",
+        "value": "44px (compact: 36px)",
+        "purpose": "Pasek kart kontaktów."
+      },
+      {
+        "name": "sidenav-w",
+        "value": "232px",
+        "purpose": "Szerokość nawigacji; zwinięta: --sidenav-collapsed-w 72px."
+      },
+      {
+        "name": "shell-sidenav-w",
+        "value": "0px poniżej xl; 232px lub 72px od xl",
+        "purpose": "Szerokość zajęta przy lewej krawędzi; od niej startuje karta ACW."
+      },
+      {
+        "name": "shell-reserve-bottom",
+        "value": "0px (z banerem ACW: 4rem, compact: 3rem)",
+        "purpose": "Rezerwa na dole powłoki na pływający baner ACW."
+      },
+      {
+        "name": "desktop-sidebar-w",
+        "value": "clamp(13.5rem, 17vw, 16.5rem)",
+        "purpose": "Panel kolejki."
+      },
+      {
+        "name": "desktop-customer-w",
+        "value": "clamp(14rem, 19vw, 17.5rem)",
+        "purpose": "Panel klienta."
+      }
+    ],
+    "typeScaleTokens": [
+      {
+        "name": "fs-2xs",
+        "value": "0.6875rem"
+      },
+      {
+        "name": "fs-xs",
+        "value": "0.75rem"
+      },
+      {
+        "name": "fs-sm",
+        "value": "0.8125rem"
+      },
+      {
+        "name": "font-mono",
+        "value": "'Geist Mono', ui-monospace, monospace"
+      }
+    ],
+    "sharedStyles": [
+      {
+        "name": "field-focus",
+        "path": "frontend/src/app/shared/styles/_focus.scss",
+        "purpose": "Mixin pierścienia fokusu pól w dialogach."
+      },
+      {
+        "name": "type-tone",
+        "path": "frontend/src/app/features/agent/styles/_type-badge-tones.scss",
+        "purpose": "Mixin par tło-tekst kanału kontaktu."
+      },
+      {
+        "name": "breakpoints",
+        "path": "frontend/src/app/shared/styles/_breakpoints.scss",
+        "purpose": "Skala xs-xxl i compact-height."
+      },
+      {
+        "name": "sr-only",
+        "path": "frontend/src/styles.scss",
+        "purpose": "Klasa tekstu tylko dla czytników."
+      }
     ]
   },
   "components": [
@@ -766,7 +879,7 @@
       },
       {
         "name": "The Token-Only Rule",
-        "body": "Nowy kod używa wyłącznie tokenów OKLCH z `styles.scss`. Warstwa `--color-*` (hex) i literalne kolory hex w ok. 28 plikach SCSS to dług techniczny do wygaszenia, a nie wzorzec. Literalne wartości łamią motyw ciemny.",
+        "body": "Nowy kod używa wyłącznie tokenów OKLCH z `styles.scss`. Warstwa `--color-*` (hex) i literalne kolory hex w 31 plikach SCSS to dług techniczny do wygaszenia; w agencie i powłoce to głównie fallbacki `var(--token, #hex)` (ok. 200 w 10 plikach: agent 114 linii w 7, powłoka 83 w 3), których nie dodajemy. Nie używaj tokenów, których nie ma w `styles.scss` (np. `--color-primary`). Literalne wartości łamią motyw ciemny.",
         "section": "colors"
       },
       {
@@ -776,12 +889,12 @@
       },
       {
         "name": "The Type Floor Rule",
-        "body": "Żaden `font-size` nie schodzi poniżej `--fs-2xs` (0.6875rem, 11 px). Skala: `--fs-2xs` 0.6875rem (etykiety wersalikami, pigułki, liczniki, podpisy KPI), `--fs-xs` 0.75rem (drobny tekst czytany). Nowy kod używa tokenów `--fs-*`, nie literałów.",
+        "body": "Żaden `font-size` nie schodzi poniżej `--fs-2xs` (0.6875rem, 11 px). Skala: `--fs-2xs` (etykiety wersalikami, pigułki, liczniki, podpisy KPI), `--fs-xs` 0.75rem (drobny tekst czytany), `--fs-sm` 0.8125rem (Body small). Nowy kod używa tokenów `--fs-*`, nie literałów.",
         "section": "typography"
       },
       {
         "name": "The Real Mono Rule",
-        "body": "Dane o stałej szerokości używają `'Geist Mono', ui-monospace, monospace`. Generyczne `monospace`, `Courier New`, `Consolas` czy `Fira Mono` w obecnym kodzie to niespójności do usunięcia.",
+        "body": "Dane o stałej szerokości używają `var(--font-mono)` (`'Geist Mono', ui-monospace, monospace`). Generyczne `monospace`, `Courier New`, `Consolas`, `Fira Mono` i literał `'Geist Mono'` zamiast tokenu to niespójności do usunięcia.",
         "section": "typography"
       },
       {
@@ -796,7 +909,8 @@
       "**Do** rozdzielaj powierzchnie tonem tła i linią 1 px `border-1`, a cień dawaj tylko nakładkom.",
       "**Do** odpowiadaj na hover zmianą tła lub krycia (ok. 120–150 ms, `--ease-standard`), a na fokus globalnym obrysem 2 px w kolorze `accent`.",
       "**Do** pisz dane porównywalne (ID, numery, czasy) w Geist Mono.",
-      "**Do** zostawiaj ruch dla zdarzeń na żywo (dzwonienie, nowy kontakt). Globalny `prefers-reduced-motion` musi go wyłączać."
+      "**Do** zostawiaj ruch dla zdarzeń na żywo (dzwonienie, nowy kontakt). Globalny `prefers-reduced-motion` musi go wyłączać.",
+      "Dawaj celom interakcji co najmniej 24 × 24 px (WCAG 2.2 SC 2.5.8), także małym uchwytom, przez powiększony obszar trafienia (::before)."
     ],
     "donts": [
       "**Don't** dodawaj nowych kolorów hex ani tokenów `--color-*`, bo to warstwa legacy.",
@@ -804,7 +918,8 @@
       "**Don't** używaj Lampy roboczej dekoracyjnie: na nagłówkach, tłach sekcji, ilustracjach.",
       "**Don't** dawaj kartom i tabelom w obrębie strony cienia spoczynkowego.",
       "**Don't** używaj pełnego `danger` jako tła poza zdarzeniami wymagającymi natychmiastowej reakcji i akcjami destrukcyjnymi.",
-      "**Don't** wprowadzaj drugiej rodziny pisma ani generycznego `monospace`."
+      "**Don't** wprowadzaj drugiej rodziny pisma ani generycznego `monospace`.",
+      "Nie dawaj gradientów dekoracyjnych (tła stanów, awatary, nagłówki modali, przyciski); gradient tylko w skeletonach i sygnaturowym awatarze softphone'u."
     ]
   }
 }

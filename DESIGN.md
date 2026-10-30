@@ -184,7 +184,7 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 
 **The Contrast Floor Rule.** Tekst (także `text-3` i `text-muted`) ma co najmniej 4,5:1 na każdej powierzchni, na której leży; tekst na pełnym wypełnieniu `accent` / `danger` / `success` ma co najmniej 4,5:1; obrys kontrolki i fokus mają co najmniej 3:1. Nowe wartości tokenów sprawdza się skryptem (OKLCH → WCAG), nie na oko.
 
-**The Token-Only Rule.** Nowy kod używa wyłącznie tokenów OKLCH z `styles.scss`. Warstwa `--color-*` (hex) i literalne kolory hex w ok. 28 plikach SCSS to dług techniczny do wygaszenia, a nie wzorzec. Literalne wartości łamią motyw ciemny.
+**The Token-Only Rule.** Nowy kod używa wyłącznie tokenów OKLCH z `styles.scss`. Warstwa `--color-*` (hex) i literalne kolory hex w 31 plikach SCSS aplikacji to dług techniczny do wygaszenia, a nie wzorzec. W powierzchni agenta i powłoce zostało 11 takich plików; prawie wszystko to fallbacki `var(--token, #hex)` (ok. 200: agent 114 linii w 7 plikach, powłoka 83 linie w 3), nie kolory wpisane na stałe. Fallback hex nie jest potrzebny, bo tokeny są zdefiniowane globalnie w `:root` i `[data-theme='dark']`, a nowy kod go nie dodaje. Nie używaj tokenów, których nie ma w `styles.scss` (np. `--color-primary`): nie renderują się bez fallbacku. Literalne wartości łamią motyw ciemny.
 
 ## Typography
 
@@ -206,20 +206,23 @@ Paleta to papier i grafit z jednym niebieskim światłem roboczym oraz zestawem 
 
 ### Type scale floor
 Tokeny rozmiaru w `styles.scss` (`:root`): `--fs-2xs` = 0.6875rem (11 px), `--fs-xs` = 0.75rem (12 px). Nazwy `--text-*` zostają zarezerwowane dla kolorów tekstu.
-- `--fs-2xs`: najmniejszy dozwolony tekst. Etykiety wersalikami (KPI, grupy nawigacji, `cd-stat-label`), pigułki i znaczniki typu, liczniki w odznakach, podpisy pod wartościami KPI (np. „cel 90%”). Wersaliki mają 600-700 i letter-spacing 0.04-0.06em; KPI w górnym pasku 0.04em. Mieszczenie się etykiet KPI przy 1366 px nie jest zweryfikowane: dziś są na sztywno po polsku (FE-119), więc dla `de` i innych języków wymaga pomiaru po wprowadzeniu tłumaczeń.
+- `--fs-2xs`: najmniejszy dozwolony tekst. Etykiety wersalikami (KPI, grupy nawigacji, `cd-stat-label`), pigułki i znaczniki typu, liczniki w odznakach, podpisy pod wartościami KPI (np. „cel 90%”). Wersaliki mają 600-700 i letter-spacing 0.04-0.06em; KPI w górnym pasku 0.04em. Mieszczenie się etykiet KPI przy 1366 px jest zweryfikowane tylko dla `pl`; dla `de`, `en` i `uk` wymaga pomiaru.
 - `--fs-xs`: drobny tekst czytany (metadane, opisy), gdy 13 px (Body small) jest za duże.
+- `--fs-sm` = 0.8125rem (13 px): Body small, metadane i opisy pod polami.
+- `--font-mono` = `'Geist Mono', ui-monospace, monospace`: jedyny dozwolony zapis rodziny mono (liczniki, czasy, numery). Używaj `font-family: var(--font-mono)`, nie literału.
 
 ### Named Rules
 **The One Family Rule.** Cały interfejs jest pisany Geistem. Hierarchię buduje się wagą (400/500/600/700) i rozmiarem, nie drugą rodziną.
 
 **The Type Floor Rule.** Żaden `font-size` nie schodzi poniżej `--fs-2xs` (11 px). Nowy kod w powierzchni agenta i powłoce używa tokenów `--fs-*`, nie literałów px/rem. Wyjątek wymaga komentarza w kodzie.
 
-**The Real Mono Rule.** Dane o stałej szerokości używają `'Geist Mono', ui-monospace, monospace`. Generyczne `monospace`, `Courier New`, `Consolas` czy `Fira Mono` w obecnym kodzie to niespójności do usunięcia.
+**The Real Mono Rule.** Dane o stałej szerokości używają `var(--font-mono)`. Generyczne `monospace`, `Courier New`, `Consolas` czy `Fira Mono` to niespójności do usunięcia, podobnie jak literał `'Geist Mono'` zamiast tokenu (w kodzie zostało ich kilka: softphone, disposition-panel, agent-callbacks-page, cheat sheet, top-navbar, `contact-detail-modal`). Detektor `impeccable` zgłasza `Geist Mono` jako overused-font; to świadoma decyzja tego systemu.
 
 ## Layout
 
 Aplikacja to powłoka z nawigacją boczną i górnym paskiem (64 px). Nawigacja ma 232 px, a po zwinięciu 72 px (same ikony). Treść wypełnia resztę.
 
+- **Tokeny powłoki:** `--sidenav-w` 232 px, `--sidenav-collapsed-w` 72 px oraz `--shell-sidenav-w` (szerokość zajmowana przy lewej krawędzi: 0 poniżej `xl`, 232 lub 72 px od `xl`; ustawia ją `html` i klasa `sidenav-collapsed`) — od niej zaczyna się pływająca karta ACW.
 - **Desktop (≥ 1280 px):** nawigacja jest statyczna, zawsze widoczna i zwijalna. Agent na oknie ≤ 1440 px, który nie wybrał inaczej, startuje ze zwiniętą nawigacją (rail 72 px); wybór użytkownika zawsze wygrywa.
 - **Tablet (1024–1279 px):** nawigacja to szuflada nad treścią, pod górnym paskiem, z przyciemnieniem tła.
 - **< 1024 px:** szuflada na całą wysokość. Powłoka ma dodatkowe dostosowania poniżej 640 px.
@@ -266,6 +269,10 @@ W motywie ciemnym cienie są czarne i mocniejsze (0.3–0.5 krycia), bo na ciemn
 ### Named Rules
 **The Flat-at-Rest Rule.** Karty, tabele i panele w obrębie strony nie mają cienia. Rozdziela je ton tła i linia `border-1`. Jeśli element ma cień, to dlatego, że przykrywa coś pod sobą.
 
+## Motion
+
+Tokeny w `styles.scss` (`:root`): `--ease-standard` `cubic-bezier(0.4, 0, 0.2, 1)` (domyślne przejścia stanów), `--ease-out` `cubic-bezier(0, 0, 0.2, 1)` (wejścia), `--ease-out-expo` `cubic-bezier(0.16, 1, 0.3, 1)` i `--ease-out-quart` `cubic-bezier(0.25, 1, 0.5, 1)` (wysuwane szuflady i panele, bez odbicia). `--ease-spring` to stara nazwa tej samej krzywej co `--ease-out-expo`, bez przeregulowania; w nowym kodzie używaj `--ease-out-expo`. Czasy: `--duration-fast` 120 ms, `--duration-normal` 200 ms, `--duration-slow` 300 ms. Globalny `prefers-reduced-motion` skraca animacje i przejścia do 0,01 ms. Nie używaj `transition: all`: wymieniaj właściwości.
+
 ## Shapes
 
 Lekko zaokrąglone, narzędziowe formy. `radius-sm` (6 px) to domyślny promień przycisków, pól i małych elementów. `radius-md` (10 px) mają karty, pozycje nawigacji i modale, a `radius-lg` (14 px) i `radius-xl` (18 px) większe kontenery. Pigułki stanu i kanału są w pełni zaokrąglone (`radius-full`), a awatary i kropki statusu są kołami. Obramowania mają 1 px, a pola formularzy 1.5 px.
@@ -295,6 +302,12 @@ Precyzyjne narzędzia: ciche w spoczynku, wyraźne przy dotyku. Interakcja zmien
 - **Shadow Strategy:** brak cienia (The Flat-at-Rest Rule), separacja linią `border-1`.
 - **Internal Padding:** 16 px (karta KPI: 20 px u góry, 16 px po bokach i u dołu).
 
+### Wspólne partiale i klasy
+- `shared/styles/_focus.scss`, mixin `field-focus`: pierścień fokusu pól w dialogach (obrys 2 px `accent`, odsunięcie 2 px, obramowanie `accent`). Zgodny z globalnym `:focus-visible`.
+- `features/agent/styles/_type-badge-tones.scss`, mixin `type-tone($type)`: para tło-tekst kanału (telefon `accent`, czat `success`, e-mail `violet`, social `warning`) dla znacznika na karcie i w nagłówku kontaktu.
+- `shared/styles/_contact-badges.scss` (pigułki), `_breakpoints.scss` (skala, zob. Layout), `_resizable-dialog.scss`.
+- `.sr-only` (globalnie w `styles.scss`): tekst tylko dla czytników (live regiony, etykiety ikon). Nie ukrywaj tekstu dla czytników inaczej (`display: none` je wycisza).
+
 ### Inputs / Fields
 - **Style:** obrys 1.5 px `border-1`, tło `bg-surface`, promień `radius-sm`, padding 0.5rem × 0.75rem, typografia Control. Natywne `select` mają chevron w SVG, który dziedziczy kolor w obu motywach.
 - **Focus:** obrys przechodzi w `accent`, z poświatą 3 px w `accent-soft`.
@@ -321,6 +334,7 @@ Okrągły awatar rozmówcy (5.25rem) z gradientem od Lampy roboczej do fioletu i
 - **Do** pokazuj stan jako pigułkę `X-soft` + `X-text` (The Triad Rule).
 - **Do** rozdzielaj powierzchnie tonem tła i linią 1 px `border-1`, a cień dawaj tylko nakładkom.
 - **Do** odpowiadaj na hover zmianą tła lub krycia (ok. 120–150 ms, `--ease-standard`), a na fokus globalnym obrysem 2 px w kolorze `accent`.
+- **Do** dawaj celom interakcji co najmniej 24 × 24 px (WCAG 2.2 SC 2.5.8), także małym uchwytom i paskom zwijania (powiększ obszar trafienia przez `::before`).
 - **Do** pisz dane porównywalne (ID, numery, czasy) w Geist Mono.
 - **Do** zostawiaj ruch dla zdarzeń na żywo (dzwonienie, nowy kontakt). Globalny `prefers-reduced-motion` musi go wyłączać.
 
@@ -329,5 +343,6 @@ Okrągły awatar rozmówcy (5.25rem) z gradientem od Lampy roboczej do fioletu i
 - **Don't** podnoś kart ani wierszy na hover (`translateY`, rosnący cień). Precyzyjne narzędzia nie podskakują.
 - **Don't** używaj Lampy roboczej dekoracyjnie: na nagłówkach, tłach sekcji, ilustracjach.
 - **Don't** dawaj kartom i tabelom w obrębie strony cienia spoczynkowego.
+- **Don't** dawaj gradientów dekoracyjnych (tła stanów, awatary, nagłówki modali, przyciski): gradient jest dozwolony tylko w skeletonach ładowania i w sygnaturowym awatarze softphone'u. W kodzie agenta zostaje ok. 13 dekoracyjnych gradientów do usunięcia.
 - **Don't** używaj pełnego `danger` jako tła poza zdarzeniami wymagającymi natychmiastowej reakcji i akcjami destrukcyjnymi.
 - **Don't** wprowadzaj drugiej rodziny pisma ani generycznego `monospace`.

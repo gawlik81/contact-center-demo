@@ -2131,3 +2131,84 @@ Ocena z rundy 1 pozostaje 3,5/5; poniżej stan ustaleń po rundach 2 i 3 (`/veri
 - **LOW-6 i pozostałe zalecenia/drobne (pomiar chrome, `--desktop-main-min`, inicjalizacja `sidenavCollapsed`, dopasowanie segmentowe `onDesktop`, `title`+`aria-label`, kolejność importów): NAPRAWIONE** w rundzie 3.
 - **Dowód pomiarowy (AC 1 i 2): DOSTARCZONY** — 1366×768 (viewport 1334×549): chrome 156 → 120 px, treść kontaktu 558 → 782 px, wątek e-maila 229 → 303 px; brak poziomego scrolla przy 1024/1027/1100/1366/1888 px w pl/de/en; 1920×1080 bez zmian.
 - **Otwarte (poza zakresem):** chip/baner ACW niezweryfikowany na żywo (Twilio), widoki supervisor/admin niezweryfikowane (MFA); formularz odpowiedzi e-mail przy 1024 px wymaga przewijania.
+
+---
+
+## Review: FE-124 (budżet `agent-desktop.scss`, fallbacki, ruch, modale) — 2026-10-29
+
+Zakres: niezacommitowane zmiany w `agent-desktop.component.{html,ts,scss}`, nowy `components/queue-panel/*`, `styles.scss`, `add-break-modal`, `manual-callback-modal`, `adhoc-email-modal`, `email-thread-message`, `login.component.scss`. Pominięto `.env.local-demo`, `.claude/settings.local.json`, dump.
+
+### 🐛 Bugs / Critical Issues
+
+- **MAJOR-1 `email-thread-message.component.scss:190` — `var(--shadow-xs)` bez fallbacku, a token nie istnieje.** `--shadow-xs` nie jest zdefiniowany w `styles.scss` (grep: 0 trafień), więc po zdjęciu fallbacku `box-shadow` na hoverze chipa załącznika jest nieprawidłowy w czasie obliczania i spada do `none`. Przed zmianą było `var(--shadow-xs, var(--shadow-sm))`. To dokładnie ryzyko R2 z FE-124, które wymagało sprawdzenia tokenów w obu motywach. **Fix:** zdefiniować `--shadow-xs` w `:root` i w obu motywach albo użyć `--shadow-sm`. Wg DESIGN.md (Flat-at-Rest) najlepiej usunąć cień i zmienić tło/obramowanie na hoverze. `email-contact.component.scss:307` nadal ma `var(--shadow-xs, var(--shadow-sm))`, więc ten sam token jest w dwóch miejscach traktowany niespójnie.
+
+### ⚠️ Security Concerns
+_None identified._
+
+### 🏗️ Architecture / Pattern Violations
+
+- **MEDIUM-2 `agent-desktop.component.scss:787-801` — blok `prefers-reduced-motion` nie robi tego, co deklaruje komentarz.**
+  - Globalny `styles.scss:316` ma `*{animation-duration:.01ms!important; animation-iteration-count:1!important}`. Lokalny `.status-btn__spinner{animation-duration:2.4s}` nie ma `!important`, więc przegrywa. Spinner (stan zajętości) znika w ~0,01 ms i jest jednorazowy, wbrew komentarzowi „keeps turning slowly".
+  - Przed zmianą lokalny `*` miał to samo ograniczenie, ale nie obiecywał wolnego obrotu.
+  - **Fix:** `animation-duration: 2.4s !important; animation-iteration-count: infinite !important;` albo zamiast obrotu statyczny wskaźnik, np. opacity (`animation: none` plus tekst/ikona). Warto też zdecydować, czy blok lokalny w ogóle jest potrzebny: samo `animation: none` dla kropek (`opacity:1`), `.ws-banner__dots span`, `.header-info__ws-indicator--connected` i `.no-contacts` globalny blok i tak ogranicza do jednej klatki, więc lokalny blok jest w większości redundantny, tak samo jak 6 innych lokalnych bloków w komponentach agenta.
+  - Pokrycie (pkt 4): inne animacje na powierzchni agenta (`panel-in`, `dialog-enter`, `msg-enter`, `pulse-dot`, `slide-up`, `blink`) obejmuje blok globalny, więc nic się nie wymyka. Wyjątkiem są ewentualne animacje JS/WAAPI (nie znaleziono).
+- **MEDIUM-3 Kontrast tekstu na płaskim nagłówku `--accent` (pkt 5): `adhoc-email-modal.component.scss` `__subtitle` i `manual-callback-modal.component.scss` `__subtitle` (`color-mix(in oklch, var(--accent-fg) 75%, transparent)`).**
+  - Policzone dla tokenów z `styles.scss`: motyw jasny, biel 75% na `accent` oklch(55% .13 255) daje ok. **3,5:1**, co jest poniżej 4,5:1 dla tekstu 13 px (WCAG 1.4.3). Przed zmianą tło było ciemniejszym gradientem (tekst przechodził). Motyw ciemny: ok. 4,9:1 (OK).
+  - Przycisk zamknięcia: ikona 85% to ok. 4,0:1 (≥ 3:1 dla komponentu UI, OK), jego tło 12–22% to tylko subtelna zmiana (1,25–1,5:1), więc granicę przycisku wyznacza ikona.
+  - **Fix:** `__subtitle` w pełnym `var(--accent-fg)` (4,87:1 jasny, 7,35:1 ciemny) albo 90%+ i sprawdzone ≥ 4,5:1; `opacity` zamiast mieszania nie pomoże. Ikona zamknięcia: 100% w stanie spoczynku.
+- **MEDIUM-4 Wyjście poza zakres / DESIGN.md.**
+  - **Hover `btn-save`** (`manual-callback-modal:437-442`, `adhoc-email-modal:~512`) zachował dwuwarstwowy kolorowy cień akcentu i `translateY(-1px)`; spoczynek jest płaski, ale hover to „glow" i ruch dekoracyjny (Flat-at-Rest, „Do: hover = zmiana tła lub krycia"). Zrobić `background: color-mix(in oklch, var(--accent) 88%, black)` (albo istniejący token hover) bez cienia i `transform`.
+  - **Pole fokusu:** zdjęcie `box-shadow: 0 0 0 3px accent-soft` i `outline: none` na rzecz `outline: 2px solid accent; outline-offset:0` w `add-break`, `manual-callback`, `adhoc-email` (6 miejsc) to zmiana wizualna spoza listy (ticket prosił o `:focus-visible` tylko w adhoc-email). Zgodne z DESIGN.md (globalny obrys 2 px), ale `outline-offset:0` plus `border-color: accent` daje pogrubioną obwódkę 3,5 px bez odstępu. Zalecane `outline-offset: 2px` i jedna wspólna reguła (mixin/globalna) zamiast 6 kopii.
+  - `.editor-content` w adhoc-email nadal `outline:none` z pierścieniem `box-shadow` na `:focus-within` rodzica — działa, ale to inny wzorzec niż pola obok. Ujednolicić.
+  - **Spoza listy w zakresie diffu:** `email-thread-message` `rgba(0,0,0,.06)` → `color-mix(var(--text-1) 6%)` zmienia kolor linii w ciemnym motywie (z czarnej na jasną); to poprawka, ale nieopisana. Nagłówek `add-break-modal` już był płaski (bez zmian).
+  - `queue-item` przeniesiony 1:1 z `box-shadow: var(--shadow-sm)` w spoczynku i `--shadow-md` na hoverze: to dryf, który DESIGN.md (l. 261, 267) każe usuwać „przy następnej pracy nad ekranem". Skoro komponent powstaje teraz, zostawić samo `border-1`, hover zmienia tylko tło. `cursor: default` plus hover wygląda na klikalne, a element nie ma akcji.
+
+### 🔧 Improvements & Suggestions
+
+- **MINOR-5 `queue-panel.component.html:39` — `aria-label` na `<div>` bez roli.** `aria-label` na elemencie bez roli (`div`) jest ignorowany lub niespójnie czytany (tak samo był w oryginale, nie regresja). Lepiej `<time>`/`<span>` z `<span class="sr-only">`: „Czas oczekiwania 1:05" i `aria-hidden` na wizualnym czasie, albo `role="timer"`. Ticker co sekundę przy `aria-live` byłby uciążliwy, więc nie dodawać live region (dobrze, że go nie ma). `getWaitingTime()` jest wołany 2× na pozycję na każdy tick; wynik zapisać w `computed` albo `@let wait = getWaitingTime(item.waitingSince);`.
+- **MINOR-6 `queue-panel.component.html:7` — `aria-label` badge to `items().length + ' ' + 'oczekujących'` bez separacji języków.** Przy `de`/`uk` zdanie jest poprawne (liczba plus słowo), ale konkatenacja zamiast klucza z parametrem (`queueWaitingCount` z `{{count}}`) blokuje odmianę (pl: 1 oczekujący / 2 oczekujących). Jednak identycznie było przed wydzieleniem, więc to ulepszenie, nie regresja. `<ul role="list">` jest redundantne (nie ma `list-style: none` w Safari, dlatego rola celowa, zostawić).
+- **MINOR-7 `queue-panel.component.ts:28` — ticker `now` odpala się nawet przy pustej kolejce.** Interwał co 1 s przez cały czas życia pulpitu (tak samo jak przed zmianą). Dla pustej kolejki to zbędne budzenie OnPush (zmiana sygnału tylko odświeża szablon, jeśli jest odczytywany; przy pustej liście `now()` nie jest czytany w szablonie, więc koszt to tylko timer). Opcjonalnie `computed`/`effect` tworzący interwał tylko, gdy `items().length > 0`.
+- **MINOR-8 `queue-panel.component.scss:60` `font-size: 0.8125rem` ×2** (`__empty-text`, `__name`) to literał spoza skali tokenów; przy tickecie o ujednoliceniu rozmiarów warto użyć `--fs-xs`/`--fs-sm` (sprawdzić wartości z FE-118). Ten sam przypadek: `'Geist Mono', monospace` na sztywno zamiast tokenu fontu mono, jeśli istnieje.
+- **MINOR-9 `queue-panel.component.spec.ts` — tylko 2 przypadki.** Dodać: (a) sprzątanie interwału po `fixture.destroy()` (`vi.getTimerCount()` = 0), (b) ikona dla każdego typu (`TYPE_ICONS` jest eksportowany logicznie przez `[attr.d]`), (c) odczyt `aria-label` badge i czasu, (d) dodanie/usunięcie elementu (`track item.id`), (e) test w kontekście `AgentDesktopComponent` (`<app-queue-panel>` w `<aside>`), bo 5 specyfikacji pulpitu dostarcza `QueueStateService` mockiem, który teraz jest wstrzykiwany przez komponent potomny (działa, ale te mocki stały się szumem, tam gdzie nie ma asercji na kolejkę).
+- **Budżet (pkt 6):** margines ~1–50 B jest zbyt cienki: każda kolejna zmiana, np. dopisanie reguły fokusu w FE-125, przekroczy 12 kB. Źródło ma 17,4 kB (po minifikacji poniżej 12 kB). Największe, w pełni wydzielalne bloki: **„Contact Tabs" (l. 341–562, ~220 linii)** i **„Contact Panel" (l. 563–723, ~160 linii)**. Rekomendacja w kolejności opłacalności: (1) `app-contact-header` (nagłówek kontaktu z badge typu `contact-panel__*` i wspólnym blokiem „Type badge tones", l. 817+) z `input()` na `ContactTab`, czysto prezentacyjny, bez ryzyka dla `role=tab`/`aria-owns` z FE-121; (2) badge typu jako mały `cc-contact-type-badge`, używany także przez pasek kart (usuwa 4 powtórzone reguły tonu); (3) pasek kart (`tablist`) zostawić w rodzicu, bo ma delikatne zależności ARIA i skróty FE-114. Uzyskasz 3–5 kB zapasu bez dotykania zachowania.
+- **Dowód budżetu:** w tickecie AC 1 wymaga „bez ostrzeżenia w `npm run build`"; dołączyć do FE-124 liczby przed/po z `npm run build` (18,11 → <12 kB) i fakt, że `maximumWarning` w `angular.json` to 12 kB dla `anyComponentStyle`, a nie dla pliku źródłowego.
+
+### Weryfikacja punktów zadania
+
+1. **Wydzielenie `queue-panel`: zachowanie bez zmian.** Ticker `interval(1000)` z `takeUntilDestroyed(inject(DestroyRef))` w konstruktorze (kontekst wstrzykiwania poprawny), zero wycieku; `OnPush` poprawny, bo `now` i `items` to sygnały odczytywane w szablonie; dane wejściowe nadal z `QueueStateService.queueItems` (singleton). Brak kliknięć i akcji w oryginale, więc nic nie zgubiono. `TYPE_ICONS: Record<QueueItem['type'], string>` jest bardziej bezpieczny niż `switch` (kompilator wymusi nowy typ). Jedyna zmiana: ticker żyje teraz razem z komponentem (taki sam cykl życia). `display: contents` na hoście zachowuje flex sidebara (`.queue-panel{flex:1}` działa jako dziecko `aside`); `app-queue-panel` jest czysto prezentacyjnym wrapperem, a brak `display: contents` problemów a11y dla elementu bez roli. Wszystkie 4 języki mają klucze `queueTitle/queueWaiting/queueWaitTime/queueEmpty`.
+2. **Usunięte reguły CSS są martwe:** `limit-banner`, `desktop__tab-nav*`, `phone-placeholder`, `email-placeholder` — brak trafień w `*.html`/`*.ts`/`*.scss` całego `src`. Dynamiczne `[class.contact-tab-item--phone|chat|email|social]` (html:197-200) nadal obsługuje przeniesiony blok „Type badge tones" (l. 818-836). `chat-placeholder` (używany w html:343 i w `copy.spec`) został zachowany. Brak regresji.
+3. **Tokeny po zdjęciu fallbacków:** `bg-input`, `accent-fg`, `accent-soft`, `bg-subtle`, `bg-elevated`, `border-control(-hover)`, `border-2`, `shadow-sm/md`, `violet`, `violet-text`, `danger(-text)`, `text-muted`, `text-3`, `radius-md` są zdefiniowane w obu motywach (2 trafienia); `fs-2xs`, `ease-standard`, `duration-fast/normal` w `:root` (1, niezależne od motywu); `ease-out-expo/quart` dodane. **Jedyny brak: `--shadow-xs` (MAJOR-1).** Grep fallbacków, hex, `rgba`, `$ease-spring` w 7 dotkniętych plikach = 0.
+4. **`prefers-reduced-motion`:** patrz MEDIUM-2; poza spinnerem pokryte.
+5. **Kontrast:** patrz MEDIUM-3.
+6. **Budżet:** patrz Improvements.
+7. **Wyjście poza zakres:** patrz MEDIUM-4. `--ease-spring` zostaje aliasem; `--ease-out-expo` ma tę samą krzywą (bez odbicia, zgodnie z tickiem). Baner błędu w `login` ma pełną ramkę 40% `danger`: spełnia „bez side-tab", kontrast obramowania nie jest wymogiem (tekst `danger` na tle `danger-soft` nietknięty).
+
+### ✅ Positive Observations
+
+- Czyste wydzielenie: zero zmian zachowania, `Record<…>` zamiast `switch`, `DestroyRef`/`takeUntilDestroyed` w kontekście wstrzykiwania, sensowny spec z fake timers (ticker `1:05 → 1:10`).
+- Z rodzica usunięto wszystkie powiązane symbole (`interval`, `QueueItem`, `QueueStateService`, `trackByQueueId`), brak martwych importów.
+- Usunięcie `::-webkit-scrollbar` i fallbacków hex bez tokenów brakujących (poza `--shadow-xs`); `color-mix(in oklch)` zamiast `rgba` działa poprawnie w obu motywach (tekst `--text-1` jako baza cienkich linii).
+- Zdjęcie `transition: width` panelu klienta i `will-change` — zgodne z celem ruchu „stan, nie dekoracja".
+- Bounce usunięty ze wszystkich modali, aliasy tokenów dla kompatybilności wstecznej.
+
+### Summary
+**Ocena: 3.5/5** — solidny, bezpieczny refaktor wydzielenia kolejki i czyszczenie dead CSS, ale po zdjęciu fallbacków zostaje niezdefiniowany `--shadow-xs`, komentarz o spinnerze w `reduced-motion` jest nieprawdziwy, subtytuł na płaskim nagłówku jasnego motywu ma ok. 3,5:1, a margines budżetu to praktycznie zero.
+
+### Priorytety
+**Wymagane (przed commitem):** MAJOR-1 (`--shadow-xs`), MEDIUM-3 (kontrast subtitle ≥ 4,5:1), MEDIUM-2 (spinner w reduced-motion albo poprawić komentarz), MEDIUM-4 (hover `btn-save` bez cienia/`translateY`).
+**Zalecane:** wydzielić `app-contact-header` (+ badge typu) dla 3–5 kB zapasu budżetu, uzupełnić spec kolejki (sprzątanie interwału, aria), usunąć cienie z `queue-item`, wspólna reguła fokusu zamiast 6 kopii.
+**Drobne:** `aria-label` na `div`, podwójne wywołanie `getWaitingTime`, literały `0.8125rem` i fontu mono, interwał przy pustej kolejce.
+
+### Status ustaleń FE-124 (aktualizacja 2026-10-30, runda 3 — po poprawkach)
+
+Ocena senior-code-reviewer: 3,5/5. Wszystkie ustalenia naprawione w rundzie 2:
+- **MAJOR-1** `--shadow-xs` (niezdefiniowany token w `email-thread-message`) — naprawione (usunięty, hover chipa tłem).
+- **MEDIUM-2** spinner przy `prefers-reduced-motion` — naprawione (statyczny; komentarz zgodny ze stanem faktycznym).
+- **MEDIUM-3** kontrast subtytułu nagłówka modali — naprawione (pełny `--accent-fg`: 4,87:1 jasny / 7,35:1 ciemny).
+- **MEDIUM-4** hover/fokus/cienie (`btn-save`, `queue-item`) — naprawione (płaski przycisk, hover tylko tłem, bez cieni i `translateY`; fokus przez mixin `field-focus`).
+- **Wszystkie MINOR** — naprawione (m.in. `aria-label`/`sr-only` w `queue-panel`, odmiana licznika przez `Intl.PluralRules`, ticker tylko przy niepustej kolejce, tokeny `--fs-sm`/`--font-mono`, rozszerzony spec kolejki).
+- **Budżet:** `agent-desktop.component.scss` 18,11 → 9,00 kB po kompilacji (zapas 3,0 kB) dzięki wydzieleniu `app-contact-header`, `app-ws-banner`, `app-no-contacts`; metoda: ostrzeżenie `anyComponentStyle` w `ng build`.
+
+**Runda 3 (znalezisko z przeglądarki):** podwójny pierścień fokusu w edytorach e-maila (`adhoc-email-modal`, `email-reply` w `email-contact`) — naprawione: jeden pierścień na wrapperze przez `:has(...:focus-visible)` (`editor-content` outline none, wrapper outline 2 px, offset 2 px; zweryfikowane w przeglądarce dla `adhoc`).
+
+**Otwarte (poza zakresem FE-124):** `--color-primary` bez definicji w `customer-panel.component.scss:417` i nieużywany klucz `agent.desktop.queueWaiting` → FE-125; komponenty ponad 12 kB i bundle initial 567 kB > 500 kB → FE-138; niezweryfikowane na żywo: lista kolejki z pozycjami (WS, 9 testów), `prefers-reduced-motion`, edytor odpowiedzi na pulpicie po rundzie 3.

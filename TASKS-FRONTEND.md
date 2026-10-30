@@ -72,7 +72,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134) — ✅ (2026-10-29; wszystkie pakiety FE-131…FE-134 ukończone)
 - FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu — ✅ (2026-10-29; niemodalny `DispositionPanel` w karcie `WRAPPING`, baner `cc-acw-banner`; otwarte: weryfikacja na żywo Twilio, skrót FE-114, baner przy 1366×768 → FE-123, ACW po F5 → FE-136)
 - FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ✅ (2026-10-29)
-- FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ⬜ (Do zrobienia)
+- FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ✅ (2026-10-30; `agent-desktop.component.scss` 18,11 → 9,00 kB)
 - FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` — ⬜ (Do zrobienia)
 - FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ⬜ (Do zrobienia)
 - FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ⬜ (Do zrobienia)
@@ -83,6 +83,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154; FE-133 ✅)
 - FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po BE-157; FE-122 ✅, FE-131 ✅)
 - FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta/powłoką na skalę breakpointów (`_breakpoints.scss`) — ⬜ (Do zrobienia; wynik FE-123, nie blokuje FE-125)
+- FE-138 – Budżety stylów i bundla: pozostałe komponenty ponad 12 kB (`anyComponentStyle`) i bundle initial 567 kB przy budżecie 500 kB — ⬜ (Do zrobienia; wynik FE-124, nie blokuje FE-125)
 
 ---
 
@@ -5896,11 +5897,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 15/24** (✅ 15 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
+**Ukończone 16/25** (✅ 16 · 🔧 0 · ⬜ 9 · 🚫 0) — status epiku: 🔧 W toku
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -5913,7 +5914,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124`;  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6310,10 +6311,10 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (wydajność / refaktor)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** FE-116 ✅, FE-118 ✅, FE-123 ✅ (tura 49: FE-116 i FE-118 ukończone; FE-123 ✅ 2026-10-29 — odblokowany)
-**Status:** ⬜ Do zrobienia
+**Zależy od:** FE-116 ✅, FE-118 ✅, FE-123 ✅ (tura 49: FE-116 i FE-118 ukończone; FE-123 ✅ 2026-10-29)
+**Status:** ✅ Ukończone (2026-10-30, tura 58; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; wykonane w 3 rundach; code review `CR-FRONTEND.md` sekcja „Review: FE-124” 3,5/5 — wszystkie ustalenia naprawione w rundzie 2, runda 3 = poprawka z przeglądarki; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 764 testy; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
-**Blokuje:** FE-125
+**Blokuje:** FE-125 (odblokowany ✅); wynik FE-124 → FE-138 (budżety pozostałych komponentów i bundla)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` (przegląd ruchu: `ui-premium-designer`)
 
@@ -6329,15 +6330,32 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Pomiar przed/po (rozmiar, ostrzeżenia budżetu w `npm run build`).
 
 **Kryteria akceptacji:**
-- [ ] `npm run build` bez ostrzeżenia o przekroczeniu budżetu dla `agent-desktop.component.scss` (≤ 12 kB)
-- [ ] `grep -c "var(--[a-z0-9-]*, #" agent-desktop.component.scss` = 0
-- [ ] Brak `will-change` w stanie spoczynku; brak animacji `width`/`margin` na powierzchni agenta; `prefers-reduced-motion` wyłącza ruch
-- [ ] Wizualnie bez regresji w obu motywach (przegląd w przeglądarce)
-- [ ] (dopisane w turze 48) `adhoc-email-modal`: brak `rgba(255,255,255,0.7)` (linie ~243 i ~307) i brak `outline: none` bez zamiennika `:focus-visible` (tokeny)
-- [ ] (dopisane w turze 49) brak literałów `rgba` w `email-thread-message` i `adhoc-email-modal`; rozmiary 0.7rem/0.72rem/0.71875rem zastąpione tokenem; brak fallbacków `var(--x, #hex)` w dotykanych plikach
-- [ ] (dopisane w turze 50) brak `$ease-spring`/bounce w `add-break-modal` i `manual-callback-modal`; nagłówek `manual-callback-modal` bez gradientu; brak „side-tab” w `login.component.scss`; `impeccable detect` na tych plikach bez znalezisk
-- [ ] WP-1…WP-6
+- [x] `npm run build` bez ostrzeżenia o przekroczeniu budżetu dla `agent-desktop.component.scss` (≤ 12 kB)
+- [x] `grep -c "var(--[a-z0-9-]*, #" agent-desktop.component.scss` = 0
+- [x] Brak `will-change` w stanie spoczynku; brak animacji `width`/`margin` na powierzchni agenta; `prefers-reduced-motion` wyłącza ruch
+- [x] Wizualnie bez regresji w obu motywach (przegląd w przeglądarce)
+- [x] (dopisane w turze 48) `adhoc-email-modal`: brak `rgba(255,255,255,0.7)` (linie ~243 i ~307) i brak `outline: none` bez zamiennika `:focus-visible` (tokeny)
+- [x] (dopisane w turze 49) brak literałów `rgba` w `email-thread-message` i `adhoc-email-modal`; rozmiary 0.7rem/0.72rem/0.71875rem zastąpione tokenem; brak fallbacków `var(--x, #hex)` w dotykanych plikach
+- [x] (dopisane w turze 50) brak `$ease-spring`/bounce w `add-break-modal` i `manual-callback-modal`; nagłówek `manual-callback-modal` bez gradientu; brak „side-tab” w `login.component.scss`; `impeccable detect` na tych plikach bez znalezisk
+- [x] WP-1…WP-6
 
+
+**Notatka wykonania (2026-10-30, tura 58):**
+- **Metoda pomiaru (R3):** rozmiar po kompilacji z ostrzeżenia `anyComponentStyle` w `ng build` (budżet 12 kB = 12000 B); `wc -c` źródła nie jest miarodajny. `agent-desktop.component.scss` po kompilacji: 18,11 kB → 9,00 kB (zapas 3,0 kB), brak ostrzeżenia budżetu.
+- **Usunięte martwe reguły:** `.limit-banner` + `@keyframes banner-enter`, `desktop__tab-nav*`, `.phone-placeholder`, `.email-placeholder`; usunięte `::-webkit-scrollbar` (zostaje `scrollbar-width`).
+- **Wydzielone komponenty** (`features/agent/components/`): `app-queue-panel` (ticker tylko przy niepustej kolejce, licznik z odmianą `Intl.PluralRules` i kluczami `_one/_few/_many/_other` w pl/en/de/uk, czas w `sr-only`); `app-contact-header` (kompaktowy nagłówek 37 px z FE-123); `app-ws-banner` (naprawiona ucięta ścieżka ikony, istniejąca już w HEAD); `app-no-contacts`.
+- **Nowe partiale:** `features/agent/styles/_type-badge-tones.scss`, `shared/styles/_focus.scss` (mixin `field-focus`: outline 2 px, offset 2 px).
+- **Fallbacki `var(--x, #hex)`:** 107 → 0 w `agent-desktop`, 0 w dotkniętych plikach.
+- **Nowe tokeny globalne** w `styles.scss`: `--ease-out-expo`, `--ease-out-quart` (`--ease-spring` zostaje jako alias legacy bez odbicia), `--fs-sm`, `--font-mono` oraz globalna klasa `.sr-only`.
+- **Ruch:** brak `will-change` (nie było go w repo); usunięte `transition: width` panelu klienta; spinner przy `prefers-reduced-motion` statyczny; lokalny blok reduced-motion uproszczony (globalny reset pokrywa resztę).
+- **Modale `add-break`, `manual-callback`, `adhoc-email`:** `$ease-spring` → `--ease-out-expo`; płaskie nagłówki `--accent` bez gradientu; subtytuł i przycisk zamknięcia w pełnym `--accent-fg` (kontrast 4,87:1 jasny / 7,35:1 ciemny); `btn-save` płaski, hover tylko zmienia tło; `rgba` → `color-mix`; `:focus-visible` przez mixin.
+- **`email-thread-message`:** `rgba` → `color-mix`; niezdefiniowany `--shadow-xs` usunięty, hover chipa tłem. Znaczniki kierunku `border-left` bez zmian (wyjątek z ticketu).
+- **`login.component.scss`:** baner błędu z pełną ramką zamiast `border-left` 3 px.
+- **Edytory e-maila** (`adhoc-email-modal`, `email-reply` w `email-contact`): jeden pierścień fokusu na wrapperze przez `:has(...:focus-visible)` zamiast podwójnego (runda 3).
+- **Zmiany wizualne poza literą ticketu, zgodne z `DESIGN.md`:** brak cieni nagłówka kontaktu i paska, płaski awatar `--accent`, `btn-save` bez gradientu, `queue-item` bez cieni.
+- **Dowody (WP-5, przeglądarka, agent1, demo lokalne):** login — baner błędu z pełną ramką; nagłówek kontaktu compact 37 px / awatar 28 px / `title` z pełnym adresem, badge kanału ten sam kolor w zakładce i nagłówku, brak cieni; brak poziomego scrolla przy 1920, 1366 i 1056 px; modale — płaskie nagłówki w obu motywach, fokus 2 px z offsetem 2 px, hover `btn-save` bez cienia i bez `translateY`; jasny motyw: pulpit i modale OK; po rundzie 3 edytor `adhoc` ma jeden pierścień (`editor-content` outline none, wrapper outline 2 px offset 2 px).
+- **Niezweryfikowane na żywo:** lista kolejki z pozycjami (`QUEUE_UPDATE` przychodzi tylko przez WS; pokryte 9 testami); `prefers-reduced-motion` (brak emulacji); edytor odpowiedzi na pulpicie po rundzie 3 (ta sama poprawka co `adhoc`).
+- **Otwarte (poza zakresem, zapisane):** (1) `--color-primary` bez definicji i fallbacku w `customer-panel.component.scss:417` → dopisane do zakresu FE-125; (2) nieużywany klucz i18n `agent.desktop.queueWaiting` do usunięcia → dopisane do FE-125; (3) komponenty nadal ponad budżetem 12 kB (`adhoc-email-modal` 13,15 kB, `email-contact` 12,92 kB, `softphone` 14,27 kB, `contact-detail-modal`, `ivr-editor`, `email-templates`, `admin-metrics`) oraz bundle initial 567 kB przy budżecie 500 kB → nowy ticket FE-138.
 **Ryzyka:** (R1) refaktor stylów po przebudowie pulpitu — nie zaczynać przed FE-123; (R2) usunięcie fallbacków ujawni brakujące tokeny — sprawdzić w obu motywach; (R3) rozbieżność pomiarów (18,75 kB vs ~24 kB) — ustalić metodę pomiaru w pierwszym kroku.
 **Nie wchodzi w zakres:** optymalizacja bundla JS, pozostałe komponenty poza pulpitem, zmiany `side-tab` w wiadomościach e-mail.
 
@@ -6346,7 +6364,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Testing / Documentation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-114…FE-124 (FE-123 ✅ od 2026-10-29; w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
+**Zależy od:** FE-114…FE-124 (FE-124 ✅ od 2026-10-30 — odblokowany; FE-123 ✅ od 2026-10-29; w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
 **Status:** ⬜ Do zrobienia
 **Czeka na BE:** brak
 **Blokuje:** zamknięcie EPIC-32
@@ -6354,6 +6372,11 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Wykonawca:** `angular-frontend-expert` (uruchomienie `/impeccable audit` i `/impeccable critique`), `senior-code-reviewer` (przegląd końcowy)
 
 **Opis:** Zamknięcie epiku: ponowny `/impeccable audit` i `/impeccable critique` powierzchni agenta, porównanie z wynikami wyjściowymi (audyt 12/20, krytyka 17/40), aktualizacja lub zastąpienie nieaktualnego `UI-REVIEW.md` (2026-03-26) i synchronizacja `DESIGN.md` / `.impeccable/design.json` ze stanem faktycznym.
+
+**Notatka (2026-10-30, z FE-124 — drobne domknięcia do wykonania przy audycie):**
+- `customer-panel.component.scss:417` używa `var(--color-primary)` — token nie jest zdefiniowany w `styles.scss` i nie ma fallbacku (kolor nie renderuje się); zamienić na `--accent` (wybór: FE-125, bo to drobna poprawka tokenu wykryta przy zamknięciu epiku, a nie praca nad rozmiarem stylów FE-138 ani migracją `@media` FE-137).
+- Usunąć nieużywany klucz i18n `agent.desktop.queueWaiting` z pl/en/de/uk (po wydzieleniu `app-queue-panel` w FE-124 licznik używa kluczy `_one/_few/_many/_other`).
+- Nie ma tu pozostałych komponentów ponad budżetem 12 kB ani bundla — to FE-138.
 
 **Notatka (2026-10-29, z FE-132/FE-133 — drobne otwarte do domknięcia przy audycie lub w FE-123):**
 - Panel kolejki pokazuje surowe „Imię <email>” (nazwa kontaktu bez normalizacji; `normalizeContactName` z FE-133 obejmuje karty, nie panel kolejki).
@@ -6732,6 +6755,35 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 
 **Ryzyka:** (R1) zmiana progu (np. 600 → 640) zmienia moment zawijania — przegląd wizualny każdego widoku; (R2) widoki supervisor/admin wymagają MFA przy teście ręcznym.
 **Nie wchodzi w zakres:** przebudowa układów, układ mobilny/tablet, optymalizacja rozmiaru stylów (FE-124).
+
+### FE-138 – Budżety stylów i bundla: komponenty ponad 12 kB i bundle initial ponad 500 kB
+
+**Typ:** Frontend implementation (wydajność / refaktor stylów)
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** FE-124 ✅ (metoda pomiaru z ostrzeżeń `anyComponentStyle` w `ng build`, partiale `_focus.scss`/`_type-badge-tones.scss`, tokeny)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (nie blokuje FE-125)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable optimize`
+
+**Opis:** FE-124 sprowadził `agent-desktop.component.scss` do 9,00 kB, ale `ng build` nadal ostrzega o przekroczeniu 12 kB (`anyComponentStyle`): `adhoc-email-modal` 13,15 kB, `email-contact` 12,92 kB, `softphone` 14,27 kB oraz `contact-detail-modal`, `ivr-editor`, `email-templates`, `admin-metrics` (wartości do zmierzenia na początku). Bundle initial ma 567 kB przy budżecie 500 kB.
+
+**Zakres:**
+- Pomiar wyjściowy z `npm run build` (te same liczby co w FE-124, metoda: rozmiar po kompilacji, nie `wc -c`).
+- Redukcja stylów komponentów do ≤ 12 kB: martwe reguły, wspólne partiale/mixiny, wydzielenie komponentów (jak w FE-124); zakaz pogorszenia wyglądu w obu motywach.
+- Analiza bundla initial (≤ 500 kB): lazy loading, wydzielenie ciężkich zależności; alternatywa: świadoma decyzja właściciela o podniesieniu `maximumWarning` z uzasadnieniem.
+
+**Kryteria akceptacji:**
+- [ ] `npm run build` bez ostrzeżeń `anyComponentStyle` (albo jawnie uzasadniony wyjątek per komponent)
+- [ ] Bundle initial ≤ 500 kB lub zatwierdzona zmiana budżetu
+- [ ] Brak regresji wizualnej (przegląd w przeglądarce, oba motywy)
+- [ ] Liczby przed/po w notatce wykonania
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) wydzielanie komponentów zmienia enkapsulację stylów; (R2) lazy loading może zmienić moment ładowania widoków agenta.
+**Nie wchodzi w zakres:** przebudowa układów, migracja `px` w `@media` (FE-137).
 
 ## Bez epiku
 

@@ -54,9 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 18 | 0 | 12 | 0 | 30 | 🔧 W toku (FE-129 ✅ 2026-10-30; otwarty do FE-127, FE-128) |
+| EPIC-32 | UX i dostępność stanowiska agenta | 20 | 0 | 12 | 0 | 32 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **130** | **0** | **16** | **1** | **147** |
+| **Razem** | | **132** | **0** | **16** | **1** | **149** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -74,8 +74,8 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ✅ (2026-10-29)
 - FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ✅ (2026-10-30; `agent-desktop.component.scss` 18,11 → 9,00 kB)
 - FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` — ✅ (2026-10-30; audyt 15/20 przy celu ≥ 16 — niedobór 1 pkt zaakceptowany przez właściciela (R1), krytyka 30/40, 0 × P0, 0 × P1; **EPIC-32 pozostaje otwarty do FE-127, FE-128 (FE-129 ✅ 2026-10-30)**)
-- FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ⬜ (Do zrobienia; blokuje zamknięcie EPIC-32)
-- FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ⬜ (Do zrobienia; blokuje zamknięcie EPIC-32)
+- FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ✅ (2026-10-30, tura 61; ładowanie przez `UserService.getSkills()`, `skillsLoading`/`skillsLoadFailed`, region live; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
+- FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ✅ (2026-10-30, tura 61; klucze i18n, parytet 2784 kluczy w 4 językach, `createTwilioDevice` jako seam testowy; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
 - FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) — ✅ (2026-10-30, tura 60; format `h:mm`, sr-only z jednostkami, `kpiNoData`; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
 - FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ⬜ (Do zrobienia; czeka na BE-153; backlog, nie blokuje epiku; powiązany z FE-129 — KPI)
 - FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ✅ (2026-10-29; zależy od BE-160 ✅)
@@ -89,6 +89,8 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-141 – [BUG] `disposition-sets-page.component.scss`: 8 niezdefiniowanych tokenów `--color-*`, kolory się nie renderują — ⬜ (Do zrobienia; wynik FE-125 / MINOR-4 CR, P2; backlog, nie blokuje epiku)
 - FE-142 – Drobne P3 powierzchni agenta (reduced-motion, „Imię <email>” w `app-contact-header`, `transition: all`, `'Geist Mono'`, stałe szerokości, `font-size: 11px`) — ⬜ (Do zrobienia; wynik FE-125, P3; backlog, nie blokuje epiku)
 - FE-143 – Naprawa reaktywności `badgeLabel` w `queue-panel` (`translate()` w `computed` → surowy klucz po przełączeniu na niezaładowany język; wzorzec z FE-129) + NIT-1…NIT-3 z FE-129 — ⬜ (Do zrobienia; backlog, nie blokuje epiku; Should Have, XS/S)
+- FE-144 – i18n pozostałych ekranów: literały PL poza FE-128 (ok. 30 plików; lista z grepa do ręcznego przeglądu) + MINOR-4 z FE-127/FE-128 — ⬜ (Do zrobienia; wynik FE-128; backlog, nie blokuje epiku; Should Have, M, prawdopodobnie do podziału)
+- FE-145 – Wyświetlenie błędu telefonii agentowi: konsument `twilioDeviceError` z akcją ponowienia — ⬜ (Do zrobienia; wynik FE-128 / NEW-1 CR; backlog, nie blokuje epiku; Should Have, S)
 
 ---
 
@@ -5902,12 +5904,12 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 18/30** (✅ 18 · 🔧 0 · ⬜ 12 · 🚫 0) — status epiku: 🔧 W toku (FE-129 ✅ 2026-10-30; epik zamknie się po FE-127, FE-128; backlog niezablokowany: FE-130, FE-135…FE-143 i BE-153…BE-157)
+**Ukończone 20/32** (✅ 20 · 🔧 0 · ⬜ 12 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-130, FE-135…FE-145 oraz BE-153…BE-157 (precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
-> **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60; FE-127 ✅ i FE-128 ✅ tura 61) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
 > - **WP-1** `npm run lint` — 0 błędów; `npm run format:check` zgodne; `npm test` (Vitest) zielone (punkt odniesienia: 410 testów po FE-114; 420 testów / 33 pliki po FE-115 + FE-117; 424 testy / 34 pliki po FE-116 + FE-118).
@@ -5919,7 +5921,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127, FE-128 → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30);  `FE-129 ✅ → FE-143` (tura 60; backlog, nie blokuje epiku; wzorzec naprawy reaktywności z FE-129).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143` (tura 60; backlog, nie blokuje epiku; wzorzec naprawy reaktywności z FE-129).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6372,7 +6374,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zależy od:** FE-114…FE-124 (FE-124 ✅ od 2026-10-30 — odblokowany; FE-123 ✅ od 2026-10-29; w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 ✅ (2026-10-30, tura 60) (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
 **Status:** ✅ Ukończone (2026-10-30, tura 59; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` „Review: FE-125 (część A) — 2026-10-30” 4/5; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 770 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty). **Audyt 15/20 przy celu ≥ 16 — niedobór 1 pkt zaakceptowany przez właściciela (R1).** **EPIC-32 zostaje OTWARTY** do realizacji FE-127, FE-128 (FE-129 ✅ 2026-10-30; decyzja właściciela 2026-10-30, zgodnie z zapisem zależności).
 **Czeka na BE:** brak
-**Blokuje:** zamknięcie EPIC-32 — po FE-127, FE-128 (FE-129 ✅ 2026-10-30; te dwa blokują epik; sam FE-125 jest zamknięty). Następne: FE-139…FE-142 (wynik FE-125, backlog)
+**Blokuje:** zamknięcie EPIC-32 — po FE-127, FE-128 (FE-129 ✅ 2026-10-30; te dwa blokowały epik; sam FE-125 jest zamknięty; **FE-127 ✅ i FE-128 ✅ 2026-10-30, tura 61 — EPIC-32 zamknięty**). Następne: FE-139…FE-142 (wynik FE-125, backlog)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` (uruchomienie `/impeccable audit` i `/impeccable critique`), `senior-code-reviewer` (przegląd końcowy)
 
@@ -6462,9 +6464,9 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-126 ✅ (ukończony 2026-10-23, tura 50 — dyrektywa `listbox-nav` działa na liście, która dziś jest pusta)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-30, tura 61; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-127 + FE-128 — 2026-10-30” runda 1: 3,5/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 70 plików / 885 testów; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak (istniejący endpoint umiejętności używany w `user-form`/`queue-form`)
-**Blokuje:** zamknięcie EPIC-32 (FE-125 ✅ zamknięty 2026-10-30 bez tego ticketu — decyzja właściciela; epik zostaje otwarty do jego realizacji)
+**Blokuje:** — (dawniej: zamknięcie EPIC-32; od 2026-10-30 spełnione — po FE-127 ✅ i FE-128 ✅ EPIC-32 zamknięty)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert`
 
@@ -6475,13 +6477,22 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Test jednostkowy: po inicjalizacji `availableSkills` zawiera dane z serwisu; podpowiedzi filtrują się po wpisanym tekście.
 
 **Kryteria akceptacji:**
-- [ ] Lista podpowiedzi umiejętności w formularzu admina pokazuje dostępne umiejętności (test Vitest)
-- [ ] Błąd ładowania nie blokuje zapisu użytkownika (test)
-- [ ] Obsługa klawiatury z FE-126 działa na wypełnionej liście
-- [ ] WP-1…WP-6 (WP-5 może być ograniczone — ekran wymaga MFA)
+- [x] Lista podpowiedzi umiejętności w formularzu admina pokazuje dostępne umiejętności (test Vitest)
+- [x] Błąd ładowania nie blokuje zapisu użytkownika (test)
+- [x] Obsługa klawiatury z FE-126 działa na wypełnionej liście
+- [x] WP-1…WP-6 (WP-5 ograniczone: ekran wymaga MFA — patrz dług w notatce)
 
 **Ryzyka:** (R1) ekran admina wymaga MFA w local-demo — weryfikacja w przeglądarce może być niemożliwa (jak w FE-126).
 **Nie wchodzi w zakres:** zmiana modelu umiejętności, nowe endpointy.
+
+**Notatka wykonania (2026-10-30, tura 61):** `angular-frontend-expert` + `impeccable harden`; code review 2 rundy (3,5/5 → 4,5/5). Zmiany (frontend, bez zmian backendu):
+- `AdminUserFormComponent` (`frontend/src/app/features/admin/pages/users/admin-user-form/`) ładuje umiejętności przez `UserService.getSkills()` — ten sam endpoint co `user-form` i `queue-form`; nowe sygnały `skillsLoading` i `skillsLoadFailed`.
+- Błąd ładowania nie blokuje zapisu — umiejętności można wpisać ręcznie.
+- Osobny region live (`.sr-only`, `role="status"`, zawsze w DOM) ogłasza tylko stany błędu i pustej listy, nie ogłasza ładowania; podpowiedź `#adm-skill-status` podpięta przez `aria-describedby`. Nowe klucze `admin.userForm.skillsLoadError` i `admin.userForm.skillsEmpty` (4 języki).
+- Testy: dane z serwisu, filtr podpowiedzi, `listbox-nav` (FE-126) na wypełnionej liście, stan ładowania, destroy, tryb edycji (`updateUser`), błąd ładowania nie blokuje zapisu.
+- Code review: runda 1 — MEDIUM-1 (`role="status"` na stałej podpowiedzi), MEDIUM-2 (brakujące testy); runda 2 — zamknięte.
+- **Dług weryfikacji ręcznej (WP-5, niewykonany):** ekrany admina wymagają MFA w local-demo (tak jak w FE-126) — do sprawdzenia przez właściciela: podpowiedzi umiejętności, obsługa klawiaturą, komunikaty stanu w czytniku ekranu.
+- Skutek: razem z FE-128 ✅ zdjęty ostatni bloker — **EPIC-32 zamknięty 2026-10-30**.
 
 ### FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service`
 
@@ -6489,9 +6500,9 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-119 ✅ (ukończony 2026-10-23, tura 50 — grep literałów objął tylko `features/agent`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-30, tura 61; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-127 + FE-128 — 2026-10-30” runda 1: 3,5/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 70 plików / 885 testów; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
-**Blokuje:** zamknięcie EPIC-32 (FE-125 ✅ zamknięty 2026-10-30 bez tego ticketu — decyzja właściciela; epik zostaje otwarty do jego realizacji)
+**Blokuje:** — (dawniej: zamknięcie EPIC-32; od 2026-10-30 spełnione). Następne: FE-144 (i18n pozostałych ekranów) i FE-145 (błąd telefonii agentowi) — backlog, nie blokują epiku
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` + `impeccable clarify`
 
@@ -6500,13 +6511,23 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zakres:** klucze w `frontend/public/i18n/{pl,en,de,uk}.json`, użycie `TranslateService`/pipe; forma neutralna płciowo; brak martwych kluczy.
 
 **Kryteria akceptacji:**
-- [ ] Brak literałów PL w trzech wymienionych plikach (grep poza komentarzami i `console.*`)
-- [ ] Parytet kluczy w 4 językach (0 różnic)
-- [ ] Testy dla zmienionych komunikatów walidacji `queue-form`
-- [ ] WP-1…WP-6
+- [x] Brak literałów PL w trzech wymienionych plikach (grep poza komentarzami i `console.*`)
+- [x] Parytet kluczy w 4 językach (0 różnic)
+- [x] Testy dla zmienionych komunikatów walidacji `queue-form`
+- [x] WP-1…WP-6
 
 **Ryzyka:** (R1) tłumaczenia de/uk bez przeglądu native speakera (dług znany z FE-113); (R2) pełny grep po `frontend/src` może wskazać dalsze pliki supervisor/admin — wypisać jako propozycję, nie rozszerzać zakresu bez decyzji.
 **Nie wchodzi w zakres:** pozostałe ekrany admin/supervisor niewymienione wyżej.
+
+**Notatka wykonania (2026-10-30, tura 61):** `angular-frontend-expert` + `impeccable clarify`; code review 2 rundy (3,5/5 → 4,5/5). Zmiany (frontend, bez zmian backendu):
+- `admin-user-form`: `roleOptions` z `labelKey` (`role.*`); gettery błędów zwracają klucze, tłumaczy je pipe `transloco`. Usunięte także literały ASCII-PL („Imie nie moze…”, „Haslo musi…”).
+- `queue-form`: walidacje przez klucze `supervisor.queueForm.errors.{nameRequired,nameMaxLength,routingStrategyRequired}`; 4 toasty przez `supervisor.queueForm.{successCreate,successEdit,errorCreate,errorEdit}` z parametrem `{{name}}`, tłumaczone przez `translate()` w handlerach zdarzeń.
+- `softphone.service`: `twilioDeviceError` trzyma klucz `agent.softphone.errors.{tokenFetch,device}` (typ `TwilioDeviceErrorKey`), surowy komunikat trafia tylko do konsoli; nowy seam `protected createTwilioDevice(token)` dla testów (`vi.mock` dawał timeouty w pełnym przebiegu; zaakceptowany w CR runda 2); nowy `softphone.service.spec.ts` z 5 testami.
+- i18n: parytet 2784 kluczy w pl/en/de/uk, 0 różnic, brak martwych kluczy; w pl termin „skille”, spójny z resztą UI; poprawka w `uk.json` (U+02BC zamienione na `'`). Grep literałów PL w 3 plikach ticketu: 0 trafień poza `console.*`.
+- Code review: runda 1 — MAJOR-1 (toasty `queue-form` z literałami PL), MEDIUM-1…3, MINOR-1…4; runda 2 — wszystko naprawione poza MINOR-4 (mieszane przestrzenie nazw `admin.*`/`supervisor.*` w getterach `admin-user-form`; backlog → FE-144).
+- Ryzyko R1 (tłumaczenia de/uk bez przeglądu native speakera) pozostaje długiem z FE-113. R2 zrealizowane jako propozycja: grep po `frontend/src` wskazał dalsze pliki → nowy FE-144; `twilioDeviceError` bez konsumenta w UI → nowy FE-145.
+- **Dług weryfikacji ręcznej (WP-5, niewykonany):** ekrany admina i supervisora wymagają MFA w local-demo — do sprawdzenia przez właściciela: napisy ról, walidacje po zmianie języka, toasty kolejki.
+- Skutek: razem z FE-127 ✅ zdjęty ostatni bloker — **EPIC-32 zamknięty 2026-10-30**.
 
 ### FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss)
 
@@ -6955,6 +6976,72 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 
 **Ryzyka:** (R1) w `top-navbar` i `queue-panel` jest możliwe przejściowe (kilkadziesiąt ms) niedopasowanie kategorii plural do słownika w oknie ładowania (zaakceptowane w code review FE-129, runda 2); (R2) przejrzeć grepem inne `translate(` wewnątrz `computed`/`toSignal` w `frontend/src` i wypisać jako propozycję, nie rozszerzać zakresu bez decyzji.
 **Nie wchodzi w zakres:** pozostałe ekrany admin/supervisor; zmiany treści tłumaczeń.
+
+
+### FE-144 – i18n pozostałych ekranów: literały PL poza zakresem FE-128 (+ MINOR-4 z FE-127/FE-128)
+
+**Typ:** Frontend implementation (i18n)
+**Priorytet:** Should Have
+**Złożoność:** M (prawdopodobnie do podziału na pakiety po obszarach: integracje/shared, supervisor, tenants/admin)
+**Zależy od:** FE-128 ✅ (2026-10-30, tura 61 — wzorzec: klucze + pipe `transloco`, `translate()` tylko w handlerach zdarzeń)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify`
+
+**Opis:** FE-128 (R2) przewidywał dalsze literały PL poza trzema plikami ticketu; grep po `frontend/src` (tura 61) dał listę poniżej. **Lista jest zgrubna — część trafień może być fałszywa (komentarze, `console.*`, nazwy własne); wymaga ręcznego przeglądu przed ustaleniem zakresu i podziału.** PRODUCT.md: „Żaden tekst nie może być na sztywno w jednym języku.”
+
+**Pliki z diakrytykami (liczba trafień):**
+- `features/integrations/pages/oauth-callback/oauth-callback.component.ts` (6)
+- `shared/components/plugin-panel-host/plugin-panel-host.component.ts` (4)
+- `features/supervisor/pages/customers/customer-edit/customer-edit.component.html` (3)
+- `features/supervisor/pages/ai-config/ai-config.component.ts` (3)
+- `features/tenants/tenant-list/tenant-list.component.html` (2)
+- `features/supervisor/pages/settings/phone-numbers/phone-numbers.component.html` (2)
+- `routing-rules.component.html` (2)
+- po 1 trafieniu: `contact-detail-modal.component.{ts,html}`, `confirm-dialog.component.ts`, `retention.service.ts`, `routing-rule-form.component.ts`, `email-templates.component.html`, `disposition-sets-page.component.ts`, `queue-assignment-panel.component.ts`, `customer-import.component.{ts,html}`, `customer-detail.component.html`, `customer-create-modal.component.html`, `campaign-import.component.ts`, `twilio-phone-number-select.component.ts`, `features/agent/services/call-lifecycle.service.ts`, `admin-user-list.component.ts`
+
+**Pliki z ASCII-PL (bez diakrytyków):** `tenant-edit-modal.component.ts`, `tenant-add-modal.component.ts`, `email-settings.component.{ts,html}`, `twilio-settings.component.{ts,html}`, `twilio-config.component.ts`, `reports-placeholder.component.ts`, `queue-list.component.ts`, `admin-dashboard.component.ts`, `customer-import.component.ts`.
+
+**Zakres:** (1) ręczny przegląd listy i ustalenie zakresu (wykluczyć fałszywe trafienia; podział na pakiety); (2) klucze w `frontend/public/i18n/{pl,en,de,uk}.json`, pipe `transloco` w szablonach, `translate()` w handlerach zdarzeń (nie w `computed`); (3) **MINOR-4 z FE-127/FE-128:** ujednolicić przestrzenie nazw kluczy w getterach błędów `admin-user-form` (mieszane `admin.*`/`supervisor.*`); forma neutralna płciowo, brak martwych kluczy.
+
+**Kryteria akceptacji:**
+- [ ] Zakres ustalony po ręcznym przeglądzie listy (fałszywe trafienia wypisane); przy rozmiarze > L ticket podzielony na pakiety
+- [ ] Brak literałów PL w plikach zakresu (grep diakrytyków i ASCII-PL poza komentarzami i `console.*`)
+- [ ] Parytet kluczy w 4 językach (0 różnic), brak martwych kluczy
+- [ ] Testy dla zmienionych komunikatów walidacji i toastów
+- [ ] MINOR-4 domknięty (spójna przestrzeń nazw w `admin-user-form`)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) tłumaczenia de/uk bez przeglądu native speakera (dług z FE-113); (R2) ekrany admina/supervisora wymagają MFA w local-demo — WP-5 ograniczone, weryfikacja ręczna przez właściciela.
+**Nie wchodzi w zakres:** zmiana treści istniejących tłumaczeń, powierzchnia agenta (FE-119).
+
+### FE-145 – Wyświetlenie błędu telefonii agentowi (`twilioDeviceError` bez konsumenta w UI)
+
+**Typ:** Bug / Frontend hardening (a11y, UX)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-128 ✅ (2026-10-30, tura 61 — `twilioDeviceError` trzyma klucz `agent.softphone.errors.{tokenFetch,device}`, typ `TwilioDeviceErrorKey`)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Wynik code review FE-127+FE-128 (NEW-1): `twilioDeviceError` w `softphone.service.ts` nie ma konsumenta w UI. Klucze `agent.softphone.errors.*` są przetłumaczone w 4 językach, ale agent nigdy nie widzi błędu telefonii (tak było także przed FE-128). Agent bez działającego urządzenia Twilio nie wie, dlaczego nie odbiera połączeń.
+
+**Zakres:** pokazać błąd w softphone lub w pasku (tekst z klucza `twilioDeviceError` przez pipe `transloco`), z akcją ponowienia (ponowne pobranie tokenu / inicjalizacja urządzenia); region live (`role="alert"` lub `status` — do decyzji przy `harden`), fokus/klawiatura, kontrast w obu motywach; testy (stan błędu, ponowienie, zniknięcie po sukcesie).
+
+**Kryteria akceptacji:**
+- [ ] Błąd `tokenFetch`/`device` jest widoczny dla agenta i ogłaszany czytnikowi ekranu, w 4 językach, bez surowych kluczy
+- [ ] Akcja ponowienia dostępna z klawiatury; po sukcesie komunikat znika
+- [ ] Testy jednostkowe stanów: błąd, ponowienie, sukces
+- [ ] Weryfikacja na żywo z Twilio (dług: prawdziwe połączenie / token niedostępny) lub jawnie odnotowane ograniczenie
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) wymaga realnego błędu tokenu/urządzenia do weryfikacji na żywo (symulacja przez odmowę mikrofonu lub błędny token); (R2) miejsce prezentacji (softphone vs pasek) do decyzji przy `harden`.
+**Nie wchodzi w zakres:** zmiana logiki łączenia z Twilio, nowe kody błędów.
 
 
 ## Bez epiku

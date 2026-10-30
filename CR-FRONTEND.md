@@ -2354,3 +2354,66 @@ Punkty szczególne:
 - **Wciąż otwarte, poza zakresem FE-129:** ta sama usterka reaktywności w `queue-panel.component.ts:39-48` (`badgeLabel`, `translate()` w `computed`) oraz pomiar `de` przy 1366 px.
 
 **Status (2026-10-30, tura 60):** FE-129 ✅ zamknięty w `TASKS-FRONTEND.md` (oceny bez zmian: runda 1 3,5/5, runda 2 4,5/5). Usterka w `queue-panel` → nowy FE-143 (backlog, razem z NIT-1…NIT-3). Pomiar `de` przy 1366 px wykonany w przeglądarce: pas 381 px, etykiety i 4. kafelek sr-only wg container query z FE-134 (zamierzone, nic się nie ucina); przy 1920 px w `de` 4 kafelki, najgorszy przypadek `12:59` bez ucięcia.
+
+---
+
+## Review: FE-127 + FE-128 — 2026-10-30
+
+Zakres: `admin-user-form.component.{ts,html,spec.ts}`, `queue-form.component.{ts,html,spec.ts}`, `softphone.service.ts` + nowy `softphone.service.spec.ts`, `frontend/public/i18n/{pl,en,de,uk}.json`. Zmiany niezacommitowane. Uruchomiono `ng test` dla 3 specs (18/18 zielone) i `prettier --check` (czysto). Parytet kluczy skryptem po spłaszczonych kluczach: 2780/2780/2780/2780, 0 brakujących, 0 nadmiarowych; wszystkie klucze ponownie użyte (`role.*`, `admin.userForm.errors.*`, `supervisor.userForm.errors.*`, `common.loading_data`) istnieją w 4 językach.
+
+### 🐛 Bugs / Critical Issues
+- **MAJOR-1 `queue-form.component.ts:213,219,233,239`** Kryterium akceptacji FE-128 #1 ("brak literałów PL w trzech plikach, grep poza komentarzami i `console.*`") NIE jest spełnione. W `queue-form.component.ts` zostały 4 literały PL bez diakrytyków w powiadomieniach: `` `Kolejka "${raw.name}" zostala zaktualizowana.` ``, `'Nie udalo sie zaktualizowac kolejki. Sprobuj ponownie.'`, `` `Kolejka "${created.name}" zostala utworzona.` ``, `'Nie udalo sie utworzyc kolejki. Sprobuj ponownie.'`. To dokładnie ten sam plik, który ticket wymienia w pkt (b), a użytkownik w en/de/uk dostaje toast po polsku. Autor przepisał tylko gettery walidacji. Rekomendacja: 4 nowe klucze `supervisor.queueForm.{successCreate,successEdit,errorCreate,errorEdit}` (z `{{name}}` w sukcesach) w 4 językach, `transloco.translate()` w handlerach `next`/`error` (moment zdarzenia, więc `translate()` jest tu poprawne; wzór: `admin-user-form.component.ts:304-339`), plus test (wywołanie `onSubmit` z mockiem `QueueService`, asercja `notifications.success/error` z tekstem z `pl`). Alternatywnie jawnie zawęzić AC w tickecie do walidacji, ale wtedy PRODUCT.md ("żaden tekst nie na sztywno") pozostaje naruszone.
+
+### ⚠️ Security Concerns
+_None identified._ Surowy `error.message` Twilio nie trafia już do UI/stanu (tylko `console.error`), co jest na plus.
+
+### 🏗️ Architecture / Pattern Violations
+- **MEDIUM-1 `admin-user-form.component.html:224` (`role="status"` na stałej podpowiedzi)** `#adm-skill-status` jest regionem live (`role="status"` = polite) i jednocześnie zawiera stałą podpowiedź. `loadSkills()` ustawia `skillsLoading=true` w `ngOnInit`, więc pierwszy render zawiera "Wczytywanie danych...", a po odpowiedzi tekst zamienia się na podpowiedź `skillsHint`. Efekt: czytnik ekranu ogłasza przy każdym otwarciu formularza zarówno zmianę stanu ładowania, jak i stałą instrukcję "Naciśnij Enter lub wybierz z listy..." (hałas, nic z tego nie jest zdarzeniem wymagającym uwagi). Dodatkowo ten sam element jest `aria-describedby` pola, więc opis pola zmienia się dynamicznie. Rekomendacja: zostawić `id="adm-skill-status"` + `aria-describedby` na zwykłym `<span class="form-hint">` dla podpowiedzi, a region live dać wyłącznie komunikatom stanu `skillsLoadFailed`/`skillsEmpty` (osobny element zawsze obecny w DOM, pusty, z treścią wstrzykiwaną tylko w tych dwóch stanach; `role="status"` działa tylko, gdy element istnieje przed zmianą treści). Stan `loading` raczej nie ogłaszać wcale (krótki, bez wartości). Test: asercja, że w stanie domyślnym podpowiedź nie leży w regionie live.
+- **MINOR-1 `softphone.service.ts:60-62`** Dwa kolejne bloki JSDoc: stary `/** Last error from Twilio Device initialization (for diagnostics) */` został, dodano drugi tuż pod nim. Kompilator użyje tylko drugiego, pierwszy jest martwym, mylącym komentarzem. Usunąć stary. Przy okazji: `twilioDeviceError = signal<string | null>` przechowuje klucz, ale typ nie wymusza tego na konsumencie. Rozważyć unię `'agent.softphone.errors.tokenFetch' | 'agent.softphone.errors.device' | null` (typ `TwilioErrorKey`), żeby przyszły konsument UI nie wyrenderował klucza bez `| transloco`. Dziś nikt w UI sygnału nie czyta (grep: tylko serwis i spec), więc nie ma regresji, a klucze `agent.softphone.errors.*` są na razie "przyszłościowe" (nie martwe w sensie kodu, ale bez konsumenta w szablonie) — warto to wpisać w ticket konsumenta.
+
+### 🔧 Improvements & Suggestions
+- **MEDIUM-2 testy `admin-user-form.component.spec.ts:~125-208`** Brak testu stanu `skillsLoading`: żaden test nie sprawdza `skillsLoading() === true` w trakcie żądania (np. `Subject` zamiast `of`) ani tekstu `common.loading_data` w `#adm-skill-status`. Brak też testu: (a) że po `destroy` odpowiedź nie ustawia sygnałów (`takeUntilDestroyed`), (b) atrybutów `role="status"` / `aria-describedby="adm-skill-status"` na polu (AC a11y z opisu zadania), (c) trybu edycji (`user` ustawiony: `selectedSkills` z użytkownika nie powinny znikać z podpowiedzi, a `filteredSkills` ma je ukrywać). Test "a load error leaves the form usable" jest dobry (dociera do `createUser`), ale w trybie tworzenia; w edycji `updateUser` niepokryty.
+- **MEDIUM-3 `softphone.service.spec.ts`** Pokryte tylko 2 gałęzie z 3 zmienionych: `tokenFetch` (500) i 404. Gałęzie `device.on('error')` (l. 130-134) i `catch` inicjalizacji (l. 140-145), które też zmieniły wartość sygnału na klucz `agent.softphone.errors.device`, nie mają testu (wymaga mocka `@twilio/voice-sdk` `Device`). Skoro ticket to zmiana kontraktu sygnału (tekst → klucz), brak pokrycia 2 z 3 miejsc zapisu to luka. Dodać test z `vi.mock` Device emitującego `error` i drugi z konstruktorem rzucającym.
+- **MINOR-2 `pl.json` `supervisor.userForm.skillsHint` vs nowe `admin.userForm.skills*`** Terminologia w jednym elemencie statusu jest niespójna: istniejąca podpowiedź pl mówi "skill" ("...aby dodać skill"), a nowe `skillsLoadError`/`skillsEmpty` używają "umiejętności". W `pl.json` dominuje "skill" (21 wystąpień vs 4 "umiejętno"). Ujednolicić na jedną formę w obrębie formularza (rekomendacja: "umiejętności", zgodnie z etykietą pola i tickietem; wtedy poprawić też `skillsHint`, ale to zmiana istniejącego klucza, więc osobna decyzja).
+- **MINOR-3 `uk.json:1188`** `supervisor.queueForm.errors.nameRequired`: "Назва обовʼязкова." używa U+02BC (ʼ), a reszta pliku (109 miejsc) ASCII `'` (np. "обов'язковий"). To jedyne wystąpienie ʼ w pliku, niespójne w wyszukiwaniu i diffach. Zamienić na `'`.
+- **MINOR-4 `admin-user-form.component.ts` (gettery błędów)** Walidator `maxlength` dla imienia/nazwiska/email używa kluczy z `supervisor.userForm.errors.*`, a "required" z `admin.userForm.errors.*`. Mieszanie dwóch przestrzeni nazw w jednym getterze działa (klucze istnieją), ale utrudnia późniejsze zmiany. Opcjonalnie: sprzątanie w osobnym tickecie, żeby admin miał własny komplet. Nie blokuje; wspomniane w opisie jako świadome ponowne użycie.
+- **MINOR-5 spec `queue-form`** Test używa `email.setErrors({ maxlength: ... })` po `setValue`, co jest sztuczne, ale zakomentowane i uzasadnione (walidator `email` Angulara sam odrzuca >254). Akceptowalne; nic do zmiany.
+
+### ✅ Positive Observations
+- Wzorzec reaktywności zgodny z lekcją z FE-129: gettery zwracają klucze, tłumaczy pipe `transloco` w szablonie (pipe czeka na załadowanie języka), brak `translate()` w polach i `computed`. `roleOptions` jako `computed` z `labelKey` bez tłumaczenia w środku, tłumaczenie w `<option>`. Grep `translate(` w obu komponentach: tylko handlery zdarzeń (poprawne miejsce).
+- Konsumenci zmienionych API zaktualizowani: gettery (`nameError`, `firstNameError` itd.) i `roleOptions` używane wyłącznie we własnych szablonach/specach; pozostałe komponenty o tych samych nazwach getterów (login, tenant modale, campaign-form, user-form, email-settings) mają własne implementacje i nie są dotknięte. `twilioDeviceError` nie ma konsumentów poza serwisem i nowym spec.
+- FE-127: `loadSkills()` z `catchError` + `takeUntilDestroyed(this.destroyRef)` w tej kolejności (błąd nie kończy strumienia i nie blokuje zapisu), zgodnie z `user-form`; `filteredSkills` filtruje po wpisanym tekście bez rozróżniania wielkości liter i ukrywa wybrane; `listbox-nav` (FE-126) dostaje dane z serwisu (test renderuje opcje po `ArrowDown`). Pierwszy `describe` poprawnie przeszedł z mutowania `availableSkills.set(...)` na mock serwisu (testuje realną ścieżkę).
+- Tłumaczenia: forma bezosobowa/rozkazująca we wszystkich 4 językach, bez form rodzajowych ("Nie udało się" / "konnte nicht" / "Не вдалося"); de konsekwentnie "Mandant"/"Fähigkeiten"; brak martwych kluczy `admin.userForm.skills*`, `supervisor.queueForm.errors.*`, `agent.softphone.errors.*` poza uwagą o braku konsumenta dla `softphone.errors`.
+- Brak nowych hex ani CSS (zmiany tylko w TS/HTML/JSON), standalone + OnPush zachowane, selektory bez zmian.
+
+### Summary
+⭐⭐⭐½ (3,5/5): technicznie czysta i dobrze przetestowana migracja getterów na klucze z poprawną reaktywnością, ale FE-128 nie domyka własnego kryterium #1 (4 literały PL w toastach `queue-form.component.ts`), a `role="status"` na stałej podpowiedzi to regres a11y.
+
+**Blokuje commit/zamknięcie ticketu:** MAJOR-1 (literały w toastach `queue-form`). Przed zamknięciem FE-127 zalecane MEDIUM-1 (region live) i MEDIUM-2 (test stanu ładowania); MEDIUM-3 i MINOR-y nieblokujące (mogą pójść do backlogu).
+
+### Runda 2 — FE-127 + FE-128 — 2026-10-30
+
+**Ocena: 4,5/5. Nic nie blokuje commita.**
+
+Weryfikacja wlasna: `npx ng test --watch=false --include=` dla 3 specow (queue-form, admin-user-form, softphone.service) = 3 pliki / 30 testow zielone. ESLint na zmienionych plikach: 0 bledow, 5 ostrzezen `no-console` w `softphone.service.ts`. Prettier: OK (pliki + `public/i18n`). Parytet kluczy pl/en/de/uk = 2784 w kazdym, roznica symetryczna pusta (skrypt Python). Wszystkie uzyte klucze istnieja we wszystkich 4 jezykach.
+
+| Znalezisko | Status | Dowod |
+|---|---|---|
+| MAJOR-1 toasty queue-form | ZAMKNIETE | 4 klucze `supervisor.queueForm.{successCreate,successEdit,errorCreate,errorEdit}` w 4 jezykach, `transloco.translate()` w handlerach, interpolacja `{{name}}`. Grep PL (diakrytyki + ASCII-PL) w `queue-form.component.{ts,html}` i `admin-user-form.component.{ts,html}`: 0 trafien. |
+| MEDIUM-1 region live | ZAMKNIETE | Osobny `.sr-only` `role="status"` zawsze w DOM, komunikuje tylko stan failed/empty (nie loading). `#adm-skill-status` jest zwyklym spanem pod `aria-describedby`. |
+| MEDIUM-2 testy admin-user-form | ZAMKNIETE | Nowe testy przechodza. |
+| MEDIUM-3 testy softphone | ZAMKNIETE | 5 testow przechodzi. Szew `protected createTwilioDevice(token)` + `vi.spyOn` jest akceptowalny: minimalny, 1 metoda, bez zmiany zachowania produkcyjnego, uzasadnienie (wspolne chunki z prawdziwym SDK) wiarygodne. Test rzutuje na `unknown`-owy interfejs `DeviceFactory`, wiec zmiana nazwy metody zlapie TypeScript tylko czesciowo (spyOn rzuci w runtime). |
+| MINOR-1 JSDoc / typ | ZAMKNIETE | `TwilioDeviceErrorKey`, sygnal typowany. |
+| MINOR-2 "skilli" w pl | ZAMKNIETE | `supervisor.userForm.skillsHint` pl = "...dodac skill." spojne z reszta UI. |
+| MINOR-3 U+02BC | ZAMKNIETE | Skrypt: 0 wystapien U+02BC w 4 plikach i18n (uk uzywa `'`). |
+| MINOR-4 | POMINIETE (backlog) | Zgodnie z decyzja autora. |
+
+Uwaga do twierdzenia autora "w 3 plikach ticketu nie ma literalow ASCII-PL": prawda dla UI. W `softphone.service.ts` zostaly polskie komunikaty wylacznie w `console.warn/error/log` (linie 111, 117, 154, 211, 784), czyli diagnostyka dla dewelopera, nie tekst widoczny dla uzytkownika. Nie jest to regresja.
+
+#### Nowe znaleziska
+- **NEW-1 (MINOR, backlog):** `softphone.service.ts:69` `twilioDeviceError` nie ma zadnego konsumenta poza serwisem (grep po `src`, bez specow). Klucze i18n `agent.softphone.errors.*` istnieja i sa przetlumaczone, ale uzytkownik agent nigdy nie zobaczy bledu telefonii. Przed zmiana tez nie widzial (surowy string), wiec to nie regresja. Do rozwaznia osobny ticket: wyswietlic w pasku softphone przez pipe `transloco` z `role="alert"`.
+- **NEW-2 (NIT):** `softphone.service.ts:133,138,196` i `:110,784` `console.log` powoduja ostrzezenia lintera `no-console` (0 bledow). Nie dotyczy tej zmiany, ale warto posprzatac przy okazji.
+
+Podsumowanie: wszystkie poprzednie znaleziska domkniete i potwierdzone uruchomieniem, bez nowych problemow blokujacych. Pozostaja dwa drobne tematy do backlogu.
+
+**Status (2026-10-30, tura 61):** FE-127 i FE-128 ✅ zamknięte w `TASKS-FRONTEND.md`, EPIC-32 zamknięty (oceny bez zmian: runda 1 3,5/5, runda 2 4,5/5). MINOR-4 → FE-144, NEW-1 → FE-145 (backlog).

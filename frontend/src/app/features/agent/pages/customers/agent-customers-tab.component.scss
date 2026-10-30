@@ -332,7 +332,7 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--violet) 100%);
+  background: var(--accent);
   color: var(--accent-fg);
   font-size: 0.875rem;
   font-weight: 700;
@@ -566,7 +566,7 @@
   border: none;
   cursor: pointer;
   font-size: 12px;
-  color: var(--color-primary, #1976d2);
+  color: var(--accent);
   font-weight: 500;
 
   &:hover {

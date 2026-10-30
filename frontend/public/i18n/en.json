@@ -236,7 +236,6 @@
       "tabLimitTotal": "You have reached the maximum limit of 4 active contacts.",
       "queueTitle": "Queue",
       "queueEmpty": "No waiting contacts",
-      "queueWaiting": "waiting",
       "queueWaitingCount_one": "{{count}} waiting",
       "queueWaitingCount_few": "{{count}} waiting",
       "queueWaitingCount_many": "{{count}} waiting",

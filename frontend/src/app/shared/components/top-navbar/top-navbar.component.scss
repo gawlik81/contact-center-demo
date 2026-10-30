@@ -158,8 +158,8 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent, #1a56db) 0%, var(--violet, #7c3aed) 100%);
-    color: var(--on-accent);
+    background: var(--accent);
+    color: var(--accent-fg);
     font-size: var(--fs-2xs);
     font-weight: 700;
     display: flex;

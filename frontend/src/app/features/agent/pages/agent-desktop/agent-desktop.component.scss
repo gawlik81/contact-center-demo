@@ -161,7 +161,7 @@
     }
 
     &--collapsed {
-      width: 16px;
+      width: 24px;
       overflow: hidden;
     }
 
@@ -185,7 +185,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
+    width: 24px; // WCAG 2.5.8 minimum target
     flex-shrink: 0;
     border: none;
     border-right: 1px solid var(--border-1);

@@ -77,6 +77,43 @@ describe('QueuePanelComponent', () => {
     );
   });
 
+  it('shows the display name instead of a raw "Name <email>" header', () => {
+    items.set([
+      makeItem({ id: 'q-1', customerName: 'Anna Test <anna@example.test>' }),
+      makeItem({ id: 'q-2', customerName: '<bob@example.test>' }),
+    ]);
+    const fixture = TestBed.createComponent(QueuePanelComponent);
+    fixture.detectChanges();
+    const names = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.queue-item__name'),
+    ).map((n) => n.textContent?.trim());
+    expect(names).toEqual(['Anna Test', 'bob@example.test']);
+  });
+
+  it('falls back to the identifier for null or blank names without repeating it', () => {
+    items.set([
+      makeItem({ id: 'q-1', customerName: null as unknown as string }),
+      makeItem({ id: 'q-2', customerName: '   ', customerIdentifier: 'blank@example.test' }),
+      makeItem({ id: 'q-3', customerName: '', customerIdentifier: '' }),
+    ]);
+    const fixture = TestBed.createComponent(QueuePanelComponent);
+    fixture.detectChanges();
+    const rows = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.queue-item__info'),
+    );
+    expect(rows.map((r) => r.querySelector('.queue-item__name')?.textContent?.trim())).toEqual([
+      '+48123456789',
+      'blank@example.test',
+      '',
+    ]);
+    // The identifier is not shown twice when it already serves as the name.
+    expect(rows.map((r) => r.querySelector('.queue-item__identifier') === null)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  });
+
   it('does not tick while the queue is empty and stops after destroy', () => {
     const fixture = TestBed.createComponent(QueuePanelComponent);
     fixture.detectChanges();

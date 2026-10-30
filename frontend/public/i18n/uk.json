@@ -236,7 +236,6 @@
       "tabLimitTotal": "Ви досягли максимального ліміту 4 активних контактів.",
       "queueTitle": "Черга",
       "queueEmpty": "Немає контактів, що очікують",
-      "queueWaiting": "очікує",
       "queueWaitingCount_one": "{{count}} очікує",
       "queueWaitingCount_few": "{{count}} очікують",
       "queueWaitingCount_many": "{{count}} очікують",

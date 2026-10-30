@@ -236,7 +236,6 @@
       "tabLimitTotal": "Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.",
       "queueTitle": "Kolejka",
       "queueEmpty": "Brak oczekujących kontaktów",
-      "queueWaiting": "oczekujących",
       "queueWaitingCount_one": "{{count}} oczekujący",
       "queueWaitingCount_few": "{{count}} oczekujących",
       "queueWaitingCount_many": "{{count}} oczekujących",

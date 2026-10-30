@@ -56,6 +56,12 @@ import { ManualActionDef, TenantPluginInstallationDto } from '../../../plugins/m
 import { ContactTab, acwDraftKey } from '../../models/contact-tab.model';
 
 /**
+ * How long a live-region announcement stays in the DOM before it is cleared. 7 s is the middle of
+ * the commonly recommended 5-10 s range; it has NOT been verified with real screen readers.
+ */
+const ANNOUNCEMENT_CLEAR_MS = 7000;
+
+/**
  * What the close button / Delete does for a tab:
  * - HANGUP: live call (active / held / transferring) -> confirm, hang up, the lifecycle moves
  *   the tab to ACW (the disposition is closed by saving, never by removing the tab)
@@ -179,6 +185,7 @@ export class AgentDesktopComponent implements OnInit {
    * cannot be closed. Cleared first, then set after render, so a repeated text is spoken again.
    */
   protected readonly politeAnnouncement = signal('');
+  private announcementTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Tab being closed: a confirmation dialog is open for it. */
   protected readonly pendingClose = signal<PendingTabClose | null>(null);
@@ -193,7 +200,10 @@ export class AgentDesktopComponent implements OnInit {
   private knownTabIds = new Set(this.tabStore.tabs().map((t) => t.id));
 
   constructor() {
-    this.destroyRef.onDestroy(() => (this.destroyed = true));
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      clearTimeout(this.announcementTimer);
+    });
     // The ACW tab is closed by DispositionSaveService (it outlives this page); focus lost with
     // the form goes to the neighbour tab, exactly like after any other tab removal.
     this.dispositionSave.closed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((e) => {
@@ -385,9 +395,26 @@ export class AgentDesktopComponent implements OnInit {
     }
   });
 
+  /**
+   * Announces through the polite live region. The text is cleared after ANNOUNCEMENT_CLEAR_MS so a
+   * screen reader cannot re-read stale text (e.g. when the region is revisited), and clearing first
+   * makes a repeat of the same text a real DOM change that is announced again.
+   */
   private announce(text: string): void {
+    clearTimeout(this.announcementTimer);
     this.politeAnnouncement.set('');
-    afterNextRender(() => this.politeAnnouncement.set(text), { injector: this.injector });
+    afterNextRender(
+      () => {
+        if (this.destroyed) return;
+        this.politeAnnouncement.set(text);
+        clearTimeout(this.announcementTimer);
+        this.announcementTimer = setTimeout(
+          () => this.politeAnnouncement.set(''),
+          ANNOUNCEMENT_CLEAR_MS,
+        );
+      },
+      { injector: this.injector },
+    );
   }
 
   ngOnInit(): void {

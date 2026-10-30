@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
+import { normalizeContactName } from '../../models/contact-name';
 import { QueueItem } from '../../models/queue-item.model';
 import { QueueStateService } from '../../services/queue-state.service';
 
@@ -62,6 +63,11 @@ export class QueuePanelComponent {
     const minutes = Math.floor(diffMs / 60_000);
     const seconds = Math.floor((diffMs % 60_000) / 1_000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  /** Normalised name; falls back to the identifier when the name is null or blank. */
+  protected displayName(item: QueueItem): string {
+    return normalizeContactName(item.customerName) || (item.customerIdentifier ?? '').trim();
   }
 
   protected getQueueTypeIcon(item: QueueItem): string {

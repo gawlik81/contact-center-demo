@@ -245,6 +245,7 @@
     justify-content: center;
     width: 100%;
     height: 16px;
+    position: relative;
     flex-shrink: 0;
     border: none;
     border-bottom: 1px solid var(--border-1);
@@ -264,6 +265,13 @@
       outline: 2px solid var(--accent);
       outline-offset: -2px;
     }
+  }
+
+  // Hit area 24px tall (WCAG 2.5.8) without changing the 16px bar.
+  &__toggle::before {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
   }
 
   &__toggle-icon {

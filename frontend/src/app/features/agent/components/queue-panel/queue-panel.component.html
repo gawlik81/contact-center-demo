@@ -21,6 +21,7 @@
     <ul class="queue-list" role="list">
       @for (item of items(); track trackByQueueId($index, item)) {
         @let wait = getWaitingTime(item.waitingSince);
+        @let name = displayName(item);
         <li class="queue-item">
           <div class="queue-item__avatar" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -28,8 +29,10 @@
             </svg>
           </div>
           <div class="queue-item__info">
-            <span class="queue-item__name">{{ item.customerName }}</span>
-            <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
+            <span class="queue-item__name">{{ name }}</span>
+            @if (item.customerIdentifier && item.customerIdentifier !== name) {
+              <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
+            }
             <span class="queue-item__queue">{{ item.queueName }}</span>
           </div>
           <div class="queue-item__wait">

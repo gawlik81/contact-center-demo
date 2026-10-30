@@ -236,7 +236,6 @@
       "tabLimitTotal": "Sie haben das Maximum von 4 aktiven Kontakten erreicht.",
       "queueTitle": "Warteschlange",
       "queueEmpty": "Keine wartenden Kontakte",
-      "queueWaiting": "wartend",
       "queueWaitingCount_one": "{{count}} wartend",
       "queueWaitingCount_few": "{{count}} wartend",
       "queueWaitingCount_many": "{{count}} wartend",

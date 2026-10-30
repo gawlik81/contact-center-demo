@@ -718,7 +718,95 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
       expect(tab.getAttribute('aria-label')).toContain('Anna Test,');
       expect(tab.getAttribute('aria-label')).not.toContain('<');
       expect(tab.querySelector('.contact-tab__name')!.getAttribute('title')).toBe('Anna Test');
-      expect(live()).toContain('Nowy kontakt: Anna Test');
+      expect(live()).toBe('Nowy kontakt: Anna Test (Email)');
+    });
+  });
+
+  describe('live region announcements', () => {
+    afterEach(() => vi.useRealTimers());
+
+    const arrive = (contactId: string, name: string) =>
+      store.openFromContactAssigned({
+        contactId,
+        type: 'EMAIL',
+        customerName: name,
+        customerIdentifier: name + '@example.test',
+      } as never);
+    const announce = (text: string) =>
+      (fixture.componentInstance as unknown as { announce(t: string): void }).announce(text);
+
+    it('clears the announcement after a short time and re-announces the same text', async () => {
+      open('a', 'EMAIL');
+      await settle();
+      vi.useFakeTimers();
+
+      arrive('c-live', 'Anna');
+      await settle();
+      expect(live()).toBe('Nowy kontakt: Anna (Email)');
+
+      vi.advanceTimersByTime(7500);
+      fixture.detectChanges();
+      expect(live()).toBe('');
+
+      store.closeTab(store.tabs().find((t) => t.contactId === 'c-live')!.id);
+      await settle();
+      arrive('c-live', 'Anna');
+      await settle();
+      expect(live()).toBe('Nowy kontakt: Anna (Email)');
+    });
+
+    it('restarts the clear window when a second announcement arrives inside it', async () => {
+      open('a', 'EMAIL');
+      await settle();
+      vi.useFakeTimers();
+
+      arrive('c-1', 'Anna');
+      await settle();
+      vi.advanceTimersByTime(5000);
+      arrive('c-2', 'Beata');
+      await settle();
+      expect(live()).toBe('Nowy kontakt: Beata (Email)');
+
+      // 10 s after the first announcement, 5 s after the second: the first timer must be gone.
+      vi.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(live()).toBe('Nowy kontakt: Beata (Email)');
+
+      vi.advanceTimersByTime(2500);
+      fixture.detectChanges();
+      expect(live()).toBe('');
+    });
+
+    it('leaves a single timer when two announcements happen before the next render', async () => {
+      open('a', 'EMAIL');
+      await settle();
+      vi.useFakeTimers();
+      const base = vi.getTimerCount();
+
+      announce('Pierwsze');
+      announce('Drugie');
+      await settle();
+      expect(live()).toBe('Drugie');
+      expect(vi.getTimerCount()).toBe(base + 1);
+
+      vi.advanceTimersByTime(7500);
+      fixture.detectChanges();
+      expect(live()).toBe('');
+      expect(vi.getTimerCount()).toBe(base);
+    });
+
+    it('cancels the pending clear timer when the desktop is destroyed', async () => {
+      open('a', 'EMAIL');
+      await settle();
+      vi.useFakeTimers();
+      const base = vi.getTimerCount();
+
+      announce('Do wyczyszczenia');
+      await settle();
+      expect(vi.getTimerCount()).toBe(base + 1);
+
+      fixture.destroy();
+      expect(vi.getTimerCount()).toBeLessThan(base + 1);
     });
   });
 
@@ -802,7 +890,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
 
       expect(store.activeTab()?.id).toBe('a');
       expect(tabEl('tab-b').getAttribute('aria-selected')).toBe('false');
-      expect(live()).toContain('Nowy kontakt: Klient b');
+      expect(live()).toBe('Nowy kontakt: Klient b (Social)');
     });
 
     it('announces every contact that arrived in the same tick', async () => {

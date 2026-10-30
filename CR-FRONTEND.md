@@ -2272,3 +2272,85 @@ Ocena senior-code-reviewer (część A): 4/5. Ustalenia z rundy 1 naprawione w r
 - **MINOR-4** `--color-primary` (i 7 innych niezdefiniowanych tokenów `--color-*`) w supervisor `disposition-sets-page.component.scss` — poza zakresem FE-125 → **FE-141**.
 - **Otwarte (poza zakresem):** gradienty → FE-139; fallbacki hex → FE-140; drobne P3 → FE-142; weryfikacja na żywo: czytnik ekranu (`tablist` z `aria-owns`), prawdziwe połączenie przychodzące/ACW (Twilio), emulacja `prefers-reduced-motion`, znaczniki PHONE/„Szkic”.
 - `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 770 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty.
+
+---
+
+## Review: FE-129 — 2026-10-30
+
+Zakres: `frontend/src/app/shared/utils/duration-format.util.ts` (+spec), `top-navbar.component.{ts,html,spec.ts}`, `frontend/public/i18n/{pl,en,de,uk}.json`. Zmiany niezacommitowane.
+
+### 🐛 Bugs / Critical Issues
+- **MAJOR-1 `top-navbar.component.ts:79-100`** Reaktywność `workTimeSr`. `TranslocoService.setActiveLang()` robi `lang.next()` synchronicznie, a plik tłumaczeń ładuje się osobno i asynchronicznie (HTTP loader, ładowanie wyzwalają pipe/dyrektywa). `langChanges$` emituje więc PRZED załadowaniem tłumaczeń. `computed` przelicza się wtedy z `translate()`, które dla niezaładowanego języka zwraca klucz (`agent.desktop.kpiWorkTimeHours_other` itd.). Wynik jest zapamiętany, a nic go potem nie unieważnia, bo `translationLoadSuccess` nie jest zależnością. Czytnik dostaje klucz, dopóki nie zmieni się `workTimeSeconds` (KPI odświeża się rzadko). Dotyczy pierwszego przełączenia na język jeszcze niezaładowany (pl domyślny, więc en/de/uk). Test tego nie wykrywa, bo `TranslocoTestingModule` ładuje wszystkie języki synchronicznie. Ten sam błąd jest w `queue-panel.component.ts:39-48` (`badgeLabel`), z którego skopiowano wzorzec, więc to nie jest „sprawdzony wzorzec”, tylko ta sama usterka w drugim miejscu. Rekomendacja, w kolejności preferencji:
+  1. `translateSignal` (transloco 8.3, `jsverse-transloco.mjs:1594`) dla trzech kluczy. Reaguje na język i na załadowanie. Klucze zależne od `rules.select(n)` przekazać jako signal, bo `translateSignal` przyjmuje dynamiczny klucz/parametry.
+  2. Proste: pipe `transloco` w szablonie dla `sr-only`, np. `{{ key() | transloco: {count: n()} }}` dla godzin i minut (pipe sam czeka na load). Wymaga 2 spanów lub złożenia w szablonie, a klucz `kpiWorkTimeSr` przestaje być potrzebny.
+  3. Najmniej elegancko: dodać do `computed` zależność od `toSignal(events$.pipe(filter(e => e.type === 'translationLoadSuccess')))`. Działa, ale to obejście.
+  Rekomenduję 1 i naprawę `queue-panel` tym samym sposobem (osobny wpis, nie w tym tickecie). Dodać test z loaderem asynchronicznym (`TranslocoTestingModule` z `preloadLangs: false` lub własny loader z opóźnieniem): przełączenie języka, `await` na load, asercja tekstu.
+
+### ⚠️ Security Concerns
+_None identified._
+
+### 🏗️ Architecture / Pattern Violations
+- **MEDIUM-1 `public/i18n/en.json`, `de.json` (po 8 martwych kluczy)** Formy `_few` i `_many` dla en/de nie są nigdy wybierane (`Intl.PluralRules('en'|'de')` zwraca tylko `one`/`other`; sprawdzone uruchomieniem). To 4 martwe klucze godzin i minut w każdym z dwóch plików plus pary pl/uk `_other` (niedostępne dla liczb całkowitych). Utrzymują spójność kształtu, ale fałszywie sugerują, że są używane, i ktoś „poprawi” np. `de_few`. Rekomendacja: zostawić tylko kategorie realnie osiągalne w danym języku (en/de: `one`, `other`; pl/uk: `one`, `few`, `many`) albo zamienić na ICU MessageFormat, jeśli projekt go ma. Jeśli zostają, dodać do spec lub komentarza w kodzie informację, że to celowe. Minimum: test spójności, że każdy osiągalny klucz istnieje we wszystkich 4 plikach.
+
+### 🔧 Improvements & Suggestions
+- **MEDIUM-2 `top-navbar.component.ts:86-99`, `kpiWorkTimeSr`** Poniżej godziny czytnik powie „0 godzin 45 minut”. Poprawne gramatycznie, ale to szum: wizualnie `0:45`, a głos dodaje zerowy składnik. Rekomendacja: pominąć zerowe godziny (`45 minut`), a dla 0/0 podać „0 minut”. Wtedy `kpiWorkTimeSr` jako szablon łączący dwa człony zaczyna mieć sens (spójny separator), ale trzeba wtedy obsłużyć brak jednego z członów. Zerowe minuty przy pełnej godzinie (`4 godziny 0 minut`) również można pominąć („4 godziny”); do decyzji produktowej, odnotować w tickecie. Formy mnogie zweryfikowane: pl/uk 0 many, 1 one, 2 few, 5 many, 12 many, 22 few, 45 many; uk 21 one (nie `many` jak w pl), 101 one; en/de 1 one, reszta other. Wszystkie wpisane teksty są zgodne.
+- **MEDIUM-3 `top-navbar.component.html:159-164`** Stan „—” (brak KPI): `aria-hidden` jest poprawnie zdejmowany i brak `sr-only`, ale czytnik odczyta gołe „—” (zwykle „pauza”/nic). Rekomendacja: w stanie bez danych dodać `sr-only` z krótkim tekstem „brak danych” (nowy klucz w 4 językach) albo użyć `aria-label` na kafelku. Dotyczy też trzech pozostałych kafelków, więc można zrobić w osobnym tickecie. Konstrukcja `aria-hidden` na wartości plus sibling `.sr-only` jest poprawna i nie dubluje odczytu. Klasa globalna `.sr-only` (`styles.scss:319`) wystarcza, a `position: absolute` nie ucieka poza kafelek (1×1 px).
+- **MINOR-1 `top-navbar.component.html:134`, AHT** AHT zostaje w `m:ss` bez jednostki dla czytnika (odczyt „3:05” jest dwuznaczny, a sąsiedni kafelek to teraz `h:mm`). Dwa różne formaty bez jednostek obok siebie to ryzyko pomyłki także wzrokowej (`3:45` jako czas pracy vs `3:45` jako AHT). Poza zakresem ticketu (decyzja właściciela), ale warto dopisać do FE-139..142 lub nowego ticketu z `sr-only` dla AHT.
+- **MINOR-2 `duration-format.util.ts:2,15`** Powielona logika „bezpiecznej sekundy” (`Number.isFinite && > 0 ? floor : 0`) w dwóch funkcjach. Wydzielić `toSafeSeconds()`. `Infinity` jest cicho zamieniane na 0 (akceptowalne, ale warto komentarz).
+- **MINOR-3 `top-navbar.component.ts:76-77`** `protected formatMinSec = formatMinSec;` to zwykłe pole instancji, nie `readonly`. Dodać `readonly`. Alternatywa: `computed` na sformatowane wartości KPI zamiast wywołań metod w szablonie przy każdym CD (OnPush ogranicza koszt, więc tylko kosmetyka).
+- **MINOR-4 `top-navbar.component.ts:83`** Komentarz JSDoc ma ponad 100 znaków (Prettier `printWidth: 100` nie łamie komentarzy, ale `npm run lint` bywa na to wrażliwy). Do skrócenia/złamania.
+
+### Testy (kryterium 4)
+- **MEDIUM-4 `top-navbar.component.spec.ts:78-93`** Test SR pokrywa tylko jedną wartość (13556 s = 3 h 45 min), więc w każdym języku sprawdza się tylko jedna kategoria mnogości godzin (few/other) i minut (many/other). Brakuje: 1 godzina i 1 minuta (`one`), 2 (`few`), 0 godzin, 22 minuty (`few` w pl/uk), 12 minut (`many`), 21 minut w uk (`one`). Rekomendacja: `it.each` po macierzy (język, sekundy, tekst).
+- **MEDIUM-5 `top-navbar.component.spec.ts:86,92`** Mutacja współdzielonego `KPI` z resetem na końcu testu, bez `try/finally`. Jeśli asercja padnie, wartość 13556 zostaje w kolejnych testach i powoduje kaskadę fałszywych błędów. Użyć `beforeEach`/`afterEach` albo osobnego obiektu KPI per test.
+- **MINOR-5** Brak testów: przełączenie języka w trakcie życia komponentu (patrz MAJOR-1), stan `kpi() === null` (brak `sr-only`, brak `aria-hidden`, tekst „—”), brak `aria-hidden` na AHT/pozostałych.
+- **MINOR-6 `duration-format.util.spec.ts`** Dobre przypadki brzegowe dla `formatHoursMinutes` (0, 3599, 3600, 13556, ujemne, NaN) i kryterium z ticketu 225:56 → 3:45 jest pokryte. Brakuje: `formatMinSec` dla ujemnych/NaN (kod to obsługuje, test nie), ułamków (`3599.9` → `0:59`), `Infinity`, `splitHoursMinutes` dla 0/ujemnych/NaN oraz 86400+ (doba, np. `24:00`). Pierwsza `it.each` ma komentarz „225:56 as m:ss” bez asercji na to samo wejście w `formatMinSec`, ale ta wartość jest w drugiej tabeli, więc OK.
+- Kryterium z ticketu „pas KPI mieści się w `de` przy 1366 px (pomiar w przeglądarce)”: nie sprawdzone w tym review (brak pomiaru w diffie). `h:mm` jest krótsze niż poprzednie `225:56`, więc regresji szerokości nie oczekuję, ale DESIGN.md:209 nadal mówi, że `de/en/uk` wymagają pomiaru, więc kryterium zostaje otwarte do pomiaru.
+
+### Zgodność z DESIGN.md i CLAUDE.md
+- Standalone, `computed`/`toSignal`, brak NgModule, prefiks klas zgodny. Brak nowych kolorów/tokenów, brak zmian CSS, brak fallbacków hex. Zgodne.
+- i18n w 4 językach z polskimi diakrytykami: poprawne (godzina/godziny/godzin, minuta/minuty/minut). Ukraiński i niemiecki poprawne.
+- Komentarze w kodzie po angielsku, zgodnie z CLAUDE.md.
+
+### ✅ Positive Observations
+- Floor zamiast zaokrąglenia, jawnie przetestowany (13556 → 3:45, nie 3:46), czyli dokładnie to, co było przyczyną błędu `225:56`.
+- Logika formatowania wyniesiona do czystego, testowalnego utila z obsługą ujemnych i NaN, zamiast metody komponentu.
+- Formy mnogie przez `Intl.PluralRules`, a nie ręczne `% 10`; pl/uk (one/few/many) poprawne dla wszystkich sprawdzonych wartości.
+- Wzorzec `aria-hidden` na wartości wizualnej plus sibling `.sr-only` bez dublowania odczytu, i zdejmowanie `aria-hidden` w stanie „—”.
+- Test sprawdza wszystkie 4 języki oraz wartość wizualną i atrybut `aria-hidden` jednocześnie.
+
+### Summary
+**Ocena: 3.5/5** — format `h:mm` i formy mnogie są poprawne i dobrze wydzielone, ale `workTimeSr` nie reaguje na załadowanie tłumaczeń (czytnik może dostać klucz po zmianie języka), a testy nie obejmują kategorii mnogości ani asynchronicznego ładowania.
+
+### Priorytety
+**Przed commitem:** MAJOR-1 (`translateSignal`/pipe + test z asynchronicznym loaderem), MEDIUM-5 (izolacja `KPI` w testach), MEDIUM-4 (macierz języków i wartości).
+**Zalecane:** MEDIUM-2 (pominąć zerowe godziny), MEDIUM-1 (martwe klucze), MEDIUM-3 (stan „—”).
+**Osobne zadanie:** ta sama usterka w `queue-panel.component.ts:39-48`; AHT bez jednostki (MINOR-1); pomiar `de` przy 1366 px.
+
+### Runda 2 — 2026-10-30
+
+Weryfikacja: `ng test` dla `top-navbar/*.spec.ts` + `duration-format*.spec.ts`: 4 pliki, 129 testów, wszystkie zielone. Ocena: **4.5/5**. Brak znalezisk blokujących commit.
+
+| Znalezisko | Status | Uwagi |
+|---|---|---|
+| MAJOR-1 (`translate()` w `computed`) | NAPRAWIONE | Tekst rozwiązuje pipe `transloco`, w `computed` zostają tylko klucz i liczba. Dodany test z loaderem opóźnionym o 40 ms (przełączenie pl→en przed załadowaniem en): brak klucza w DOM, po załadowaniu "3 hours 45 minutes". |
+| MEDIUM-1 (martwe klucze plural) | ZAAKCEPTOWANE | Klucze zostają, bo `kpi-layout.spec` typuje en/de/uk kształtem `pl.json`. Uzasadnienie w komentarzu `i18n note` w komponencie i test osiągalnych kategorii (pl/uk: one/few/many, en/de: one/other). |
+| MEDIUM-2 (zerowe składniki) | NAPRAWIONE | "45 minut", "1 godzina", 0 s = "0 minut". Zweryfikowane macierzą 0/1/2/5/12/21/22 w 4 językach (uk 21 = one, pl 21 = many). |
+| MEDIUM-3 (stan bez KPI) | NAPRAWIONE | Wspólny klucz `kpiNoData` w 4 kafelkach, wartość "—" ma `aria-hidden`, test na wszystkich 4 kafelkach w 4 językach. |
+| MEDIUM-4 (macierz testów) | NAPRAWIONE | Pełna macierz plural + testy AHT i kombinacji h+min. |
+| MEDIUM-5 (mutowanie `KPI`) | NAPRAWIONE | `kpiWith()` tworzy kopię, `KPI` otypowany `AgentKpiResponse`. |
+| MINOR-1 (AHT bez jednostek dla czytnika) | NAPRAWIONE | `kpiAhtSr`, "3 min 5 s", w 4 językach. |
+| MINOR-2/3 (`toSafeSeconds`, `readonly`) | NAPRAWIONE | |
+
+Punkty szczególne:
+- **Białe znaki w `sr-only` przy `@for`/`$last`:** poprawne. Angular zwija białe znaki w węźle tekstowym do jednej spacji, więc separator zapewnia sam układ szablonu, a `{{ $last ? '' : ' ' }}` jest redundantny, ale nieszkodliwy. Testy (po normalizacji `\s+`) potwierdzają "3 godziny 45 minut" w 4 językach. Brak podwójnych spacji istotnych dla czytnika.
+- **Kategoria plural z `langChanges$` vs plik ładowany przez pipe:** niespójność jest możliwa wyłącznie przejściowo. `lang()` zmienia się synchronicznie przy `setActiveLang`, a pipe pokazuje nowy tekst dopiero po załadowaniu pliku. W oknie ładowania klucz wybrany regułami nowego języka może zostać rozwiązany w słowniku starego (np. pl→en dla 5 godzin: klucz `_other`, pl "5 godziny"). Okno trwa kilkadziesiąt ms, klucze istnieją we wszystkich językach, więc czytnik nigdy nie dostaje surowego klucza. Ryzyko niskie.
+- **`aria-hidden` Handled i SLA:** poprawne. Wartość dostaje `aria-hidden="true"` tylko bez KPI (zamiast "—" czytnik mówi "brak danych"), z KPI wartość jest odczytywana, a `.sr-only` nie jest renderowany (test to sprawdza). Etykieta i podpis pozostają dostępne. Pasek SLA jest dekoracyjny, pusty `div`, bez wpływu na odczyt.
+
+### Nowe uwagi (nieblokujące)
+- **NIT-1 `top-navbar.component.html` (Handled, ok. l. 75-80)**: bez KPI kolejność odczytu to "Obsłużone, brak danych, dziś", bo `.sr-only` stoi między wartością a podpisem `kpiHandledSub`. Czytelniejsze: "Obsłużone, dziś, brak danych" albo pominąć podpis przy braku danych. Kosmetyka.
+- **NIT-2 spec, test async-loadera**: sprawdza tylko brak `agent.desktop` w tekście w oknie ładowania. Dodanie asercji, że tekst nie jest pusty, domknęłoby przypadek "pipe zwraca pusty string do czasu załadowania". Opcjonalne.
+- **NIT-3 `top-navbar.component.ts`**: `new Intl.PluralRules(this.lang())` tworzone przy każdym przeliczeniu `computed`. Koszt pomijalny (przeliczenie tylko przy zmianie KPI/języka), ewentualnie `computed` na reguły.
+- **Wciąż otwarte, poza zakresem FE-129:** ta sama usterka reaktywności w `queue-panel.component.ts:39-48` (`badgeLabel`, `translate()` w `computed`) oraz pomiar `de` przy 1366 px.
+
+**Status (2026-10-30, tura 60):** FE-129 ✅ zamknięty w `TASKS-FRONTEND.md` (oceny bez zmian: runda 1 3,5/5, runda 2 4,5/5). Usterka w `queue-panel` → nowy FE-143 (backlog, razem z NIT-1…NIT-3). Pomiar `de` przy 1366 px wykonany w przeglądarce: pas 381 px, etykiety i 4. kafelek sr-only wg container query z FE-134 (zamierzone, nic się nie ucina); przy 1920 px w `de` 4 kafelki, najgorszy przypadek `12:59` bez ucięcia.

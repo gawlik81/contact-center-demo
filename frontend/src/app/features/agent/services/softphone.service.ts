@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, OnDestroy } from '@angular/core';
+import { Injectable, computed, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
@@ -67,6 +67,11 @@ export class SoftphoneService implements OnDestroy {
    * the transloco pipe; raw error detail goes to the console only.
    */
   readonly twilioDeviceError = signal<TwilioDeviceErrorKey | null>(null);
+  /** True while a (re)initialization of the Twilio Device is in flight. */
+  readonly twilioDeviceInitializing = signal<boolean>(false);
+  private initInFlight: Promise<void> | null = null;
+  /** Bumped by resetForLogout(); an init started under an older generation must not touch state. */
+  private initGeneration = 0;
 
   // ── UI timers ──────────────────────────────────────────────────────────────
   private durationInterval: ReturnType<typeof setInterval> | null = null;
@@ -95,8 +100,42 @@ export class SoftphoneService implements OnDestroy {
    *
    * Safe to call multiple times — destroys the previous device before creating a new one.
    */
-  async initializeTwilioDevice(): Promise<void> {
-    this.twilioDeviceError.set(null);
+  initializeTwilioDevice(): Promise<void> {
+    // Coalesce concurrent calls so two Devices are never registered for one agent.
+    if (this.initInFlight) return this.initInFlight;
+    this.twilioDeviceInitializing.set(true);
+    const generation = this.initGeneration;
+    const run = this.doInitializeTwilioDevice(generation).finally(() => {
+      if (generation !== this.initGeneration) return; // reset owns the flags now
+      this.initInFlight = null;
+      this.twilioDeviceInitializing.set(false);
+    });
+    this.initInFlight = run;
+    return run;
+  }
+
+  /**
+   * Manual retry from the UI. Coalesces with an init in flight; no-op during a call (destroying
+   * the Device would drop it). The visible error is cleared only once the Device registers.
+   */
+  retryTwilioDevice(): Promise<void> {
+    if (this.isCallInProgress()) return Promise.resolve();
+    return this.initializeTwilioDevice();
+  }
+
+  /** True while a call exists in any direction (the outbound leg does not set `activeCall`). */
+  isCallInProgress(): boolean {
+    return this.callInProgress() || this.activeCall != null;
+  }
+
+  /** Signal-only view of "a call exists", safe to read from `computed()` in components. */
+  readonly callInProgress = computed(() => {
+    const s = this.session();
+    return s != null && s.state !== 'ENDED';
+  });
+
+  private async doInitializeTwilioDevice(generation: number): Promise<void> {
+    const stale = () => generation !== this.initGeneration;
 
     let response: VoiceTokenResponse;
     try {
@@ -106,10 +145,12 @@ export class SoftphoneService implements OnDestroy {
         }),
       );
     } catch (err) {
+      if (stale()) return;
       if (err instanceof HttpErrorResponse && err.status === 404) {
         console.info(
           '[SoftphoneService] Brak konfiguracji Twilio dla tenanta – Voice SDK wyłączony.',
         );
+        this.twilioDeviceError.set(null);
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
@@ -121,35 +162,63 @@ export class SoftphoneService implements OnDestroy {
       return;
     }
 
+    // Logout happened while the token was in flight, or a call started: do not touch the Device.
+    if (stale() || this.isCallInProgress()) return;
+
     // Cleanup previous device if exists
     this.destroyTwilioDevice();
 
+    let device: Device | null = null;
     try {
-      const device = this.createTwilioDevice(response.token);
+      device = this.createTwilioDevice(response.token);
 
-      device.on('incoming', (call: TwilioCall) => this.handleIncomingCall(call));
+      device.on('incoming', (call: TwilioCall) => {
+        if (stale()) return;
+        this.handleIncomingCall(call);
+      });
 
+      // Handlers of a Device from an older generation (reset during register()) must be inert.
       device.on('registered', () => {
+        if (stale()) return;
         console.log('[SoftphoneService] Twilio Device zarejestrowany jako:', response.identity);
+        this.twilioDeviceError.set(null);
         this.twilioDeviceReady.set(true);
       });
 
       device.on('unregistered', () => {
+        if (stale()) return;
         console.log('[SoftphoneService] Twilio Device wyrejestrowany.');
         this.twilioDeviceReady.set(false);
       });
 
-      device.on('error', (error: Error) => {
+      // Twilio emits (twilioError, call?): `call` is set for errors scoped to a single call,
+      // which must not mark the whole telephony as unavailable.
+      device.on('error', (error: Error, call?: unknown) => {
+        if (stale()) return;
         console.error('[SoftphoneService] Twilio Device error:', error.message);
+        if (call) return;
         this.twilioDeviceError.set('agent.softphone.errors.device');
         this.twilioDeviceReady.set(false);
       });
 
       await device.register();
+      if (stale()) {
+        // resetForLogout() ran during register(): this Device belongs to the previous session.
+        device.removeAllListeners();
+        device.destroy();
+        return;
+      }
       this.twilioDevice = device;
 
       this.startTokenRefreshSchedule();
     } catch (err) {
+      try {
+        device?.removeAllListeners();
+        device?.destroy();
+      } catch {
+        // ignore errors during cleanup
+      }
+      if (stale()) return;
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[SoftphoneService] Błąd inicjalizacji Twilio Device:', msg);
       this.twilioDeviceError.set('agent.softphone.errors.device');
@@ -824,6 +893,9 @@ export class SoftphoneService implements OnDestroy {
    * initializeTwilioDevice() call starts from a completely clean slate.
    */
   resetForLogout(): void {
+    this.initGeneration++;
+    this.initInFlight = null;
+    this.twilioDeviceInitializing.set(false);
     this.destroyTwilioDevice();
     this.clearTimers();
     this.session.set(null);

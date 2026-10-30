@@ -68,7 +68,10 @@ export class AgentShellComponent implements OnInit, OnDestroy {
     const status = this.statusService.currentStatus();
     const ready = this.softphoneService.twilioDeviceReady();
     const initInProgress = untracked(() => this.twilioDeviceInitInProgress);
-    if (status === 'AVAILABLE' && !ready && !initInProgress) {
+    // After a visible telephony error only the manual "Spróbuj ponownie" retries: an automatic
+    // re-init would hide the error and loop without backoff on a persistent failure.
+    const hasError = untracked(() => this.softphoneService.twilioDeviceError() !== null);
+    if (status === 'AVAILABLE' && !ready && !initInProgress && !hasError) {
       this.twilioDeviceInitInProgress = true;
       this.softphoneService
         .initializeTwilioDevice()

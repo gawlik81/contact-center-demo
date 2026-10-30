@@ -387,8 +387,12 @@
       "waitingContacts": "wartend",
       "availableAgents": "Agenten",
       "errors": {
-        "tokenFetch": "Das Telefonie-Token konnte nicht abgerufen werden. Seite neu laden oder später erneut versuchen.",
-        "device": "Ein Telefoniefehler im Browser ist aufgetreten. Seite neu laden, um es erneut zu versuchen."
+        "title": "Telefonie nicht verfügbar",
+        "tokenFetch": "Das Telefonie-Token konnte nicht abgerufen werden. Erneut versuchen; bei wiederholtem Fehler Seite neu laden.",
+        "device": "Ein Telefoniefehler im Browser ist aufgetreten. Erneut versuchen; bei wiederholtem Fehler Seite neu laden.",
+        "retry": "Erneut versuchen",
+        "retrying": "Wird wiederholt…",
+        "stillUnavailable": "Weiterhin nicht verfügbar"
       }
     },
     "disposition": {

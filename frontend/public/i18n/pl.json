@@ -387,8 +387,12 @@
       "waitingContacts": "czeka",
       "availableAgents": "agentów",
       "errors": {
-        "tokenFetch": "Nie udało się pobrać tokenu telefonii. Odśwież stronę lub spróbuj ponownie później.",
-        "device": "Wystąpił błąd telefonii w przeglądarce. Odśwież stronę, aby spróbować ponownie."
+        "title": "Telefonia niedostępna",
+        "tokenFetch": "Nie udało się pobrać tokenu telefonii. Spróbuj ponownie; jeśli błąd się powtarza, odśwież stronę.",
+        "device": "Wystąpił błąd telefonii w przeglądarce. Spróbuj ponownie; jeśli błąd się powtarza, odśwież stronę.",
+        "retry": "Spróbuj ponownie",
+        "retrying": "Ponawianie…",
+        "stillUnavailable": "Nadal niedostępne"
       }
     },
     "disposition": {

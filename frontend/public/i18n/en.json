@@ -387,8 +387,12 @@
       "waitingContacts": "waiting",
       "availableAgents": "agents",
       "errors": {
-        "tokenFetch": "Could not fetch the telephony token. Refresh the page or try again later.",
-        "device": "A browser telephony error occurred. Refresh the page to try again."
+        "title": "Telephony unavailable",
+        "tokenFetch": "Could not fetch the telephony token. Try again; if the error persists, refresh the page.",
+        "device": "A browser telephony error occurred. Try again; if the error persists, refresh the page.",
+        "retry": "Try again",
+        "retrying": "Retrying…",
+        "stillUnavailable": "Still unavailable"
       }
     },
     "disposition": {

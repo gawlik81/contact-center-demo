@@ -14,6 +14,7 @@ import { SoftphoneService } from './services/softphone.service';
 describe('AgentShellComponent logout cleanup', () => {
   const softphone = {
     twilioDeviceReady: signal(true),
+    twilioDeviceError: signal(null),
     resetForLogout: vi.fn(),
     initializeTwilioDevice: vi.fn(),
   };

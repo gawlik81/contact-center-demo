@@ -54,9 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 20 | 0 | 12 | 0 | 32 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| EPIC-32 | UX i dostępność stanowiska agenta | 23 | 0 | 11 | 0 | 34 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **132** | **0** | **16** | **1** | **149** |
+| **Razem** | | **135** | **0** | **15** | **1** | **151** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -86,11 +86,13 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-138 – Budżety stylów i bundla: pozostałe komponenty ponad 12 kB (`anyComponentStyle`) i bundle initial 567 kB przy budżecie 500 kB — ⬜ (Do zrobienia; wynik FE-124, backlog, nie blokuje epiku; wspólne pliki z FE-139/FE-140: softphone, email-contact, adhoc-email-modal)
 - FE-139 – Flat-at-Rest: usunięcie dekoracyjnych gradientów z powierzchni agenta (ok. 13 w 8 plikach) — ⬜ (Do zrobienia; wynik FE-125, P2; backlog, nie blokuje epiku)
 - FE-140 – Hurtowe usunięcie ok. 200 fallbacków `var(--x, #hex)` w agencie i powłoce (The Token-Only Rule) — ⬜ (Do zrobienia; wynik FE-125, P2; po FE-139; backlog, nie blokuje epiku)
-- FE-141 – [BUG] `disposition-sets-page.component.scss`: 8 niezdefiniowanych tokenów `--color-*`, kolory się nie renderują — ⬜ (Do zrobienia; wynik FE-125 / MINOR-4 CR, P2; backlog, nie blokuje epiku)
+- FE-141 – [BUG] `disposition-sets-page.component.scss`: 8 niezdefiniowanych tokenów `--color-*`, kolory się nie renderują — ✅ (2026-10-30, tura 62; CR 4/5 → 4,5/5; wynik FE-125 / MINOR-4 CR, P2)
 - FE-142 – Drobne P3 powierzchni agenta (reduced-motion, „Imię <email>” w `app-contact-header`, `transition: all`, `'Geist Mono'`, stałe szerokości, `font-size: 11px`) — ⬜ (Do zrobienia; wynik FE-125, P3; backlog, nie blokuje epiku)
-- FE-143 – Naprawa reaktywności `badgeLabel` w `queue-panel` (`translate()` w `computed` → surowy klucz po przełączeniu na niezaładowany język; wzorzec z FE-129) + NIT-1…NIT-3 z FE-129 — ⬜ (Do zrobienia; backlog, nie blokuje epiku; Should Have, XS/S)
+- FE-143 – Naprawa reaktywności `badgeLabel` w `queue-panel` (`translate()` w `computed` → surowy klucz po przełączeniu na niezaładowany język; wzorzec z FE-129) + NIT-1…NIT-3 z FE-129 — ✅ (2026-10-30, tura 62; CR 4,5/5 → 5/5; Should Have, XS/S)
 - FE-144 – i18n pozostałych ekranów: literały PL poza FE-128 (ok. 30 plików; lista z grepa do ręcznego przeglądu) + MINOR-4 z FE-127/FE-128 — ⬜ (Do zrobienia; wynik FE-128; backlog, nie blokuje epiku; Should Have, M, prawdopodobnie do podziału)
-- FE-145 – Wyświetlenie błędu telefonii agentowi: konsument `twilioDeviceError` z akcją ponowienia — ⬜ (Do zrobienia; wynik FE-128 / NEW-1 CR; backlog, nie blokuje epiku; Should Have, S)
+- FE-145 – Wyświetlenie błędu telefonii agentowi: konsument `twilioDeviceError` z akcją ponowienia — ✅ (2026-10-30, tura 62; CR 2,5/5 → 3,5/5, runda 3 bez ponownego CR; wynik FE-128 / NEW-1 CR; Should Have, S)
+- FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz poza `queue-panel` i `top-navbar` (wzorzec z FE-129/FE-143) — ⬜ (Do zrobienia; wynik FE-143; backlog, nie blokuje epiku; Should Have, S/M)
+- FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog, 3 testy; pada sporadycznie w pełnym `npm test`) — ⬜ (Do zrobienia; wynik CR FE-145; backlog, nie blokuje epiku; Should Have, XS/S)
 
 ---
 
@@ -5904,11 +5906,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 20/32** (✅ 20 · 🔧 0 · ⬜ 12 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-130, FE-135…FE-145 oraz BE-153…BE-157 (precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+**Ukończone 23/34** (✅ 23 · 🔧 0 · ⬜ 11 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-130, FE-135…FE-140, FE-142, FE-144, FE-146, FE-147 oraz BE-153…BE-157 (precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60; FE-127 ✅ i FE-128 ✅ tura 61) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -5921,7 +5923,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143` (tura 60; backlog, nie blokuje epiku; wzorzec naprawy reaktywności z FE-129).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143 ✅` (tura 60; zamknięty w turze 62; wzorzec naprawy reaktywności z FE-129);  `FE-143 ✅ → FE-146` (tura 62; backlog, nie blokuje epiku; ten sam wzorzec w pozostałych ekranach);  `FE-125 ✅ → FE-141 ✅` (zamknięty w turze 62);  `FE-141 ✅ → FE-140` (tura 62: wspólny wzorzec hover `opacity: .88` zamiast `color-mix(... black)` w 4 plikach);  `FE-128 ✅ → FE-145 ✅` (zamknięty w turze 62);  `FE-147` (bez zależności; niestabilny test, backlog).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6886,6 +6888,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zakres:**
 - Dla każdego fallbacku potwierdzić, że token jest zdefiniowany w `styles.scss` w obu motywach; niezdefiniowane zgłosić (nie zastępować po cichu).
 - Usunięcie fallbacków; brak nowych literałów hex.
+- (dopisane w turze 62, wynik FE-141) Hover przycisków wypełnionych: `color-mix(... black)` w 4 plikach (`manual-callback-modal`, `adhoc-email-modal`, `login`, `edit-callback-modal`) → ujednolicić do `opacity: .88` zgodnie z DESIGN.md (jak w `disposition-sets-page`; usuwa m.in. kontrast 4,24:1 `--on-danger` w dark).
 
 **Kryteria akceptacji:**
 - [ ] `grep -E "var\(--[a-z0-9-]+, *#"` w `features/agent` i powłoce → 0 trafień
@@ -6901,7 +6904,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-125 ✅ (źródło: `CR-FRONTEND.md` „Review: FE-125 (część A)”, MINOR-4; P2)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 4/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
 **Blokuje:** brak (backlog, nie blokuje epiku)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
@@ -6914,12 +6917,21 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Usunięcie fallbacków hex w tym pliku; kontrast w obu motywach.
 
 **Kryteria akceptacji:**
-- [ ] 0 niezdefiniowanych tokenów `--color-*` w pliku (grep względem definicji w `styles.scss`)
-- [ ] Kontrast tekstu ≥ 4,5:1 i elementów UI ≥ 3:1 w obu motywach
-- [ ] WP-1…WP-4, WP-6; WP-5 może być ograniczone (ekran supervisora wymaga MFA)
+- [x] 0 niezdefiniowanych tokenów `--color-*` w pliku (grep względem definicji w `styles.scss`)
+- [x] Kontrast tekstu ≥ 4,5:1 i elementów UI ≥ 3:1 w obu motywach
+- [~] WP-1…WP-4, WP-6 wykonane; WP-5 niewykonane (ekran supervisora wymaga MFA w local-demo — brak weryfikacji w przeglądarce); strona nie ma speca
 
 **Ryzyka:** (R1) ekran supervisora wymaga MFA w local-demo — weryfikacja w przeglądarce może być niemożliwa.
 **Nie wchodzi w zakres:** pozostałe strony supervisora/admina.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable polish`; code review 2 rundy (4/5 → 4,5/5). Zmiany (frontend, tylko `disposition-sets-page.component.scss`):
+- 8 niezdefiniowanych `--color-*` zamienionych na tokeny systemu: `--accent`, `--accent-soft`, `--bg-subtle`, `--bg-elevated`, `--text-3`, hover.
+- Przy okazji cały plik przeszedł na tokeny główne: 0 `--color-*`, 0 hex, 0 fallbacków; `--border-control` dla pól i karty `role="button"` (≥ 3:1); shimmer na tokenach; `--on-accent`/`--on-danger`.
+- Hover przycisków wypełnionych: `opacity: .88` zgodnie z DESIGN.md (usuwa kontrast 4,24:1 `--on-danger` w dark).
+- Chip kodu: `--bg-elevated` + obrys `--border-2`. `.form-error` i `.required` na `--danger-text`.
+- Strona nie ma speca. **Dług weryfikacji (WP-5):** brak weryfikacji w przeglądarce (ekran supervisora, MFA) — do sprawdzenia przez właściciela.
+- Do FE-140 dopisano: `color-mix(... black)` na hover w 4 innych plikach (`manual-callback-modal`, `adhoc-email-modal`, `login`, `edit-callback-modal`) → ujednolicić do `opacity: .88`.
+
 
 ### FE-142 – Drobne P3 powierzchni agenta (zbiorczy)
 
@@ -6958,24 +6970,30 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** XS/S
 **Zależy od:** FE-129 ✅ (2026-10-30, tura 60 — wzorzec naprawy: pipe `transloco` w szablonie + klucze i liczby w `computed`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 4,5/5, runda 2: 5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
-**Blokuje:** brak (backlog, nie blokuje zamknięcia EPIC-32)
+**Blokuje:** brak (backlog, nie blokował zamknięcia EPIC-32). Następne: FE-146 (ten sam wzorzec reaktywności w pozostałych ekranach; backlog)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` + `impeccable harden`
 
 **Opis:** Ta sama usterka reaktywności, którą code review FE-129 (MAJOR-1) wykrył i naprawił w `top-navbar`, występuje w `frontend/src/app/features/agent/components/queue-panel/queue-panel.component.ts:39-48` (`badgeLabel`): `transloco.translate()` wewnątrz `computed` zależnego od `langChanges$`. `langChanges$` emituje przed załadowaniem pliku tłumaczeń, więc po przełączeniu na język jeszcze niezaładowany (en/de/uk; pl jest domyślny) `computed` zapamiętuje surowy klucz i nic go później nie unieważnia. Naprawa wzorcem z FE-129: w `computed` zostają tylko klucz i liczba, tekst rozwiązuje pipe `transloco` w szablonie. Opcjonalnie dołączyć NIT-1…NIT-3 z FE-129.
 
 **Kryteria akceptacji:**
-- [ ] `queue-panel`: `badgeLabel` nie wywołuje `translate()` w `computed`; po przełączeniu na niezaładowany język (en/de/uk) w DOM nie pojawia się surowy klucz
-- [ ] Test z asynchronicznym loaderem (opóźnione ładowanie, przełączenie języka przed załadowaniem, `await`, asercja tekstu niepustego i bez klucza `agent.`) — wzorzec z testu FE-129
-- [ ] Zachowane formy mnogie i dotychczasowy odczyt czytnika w 4 językach (pl/en/de/uk)
-- [ ] (opcjonalnie) NIT-1: kolejność odczytu sr-only w kafelku Handled bez danych („Obsłużone, dziś, brak danych” lub pominięcie podpisu przy braku danych); NIT-2: asercja niepustego tekstu w teście asynchronicznego loadera `top-navbar`; NIT-3: reguły `Intl.PluralRules` w `computed`/cache zamiast tworzenia przy każdym przeliczeniu
-- [ ] Weryfikacja w przeglądarce w lokalnym demo: przełączenie na uk/de bez surowych kluczy (WP-5)
-- [ ] WP-1…WP-6
+- [x] `queue-panel`: `badgeLabel` nie wywołuje `translate()` w `computed`; po przełączeniu na niezaładowany język (en/de/uk) w DOM nie pojawia się surowy klucz
+- [x] Test z asynchronicznym loaderem (opóźnione ładowanie, przełączenie języka przed załadowaniem, `await`, asercja tekstu niepustego i bez klucza `agent.`) — wzorzec z testu FE-129
+- [x] Zachowane formy mnogie i dotychczasowy odczyt czytnika w 4 językach (pl/en/de/uk)
+- [x] (opcjonalnie) NIT-1: kolejność odczytu sr-only w kafelku Handled bez danych („Obsłużone, dziś, brak danych” lub pominięcie podpisu przy braku danych); NIT-2: asercja niepustego tekstu w teście asynchronicznego loadera `top-navbar`; NIT-3: reguły `Intl.PluralRules` w `computed`/cache zamiast tworzenia przy każdym przeliczeniu
+- [~] Weryfikacja w przeglądarce w lokalnym demo: przełączenie na uk/de bez surowych kluczy (WP-5) — w tej turze nieodnotowana; scenariusz pokryty testami z asynchronicznym loaderem (3 przebiegi bez niestabilności)
+- [x] WP-1…WP-6
 
 **Ryzyka:** (R1) w `top-navbar` i `queue-panel` jest możliwe przejściowe (kilkadziesiąt ms) niedopasowanie kategorii plural do słownika w oknie ładowania (zaakceptowane w code review FE-129, runda 2); (R2) przejrzeć grepem inne `translate(` wewnątrz `computed`/`toSignal` w `frontend/src` i wypisać jako propozycję, nie rozszerzać zakresu bez decyzji.
 **Nie wchodzi w zakres:** pozostałe ekrany admin/supervisor; zmiany treści tłumaczeń.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable harden`; code review 2 rundy (4,5/5 → 5/5). Zmiany (frontend):
+- `queue-panel`: `badgeLabel` zwraca `{key, count}`, `aria-label` przez pipe `transloco`, `pluralRules` jako `computed` po języku, `@let badge`.
+- Testy z asynchronicznym loaderem i deterministycznym `firstValueFrom(transloco.load(...))`; 3 przebiegi bez niestabilności.
+- `top-navbar`: NIT-1 — kolejność sr-only „Obsłużone, dziś, brak danych” (z testem); NIT-2 — asercje w oknie ładowania oraz `track $index` w `@for`, więc pipe zachowuje poprzedni tekst przy zmianie kategorii plural (wcześniej tekst był chwilowo pusty); NIT-3 — `pluralRules` jako `computed`.
+- R2 zrealizowane jako propozycja: grep `translate(` w `computed`/polach → nowy FE-146 (backlog).
 
 
 ### FE-144 – i18n pozostałych ekranów: literały PL poza zakresem FE-128 (+ MINOR-4 z FE-127/FE-128)
@@ -7023,9 +7041,9 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** FE-128 ✅ (2026-10-30, tura 61 — `twilioDeviceError` trzyma klucz `agent.softphone.errors.{tokenFetch,device}`, typ `TwilioDeviceErrorKey`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 2,5/5, runda 2: 3,5/5, runda 3 bez ponownego CR (diff i testy przejrzane przez zlecającego); `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
 **Czeka na BE:** brak
-**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30)
+**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30; ticket zamknięty w turze 62)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
 **Wykonawca:** `angular-frontend-expert` + `impeccable harden`
 
@@ -7034,14 +7052,78 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zakres:** pokazać błąd w softphone lub w pasku (tekst z klucza `twilioDeviceError` przez pipe `transloco`), z akcją ponowienia (ponowne pobranie tokenu / inicjalizacja urządzenia); region live (`role="alert"` lub `status` — do decyzji przy `harden`), fokus/klawiatura, kontrast w obu motywach; testy (stan błędu, ponowienie, zniknięcie po sukcesie).
 
 **Kryteria akceptacji:**
-- [ ] Błąd `tokenFetch`/`device` jest widoczny dla agenta i ogłaszany czytnikowi ekranu, w 4 językach, bez surowych kluczy
-- [ ] Akcja ponowienia dostępna z klawiatury; po sukcesie komunikat znika
-- [ ] Testy jednostkowe stanów: błąd, ponowienie, sukces
-- [ ] Weryfikacja na żywo z Twilio (dług: prawdziwe połączenie / token niedostępny) lub jawnie odnotowane ograniczenie
-- [ ] WP-1…WP-6
+- [x] Błąd `tokenFetch`/`device` jest widoczny dla agenta i ogłaszany czytnikowi ekranu, w 4 językach, bez surowych kluczy
+- [x] Akcja ponowienia dostępna z klawiatury; po sukcesie komunikat znika
+- [x] Testy jednostkowe stanów: błąd, ponowienie, sukces
+- [~] Weryfikacja na żywo z Twilio — jawnie odnotowane ograniczenie: stanu błędu NIE zweryfikowano na żywo (nie da się wywołać awarii Twilio) ani czytnikiem ekranu; sprawdzono tylko stan bez błędu w przeglądarce
+- [~] WP-1…WP-4, WP-6 wykonane; WP-5 ograniczone (patrz wyżej)
 
 **Ryzyka:** (R1) wymaga realnego błędu tokenu/urządzenia do weryfikacji na żywo (symulacja przez odmowę mikrofonu lub błędny token); (R2) miejsce prezentacji (softphone vs pasek) do decyzji przy `harden`.
 **Nie wchodzi w zakres:** zmiana logiki łączenia z Twilio, nowe kody błędów.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable harden`; code review 3 rundy (2,5/5 → 3,5/5; runda 3 bez ponownego CR — zlecający przejrzał diff i testy). Zmiany (frontend, bez zmian backendu):
+- Nowy komponent `features/agent/components/telephony-error`, osadzony w `agent-desktop.component.html` pod nagłówkiem, poza `@if (activeTab())`, więc widoczny bez zakładki. Zmiany w softphone cofnięte: budżet `softphone.component.scss` znowu 14,27 kB.
+- `softphone.service.ts`: łączenie równoległych `initializeTwilioDevice()`; `retryTwilioDevice()`; sygnały `twilioDeviceInitializing` i `callInProgress` (z `session()`); straż `isCallInProgress()` sprawdzana też tuż przed destroy; licznik generacji `initGeneration` sprawdzany po każdym `await` i w każdym handlerze `Device` (`incoming`, `registered`, `unregistered`, `error`); `resetForLogout` podbija generację i czyści `initInFlight`; błąd czyszczony tylko na `registered` albo 404 tokenu; naprawiony wyciek `Device` po nieudanym `register()`; handler `error` ignoruje błędy pojedynczego połączenia (argument `call`).
+- `agent-shell.component.ts`: brak automatycznej reinicjalizacji przy widocznym błędzie (tylko ręczny retry, bez backoffu). `unregistered` bez błędu nadal reinicjalizuje automatycznie.
+- A11y: stały pusty `<div role="alert">` z treścią wstawianą w środku; osobny `role="status"` z komunikatami „Ponawianie…” / „Nadal niedostępne”; przycisk poza alertem, `aria-disabled` + blokada w handlerze, fokus zostaje na przycisku; cel ≥ 24 px (32 px).
+- Klucze: `agent.softphone.errors.{title,retry,retrying,stillUnavailable}`; zmienione teksty `tokenFetch`/`device` („Spróbuj ponownie; jeśli błąd się powtarza, odśwież stronę.”).
+- Przeglądarka (lokalne demo, agent1): bez błędu host `app-telephony-error` ma 0 px, alert w DOM jest pusty, brak poziomego przewijania, układ pulpitu bez zmian.
+- **Długi do odnotowania:** (1) NEW-2 z rundy 2 (stały kontener alertu) zaadresowane w rundzie 3, ale niezweryfikowane czytnikiem ekranu; (2) stan błędu niezweryfikowany na żywo z Twilio.
+- Uwaga procesowa: runda 3 nie przeszła ponownego code review — ocena 3,5/5 dotyczy stanu po rundzie 2.
+- Niestabilny test: w jednym pełnym przebiegu padły 3 testy w `social-integrations.component.spec.ts` (plik nieruszany); osobno 2/2 zielone, ponowny pełny przebieg zielony → nowy FE-147.
+
+### FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz (poza `queue-panel` i `top-navbar`)
+
+**Typ:** Bug / Frontend hardening (i18n)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-143 ✅ (2026-10-30, tura 62 — wzorzec: pipe `transloco` w szablonie, w `computed` tylko klucz i parametry; wcześniej FE-129)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Ta sama usterka reaktywności co w FE-129/FE-143: `transloco.translate()` w `computed` albo w polu inicjalizowanym raz zapamiętuje surowy klucz, gdy język nie jest jeszcze załadowany, i nic go później nie unieważnia. Zgrubny grep wskazał kandydatów (mogą być fałszywe trafienia — każdy zweryfikować):
+- `contact-detail-modal` (`headerSubtitle`);
+- `manual-callback-modal` i `adhoc-email-modal` (`customerDisplayName`);
+- `login` (`emailStepErrorMessage`, `passwordErrorMessage`, `codeErrorMessage`);
+- `change-password` (`currentPasswordError`, `newPasswordError`, `confirmPasswordError`, `strengthLabel`);
+- `plugins-page` (`deleteCatalogVersionMessage`, `uninstallMessage`);
+- `disposition-sets-page.component.ts` (`deleteSetMessage`, `deleteItemMessage`);
+- metody wywoływane z szablonu (np. `tabClose.*` w `agent-desktop`) — niesprawdzone.
+
+**Kryteria akceptacji:**
+- [ ] Każdy kandydat zweryfikowany: naprawiony (klucz + parametry w `computed`, tekst przez pipe `transloco`/wywołanie przy zdarzeniu) albo jawnie odrzucony jako fałszywe trafienie w notatce wykonania
+- [ ] Testy z asynchronicznym loaderem dla naprawionych miejsc (przełączenie na niezaładowany język, asercja tekstu niepustego i bez surowego klucza) — wzorzec z FE-143
+- [ ] Brak zmiany treści tłumaczeń; parytet kluczy w 4 językach (0 różnic)
+- [ ] WP-1…WP-6 (WP-5 ograniczone dla ekranów admina/supervisora — MFA w local-demo)
+
+**Ryzyka:** (R1) ekrany admina/supervisora/logowania wymagają MFA lub braku sesji — weryfikacja w przeglądarce może być niemożliwa; (R2) fałszywe trafienia grepa — nie przepisywać kodu, który jest wywoływany tylko przy zdarzeniach.
+**Nie wchodzi w zakres:** zmiana treści tłumaczeń, literały PL bez kluczy (FE-144).
+
+### FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog)
+
+**Typ:** Testing (stabilność)
+**Priorytet:** Should Have (fałszywe alarmy w `/verify`)
+**Złożoność:** XS/S
+**Zależy od:** brak (wynik code review FE-141 + FE-143 + FE-145, runda 2)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `test-suite-expert`
+
+**Opis:** W jednym pełnym przebiegu `npm test` padły 3 testy w `frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.spec.ts` (WhatsApp connect dialog; plik nieruszany przez FE-141/143/145); osobno 2/2 zielone, ponowny pełny przebieg zielony. Hipoteza z CR: obciążenie CPU i domyślny limit 5 s w jsdom przy równoległym przebiegu; plik (388 linii) i komponent nie używają timerów, jedyny `await` to `compileComponents()`.
+
+**Kryteria akceptacji:**
+- [ ] Przyczyna ustalona (potwierdzenie albo obalenie hipotezy limitu czasu/obciążenia) i opisana w notatce wykonania
+- [ ] Test stabilny w co najmniej 5 kolejnych pełnych przebiegach `npm test` (lub uzasadniona alternatywa)
+- [ ] Brak zmian w kodzie produkcyjnym, chyba że przyczyna leży w komponencie (wtedy jawna decyzja)
+- [ ] WP-1…WP-4, WP-6 (WP-5 nie dotyczy)
+
+**Ryzyka:** (R1) niestabilność trudna do odtworzenia — dopuszczalne zamknięcie z uzasadnionym podniesieniem limitu czasu lub izolacją `beforeEach`.
+**Nie wchodzi w zakres:** refaktor pozostałych specs.
 
 
 ## Bez epiku

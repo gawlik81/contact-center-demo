@@ -21,6 +21,10 @@ import { ScheduledCallbackDto } from '../../models/callback.model';
 import { AGENT_SHORTCUTS } from '../../models/agent-shortcuts.model';
 import { CallLifecycleService } from '../../services/call-lifecycle.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
+import {
+  AgentRecoveryService,
+  CALL_NOT_RESTORED_POLL_MS,
+} from '../../services/agent-recovery.service';
 import { ContactDraftStore } from '../../services/contact-draft.store';
 import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
 import { TransferQueueListComponent } from '../transfer-queue-list/transfer-queue-list.component';
@@ -46,9 +50,29 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   private readonly tabStore = inject(ContactTabStore);
   private readonly drafts = inject(ContactDraftStore);
   private readonly calls = inject(CallLifecycleService);
+  protected readonly recovery = inject(AgentRecoveryService);
 
   protected readonly session = this.softphone.session;
   protected readonly shortcuts = AGENT_SHORTCUTS;
+
+  /** i18n key of the outcome of the last "check again" on a call-not-restored card. */
+  /** Seconds between the automatic checks (a param of the card text, never hardcoded in it). */
+  protected readonly pollSeconds = CALL_NOT_RESTORED_POLL_MS / 1000;
+
+  protected readonly checkResult = signal<string | null>(null);
+
+  /** Asks the backend whether the call has ended (the card then turns into ACW by itself). */
+  protected async checkCallState(): Promise<void> {
+    if (this.recovery.loading()) return;
+    this.checkResult.set(null);
+    await this.recovery.checkAgain('card');
+    // The card is replaced by the ACW form when the call ended; this text is for "not yet".
+    this.checkResult.set(
+      this.recovery.lastRun()?.ok === false || this.recovery.lastRun()?.degraded
+        ? 'agent.softphone.callNotRestored.checkFailed'
+        : 'agent.softphone.callNotRestored.stillOpen',
+    );
+  }
 
   private readonly answerBtn = viewChild<ElementRef<HTMLButtonElement>>('answerBtn');
 

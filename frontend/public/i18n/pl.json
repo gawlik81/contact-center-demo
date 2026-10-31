@@ -314,7 +314,8 @@
         "closeWrapping": "Zamknięcie niedostępne, zapisz dyspozycję dla {{name}}",
         "confirmReject": "Odrzucić połączenie od {{name}}?",
         "confirmRejectAction": "Odrzuć",
-        "notYours": "Kontakt {{name}} nie jest już przypisany do Ciebie. Karta została zamknięta."
+        "notYours": "Kontakt {{name}} nie jest już przypisany do Ciebie. Karta została zamknięta.",
+        "closeNotRestored": "Ukryj kartę rozmowy {{name}}. Wróci, gdy trzeba będzie zapisać dyspozycję."
       }
     },
     "softphone": {
@@ -393,6 +394,14 @@
         "retry": "Spróbuj ponownie",
         "retrying": "Ponawianie…",
         "stillUnavailable": "Nadal niedostępne"
+      },
+      "callNotRestored": {
+        "title": "Połączenie nie zostało przywrócone",
+        "text": "Strona została odświeżona w trakcie rozmowy, więc połączenie głosowe nie wraca do tej karty. Gdy rozmowa się zakończy, karta przejdzie do dyspozycji; sprawdzamy to co {{seconds}} s, możesz też sprawdzić od razu.",
+        "check": "Sprawdź ponownie",
+        "checking": "Sprawdzanie...",
+        "stillOpen": "Rozmowa nadal jest oznaczona jako trwająca.",
+        "checkFailed": "Nie udało się sprawdzić. Spróbuj ponownie za chwilę."
       }
     },
     "disposition": {
@@ -997,6 +1006,40 @@
       "cheatSheet": "Pokaż / ukryj skróty",
       "tabs": "Przechodzenie między zakładkami kontaktów",
       "statusMenu": "Nawigacja w menu statusu"
+    },
+    "recoveryOverflow": {
+      "title_one": "{{count}} kontakt czeka poza limitem kart",
+      "title_few": "{{count}} kontakty czekają poza limitem kart",
+      "title_many": "{{count}} kontaktów czeka poza limitem kart",
+      "title_other": "{{count}} kontaktu czeka poza limitem kart",
+      "hint": "Te kontakty nie mieszczą się na pulpicie. Zamknij lub zwróć do kolejki jedną z kart; lista odświeży się sama, a przyciskiem możesz sprawdzić od razu.",
+      "retry": "Sprawdź ponownie",
+      "retrying": "Sprawdzanie...",
+      "listLabel": "Kontakty poza limitem kart",
+      "channel": {
+        "PHONE": "Telefon",
+        "EMAIL": "E-mail",
+        "CHAT": "Czat",
+        "SOCIAL": "Social",
+        "UNKNOWN": "Inny kanał"
+      },
+      "phase": {
+        "RINGING": "oczekuje na odebranie",
+        "IN_PROGRESS": "w toku",
+        "WRAP_UP": "do uzupełnienia dyspozycji"
+      },
+      "hintRinging": "Kontakt oczekujący na odebranie wróci do kolejki, jeśli nie zostanie odebrany.",
+      "reason": {
+        "OTHER_CALL_ACTIVE": "trwa inna rozmowa",
+        "UNSUPPORTED_CHANNEL": "kanał nieobsługiwany"
+      },
+      "result": {
+        "failed": "Nie udało się sprawdzić. Spróbuj ponownie za chwilę.",
+        "allOpened": "Wszystkie kontakty mają już karty.",
+        "someOpened": "Otwarto kart: {{opened}}. Poza limitem pozostało: {{remaining}}.",
+        "noChange": "Nic się nie zmieniło. Zwolnij miejsce na karcie i sprawdź ponownie.",
+        "callNotRestored": "Przywrócono kartę rozmowy, której po odświeżeniu strony nie da się wznowić. Sprawdź ją."
+      }
     }
   },
   "supervisor": {

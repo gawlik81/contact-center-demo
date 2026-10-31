@@ -1,16 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, HttpResponse } from '@angular/common/http';
-import { of } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 import { ContactTab } from '../models/contact-tab.model';
 import { ContactDraftStore } from './contact-draft.store';
-import { AgentRecoveryService } from './agent-recovery.service';
 import {
   ContactTabStore,
   MAX_ASYNC_TABS,
   MAX_PHONE_TABS,
   MAX_TOTAL_TABS,
 } from './contact-tab.store';
-import { SoftphoneService } from './softphone.service';
 
 function tabInput(id: string, type: ContactTab['type'], isActive?: boolean) {
   return {
@@ -160,58 +157,18 @@ describe('ContactTabStore contact names and release tracking', () => {
   });
 });
 
-describe('AgentRecoveryService with the inactive-by-default tabs', () => {
-  let store: ContactTabStore;
-  let recovery: AgentRecoveryService;
-  let post: ReturnType<typeof vi.fn>;
-  let get: ReturnType<typeof vi.fn>;
-
-  function assigned(channel: string, id: string): void {
-    get.mockReturnValue(
-      of(
-        new HttpResponse({
-          status: 200,
-          body: { contactId: id, channel, customerIdentifier: 'k@x.pl', customerName: 'Klient' },
-        }),
-      ),
-    );
-  }
-
-  beforeEach(() => {
-    post = vi.fn().mockReturnValue(of(null));
-    get = vi.fn();
-    TestBed.configureTestingModule({
-      providers: [{ provide: HttpClient, useValue: { get, post } }],
-    });
-    store = TestBed.inject(ContactTabStore);
+describe('ContactTabStore close log (FE-136)', () => {
+  it('reset() forgets what the previous agent closed', () => {
+    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    const store = TestBed.inject(ContactTabStore);
     store.reset();
-    TestBed.inject(SoftphoneService).session.set(null);
-    recovery = TestBed.inject(AgentRecoveryService);
-  });
-
-  it('restores an e-mail contact as an inactive tab and accepts it', async () => {
+    const mark = store.closeMark();
     store.openTab(tabInput('a', 'EMAIL'));
-    assigned('EMAIL', 'c-recovered');
-    await recovery.recoverAfterReconnect();
-
-    expect(store.tabs().map((t) => t.contactId)).toEqual(['c-a', 'c-recovered']);
-    expect(store.activeTab()?.id).toBe('a');
-    expect(post).toHaveBeenCalledTimes(1);
-  });
-
-  it('makes a recovered contact the active tab when there was none', async () => {
-    assigned('EMAIL', 'c-recovered');
-    await recovery.recoverAfterReconnect();
-    expect(store.activeTab()?.contactId).toBe('c-recovered');
-  });
-
-  it('does not open nor accept a contact over the limit', async () => {
-    for (let i = 0; i < MAX_ASYNC_TABS; i++) store.openTab(tabInput('e' + i, 'EMAIL'));
-    assigned('EMAIL', 'c-over');
-    await recovery.recoverAfterReconnect();
-
-    expect(store.tabs()).toHaveLength(MAX_ASYNC_TABS);
-    expect(post).not.toHaveBeenCalled();
+    store.closeByContactId('c-a');
+    expect(store.closedSince(mark).has('c-a')).toBe(true);
+    store.reset();
+    expect(store.closedSince(0).size).toBe(0);
+    expect(store.closeMark()).toBe(0);
   });
 });
 

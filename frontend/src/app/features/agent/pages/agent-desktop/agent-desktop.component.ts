@@ -23,6 +23,7 @@ import { catchError, of } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AgentStatusService } from '../../services/agent-status.service';
+import { AgentRecoveryService } from '../../services/agent-recovery.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { ContactDraftStore } from '../../services/contact-draft.store';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -38,6 +39,7 @@ import { DispositionSaveService } from '../../services/disposition-save.service'
 import { CallState } from '../../models/call-session.model';
 import { AcwBannerComponent } from '../../components/acw-banner/acw-banner.component';
 import { TelephonyErrorComponent } from '../../components/telephony-error/telephony-error.component';
+import { RecoveryOverflowNoticeComponent } from '../../components/recovery-overflow-notice/recovery-overflow-notice.component';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
@@ -108,6 +110,7 @@ interface ToolbarManualAction {
     ConfirmDialogComponent,
     AcwBannerComponent,
     TelephonyErrorComponent,
+    RecoveryOverflowNoticeComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -120,6 +123,7 @@ export class AgentDesktopComponent implements OnInit {
 
   private readonly ws = inject(WebSocketService);
   protected readonly statusService = inject(AgentStatusService);
+  private readonly recovery = inject(AgentRecoveryService);
   protected readonly tabStore = inject(ContactTabStore);
   private readonly drafts = inject(ContactDraftStore);
   private readonly contactService = inject(ContactService);
@@ -588,7 +592,7 @@ export class AgentDesktopComponent implements OnInit {
         key = 'closePhone';
         break;
       case 'STALE':
-        key = 'closeStale';
+        key = tab.callNotRestored ? 'closeNotRestored' : 'closeStale';
         break;
       default:
         key = 'closeAsync';
@@ -644,6 +648,8 @@ export class AgentDesktopComponent implements OnInit {
       return;
     }
     if (kind === 'STALE') {
+      // A "call not restored" card is hidden, not finished: it returns when a disposition is due.
+      if (tab.callNotRestored) this.recovery.dismissNotRestored(tab.contactId);
       this.removeTabKeepingFocus(tab);
     } else if (kind === 'RETURN' && !this.drafts.hasUnsentDraft(tab.contactId)) {
       this.returnToQueue(tab);

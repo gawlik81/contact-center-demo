@@ -37,4 +37,9 @@ export interface ContactTab {
   originalContactId?: string;
   /** Epoch ms when the tab entered WRAPPING (ACW); the ACW timer is derived from it. */
   wrappingSince?: number;
+  /**
+   * PHONE card restored after a page reload while the call was still in progress: the browser leg
+   * of the call (WebRTC) cannot be restored, so the card explains it instead of showing controls.
+   */
+  callNotRestored?: boolean;
 }

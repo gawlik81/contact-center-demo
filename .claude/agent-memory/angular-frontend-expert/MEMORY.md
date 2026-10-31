@@ -95,3 +95,4 @@
 - [FE-119 hardcoded copy, BRAND, CHAT, aiSummary i18n](./project_fe119_hardcoded_copy.md) – KPI bez fałszywych celów (navbar), core/brand.ts, jeden przycisk przerwy w nagłówku, agent.aiSummary.*, testy OnPush+transloco per język
 - [FE-122 ACW inline (2026-10-29)](./project_fe122_acw_inline.md) – panel jako treść karty PHONE, DispositionSaveService, cc-acw-banner, focus request w ContactTabStore
 - [FE-123 layout 1366x768 (2026-10-29)](./project_fe123_layout_1366.md) – skala breakpointow (_breakpoints.scss), tokeny wysokosci chrome, rezerwa dla bannera ACW, rail sidenavu agenta
+- [FE-136 odtwarzanie kart (2026-10-31)](./project_fe136_recovery.md) – active-contacts, planowanie slotow, overflow notice, callNotRestored dla PHONE IN_PROGRESS, re-login przez reset() w shellu

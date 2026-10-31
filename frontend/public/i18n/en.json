@@ -314,7 +314,8 @@
         "closeWrapping": "Closing unavailable, save the disposition for {{name}}",
         "confirmReject": "Reject the call from {{name}}?",
         "confirmRejectAction": "Reject",
-        "notYours": "Contact {{name}} is no longer assigned to you. The tab was closed."
+        "notYours": "Contact {{name}} is no longer assigned to you. The tab was closed.",
+        "closeNotRestored": "Hide the call card for {{name}}. It returns when a disposition is due."
       }
     },
     "softphone": {
@@ -393,6 +394,14 @@
         "retry": "Try again",
         "retrying": "Retrying…",
         "stillUnavailable": "Still unavailable"
+      },
+      "callNotRestored": {
+        "title": "The call was not restored",
+        "text": "The page was reloaded during the call, so the voice connection does not return to this card. When the call ends, the card moves to the disposition; this is checked every {{seconds}} s, and you can check right away.",
+        "check": "Check again",
+        "checking": "Checking...",
+        "stillOpen": "The call is still marked as in progress.",
+        "checkFailed": "The check failed. Try again in a moment."
       }
     },
     "disposition": {
@@ -997,6 +1006,40 @@
       "cheatSheet": "Show / hide shortcuts",
       "tabs": "Move between contact tabs",
       "statusMenu": "Navigate the status menu"
+    },
+    "recoveryOverflow": {
+      "title_one": "{{count}} contact waiting beyond the card limit",
+      "title_few": "{{count}} contacts waiting beyond the card limit",
+      "title_many": "{{count}} contacts waiting beyond the card limit",
+      "title_other": "{{count}} contacts waiting beyond the card limit",
+      "hint": "These contacts do not fit on the desktop. Close or return one of the cards to the queue; the list refreshes by itself, and you can check right away with the button.",
+      "retry": "Check again",
+      "retrying": "Checking...",
+      "listLabel": "Contacts beyond the card limit",
+      "channel": {
+        "PHONE": "Phone",
+        "EMAIL": "Email",
+        "CHAT": "Chat",
+        "SOCIAL": "Social",
+        "UNKNOWN": "Other channel"
+      },
+      "phase": {
+        "RINGING": "waiting to be answered",
+        "IN_PROGRESS": "in progress",
+        "WRAP_UP": "disposition pending"
+      },
+      "hintRinging": "A contact waiting to be answered returns to the queue if it is not answered.",
+      "reason": {
+        "OTHER_CALL_ACTIVE": "another call is in progress",
+        "UNSUPPORTED_CHANNEL": "channel not supported"
+      },
+      "result": {
+        "failed": "The check failed. Try again in a moment.",
+        "allOpened": "Every contact has a card now.",
+        "someOpened": "Cards opened: {{opened}}. Still beyond the limit: {{remaining}}.",
+        "noChange": "Nothing changed. Free a card slot and check again.",
+        "callNotRestored": "A call card was restored that cannot be resumed after a page reload. Please check it."
+      }
     }
   },
   "supervisor": {

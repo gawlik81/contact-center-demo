@@ -1,11 +1,12 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { catchError, EMPTY, filter, Observable, Subscription, switchMap, tap } from 'rxjs';
 import { TranslocoService } from '@jsverse/transloco';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
+import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { AgentStatusChangedPayload, WsEvent } from '../models/ws-event.model';
 
 interface UserResponse {
@@ -124,25 +125,35 @@ export class AgentStatusService {
    * Sends an HTTP PATCH to update the agent status and notifies supervisors via WebSocket.
    * Returns an Observable<void> that completes on success or errors on failure.
    * Callers should subscribe and handle errors independently.
+   * `silent` suppresses the error toasts (for changes the agent did not ask for).
    */
-  changeStatus(status: AgentStatus): Observable<void> {
+  changeStatus(status: AgentStatus, options: { silent?: boolean } = {}): Observable<void> {
     if (this.isChanging()) {
       return EMPTY;
     }
     this.isChanging.set(true);
 
-    return this.http.patch<void>(`${environment.apiUrl}/users/me/status`, { status }).pipe(
-      tap(() => {
-        this.applyStatus(status);
-        // Notify backend via WebSocket so supervisors get real-time update
-        this.ws.publish('/app/agent/status', { status });
-        this.isChanging.set(false);
-      }),
-      catchError(() => {
-        this.notifications.error(this.transloco.translate('agent.status.errorChange'));
-        this.isChanging.set(false);
-        return EMPTY;
-      }),
-    );
+    return this.http
+      .patch<void>(
+        `${environment.apiUrl}/users/me/status`,
+        { status },
+        options.silent ? { context: new HttpContext().set(SKIP_ERROR_TOAST, true) } : {},
+      )
+      .pipe(
+        tap(() => {
+          this.applyStatus(status);
+          // Notify backend via WebSocket so supervisors get real-time update
+          this.ws.publish('/app/agent/status', { status });
+          this.isChanging.set(false);
+        }),
+        catchError(() => {
+          // silent: a change the agent did not ask for (recovery) must not raise an error toast
+          if (!options.silent) {
+            this.notifications.error(this.transloco.translate('agent.status.errorChange'));
+          }
+          this.isChanging.set(false);
+          return EMPTY;
+        }),
+      );
   }
 }

@@ -55,3 +55,5 @@ weryfikacji to manualny test na żywej instancji Postgres z rzeczywistym partycj
 to poza automatycznym zestawem testów przy BE-113. Rozważ to przy każdej przyszłej zmianie zapytań
 DELETE/UPDATE na tabelach partycjonowanych, szczególnie jeśli ktoś zaproponuje "uproszczenie" przez
 `ctid`.
+
+**Aktualizacja (BE-125, 2026-09-21):** uwaga „projekt nie ma Testcontainers dla repozytoriów" jest nieaktualna — istnieje harness `PostgresTestDatabase`/`JpaTestContext` ([[feedback-jpa-real-db-integration-test-harness]]); test „bez ctid" pisz jako regex `\bctid\b` (parametr `:contactIds` zawiera „ctId").

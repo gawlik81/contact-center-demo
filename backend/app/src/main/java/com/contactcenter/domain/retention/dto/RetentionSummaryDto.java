@@ -23,6 +23,33 @@ import java.time.LocalDate;
  * błędnie wnioskować "nie ma nic do wyczyszczenia", podczas gdy job po prostu jeszcze nie
  * przebiegł dla tej kategorii.
  *
+ * <p><strong>Wiadomości w {@code eligibleRowCount} CONTACT_INTERACTIONS (BE-133, BE-135):</strong>
+ * suma zawiera wiersze {@code contact}/{@code contact_event}/{@code social_message}/{@code email_message}
+ * liczone WYŁĄCZNIE partycyjnie ({@code RetentionEvaluationServiceImpl#scanPartitionAwareCategory},
+ * wpisy {@code PARTITION_AWARE_TABLES}). Dawne DOKŁADNE liczenie wiadomości e-mail przez JOIN/IN-subquery
+ * (BE-128, {@code countEligibleMessages}) zostało usunięte, bo utrzymywanie obu ścieżek podwajałoby
+ * wiersze wiadomości. Konsekwencja: udział wiadomości jest KONSERWATYWNYM PRZYBLIŻENIEM granicą partycji
+ * miesięcznej (jak {@code contact}/{@code contact_event}, patrz uwaga BE128-02 poniżej), a NIE licznikiem
+ * wiersz-po-wierszu. Interpretacja wartości na dashboardzie: orientacyjna.
+ *
+ * <p>Wynik jest orientacyjnym licznikiem dla administratora — może się różnić od tego, co faktycznie
+ * usunie kolejny przebieg purge (BE-126/127), który operuje na stronicowanej liście kandydatów w konkretnym
+ * momencie przy współbieżnym ruchu.
+ *
+ * <p><strong>Uwaga (CR-BACKEND.md BE128-02; zakres skorygowany przez BE-133/BE-135):</strong> cała suma
+ * {@code CONTACT_INTERACTIONS} jest odtąd KONSERWATYWNYM przybliżeniem granicą partycji miesięcznej
+ * (świadomy trade-off z BE-112/EPIC-29). Nie wpływa to na bezpieczeństwo faktycznego purge (który re-liczy
+ * kontakty wierszowo, niezależnie od tego akumulatora), tylko na interpretację wartości wyświetlanej na
+ * dashboardzie.
+ *
+ * <p><strong>Uwaga (CR-BACKEND.md BE128-01, naprawione):</strong> ta liczba (zapisywana do cache i
+ * pokazywana adminowi) ZAWSZE zawiera wiadomości, niezależnie od
+ * {@code retention.purge.delete-messages}. DECYZJA auto-purge ({@code RetentionEvaluationServiceImpl
+ * #persistSummaryAndMaybeAutoPurgeForTenant}) używa jednak osobnej, mniejszej liczby, gdy ta flaga
+ * jest {@code false} — bez tego auto-purge dla tenantów z {@code auto_purge_enabled=true} i samymi
+ * osieroconymi wiadomościami odpalałby się co noc bez żadnego efektu (legacy purge nic z nich nie
+ * usuwa).
+ *
  * @param dataCategory         kategoria danych
  * @param eligibleRowCount     liczba rekordów kwalifikujących się do usunięcia wg cache; {@code 0}
  *                             gdy {@code computed=false} (brak jeszcze policzonej wartości)

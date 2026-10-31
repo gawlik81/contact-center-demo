@@ -18,125 +18,87 @@
 
 ---
 
-## MODUL: Fundament aplikacji
+## Indeks wg EPIC
 
-### FE-001 – Inicjalizacja projektu Angular i konfiguracja workspace
+Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone jako ⬜; „Zrobione” = ✅). Status epiku dotyczy ticketów Frontend; EPIC-30: zamknięty warunkowo wg `PROGRESS.md` (DB-069 i BE-137 odłożone z wyzwalaczem po stronie DB/BE; FE-111 = 🚫 N/A).
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** brak
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-002, FE-003
-**Odniesienie PRD:** przekrojowe
+| EPIC | Nazwa | ✅ | 🔧 | ⬜ | 🚫 | Razem | Status epiku |
+|------|-------|----|----|----|----|-------|--------------|
+| EPIC-01 | Onboarding i konfiguracja tenanta | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-02 | Zarządzanie użytkownikami i rolami | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-03 | Kanał telefoniczny (inbound) | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-04 | IVR i Automatyzacja głosowa | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-05 | Kanał email | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-06 | Kanał Social Media | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-07 | Silnik routingu | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-08 | Zarządzanie kampaniami | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-09 | Profil i historia klienta | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-10 | Dashboardy i raporty | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-11 | Routing numerów telefonicznych | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-12 | Prezentacja Kontaktów | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-13 | Zaplanowane oddzwonienia | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-14 | Zarządzanie przypisaniem agentów do kolejek | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-15 | Zakładka Klienci w Agent Desktop | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-16 | Kalendarz Agenta | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-17 | Powiadomienia o połączeniu (Incoming Call Alert) | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-18 | Testy jednostkowe | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-19 | Wielojęzyczność | 17 | 0 | 0 | 0 | 17 | ✅ Zakończony |
+| EPIC-20 | Per-tenant konfiguracja Twilio | 3 | 0 | 0 | 0 | 3 | ✅ Zakończony |
+| EPIC-21 | Retry i callback w kampaniach wychodzących | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-22 | Notatki do kontaktów | 2 | 0 | 0 | 0 | 2 | ✅ Zakończony |
+| EPIC-23 | Historia etapów kontaktu | 1 | 0 | 0 | 0 | 1 | ✅ Zakończony |
+| EPIC-24 | Transfer połączenia: agent i kolejka | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-25 | Przypisywanie agentów do kampanii | 5 | 0 | 0 | 0 | 5 | ✅ Zakończony |
+| EPIC-26 | AI-Powered Conversation Summary | 4 | 0 | 0 | 0 | 4 | ✅ Zakończony |
+| EPIC-27 | Własne dyspozycje per kampania i kolejka | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
+| EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
+| EPIC-32 | UX i dostępność stanowiska agenta | 24 | 0 | 10 | 0 | 34 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
+| **Razem** | | **136** | **0** | **14** | **1** | **151** |
 
-**Opis:**
-Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLint, Prettier, Husky pre-commit hooks. Ustawienie struktury katalogów: `core/`, `shared/`, `features/`, `environments/`. Konfiguracja proxy deweloperskiego do backendu (proxy.conf.json).
+### Otwarte tickety (🔧 / ⬜) wg EPIC
 
-**Kryteria akceptacji:**
-- [ ] `ng build` i `ng test` kończą się bez błędów
-- [ ] ESLint i Prettier skonfigurowane z regułami projektu
-- [ ] Struktura katalogów zgodna z przyjętą architekturą modularną
-- [ ] Proxy do backendu (localhost:8080) skonfigurowany w proxy.conf.json
+**EPIC-18 – Testy jednostkowe**
 
----
+- FE-T001 – Testy jednostkowe AgentStatusService — ⬜ (🔲 Do zrobienia)
+- FE-T002 – Testy jednostkowe ContactService — ⬜ (🔲 Do zrobienia)
+- FE-T003 – Testy jednostkowe CallbackService — ⬜ (🔲 Do zrobienia)
+- FE-T004 – Testy jednostkowe AgentGroupService — ⬜ (🔲 Do zrobienia)
 
-### FE-002 – Konfiguracja routingu, lazy loading i guard AuthGuard
+**EPIC-32 – UX i dostępność stanowiska agenta**
 
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-004
-**Odniesienie PRD:** przekrojowe
-
-**Opis:**
-Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Implementacja `AuthGuard` (sprawdza ważność JWT z localStorage/sessionStorage) i `RoleGuard` (weryfikuje role: ADMIN, SUPERVISOR, AGENT). Obsługa przekierowania na `/login` przy wygaśnięciu sesji.
-
-**Kryteria akceptacji:**
-- [ ] Moduły feature ładowane lazy (widoczne w Network tab jako osobne chunk-i)
-- [ ] Próba wejścia na chronioną trasę bez JWT → redirect do /login
-- [ ] Próba wejścia na trasę niedostępną dla roli → redirect do /forbidden
-- [ ] Refresh tokenu wykonywany transparentnie przez HTTP Interceptor
-
----
-
-### FE-003 – HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403
-
-**Typ:** Infrastructure
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-001
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-13
-**Czeka na BE:** brak
-**Blokuje:** FE-004
-**Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
-
-**Opis:**
-Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <token>` do każdego żądania. Logika automatycznego odświeżenia tokenu (retry z nowym tokenem po otrzymaniu 401). Globalny handler błędów HTTP wyświetlający notyfikacje toast dla błędów 4xx/5xx.
-
-**Kryteria akceptacji:**
-- [ ] Każde żądanie HTTP zawiera nagłówek Authorization
-- [ ] Po wygaśnięciu JWT interceptor wykonuje refresh i ponawia oryginalne żądanie
-- [ ] Błąd 403 wyświetla komunikat "Brak uprawnień" (toast)
-- [ ] Błąd 5xx wyświetla komunikat "Błąd serwera, spróbuj ponownie" (toast)
-
----
-
-### FE-004 – Moduł uwierzytelniania: ekran logowania i MFA
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-002, FE-003
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-18
-**Czeka na BE:** BE-004 ✅
-**Blokuje:** FE-005
-**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
-
-**Opis:**
-Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpisuje e-mail, frontend wywołuje `POST /api/public/tenants-by-email` i wykrywa organizacje powiązane z tym adresem; krok 2 – wyświetlane jest pole hasła (i opcjonalny dropdown organizacji gdy >1 trafień); krok 3 – opcjonalny krok MFA (TOTP 6-cyfr). Zapis JWT i refresh tokenu w pamięci aplikacji. Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`. Formularz 3-krokowy z sygnałami Angular (step, matchedTenants, loading, errorMessage).
-
-**Kryteria akceptacji:**
-- [ ] Formularz logowania waliduje format email i niepuste hasło
-- [ ] Po poprawnym logowaniu z MFA użytkownik trafia do dashboardu swojej roli
-- [ ] Przy `password_reset_required=true` wyświetlany jest formularz zmiany hasła przed dashboardem
-- [ ] Przycisk "Zaloguj" zablokowany (spinner) podczas oczekiwania na odpowiedź API
+- FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134) — ✅ (2026-10-29; wszystkie pakiety FE-131…FE-134 ukończone)
+- FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu — ✅ (2026-10-29; niemodalny `DispositionPanel` w karcie `WRAPPING`, baner `cc-acw-banner`; otwarte: weryfikacja na żywo Twilio, skrót FE-114, baner przy 1366×768 → FE-123, ACW po F5 → FE-136)
+- FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów — ✅ (2026-10-29)
+- FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje — ✅ (2026-10-30; `agent-desktop.component.scss` 18,11 → 9,00 kB)
+- FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md` — ✅ (2026-10-30; audyt 15/20 przy celu ≥ 16 — niedobór 1 pkt zaakceptowany przez właściciela (R1), krytyka 30/40, 0 × P0, 0 × P1; **EPIC-32 pozostaje otwarty do FE-127, FE-128 (FE-129 ✅ 2026-10-30)**)
+- FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ✅ (2026-10-30, tura 61; ładowanie przez `UserService.getSkills()`, `skillsLoading`/`skillsLoadFailed`, region live; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
+- FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ✅ (2026-10-30, tura 61; klucze i18n, parytet 2784 kluczy w 4 językach, `createTwilioDevice` jako seam testowy; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
+- FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) — ✅ (2026-10-30, tura 60; format `h:mm`, sr-only z jednostkami, `kpiNoData`; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
+- FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ⬜ (Do zrobienia; czeka na BE-153; backlog, nie blokuje epiku; powiązany z FE-129 — KPI)
+- FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ✅ (2026-10-29; zależy od BE-160 ✅)
+- FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ✅ (2026-10-29)
+- FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154; FE-133 ✅; backlog, nie blokuje epiku)
+- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ⬜ (Do zrobienia; po BE-157; FE-122 ✅, FE-131 ✅; backlog, nie blokuje epiku)
+- FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta/powłoką na skalę breakpointów (`_breakpoints.scss`) — ⬜ (Do zrobienia; wynik FE-123; backlog, nie blokuje epiku)
+- FE-138 – Budżety stylów i bundla: pozostałe komponenty ponad 12 kB (`anyComponentStyle`) i bundle initial 567 kB przy budżecie 500 kB — ⬜ (Do zrobienia; wynik FE-124, backlog, nie blokuje epiku; wspólne pliki z FE-139/FE-140: softphone, email-contact, adhoc-email-modal)
+- FE-139 – Flat-at-Rest: usunięcie dekoracyjnych gradientów z powierzchni agenta (ok. 13 w 8 plikach) — ⬜ (Do zrobienia; wynik FE-125, P2; backlog, nie blokuje epiku)
+- FE-140 – Hurtowe usunięcie ok. 200 fallbacków `var(--x, #hex)` w agencie i powłoce (The Token-Only Rule) — ⬜ (Do zrobienia; wynik FE-125, P2; po FE-139; backlog, nie blokuje epiku)
+- FE-141 – [BUG] `disposition-sets-page.component.scss`: 8 niezdefiniowanych tokenów `--color-*`, kolory się nie renderują — ✅ (2026-10-30, tura 62; CR 4/5 → 4,5/5; wynik FE-125 / MINOR-4 CR, P2)
+- FE-142 – Drobne P3 powierzchni agenta (reduced-motion, „Imię <email>” w `app-contact-header`, `transition: all`, `'Geist Mono'`, stałe szerokości, `font-size: 11px`) — ⬜ (Do zrobienia; wynik FE-125, P3; backlog, nie blokuje epiku)
+- FE-143 – Naprawa reaktywności `badgeLabel` w `queue-panel` (`translate()` w `computed` → surowy klucz po przełączeniu na niezaładowany język; wzorzec z FE-129) + NIT-1…NIT-3 z FE-129 — ✅ (2026-10-30, tura 62; CR 4,5/5 → 5/5; Should Have, XS/S)
+- FE-144 – i18n pozostałych ekranów: literały PL poza FE-128 (ok. 30 plików; lista z grepa do ręcznego przeglądu) + MINOR-4 z FE-127/FE-128 — ⬜ (Do zrobienia; wynik FE-128; backlog, nie blokuje epiku; Should Have, M, prawdopodobnie do podziału)
+- FE-145 – Wyświetlenie błędu telefonii agentowi: konsument `twilioDeviceError` z akcją ponowienia — ✅ (2026-10-30, tura 62; CR 2,5/5 → 3,5/5, runda 3 bez ponownego CR; wynik FE-128 / NEW-1 CR; Should Have, S)
+- FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz poza `queue-panel` i `top-navbar` (wzorzec z FE-129/FE-143) — ⬜ (Do zrobienia; wynik FE-143; backlog, nie blokuje epiku; Should Have, S/M)
+- FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog; pada sporadycznie w pełnym `npm test`) — ✅ (2026-10-30, tura 63; zabezpieczone, nieodtworzone: 0/10 przebiegów przed zmianą, stuby `HTMLDialogElement` w `beforeEach` + sprzątanie w `afterEach`; wynik CR FE-145; Should Have, XS/S)
 
 ---
 
-### FE-005 – Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje
+## EPIC-01 – Onboarding i konfiguracja tenanta
 
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** L
-**Zależy od:** FE-004
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-14
-**Czeka na BE:** brak
-**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
-**Odniesienie PRD:** przekrojowe (wszystkie persony)
-
-**Opis:**
-Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależną od roli (ADMIN/SUPERVISOR/AGENT widzi inne pozycje menu), top bar z informacją o użytkowniku i tenant, system powiadomień toast (RxJS Subject singleton), komponent breadcrumb generowany z aktywnej trasy.
-
-**Kryteria akceptacji:**
-- [ ] Menu sidebar pokazuje tylko pozycje dostępne dla aktualnej roli
-- [ ] Wylogowanie czyści stan aplikacji i przekierowuje na /login
-- [ ] Toast notyfikacje widoczne ponad wszystkimi komponentami (z-index)
-- [ ] Aplikacja jest responsywna (breakpoint tablet 1024px, desktop 1280px+)
-- [ ] Spełnia WCAG 2.1 AA (kontrast, nawigacja klawiaturą, aria-labels)
-
----
-
-## MODUL: Zarządzanie Tenantami (EPIC-01)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-006 – Lista tenantów i formularz tworzenia tenanta
 
@@ -185,7 +147,9 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 
 ---
 
-## MODUL: Zarządzanie Użytkownikami i Rolami (EPIC-02)
+## EPIC-02 – Zarządzanie użytkownikami i rolami
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-008 – Zarządzanie agentami: lista, tworzenie, edycja, skills
 
@@ -210,7 +174,9 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 
 ---
 
-## MODUL: Agent Desktop (EPIC-03, EPIC-05, EPIC-06, EPIC-07)
+## EPIC-03 – Kanał telefoniczny (inbound)
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-009 – Agent Desktop: główny layout i panel statusu agenta
 
@@ -221,7 +187,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-012 ✅
-**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
+**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017, FE-031, FE-032, FE-040, FE-046
 **Odniesienie PRD:** US-07-05, EPIC-03, EPIC-05, EPIC-06
 
 **Opis:**
@@ -260,28 +226,64 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 
 ---
 
-### FE-011 – Panel profilu klienta podczas kontaktu
+### FE-025 – Panel konfiguracji Twilio per tenant
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-005, BE-032
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-01
+**Czeka na BE:** BE-032 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
+
+**Kryteria akceptacji:**
+- [x] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
+- [x] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
+- [x] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
+- [x] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
+- [x] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
+
+---
+
+---
+
+## EPIC-04 – IVR i Automatyzacja głosowa
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-014 – Graficzny edytor drzewa IVR (drag & drop)
 
 **Typ:** Feature
 **Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-009, BE-025, BE-011
+**Zlozonosc:** XL
+**Zależy od:** FE-005, BE-020, BE-013
 **Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-20
-**Czeka na BE:** BE-025 ✅, BE-011 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
+**Zrealizowane:** 2026-03-25
+**Czeka na BE:** BE-020 ✅, BE-013 ✅
+**Blokuje:** FE-026
+**Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
-Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwisko, telefon, email), historia ostatnich 10 kontaktów z danym klientem (kanał, data, disposition). Link do pełnego profilu klienta. Jeśli klient nieznany – przycisk "Utwórz profil" pre-wypełniający formularz numerem CLI.
+Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węzły: Start, Menu (DTMF), Play Audio, TTS Prompt, Transfer to Queue, Transfer to Agent, Hangup. Drag & drop węzłów, łączenie krawędziami SVG path, konfiguracja węzła w panelu bocznym. Zapis drzewa jako JSONB. Zrealizowane: IvrListComponent (lista drzew IVR z oznaczeniem aktywnego), IvrEditorComponent (canvas SVG, typy węzłów z IVR_NODE_LABELS, DragState, SvgConnection, panel konfiguracji inline), IvrService (frontend), ivr.model.ts (IvrDefinitionUI, IvrNodeUI, IvrNodeType, IvrOption, IvrResponse).
 
 **Kryteria akceptacji:**
-- [x] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
-- [x] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
-- [x] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
-- [x] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
+- [x] Dodawanie i usuwanie węzłów bez przeładowania
+- [x] Połączenia między węzłami rysowane interaktywnie przez drag
+- [x] Upload pliku audio (max 10MB, formaty MP3/WAV) z progress bar
+- [x] Zapis IVR generuje podgląd JSONB w panelu debug
+- [x] Walidacja: brak "wiszących" węzłów bez wyjścia, ostrzeżenie przed zapisem
+- [x] Wersjonowanie: lista wersji IVR z możliwością podglądu poprzedniej wersji
 
 ---
+
+## EPIC-05 – Kanał email
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-012 – Komponent obsługi kontaktu email
 
@@ -308,6 +310,10 @@ Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wą
 
 ---
 
+## EPIC-06 – Kanał Social Media
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
 ### FE-013 – Komponent obsługi kontaktu social media
 
 **Typ:** Feature
@@ -331,34 +337,61 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 
 ---
 
-## MODUL: IVR i Automatyzacja (EPIC-04)
-
-### FE-014 – Graficzny edytor drzewa IVR (drag & drop)
+### FE-023 – Panel konfiguracji integracji social media (OAuth flow)
 
 **Typ:** Feature
 **Priorytet:** Must Have
-**Zlozonosc:** XL
-**Zależy od:** FE-005, BE-020, BE-013
+**Zlozonosc:** M
+**Zależy od:** FE-005, BE-017
 **Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-25
-**Czeka na BE:** BE-020 ✅, BE-013 ✅
+**Zrealizowane:** 2026-04-17
+**Czeka na BE:** BE-017 ✅
 **Blokuje:** brak
-**Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
+**Odniesienie PRD:** US-06-02, EPIC-06
 
 **Opis:**
-Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węzły: Start, Menu (DTMF), Play Audio, TTS Prompt, Transfer to Queue, Transfer to Agent, Hangup. Drag & drop węzłów, łączenie krawędziami SVG path, konfiguracja węzła w panelu bocznym. Zapis drzewa jako JSONB. Zrealizowane: IvrListComponent (lista drzew IVR z oznaczeniem aktywnego), IvrEditorComponent (canvas SVG, typy węzłów z IVR_NODE_LABELS, DragState, SvgConnection, panel konfiguracji inline), IvrService (frontend), ivr.model.ts (IvrDefinitionUI, IvrNodeUI, IvrNodeType, IvrOption, IvrResponse).
+Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, WhatsApp) ze statusem połączenia. Przycisk "Połącz" inicjuje OAuth 2.0 flow (redirect → callback → token zapis). Przycisk "Rozłącz" (z potwierdzeniem). Status webhook (aktywny/błąd).
+
+**Zrealizowane:** SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" inicjujący OAuth redirect, `OAuthCallbackComponent` przechwytujący callback i zapisujący token, przycisk "Rozłącz" z modalem potwierdzenia, wyświetlanie statusu webhooka), SocialIntegrationService (initiateOAuth, disconnect, list), social-integration.model.ts, integrations.routes.ts.
 
 **Kryteria akceptacji:**
-- [x] Dodawanie i usuwanie węzłów bez przeładowania
-- [x] Połączenia między węzłami rysowane interaktywnie przez drag
-- [x] Upload pliku audio (max 10MB, formaty MP3/WAV) z progress bar
-- [x] Zapis IVR generuje podgląd JSONB w panelu debug
-- [x] Walidacja: brak "wiszących" węzłów bez wyjścia, ostrzeżenie przed zapisem
-- [x] Wersjonowanie: lista wersji IVR z możliwością podglądu poprzedniej wersji
+- [x] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
+- [x] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
+- [x] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
+- [x] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
 
 ---
 
-## MODUL: Kampanie Outbound (EPIC-08)
+## EPIC-07 – Silnik routingu
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-024 – Panel konfiguracji kolejek i routingu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-005, BE-020
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
+**Czeka na BE:** BE-020 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
+
+**Opis:**
+Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s), adres email kolejki (opcjonalne pole `emailAddress` – walidacja formatu email, VARCHAR 255). Lista kolejek z liczbą agentów i aktualnym obciążeniem. Pole `emailAddress` w `queue.model.ts` jako `string | null`.
+
+**Kryteria akceptacji:**
+- [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
+- [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
+- [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
+- [x] Pole adresu email kolejki walidowane jako format email (Validators.email), opcjonalne
+
+---
+
+## EPIC-08 – Zarządzanie kampaniami
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-015 – Zarządzanie kampaniami: lista i formularz tworzenia
 
@@ -369,7 +402,7 @@ Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węz
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-022 ✅
-**Blokuje:** FE-016, FE-027
+**Blokuje:** FE-016, FE-027, FE-067
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -431,7 +464,32 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 
 ---
 
-## MODUL: Baza Klientów (EPIC-09)
+## EPIC-09 – Profil i historia klienta
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
+
+### FE-011 – Panel profilu klienta podczas kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-009, BE-025, BE-011
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-20
+**Czeka na BE:** BE-025 ✅, BE-011 ✅
+**Blokuje:** brak
+**Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
+
+**Opis:**
+Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwisko, telefon, email), historia ostatnich 10 kontaktów z danym klientem (kanał, data, disposition). Link do pełnego profilu klienta. Jeśli klient nieznany – przycisk "Utwórz profil" pre-wypełniający formularz numerem CLI.
+
+**Kryteria akceptacji:**
+- [x] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
+- [x] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
+- [x] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
+- [x] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
+
+---
 
 ### FE-018 – Wyszukiwanie i lista klientów (fuzzy search)
 
@@ -442,7 +500,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Czeka na BE:** BE-025 ✅
-**Blokuje:** FE-019, FE-020
+**Blokuje:** FE-019, FE-020, FE-040
 **Odniesienie PRD:** US-09-01, US-09-03, EPIC-09
 
 **Opis:**
@@ -465,7 +523,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
 **Czeka na BE:** BE-025 ✅, BE-027 ✅
-**Blokuje:** brak
+**Blokuje:** FE-030, FE-033
 **Odniesienie PRD:** US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -504,7 +562,60 @@ Zrealizowane: `customer-import.model.ts` (typy DeduplicationMode, ImportJobStatu
 
 ---
 
-## MODUL: Raportowanie i Analityka (EPIC-10)
+### FE-033 – Panel RODO w profilu klienta: eksport danych i anonimizacja
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-019 (CustomerDetailComponent), BE-031
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
+**Czeka na BE:** BE-031
+**Blokuje:** brak
+**Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17
+
+**Opis:**
+Rozszerzenie istniejącego `CustomerDetailComponent` (FE-019) o sekcję RODO z dwoma akcjami:
+- **Eksport danych (Art. 15):** pobiera plik ZIP z danymi klienta
+- **Anonimizacja (Art. 17):** anonimizuje wszystkie PII klienta z potwierdzeniem modal
+
+Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
+
+**Komponenty do stworzenia/modyfikacji:**
+
+1. **Rozszerzenie `CustomerDetailComponent`** (`features/customers/customer-detail/`):
+   - Sekcja „Prawa RODO" na dole strony profilu (po historii kontaktów)
+   - Przycisk „Eksportuj dane (Art. 15)" – wywołuje `GdprService.exportData(customerId)`, pobiera ZIP przez `URL.createObjectURL`
+   - Przycisk „Anonimizuj klienta (Art. 17)" – widoczny tylko dla ADMIN/SUPERVISOR, otwiera `GdprAnonymizeModalComponent`
+   - Oba przyciski ukryte gdy klient ma już `is_deleted=true` (wyświetlić zamiast tego badge "Dane zanonimizowane")
+
+2. **`GdprAnonymizeModalComponent`** (`features/customers/gdpr-anonymize-modal/`):
+   - Standalone component, selector: `app-gdpr-anonymize-modal`
+   - Input: `customerId: string`, `customerName: string`
+   - Output: `confirmed: EventEmitter<void>`, `cancelled: EventEmitter<void>`
+   - Treść: ostrzeżenie "Ta operacja jest nieodwracalna. Wszystkie dane osobowe klienta [name] zostaną trwale zanonimizowane."
+   - Wymaga wpisania słowa "ANONIMIZUJ" w pole tekstowe (potwierdzenie)
+   - Submit wywołuje `GdprService.anonymize(customerId)` → po sukcesie: toast + przekierowanie na listę klientów
+
+3. **`GdprService`** (`features/customers/services/gdpr.service.ts`):
+   - `exportData(customerId: string): Observable<Blob>` → `POST /api/customers/{id}/gdpr/export`, responseType: 'blob'
+   - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
+
+**Kryteria akceptacji:**
+- [x] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
+- [x] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
+- [x] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
+- [x] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
+- [x] Loading state na obu przyciskach podczas operacji
+- [x] Błąd 403 → toast "Brak uprawnień"
+- [x] Błąd 404 → toast "Klient nie istnieje"
+- [x] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
+
+---
+
+## EPIC-10 – Dashboardy i raporty
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-021 – Dashboard RT supervisora
 
@@ -538,7 +649,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-028 ✅
-**Blokuje:** brak
+**Blokuje:** FE-029
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
@@ -554,83 +665,9 @@ Zrealizowane: `report.model.ts` – interfejsy `AgentReportRow`, `AgentReportFil
 
 ---
 
-## MODUL: Konfiguracja i Integracje (EPIC-01, EPIC-06)
+## EPIC-11 – Routing numerów telefonicznych
 
-### FE-023 – Panel konfiguracji integracji social media (OAuth flow)
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-005, BE-017
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-17
-**Czeka na BE:** BE-017 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-06-02, EPIC-06
-
-**Opis:**
-Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, WhatsApp) ze statusem połączenia. Przycisk "Połącz" inicjuje OAuth 2.0 flow (redirect → callback → token zapis). Przycisk "Rozłącz" (z potwierdzeniem). Status webhook (aktywny/błąd).
-
-**Zrealizowane:** SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" inicjujący OAuth redirect, `OAuthCallbackComponent` przechwytujący callback i zapisujący token, przycisk "Rozłącz" z modalem potwierdzenia, wyświetlanie statusu webhooka), SocialIntegrationService (initiateOAuth, disconnect, list), social-integration.model.ts, integrations.routes.ts.
-
-**Kryteria akceptacji:**
-- [x] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
-- [x] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
-- [x] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
-- [x] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
-
----
-
-### FE-024 – Panel konfiguracji kolejek i routingu
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-005, BE-020
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-21
-**Czeka na BE:** BE-020 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
-
-**Opis:**
-Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s), adres email kolejki (opcjonalne pole `emailAddress` – walidacja formatu email, VARCHAR 255). Lista kolejek z liczbą agentów i aktualnym obciążeniem. Pole `emailAddress` w `queue.model.ts` jako `string | null`.
-
-**Kryteria akceptacji:**
-- [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
-- [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
-- [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
-- [x] Pole adresu email kolejki walidowane jako format email (Validators.email), opcjonalne
-
----
-
-### FE-025 – Panel konfiguracji Twilio per tenant
-
-**Typ:** Feature
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-005, BE-032
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-01
-**Czeka na BE:** BE-032 ✅
-**Blokuje:** brak
-**Odniesienie PRD:** EPIC-03
-
-**Opis:**
-Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
-
-**Kryteria akceptacji:**
-- [x] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
-- [x] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
-- [x] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
-- [x] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
-- [x] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
-
----
-
----
-
-## MODUL: Routing numerów telefonicznych (EPIC-11)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-026 – Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor)
 
@@ -762,7 +799,9 @@ Zrealizowane: `ManualCampaignPanelComponent` (polling co 30s, lista kampanii man
 
 ---
 
-## MODUL: Prezentacja Kontaktów (EPIC-12)
+## EPIC-12 – Prezentacja Kontaktów
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-028 – Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal)
 
@@ -950,64 +989,9 @@ exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane prze
 
 ---
 
-## Zależności między zadaniami
+## EPIC-13 – Zaplanowane oddzwonienia
 
-### Kolejność obowiązkowa (blokery)
-
-```
-FE-001 → FE-002 → FE-003 → FE-004 → FE-005
-FE-005 → FE-006, FE-007, FE-008, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
-FE-009 (Agent Desktop) → FE-010, FE-011, FE-012, FE-013, FE-017
-FE-015 (Kampanie) → FE-016
-FE-018 (Lista klientów) → FE-019, FE-020
-```
-
-### Zadania możliwe do realizacji równoległej (po odblokowaniu FE-005)
-
-| Ścieżka | Zadania |
-|---------|---------|
-| Admin | FE-006, FE-007 |
-| Supervisor / Agenci | FE-008, FE-024 |
-| Agent Desktop | FE-009 → FE-010, FE-011, FE-012, FE-013, FE-017 |
-| IVR | FE-014 (niezależny od Agent Desktop) |
-| Kampanie | FE-015 → FE-016 |
-| Klienci | FE-018 → FE-019, FE-020 |
-| Raporty | FE-021, FE-022 |
-| Integracje | FE-023 |
-| Twilio config | FE-025 (po BE-032) |
-| Routing telefoniczny | FE-026 (po BE-033, BE-034) |
-| Prezentacja kontaktów | FE-028 (modal + audio player), FE-029 (raport), FE-030 (panel klienta) |
-
-### Blokery od Backendu (FE czeka na BE)
-
-| Zadanie FE | Czeka na zadanie BE |
-|------------|---------------------|
-| FE-004 | BE-004 (auth endpoints) |
-| FE-006 | BE-006 (tenant CRUD API) |
-| FE-007 | BE-007 (admin metrics API) |
-| FE-008 | BE-008 (users/agents API) |
-| FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
-| FE-012 | BE-015 (email API) |
-| FE-013 | BE-018 (social media API) |
-| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 ✅ (IVR Engine – zrealizowane) |
-| FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
-| FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
-| FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
-| FE-022 | BE-028 ✅ (reports API – zrealizowane) |
-| FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
-| FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
-| FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
-| FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
-| FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
-| FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
-| FE-031 | BE-039 ✅ (reschedule callback API) |
-| FE-032 | BE-040 ✅ (inbound callback API) |
-
-> Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
-
----
-
-## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-031 – Modal przełożenia rozmowy wychodzącej (Agent Desktop)
 
@@ -1016,6 +1000,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** FE-034 (RescheduleCallbackModalComponent – reużycie)
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1084,6 +1069,7 @@ export interface ScheduledCallbackDto {
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-040 ✅
 **Zrealizowane:** 2026-04-09
 **Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
@@ -1137,59 +1123,6 @@ export interface CreateInboundCallbackRequest {
 - [x] Błąd 403 → "Brak uprawnień"
 - [x] Formularz zablokowany podczas wysyłki (brak podwójnego submitu)
 - [x] Walidacja phone: format E.164 lub akceptowalny lokalny format
-
----
-
-## MODUL: RODO / GDPR (EPIC-09, przekrojowe)
-
-### FE-033 – Panel RODO w profilu klienta: eksport danych i anonimizacja
-
-**Typ:** Feature – UI Component
-**Priorytet:** Must Have
-**Złożoność:** S
-**Zależy od:** FE-019 (CustomerDetailComponent), BE-031
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-04-09
-**Czeka na BE:** BE-031
-**Blokuje:** brak
-**Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17
-
-**Opis:**
-Rozszerzenie istniejącego `CustomerDetailComponent` (FE-019) o sekcję RODO z dwoma akcjami:
-- **Eksport danych (Art. 15):** pobiera plik ZIP z danymi klienta
-- **Anonimizacja (Art. 17):** anonimizuje wszystkie PII klienta z potwierdzeniem modal
-
-Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
-
-**Komponenty do stworzenia/modyfikacji:**
-
-1. **Rozszerzenie `CustomerDetailComponent`** (`features/customers/customer-detail/`):
-   - Sekcja „Prawa RODO" na dole strony profilu (po historii kontaktów)
-   - Przycisk „Eksportuj dane (Art. 15)" – wywołuje `GdprService.exportData(customerId)`, pobiera ZIP przez `URL.createObjectURL`
-   - Przycisk „Anonimizuj klienta (Art. 17)" – widoczny tylko dla ADMIN/SUPERVISOR, otwiera `GdprAnonymizeModalComponent`
-   - Oba przyciski ukryte gdy klient ma już `is_deleted=true` (wyświetlić zamiast tego badge "Dane zanonimizowane")
-
-2. **`GdprAnonymizeModalComponent`** (`features/customers/gdpr-anonymize-modal/`):
-   - Standalone component, selector: `app-gdpr-anonymize-modal`
-   - Input: `customerId: string`, `customerName: string`
-   - Output: `confirmed: EventEmitter<void>`, `cancelled: EventEmitter<void>`
-   - Treść: ostrzeżenie "Ta operacja jest nieodwracalna. Wszystkie dane osobowe klienta [name] zostaną trwale zanonimizowane."
-   - Wymaga wpisania słowa "ANONIMIZUJ" w pole tekstowe (potwierdzenie)
-   - Submit wywołuje `GdprService.anonymize(customerId)` → po sukcesie: toast + przekierowanie na listę klientów
-
-3. **`GdprService`** (`features/customers/services/gdpr.service.ts`):
-   - `exportData(customerId: string): Observable<Blob>` → `POST /api/customers/{id}/gdpr/export`, responseType: 'blob'
-   - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
-
-**Kryteria akceptacji:**
-- [x] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
-- [x] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
-- [x] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
-- [x] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
-- [x] Loading state na obu przyciskach podczas operacji
-- [x] Błąd 403 → toast "Brak uprawnień"
-- [x] Błąd 404 → toast "Klient nie istnieje"
-- [x] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
 
 ---
 
@@ -1418,15 +1351,18 @@ editingCallback = signal<CallbackListItem | null>(null);
 
 ---
 
-## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+## EPIC-14 – Zarządzanie przypisaniem agentów do kolejek
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-036 – Serwis `AgentGroupService` i typy DTO dla grup agentów
 
 **Typ:** Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Zależy od:** BE-044
+**Zależy od:** BE-044, BE-046
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-044 ✅, BE-046 ✅
 **Zrealizowane:** 2026-04-18
 **Blokuje:** FE-037, FE-038
 
@@ -1666,7 +1602,9 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 
 ---
 
-## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+## EPIC-15 – Zakładka Klienci w Agent Desktop
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-040 – Zakładka „Klienci" w Agent Desktop (`AgentCustomersTabComponent`)
 
@@ -1677,7 +1615,7 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-24
 **Czeka na BE:** BE-025 ✅ (Customer CRUD API)
-**Blokuje:** FE-041
+**Blokuje:** FE-041, FE-071, FE-072
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 
 **Opis:**
@@ -1806,7 +1744,9 @@ interface ManualCallbackResponse {
 
 ---
 
-## MODUŁ: Kalendarz Agenta (EPIC-16)
+## EPIC-16 – Kalendarz Agenta
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-042 – `AgentCalendarService` i typy DTO dla kalendarza
 
@@ -1815,6 +1755,7 @@ interface ManualCallbackResponse {
 **Zlozonosc:** S
 **Zależy od:** BE-051, BE-050
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-050 ✅, BE-051 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** FE-043, FE-044, FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -1888,6 +1829,7 @@ Główny widok kalendarza jako nowa zakładka w Agent Desktop. Wyświetla zdarze
 **Zlozonosc:** S
 **Zależy od:** FE-042, BE-039
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-039 ✅
 **Zrealizowane:** 2026-04-26
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
@@ -1936,7 +1878,9 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 
 ---
 
-## Powiadomienia o połączeniu (EPIC-17 – Incoming Call Alert)
+## EPIC-17 – Powiadomienia o połączeniu (Incoming Call Alert)
+
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Agent przebywający na zakładce innej niż `/agent/desktop` (Klienci, Oddzwonienia) nie widzi
 > softphone'a i może przeoczyć przychodzące połączenie. Poniższe zadania rozwiązują ten problem
@@ -2106,7 +2050,98 @@ export class AgentShellComponent {}
 
 ---
 
-## MODUL: Wielojęzyczność UI (EPIC-19)
+## EPIC-18 – Testy jednostkowe
+
+**Ukończone 0/4** (✅ 0 · 🔧 0 · ⬜ 4 · 🚫 0) — status epiku: ⬜ Nie rozpoczęty
+
+### FE-T001 – Testy jednostkowe AgentStatusService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Napisać testy Vitest dla `AgentStatusService`.
+
+**Kryteria akceptacji:**
+- [ ] `setStatus()` → HTTP PUT, optymistyczna aktualizacja sygnału, rollback przy błędzie
+- [ ] WebSocket update: odbiór eventu zmiany statusu innego agenta, aktualizacja listy
+- [ ] `getAvailableStatuses()` — filtrowanie według roli (agent vs supervisor)
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T002 – Testy jednostkowe ContactService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Napisać testy Vitest dla `ContactService`.
+
+**Kryteria akceptacji:**
+- [ ] `getContacts()` — stronicowanie, filtrowanie po statusie/kanale, tenant header
+- [ ] `assignContact()` — happy path, kontakt już przypisany (błąd 409), optymistyczna aktualizacja
+- [ ] `closeContact()` — zmiana statusu, wyzwolenie eventu do supervisora
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T003 – Testy jednostkowe CallbackService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-oddzwonienia (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-13
+
+**Opis:**
+Napisać testy Vitest dla `CallbackService`.
+
+**Kryteria akceptacji:**
+- [ ] `scheduleCallback()` — walidacja daty (nie w przeszłości), HTTP POST, zapis w lokalnym stanie
+- [ ] `cancelCallback()` — HTTP DELETE, usunięcie z listy
+- [ ] `getUpcoming()` — filtrowanie przeszłych callbacków, sortowanie po dacie
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T004 – Testy jednostkowe AgentGroupService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-przypisanie-agentów (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-14
+
+**Opis:**
+Napisać testy Vitest dla `AgentGroupService`.
+
+**Kryteria akceptacji:**
+- [ ] `getGroups()` — lista grup z agentami, cache (nie wywołuje HTTP dwa razy)
+- [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
+- [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
+- [ ] Wszystkie testy przechodzą (`npm test`)
+| **RAZEM** | **54** | **42** | **12** |
+
+---
+
+## EPIC-19 – Wielojęzyczność
+
+**Ukończone 17/17** (✅ 17 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-049 – Konfiguracja Transloco i pliki tłumaczeń (PL / EN / DE)
 
@@ -2510,122 +2545,9 @@ Pliki:
 
 ---
 
-## Podsumowanie zadań Frontend
+## EPIC-20 – Per-tenant konfiguracja Twilio
 
-| Kategoria | Liczba zadań | Must Have | Should Have |
-|-----------|-------------|-----------|-------------|
-| Fundament | 5 | 5 | 0 |
-| Tenants (EPIC-01) | 2 | 2 | 0 |
-| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
-| Agent Desktop | 5 | 5 | 0 |
-| IVR (EPIC-04) | 1 | 1 | 0 |
-| Kampanie (EPIC-08) | 3 | 3 | 0 |
-| Klienci (EPIC-09) | 3 | 3 | 0 |
-| RODO / GDPR | 1 | 1 | 0 |
-| Raporty (EPIC-10) | 2 | 2 | 0 |
-| Konfiguracja | 3 | 2 | 1 |
-| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
-| Dialer manualny | 1 | 1 | 0 |
-| Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
-| Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
-| Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
-| Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
-| Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
-| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
-| i18n fixes (EPIC-19) | 12 | 6 | 6 |
-| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
-
----
-
-## MODUL: Testy jednostkowe (EPIC-18)
-
-### FE-T001 – Testy jednostkowe AgentStatusService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-agent-desktop (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-03
-
-**Opis:**
-Napisać testy Vitest dla `AgentStatusService`.
-
-**Kryteria akceptacji:**
-- [ ] `setStatus()` → HTTP PUT, optymistyczna aktualizacja sygnału, rollback przy błędzie
-- [ ] WebSocket update: odbiór eventu zmiany statusu innego agenta, aktualizacja listy
-- [ ] `getAvailableStatuses()` — filtrowanie według roli (agent vs supervisor)
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T002 – Testy jednostkowe ContactService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-agent-desktop (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-12
-
-**Opis:**
-Napisać testy Vitest dla `ContactService`.
-
-**Kryteria akceptacji:**
-- [ ] `getContacts()` — stronicowanie, filtrowanie po statusie/kanale, tenant header
-- [ ] `assignContact()` — happy path, kontakt już przypisany (błąd 409), optymistyczna aktualizacja
-- [ ] `closeContact()` — zmiana statusu, wyzwolenie eventu do supervisora
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T003 – Testy jednostkowe CallbackService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-oddzwonienia (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-13
-
-**Opis:**
-Napisać testy Vitest dla `CallbackService`.
-
-**Kryteria akceptacji:**
-- [ ] `scheduleCallback()` — walidacja daty (nie w przeszłości), HTTP POST, zapis w lokalnym stanie
-- [ ] `cancelCallback()` — HTTP DELETE, usunięcie z listy
-- [ ] `getUpcoming()` — filtrowanie przeszłych callbacków, sortowanie po dacie
-- [ ] Wszystkie testy przechodzą (`npm test`)
-
----
-
-### FE-T004 – Testy jednostkowe AgentGroupService
-
-**Typ:** Testing
-**Priorytet:** Should Have
-**Zlozonosc:** S
-**Zależy od:** FE-przypisanie-agentów (ukończone)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** -
-**Odniesienie PRD:** EPIC-14
-
-**Opis:**
-Napisać testy Vitest dla `AgentGroupService`.
-
-**Kryteria akceptacji:**
-- [ ] `getGroups()` — lista grup z agentami, cache (nie wywołuje HTTP dwa razy)
-- [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
-- [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
-- [ ] Wszystkie testy przechodzą (`npm test`)
-| **RAZEM** | **54** | **42** | **12** |
-
----
-
-## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+**Ukończone 3/3** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-066 – `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora
 
@@ -2634,6 +2556,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 **Zlozonosc:** M
 **Zależy od:** BE-057 (REST API konfiguracji Twilio)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-057 ✅
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2701,6 +2624,7 @@ Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervi
 **Zlozonosc:** S
 **Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-060 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2745,6 +2669,7 @@ Rozszerzenie formularza tworzenia i edycji kampanii (`CampaignFormComponent`) o 
 **Zlozonosc:** S
 **Zależy od:** BE-061 (endpoint listowania numerów), FE-066 (formularz konfiguracji Twilio), FE-067 (formularz kampanii)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-061 ✅
 **Zrealizowane:** 2026-05-07
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
@@ -2796,7 +2721,9 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 
 ---
 
-## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+## EPIC-21 – Retry i callback w kampaniach wychodzących
+
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-069 – Aktualizacja widoku listy kontaktów kampanii — nowe statusy `NOT_REACHED` i `CALLBACK`
 
@@ -2804,6 +2731,7 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-063 ✅, BE-064 ✅
 **Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-063, BE-064
 **Blokuje:** brak
@@ -2941,94 +2869,9 @@ maxAttempts: new FormControl(3, [
 
 ---
 
-## MODUŁ: Ad hoc połączenia i email z panelu agenta
+## EPIC-22 – Notatki do kontaktów
 
-### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** S
-**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-05-13
-**Blokuje:** brak
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
-- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
-- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
-- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
-
-**Implementacja:**
-- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
-- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
-- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
-- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
-- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
-- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
-- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
-
-**Kryteria akceptacji:**
-- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
-- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
-- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
-- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
-- [ ] Sukces: powiadomienie toast
-- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
-- [ ] Brak numeru: przycisk niewidoczny lub disabled
-- [ ] Tłumaczenia w pl.json i en.json
-
----
-
-### FE-072 – Modal „Wyślij email" do klienta ad hoc
-
-**Typ:** Feature
-**Priorytet:** Must Have
-**Zlozonosc:** M
-**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
-**Status:** ✅ Ukończone
-**Zrealizowane:** 2026-05-13
-**Blokuje:** brak
-**Odniesienie PRD:** Agent desktop – kontakt z klientem
-
-**Opis:**
-Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
-
-**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
-
-**Implementacja:**
-- Standalone component, `ChangeDetectionStrategy.OnPush`
-- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
-- `@Output() sent = new EventEmitter<void>()`
-- `@Output() cancelled = new EventEmitter<void>()`
-- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
-- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
-- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
-- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
-- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
-- Integracja w `AgentCustomersTabComponent`:
-  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
-  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
-  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
-- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
-- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
-
-**Kryteria akceptacji:**
-- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
-- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
-- [ ] Klient z wieloma emailami: dropdown wyboru adresu
-- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
-- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
-- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
-- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
-- [ ] Anulowanie: modal zamknięty, brak wywołania API
-- [ ] Tłumaczenia w pl.json i en.json
-- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
-
----
-
-## MODUŁ: Notatki do kontaktów (EPIC-22)
+**Ukończone 2/2** (✅ 2 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-073 – Wyświetlanie notatki w widoku szczegółów kontaktu (`contact-detail-modal`)
 
@@ -3037,6 +2880,7 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 **Zlozonosc:** S
 **Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-069 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3086,6 +2930,7 @@ Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikacj
 **Zlozonosc:** M
 **Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-070 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-22 Notatki do kontaktów
@@ -3205,7 +3050,9 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 
 ---
 
-## MODUŁ: Historia etapów kontaktu (EPIC-23)
+## EPIC-23 – Historia etapów kontaktu
+
+**Ukończone 1/1** (✅ 1 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-075 – Sekcja „Historia kontaktu" w modalu szczegółów kontaktu (`contact-detail-modal`)
 
@@ -3214,6 +3061,7 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 **Zlozonosc:** M
 **Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-073 ✅
 **Zrealizowane:** 2026-05-14
 **Blokuje:** brak
 **Epic:** EPIC-23 Historia etapów kontaktu
@@ -3425,7 +3273,9 @@ protected getStageContext(event: ContactEventResponse): string {
 
 ---
 
-## EPIC-24 Transfer połączenia: agent i kolejka
+## EPIC-24 – Transfer połączenia: agent i kolejka
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (transfer BLIND + konsultacja ATTENDED) i **Kolejka** (transfer BLIND). Obecny UI obsługuje tylko transfer na numer telefonu.
 
@@ -3438,8 +3288,9 @@ Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (tr
 **Złożoność:** S
 **Zależy od:** BE-075, BE-076, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅, BE-076 ✅, BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-077, FE-078, FE-079, FE-080
+**Blokuje:** FE-077, FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3515,7 +3366,7 @@ POST /api/telephony/calls/{callId}/bridge/{secondCallId}
 **Zależy od:** FE-076
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-05-15
-**Blokuje:** FE-078, FE-079
+**Blokuje:** FE-078, FE-079, FE-080, FE-084
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
 
 **Opis:**
@@ -3588,6 +3439,7 @@ protected setTransferTargetType(type: TransferTargetType): void {
 **Złożoność:** M
 **Zależy od:** FE-076, FE-077, BE-075
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-075 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3695,6 +3547,7 @@ protected selectAgent(agent: TransferAgentItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, BE-076
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-076 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** FE-080
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3773,6 +3626,7 @@ protected selectQueue(queue: TransferQueueItem): void {
 **Złożoność:** S
 **Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-077 ✅, BE-078 ✅
 **Zrealizowane:** 2026-05-15
 **Blokuje:** brak
 **Epic:** EPIC-24 Transfer połączenia: agent i kolejka
@@ -3824,7 +3678,9 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 
 ---
 
-## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+## EPIC-25 – Przypisywanie agentów do kampanii
+
+**Ukończone 5/5** (✅ 5 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-081 – Usunięcie pola `queueId` z formularza kampanii
 
@@ -3833,6 +3689,7 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 **Złożoność:** S
 **Zależy od:** BE-079
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-079 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** FE-082
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -3878,8 +3735,9 @@ Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dr
 **Złożoność:** M
 **Zależy od:** BE-080, BE-084, FE-081
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅, BE-084 ✅
 **Zrealizowane:** 2026-05-21
-**Blokuje:** FE-083
+**Blokuje:** FE-083, FE-085
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
 
 **Opis:**
@@ -3983,6 +3841,7 @@ export class CampaignAssignmentModalComponent implements OnInit {
 **Złożoność:** S
 **Zależy od:** FE-082, BE-080
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-080 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4072,8 +3931,6 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 
 ---
 
-## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
-
 ### FE-085 – Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia)
 
 **Typ:** Feature
@@ -4081,6 +3938,7 @@ Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni si�
 **Złożoność:** M
 **Zależy od:** BE-085, FE-082
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-085 ✅
 **Zrealizowane:** 2026-05-21
 **Blokuje:** brak
 **Epic:** EPIC-25 Przypisywanie agentów do kampanii
@@ -4225,7 +4083,9 @@ readonly contactSelected = output<string>();
 
 ---
 
-## EPIC-26: AI-Powered Conversation Summary
+## EPIC-26 – AI-Powered Conversation Summary
+
+**Ukończone 4/4** (✅ 4 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-086 – `AiSummaryService`: serwis Angular do generowania podsumowania AI
 
@@ -4234,6 +4094,7 @@ readonly contactSelected = output<string>();
 **Złożoność:** S
 **Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-090 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** FE-087, FE-088, FE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4386,6 +4247,7 @@ generateAiSummary(): void {
 **Złożoność:** M
 **Zależy od:** BE-088 (TenantAiConfigController), FE-086
 **Status:** ✅ Ukończone
+**Czeka na BE:** BE-088 ✅
 **Zrealizowane:** 2026-05-24
 **Blokuje:** —
 **Epic:** EPIC-26 AI-Powered Conversation Summary
@@ -4500,7 +4362,9 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 
 ---
 
-## EPIC-27: Własne dyspozycje per kampania i kolejka
+## EPIC-27 – Własne dyspozycje per kampania i kolejka
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 ### FE-090 – `CustomDispositionService` i modele — warstwa danych Angular
 
@@ -4880,7 +4744,9 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 
 ---
 
-## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+## EPIC-28 – Per-Tenant Plugin (Extension) System
+
+**Ukończone 6/6** (✅ 6 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Decyzja UI
 > pre-agreed (ADR-12): plugin UI renderowane w cross-origin `<iframe sandbox="allow-scripts
@@ -4897,7 +4763,7 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 **Zależy od:** BE-099, BE-106
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** FE-098, FE-099
+**Blokuje:** FE-098, FE-099, FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -4996,7 +4862,7 @@ uninstall(installationId: string): Observable<void>                             
 **Zależy od:** FE-097
 **Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
-**Blokuje:** —
+**Blokuje:** FE-101, FE-102
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
@@ -5282,7 +5148,9 @@ produkcyjnego flow.
 
 ---
 
-## MODUL: Partycjonowanie i retencja danych z obsługi kontaktów (EPIC-29)
+## EPIC-29 – Partycjonowanie i retencja danych z obsługi kontaktów
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — status epiku: ✅ Zakończony
 
 > Źródło: `DESIGN-data-retention-partitioning.md` (projekt zaakceptowany, 2026-08-08). Backend:
 > BE-118 (REST API). Wszystkie strony tego modułu są ADMIN-only (w odróżnieniu od części innych
@@ -5511,7 +5379,7 @@ frontend/public/i18n/uk.json                                                    
 **Zależy od:** FE-104
 **Status:** ✅ Ukończone
 **Czeka na BE:** BE-118
-**Blokuje:** brak
+**Blokuje:** FE-106
 **Epic:** EPIC-29 Partycjonowanie i retencja danych z obsługi kontaktów
 
 **Opis:**
@@ -5839,3 +5707,1725 @@ zmiany: usunięcie 3 martwych deklaracji pola z `tenant.model.ts` (`TenantConfig
 `CreateTenantRequest.limits`) — zero zmian w komponentach/szablonach. Usunięcie nieopcjonalnego
 `TenantLimits.recording_retention_days` nie ujawniło żadnych błędów kompilacji (nic go nigdzie
 nie konstruowało literalnie).
+
+---
+
+## EPIC-30 – Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+
+**Ukończone 3/4** (✅ 3 · 🔧 0 · ⬜ 0 · 🚫 1) — status epiku: ⚠️ Zamknięty warunkowo
+
+> Źródło: `DESIGN-message-retention-and-partitioning.md` (projekt do akceptacji, analiza 2026-09-20). Backend: BE-126 (usuwanie wiadomości w kategorii `CONTACT_INTERACTIONS`),
+> BE-129 (przepływ RODO), BE-130 (tylko D1 = osobna kategoria). Zakres frontendu jest mały — partycjonowanie i harmonogramy są dla UI przezroczyste; strony retencji pozostają ADMIN-only (kontrakt EPIC-29).
+> **Numeracja:** FE-110…FE-113 (poprzedni najwyższy: FE-109; FE-113 założony w turze 35 — okres archiwizacji kontaktów kampanii per tenant). Wspólne kryteria (WP-7): `npm run lint`, `npm run build`, komplet kluczy i18n w 4 językach
+> (`frontend/public/i18n/{pl,en,de,uk}.json`), testy Vitest zaktualizowane; weryfikacja na żywo w local-demo po przebudowie obrazu (WP-4).
+>
+> Graf zależności warstwy FE (A → B = kolejność wykonania): `BE-126 ✅, BE-128 ✅ → FE-110 ✅`;  `BE-129 → FE-112 ✅`;  `[BE-130 🚫 → FE-111 🚫, tylko D1 = C — zamknięte 2026-09-30, D1 = A]`;  `DB-084 ✅ → BE-151 ✅ → FE-113` (tura 35, okres archiwizacji kontaktów kampanii per tenant; tura 36: WP-1 DB-084 ✅, FE-113 obejmuje podgląd skutku skrócenia okresu).
+
+### FE-110 – „Ustawienia > Retencja danych": opis kategorii „Interakcje z kontaktami" obejmuje wiadomości; odblokowanie „Usuń teraz" dla `CAMPAIGN_DATA`
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-126 ✅, BE-128 ✅, BE-119 ✅
+**Status:** ✅ Ukończone (2026-10-09) — WP-4 (local-demo) zweryfikowane przez użytkownika 2026-10-10 (tura 28), patrz notatka wykonania
+**Czeka na BE:** BE-126 (semantyka: purge kategorii `CONTACT_INTERACTIONS` usuwa też wiadomości e-mail/social i załączniki), BE-128 (liczba kwalifikujących się obejmuje wiadomości); BE-119 (już ukończone — patrz punkt 3)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-126 kategoria `CONTACT_INTERACTIONS` („Interakcje z kontaktami", `supervisor.settings.dataRetention.category.CONTACT_INTERACTIONS`) obejmuje także treść wiadomości e-mail i social media oraz załączniki (DESIGN §3 D1, **zakłada D1 = A**).
+Administrator musi to widzieć w tabeli polityk, na kartach dashboardu i w modalu potwierdzenia nieodwracalnego usunięcia — dziś nic o wiadomościach nie mówi.
+**Przy D1 = C** (osobna kategoria `MESSAGE_CONTENT`) ten ticket ogranicza się do punktu 3, a opis wiadomości przechodzi do FE-111. Przy D1 = B (anonimizacja) tekst zmienia się z „usunięte" na „zanonimizowane".
+
+**Zakres:**
+1. i18n (`pl`, `en`, `de`, `uk`): nowe klucze `supervisor.settings.dataRetention.categoryDescription.CONTACT_INTERACTIONS` (i dla spójności pozostałych 3 kategorii) — pl: „Kontakty, zdarzenia przetwarzania oraz wiadomości e-mail i social media (treść, adresy, załączniki) powiązane z kontaktami";
+   wyświetlone pod nazwą kategorii w tabeli polityk (`data-retention.component.html`) i na kartach dashboardu; rozszerzenie `purgeModal.message` (`purge-confirm-modal.component.html`) o informację, że liczba obejmuje wiadomości i załączniki, oraz o zdanie o nieodwracalności usunięcia załączników w S3.
+   Liczba „rekordów" w podsumowaniu jest sumą różnych typów (kontakty + zdarzenia + wiadomości) — dodaj tooltip/objaśnienie (`RetentionSummaryDto`, BE-128).
+2. Historia operacji: brak zmian kontraktu (`PurgeResultDto`); nagłówek kolumny „Usunięto rekordów" — opcjonalnie objaśnienie, że suma obejmuje wiadomości.
+3. **Dryf po BE-119:** `UNSUPPORTED_PURGE_CATEGORIES` w `data-retention.component.ts` nadal zawiera `CAMPAIGN_DATA` (komentarz: „BE-119 nieukończone"), choć BE-119 jest ukończone, a `RetentionController` zwraca 501 wyłącznie dla `RECORDINGS`. Zweryfikuj kontroler przed zmianą;
+   odblokuj przycisk „Usuń teraz" dla `CAMPAIGN_DATA` (zostaje disabled dla `RECORDINGS` z `purgeUnsupportedHint`), popraw komentarze i testy komponentu.
+
+**Kryteria akceptacji:**
+- [x] Klucze i18n kompletne w 4 językach (porównanie zbiorów kluczy w PR); opisy widoczne w tabeli polityk, na kartach i w modalu potwierdzenia
+- [x] Przycisk „Usuń teraz": aktywny dla `CONTACT_INTERACTIONS`, `TRANSCRIPTS`, `CAMPAIGN_DATA`; disabled z podpowiedzią dla `RECORDINGS` (test komponentu Vitest)
+- [x] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); brak zmian kontraktu API; dostępność (aria) zachowana
+- [x] (WP-4) Local-demo po przebudowie obrazu frontendu: strona `/supervisor/settings/data-retention` pokazuje opisy w każdym języku, modal potwierdzenia zawiera informację o wiadomościach; notatka w pliku zadań, pamięć agenta commitowana razem ze zmianą — **zweryfikowane przez użytkownika w przeglądarce 2026-10-10 (tura 28)**
+
+**Notatka z wykonania (2026-10-09):**
+
+- **i18n (pl/en/de/uk):** `supervisor.settings.dataRetention.categoryDescription.{CONTACT_INTERACTIONS,RECORDINGS,TRANSCRIPTS,CAMPAIGN_DATA}` (tabela polityk + karty dashboardu); tooltipy `summaryEligibleCountHint` (suma różnych typów rekordów) i `history.columnRowsDeletedHint`; akapit `purgeModal.contactInteractionsNote` w modalu purge dla `CONTACT_INTERACTIONS` (wiadomości + nieodwracalność usunięcia załączników w S3).
+- **Dryf po BE-119:** `UNSUPPORTED_PURGE_CATEGORIES` = wyłącznie `RECORDINGS` (zweryfikowane w `RetentionController` / `RetentionPurgeServiceImpl`: 501 tylko dla `RECORDINGS`); „Usuń teraz" odblokowane dla `CAMPAIGN_DATA`. Brak zmian kontraktu API.
+- **Testy:** nowy `data-retention.component.spec.ts` (5 testów). `npm run lint` 0 błędów, `format:check` czysto, `npm run build` OK, `npm test` 21 plików / 264 testy.
+- **Dryf i18n (niezwiązany z FE-110) — NAPRAWIONY w turze 25 (CR 2026-10-10):** brakujące 4 klucze `supervisor.customerDetail.contactStatusLabels.{ASSIGNED,ERROR,NOT_REACHED,TRANSFERRED}` w `de.json` i `uk.json` zostały dodane (wcześniej „zauważone, nie naprawione”); nie jest już otwarty.
+- **WP-4 (local-demo, przebudowa obrazu frontendu):** wykonane w turach 26–27, zweryfikowane przez użytkownika 2026-10-10 (tura 28).
+- **Uwagi z CR 2026-10-10 wprowadzone (tura 25, `CR-FRONTEND.md` 4/5, brak blokerów):** opis `categoryDescription.CAMPAIGN_DATA` przepisany w 4 językach („Zarchiwizowane rekordy kontaktów zakończonych kampanii wychodzących (archiwum)” i odpowiedniki); tooltipy `title` zastąpione widoczną linią `dr-hint` z `aria-describedby`, tylko dla `CONTACT_INTERACTIONS`; `data-retention.component.spec.ts`: usunięte kruche `length===8`, dodany test parytetu kluczy i18n `dataRetention.*` w 4 językach; dryf i18n `contactStatusLabels.*` w de/uk naprawiony; `tsconfig.spec.json` `resolveJsonModule`. Weryfikacja: `npm test` 21 plików / 266 testów, `format:check` czysto, lint 0 błędów. **Follow-upy (NIE założone jako tickety):** wystawić flagę `delete-messages` w DTO (nota o S3 w `purgeModal` prawdziwa tylko przy `true`), wspólny komponent tooltipa, `TRANSCRIPTS` może mieć 2 typy rekordów (niezweryfikowane). **Zależności:** `Zależy od` BE-126 ✅, BE-128 ✅, BE-119 ✅; `Blokuje` brak. WP-4 (local-demo) nadal otwarte.
+- **Poprawki po WP-4 (tura 27, 2026-10-10; bez zmiany statusu i liczników — poprawka zrealizowanego FE-110):** weryfikacja w przeglądarce wykazała 3 usterki, naprawione. (1) Fraza potwierdzenia w modalu „Usuń teraz” była na sztywno polska (`USUŃ`) we wszystkich językach — teraz tłumaczona per język kluczem `supervisor.settings.dataRetention.purgeModal.confirmPhrase` (PL `USUŃ`, EN `DELETE`, DE `LÖSCHEN`, UK `ВИДАЛИТИ`); porównanie bez rozróżniania wielkości liter i z `trim`; `confirmHint` z interpolacją `{{ phrase }}`; usunięta stała `PURGE_CONFIRM_PHRASE`; nowy `purge-confirm-modal.component.spec.ts`. (2) Ta sama poprawka w modalu RODO (`GdprAnonymizeModal` — ticket historyczny, tylko wzmianka, jego status bez zmian): klucz `supervisor.gdprAnonymize.confirmPhrase` (PL `ANONIMIZUJ`, EN `ANONYMIZE`, DE `ANONYMISIEREN`, UK `АНОНІМІЗУВАТИ`), 3 nowe testy. (3) Tabela „Polityki retencji” była ucinana z prawej (`white-space: nowrap` w `.dr-table__category` rozpychał tabelę przez długie opisy kategorii) — opisy się zawijają (min `11rem` / max `22rem`), `.dr-table` `min-width: 40rem`, wrapper `overflow-x: auto`. Testy FE: 22 pliki / 277 testów, wszystkie przechodzą; obraz `cc-frontend` przebudowany. **Zweryfikowane przez użytkownika 2026-10-10 (tura 28):** tabela „Polityki retencji” (wszystkie kolumny widoczne), tłumaczone frazy potwierdzenia w modalach purge i RODO oraz opisy kategorii działają; kryterium WP-4 spełnione. Follow-up (CR): wspólny wzorzec/komponent frazy potwierdzenia dla modali destrukcyjnych.
+---
+
+### FE-111 – [WARUNKOWY: D1 = C] Kategoria `MESSAGE_CONTENT` w UI retencji
+
+**Typ:** Frontend implementation
+**Priorytet:** Could Have (warunkowy — wchodzi wyłącznie przy D1 = osobna kategoria)
+**Złożoność:** M
+**Zależy od:** BE-130 🚫
+**Status:** 🚫 N/A — zamknięte 2026-09-30 (D1 formalnie potwierdzone przez właściciela produktu jako opcja A; ten ticket dotyczył wyłącznie
+wariantu C, patrz DESIGN §3)
+**Czeka na BE:** BE-130 🚫 (N/A, zamknięte)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis i zakres:** `retention.model.ts` (`RetentionDataCategory` += `'MESSAGE_CONTENT'`), `CATEGORY_ORDER` w `data-retention.component.ts` (5 wierszy), tabela polityk, karty dashboardu, historia, globalny badge (FE-108: suma po kategoriach — sprawdź, czy zakłada 4 kategorie),
+i18n 4 języków (`category.MESSAGE_CONTENT`, opis), testy. Zgodność z DTO z BE-130 weryfikowana przeciw Swaggerowi, nie tylko treści ticketu (lekcja FE-103).
+
+**Kryteria akceptacji:**
+- [ ] Nowa kategoria widoczna i edytowalna (retencja w miesiącach, auto-purge) we wszystkich sekcjach strony; badge liczy 5 kategorii; brak regresji dla pozostałych 4
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone; komplet kluczy i18n w 4 językach (WP-7); (WP-4) sprawdzenie w local-demo
+
+---
+
+### FE-112 – Komunikaty RODO: zakres anonimizacji (Art. 17) i zawartość eksportu (Art. 15)
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have (w pierwotnym planie Could; przy D9 = A podgląd jest zabezpieczeniem przed fałszywymi trafieniami w nieodwracalnej operacji)
+**Złożoność:** M (w pierwotnym planie S; dochodzą podgląd D9 i przepięcie listy klientów na jedną ścieżkę anonimizacji)
+**Zależy od:** BE-129 ✅
+**Status:** ✅ Ukończone (2026-09-30, po code review — 3.5/5, dwie poprawki major) — patrz „Notatka z implementacji" i „Code review i poprawki" poniżej
+**Czeka na BE:** BE-129 (podgląd `GET /api/customers/{id}/gdpr/anonymize/preview`, przekierowanie `DELETE /api/customers/{id}` na `GdprService`, kształt manifestu eksportu — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
+**Blokuje:** brak
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:**
+Po BE-129 anonimizacja i eksport klienta obejmują wiadomości e-mail/social (treść, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania oraz obiekty w S3 (nagrania, EML, załączniki). Obecne teksty
+(`supervisor.gdprAnonymize.effect1…effect4`, `supervisor.customerDetail.gdprAnonymizeDesc`, `gdprDownloadNote`) opisują zakres wąsko lub ogólnikowo. **Zakłada D3 = A** (zakres z DB-060); przy D3 = C ticket nie jest wykonywany.
+
+**Zakres:** modal anonimizacji (`features/supervisor/pages/customers/gdpr-anonymize-modal/gdpr-anonymize-modal.component.html`, klucze `supervisor.gdprAnonymize.*`): lista „Skutki anonimizacji" (`effect1`…`effect4`; dziś: imię i nazwisko, telefony, e-maile, „historia kontaktów zostanie zachowana bez danych osobowych")
+uzupełniona o: wiadomości e-mail i social media (treść, adresy, załączniki), zaplanowane oddzwonienia, rekordy kampanii (operacyjne i archiwum), notatki kontaktów, transkrypcje i podsumowania, nagrania i pliki w magazynie plików; korekta zdania `effect4`, jeśli przestaje być prawdziwe;
+sekcja „Prawa RODO" (`supervisor.customerDetail.gdprExportTitle`, `gdprDownloadNote`, `gdprAnonymizeTitle`, `gdprAnonymizeDesc`): opis zawartości paczki ZIP i zakresu anonimizacji; zachowane ostrzeżenie o nieodwracalności; obsługa ostrzeżenia o częściowym niepowodzeniu sprzątania S3
+(jeśli BE-129 je zwraca — sprawdź kontrakt); i18n 4 języków; testy modalu.
+
+**Uzupełnienie z DB-060 (2026-09-20) — druga ścieżka anonimizacji i podgląd D9:**
+- **Lista klientów używa surowego DELETE [DB-060 F8.4]:** `customer-list.component.ts` (`onDeleteConfirmed` → `CustomerService#deleteCustomer` → `DELETE /api/customers/{id}`, modal `CustomerDeleteModalComponent` z kluczami `supervisor.customerDelete.*`, komunikaty `supervisor.gdprAnonymize.successAnonymize`/`errorAnonymize`) —
+  po BE-129 ta ścieżka wywołuje tę samą implementację co `POST …/gdpr/anonymize`. **Zalecane: lista otwiera ten sam modal GDPR co szczegóły klienta (`GdprAnonymizeModalComponent` + `GdprService#anonymize`, z podglądem liczników), a `customer-delete-modal` zostaje usunięty (albo zredukowany do delegacji)** — jedna ścieżka UI i jedne komunikaty.
+  Jeśli BE-129 zachowa kontrakt `DELETE` i lista pozostanie przy `customer-delete-modal`, zaktualizować przynajmniej `supervisor.customerDelete.message1`/`message2`/`warning` do pełnego zakresu (jak w modalu GDPR).
+- **Podgląd D9 (założenie A):** modal GDPR przed potwierdzeniem woła `GET /api/customers/{id}/gdpr/anonymize/preview` (BE-129) i pokazuje liczniki per zbiór (kontakty, wiadomości, callbacki, rekordy kampanii, pliki) oraz osobno trafienia „po powiązaniu" i „po numerze/adresie";
+  przy `matched_by_identifier > 0` czytelne ostrzeżenie (klucze `supervisor.gdprAnonymize.preview*`, np. „Dopasowano także rekordy po numerze telefonu lub adresie e-mail — sprawdź, czy dotyczą tej samej osoby") i **wymagane jawne potwierdzenie** (istniejący mechanizm wpisania frazy zostaje); błąd lub timeout podglądu blokuje potwierdzenie. Przy D9 = B — bez podglądu i bez tych kluczy.
+- Eksport (Art. 15): opis, że archiwum zawiera manifest kluczy plików i linki do pobrania (presigned, wygasają) zamiast samych plików; obsługa komunikatu o częściowym niepowodzeniu (jeśli BE-129 je zwraca).
+
+**Kryteria akceptacji:**
+- [ ] Komunikaty w 4 językach wymieniają dokładnie zakres z BE-129/DB-060; ostrzeżenie o nieodwracalności zachowane; kontrakt endpointów (`POST /api/customers/{id}/gdpr/export|anonymize`) bez zmian po stronie FE (dochodzi wyłącznie podgląd D9)
+- [ ] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); (WP-4) sprawdzenie w local-demo na kliencie testowym; notatka + pamięć agenta commitowana razem ze zmianą
+- [ ] Lista klientów i szczegóły klienta korzystają z jednej ścieżki anonimizacji (modal GDPR z podglądem wg D9); `customer-delete-modal` usunięty albo zaktualizowany — test komponentu listy (Vitest): akcja anonimizacji otwiera modal GDPR, sukces i błąd pokazują te same komunikaty
+- [ ] (D9 = A) Modal pokazuje liczniki podglądu i ostrzeżenie przy `matched_by_identifier > 0`; potwierdzenie możliwe dopiero po załadowaniu podglądu i wpisaniu frazy; błąd podglądu blokuje potwierdzenie (test)
+- [ ] Nowe klucze i18n (`supervisor.gdprAnonymize.preview*`) w 4 językach; zmienione/usunięte klucze `supervisor.customerDelete.*` bez martwych odwołań (grep)
+
+**Notatka z implementacji (angular-frontend-expert, 2026-09-30):**
+Zaimplementowano w całości, wariant zalecany (unifikacja), bez ścieżki awaryjnej.
+
+Kształt `AnonymizePreviewResponse` zweryfikowany w kodzie (`backend/app/src/main/java/com/contactcenter/api/customer/dto/AnonymizePreviewResponse.java` +
+`GdprServiceImpl#toPreviewResponse`) — Jackson serializuje rekord domyślnie camelCase (brak globalnej `SNAKE_CASE` strategii dla tego kontrolera, w
+przeciwieństwie do `AiSummaryClient`/`VoicebotClientImpl`): `{ dryRun, counts: { <nazwa_tabeli>: n, ... }, matchedByLink, matchedByIdentifier,
+s3ObjectsToDelete }`. Klucze ticketu (`matched_by_link`/`matched_by_identifier`) to nazewnictwo z warstwy SQL/JSONB, nie z kontraktu REST — FE użył
+`matchedByLink`/`matchedByIdentifier`. Klucze `counts` (nazwy tabel: `customer`, `contact`, `scheduled_callback`, `campaign_contact`,
+`campaign_contact_archive`, `contact_transcription`, `contact_ai_summary`, `email_message`, `social_message`, `contacts_dw`) są kopiowane 1:1 z JSONB
+funkcji SQL `anonymize_customer` (V096) i renderowane dynamicznie (nieznany przyszły klucz nie wywala UI, ląduje na końcu listy).
+
+`DELETE /api/customers/{id}` zweryfikowane jako pełne przekierowanie do `GdprService#anonymizeCustomer` (identyczny efekt co `POST .../gdpr/anonymize`,
+`CustomerController.java:257-279`) — unifikacja UI na `GdprAnonymizeModalComponent` bezpieczna. `customer-delete-modal` (3 pliki) usunięty w całości;
+`customer-list.component.ts` przełączony na ten sam modal/serwis co `customer-detail` (`openAnonymizeModal`/`closeAnonymizeModal`/
+`onGdprAnonymizeConfirmed`). `CustomerService#deleteCustomer` pozostawiony bez zmian (nadal poprawny wrapper na istniejący, udokumentowany endpoint
+backendu) — świadomie nieużywany już z UI, ale nieusunięty (poza jawnym zakresem ticketu, zero ryzyka pozostawienia).
+
+Punkt o "częściowym niepowodzeniu sprzątania S3" **pominięty celowo**: `POST /api/customers/{id}/gdpr/anonymize` zwraca `204 No Content` bez body
+(`GdprController.anonymizeCustomer` → `ResponseEntity<Void>`) — `GdprServiceImpl.anonymizeCustomer` liczy `failedKeys` wewnętrznie, ale wyłącznie loguje
+(`log.error`), nie zwraca do wywołującego. Brak DTO = brak możliwości pokazania tego w UI bez zmiany backendu (poza zakresem — "zero zmian w backendzie").
+
+Podgląd D9 ma jawny `timeout(15000ms)` (RxJS) + `catchError` — zawieszony request (nie tylko HTTP 4xx/5xx) też ustawia `previewState = 'error'` i blokuje
+potwierdzenie, zgodnie z AC. `isConfirmEnabled()` wymaga `previewState() === 'loaded'` oprócz dotychczasowej frazy `ANONIMIZUJ`.
+
+Testy: nowy `gdpr-anonymize-modal.component.spec.ts` (24 testy — preview load/sort/labels, gating potwierdzenia, timeout, retry, sukces/błąd anonimizacji,
+escape/cancel). `customer-list.component.spec.ts` zaktualizowany — 3 testy renderują PRAWDZIWY `GdprAnonymizeModalComponent` (nie stub) i sterują nim
+bezpośrednio, żeby udowodnić identyczne komunikaty sukcesu/błędu jak na stronie szczegółów klienta. `npm run lint` / `npm run build` / `npm test` — zielone
+(247/247 testów, 18 plików spec — to cały istniejący zestaw testów frontendu w tym repo, nie tylko customers/).
+
+Weryfikacja na żywo (WP-4): stack `docker compose ... local-demo` był uruchomiony (`cc-backend`/`cc-frontend`/`cc-nginx` healthy), obraz `cc-frontend`
+przebudowany i podmieniony (`docker compose build frontend && up -d frontend`, potwierdzone `curl http://localhost:80/` z poprawnym, świeżym HTML z hosta
+sandboxa). Wizualna weryfikacja przez `claude-in-chrome` **nie powiodła się** — przeglądarka rozszerzenia nie ma dostępu do sieci Dockera tego sandboxa
+(`http://localhost/` dało błąd nawigacji w rozszerzeniu, mimo że `http://example.com/` załadował się poprawnie w tej samej karcie — potwierdzone
+screenshotem), tzn. "localhost" w przeglądarce rozszerzenia to inny host niż ten, na którym stoi docker-compose. Nie ustawiałem `socat`
+port-forward (to obejście problemu z portem backendu przy `npm start`, nie z tym — przeglądarka i sandbox to najwyraźniej różne sieci/hosty w tej sesji).
+Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod źródłowy + migracja SQL V096) i przez testy jednostkowe zamiast tego.
+
+**Code review i poprawki (2026-09-30):** `CR-FRONTEND.md`, sekcja „Review: FE-112" — werdykt **3.5/5 ⭐, brak blokerów**. Recenzent potwierdził niezależnie (`npm run lint`/`build`/`test`/`prettier --check`) unifikację ścieżki anonimizacji (grep — zero pozostałych odwołań do usuniętego `customer-delete-modal`), pełne i18n w 4 językach dla wszystkich nowych/usuniętych kluczy oraz solidne pokrycie testami całego automatu stanów bramkowania podglądu D9 (`gdpr-anonymize-modal.component.spec.ts`, 24 testy).
+- **Oba ustalenia „major" — NAPRAWIONE:**
+  - Podwójny komunikat błędu przy nieudanym załadowaniu podglądu (`GdprService#previewAnonymize()`/`#anonymize()` nie ustawiały `HttpContext` z `SKIP_ERROR_TOAST`, więc globalny `errorHandlerInterceptor` pokazywał toast RÓWNOLEGLE z lokalną obsługą błędu modala) — naprawione dodaniem `{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }` do obu wywołań w `gdpr.service.ts` (wzorzec 1:1 z `social-integration.service.ts`).
+  - Niespójność i18n `supervisor.gdprAnonymize.confirmHint` w `de.json`/`uk.json` — podpowiedź instruowała operatora, by wpisał zlokalizowane słowo („ANONYMISIEREN"/„АНОНІМІЗУЙ"), którego kod nigdy nie zaakceptuje (`isConfirmEnabled()` porównuje zawsze z niełamanym na lokalizacje `'ANONIMIZUJ'`) — ujednolicone do `ANONIMIZUJ` we wszystkich 4 językach, zgodnie z etykietą pola.
+- **Pozostałe ustalenia (minor/nit — brak `takeUntilDestroyed` na subskrypcji podglądu, `previewBlockedHint` widoczny razem z komunikatem błędu, brak rozróżnienia HTTP 409 przy błędzie anonimizacji, brak etykiety i18n dla nowego klucza `audit_log` z BE-142/V098, martwy `CustomerService#deleteCustomer()`) — świadomie NIE naprawione teraz:** niski wpływ, udokumentowane w review jako kandydaci do przyszłej poprawki.
+- Zweryfikowane niezależnie po poprawkach: `npm run lint` (0 błędów), `npm run build` (sukces), `npm test` (247/247), `npx prettier --check` na zmienionych plikach (zgodne).
+
+### FE-113 – „Ustawienia > Retencja danych”: pole „Okres archiwizacji kontaktów kampanii (dni)”
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S/M (tura 36: korekta z S — dochodzi podgląd skutku w potwierdzeniu skrócenia okresu)
+**Zależy od:** BE-151 ✅ (ukończony 2026-10-11, tura 38, commit `760fb263`)
+**Status:** ✅ Ukończone (2026-10-17, tura 40 — zacommitowane `81c5561e`; code review 2026-10-18 3,5/5, poprawki po review w `67c85f8c` (tura 43; `npm test` 316/316 w 24 plikach, eslint i `format:check` czyste); kod + testy Vitest; NIEZWERYFIKOWANE w przeglądarce — WP-4 OPCJONALNE (nie blokuje zamknięcia EPIC-30), do potwierdzenia przez właściciela; wcześniej: ⬜, odblokowany w turze 38 — BE-151 ✅; założony 2026-10-11, tura 35, decyzja właściciela: okres archiwizacji konfigurowalny w GUI)
+**Czeka na BE:** BE-151 ✅ (kontrakt poniżej; przed startem zweryfikować przeciw Swaggerowi — dotąd NIE oglądany; kształt pola/zasobu w endpointach polityk retencji — weryfikować przeciw Swaggerowi, nie tylko treści ticketu)
+**Blokuje:** WP-4 BE-120 (włączenie flagi `retention.campaign-archive.enabled` w demo wymaga ustawienia okresu ≤ 90–120 dni w GUI — za zgodą właściciela; adnotacja procesowa, nie formalna zależność kodu)
+**Epic:** EPIC-30 Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości (mianownik EPIC-30 58 → 61 razem z BE-151 i FE-113; tura 35, 2026-10-11)
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** **[KOREKTA TURY 36: etykieta pola wg decyzji P2 = `campaign.ended_at`: „Okres archiwizacji kontaktów kampanii (dni od zakończenia kampanii)”; data odniesienia = zakończenie kampanii (`ended_at`), nie „ostatnia modyfikacja”.]** na stronie „Retencja danych” (`/supervisor/settings/data-retention`, komponent `features/supervisor/pages/settings/data-retention/data-retention.component.ts`, serwis `features/supervisor/services/retention.service.ts`, strony retencji pozostają ADMIN-only) dodać edytowalne pole **„Okres archiwizacji kontaktów kampanii (dni)”** — ustawienie PER TENANT (bez nadpisania per kampania), wartość domyślna 180, zakres 30–730. Okres to opóźnienie PRZED archiwizacją kontaktów zakończonych kampanii (`COMPLETED`/`STOPPED`) i NIE jest okresem retencji `CAMPAIGN_DATA` (miesiące, liczone od archiwizacji) — etykieta/opis muszą to rozróżniać, by operator nie mylił dwóch pól.
+
+**Zakres:**
+- Pole liczbowe (dni) przy kategorii „Dane kampanii” (`CAMPAIGN_DATA`) albo w osobnej, opisanej sekcji — lokalizacja wg kształtu API z BE-151; **[KOREKTA TURY 36: kształt rozstrzygnięty — osobny zasób `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` (BE-151, model (B)), więc pole to OSOBNA sekcja/karta (wizualnie przy „Dane kampanii”); NOWE typy w `retention.model.ts` (np. `CampaignArchiveSettingDto { archiveAfterDays; isDefault; defaultDays; minDays; maxDays }`, typ odpowiedzi podglądu) i NOWE metody w `RetentionService`; istniejące `RetentionPolicyDto`/`UpdateRetentionPolicyRequest` i metody BEZ ZMIAN.]** wartość początkowa z API (efektywna; przy braku jawnej — 180, z oznaczeniem „domyślna”); signal/computed zgodnie z regułami frontendu (standalone, `signal()`).
+- Walidacja klienta 30–730 (liczby całkowite): komunikaty błędu i blokada zapisu poza zakresem; obsługa błędu walidacji zwróconego przez backend (422/400) bez podwójnego toastu (wzorzec `SKIP_ERROR_TOAST` jak w FE-112).
+- Zapis przez ISTNIEJĄCY serwis (`RetentionService`; nowa metoda/rozszerzenie żądania zgodnie z BE-151), stan „zapisano/błąd”.
+- **Opis/tooltip w 4 językach (`frontend/public/i18n/{pl,en,de,uk}.json`, klucze pod `supervisor.settings.dataRetention.*`)** z OSTRZEŻENIEM: po archiwizacji kontakty kampanii znikają z UI, statystyk i dialera (nie ma widoku archiwum); skrócenie okresu powoduje, że przy najbliższym przebiegu zostaną zarchiwizowane kampanie zakończone dawniej niż nowy okres; zmiana nie przywraca już zarchiwizowanych kontaktów. Przy zapisie wartości SKRACAJĄCEJ okres — dodatkowe potwierdzenie (modal/confirm w istniejącym stylu strony). **[TURA 36 (P5 = TAK): potwierdzenie pokazuje PODGLĄD SKUTKU z endpointu podglądu BE-151 — konkretną liczbę kampanii i kontaktów, które przy nowej wartości zostaną zarchiwizowane przy najbliższym przebiegu (zamiast ogólnego ostrzeżenia); stan ładowania/błędu podglądu (błąd podglądu nie blokuje świadomego potwierdzenia, ale jest widoczny), komplet 4 języków, signal-based.]**
+- Brak martwych/niezamieszczonych kluczy i18n (grep), komplet 4 języków.
+
+**Kryteria akceptacji:**
+- [x] Pole widoczne dla ADMIN na stronie Retencja danych, pokazuje wartość z API (180 dla tenanta bez jawnej wartości), etykieta rozróżnia „okres archiwizacji (dni)” od „retencji danych kampanii (miesiące)” *(tura 40: komponent `app-campaign-archive-setting`, plakietka „Domyślne (180)” / „Ustawione ręcznie”; potwierdzone testami Vitest; wygląd w przeglądarce NIEZWERYFIKOWANY)*
+- [x] Walidacja 30–730: wartości 29 i 731, puste i niecałkowite blokują zapis z komunikatem; 30, 180, 730 zapisują się (testy Vitest) *(tura 40: Vitest)*
+- [x] Zapis przez istniejący serwis (`RetentionService`); sukces i błąd backendu (w tym 422/400) pokazują jeden, spójny komunikat (test) *(tura 40: Vitest; błędy 422/403 inline; PUT na żywym backendzie NIE testowany)*
+- [x] **Podgląd skutku (P5):** potwierdzenie skrócenia okresu wyświetla liczby z podglądu (kampanie/kontakty) dla nowej wartości; przy 0/0 komunikat „nic nie zostanie zarchiwizowane”; błąd podglądu obsłużony (test Vitest, mock `RetentionService`); etykieta pola zawiera „dni od zakończenia kampanii” w 4 językach *(tura 40: Vitest; UWAGA — odstępstwo od „preview przed każdym zapisem”: podgląd i dialog „Skróć i zapisz” tylko przy SKRACANIU okresu, wydłużenie zapisuje od razu)*
+- [x] Tooltip/opis w pl/en/de/uk z ostrzeżeniem o znikaniu kontaktów z UI/statystyk/dialera po archiwizacji; skrócenie okresu wymaga potwierdzenia (test) *(tura 40: klucze w 4 językach; tłumaczenia de/uk BEZ przeglądu native speakera)*
+- [x] `npm run lint`, `npm run build`, `npm test` zielone (WP-7); `npm run format:check` zgodne *(tura 40: niezależnie `npm test` 302/302 w 24 plikach, eslint czysty dla plików FE-113, `format:check` OK, kontener `cc-frontend` przebudowany w demo)*
+- [x] (WP-4, **OPCJONALNE od tury 43 — nie blokuje zamknięcia EPIC-30**; **POTWIERDZONE przez właściciela 2026-10-22 (tura 45)**, zakres poniżej) sprawdzenie w local-demo po przebudowie obrazu: odczyt i zapis wartości na tenancie testowym; flaga archiwizacji w demo pozostaje wyłączona (nie włączać w ramach tego ticketu) **[TURA 45, 2026-10-22: właściciel przeszedł w przeglądarce listę weryfikacji FE-113 (sekcje A–H: widok i stan domyślny w jasnym i ciemnym motywie, walidacja pola 30–730, dialog skrócenia okresu z podglądem przyrostu — Escape/fokus na Anuluj/brak podwójnego żądania/aktualna wartość w podglądzie, wydłużenie z zapisem od razu i cofnięcie do 180, błędy i uprawnienia, dostępność klawiaturą, języki pl/en/de/uk, responsywność ~375 px) i potwierdził w chacie ogólnie „sprawdzone, jest OK”. ZAKRES POTWIERDZENIA: właściciel NIE podał szczegółowych wyników per punkt; tłumaczenia de/uk: właściciel nie zgłosił uwag w teście w przeglądarce; formalny przegląd native speakera nie wykonany; czytnik ekranu: niepotwierdzone (nie wiadomo, czy sprawdzany); format daty niezależny od języka pozostaje znanym długiem.]**
+- [x] DoD: kod + testy Vitest, code review, notatka wykonania; pamięć agenta commitowana razem ze zmianą **[TURA 40: kod + testy Vitest ✅ (`81c5561e`); OTWARTE: code review, WP-4. TURA 43: code review ✅ (2026-10-18, 3,5/5; poprawki w `67c85f8c`, testy komponentu 16→36); WP-4 to osobne, opcjonalne kryterium powyżej; „pamięć agenta commitowana razem ze zmianą” nie była sprawdzana w tej turze.]**
+
+**Ryzyka:** (R1) kształt API zależny od modelu danych z DB-084 — nie zaczynać przed publikacją Swaggera BE-151; (R2) ryzyko pomylenia z retencją `CAMPAIGN_DATA` (miesiące) — etykiety i opisy muszą jednoznacznie rozdzielać jednostki.
+**Nie wchodzi w zakres:** backend/migracje (BE-151, DB-084), nadpisanie per kampania, widok archiwum kontaktów, włączanie flagi archiwizacji.
+**Zależności:** `Zależy od` BE-151 ✅ (`Czeka na BE` BE-151 ✅; w tym endpoint podglądu). **Adnotacja (tura 38, 2026-10-11):** BE-151 ✅ (`760fb263`). Kontrakt dla FE-113 (zgodny z DTO w kodzie; NIE weryfikowany przeciw Swagger UI): `GET/PUT /api/tenants/{tenantId}/retention/campaign-archive` -> `{ archiveAfterDays, isDefault, defaultDays, minDays, maxDays, updatedBy, updatedAt, warning }`; `GET .../preview?archiveAfterDays=N` -> `{ currentDays, newDays, campaignsToArchive, contactsToArchive, campaignsToArchiveAtCurrentDays, contactsToArchiveAtCurrentDays, additionalCampaigns, additionalContacts, shortensPeriod }` (`additional*` ujemne przy wydłużeniu okresu); błędy walidacji (poza 30–730, nie-całkowita, null) = 422. Uwagi: podgląd liczy tylko kampanie z wierszami w `campaign_contact` (kampanie już w pełni zarchiwizowane nie są liczone); `warning` w GET/PUT to tekst ostrzeżenia z backendu; podgląd bez limitu czasu na dużych wolumenach (FE: stan ładowania, nie blokować potwierdzenia przy błędzie). V136–V139 zastosowane na żywej bazie local-demo 2026-10-11 17:44 UTC [KOREKTA TURY 39 (2026-10-12); w chwili zapisu: niezastosowane, max 135, wymagany restart backendu] — WP-4 FE-113 wymaga już tylko uzgodnienia z właścicielem; flaga archiwizacji w demo pozostaje wyłączona. Blokuje WP-4 BE-120. **Uwaga z smoke-testu BE-151 (tura 39, 2026-10-12, GET na żywym backendzie):** w JSON pole nazywa się `isDefault`; klucze `updatedBy`/`updatedAt` są POMIJANE gdy null — w modelu FE oznaczyć jako opcjonalne (`updatedBy?`, `updatedAt?`), nie zakładać obecności klucza z `null`. Preview: 422 z komunikatem „Okres archiwizacji musi mieścić się w zakresie 30-730 dni (podano: N)”, 403 dla cudzego tenantId, 401 bez tokena; preview N=30/90 -> 30 kampanii/37 kontaktów, N=180 -> 0/0, `shortensPeriod` true przy skróceniu.
+**Notatka wykonania (tura 40, 2026-10-17):** zacommitowane `81c5561e` — sekcja „Okres archiwizacji kontaktów kampanii (dni od zakończenia kampanii)” na stronie Retencja danych (komponent `app-campaign-archive-setting`, rozszerzone `retention.service`/`retention.model`, i18n pl/en/de/uk, testy Vitest). UX: pole 30–730, plakietka Domyślne (180) / Ustawione ręcznie, SKRÓCENIE okresu → dialog z podglądem skutku (preview) i przyciskiem „Skróć i zapisz”, WYDŁUŻENIE zapisuje od razu (odstępstwo od „preview przed każdym zapisem”), błędy 422/403 inline. **Zależności po zamknięciu:** FE-113 ✅ odblokowuje WP-4 BE-120 (ustawienie okresu ≤ 90–120 dni w GUI i ponowne włączenie flagi w demo — wyłącznie za zgodą właściciela; flaga nadal `false`). **NIEZWERYFIKOWANE:** wygląd/zachowanie w przeglądarce, Escape/fokus dialogu, PUT na żywo, tłumaczenia de/uk (brak przeglądu native speakera), code review.
+**Poprawki po code review (tura 43, commit `67c85f8c`; ocena review 3,5/5 z 2026-10-18, wszystkie punkty wymagane i zalecane poprawione):** dialog pokazuje PRZYROST (`additionalCampaigns`/`additionalContacts`) zamiast sumy (#2); forma neutralna zamiast pluralizacji — brak ICU w projekcie (#1); trwały kontener `aria-live="polite"` na wynik podglądu oraz `role="alertdialog"` (#3); anulowanie wyścigu podglądu i odrzucanie odpowiedzi z innym `newDays` (#4); guard podwójnego `save()` (#5); obsługa 400/403 z testami (#6); `onInput` zamiast `$any` (#8); testy komponentu 16→36 (#7). `npm test` 316/316 w 24 plikach, eslint i `format:check` czyste.
+**Znany dług (tura 43, świadomie niezmieniony):** format daty `dd.MM.yyyy HH:mm` jest niezależny od języka (punkt #9 review) — zmiana wymaga rejestracji locale `de`/`uk`; zapisane jako znany dług, bez ticketu.
+**Weryfikacje OPCJONALNE (WP-4, NIEZWERYFIKOWANE, nie blokują zamknięcia EPIC-30):** wygląd w obu motywach, Escape/fokus dialogu, `PUT` na żywym backendzie w przeglądarce, tłumaczenia de/uk bez przeglądu native speakera.
+
+## EPIC-32 – UX i dostępność stanowiska agenta
+
+**Ukończone 24/34** (✅ 24 · 🔧 0 · ⬜ 10 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-130, FE-135…FE-140, FE-142, FE-144, FE-146 oraz BE-153…BE-157 (precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+
+> Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
+> **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE).
+> **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60; FE-127 ✅ i FE-128 ✅ tura 61) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
+>
+> **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
+> - **WP-1** `npm run lint` — 0 błędów; `npm run format:check` zgodne; `npm test` (Vitest) zielone (punkt odniesienia: 410 testów po FE-114; 420 testów / 33 pliki po FE-115 + FE-117; 424 testy / 34 pliki po FE-116 + FE-118).
+> - **WP-2** komplet kluczy i18n w `frontend/public/i18n/{pl,en,de,uk}.json`, brak martwych kluczy (grep), poprawne diakrytyki, forma neutralna płciowo.
+> - **WP-3** kontrast WCAG 2.1 AA w OBU motywach (jasny i ciemny): tekst ≥ 4,5:1 (duży ≥ 3:1), elementy interfejsu i fokus ≥ 3:1; zero nowych literałów hex (The Token-Only Rule).
+> - **WP-4** obsługa z klawiatury (fokus widoczny, kolejność Tab, Esc, brak pułapek fokusu).
+> - **WP-5** weryfikacja w przeglądarce w local-demo po przebudowie obrazu frontendu (`docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --build frontend`), w obu motywach i przy 1366×768; wynik odnotowany w tickecie (nie „NIEZWERYFIKOWANE” bez powodu).
+> - **WP-6** code review `senior-code-reviewer` (wpis w `CR-FRONTEND.md`), `/verify` przed commitem; pamięć agenta commitowana razem ze zmianą.
+> - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
+> - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
+>
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 → FE-136`;  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143 ✅` (tura 60; zamknięty w turze 62; wzorzec naprawy reaktywności z FE-129);  `FE-143 ✅ → FE-146` (tura 62; backlog, nie blokuje epiku; ten sam wzorzec w pozostałych ekranach);  `FE-125 ✅ → FE-141 ✅` (zamknięty w turze 62);  `FE-141 ✅ → FE-140` (tura 62: wspólny wzorzec hover `opacity: .88` zamiast `color-mix(... black)` w 4 plikach);  `FE-128 ✅ → FE-145 ✅` (zamknięty w turze 62);  `FE-147 ✅` (bez zależności; niestabilny test, zamknięty w turze 63 jako zabezpieczony, nieodtworzony).
+
+### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
+
+**Typ:** Frontend implementation (a11y / UX hardening)
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-10-21, commit `322db0c1` na gałęzi `fix/agent-incoming-call-hardening` — **przed merge do `develop`**; `npm test` 410 testów FE; code review `CR-FRONTEND.md` 2026-10-21, 3,5/5). **Kryterium otwarte:** test z PRAWDZIWYM połączeniem przychodzącym (dotąd tylko symulacja w przeglądarce).
+**Czeka na BE:** brak
+**Blokuje:** FE-120 (domknięcia po hardeningu), pośrednio FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Zamknięcie dwóch P0 z krytyki 2026-10-21 („Przychodzące połączenie może zniknąć”, „Brak skrótów klawiszowych”). Dzwonienie zamyka Kalendarz, aktywuje kartę telefonu i przenosi fokus na „Odbierz” (bez kradzieży fokusu z pola tekstowego), z jednorazowym komunikatem `role="alert"`. Baner poza pulpitem: „Odbierz” odbiera, „Odrzuć” zamiast „Zamknij”, warstwa `popover` nad otwartym modalem, odbiór bez nawigacji gdy otwarty jest modal („Rozmowa w toku”). Skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga skrótów (AltGr ignorowany). Menu statusu i karty kontaktów obsługiwane z klawiatury. `CallLifecycleService` (root) przejmuje przejścia BUSY / AFTER_CONTACT niezależnie od pulpitu. Esc w 6 modalach synchronizuje stan i oddaje fokus; dyspozycja blokuje Esc. Dodatkowo `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` i snapshot krytyki.
+
+**Zakres (zrealizowany, `git show --stat 322db0c1`: 44 pliki, +4006/−350):**
+- Nowe: `AgentHotkeysService`, `CallLifecycleService`, komponent `agent-shortcuts-cheat-sheet`, `shared/utils/focus.util.ts`, `shared/utils/router-url.util.ts`, model skrótów; zmiany w `IncomingCallAlertService`, `IncomingCallBannerComponent`, `AgentShellComponent`, `AgentDesktopComponent`, `SoftphoneComponent`, 6 modalach (dyspozycja, przerwa, oddzwonienia, e-mail ad hoc, manual-callback).
+- Klucze i18n w pl/en/de/uk (`incomingCall.*`, `desktop.ringingAnnouncement*`, `shortcuts.*`).
+- Testy: `agent-hotkeys.service.spec.ts`, `call-lifecycle.service.spec.ts`, `incoming-call-alert.service.spec.ts`, `incoming-call-banner.component.spec.ts`, `dialog-escape.spec.ts`, rozszerzony `agent-desktop.component.spec.ts`.
+
+**Kryteria akceptacji:**
+- [x] Dzwonienie zamyka Kalendarz, aktywuje kartę PHONE i ustawia fokus na „Odbierz”; jednorazowe ogłoszenie `role="alert"` (testy Vitest)
+- [x] Baner poza pulpitem: „Odbierz” odbiera, „Odrzuć” zamiast „Zamknij”, widoczny nad otwartym modalem
+- [x] Skróty Ctrl+Alt+Enter / Ctrl+Alt+Backspace / Ctrl+Alt+M i `?` działają; AltGr ignorowany (Ctrl+Alt+End zastąpiony Backspace — kolizja z Ctrl+Alt+Del w RDP/VDI, review)
+- [x] Esc w natywnych dialogach nie rozsynchronizowuje stanu i zwraca fokus; dyspozycja blokuje Esc
+- [x] Menu statusu i karty kontaktów obsługiwane z klawiatury (wzorce WAI-ARIA menu/tabs)
+- [x] `npm test` 410 testów zielone
+- [ ] Test z prawdziwym połączeniem przychodzącym (Twilio/SIP) w local-demo — **otwarte**; dotąd tylko symulacja w przeglądarce
+- [ ] Merge gałęzi `fix/agent-incoming-call-hardening` do `develop` — **otwarte**
+
+**Ryzyka:** (R1) zachowanie na prawdziwym połączeniu (wyścig WS vs Twilio, `answerCall()` przy już aktywnej sesji) potwierdzone tylko symulacją; (R2) `preventDefault` na `cancel` w dyspozycji może nie wytrzymać drugiego Esc w Chromium (review, do weryfikacji w Chrome).
+**Nie wchodzi w zakres:** punkty otwarte po hardeningu — trafiają do FE-120/FE-121/FE-122.
+**Notatka wykonania (2026-10-21):** commit `322db0c1`; ticket założony wstecznie w turze 47 (2026-10-23) jako FE-114 EPIC-32.
+
+### FE-115 – Kontrast tokenów: tekst wyciszony, tekst na akcencie/danger/success, obramowania kontrolek
+
+**Typ:** Frontend implementation (design tokens / a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-10-23, tura 48; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` 2026-10-23, 4/5; `/verify` OK). **Niespełnione kryteria przeniesione do FE-116** (obramowania kontrolek z własnym borderem w komponentach — zob. kryteria poniżej).
+**Czeka na BE:** brak
+**Blokuje:** FE-116 (odblokowany ✅), FE-118 (odblokowany ✅), FE-124
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` (dobór wartości OKLCH) + `angular-frontend-expert` (wdrożenie, testy)
+
+**Opis:** Audyt 2026-10-22 (P1): `--text-muted` ma kontrast 2,4–3,2:1 w obu motywach (79 użyć w tekście), `--text-3` w jasnym motywie 4,04–4,28:1, biały tekst na wypełnieniach accent/danger/success w jasnym motywie 4,05–4,31:1 (< 4,5:1). P2: obramowania kontrolek 1,3–1,4:1 (< 3:1, WCAG 1.4.11). Krytyka dodaje: `--text-muted` w ciemnym motywie 2,8–3,2:1. Ticket koryguje wartości tokenów w `frontend/src/styles.scss` tak, by spełniały WCAG 2.1 AA, bez łamania charakteru „Well-Lit Workbench”.
+
+**Zakres:**
+- Pomiar bazowy: skrypt/tabela kontrastów dla par tekst/tło (`--text`, `--text-2`, `--text-3`, `--text-muted`, `accent/danger/success` + tekst na nich) w obu motywach — zapis w notatce wykonania (przed i po).
+- Korekta `--text-muted` i `--text-3` (≥ 4,5:1 na `--surface`, `--bg` i tle `--surface-2`/ramki tabel) w obu motywach.
+- Tekst na wypełnieniach: wprowadzić token `--on-accent` (lub ściemnić wypełnienia accent/danger/success) tak, by tekst na pełnym wypełnieniu miał ≥ 4,5:1 w jasnym motywie; zachować `--accent-fg` jako alias, nie łamać istniejących użyć.
+- Obramowania kontrolek (input, select, checkbox, radio, przyciski obramowane): osobny token (np. `--border-control`) ≥ 3:1 względem tła; `--border-1` dla kart i tabel zostaje subtelny (nie jest kontrolką).
+- Aktualizacja `DESIGN.md` (sekcje kolorów i komponentów) i `.impeccable/design.json` — nowe wartości i tokeny.
+
+**Kryteria akceptacji:**
+- [x] Tabela pomiarów w notatce wykonania; wszystkie pary tekst/tło z zakresu ≥ 4,5:1 (duży tekst ≥ 3:1) w jasnym i ciemnym motywie *(wartości „po” w notatce; „przed” = wartości z audytu 2026-10-22 — osobna tabela „przed” nie została dołączona)*
+- [x] Tekst na wypełnieniach accent/danger/success w jasnym motywie ≥ 4,5:1 (4,87 / 5,32 / 5,20) — dotyczy tokenów `--on-*`; użycie `--on-danger`/`--on-success` wdrożone na powierzchni agenta i shella, **migracja pozostałych miejsc (supervisor/admin) → FE-116 (b)**
+- [ ] Obramowania kontrolek ≥ 3:1 (WCAG 1.4.11) w obu motywach; karty/tabele zachowują subtelne `--border-1` — **spełnione tylko dla kontrolek bez własnej ramki** (globalna reguła `select/input/textarea` → `--border-control`, ≥ 3,34:1); **kontrolki komponentów z własnym `border: var(--border-1/2)` → przeniesione do FE-116 (a)**
+- [ ] Brak regresji wizualnej Lamp Rule — przegląd w przeglądarce, powierzchnie agent, supervisor, admin — **niezweryfikowane w przeglądarce dla FE-115** (w turze 48 odnotowano przeglądarkę tylko dla FE-117 / powierzchni agenta); `impeccable detect` = 0 znalezisk
+- [x] `DESIGN.md` i `.impeccable/design.json` zsynchronizowane z nowymi wartościami
+- [x] WP-1, WP-3, WP-6, WP-7 *(WP-2 i WP-4 — nie dotyczą: brak zmian i18n i interakcji)*; WP-5 — zob. kryterium przeglądu wyżej (nieodnotowane)
+
+**Ryzyka:** (R1) zmiana tokenów globalnych dotyka wszystkich ról (supervisor, admin), nie tylko agenta — przegląd wizualny wszystkich powierzchni, nie tylko `/agent`; (R2) 79 użyć `--text-muted` — część (placeholdery, tekst wyłączony) jest wyłączona z wymogu 4.5:1 (WCAG: elementy nieaktywne) — nie zaostrzać ponad potrzebę; (R3) zbyt ciemny muted spłaszcza hierarchię — rozróżniać wagą/rozmiarem (One Family Rule).
+**Nie wchodzi w zakres:** zamiana literałów hex na tokeny (FE-116), skala typografii (FE-118).
+**Notatka wykonania (2026-10-23, tura 48):** tokeny w `frontend/src/styles.scss` — jasny: `--text-2` 42%, `--text-3` 47%, `--text-muted` 51%, `--accent` 55%, `--danger` 55%, `--success` 52%; ciemny: `--text-2` 80%, `--text-3` 74%, `--text-muted` 68%. Nowe `--on-accent` / `--on-danger` / `--on-success` (jasny: biały; ciemny: `oklch(15% .02 250)`), `--accent-fg` = alias `--on-accent`. Nowy `--border-control` (jasny 60%, ciemny 54%) w globalnej regule `select/input/textarea`. Legacy `--color-text-secondary` / `--color-text-muted` zmapowane na oklch. Kontrasty (skrypt OKLCH→WCAG): `--text-muted` min 4,89 (jasny) / 5,71 (ciemny); `--text-3` 5,80 / 7,13; tekst na accent/danger/success w jasnym 4,87 / 5,32 / 5,20; `--border-control` ≥ 3,34 na wszystkich powierzchniach. `DESIGN.md` (+ reguła „The Contrast Floor Rule”, tokeny `on-*` i `border-control` we frontmatter) i `.impeccable/design.json` zsynchronizowane. `--on-danger`/`--on-success` użyte na powierzchni agenta i shella: `incoming-call-banner`, `softphone`, `agent-callbacks-page`, `add-break-modal`, `confirm-dialog`, `sidenav`, `agent-customers-tab`. WP-7: `impeccable` polish (context, `polish.md`, `craft-floor.md`), `impeccable detect` = 0 znalezisk. **Code review:** `CR-FRONTEND.md`, sekcja FE-115 + FE-117 (2026-10-23), 4/5; wszystkie punkty wymagane i zalecane poprawione. **`/verify`:** lint 0 błędów (10 starych ostrzeżeń), `format:check` OK, FE 33 pliki / 420 testów, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-115 ✅ odblokowuje FE-116 i FE-118 (oraz pośrednio FE-124). **Przeniesione do FE-116:** ramki kontrolek komponentów, migracja `--on-danger`/`--on-success` w supervisor/admin, legacy `--color-text-primary` (hex), listboxy bez `:focus-visible`, jasna pigułka „Available” w ciemnym motywie (zob. FE-116, „Przeniesione z FE-115/FE-117”).
+
+### FE-116 – Palety hex → tokeny (motyw ciemny) i Lamp Rule na powierzchni agenta
+
+**Typ:** Frontend implementation (design tokens / dark theme)
+**Priorytet:** Must Have
+**Złożoność:** M/L (tura 48: korekta z M — zakres rozszerzony o punkty przeniesione z FE-115/FE-117, w tym ok. 20 miejsc supervisor/admin; jeśli w trakcie przerośnie 3 dni — rozbić: powierzchnia agenta vs migracja supervisor/admin)
+**Zależy od:** FE-115 ✅ (ukończony 2026-10-23, tura 48 — FE-116 odblokowany; zalecane też: FE-117 ✅)
+**Status:** ✅ Ukończone (2026-10-23, tura 49; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` 2026-10-23, sekcja FE-116 + FE-118, 3,5/5; `/verify` OK). **Niespełnione kryterium (d) — obsługa klawiatury list `.skill-dropdown` — przeniesione do FE-126.**
+**Czeka na BE:** brak
+**Blokuje:** FE-124, FE-126
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` (mapowanie statusów na tokeny) + `angular-frontend-expert`
+
+**Opis:** Audyt (P1): palety hex psują motyw ciemny — `social-contact` (`$surface #fff`), `agent-status.model` (kolory statusów w hex, jasna pigułka `#e8f5e9` w ciemnym motywie), `toast-container`, `agent-calendar`, skeleton w panelu dyspozycji. Krytyka (drobne): „Po kontakcie” w kolorze akcentu łamie Lamp Rule; zielony nagłówek modala „Dodaj przerwę”; `fill="white"` w SVG banera. The Token-Only Rule: nowy kod i dotykane pliki używają wyłącznie tokenów OKLCH z `styles.scss`.
+
+**Zakres:**
+- `social-contact.component.scss`: `$surface` i inne literały → tokeny motywowe.
+- `agent-status.model.ts` + komponenty statusu: kolory statusów jako tokeny (np. `--status-available/-break/-busy/-after-contact/-offline` + wersje `-soft`), tła pigułek poprawne w obu motywach; „Po kontakcie” NIE w kolorze akcentu (osobny, neutralny/ostrzegawczy token — decyzja z `ui-premium-designer`, zgodna z DESIGN.md).
+- `toast-container`, `agent-calendar`, skeleton w `disposition-panel`: literały hex → tokeny.
+- Nagłówek modala „Dodaj przerwę” bez zielonego tła (Lamp Rule: nagłówki nie są dekoracją koloru); SVG banera `fill="white"` → `currentColor`/token.
+- Zakres ograniczony do powierzchni agenta + wspólnych komponentów jej używanych (`toast-container`); pozostałe ~28 plików SCSS z hex — poza zakresem (dług wygaszany osobno) **z wyjątkiem punktów poniżej, przeniesionych z FE-115/FE-117 (tura 48, 2026-10-23)**.
+
+**Przeniesione z FE-115/FE-117 (tura 48) — UWAGA: punkt (b) rozszerza zakres FE-116 poza powierzchnię agenta o supervisor/admin:**
+- (a) Ramki kontrolek w komponentach z własnym `border: var(--border-1/2/strong)` → `var(--border-control)` (kryterium „obramowania kontrolek ≥ 3:1” z FE-115 spełnione dotąd tylko dla kontrolek bez własnej ramki); weryfikacja ≥ 3:1 w obu motywach.
+- (b) Migracja tekstu `--accent-fg` / `#fff` na `var(--danger)` / `var(--success)` → `--on-danger` / `--on-success` (FE-115 wdrożył to tylko na powierzchni agenta i shella). Miejsca (plik:linia): `admin-user-list:656`, `queue-delete-modal:119`, `supervisor-callbacks-page:262`, `campaign-import:84`, `agent-groups-page:167`, `twilio-settings:212`, `phone-numbers:483`, `email-templates:98`, `campaign-archive-setting:178`, `customer-detail:637`, `purge-confirm-modal:187`, `gdpr-anonymize-modal:281`, `ai-config:300`, `ivr-editor:501,1013`, `ivr-list:340,350`, `customer-import:73`, `twilio-config:322`, `user-delete-modal:115`, `agent-desktop.component.scss:9` (`#fff` na `--warning`, kontrast niesprawdzony — zmierzyć i dobrać `--on-warning` lub inny tekst). Numery linii wg stanu z tury 48 — mogą się przesunąć.
+- (c) Legacy `--color-text-primary` nadal hex → zmapować na oklch (jak `--color-text-secondary/muted` w FE-115).
+- (d) Listbox w `admin-user-form`, `queue-form`, `user-form` bez `:focus-visible` na opcjach (wzór: `.autocomplete-item`, `.custom-select__option` z FE-117).
+- (e) Jasna pigułka statusu „Available” w ciemnym motywie (potwierdzone w przeglądarce, 2026-10-23) — wchodzi w istniejący punkt o pigułkach statusów.
+
+**Kryteria akceptacji:**
+- [x] `grep` literałów hex (`#[0-9a-fA-F]{3,8}`) w 5 wymienionych miejscach + nagłówku „Dodaj przerwę” zwraca 0 trafień (poza wyjątkami uzasadnionymi w komentarzu)
+- [x] Wszystkie statusy agenta i pigułki czytelne i spełniające kontrast AA w obu motywach (screenshoty jasny/ciemny w notatce wykonania)
+- [x] „Po kontakcie” nie używa koloru akcentu; Lamp Rule zachowany (akcent tylko akcje/aktywność/fokus)
+- [x] Skeleton dyspozycji, toasty, kalendarz i social-contact bez jasnych „plam” w ciemnym motywie
+- [x] Testy modelu statusów zaktualizowane (mapowanie status → token)
+- [x] (przeniesione) Kontrolki z własną ramką używają `--border-control` (≥ 3:1 w obu motywach) — brak `border: … var(--border-1/2/strong)` na input/select/textarea/checkbox/przyciskach obramowanych (grep)
+- [x] (przeniesione) Lista (b) zmigrowana na `--on-danger`/`--on-success` (grep `--accent-fg|#fff` na `var(--danger|--success)` = 0); kontrast tekstu na `--warning` w `agent-desktop.component.scss:9` zmierzony i ≥ 4,5:1; przegląd w przeglądarce stron supervisor/admin
+- [ ] (przeniesione) `--color-text-primary` w oklch ✅; pigułka „Available” czytelna w ciemnym motywie ✅ (zweryfikowane w przeglądarce); **listboxy z (d) NIE spełnione** — opcje `.skill-dropdown__item` nie są fokusowalne (mousedown, brak `tabindex`/`aria-activedescendant`), martwy `:focus-visible` usunięty; obsługa klawiatury → **FE-126**
+- [x] WP-1…WP-6 (WP-5: patrz notatka wykonania — ekrany supervisor/admin, kategorie kalendarza, toasty i social-contact niezweryfikowane w przeglądarce)
+
+**Ryzyka:** (R1) zależność od FE-115 (nowe tokeny kontrastu) — nie zaczynać przed nim; (R2) kolor statusu bywa jedynym nośnikiem informacji — zachować ikonę/etykietę tekstową (WCAG 1.4.1); (R3) `toast-container` jest współdzielony — sprawdzić na stronach supervisor/admin.
+**Nie wchodzi w zakres:** usunięcie fallbacków hex w `agent-desktop.component.scss` (FE-124), pozostałe pliki SCSS poza agentem.
+
+**Notatka wykonania (2026-10-23, tura 49):** `agent-status.model.ts` — hex `color`/`bgColor` → `tone: AgentStatusTone` (Available = success, Busy = danger, Break = warning, Po kontakcie = violet, Offline = neutral); `[attr.data-status-tone]` + jeden blok `[data-status-tone]` w `agent-desktop.component.scss`; spec modelu + test w `agent-desktop.landmarks.spec.ts`, że przycisk i pozycje menu mają `data-status-tone` zgodny z modelem. **Tokeny zamiast hex:** `social-contact` (usunięte kolorowe cienie; badge platform neutralny `--neutral-soft/-text`, kolor marki tylko jako obrys 2 px — WhatsApp wcześniej 1,98:1), `toast-container` (bez `border-left` 4 px), `agent-calendar` (callback = violet, kampania = neutral, przerwa = warning; FAB accent + on-accent), skeleton dyspozycji, `add-break-modal` (neutralny nagłówek, przycisk główny accent), `incoming-call-banner` (`fill` currentColor, `--on-danger`), `agent-customers-tab`, `email-contact`, `transfer-agent-list`, `transfer-queue-list`. **Nowe tokeny:** `--on-warning` (jasny `oklch(22% .02 250)` 6,32:1, ciemny 9,61:1; użyty w `.ws-banner`, wcześniej biały 2,74:1) i `--border-control-hover` (jasny 48%, ciemny 68%; 6,16–6,53 / 5,87–6,15:1). **(a)** ramki kontrolek → `--border-control` w ~70 plikach (142 deklaracje wg review) + hover `--border-control-hover` w 55 regułach; dekoracyjne kontenery zostają na `--border-1`. **(b)** `--on-danger`/`--on-success` zamiast `--accent-fg`/`#fff` na danger/success (21 bloków, supervisor/admin wg listy + badge data-retention; wcześniej ~1,5:1 w ciemnym). **(c)** `--color-text-primary` → oklch. **(d)** NIE spełnione → FE-126 (zob. wyżej). **(e)** pigułka Available w ciemnym motywie ciemna (zweryfikowane). Awatary/spinnery `#fff` → `--on-accent` (ciemny motyw: 2,6 → 7,4:1). `DESIGN.md` + `.impeccable/design.json`: `on-warning`, `border-control-hover`, mapowanie tonów statusów, rozszerzony opis violet, zasada „kontrolka vs kontener”. WP-7: `impeccable` polish (2 tury; `detect` 0 błędów, advisory bounce-easing istniejące). **WP-5 (przeglądarka 2026-10-23, dev server + local-demo, 1366×768, oba motywy):** menu i pigułka statusu (5 tonów), `ws-banner` ciemny tekst na bursztynie, modal „Dodaj przerwę” (nagłówek neutralny, ramki kontrolek), kalendarz (pusty tydzień, FAB). **NIEZWERYFIKOWANE w przeglądarce:** ekrany supervisor/admin (konta wymagają MFA), kategorie wydarzeń kalendarza (brak danych demo), toasty, social-contact (brak aktywnego kontaktu). **Code review:** `CR-FRONTEND.md`, sekcja FE-116 + FE-118 (2026-10-23), 3,5/5; wszystkie punkty wymagane i zalecane poprawione. **`/verify`:** lint 0 błędów, `format:check` OK, FE 34 pliki / 424 testy, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-116 ✅ — FE-124 traci jedną z trzech zależności (zostają FE-118 ✅ i FE-123); nowy FE-126 zależy od FE-116 ✅ (odblokowany). **Przeniesione:** (d) → FE-126.
+
+### FE-117 – Landmarki i fokus: jeden `<main>`, unikalny `#main-content`, widoczny fokus, breadcrumb
+
+**Typ:** Frontend implementation (a11y)
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** brak (może iść równolegle z FE-115)
+**Status:** ✅ Ukończone (2026-10-23, tura 48; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` 2026-10-23, 4/5; `/verify` OK; WP-5 zweryfikowane w przeglądarce)
+**Czeka na BE:** brak
+**Blokuje:** FE-125 (FE-116 i FE-118 — zalecenie, nie twarda zależność; odblokowane)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Audyt (P1): dwa elementy `<main>` i zduplikowany `#main-content` (shell aplikacji + pulpit agenta). P2: brak widocznego fokusu w edytorze e-mail (contenteditable) i na opcjach listbox. Krytyka: breadcrumb na stronie jednopoziomowej (pytanie 1: czy pulpit agenta potrzebuje breadcrumbów i nawigacji bocznej?). Ticket porządkuje landmarki i fokus, nie zmienia układu.
+
+**Zakres:**
+- Jeden `<main id="main-content">` na stronę (shell); pulpit agenta i inne strony agenta używają `<section>`/`<div role="region" aria-label>`; link „Przejdź do treści” działa na unikalny id.
+- Widoczny fokus (`:focus-visible`, obrys z tokenu fokusu, ≥ 3:1) w edytorze e-mail (`adhoc-email-modal`, `email-contact`) i na opcjach listbox (wybór dyspozycji, lista agentów/kolejek transferu).
+- Breadcrumb: ukryć na stronach jednopoziomowych (np. `/agent/desktop`); decyzja i uzasadnienie w notatce (pytanie z krytyki — rekomendacja: ukryć, bez nawigacji bocznej na pulpicie).
+- Test a11y (Vitest): jedna landmarka `main` w renderze powłoki + pulpitu; unikalność id.
+
+**Kryteria akceptacji:**
+- [x] W DOM strony agenta dokładnie jeden `<main>` i jedno `#main-content` (testy + sprawdzenie w przeglądarce 2026-10-23)
+- [x] Fokus klawiaturą w edytorze e-mail i na opcjach listbox jest widoczny *(`:focus-visible` w `email-contact`, `adhoc-email-modal`, `.autocomplete-item`, `.custom-select__option`; ring zweryfikowany w przeglądarce na opcji listy typu przerwy, motyw jasny i ciemny; edytor e-mail — bez osobnej adnotacji o sprawdzeniu w przeglądarce; listboxy w `admin-user-form`/`queue-form`/`user-form` bez fokusu → przeniesione do FE-116 (d))*
+- [x] Breadcrumb nie pojawia się na stronie jednopoziomowej (`/agent/desktop`); na stronach wielopoziomowych bez zmian (`/agent/customers` — breadcrumb jest)
+- [x] Link „Przejdź do treści” przenosi fokus do `main` (i zostaje na trasie)
+- [x] Brak regresji skrótów i fokusu z FE-114 (testy `agent-hotkeys`, `dialog-escape` zielone; FE 33 pliki / 420 testów)
+- [x] WP-1…WP-7
+
+**Ryzyka:** (R1) `<main>` w shellu jest współdzielony przez wszystkie role — sprawdzić strony supervisor/admin; (R2) usunięcie drugiego `<main>` może zmienić style (selektory `main`) — przegląd SCSS.
+**Nie wchodzi w zakres:** przebudowa nawigacji, układ kolumn (FE-123), kolory fokusu poza tokenem istniejącym.
+**Notatka wykonania (2026-10-23, tura 48):** wewnętrzny `<main id="main-content">` pulpitu → `<section aria-label>` (nowy klucz `agent.desktop.mainRegionLabel` „Kontakty i kalendarz” w 4 językach; usunięty martwy `agent.desktop.activeContactsLabel`). Breadcrumb ukryty flagą route data `hideBreadcrumbs` (`agent.routes.ts`, trasa desktop; ukrywa całe poddrzewo; `BreadcrumbService`), wrapper `.shell__breadcrumbs` renderowany warunkowo (**decyzja z pytania krytyki: ukryty na pulpicie agenta**). `:focus-visible` w edytorze e-mail (`email-contact`, `adhoc-email-modal`) i opcjach listbox (`.autocomplete-item`, `.custom-select__option`). Skip-link: i18n `nav.skipToContent` (pl „Przejdź do treści”), kolor `var(--on-accent)`; **naprawiony błąd istniejący wcześniej** — `href="#main-content"` przy `<base href="/">` nawigował do `/#main-content` (pełne przeładowanie, utrata JWT, wylogowanie); teraz `(click)` z `preventDefault` + fokus na `main`. Testy: `app-shell.component.spec.ts`, `breadcrumb.service.spec.ts` (w tym trasa zagnieżdżona), `agent-desktop.landmarks.spec.ts` (prawdziwy szablon). WP-7: `impeccable` harden. **WP-5 (przeglądarka, 2026-10-23, dev server + backend local-demo):** jeden `main`, brak pustego paska breadcrumb na `/agent/desktop`, breadcrumb na `/agent/customers`, skip-link zostaje na trasie i fokusuje `main`, ring fokusu na opcji listy typu przerwy, motyw jasny i ciemny. **Code review:** `CR-FRONTEND.md`, sekcja FE-115 + FE-117 (2026-10-23), 4/5; wszystkie punkty wymagane i zalecane poprawione. **`/verify`:** lint 0 błędów (10 starych ostrzeżeń), `format:check` OK, FE 33 pliki / 420 testów, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-117 ✅ — bez twardych zależności wychodzących poza FE-125; razem z FE-115 ✅ odblokowuje fazę 1 (FE-116, FE-118). **Przeniesione:** listboxy z (d) → FE-116; znalezione przy okazji punkty do FE-119/FE-120/FE-124 (zob. te tickety).
+
+### FE-118 – Skala typografii: minimalny rozmiar tekstu i etykiety KPI
+
+**Typ:** Frontend implementation (typografia)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-115 ✅ (ukończony 2026-10-23, tura 48 — FE-118 odblokowany; FE-117 ✅ — zalecane, spełnione)
+**Status:** ✅ Ukończone (2026-10-23, tura 49; zmiany jeszcze niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` — commit za chwilę; code review `CR-FRONTEND.md` sekcja FE-116 + FE-118, 3,5/5; `/verify` OK). **Niespełnione: weryfikacja pasa KPI w `de` — przeniesiona do FE-119.**
+**Czeka na BE:** brak
+**Blokuje:** FE-124
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` + `angular-frontend-expert`
+
+**Opis:** Audyt (P2): fonty < 11 px w 14 miejscach, m.in. etykiety KPI w `top-navbar.component.scss` (9,5 px, linie 349 i 375). The One Family Rule: hierarchia wagą i rozmiarem w obrębie Geista. Ticket wprowadza minimalny rozmiar tekstu jako token i zastępuje wartości literalne.
+
+**Zakres:**
+- Token(y) skali typografii w `styles.scss` (np. `--text-2xs` ≥ 11 px/0,6875 rem — wartość wg `DESIGN.md`) i użycie we wszystkich 14 miejscach < 11 px (wyszukanie: `font-size` < 0.6875rem / < 11px w `frontend/src`).
+- Etykiety KPI w top-navbar ≥ minimum; sprawdzić, że KPI mieszczą się przy 1366 px i w tłumaczeniu `de` (dłuższe teksty).
+- Aktualizacja `DESIGN.md` (skala typografii).
+
+**Kryteria akceptacji:**
+- [x] Brak `font-size` < 11 px w `frontend/src/**/*.scss` (grep; wyjątki uzasadnione w komentarzu)
+- [ ] Etykiety KPI w top-navbar czytelne i niepoprzecinane przy 1366×768 w pl i de — **pl ✅ (pas 506/506 px, 4 kafelki bez ucięcia, oba motywa); `de` niezweryfikowane** (etykiety KPI na sztywno po polsku — FE-119; weryfikacja w `de` dopisana tam)
+- [x] Rozmiary pochodzą z tokenów, nie z literałów
+- [x] `DESIGN.md` zawiera skalę
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) powiększenie etykiet KPI może wypchnąć układ top-navbara — weryfikacja przy 1366 px i `de`; (R2) kolizja z FE-123 (układ) — FE-118 przed FE-123.
+**Nie wchodzi w zakres:** zmiana rodziny fontu, ogólna przebudowa skali dla supervisor/admin poza użyciami < 11 px.
+**Notatka wykonania (2026-10-23, tura 49):** tokeny `--fs-2xs` (11 px) i `--fs-xs` (12 px, na razie nieużywany) w `styles.scss`; 24 wartości < 11 px w całym `frontend/src` → `var(--fs-2xs)` (top-navbar KPI label/sub 9,5 → 11 px, `letter-spacing` 0.06 → 0.04em; badge, liczniki, pigułki, `ivr-editor`, `email-templates` itd.; zamiast 14 z audytu — grep po całym `src` znalazł 24); wszystkie literały `0.6875rem` → token; `font-family: monospace` → Geist Mono (Real Mono Rule) w `ivr-editor`/`email-templates`. `DESIGN.md`: „Type scale floor” + „The Type Floor Rule”; `design.json` namedRules. Zero tekstu < 11 px (grep px/rem/em/`font:`/inline TS). WP-7: `impeccable` typeset. **WP-5:** pomiar w przeglądarce 1366×768 (viewport 1334): pas KPI 506/506 px, 4 kafelki bez ucięcia, jasny i ciemny motyw. Wariant `de` niezweryfikowany, bo etykiety KPI są na sztywno po polsku (FE-119). **Code review:** `CR-FRONTEND.md`, sekcja FE-116 + FE-118 (2026-10-23), 3,5/5. **`/verify`:** lint 0 błędów, FE 34 pliki / 424 testy, BE `mvn verify` OK. **Zależności po zamknięciu:** FE-118 ✅ — FE-124 traci kolejną zależność (zostaje FE-123).
+
+### FE-119 – Teksty i dane na sztywno: KPI, marka, placeholder CHAT, i18n, martwy komponent, duplikat „Dodaj przerwę”
+
+**Typ:** Frontend implementation (i18n / clarify)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak (zalecane po fazie 1 — spełnione: FE-115…FE-118 ✅)
+**Status:** ✅ Ukończone (2026-10-23, tura 50; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` sekcja „EPIC-32 faza 2 — FE-119, FE-120, FE-126 — 2026-10-23” 4/5, wszystkie punkty Wymagane i Zalecane poprawione; `/verify`: lint 0 błędów (10 starych ostrzeżeń `no-console`), format OK, FE 47 plików / 497 testów)
+**Czeka na BE:** brak (KPI „cel” — zob. decyzja D1 poniżej)
+**Blokuje:** FE-125, FE-128, FE-129
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Audyt (P2) i krytyka (P1): fałszywe KPI „cel 90%” i „z 8:00”, nazwa marki na sztywno (PRODUCT.md: nazwa/logo to otwarta decyzja — nie wymyślać), placeholder kanału CHAT, martwy `agent-dashboard.component.ts`, teksty PL na sztywno (część bez diakrytyków — dostępne nazwy „bez ogonków”), rodzaj męski w tekstach, dwa przyciski „Dodaj przerwę”. PRODUCT.md: „Żaden tekst nie może być na sztywno w jednym języku.”
+
+**Zakres:**
+- **Decyzja właściciela D1 (KPI):** „cel 90%” i „z 8:00” — (A) usunąć, (B) pobierać z konfiguracji tenanta/kampanii (wymagałoby API — wtedy osobny ticket BE, NIE zakładany z góry). Rekomendacja: (A) — nie pokazywać danych, których system nie zna (zasada „Dane na żywo mówią prawdę o sobie”). Do czasu decyzji realizować wariant (A).
+- Nazwa marki: z jednego źródła (stała/konfiguracja/i18n), bez wymyślania nazwy; zachować `ContactCenterFrontend` jako roboczą.
+- Placeholder CHAT: zastąpić stanem pustym zgodnym z faktycznym stanem kanału (czat niezaimplementowany) lub ukryć za flagą — bez udawania działającej funkcji.
+- Teksty na sztywno po polsku (m.in. `disposition-panel.component.ts`: `'Używam dyspozycji systemowych (błąd pobierania)'`, teksty bez diakrytyków, aria-label) → klucze i18n w 4 językach; forma neutralna płciowo (bez rodzaju męskiego).
+- Usunięcie martwego `agent-dashboard.component.ts` (po sprawdzeniu braku referencji w routingu i testach).
+- Jeden przycisk „Dodaj przerwę” (usunąć duplikat; zachować ten wygodniejszy z klawiatury — decyzja w notatce).
+- *(tura 48, dopisane)* `add-break-modal`: etykieta „(opcjonalne)” na sztywno po polsku (widoczna w interfejsie EN) → klucz i18n w pl/en/de/uk.
+- *(tura 49, dopisane)* `aria-label` „Wybierz język” w przełączniku języka na sztywno po polsku → klucz i18n w pl/en/de/uk. Po przetłumaczeniu etykiet KPI zweryfikować pas KPI w `de` przy 1366 px (`overflow: hidden` ucina ostatni kafelek bez ostrzeżenia) — przejęte z FE-118 (kryterium „pl i de” zweryfikowane tylko dla pl).
+
+**Kryteria akceptacji:**
+- [x] Brak fałszywych KPI „cel 90%”/„z 8:00” (lub zasilanie z realnych danych po decyzji D1)
+- [x] `grep` polskich literałów w szablonach/TS powierzchni agenta zwraca 0 poza plikami i18n (poza komentarzami)
+- [x] Wszystkie nowe/zmienione klucze w pl/en/de/uk, bez martwych kluczy; teksty w formie neutralnej płciowo
+- [x] `agent-dashboard.component.ts` usunięty, `npm run build` i testy zielone
+- [x] Jeden przycisk „Dodaj przerwę”; skrót/fokus nadal działają
+- [x] Placeholder CHAT nie sugeruje działającego kanału
+- [x] (dopisane w turze 48) Etykieta „(opcjonalne)” w `add-break-modal` przez i18n (4 języki) — brak tekstu na sztywno po polsku (widoczny w EN)
+- [x] (dopisane w turze 49) `aria-label` „Wybierz język” przez i18n (4 języki); pas KPI w `de` przy 1366 px bez ucięcia ostatniego kafelka (pomiar w przeglądarce)
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) decyzja D1 otwarta (KPI) — wariant (B) wymaga backendu; (R2) tłumaczenia de/uk bez przeglądu native speakera (dług znany z FE-113); (R3) usunięcie „martwego” komponentu — zweryfikować brak dynamicznego użycia (lazy route, `loadComponent`).
+**Nie wchodzi w zakres:** nazwa/logo produktu (decyzja marki), nowe KPI z backendu, implementacja kanału CHAT.
+**Notatka wykonania (2026-10-23, tura 50):** decyzja D1 wariant (A): usunięte KPI „cel 90%” i „z 8:00” oraz pasek czasu pracy (`top-navbar`; SLA zostaje). Pas KPI: `justify-content: safe center`, kafelki `min-width: 0`, elipsa na etykietach, wartości `flex-shrink: 0` — **zweryfikowane w przeglądarce w `de` przy viewport 1334 px (1366×768): 4 kafelki, brak ucięcia** (domyka kryterium przeniesione z FE-118). Marka z jednego źródła `core/brand.ts` (`BRAND`) w navbar/login/change-password; `<title>` `ContactCenterFrontend` zostaje jako robocza nazwa builda. Placeholder CHAT „Czat nie jest jeszcze dostępny” (`role="status"`). Usunięty `agent-dashboard.component.ts`. Jeden przycisk „Dodaj przerwę” (nagłówek pulpitu; FAB z `agent-calendar` usunięty). i18n powierzchni agenta, `ai-summary-panel`, login, `add-break-modal` (walidacje, `aria-label`, „(opcjonalne)” = `common.optional`), `manual-callback-modal` (toast z datą wg aktywnego języka); parytet 4 języków: 0 różnic; grep literałów PL na `features/agent` = 0 poza komentarzami i `console.*`. WP-7: `impeccable clarify`. **Odkrycia przeniesione do nowych ticketów:** literały PL poza powierzchnią agenta → FE-128; format KPI „Czas pracy” (225:56) → FE-129.
+
+### FE-120 – Domknięcia po hardeningu: szkic manual-callback, Esc w ściądze, formularz przerwy, jeden toast, ponowienie karty klienta
+
+**Typ:** Frontend implementation (UX / harden)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-114 ✅ (zalecane po fazie 1 — spełnione)
+**Status:** ✅ Ukończone (2026-10-23, tura 50; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` sekcja „EPIC-32 faza 2 — FE-119, FE-120, FE-126 — 2026-10-23” 4/5, wszystkie punkty Wymagane i Zalecane poprawione; `/verify`: lint 0 błędów (10 starych ostrzeżeń `no-console`), format OK, FE 47 plików / 497 testów)
+**Czeka na BE:** brak
+**Blokuje:** FE-125, FE-130
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Drobne domknięcia z review `CR-FRONTEND.md` (2026-10-21), weryfikacji po FE-114 i krytyki: (a) modal `manual-callback` nie ma ochrony szkicu (adhoc-email ma); (b) w ściądze skrótów `Esc` się zawija; (c) przerwa: 6 pól bez wartości domyślnych i brak licznika przerwy; (d) dwa toasty po dyspozycji; (e) błąd karty klienta bez możliwości ponowienia. Punkty z review nieobjęte listą powyżej (np. `preventDefault` na `cancel` dyspozycji w Chromium, banner `role="alert"` ogłaszany drugi raz przy wzbogaceniu nazwy, `--shadow-lg` → `--shadow-pop` na ściądze, martwe klucze i18n `agent.incomingCall.dismiss` i `agent.incomingCall.goToDesktop`) — zweryfikować w kodzie i dopisać do zakresu tylko te, które nadal występują.
+
+**Zakres:**
+- `manual-callback-modal`: ochrona szkicu (potwierdzenie przy zamknięciu z niezapisanymi zmianami, wzór z `adhoc-email-modal`); docelowo szkic przejmie magazyn z FE-121 (zob. ryzyko R1).
+- Ściąga skrótów: układ klawisza `Esc` bez zawijania (`white-space: nowrap`, szerokość kolumny).
+- Formularz „Dodaj przerwę”: wartości domyślne (typ/powód/czas — ustalić z `PRODUCT.md`: dostępny, przerwa, szkolenie), kolejność pól dla klawiatury; licznik trwania przerwy w statusie agenta.
+- Jeden toast po dyspozycji (sukces) — usunięcie zdublowanego powiadomienia.
+- Karta klienta: przycisk „Spróbuj ponownie” przy błędzie ładowania (z `aria-live`).
+- *(tura 48, dopisane — formularz „Dodaj przerwę”, `add-break-modal`)* custom-select typu przerwy nie obsługuje strzałek (tylko Tab, opcje `tabindex=0`) i nie ma `aria-selected`; Esc przy otwartej liście zamyka cały dialog zamiast samej listy → wzorzec listbox WAI-ARIA (roving tabindex lub `aria-activedescendant`, `aria-selected`, Esc zamyka listę i zatrzymuje propagację do dialogu; spójnie z Esc z FE-114).
+- Usunięcie martwych kluczy i18n (jeśli nadal nieużywane), weryfikacja pozostałych punktów review.
+
+**Kryteria akceptacji:**
+- [x] Zamknięcie `manual-callback` z niezapisanymi zmianami wymaga potwierdzenia; bez zmian zamyka się od razu (test)
+- [x] `Esc` w ściądze skrótów w jednej linii w pl/en/de/uk (screenshot)
+- [x] Formularz przerwy ma sensowne wartości domyślne; w trakcie przerwy widoczny licznik czasu (w statusie agenta)
+- [x] Po zapisaniu dyspozycji pojawia się dokładnie jeden toast (test)
+- [x] Błąd ładowania karty klienta oferuje ponowienie i po sukcesie pokazuje dane (test)
+- [x] Brak martwych kluczy i18n (grep)
+- [x] (dopisane w turze 48) Custom-select typu przerwy: strzałki góra/dół (+ Home/End) przesuwają wybór; opcje `role="option"` z `aria-selected`; Esc przy otwartej liście zamyka tylko listę, nie dialog (testy Vitest)
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) ochrona szkicu w manual-callback to rozwiązanie tymczasowe — FE-121 wprowadzi magazyn szkiców per kontakt; zrobić minimalnie (potwierdzenie przy zamknięciu), bez budowy magazynu; (R2) licznik przerwy wymaga źródła czasu startu statusu (sprawdzić `AgentStatusService` — jeśli backend go nie zwraca, licznik od momentu zmiany po stronie klienta, z adnotacją).
+**Nie wchodzi w zakres:** magazyn szkiców per kontakt (FE-121), ACW niemodalne (FE-122), status „Szkolenie” w backendzie (jeśli go brak — zgłosić, nie zakładać BE).
+**Notatka wykonania (2026-10-23, tura 50):** `manual-callback-modal`: ochrona szkicu przez `app-confirm-dialog` (w przeglądarce: Esc → potwierdzenie, Esc wraca do formularza z zachowaną notatką, „Odrzuć zmiany” zamyka). `confirm-dialog`: `(cancel)`/Esc → `onCancel` oraz **naprawiony istniejący błąd — `onBackdropClick` nie był podpięty w szablonie** (dotyczy 9 użytkowników komponentu), nowy spec. Ściąga skrótów bez zawijania (`nowrap`, kolumna 13rem, panel 30rem). Licznik przerwy `cc-status-elapsed` przy pigułce statusu (`role="timer"`, `aria-live="off"`, `<time datetime>` ISO 8601, `title`/sr „Czas od zmiany statusu w tej sesji”, `--fs-xs`) — **czas startu po stronie klienta, bo API nie zwraca czasu zmiany statusu** (R2; follow-up: BE-153 + FE-130). Jeden toast „Dyspozycja zapisana.” + osobny toast błędu przy porażce `changeStatus`. Karta klienta „Spróbuj ponownie” z fokusem na kartę/przycisk. Domyślne wartości przerwy: `SHORT_BREAK`, start = najbliższy slot 5 min od teraz+2 min, koniec +15 min, odświeżenie nietkniętego slotu i walidacja przed zapisem (w przeglądarce: 11:54 → 12:00–12:15). Custom-select typu przerwy wg listbox WAI-ARIA (w przeglądarce: strzałki, `aria-selected`, Esc zamyka tylko listę, drugi Esc dialog). Punkty review naprawione wcześniej: `preventDefault` cancel dyspozycji, podwójne `role="alert"`, martwe klucze `incomingCall.dismiss`/`goToDesktop`, `--shadow-pop`.
+
+### FE-121 – Szkice per kontakt i stan kart: znaczniki, bezpieczne zamykanie, przydział e-mail/social i status agenta w powłoce (PARASOL: FE-131…FE-134)
+
+**Typ:** Frontend implementation (UX, stan aplikacji) — ticket-parasol
+**Priorytet:** Must Have
+**Złożoność:** L (suma pakietów FE-131…FE-134)
+**Zależy od:** brak twardej (zalecane: po FE-115…FE-118 i FE-120 — spełnione); `/impeccable shape` wykonany 2026-10-23 (tura 51), brief zatwierdzony przez właściciela
+**Status:** ✅ Ukończone (2026-10-29; parasol zamknięty — wszystkie pakiety FE-131…FE-134 ✅; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`)
+**Czeka na BE:** brak
+**Blokuje:** FE-131, FE-132, FE-133, FE-134 (pakiety), FE-123, FE-125 (z pakietów: FE-131 ✅, FE-132 ✅, FE-133 ✅, FE-134 ✅)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable` (per pakiet: harden/polish); ticket sam nie ma kodu
+
+**Opis:** P1 z krytyki: „Praca na kilku kontaktach” — szkice niszczone przez `@switch` przy zmianie karty, × na karcie PHONE rozłącza bez potwierdzenia (zagnieżdżony `button` w elemencie `tab`), karty bez stanu (hold/ACW/szkic), status agenta widoczny tylko na Desktopie. PRODUCT.md: agent obsługuje kilka kontaktów równolegle; „telefon kasuje szkic”, „karty nie mówią, gdzie ktoś czeka”.
+
+#### Brief (impeccable shape, zatwierdzony 2026-10-23)
+
+Wynik `/impeccable shape` dla pracy na wielu kontaktach (wspólny z FE-122). **Decyzje właściciela (2026-10-23):**
+1. **ACW (R1 z FE-122):** agent w ACW **dokańcza otwarte kontakty**; zmian BE nie ma. Routing przydziela nowe kontakty tylko agentom `AVAILABLE` (`DefaultRoutingEngine`), więc w ACW nowe kontakty nie przychodzą; po zapisie dyspozycji front zmienia status na `AVAILABLE` (zachowanie dotychczasowe).
+2. **Znaczniki kart:** tylko stany znane frontowi (ACW, Wstrzymana, Rozmowa, Szkic). „Nowa wiadomość/nieprzeczytane/czeka klient” wymaga zdarzenia z backendu → osobne tickety BE-154 + FE-135 (poza briefem).
+3. **× na kartach e-mail/social:** „Zwróć do kolejki” przez `abandonContact` (dziś × tylko usuwa kartę, a kontakt zostaje `ASSIGNED`/`ACTIVE`); potwierdzenie tylko przy niewysłanym szkicu.
+4. **CTA `/supervisor/…` w karcie klienta:** ukryte dla agenta.
+5. **Nowy kontakt NIE przejmuje aktywnej karty** (dziś `openTab` zawsze aktywuje nową) — zamiast tego znacznik/ogłoszenie polite.
+
+**Podział na pakiety** (kolejność: WP-A → WP-B i WP-C równolegle → FE-122; WP-D w dowolnym momencie):
+
+| Pakiet | Ticket | Zakres | Rozmiar | Zależy od |
+|--------|--------|--------|---------|-----------|
+| WP-A | FE-131 | magazyn szkiców per `contactId` (e-mail, social, notatka PHONE), tylko w pamięci; brak ponownego `acceptContact` | S/M | brak |
+| WP-B | FE-132 | × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” | S/M | FE-131 |
+| WP-C | FE-133 | znaczniki kart (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania karty | S/M | FE-131 |
+| WP-D | FE-134 | status agenta w górnym pasku na `/agent/*`, CTA ukryte dla agenta | S | brak |
+
+**Przypisanie kryteriów akceptacji z FE-121 do pakietów:**
+- szkic przeżywa przełączenie karty, jest usuwany po wysłaniu/zamknięciu → FE-131;
+- × (potwierdzenie, brak zagnieżdżonego interaktywnego elementu w `role="tab"`) → FE-132;
+- znaczniki stanu z ikoną i tekstem, kontrast AA w obu motywach → FE-133 (część „nieprzeczytane/czeka klient” wycięta → FE-135 po BE-154);
+- status agenta widoczny na każdej stronie agenta, CTA karty klienta → FE-134 (przydział nowego kontaktu bez przejmowania karty → FE-133);
+- skróty z FE-114 bez regresji → każdy pakiet.
+
+**Kryteria akceptacji parasola** (spełnione, gdy spełnione są pakiety):
+- [x] FE-131 ✅ (szkice), FE-132 ✅ (zamykanie), FE-133 ✅ (znaczniki), FE-134 ✅ (powłoka) — **2026-10-29: wszystkie cztery ukończone, parasol zamknięty**
+- [x] Skróty z FE-114 działają bez regresji po wszystkich pakietach (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [x] WP-1…WP-7 per pakiet
+
+**Ryzyka:** (R1) NAJWIĘKSZE ryzyko epiku — dotyka `ContactTabStore`, `AgentDesktopComponent`, modali; brief zatwierdzony, ryzyko zredukowane podziałem; (R2) znaczniki „nieprzeczytane/czeka klient” — rozstrzygnięte: wymagają BE → BE-154 + FE-135; (R3) rozmiar L — rozbity na 4 pakiety S/M/S; (R4) przechowywanie szkiców w pamięci (nie `localStorage`) ze względu na RODO — nie utrwalać treści wiadomości klienta w przeglądarce.
+**Nie wchodzi w zakres:** ACW niemodalne (FE-122), przebudowa układu kolumn (FE-123), nowe kanały (RCS, czat), zmiany API. Odkrycia z shape poza zakresem: BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu), FE-135, FE-136.
+
+### FE-122 – ACW (dyspozycja) jako niemodalny stan karty kontaktu
+
+**Typ:** Frontend implementation (UX)
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-131 ✅ (WP-A: magazyn szkiców), FE-133 ✅ (WP-C: znacznik ACW na karcie), FE-121 ✅ (parasol zamknięty 2026-10-29; brief zatwierdzony 2026-10-23)
+**Status:** ✅ Ukończone (2026-10-29; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; frontend 727 testów, backend bez zmian — ostatnio 2839 testów BUILD SUCCESS)
+**Czeka na BE:** brak (R1 rozstrzygnięte w briefie: bez zmian BE; potwierdzone w analizie: dyspozycja jest per kontakt — `POST /contacts/{contactId}/disposition`, `SetDispositionRequest { dispositionCode, notes }`; do weryfikacji w kodzie: stan ACW/AFTER_CONTACT jest dziś statusem agenta, nie kontaktu — zob. ryzyko R1)
+**Blokuje:** FE-123, FE-125, FE-136 (FE-122 ✅ — odblokowane)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (projekt z `ui-premium-designer`)
+
+**Opis:** Decyzja właściciela z krytyki: ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką. Dziś `DispositionPanelComponent` to natywny `<dialog>` modalny, który blokuje obsługę czatów (krytyka: „ACW blokuje 3 czaty”), ogłasza licznik ACW co sekundę, a formularz pojawia się tylko na pulpicie, gdy rozmowa skończy się poza pulpitem po odebraniu przy otwartym modalu (znany punkt otwarty po FE-114).
+
+**Zakres:**
+- Dyspozycja renderowana w obszarze karty kontaktu w stanie `WRAPPING` (nie `showModal()`); agent może przełączyć się na inną kartę (czat/e-mail) bez utraty stanu ACW; powrót na kartę pokazuje formularz ze szkicem dyspozycji (magazyn z FE-131).
+- Działa także gdy rozmowa kończy się poza pulpitem: stan ACW karty tworzony w `CallLifecycleService` (już niezależny od pulpitu), formularz dostępny po wejściu na kartę; znacznik ACW na karcie (FE-133) + powiadomienie bez kradzieży fokusu.
+- Dostępność: licznik ACW poza `aria-live` (lub ogłaszany rzadko), błąd walidacji dopiero po próbie zapisu, fokus na pierwszym polu po aktywacji karty ACW (na żądanie, nie przy każdym renderze); Esc nie zamyka dyspozycji (jak w FE-114).
+- Reguły ACW (ustalone w briefie, zob. niżej): w ACW agent dokańcza otwarte kontakty; brak nowych kontaktów (routing bierze tylko `AVAILABLE`); dotychczasowe reguły statusu `AFTER_CONTACT` bez zmian.
+- Usunięcie obejścia modalnego (`(cancel)="$event.preventDefault()"`, zależności od `showModal()`) razem z punktem review o drugim Esc w Chromium (staje się nieistotny).
+
+#### Brief (impeccable shape, zatwierdzony 2026-10-23)
+
+Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
+- **Formularz dyspozycji w panelu karty `WRAPPING`** (nie `showModal()`); agent przełącza się na inne karty i wraca do karty z zachowanym SZKICEM dyspozycji (magazyn WP-A = FE-131).
+- **Rozmowa zakończona poza pulpitem** (np. na `/agent/customers`) → karta w stanie ACW + baner „uzupełnij dyspozycję” z linkiem do karty; BEZ kradzieży fokusu (ogłoszenie polite, nie `focus()`).
+- **Reguły bez zmian:** w ACW brak nowych kontaktów — routing bierze tylko agentów `AVAILABLE` (`DefaultRoutingEngine`); po zapisie dyspozycji front zmienia status na `AVAILABLE` (zachowanie dotychczasowe).
+- **R1 rozstrzygnięte** (decyzja: agent w ACW **dokańcza otwarte kontakty**, bez zmian BE).
+- **Dostępność:** licznik ACW poza `aria-live`; błąd walidacji dopiero po próbie zapisu; fokus na pierwszym polu tylko na żądanie; Esc NIE zamyka dyspozycji.
+- **Sprzątanie:** usunięcie obejść modalnych (`(cancel)="$event.preventDefault()"`, zależności od `showModal()`).
+
+**Kryteria akceptacji:**
+- [x] W stanie ACW agent może obsługiwać pozostałe karty (czat/e-mail) bez zamykania formularza; formularz nie jest modalny (brak `showModal()`/inertu reszty strony)
+- [x] Dyspozycję można wypełnić także po zakończeniu rozmowy zakończonej poza pulpitem (test: koniec rozmowy na `/agent/customers`)
+- [x] Zapis dyspozycji działa na istniejącym API (`POST /contacts/{id}/disposition`) bez zmian backendu; jeden toast (zob. FE-120)
+- [x] Licznik ACW nie jest ogłaszany co sekundę; błąd walidacji po próbie zapisu; Esc nie zamyka dyspozycji
+- [x] Rozmowa zakończona poza pulpitem → karta ACW + baner „uzupełnij dyspozycję” z linkiem, bez kradzieży fokusu (test: fokus bez zmian)
+- [x] Przełączenie na inną kartę i powrót zachowuje szkic dyspozycji (FE-131)
+- [x] Po zapisie dyspozycji status agenta zmienia się na `AVAILABLE`; w ACW nie przychodzą nowe kontakty (routing bez zmian)
+- [x] Obsługa wyłącznie klawiaturą: dojście do formularza, wybór kodu, zapis (skróty z FE-114 bez regresji)
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) **ROZSTRZYGNIĘTE (brief 2026-10-23): dokańcza otwarte kontakty, bez zmian BE.** Pierwotne pytanie o backend: status `AFTER_CONTACT` jest statusem AGENTA (`AgentStatusService.changeStatus`), nie kontaktu — przy kilku kontaktach w ACW lub nowym kontakcie w trakcie ACW semantyka statusu może wymagać decyzji (np. kiedy wracać do `AVAILABLE`); jeśli wymaga zmian API/WS — opisać pytanie i NIE zakładać ticketu BE bez decyzji właściciela; (R2) dyspozycje per kampania/kolejka (EPIC-27) — `getAvailableDispositions(contactId)` musi działać także dla karty nieaktywnej; (R3) utrata ACW przy odświeżeniu strony (`agent-recovery.service`) — sprawdzić odtwarzanie.
+**Notatka wykonania (2026-10-29):**
+- `DispositionPanelComponent` inline w tabpanelu karty `WRAPPING` (bez `dialog`/`showModal()`; usunięte obejścia modalne).
+- Szkic dyspozycji (kod + notatka) per kontakt w `ContactDraftStore` (klucz `acwDraftKey` zgodny z `rekey`), poza `draftContactIds`; cache listy dyspozycji per `contactId`; walidacja zapamiętanego kodu.
+- `DispositionSaveService`: zapis niezależny od cyklu życia komponentu, jeden toast (`SKIP_ERROR_TOAST`), status `AVAILABLE`, zamknięcie karty w `finalize` także gdy `changeStatus` kończy się EMPTY, obsługa `isChanging`, guard wylogowania.
+- Baner `cc-acw-banner` w powłoce agenta (polite, jednorazowe ogłoszenie per karta, bez kradzieży fokusu, najstarsza karta ACW + „+N”, widoczny także przy otwartym kalendarzu; przycisk zamyka kalendarz i przenosi do karty); stan `calendarOpen` przeniesiony do `ContactTabStore`.
+- Fokus na formularz tylko na żądanie (klik karty / baner / koniec rozmowy na aktywnej karcie pulpitu przy fokusie w softphone); licznik ACW z `wrappingSince` (zerowany po wyjściu z `WRAPPING`), poza `aria-live`, liczony poza strefą Angulara; walidacja dopiero po próbie zapisu; Esc nic nie robi; grupa radio z roving tabindex; widoczny label notatki.
+- `impeccable harden` + `polish`; 2 rundy review (CR 3/5 → poprawki).
+- **Otwarte (poza zakresem tego ticketu):** (1) weryfikacja ACW na żywo wymaga prawdziwej rozmowy Twilio (demo działa w profilu prod, brak symulacji) — kryteria pokryte testami jednostkowymi, nie testem w przeglądarce; (2) skrót FE-114 „przejdź do ACW” odroczony; (3) czy stały baner nie zasłania treści przy 1366×768 → sprawdzić w FE-123; (4) odtwarzanie ACW po F5 → FE-136 (R3).
+
+**Nie wchodzi w zakres:** nowe typy dyspozycji, zmiany backendu, przebudowa układu (FE-123).
+
+### FE-123 – Układ 1366×768: elastyczne kolumny, mniejszy chrome, breakpointy z tokenów
+
+**Typ:** Frontend implementation (layout / responsywność)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-121 ✅ (parasol), FE-131 ✅, FE-134 ✅, FE-132 ✅, FE-133 ✅ (pakiety FE-121), FE-122 ✅ (przebudowują pulpit), FE-118 ✅, FE-116 ✅ (tokeny i skala typografii, na których stoją tokeny chrome)
+**Status:** ✅ Ukończone (2026-10-29, tura 57; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` sekcja „Review: FE-123” 3,5/5 — wszystkie MAJOR i zalecenia naprawione w rundzie 3; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 64 pliki / 745 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** FE-124, FE-125
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `ui-premium-designer` + `angular-frontend-expert`
+
+**Opis:** Audyt (P2): stałe kolumny 264/280 px, ok. 160 z 591 px wysokości zajmuje chrome (nagłówek, KPI, paski) przy 1366×768; P3: 10 ad-hoc breakpointów. PRODUCT.md: rozdzielczości od 1366×768 do 4K.
+
+**Zakres:**
+- Kolumny pulpitu elastyczne (`minmax`/`clamp`/`fr`) zamiast stałych 264/280 px; sensowne minimum dla treści (e-mail, czat).
+- Zmniejszenie chrome przy małej wysokości (kompaktowy nagłówek/KPI/status; pomiar: ≥ 70% wysokości okna dla treści przy 768 px — docelowo co najmniej 450 z 591 px).
+- Breakpointy z tokenów/zmiennych (jedna skala, redukcja z 10 do ustalonej listy).
+- Weryfikacja: 1366×768, 1920×1080, 2560×1440, szerokość ~1024 px, język `de`.
+
+**Kryteria akceptacji:**
+- [x] Przy 1366×768 chrome zajmuje ≤ 120 z 591 px (lub uzasadniony inny próg ustalony w `shape`), treść kontaktu widoczna bez przewijania całej strony
+- [x] Brak poziomego przewijania w 1366×768, 1024 px i w języku `de`
+- [x] Kolumny bez stałych 264/280 px; breakpointy z jednej skali (grep)
+- [x] Brak regresji skrótów, fokusu i stanów kart (FE-121/FE-122)
+- [x] WP-1…WP-6 (WP-5 przy 1366×768 obowiązkowo; dowody niżej; WP-5 dla chipa/banera ACW na żywo — zob. „Otwarte”)
+
+**Notatka (2026-10-29, z FE-122):** zweryfikować, czy stały baner `cc-acw-banner` w powłoce agenta nie zasłania treści kontaktu przy 1366×768 (wlicza się do budżetu chrome ≤ 120 px); baner jest widoczny także przy otwartym kalendarzu.
+**Notatka wykonania (2026-10-29, tura 57):**
+- **Skala breakpointów:** `frontend/src/app/shared/styles/_breakpoints.scss` (mixiny `down/below/up/compact-height`, walidacja nazwy `@error`) + `breakpoints.ts` z testem parytetu TS↔SCSS (zamyka MEDIUM-4 z CR). Wartości: `xs` 480, `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `xxl` 1440; `compact-height` ≤ 720 px. Z 10 ad-hoc breakpointów do jednej skali w powierzchni agenta, powłoce, sidenavie, navbarze i `ai-summary-panel` (grep: brak literału `px` w `@media`).
+- **Tokeny wysokości chrome:** `--navbar-h` 64/48, `--desktop-toolbar-h` 48/36, `--desktop-tabbar-h` 44/36 (wartość pierwsza = normalna, druga = `compact-height`).
+- **Kolumny `clamp()`:** `--desktop-sidebar-w`, `--desktop-customer-w` zamiast stałych 264/280 px (przy 1920×1080 wynik bez zmian: 264/280).
+- **Sidenav:** rail 72 px domyślnie dla roli AGENT przy oknie ≤ 1440 px (`<=`, inkluzywnie); klucz `localStorage` **`cc_sidenav_collapsed_v2`** zapisywany WYŁĄCZNIE przy ręcznym przełączeniu (`toggleCollapsed()`); stary klucz `cc_sidenav_collapsed` jest ignorowany i usuwany (wcześniej zapisywał `'false'` przy każdym utworzeniu, co zamrażało domyślny stan — MAJOR-2 z CR). Supervisor/admin zachowują domyślnie rozwinięty sidenav. Szuflada sidenava nie otwiera się sama przy zwężeniu okna poniżej `xl` (zamykanie tylko przy przekroczeniu `xl`).
+- **Przypomnienie ACW:** `AcwReminderService` + `cc-acw-banner` w dwóch placementach: chip w pasku pulpitu (`placement="toolbar"`) oraz pływający baner poza pulpitem, odsunięty o `--shell-sidenav-w` (nie zasłania stopki sidenava — MAJOR-1 z CR); region `role="status"` tylko w instancji `floating`.
+- **Kompaktowe nagłówki:** kontakt, e-mail i `ai-summary-panel`; układ pionowy e-maila od ≤ 1024 px; wspólne modale (`contact-detail-modal`, `confirm-dialog`, `disposition-list-editor`) przeniesione na skalę.
+- **Dowody (WP-5, przeglądarka, 1366×768, viewport 1334×549):** chrome 156 → 120 px; szerokość treści kontaktu 558 → 782 px; wątek e-maila 229 → 303 px; brak poziomego scrolla przy 1024/1027/1100/1366/1888 px w językach pl/de/en; 1920×1080 bez zmian (paski 64/48/44, kolumny 264/280). MEDIUM-3 (navbar przy 1025–1100 px, zmiana wspólna dla ról) zweryfikowany pomiarem w przeglądarce: brak przepełnienia.
+- **Code review:** `senior-code-reviewer` 3,5/5; wszystkie MAJOR (baner zasłaniający sidenav, stary klucz `localStorage`) i zalecenia naprawione w rundzie 3 (zob. `CR-FRONTEND.md`).
+- **Otwarte (poza zakresem tego ticketu, zapisane tutaj):** (1) chip/baner ACW niezweryfikowany na żywo (wymaga prawdziwej rozmowy Twilio) oraz widoki supervisor/admin niezweryfikowane w przeglądarce (MFA) — kryteria pokryte testami jednostkowymi; (2) przy 1024 px (układ pionowy) formularz odpowiedzi e-mail wymaga przewijania; (3) 27 plików poza agentem/powłoką (admin, auth, supervisor, tenants) ma nadal literały `px` w `@media` → FE-137; (4) toast „Resource not found” przy kontakcie od nieznanego klienta — niezbadany (kandydat na bug do analizy `debug-specialist`, bez numeru); (5) kontakt `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu → FE-136 / BE-157 (zob. notatka w FE-136).
+**Ryzyka:** (R1) kolizje z FE-121/FE-122 — realizować po nich; (R2) zmiany w SCSS top-navbara wspólnego dla ról — przegląd supervisor/admin; (R3) rozmiary celów (clamp) a zoom 200% (WCAG 1.4.4/1.4.10).
+**Nie wchodzi w zakres:** układ mobilny/tablet, przebudowa nawigacji, optymalizacja rozmiaru stylów (FE-124).
+
+### FE-124 – Optymalizacja stylów: budżet `agent-desktop.scss`, fallbacki hex, `will-change` i animacje
+
+**Typ:** Frontend implementation (wydajność / refaktor)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-116 ✅, FE-118 ✅, FE-123 ✅ (tura 49: FE-116 i FE-118 ukończone; FE-123 ✅ 2026-10-29)
+**Status:** ✅ Ukończone (2026-10-30, tura 58; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; wykonane w 3 rundach; code review `CR-FRONTEND.md` sekcja „Review: FE-124” 3,5/5 — wszystkie ustalenia naprawione w rundzie 2, runda 3 = poprawka z przeglądarki; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 764 testy; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** FE-125 (odblokowany ✅); wynik FE-124 → FE-138 (budżety pozostałych komponentów i bundla)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (przegląd ruchu: `ui-premium-designer`)
+
+**Opis:** Audyt (P2/P3): `agent-desktop.component.scss` 18,75 kB przy budżecie 12 kB (wg audytu; `wc -c` źródła daje ok. 24 kB — pomiar wg ostrzeżeń `npm run build`/budżetu `angular.json`), 123 fallbacki hex (`var(--x, #hex)`), `will-change` w stanie spoczynku, animacje `width`/`margin`, „side-tab” (4 px `border-left`; część to celowe znaczniki kierunku w `email-thread-message.component.scss` — wg krytyki fałszywy alarm, nie zmieniać bez uzasadnienia). The Flat-at-Rest Rule i zasada „ruch = stan, nie dekoracja”.
+
+**Zakres:**
+- Redukcja `agent-desktop.component.scss` do budżetu 12 kB: podział na komponenty/partiale, usunięcie martwych reguł po FE-121/FE-122/FE-123, wspólne mixiny.
+- Usunięcie 123 fallbacków hex (tokeny zdefiniowane globalnie w `styles.scss`, więc fallbacki zbędne).
+- `will-change` tylko na czas animacji; animacje `width`/`margin` → `transform`/`opacity`; `prefers-reduced-motion` respektowane.
+- *(tura 48, dopisane)* `adhoc-email-modal.component.scss`: linie ~243 i ~307 `rgba(255,255,255,0.7)` → token; `outline: none` → `:focus-visible` z tokenem fokusu.
+- *(tura 49, dopisane)* pozostałe literały `rgba` w `email-thread-message` i `adhoc-email-modal` → tokeny; ujednolicenie `0.7rem`/`0.72rem`/`0.71875rem` do tokenu (`--fs-2xs`/`--fs-xs` z FE-118); fallbacki `var(--x, #hex)` (poza `agent-desktop.component.scss` — pozostałe pliki).
+- *(tura 50, dopisane — `impeccable detect`/przeglądarka)* `$ease-spring` (bounce easing) w `add-break-modal` i `manual-callback-modal` → krzywa bez odbicia (ease-out-expo/quart wg `DESIGN.md`); nagłówek `manual-callback-modal` z gradientem accent→violet łamie Flat-at-Rest/Lamp Rule → płaski token; „side-tab” `border-left: 3px` w `login.component.scss` (ok. linii 146) → inne znaczenie wizualne (nie zmieniać znaczników kierunku w `email-thread-message`).
+- Pomiar przed/po (rozmiar, ostrzeżenia budżetu w `npm run build`).
+
+**Kryteria akceptacji:**
+- [x] `npm run build` bez ostrzeżenia o przekroczeniu budżetu dla `agent-desktop.component.scss` (≤ 12 kB)
+- [x] `grep -c "var(--[a-z0-9-]*, #" agent-desktop.component.scss` = 0
+- [x] Brak `will-change` w stanie spoczynku; brak animacji `width`/`margin` na powierzchni agenta; `prefers-reduced-motion` wyłącza ruch
+- [x] Wizualnie bez regresji w obu motywach (przegląd w przeglądarce)
+- [x] (dopisane w turze 48) `adhoc-email-modal`: brak `rgba(255,255,255,0.7)` (linie ~243 i ~307) i brak `outline: none` bez zamiennika `:focus-visible` (tokeny)
+- [x] (dopisane w turze 49) brak literałów `rgba` w `email-thread-message` i `adhoc-email-modal`; rozmiary 0.7rem/0.72rem/0.71875rem zastąpione tokenem; brak fallbacków `var(--x, #hex)` w dotykanych plikach
+- [x] (dopisane w turze 50) brak `$ease-spring`/bounce w `add-break-modal` i `manual-callback-modal`; nagłówek `manual-callback-modal` bez gradientu; brak „side-tab” w `login.component.scss`; `impeccable detect` na tych plikach bez znalezisk
+- [x] WP-1…WP-6
+
+
+**Notatka wykonania (2026-10-30, tura 58):**
+- **Metoda pomiaru (R3):** rozmiar po kompilacji z ostrzeżenia `anyComponentStyle` w `ng build` (budżet 12 kB = 12000 B); `wc -c` źródła nie jest miarodajny. `agent-desktop.component.scss` po kompilacji: 18,11 kB → 9,00 kB (zapas 3,0 kB), brak ostrzeżenia budżetu.
+- **Usunięte martwe reguły:** `.limit-banner` + `@keyframes banner-enter`, `desktop__tab-nav*`, `.phone-placeholder`, `.email-placeholder`; usunięte `::-webkit-scrollbar` (zostaje `scrollbar-width`).
+- **Wydzielone komponenty** (`features/agent/components/`): `app-queue-panel` (ticker tylko przy niepustej kolejce, licznik z odmianą `Intl.PluralRules` i kluczami `_one/_few/_many/_other` w pl/en/de/uk, czas w `sr-only`); `app-contact-header` (kompaktowy nagłówek 37 px z FE-123); `app-ws-banner` (naprawiona ucięta ścieżka ikony, istniejąca już w HEAD); `app-no-contacts`.
+- **Nowe partiale:** `features/agent/styles/_type-badge-tones.scss`, `shared/styles/_focus.scss` (mixin `field-focus`: outline 2 px, offset 2 px).
+- **Fallbacki `var(--x, #hex)`:** 107 → 0 w `agent-desktop`, 0 w dotkniętych plikach.
+- **Nowe tokeny globalne** w `styles.scss`: `--ease-out-expo`, `--ease-out-quart` (`--ease-spring` zostaje jako alias legacy bez odbicia), `--fs-sm`, `--font-mono` oraz globalna klasa `.sr-only`.
+- **Ruch:** brak `will-change` (nie było go w repo); usunięte `transition: width` panelu klienta; spinner przy `prefers-reduced-motion` statyczny; lokalny blok reduced-motion uproszczony (globalny reset pokrywa resztę).
+- **Modale `add-break`, `manual-callback`, `adhoc-email`:** `$ease-spring` → `--ease-out-expo`; płaskie nagłówki `--accent` bez gradientu; subtytuł i przycisk zamknięcia w pełnym `--accent-fg` (kontrast 4,87:1 jasny / 7,35:1 ciemny); `btn-save` płaski, hover tylko zmienia tło; `rgba` → `color-mix`; `:focus-visible` przez mixin.
+- **`email-thread-message`:** `rgba` → `color-mix`; niezdefiniowany `--shadow-xs` usunięty, hover chipa tłem. Znaczniki kierunku `border-left` bez zmian (wyjątek z ticketu).
+- **`login.component.scss`:** baner błędu z pełną ramką zamiast `border-left` 3 px.
+- **Edytory e-maila** (`adhoc-email-modal`, `email-reply` w `email-contact`): jeden pierścień fokusu na wrapperze przez `:has(...:focus-visible)` zamiast podwójnego (runda 3).
+- **Zmiany wizualne poza literą ticketu, zgodne z `DESIGN.md`:** brak cieni nagłówka kontaktu i paska, płaski awatar `--accent`, `btn-save` bez gradientu, `queue-item` bez cieni.
+- **Dowody (WP-5, przeglądarka, agent1, demo lokalne):** login — baner błędu z pełną ramką; nagłówek kontaktu compact 37 px / awatar 28 px / `title` z pełnym adresem, badge kanału ten sam kolor w zakładce i nagłówku, brak cieni; brak poziomego scrolla przy 1920, 1366 i 1056 px; modale — płaskie nagłówki w obu motywach, fokus 2 px z offsetem 2 px, hover `btn-save` bez cienia i bez `translateY`; jasny motyw: pulpit i modale OK; po rundzie 3 edytor `adhoc` ma jeden pierścień (`editor-content` outline none, wrapper outline 2 px offset 2 px).
+- **Niezweryfikowane na żywo:** lista kolejki z pozycjami (`QUEUE_UPDATE` przychodzi tylko przez WS; pokryte 9 testami); `prefers-reduced-motion` (brak emulacji); edytor odpowiedzi na pulpicie po rundzie 3 (ta sama poprawka co `adhoc`).
+- **Otwarte (poza zakresem, zapisane):** (1) `--color-primary` bez definicji i fallbacku w `customer-panel.component.scss:417` → dopisane do zakresu FE-125; (2) nieużywany klucz i18n `agent.desktop.queueWaiting` do usunięcia → dopisane do FE-125; (3) komponenty nadal ponad budżetem 12 kB (`adhoc-email-modal` 13,15 kB, `email-contact` 12,92 kB, `softphone` 14,27 kB, `contact-detail-modal`, `ivr-editor`, `email-templates`, `admin-metrics`) oraz bundle initial 567 kB przy budżecie 500 kB → nowy ticket FE-138.
+**Ryzyka:** (R1) refaktor stylów po przebudowie pulpitu — nie zaczynać przed FE-123; (R2) usunięcie fallbacków ujawni brakujące tokeny — sprawdzić w obu motywach; (R3) rozbieżność pomiarów (18,75 kB vs ~24 kB) — ustalić metodę pomiaru w pierwszym kroku.
+**Nie wchodzi w zakres:** optymalizacja bundla JS, pozostałe komponenty poza pulpitem, zmiany `side-tab` w wiadomościach e-mail.
+
+### FE-125 – Ponowny audyt i krytyka, aktualizacja `UI-REVIEW.md` i `DESIGN.md`
+
+**Typ:** Testing / Documentation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-114…FE-124 (FE-124 ✅ od 2026-10-30 — odblokowany; FE-123 ✅ od 2026-10-29; w tym FE-122 ✅ od 2026-10-29 oraz FE-131 ✅…FE-134 ✅ jako pakiety FE-121; wszystkie pakiety ✅ od 2026-10-29), FE-126 ✅ (ukończony) oraz FE-127, FE-128, FE-129 ✅ (2026-10-30, tura 60) (tickety epiku wprowadzone w turze 50). FE-130, BE-153 (statusSince), FE-135, FE-136, BE-154, BE-155, BE-156 (tura 51) NIE blokują zamknięcia audytu — backlog po FE-125
+**Status:** ✅ Ukończone (2026-10-30, tura 59; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` „Review: FE-125 (część A) — 2026-10-30” 4/5; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 68 plików / 770 testów; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty). **Audyt 15/20 przy celu ≥ 16 — niedobór 1 pkt zaakceptowany przez właściciela (R1).** **EPIC-32 zostaje OTWARTY** do realizacji FE-127, FE-128 (FE-129 ✅ 2026-10-30; decyzja właściciela 2026-10-30, zgodnie z zapisem zależności).
+**Czeka na BE:** brak
+**Blokuje:** zamknięcie EPIC-32 — po FE-127, FE-128 (FE-129 ✅ 2026-10-30; te dwa blokowały epik; sam FE-125 jest zamknięty; **FE-127 ✅ i FE-128 ✅ 2026-10-30, tura 61 — EPIC-32 zamknięty**). Następne: FE-139…FE-142 (wynik FE-125, backlog)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` (uruchomienie `/impeccable audit` i `/impeccable critique`), `senior-code-reviewer` (przegląd końcowy)
+
+**Opis:** Zamknięcie epiku: ponowny `/impeccable audit` i `/impeccable critique` powierzchni agenta, porównanie z wynikami wyjściowymi (audyt 12/20, krytyka 17/40), aktualizacja lub zastąpienie nieaktualnego `UI-REVIEW.md` (2026-03-26) i synchronizacja `DESIGN.md` / `.impeccable/design.json` ze stanem faktycznym.
+
+**Notatka (2026-10-30, z FE-124 — drobne domknięcia do wykonania przy audycie):**
+- `customer-panel.component.scss:417` używa `var(--color-primary)` — token nie jest zdefiniowany w `styles.scss` i nie ma fallbacku (kolor nie renderuje się); zamienić na `--accent` (wybór: FE-125, bo to drobna poprawka tokenu wykryta przy zamknięciu epiku, a nie praca nad rozmiarem stylów FE-138 ani migracją `@media` FE-137).
+- Usunąć nieużywany klucz i18n `agent.desktop.queueWaiting` z pl/en/de/uk (po wydzieleniu `app-queue-panel` w FE-124 licznik używa kluczy `_one/_few/_many/_other`).
+- Nie ma tu pozostałych komponentów ponad budżetem 12 kB ani bundla — to FE-138.
+
+**Notatka (2026-10-29, z FE-132/FE-133 — drobne otwarte do domknięcia przy audycie lub w FE-123):**
+- Panel kolejki pokazuje surowe „Imię <email>” (nazwa kontaktu bez normalizacji; `normalizeContactName` z FE-133 obejmuje karty, nie panel kolejki).
+- Tekst ogłoszenia „Nowy kontakt” zostaje w regionie live (nie jest czyszczony po odczytaniu — wpływa na ponowne odczytanie przez czytnik).
+- Ręczny test czytnika ekranu dla `tablist` z `aria-owns` (× jako sąsiad `role="tab"`) NIE wykonany — wymagany przed zamknięciem audytu.
+- Znaczniki PHONE (Rozmowa/Wstrzymana) i „Szkic” niezweryfikowane na żywo w przeglądarce (brak profilu dev dla PHONE i treści maili) — pokryte testami jednostkowymi.
+- (z FE-122, 2026-10-29) ACW niezweryfikowane na żywo — wymaga prawdziwej rozmowy Twilio (demo w profilu prod, brak symulacji); skrót FE-114 „przejdź do ACW” odroczony.
+
+**Zakres:**
+- `/impeccable audit` i `/impeccable critique` na `frontend/src/app/features/agent` + shell; snapshot krytyki w `.impeccable/critique/`.
+- `UI-REVIEW.md` zastąpiony aktualną oceną (lub oznaczony jako zarchiwizowany z odnośnikiem do nowej).
+- `DESIGN.md` i `design.json` zsynchronizowane (tokeny z FE-115/FE-116/FE-118, zasady Lamp/Token-Only).
+- Test z prawdziwym połączeniem przychodzącym (otwarte kryterium FE-114), jeśli środowisko pozwala; w przeciwnym razie odnotować jako dług.
+- Lista pozostałych znalezisk (P2/P3) jako propozycje kolejnych ticketów (bez numerów).
+
+**Kryteria akceptacji:**
+- [~] Audyt ≥ 16/20, krytyka ≥ 28/40 — **krytyka 30/40 spełniona; audyt 15/20 NIE spełnia celu o 1 pkt — zaakceptowane przez właściciela (R1, decyzja 2026-10-30)**
+- [x] 0 × P0 i 0 × P1 w obu raportach (P0: 2 → 0, P1: 4 audyt + 3 krytyka → 0)
+- [x] `UI-REVIEW.md` zaktualizowany lub zastąpiony (nowa ocena, sekcja „Przed EPIC-32: 6.2/10 (2026-03-26)”); `DESIGN.md`/`design.json` zgodne ze stanem faktycznym
+- [x] Wyniki porównania (przed/po) w notatce wykonania; nierozwiązane znaleziska wypisane (FE-139…FE-142)
+- [~] WP-1…WP-6 wykonane (WP-5 z długiem weryfikacji niżej); „po spełnieniu — status EPIC-32 ✅” **NIE zastosowane**: decyzja właściciela — epik zostaje 🔧 W toku do FE-127, FE-128 (FE-129 ✅ 2026-10-30)
+
+**Ryzyka:** (R1) cel liczbowy (16/20, 28/40) zależy od narzędzia (zmienność ocen) — przy niedoborze o 1 punkt decyzja właściciela; (R2) test na prawdziwym połączeniu może być niedostępny w demo.
+**Nie wchodzi w zakres:** naprawa nowych znalezisk P2/P3 (osobne tickety).
+
+**Notatka wykonania (2026-10-30, tura 59):** `/impeccable audit` i `/impeccable critique` na `frontend/src/app/features/agent` + shell; snapshot krytyki `.impeccable/critique/2026-10-30T05-33-24Z__frontend-src-app-features-agent.md`; szczegóły w `UI-REVIEW.md` (zastąpiony nową oceną).
+
+| Ocena | Przed EPIC-32 | Po | Cel |
+|---|---|---|---|
+| Audyt `/impeccable audit` | 12/20 | **15/20** (Good; wszystkie 5 wymiarów po 3/4) | ≥ 16 — niespełniony o 1 pkt, zaakceptowane przez właściciela (R1) |
+| Krytyka `/impeccable critique` | 17/40 | **30/40** | ≥ 28 — spełniony |
+| P0 | 2 (krytyka) | **0** | 0 |
+| P1 | 4 audyt + 3 krytyka | **0** | 0 |
+| P2 / P3 (audyt) | — | **7 / 6** | — |
+
+- **Kod:** `--color-primary` → `--accent` w `customer-panel` i `agent-customers-tab`; usunięty klucz i18n `agent.desktop.queueWaiting` (pl/en/de/uk); panel kolejki: `normalizeContactName` z fallbackiem do identyfikatora; region live „Nowy kontakt” czyszczony po 7000 ms bez osieroconych timerów (wartość niezweryfikowana na czytnikach); kontrast `.thread-message__time` → `--text-3` (5,59:1 ciemny, 5,46:1 jasny; było ok. 4,50:1 w ciemnym); cele ≥ 24 px (odświeżanie kampanii, „Collapse thread” `::before`, uchwyt panelu klienta 24 px szer., okruszek „Agent”); płaskie awatary `navbar__user-avatar` i `.customer-drawer__avatar`.
+- **Dokumentacja:** `DESIGN.md` i `.impeccable/design.json` zsynchronizowane (tokeny ruchu/typografii/powłoki, mixiny `field-focus`, `type-tone`, reguły Token-Only/Real Mono, nowy Don't: dekoracyjne gradienty, nowy Do: cele ≥ 24 px).
+- **Code review (`senior-code-reviewer`, część A):** 4/5; MEDIUM-1 (osierocony timer), MEDIUM-2 (2 s → 7 s) i wszystkie MINOR naprawione w rundzie 2; MINOR-4 (`--color-primary` w supervisor `disposition-sets`) poza zakresem → FE-141.
+- **WP-5 (przeglądarka, agent1, 1366×768, viewport 1334×549, compact, oba motywy):** pulpit z aktywnym e-mailem, Klienci (z wynikiem) i Oddzwonienia: 0 naruszeń kontrastu tekstu (skrypt WCAG z computed styles), 0 celów < 24 px, brak poziomego scrolla. Jedyny widoczny gradient: `customer-card__avatar` (→ FE-139).
+- **Dług weryfikacji (NIEWYKONANE):** (1) ręczny test czytnika ekranu, w tym `tablist` z `aria-owns`; (2) prawdziwe połączenie przychodzące / ACW (Twilio; otwarte kryterium FE-114); (3) emulacja `prefers-reduced-motion`; (4) znaczniki PHONE / „Szkic” na żywo.
+- **Decyzje właściciela (2026-10-30):** (a) akceptuje audyt 15/20 przy celu ≥ 16 (R1); (b) FE-125 zamknięty, **EPIC-32 pozostaje otwarty** do FE-127, FE-128, FE-129.
+- **Nowe tickety (propozycje P2/P3, backlog, nie blokują epiku):** FE-139 (gradienty), FE-140 (fallbacki hex), FE-141 (tokeny `disposition-sets`), FE-142 (drobne P3). Istniejące tylko powiązane, bez duplikowania: FE-129/FE-130 (KPI), FE-135, FE-136, FE-137, FE-138.
+
+### FE-126 – Obsługa klawiatury list umiejętności (`.skill-dropdown`) w formularzach admin-user-form, queue-form, user-form
+
+**Typ:** Frontend implementation (a11y / harden)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-116 ✅ (ukończony 2026-10-23, tura 49 — FE-126 odblokowany)
+**Status:** ✅ Ukończone (2026-10-23, tura 50; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `CR-FRONTEND.md` sekcja „EPIC-32 faza 2 — FE-119, FE-120, FE-126 — 2026-10-23” 4/5, wszystkie punkty Wymagane i Zalecane poprawione; `/verify`: lint 0 błędów (10 starych ostrzeżeń `no-console`), format OK, FE 47 plików / 497 testów)
+**Czeka na BE:** brak
+**Blokuje:** FE-125 ✅ (zamknięty), FE-127
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable` harden (faza 2, obok FE-119/FE-120)
+
+**Opis:** Wynik FE-116 (kryterium (d), niespełnione): opcje `.skill-dropdown__item` w `admin-user-form`, `queue-form` i `user-form` nie są fokusowalne — wybór działa na `mousedown`, brak `tabindex` i `aria-activedescendant`, więc listy umiejętności są nieobsługiwalne klawiaturą (WCAG 2.1.1; PRODUCT.md: pełna obsługa z klawiatury). W FE-116 usunięto martwy `:focus-visible` (reguła bez celu); właściwa obsługa klawiatury jest osobnym zakresem.
+
+**Zakres:**
+- Wzorzec listbox WAI-ARIA dla `.skill-dropdown` w trzech formularzach (najlepiej jeden wspólny element/dyrektywa zamiast trzech kopii): `aria-activedescendant` albo roving `tabindex`, `role="listbox"`/`option`, `aria-selected`.
+- Klawisze: strzałki (góra/dół, Home/End), Enter i Spacja wybierają, Esc zamyka listę i zatrzymuje propagację (nie zamyka okna nadrzędnego, spójnie z FE-114/FE-117).
+- `:focus-visible` / wyróżnienie aktywnej opcji tokenami (wzór: `.autocomplete-item`, `.custom-select__option` z FE-117), kontrast ≥ 3:1 w obu motywach.
+- Zachowanie myszy bez regresji (wybór na `mousedown`).
+
+**Kryteria akceptacji:**
+- [x] Listę umiejętności w admin-user-form, queue-form i user-form da się otworzyć, przejść strzałkami i wybrać Enter/Spacją wyłącznie klawiaturą
+- [x] Esc zamyka samą listę (okno/formularz zostaje otwarty); fokus wraca na pole
+- [x] Aktywna opcja ma widoczny fokus/wyróżnienie (≥ 3:1) w jasnym i ciemnym motywie; czytnik ogłasza opcję i stan wyboru
+- [x] Brak regresji obsługi myszą; testy jednostkowe zachowania klawiatury
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) trzy formularze mają osobne kopie logiki — wspólny komponent zmniejsza ryzyko rozjazdu, ale dotyka ekranów admin (konta wymagają MFA w local-demo — WP-5 może być ograniczone); (R2) zbieżność z wzorcem listbox z FE-120 (`add-break-modal`) — ten sam wzorzec, rozważyć współdzielenie.
+**Nie wchodzi w zakres:** zmiana modelu danych umiejętności, przebudowa wyglądu list, pozostałe custom-selecty (FE-120).
+**Notatka wykonania (2026-10-23, tura 50):** wspólna dyrektywa `shared/directives/listbox-nav.directive.ts` (`aria-activedescendant`, strzałki/Home/End/Enter/Spacja/Esc, tryb editable, unikalne id instancji, Shift+strzałki nieprzechwytywane) w `admin-user-form`, `queue-form`, `user-form` i `add-break-modal` (wzorzec wspólny z FE-120 — R2 rozwiązane); modyfikatory `--highlighted` / `--selected`; `mousedown preventDefault` na listach (usunięty `setTimeout` 150 ms); kontrast obrysu aktywnej opcji 4,15:1 jasny / 6,47:1 ciemny; testy dla wszystkich trzech formularzy. **WP-5 ograniczone (R1):** ekrany supervisor/admin wymagają MFA — niezweryfikowane w przeglądarce, tylko testy. **Odkrycie:** `AdminUserFormComponent` nigdy nie ładuje `availableSkills` (lista podpowiedzi zawsze pusta) → FE-127.
+
+### FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta
+
+**Typ:** Bug (Frontend)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-126 ✅ (ukończony 2026-10-23, tura 50 — dyrektywa `listbox-nav` działa na liście, która dziś jest pusta)
+**Status:** ✅ Ukończone (2026-10-30, tura 61; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-127 + FE-128 — 2026-10-30” runda 1: 3,5/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 70 plików / 885 testów; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak (istniejący endpoint umiejętności używany w `user-form`/`queue-form`)
+**Blokuje:** — (dawniej: zamknięcie EPIC-32; od 2026-10-30 spełnione — po FE-127 ✅ i FE-128 ✅ EPIC-32 zamknięty)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Wykryty w turze 50 podczas FE-126: `AdminUserFormComponent` nigdy nie wywołuje ładowania umiejętności (brak `loadSkills`), więc `availableSkills` jest puste i lista podpowiedzi `.skill-dropdown` w formularzu admina nigdy nic nie pokazuje (obsługa klawiatury z FE-126 działa, ale nie ma na czym). Wzór poprawnego ładowania: `user-form` / `queue-form`.
+
+**Zakres:**
+- Dodanie ładowania umiejętności w `admin-user-form.component.ts` (wzór z `user-form`), obsługa błędu ładowania bez blokowania formularza.
+- Test jednostkowy: po inicjalizacji `availableSkills` zawiera dane z serwisu; podpowiedzi filtrują się po wpisanym tekście.
+
+**Kryteria akceptacji:**
+- [x] Lista podpowiedzi umiejętności w formularzu admina pokazuje dostępne umiejętności (test Vitest)
+- [x] Błąd ładowania nie blokuje zapisu użytkownika (test)
+- [x] Obsługa klawiatury z FE-126 działa na wypełnionej liście
+- [x] WP-1…WP-6 (WP-5 ograniczone: ekran wymaga MFA — patrz dług w notatce)
+
+**Ryzyka:** (R1) ekran admina wymaga MFA w local-demo — weryfikacja w przeglądarce może być niemożliwa (jak w FE-126).
+**Nie wchodzi w zakres:** zmiana modelu umiejętności, nowe endpointy.
+
+**Notatka wykonania (2026-10-30, tura 61):** `angular-frontend-expert` + `impeccable harden`; code review 2 rundy (3,5/5 → 4,5/5). Zmiany (frontend, bez zmian backendu):
+- `AdminUserFormComponent` (`frontend/src/app/features/admin/pages/users/admin-user-form/`) ładuje umiejętności przez `UserService.getSkills()` — ten sam endpoint co `user-form` i `queue-form`; nowe sygnały `skillsLoading` i `skillsLoadFailed`.
+- Błąd ładowania nie blokuje zapisu — umiejętności można wpisać ręcznie.
+- Osobny region live (`.sr-only`, `role="status"`, zawsze w DOM) ogłasza tylko stany błędu i pustej listy, nie ogłasza ładowania; podpowiedź `#adm-skill-status` podpięta przez `aria-describedby`. Nowe klucze `admin.userForm.skillsLoadError` i `admin.userForm.skillsEmpty` (4 języki).
+- Testy: dane z serwisu, filtr podpowiedzi, `listbox-nav` (FE-126) na wypełnionej liście, stan ładowania, destroy, tryb edycji (`updateUser`), błąd ładowania nie blokuje zapisu.
+- Code review: runda 1 — MEDIUM-1 (`role="status"` na stałej podpowiedzi), MEDIUM-2 (brakujące testy); runda 2 — zamknięte.
+- **Dług weryfikacji ręcznej (WP-5, niewykonany):** ekrany admina wymagają MFA w local-demo (tak jak w FE-126) — do sprawdzenia przez właściciela: podpowiedzi umiejętności, obsługa klawiaturą, komunikaty stanu w czytniku ekranu.
+- Skutek: razem z FE-128 ✅ zdjęty ostatni bloker — **EPIC-32 zamknięty 2026-10-30**.
+
+### FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service`
+
+**Typ:** Frontend implementation (i18n)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-119 ✅ (ukończony 2026-10-23, tura 50 — grep literałów objął tylko `features/agent`)
+**Status:** ✅ Ukończone (2026-10-30, tura 61; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-127 + FE-128 — 2026-10-30” runda 1: 3,5/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 70 plików / 885 testów; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** — (dawniej: zamknięcie EPIC-32; od 2026-10-30 spełnione). Następne: FE-144 (i18n pozostałych ekranów) i FE-145 (błąd telefonii agentowi) — backlog, nie blokują epiku
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify`
+
+**Opis:** Pozostałości literałów PL znalezione w turze 50, poza zakresem FE-119 (powierzchnia agenta): (a) `admin-user-form.component.ts` — literał `'Administrator Główny'`; (b) `queue-form.component.ts` — komunikaty walidacji PL („Nazwa jest wymagana.” itd.); (c) `softphone.service.ts` — komunikat `twilioDeviceError` po polsku (obecnie nieeksponowany w UI — przy zmianie przepuścić przez i18n zamiast wystawiać literał). PRODUCT.md: „Żaden tekst nie może być na sztywno w jednym języku.”
+
+**Zakres:** klucze w `frontend/public/i18n/{pl,en,de,uk}.json`, użycie `TranslateService`/pipe; forma neutralna płciowo; brak martwych kluczy.
+
+**Kryteria akceptacji:**
+- [x] Brak literałów PL w trzech wymienionych plikach (grep poza komentarzami i `console.*`)
+- [x] Parytet kluczy w 4 językach (0 różnic)
+- [x] Testy dla zmienionych komunikatów walidacji `queue-form`
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) tłumaczenia de/uk bez przeglądu native speakera (dług znany z FE-113); (R2) pełny grep po `frontend/src` może wskazać dalsze pliki supervisor/admin — wypisać jako propozycję, nie rozszerzać zakresu bez decyzji.
+**Nie wchodzi w zakres:** pozostałe ekrany admin/supervisor niewymienione wyżej.
+
+**Notatka wykonania (2026-10-30, tura 61):** `angular-frontend-expert` + `impeccable clarify`; code review 2 rundy (3,5/5 → 4,5/5). Zmiany (frontend, bez zmian backendu):
+- `admin-user-form`: `roleOptions` z `labelKey` (`role.*`); gettery błędów zwracają klucze, tłumaczy je pipe `transloco`. Usunięte także literały ASCII-PL („Imie nie moze…”, „Haslo musi…”).
+- `queue-form`: walidacje przez klucze `supervisor.queueForm.errors.{nameRequired,nameMaxLength,routingStrategyRequired}`; 4 toasty przez `supervisor.queueForm.{successCreate,successEdit,errorCreate,errorEdit}` z parametrem `{{name}}`, tłumaczone przez `translate()` w handlerach zdarzeń.
+- `softphone.service`: `twilioDeviceError` trzyma klucz `agent.softphone.errors.{tokenFetch,device}` (typ `TwilioDeviceErrorKey`), surowy komunikat trafia tylko do konsoli; nowy seam `protected createTwilioDevice(token)` dla testów (`vi.mock` dawał timeouty w pełnym przebiegu; zaakceptowany w CR runda 2); nowy `softphone.service.spec.ts` z 5 testami.
+- i18n: parytet 2784 kluczy w pl/en/de/uk, 0 różnic, brak martwych kluczy; w pl termin „skille”, spójny z resztą UI; poprawka w `uk.json` (U+02BC zamienione na `'`). Grep literałów PL w 3 plikach ticketu: 0 trafień poza `console.*`.
+- Code review: runda 1 — MAJOR-1 (toasty `queue-form` z literałami PL), MEDIUM-1…3, MINOR-1…4; runda 2 — wszystko naprawione poza MINOR-4 (mieszane przestrzenie nazw `admin.*`/`supervisor.*` w getterach `admin-user-form`; backlog → FE-144).
+- Ryzyko R1 (tłumaczenia de/uk bez przeglądu native speakera) pozostaje długiem z FE-113. R2 zrealizowane jako propozycja: grep po `frontend/src` wskazał dalsze pliki → nowy FE-144; `twilioDeviceError` bez konsumenta w UI → nowy FE-145.
+- **Dług weryfikacji ręcznej (WP-5, niewykonany):** ekrany admina i supervisora wymagają MFA w local-demo — do sprawdzenia przez właściciela: napisy ról, walidacje po zmianie języka, toasty kolejki.
+- Skutek: razem z FE-127 ✅ zdjęty ostatni bloker — **EPIC-32 zamknięty 2026-10-30**.
+
+### FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss)
+
+**Typ:** Bug / UX (Frontend)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-119 ✅ (ukończony 2026-10-23, tura 50 — obserwacja z weryfikacji pasa KPI w przeglądarce)
+**Status:** ✅ Ukończone (2026-10-30, tura 60; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-129 — 2026-10-30” runda 1: 3,5/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 69 plików / 863 testy; BE `mvn verify` 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** — (dawniej: zamknięcie EPIC-32; od 2026-10-30 spełnione — po FE-129 ✅ epik blokują już tylko FE-127 i FE-128). Następne: FE-143 (backlog, nie blokuje epiku; ten sam wzorzec reaktywności w `queue-panel`)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify`
+
+**Opis:** W przeglądarce (tura 50) KPI „Czas pracy” pokazuje `225:56` — wartość w minutach powyżej 60 w formacie `mm:ss` lub z niejasną jednostką. Należy sprawdzić źródło (format sekundy/minuty) i ustalić jednoznaczny format `h:mm` (lub `h:mm:ss`) z jednostką/etykietą zrozumiałą dla czytnika ekranu.
+
+**Kryteria akceptacji:**
+- [x] Czas pracy powyżej 60 min wyświetlany w formacie `h:mm` (np. `3:45`), poniżej godziny spójnie (test dla 59:59, 60:00, 225:56 → 3:45; zaimplementowane jako `h:mm` z floor: 13556 s → `3:45`, 3599 s → `0:59`, 3600 s → `1:00`)
+- [x] Etykieta/`aria-label` jednoznacznie podaje jednostkę (i18n w 4 językach)
+- [x] Pas KPI nadal mieści się w `de` przy 1366 px (pomiar w przeglądarce) — **z wyjaśnieniem:** 1920 px w `de`: 4 kafelki, najgorszy przypadek `12:59` bez ucięcia; przy 1366×768 pas ma 381 px, więc etykiety i 4. kafelek są sr-only wg reguł container query z FE-134 (zamierzone, niezależne od FE-129; nic się nie ucina, wysokość kafelka 48 px, brak poziomego przewijania)
+- [x] WP-1…WP-6 (WP-5: przeglądarka w lokalnym demo, patrz notatka; WP-6: CR 2 rundy)
+
+**Ryzyka:** (R1) FE-119 usunął pasek czasu pracy w navbarze — upewnić się, że chodzi o KPI w pasie, nie o usunięty element; (R2) źródło wartości ROZSTRZYGNIĘTE (tura 53): backend zwraca sekundy poprawnie (13 556 s), a `225:56` pochodzi z `TopNavbarComponent.formatSeconds` (`m:ss` bez godzin) — przyczyną jest FE, więc FE-129 NIE czeka na backend. Powiązany BE-158 zmienia semantykę liczby („od pierwszego kontaktu dnia”), nie jej format; brak zależności.
+**Nie wchodzi w zakres:** nowe KPI, zmiany API.
+
+**Notatka wykonania (2026-10-30, tura 60):** `angular-frontend-expert` + `impeccable clarify` na `top-navbar` (obie rundy). Zmiany (kod, bez zmian backendu):
+- Format `h:mm` (floor) dla KPI „Czas pracy”: 13556 s → `3:45`, 3599 s → `0:59`, 3600 s → `1:00`. AHT zostaje w formacie `m:ss`.
+- Nowy util `frontend/src/app/shared/utils/duration-format.util.ts` (`formatHoursMinutes`, `formatMinSec`, `splitHoursMinutes`, `splitMinSec`, `toSafeSeconds`) ze specem `duration-format.util.spec.ts`.
+- Tekst sr-only z jednostkami i formami mnogimi (`Intl.PluralRules`), zerowe części pomijane („45 minut”, „1 godzina”, 0 s → „0 minut”), w pl/en/de/uk, rozwiązywany przez pipe `transloco` w szablonie; komponent liczy tylko klucze i liczby. Wartość widoczna ma `aria-hidden`.
+- sr-only „X min Y s” dla AHT (klucz `kpiAhtSr`); wspólny klucz `agent.desktop.kpiNoData` („brak danych”) dla 4 kafelków, gdy brak KPI, a „—” ma `aria-hidden`.
+- Klucze plural `_one/_few/_many/_other` są we wszystkich 4 językach celowo (MEDIUM-1 zaakceptowane): `top-navbar.kpi-layout.spec.ts` typuje en/de/uk kształtem `pl.json`.
+- Code review: runda 1 3,5/5 — MAJOR-1 (`translate()` w `computed` zależnym od `langChanges$` dawało surowy klucz po przełączeniu na niezaładowany język; potwierdzone na żywo), MEDIUM-1…5, MINOR; runda 2 4,5/5 — wszystko naprawione albo zaakceptowane (MEDIUM-1), brak blokerów. Zostają NIT-1…3 (kolejność sr-only w kafelku Handled bez danych, asercja niepustego tekstu w teście asynchronicznego loadera, `Intl.PluralRules` tworzone przy każdym przeliczeniu `computed`) → FE-143.
+- Przeglądarka (lokalne demo, WP-5): przełączenie na uk od razu daje „0 хвилин” / „0 хв 45 с”, bez surowych kluczy; wysokość kafelka 48 px, brak poziomego przewijania; 1920 px w `de`: 4 kafelki, najgorszy przypadek `12:59` bez ucięcia; 1366×768: pas 381 px — etykiety i 4. kafelek sr-only zgodnie z FE-134 (zamierzone, niezależne od FE-129).
+- `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 69 plików / 863 testy; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty.
+- Skutek: po FE-129 ✅ zamknięcie EPIC-32 blokują już tylko FE-127 i FE-128. Nowy FE-143 (backlog).
+
+### FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji”
+
+**Typ:** Frontend implementation (follow-up BE-153)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-153 (API `statusSince`), FE-120 ✅ (ukończony 2026-10-23, tura 50 — licznik po stronie klienta)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-153
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Po BE-153 `cc-status-elapsed` ma liczyć czas od `statusSince` zwróconego przez `GET /users/me` oraz z payloadu WS `AgentStatusChangedPayload`, dzięki czemu licznik przeżywa przeładowanie strony. Usuwa się adnotację „w tej sesji” z `title`/tekstu dla czytnika.
+
+**Kryteria akceptacji:**
+- [ ] Licznik startuje od `statusSince` z API; po przeładowaniu strony wartość jest ciągła (test + przeglądarka)
+- [ ] Zmiana statusu przez WS aktualizuje punkt startu licznika
+- [ ] Usunięta adnotacja „w tej sesji” (4 języki, brak martwych kluczy); fallback do czasu klienta, gdy API nie zwraca `statusSince` (stary backend)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) rozjazd zegarów klient/serwer — liczyć względem czasu serwera lub odnotować tolerancję; (R2) rolling deploy FE przed BE — stąd fallback.
+**Nie wchodzi w zakres:** zmiany backendu (BE-153).
+
+### FE-131 – WP-A (FE-121): Magazyn szkiców per kontakt (e-mail, social, notatka PHONE) bez ponownego `acceptContact` przy powrocie na kartę
+
+**Typ:** Frontend implementation (stan aplikacji)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-121 (parasol; brief zatwierdzony 2026-10-23 — warunek procesowy, nie blokada techniczna); twardych zależności technicznych brak
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; code review `senior-code-reviewer`, poprawki wdrożone; `npm test` 596 testów zielone, lint 0 błędów, format OK)
+**Czeka na BE:** brak
+**Blokuje:** FE-132, FE-133, FE-122, FE-136
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-A)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Dziś `@switch` w `agent-desktop` niszczy komponent karty przy zmianie karty, więc szkic e-maila, odpowiedź social i notatka PHONE przepadają. Dodać magazyn szkiców kluczowany `contactId` (serwis/store w `features/agent/services`), który przeżywa zmianę karty. Szkice wyłącznie w pamięci (RODO: treść wiadomości klienta nie trafia do `localStorage`/`sessionStorage`/IndexedDB).
+
+**Zakres:**
+- Szkic e-mail: treść, temat, wybrany szablon, zmienne szablonu, załączniki (referencje do plików w pamięci).
+- Szkic social: tekst odpowiedzi (`replyText`).
+- Notatka karty PHONE: istniejące `tab.note` w `ContactTabStore` przechodzi na wspólny magazyn (jedno źródło prawdy dla szkiców).
+- Czyszczenie wpisu po: wysłaniu, zamknięciu kontaktu, zwrocie do kolejki (WP-B) oraz wylogowaniu/zamknięciu karty bez szkicu.
+- `email-contact.component.ts` (ok. linii 97–104) woła `acceptContact` przy KAŻDYM montażu — przenieść wywołanie tak, by powrót na kartę (ponowny montaż) nie wysyłał kolejnego `acceptContact` (np. flaga „zaakceptowano” w magazynie/`ContactTab`).
+- API magazynu udostępnia „czy jest niewysłany szkic dla contactId” (potrzebne dla WP-B i znacznika „Szkic” w WP-C) jako `computed`/signal.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [x] Szkic e-maila (treść, temat, szablon, zmienne, załączniki), odpowiedź social i notatka PHONE przeżywają przełączenie karty i powrót (test jednostkowy magazynu + komponentu, weryfikacja w przeglądarce)
+- [x] Szkic jest usuwany po wysłaniu, zamknięciu kontaktu i zwrocie do kolejki
+- [x] Powrót na kartę e-mail nie wywołuje ponownie `acceptContact` (test: dwa montaże = jedno wywołanie)
+- [x] Szkice nie są zapisywane w `localStorage`/`sessionStorage`/IndexedDB (test/grep)
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable harden`)
+
+**Ryzyka:** (R1) komponenty e-mail/social mają dziś lokalne signal-e — migracja musi zachować zachowanie wysyłki i walidacji; (R2) załączniki w pamięci zwiększają zużycie RAM przy wielu kartach — limit rozmiaru już istnieje po stronie formularza, nie dublować; (R3) `adhoc-email-modal` i `manual-callback-modal` mają własną ochronę szkicu (FE-120) — poza zakresem.
+**Nie wchodzi w zakres:** zamykanie kart (FE-132), znaczniki (FE-133), formularz dyspozycji (FE-122; używa tego magazynu), trwałość szkiców po przeładowaniu strony.
+
+**Notatka z wykonania (2026-10-28):** magazyn szkiców per `contactId` (tylko pamięć). Poprawki z code review: (1) wysyłka e-maila niezależna od cyklu życia komponentu przez `EmailReplyService`, ze stanem wysyłania per kontakt; (2) `rekey` scala notatki; (3) `closeTab` czyści także `originalContactId`; (4) `clearAll` + reset kart przy wylogowaniu; (5) sanityzacja HTML przy przywracaniu szkicu; (6) ponowny montaż komponentu per karta przez `@for … track`. Weryfikacja: frontend 596 testów zielone, lint 0 błędów, format OK. **Otwarte dla FE-132:** potwierdzenie przy × gdy istnieje niewysłany szkic (API „czy jest szkic” jest gotowe).
+
+### FE-132 – WP-B (FE-121): Bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” (e-mail/social)
+
+**Typ:** Frontend implementation (UX, a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-131 ✅ (wiedza o niewysłanym szkicu), FE-121 (parasol), BE-160 ✅ (endpoint `POST /api/contacts/{id}/release` — zwrot e-mail/social do kolejki; zamiast `abandonContact`)
+**Status:** ✅ Ukończone (2026-10-29; 3 rundy code review + test w przeglądarce; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; frontend 676 testów, backend 2839 testów BUILD SUCCESS)
+**Czeka na BE:** BE-160 ✅ (nowy `POST /api/contacts/{id}/release`; decyzja: NIE `abandonContact`, bo ten kończy kontakt jako ABANDONED)
+**Blokuje:** FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-B)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Dziś × jest zagnieżdżonym `button` wewnątrz elementu `role="tab"` (`agent-desktop.component.html` ok. linii 279–313): nieprawidłowe ARIA, a × na karcie PHONE rozłącza bez pytania; dla e-mail/social × tylko usuwa kartę z pulpitu, a kontakt zostaje `ASSIGNED`/`ACTIVE` w bazie (agent „gubi” kontakt, którego nikt inny nie obsłuży).
+
+**Zakres:**
+- × jako osobny przycisk SĄSIADUJĄCY z `role="tab"` (nie jego potomek), z własnym fokusem i `aria-label` zawierającym nazwę kontaktu; nawigacja strzałkami po kartach z FE-114 bez regresji.
+- Klawiatura: `Delete` na karcie z fokusem uruchamia to samo zamknięcie co ×.
+- Reguły wg typu i stanu:
+  - PHONE `ACTIVE`/`HOLD` → `app-confirm-dialog` przed rozłączeniem;
+  - PHONE `WRAPPING` (ACW) → × wyłączone (`aria-disabled` + powód w `title`/opisie; dyspozycję zamyka się zapisem, nie ×);
+  - EMAIL/SOCIAL → „Zwróć do kolejki” przez `abandonContact`; potwierdzenie WYŁĄCZNIE gdy istnieje niewysłany szkic (FE-131); toast sukcesu; błąd API = karta zostaje + komunikat błędu;
+- Po zwrocie do kolejki: czyszczenie szkicu (FE-131), usunięcie karty, fokus na sąsiedniej karcie lub regionie pulpitu.
+- i18n w 4 językach (teksty potwierdzeń, toast, `aria-label`).
+
+**Kryteria akceptacji (z AC FE-121):**
+- [x] × na PHONE `ACTIVE`/`HOLD` wymaga potwierdzenia; na PHONE `WRAPPING` jest wyłączone
+- [x] × na EMAIL/SOCIAL zwraca kontakt do kolejki przez `POST /api/contacts/{id}/release` (BE-160; zamiast `abandonContact` — zmiana 2026-10-29) (test: wywołanie API + zniknięcie karty); potwierdzenie tylko gdy jest niewysłany szkic; toast sukcesu; przy błędzie API karta zostaje
+- [x] Brak zagnieżdżonego interaktywnego elementu w `role="tab"` (test a11y na prawdziwym szablonie); `Delete` na karcie z fokusem zamyka tak samo jak ×
+- [x] Nawigacja strzałkami po kartach i skróty z FE-114 bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [x] WP-1…WP-7 (WP-7: `impeccable harden`)
+
+**Ryzyka:** (R1) `abandonContact` po stronie backendu może odrzucić stan kontaktu inny niż `ASSIGNED`/`ACTIVE` — obsłużyć 4xx komunikatem, nie zamykać karty; (R2) po zwrocie kontakt wraca do kolejki i może zostać ponownie przydzielony temu samemu agentowi — zachowanie routingu poza zakresem (zob. BE-156); (R3) `Delete` jest też klawiszem edycji — obsługiwać tylko gdy fokus jest NA karcie (nie w polu edytora).
+**Notatka wykonania (2026-10-29):** × jako sąsiad `role="tab"`, `tablist` z `aria-owns`; Delete tylko gdy fokus jest NA karcie i bez auto-repeat; PHONE `ACTIVE`/`HOLD` — potwierdzenie, a po rozłączeniu karta przechodzi w ACW; PHONE `WRAPPING` — × wyłączone; PHONE `RINGING` — × odrzuca połączenie; EMAIL/SOCIAL — zwrot do kolejki przez nowy `POST /api/contacts/{id}/release` (BE-160), NIE `abandonContact` (zmiana względem briefu z 2026-10-23: abandon kończył kontakt); potwierdzenie tylko przy niewysłanym szkicu; 404/409 zamyka kartę z komunikatem, inne błędy — karta zostaje; ochrona przed wyścigiem release vs ponowny przydział. 3 rundy code review + test w przeglądarce. Drobne otwarte: zob. notatka w FE-125.
+
+**Nie wchodzi w zakres:** znaczniki stanu (FE-133), zmiany backendu, zamykanie karty z poziomu innego miejsca niż pasek kart.
+
+### FE-133 – WP-C (FE-121): Znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic) i nowy kontakt bez przejmowania aktywnej karty
+
+**Typ:** Frontend implementation (UX, a11y)
+**Priorytet:** Must Have
+**Złożoność:** S/M
+**Zależy od:** FE-131 ✅ (znacznik „Szkic”), FE-121 (parasol); tokeny FE-116 ✅
+**Status:** ✅ Ukończone (2026-10-29; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; frontend 676 testów, backend 2839 testów BUILD SUCCESS)
+**Czeka na BE:** brak (znaczniki wyłącznie ze stanów znanych frontowi; „nowa wiadomość/nieprzeczytane” → BE-154 + FE-135)
+**Blokuje:** FE-122, FE-135, FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-C)
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Karty nie mówią, w jakim są stanie, a każdy nowy kontakt (`openTab`, `contact-tab.store.ts` ok. linii 81–92) zawsze przejmuje aktywną kartę — agent w trakcie pisania jest przerzucany na inny kontakt. Dodać jeden znacznik na kartę wg priorytetu i przestać przełączać aktywną kartę przy nowym kontakcie.
+
+**Zakres:**
+- Jeden znacznik na kartę, wg priorytetu: **ACW** (ton violet) > **Wstrzymana** (warning) > **Rozmowa** (success) > **Szkic** (neutral, ikona ołówka). Ikona + tekst dla czytnika (WCAG 1.4.1 — nie sam kolor), tony z tokenów FE-116, kontrast AA w obu motywach.
+- „Wstrzymana” z lokalnego stanu softphone (dziś status `HOLD` w `ContactTabStore` nigdy nie jest ustawiany) — podpiąć stan hold/resume z softphone do karty PHONE.
+- „Szkic” z magazynu FE-131; „ACW” ze stanu karty `WRAPPING`; „Rozmowa” dla PHONE `ACTIVE`.
+- Nowy kontakt NIE przejmuje aktywnej karty: karta dodawana jako nieaktywna z znacznikiem/ogłoszeniem `aria-live="polite"` („Nowy kontakt: …”); wyjątek — gdy nie ma żadnej karty (pierwsza karta aktywna). Połączenie przychodzące PHONE nadal obsługuje baner/skróty z FE-114 (bez regresji).
+- Długie nazwy: elipsa wizualnie + pełna nazwa w nazwie dostępnej karty (`aria-label`/`title`).
+- i18n w 4 językach; znaczniki nie wprowadzają literałów hex.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [x] Karta pokazuje dokładnie jeden znacznik wg priorytetu ACW > Wstrzymana > Rozmowa > Szkic, z ikoną i tekstem dla czytnika (test: kombinacje stanów)
+- [x] Kontrast znaczników ≥ 4,5:1 (tekst) i ≥ 3:1 (ikona/ramka) w motywie jasnym i ciemnym
+- [x] „Wstrzymana” pojawia się po wstrzymaniu rozmowy w softphone i znika po wznowieniu (test + przeglądarka)
+- [x] Nowy kontakt nie zmienia aktywnej karty (gdy jakaś jest aktywna); agent dostaje ogłoszenie polite; fokus nie jest kradziony (test)
+- [x] Długie nazwy skracane elipsą, pełna nazwa w nazwie dostępnej karty
+- [x] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [x] WP-1…WP-7 (WP-7: `impeccable polish`)
+
+**Ryzyka:** (R1) zmiana `openTab` dotyka limitów kart (`MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3`, `MAX_TOTAL_TABS=4`) i `AgentRecoveryService` — przetestować odtwarzanie i odrzucanie przy limicie; (R2) połączenie przychodzące a „nie przejmuj karty” — rozstrzygnąć w kodzie, że baner przychodzący pozostaje nadrzędny; (R3) stan hold w softphone może być w kilku miejscach — wskazać jedno źródło.
+**Notatka wykonania (2026-10-29):** jeden znacznik wg priorytetu ACW > Wstrzymana > Rozmowa > Szkic; źródło „Wstrzymana” = `SoftphoneService.session()`; nowy kontakt nie przejmuje aktywnej karty (ogłoszenie polite); normalizacja nazw kontaktu `normalizeContactName`; elipsa + pełna nazwa w `aria-label`. Znaczniki PHONE i „Szkic” niezweryfikowane na żywo (zob. notatka w FE-125).
+
+**Nie wchodzi w zakres:** „nieprzeczytane/czeka klient” (FE-135 po BE-154), limity kart (BE-156), przycisk zamykania (FE-132).
+
+### FE-134 – WP-D (FE-121): Powłoka agenta — przełącznik statusu w górnym pasku na wszystkich `/agent/*`; CTA „Utwórz profil” i „Pełny profil” ukryte dla agenta
+
+**Typ:** Frontend implementation (UX, a11y, shell)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-121 (parasol); twardych zależności technicznych brak
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; `npm test` 596 testów zielone, lint 0 błędów, format OK; zweryfikowane w przeglądarce przy 1366 i 1920 px)
+**Czeka na BE:** brak
+**Blokuje:** FE-123
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Parasol:** FE-121 (WP-D)
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Status agenta można dziś zmienić tylko na pulpicie (przełącznik w nagłówku pulpitu), a karta klienta ma dwa CTA prowadzące na `/supervisor/…`, niedostępne dla roli AGENT.
+
+**Zakres:**
+- Przełącznik statusu agenta w górnym pasku (top-navbar/powłoka) na WSZYSTKICH trasach `/agent/*` — jedno miejsce; usunięty z nagłówka pulpitu (bez duplikatu).
+- Pełna obsługa klawiaturą (otwarcie, strzałki, Enter/Esc, powrót fokusu na wyzwalacz), zachowany `data-status-tone` z FE-116.
+- Bez regresji FE-114/FE-120: licznik przerwy `cc-status-elapsed` przenosi się razem z pigułką statusu (`role="timer"`, `aria-live="off"`), jeden toast po zmianie statusu, `add-break-modal` dostępny z nowego miejsca.
+- `customer-panel`: CTA „Utwórz profil” (→ `/supervisor/customers/new`) i „Pełny profil” ukryte dla roli AGENT (widoczne dla ról, które mają dostęp).
+- i18n w 4 językach, brak martwych kluczy.
+
+**Kryteria akceptacji (z AC FE-121):**
+- [x] Status agenta widoczny i obsługiwalny z klawiatury na każdej stronie `/agent/*`, bez duplikatu w nagłówku pulpitu
+- [x] Licznik przerwy i pigułka statusu przenoszone razem; testy FE-120 (licznik, toast) zielone
+- [x] CTA „Utwórz profil” i „Pełny profil” nie są renderowane dla roli AGENT (test dla AGENT i dla roli z dostępem)
+- [ ] Skróty z FE-114 działają bez regresji (testy `agent-hotkeys`, `call-lifecycle`, `dialog-escape` zielone)
+- [ ] WP-1…WP-7 (WP-7: `impeccable polish`)
+
+**Ryzyka:** (R1) top-navbar jest wspólny dla ról — zmiana nie może pojawić się dla supervisor/admin (przegląd obu); (R2) kolizja z FE-123 (kompaktowy chrome) — FE-134 przed FE-123; (R3) FE-130 (licznik z `statusSince`) dotyka tego samego komponentu — uzgodnić kolejność merge.
+**Nie wchodzi w zakres:** nowe statusy agenta, zmiana semantyki `AFTER_CONTACT`, ekran profilu klienta dla agenta (CTA tylko ukryte).
+
+**Notatka z wykonania (2026-10-28):** status agenta w górnym pasku na `/agent/*`, tylko dla roli AGENT; CTA „Utwórz profil”/„Pełny profil” ukryte dla AGENT; `initStatus` przeniesiony do powłoki (idempotentny, z cleanup); a11y menu (Tab/Esc/`aria-controls`/komunikat); adaptacyjny pas KPI z container query (wariant kompaktowy i priorytet kafelków), sprawdzony w przeglądarce przy 1366 i 1920 px. **Otwarte (decyzja właściciela):** przycisk „Dodaj przerwę” istnieje tylko na desktopie (w nowym układzie bez odpowiednika w wąskim widoku).
+
+### FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social (follow-up BE-154)
+
+**Typ:** Frontend implementation (follow-up, poza zakresem briefu FE-121)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-154 (zdarzenie WS o nowej wiadomości), FE-133 (znaczniki kart)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-154
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Po BE-154 karta kontaktu e-mail/social ma pokazywać, że w nieaktywnej karcie czeka nowa wiadomość klienta. Znacznik dołącza do hierarchii z FE-133 (miejsce w priorytecie do ustalenia: proponowane ponad „Szkic”, pod „Rozmowa”), znika po otwarciu karty.
+
+**Kryteria akceptacji:**
+- [ ] Nowa wiadomość klienta w otwartym kontakcie e-mail/social oznacza nieaktywną kartę znacznikiem (ikona + tekst dla czytnika) i ogłoszeniem polite
+- [ ] Znacznik znika po aktywacji karty; stan „nieprzeczytane” tylko w pamięci
+- [ ] Kontrast AA w obu motywach; i18n w 4 językach
+- [ ] Fallback: stary backend bez zdarzenia — brak znacznika, bez błędów
+- [ ] WP-1…WP-7
+
+**Ryzyka:** (R1) zdarzenie WS nie jest wysyłane dziś (front nasłuchuje `SOCIAL_MESSAGE_RECEIVED`, którego backend nie emituje) — nie zaczynać przed BE-154.
+**Nie wchodzi w zakres:** powiadomienia systemowe/dźwiękowe, trwałe liczniki nieprzeczytanych.
+
+### FE-136 – Odtwarzanie kart po przeładowaniu strony: wiele kontaktów, SOCIAL, `ACTIVE` i ACW (`agent-recovery.service`)
+
+**Typ:** Frontend implementation (odporność)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-122 ✅ (ACW jako stan karty, 2026-10-29), FE-131 ✅ (magazyn szkiców), BE-157 (lista aktywnych kontaktów agenta); kontekstowo BE-155 ✅ (kanał SOCIAL i kolejka)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-157 — `GET /api/agent/me/active-contacts` (tablica wszystkich aktywnych kontaktów agenta: `ASSIGNED`, `ACTIVE`, `ON_HOLD` i ACW; pole `phase` = `RINGING`/`IN_PROGRESS`/`WRAP_UP`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`; kolejność `assigned_at ASC`; maks. 20; `[]` gdy brak). Pytanie otwarte rozstrzygnięte 2026-10-23 (tura 52) — właściciel zatwierdził ticket BE-157. Stary `GET /api/agent/me/assigned-contact` zostaje (zgodność wsteczna), po FE-136 oznaczany jako deprecated.
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden` (backend: `backend-dev-expert` w BE-157)
+
+**Opis:** `agent-recovery.service` odtwarza po przeładowaniu tylko jeden kontakt `ASSIGNED` (`GET /api/agent/me/assigned-contact`). Po BE-157 serwis ma wołać `GET /api/agent/me/active-contacts` i odtwarzać karty z jednej odpowiedzi: `phase=RINGING` → dzwonek/akceptacja jak dotąd (e-mail/chat: `acceptContact`), `phase=IN_PROGRESS` → karta bez `acceptContact`, `phase=WRAP_UP` → karta ACW z formularzem (czas ACW z `wrapUpStartedAt`). Agent z kilkoma kartami, kontaktem SOCIAL, kontaktem `ACTIVE` lub kontaktem w ACW traci je z pulpitu (kontakty zostają w bazie — zob. FE-132/BE-156).
+
+**Kryteria akceptacji:**
+- [ ] Po przeładowaniu odtwarzane są wszystkie otwarte kontakty agenta (w tym SOCIAL i `ACTIVE`) z JEDNEGO wywołania `active-contacts`, w kolejności `assignedAt`, z zachowaniem limitów kart (nadmiarowe kontakty nie są gubione po cichu — komunikat/lista „poza limitem kart”)
+- [ ] Błąd/timeout endpointu nie blokuje pulpitu; w razie `404` (starszy backend) fallback do `assigned-contact`
+- [ ] Kontakt po rozmowie bez dyspozycji wraca jako karta ACW z formularzem (FE-122)
+- [ ] Nie wywołuje ponownego `acceptContact` dla kontaktu już `ACTIVE` (FE-131)
+- [ ] Szkice nie są odtwarzane (pamięć, RODO) — brak próby zapisu w przeglądarce
+- [ ] WP-1…WP-7
+
+**Notatka (2026-10-29, z FE-122):** po F5 stan ACW karty (`wrappingSince`, szkic dyspozycji) nie jest odtwarzany — odtworzenie karty ACW z `phase=WRAP_UP` należy do tego ticketu (R3); szkice w pamięci nie są trwałe (RODO).
+**Notatka (2026-10-29, z FE-123 — niezbadany objaw):** kontakt w stanie `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu — `agent-recovery.service` korzysta dziś z `GET /api/agent/me/assigned-contact`, który zwraca tylko kontakt `ASSIGNED`. To jest już pokryte zakresem tego ticketu i BE-157 (`active-contacts` obejmuje `ACTIVE`/`ON_HOLD`, `phase=IN_PROGRESS`), więc NIE zakładano osobnego ticketu BE. Do sprawdzenia przy realizacji: scenariusz „wylogowanie → ponowne logowanie” (nie tylko F5) — czy `agent-recovery.service` jest uruchamiany także po ponownym zalogowaniu bez przeładowania strony, oraz test z kontaktem `ACTIVE` bez ponownego `acceptContact`.
+**Ryzyka:** (R1) kontakty `SOCIAL` pojawią się na liście dopiero po BE-155 (bug kanału); ACW to stan pochodny backendu (`COMPLETED` bez dyspozycji, tylko `PHONE`, okno 12 h) — czas ACW to `endedAt`, nie dokładny moment wejścia; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`) — zob. BE-156.
+**Nie wchodzi w zakres:** trwałość szkiców po przeładowaniu, odtwarzanie rozmowy WebRTC.
+
+
+### FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta i powłoką na skalę breakpointów
+
+**Typ:** Frontend implementation (refaktor stylów)
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** FE-123 ✅ (skala `_breakpoints.scss`, `breakpoints.ts` i test parytetu)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku; zamyka MEDIUM-5 z `CR-FRONTEND.md` „Review: FE-123”)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable layout`/`polish` (przegląd wizualny supervisor/admin)
+
+**Opis:** FE-123 przeniósł na skalę (`xs` 480, `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `xxl` 1440, `compact-height` ≤ 720) powierzchnię agenta, powłokę, sidenav, navbar, `ai-summary-panel` i wspólne modale. Poza tym zostają 27 plików (admin, auth, supervisor, tenants) z literałami `px` w `@media` (ok. 50 wystąpień, ok. 11 różnych wartości: 480/520/540/560/600/620/640/768/900/1024…).
+
+**Zakres:**
+- Zamiana literałów na mixiny `down/below/up` ze skali; wartości nieleżące na skali (520/540/560/600/620/900) przypisać do najbliższego progu po przeglądzie wizualnym każdego widoku (zmiana progu może przesunąć zawijanie układu).
+- Strażnik: test/skrypt (grep w CI lub test spec) zgłaszający nowy literał `px` w `@media` w `frontend/src`.
+- Weryfikacja w przeglądarce: widoki admin, supervisor, auth, tenants przy 480/768/1024/1366 px (wymaga logowania z MFA — wcześniej niezweryfikowane).
+
+**Kryteria akceptacji:**
+- [ ] `grep -rE "@media[^{]*[0-9]+px" frontend/src --include=*.scss` zwraca 0 wyników poza `_breakpoints.scss`
+- [ ] Brak poziomego przewijania w 480/768/1024/1366 px w widokach admin, supervisor, auth, tenants (pl/de/en)
+- [ ] Strażnik przed nowymi literałami `px` w `@media`
+- [ ] Brak regresji pulpitu agenta (FE-123)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) zmiana progu (np. 600 → 640) zmienia moment zawijania — przegląd wizualny każdego widoku; (R2) widoki supervisor/admin wymagają MFA przy teście ręcznym.
+**Nie wchodzi w zakres:** przebudowa układów, układ mobilny/tablet, optymalizacja rozmiaru stylów (FE-124).
+
+### FE-138 – Budżety stylów i bundla: komponenty ponad 12 kB i bundle initial ponad 500 kB
+
+**Typ:** Frontend implementation (wydajność / refaktor stylów)
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** FE-124 ✅ (metoda pomiaru z ostrzeżeń `anyComponentStyle` w `ng build`, partiale `_focus.scss`/`_type-badge-tones.scss`, tokeny)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku; wspólne pliki z FE-139/FE-140)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable optimize`
+
+**Opis:** FE-124 sprowadził `agent-desktop.component.scss` do 9,00 kB, ale `ng build` nadal ostrzega o przekroczeniu 12 kB (`anyComponentStyle`): `adhoc-email-modal` 13,15 kB, `email-contact` 12,92 kB, `softphone` 14,27 kB oraz `contact-detail-modal`, `ivr-editor`, `email-templates`, `admin-metrics` (wartości do zmierzenia na początku). Bundle initial ma 567 kB przy budżecie 500 kB.
+
+**Zakres:**
+- Pomiar wyjściowy z `npm run build` (te same liczby co w FE-124, metoda: rozmiar po kompilacji, nie `wc -c`).
+- Redukcja stylów komponentów do ≤ 12 kB: martwe reguły, wspólne partiale/mixiny, wydzielenie komponentów (jak w FE-124); zakaz pogorszenia wyglądu w obu motywach.
+- Analiza bundla initial (≤ 500 kB): lazy loading, wydzielenie ciężkich zależności; alternatywa: świadoma decyzja właściciela o podniesieniu `maximumWarning` z uzasadnieniem.
+
+**Kryteria akceptacji:**
+- [ ] `npm run build` bez ostrzeżeń `anyComponentStyle` (albo jawnie uzasadniony wyjątek per komponent)
+- [ ] Bundle initial ≤ 500 kB lub zatwierdzona zmiana budżetu
+- [ ] Brak regresji wizualnej (przegląd w przeglądarce, oba motywy)
+- [ ] Liczby przed/po w notatce wykonania
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) wydzielanie komponentów zmienia enkapsulację stylów; (R2) lazy loading może zmienić moment ładowania widoków agenta.
+**Nie wchodzi w zakres:** przebudowa układów, migracja `px` w `@media` (FE-137).
+
+### FE-139 – Flat-at-Rest: usunięcie dekoracyjnych gradientów z powierzchni agenta
+
+**Typ:** Frontend implementation (refaktor stylów / polish)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** FE-125 ✅ (źródło: audyt/krytyka 2026-10-30, P2; nowy Don't w `DESIGN.md`: dekoracyjne gradienty), FE-124 ✅ (mixin `field-focus`, tokeny, płaskie nagłówki modali jako wzór)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** FE-140 (kolejność zalecana: wspólne pliki)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; nie blokuje zamknięcia epiku)
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** The Flat-at-Rest Rule: powierzchnia agenta ma być płaska w spoczynku. Wynik FE-125: ok. 13 dekoracyjnych gradientów w 8 plikach.
+
+**Zakres:**
+- `softphone.component.scss` `:25–45` i `:95`; awatar softphone `:130` — decyzja właściciela (wg `DESIGN.md` element sygnaturowy; domyślnie zostawić).
+- `customer-panel.component.scss:163`; `agent-customer-card.component.ts:200` (styl inline) i `customer-card__avatar`.
+- `schedule-inbound-callback-modal` i `reschedule-callback-modal`: nagłówki, „shine” oraz przyciski z gradientem (wzór: płaskie nagłówki `--accent` z FE-124 w `add-break`/`manual-callback`/`adhoc-email`).
+- `email-contact.component.scss:287`.
+
+**Kryteria akceptacji:**
+- [ ] Brak `linear-gradient`/`radial-gradient` w wymienionych miejscach (poza zatwierdzonym wyjątkiem sygnaturowym), grep w `features/agent` to potwierdza
+- [ ] Kontrast tekstu na zastąpionych tłach: tekst ≥ 4,5:1, elementy UI ≥ 3:1 w obu motywach
+- [ ] Brak regresji wizualnej (przegląd w przeglądarce, oba motywy, 1366×768)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) wspólne pliki z FE-138 (softphone, email-contact) — koordynować kolejność; (R2) awatar softphone jest sygnaturowy — nie usuwać bez decyzji.
+**Nie wchodzi w zakres:** fallbacki hex (FE-140), tokeny supervisora (FE-141).
+
+### FE-140 – Hurtowe usunięcie fallbacków `var(--x, #hex)` w agencie i powłoce
+
+**Typ:** Frontend implementation (refaktor stylów)
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** FE-125 ✅ (źródło: P2), FE-124 ✅ (usunął 107 fallbacków w `agent-desktop`; The Token-Only Rule); zalecane po FE-139 (wspólne pliki)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Pozostało ok. 200 fallbacków `var(--x, #hex)`: w komponentach agenta 7 plików / 114 linii, w powłoce (app-shell, sidenav, top-navbar) 83 linie. Decyzja: osobny ticket od gradientów (FE-139), bo zmiana jest mechaniczna i inna w ryzyku (tokeny muszą być zdefiniowane w obu motywach).
+
+**Zakres:**
+- Dla każdego fallbacku potwierdzić, że token jest zdefiniowany w `styles.scss` w obu motywach; niezdefiniowane zgłosić (nie zastępować po cichu).
+- Usunięcie fallbacków; brak nowych literałów hex.
+- (dopisane w turze 62, wynik FE-141) Hover przycisków wypełnionych: `color-mix(... black)` w 4 plikach (`manual-callback-modal`, `adhoc-email-modal`, `login`, `edit-callback-modal`) → ujednolicić do `opacity: .88` zgodnie z DESIGN.md (jak w `disposition-sets-page`; usuwa m.in. kontrast 4,24:1 `--on-danger` w dark).
+
+**Kryteria akceptacji:**
+- [ ] `grep -E "var\(--[a-z0-9-]+, *#"` w `features/agent` i powłoce → 0 trafień
+- [ ] Brak zmiany wyglądu w obu motywach (przegląd w przeglądarce; weryfikacja skryptem computed styles przed/po)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) token niezdefiniowany dziś „działa” na fallbacku — po usunięciu kolor zniknie; wykryć przed zmianą (grep definicji). (R2) wspólne pliki z FE-138/FE-139.
+**Nie wchodzi w zakres:** supervisor/admin poza `disposition-sets` (FE-141).
+
+### FE-141 – [BUG] `disposition-sets-page.component.scss`: niezdefiniowane tokeny `--color-*`
+
+**Typ:** Bug (Frontend, style)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-125 ✅ (źródło: `CR-FRONTEND.md` „Review: FE-125 (część A)”, MINOR-4; P2)
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 4/5, runda 2: 4,5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Strona supervisora `supervisor/.../disposition-sets-page.component.scss` używa 8 niezdefiniowanych tokenów: `--color-primary`, `--color-primary-subtle`, `--color-primary-dark`, `--color-surface-hover`, `--color-surface-raised`, `--color-text-tertiary`, `--color-code-bg`, `--color-danger-dark` (ok. 20 wystąpień, l. ok. 103–423). Kolory się nie renderują lub działają wyłącznie na fallbackach.
+
+**Zakres:**
+- Mapowanie na istniejące tokeny (`--accent`, `--surface-*`, `--text-3`, `--danger` itp.) wg `styles.scss`; w razie braku odpowiednika — ustalić z właścicielem, nie wymyślać tokenu.
+- Usunięcie fallbacków hex w tym pliku; kontrast w obu motywach.
+
+**Kryteria akceptacji:**
+- [x] 0 niezdefiniowanych tokenów `--color-*` w pliku (grep względem definicji w `styles.scss`)
+- [x] Kontrast tekstu ≥ 4,5:1 i elementów UI ≥ 3:1 w obu motywach
+- [~] WP-1…WP-4, WP-6 wykonane; WP-5 niewykonane (ekran supervisora wymaga MFA w local-demo — brak weryfikacji w przeglądarce); strona nie ma speca
+
+**Ryzyka:** (R1) ekran supervisora wymaga MFA w local-demo — weryfikacja w przeglądarce może być niemożliwa.
+**Nie wchodzi w zakres:** pozostałe strony supervisora/admina.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable polish`; code review 2 rundy (4/5 → 4,5/5). Zmiany (frontend, tylko `disposition-sets-page.component.scss`):
+- 8 niezdefiniowanych `--color-*` zamienionych na tokeny systemu: `--accent`, `--accent-soft`, `--bg-subtle`, `--bg-elevated`, `--text-3`, hover.
+- Przy okazji cały plik przeszedł na tokeny główne: 0 `--color-*`, 0 hex, 0 fallbacków; `--border-control` dla pól i karty `role="button"` (≥ 3:1); shimmer na tokenach; `--on-accent`/`--on-danger`.
+- Hover przycisków wypełnionych: `opacity: .88` zgodnie z DESIGN.md (usuwa kontrast 4,24:1 `--on-danger` w dark).
+- Chip kodu: `--bg-elevated` + obrys `--border-2`. `.form-error` i `.required` na `--danger-text`.
+- Strona nie ma speca. **Dług weryfikacji (WP-5):** brak weryfikacji w przeglądarce (ekran supervisora, MFA) — do sprawdzenia przez właściciela.
+- Do FE-140 dopisano: `color-mix(... black)` na hover w 4 innych plikach (`manual-callback-modal`, `adhoc-email-modal`, `login`, `edit-callback-modal`) → ujednolicić do `opacity: .88`.
+
+
+### FE-142 – Drobne P3 powierzchni agenta (zbiorczy)
+
+**Typ:** Frontend implementation (polish)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** FE-125 ✅ (źródło: P3 audytu/krytyki 2026-10-30); powiązany z FE-137 (stałe szerokości/`@media` — brak konfliktu zakresów)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable polish`
+
+**Opis:** Zbiorczy ticket drobnych znalezisk P3 (bez osobnych ticketów).
+
+**Zakres:**
+- Globalny `prefers-reduced-motion` w `styles.scss` (ok. l. 332) — łagodniejszy wariant (np. skrócenie zamiast wyłączenia całego ruchu).
+- `app-contact-header` pokazuje surowe „Imię <email>” w linii identyfikatora — normalizacja (`normalizeContactName`, jak w FE-125 dla panelu kolejki).
+- 4 × `transition: all` → jawne właściwości.
+- Literały `'Geist Mono'` → `var(--font-mono)`.
+- Stałe szerokości 320/120 px → tokeny/`clamp()` zgodnie z FE-123.
+- Literał `font-size: 11px` → token skali (`--fs-*`).
+
+**Kryteria akceptacji:**
+- [ ] Każdy z sześciu punktów zamknięty lub jawnie odrzucony w notatce wykonania
+- [ ] Emulacja `prefers-reduced-motion` sprawdzona w przeglądarce (zamyka też dług weryfikacji z FE-125)
+- [ ] Brak regresji w obu motywach przy 1366×768
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) zmiana globalnego `prefers-reduced-motion` dotyka całej aplikacji — przegląd wszystkich animacji.
+**Nie wchodzi w zakres:** gradienty (FE-139), fallbacki hex (FE-140).
+
+### FE-143 – Naprawa reaktywności `badgeLabel` w `queue-panel` (`translate()` w `computed`) + NIT-1…NIT-3 z FE-129
+
+**Typ:** Bug / Frontend hardening (i18n, a11y)
+**Priorytet:** Should Have
+**Złożoność:** XS/S
+**Zależy od:** FE-129 ✅ (2026-10-30, tura 60 — wzorzec naprawy: pipe `transloco` w szablonie + klucze i liczby w `computed`)
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 4,5/5, runda 2: 5/5, brak blokerów; `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokował zamknięcia EPIC-32). Następne: FE-146 (ten sam wzorzec reaktywności w pozostałych ekranach; backlog)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Ta sama usterka reaktywności, którą code review FE-129 (MAJOR-1) wykrył i naprawił w `top-navbar`, występuje w `frontend/src/app/features/agent/components/queue-panel/queue-panel.component.ts:39-48` (`badgeLabel`): `transloco.translate()` wewnątrz `computed` zależnego od `langChanges$`. `langChanges$` emituje przed załadowaniem pliku tłumaczeń, więc po przełączeniu na język jeszcze niezaładowany (en/de/uk; pl jest domyślny) `computed` zapamiętuje surowy klucz i nic go później nie unieważnia. Naprawa wzorcem z FE-129: w `computed` zostają tylko klucz i liczba, tekst rozwiązuje pipe `transloco` w szablonie. Opcjonalnie dołączyć NIT-1…NIT-3 z FE-129.
+
+**Kryteria akceptacji:**
+- [x] `queue-panel`: `badgeLabel` nie wywołuje `translate()` w `computed`; po przełączeniu na niezaładowany język (en/de/uk) w DOM nie pojawia się surowy klucz
+- [x] Test z asynchronicznym loaderem (opóźnione ładowanie, przełączenie języka przed załadowaniem, `await`, asercja tekstu niepustego i bez klucza `agent.`) — wzorzec z testu FE-129
+- [x] Zachowane formy mnogie i dotychczasowy odczyt czytnika w 4 językach (pl/en/de/uk)
+- [x] (opcjonalnie) NIT-1: kolejność odczytu sr-only w kafelku Handled bez danych („Obsłużone, dziś, brak danych” lub pominięcie podpisu przy braku danych); NIT-2: asercja niepustego tekstu w teście asynchronicznego loadera `top-navbar`; NIT-3: reguły `Intl.PluralRules` w `computed`/cache zamiast tworzenia przy każdym przeliczeniu
+- [~] Weryfikacja w przeglądarce w lokalnym demo: przełączenie na uk/de bez surowych kluczy (WP-5) — w tej turze nieodnotowana; scenariusz pokryty testami z asynchronicznym loaderem (3 przebiegi bez niestabilności)
+- [x] WP-1…WP-6
+
+**Ryzyka:** (R1) w `top-navbar` i `queue-panel` jest możliwe przejściowe (kilkadziesiąt ms) niedopasowanie kategorii plural do słownika w oknie ładowania (zaakceptowane w code review FE-129, runda 2); (R2) przejrzeć grepem inne `translate(` wewnątrz `computed`/`toSignal` w `frontend/src` i wypisać jako propozycję, nie rozszerzać zakresu bez decyzji.
+**Nie wchodzi w zakres:** pozostałe ekrany admin/supervisor; zmiany treści tłumaczeń.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable harden`; code review 2 rundy (4,5/5 → 5/5). Zmiany (frontend):
+- `queue-panel`: `badgeLabel` zwraca `{key, count}`, `aria-label` przez pipe `transloco`, `pluralRules` jako `computed` po języku, `@let badge`.
+- Testy z asynchronicznym loaderem i deterministycznym `firstValueFrom(transloco.load(...))`; 3 przebiegi bez niestabilności.
+- `top-navbar`: NIT-1 — kolejność sr-only „Obsłużone, dziś, brak danych” (z testem); NIT-2 — asercje w oknie ładowania oraz `track $index` w `@for`, więc pipe zachowuje poprzedni tekst przy zmianie kategorii plural (wcześniej tekst był chwilowo pusty); NIT-3 — `pluralRules` jako `computed`.
+- R2 zrealizowane jako propozycja: grep `translate(` w `computed`/polach → nowy FE-146 (backlog).
+
+
+### FE-144 – i18n pozostałych ekranów: literały PL poza zakresem FE-128 (+ MINOR-4 z FE-127/FE-128)
+
+**Typ:** Frontend implementation (i18n)
+**Priorytet:** Should Have
+**Złożoność:** M (prawdopodobnie do podziału na pakiety po obszarach: integracje/shared, supervisor, tenants/admin)
+**Zależy od:** FE-128 ✅ (2026-10-30, tura 61 — wzorzec: klucze + pipe `transloco`, `translate()` tylko w handlerach zdarzeń)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify`
+
+**Opis:** FE-128 (R2) przewidywał dalsze literały PL poza trzema plikami ticketu; grep po `frontend/src` (tura 61) dał listę poniżej. **Lista jest zgrubna — część trafień może być fałszywa (komentarze, `console.*`, nazwy własne); wymaga ręcznego przeglądu przed ustaleniem zakresu i podziału.** PRODUCT.md: „Żaden tekst nie może być na sztywno w jednym języku.”
+
+**Pliki z diakrytykami (liczba trafień):**
+- `features/integrations/pages/oauth-callback/oauth-callback.component.ts` (6)
+- `shared/components/plugin-panel-host/plugin-panel-host.component.ts` (4)
+- `features/supervisor/pages/customers/customer-edit/customer-edit.component.html` (3)
+- `features/supervisor/pages/ai-config/ai-config.component.ts` (3)
+- `features/tenants/tenant-list/tenant-list.component.html` (2)
+- `features/supervisor/pages/settings/phone-numbers/phone-numbers.component.html` (2)
+- `routing-rules.component.html` (2)
+- po 1 trafieniu: `contact-detail-modal.component.{ts,html}`, `confirm-dialog.component.ts`, `retention.service.ts`, `routing-rule-form.component.ts`, `email-templates.component.html`, `disposition-sets-page.component.ts`, `queue-assignment-panel.component.ts`, `customer-import.component.{ts,html}`, `customer-detail.component.html`, `customer-create-modal.component.html`, `campaign-import.component.ts`, `twilio-phone-number-select.component.ts`, `features/agent/services/call-lifecycle.service.ts`, `admin-user-list.component.ts`
+
+**Pliki z ASCII-PL (bez diakrytyków):** `tenant-edit-modal.component.ts`, `tenant-add-modal.component.ts`, `email-settings.component.{ts,html}`, `twilio-settings.component.{ts,html}`, `twilio-config.component.ts`, `reports-placeholder.component.ts`, `queue-list.component.ts`, `admin-dashboard.component.ts`, `customer-import.component.ts`.
+
+**Zakres:** (1) ręczny przegląd listy i ustalenie zakresu (wykluczyć fałszywe trafienia; podział na pakiety); (2) klucze w `frontend/public/i18n/{pl,en,de,uk}.json`, pipe `transloco` w szablonach, `translate()` w handlerach zdarzeń (nie w `computed`); (3) **MINOR-4 z FE-127/FE-128:** ujednolicić przestrzenie nazw kluczy w getterach błędów `admin-user-form` (mieszane `admin.*`/`supervisor.*`); forma neutralna płciowo, brak martwych kluczy.
+
+**Kryteria akceptacji:**
+- [ ] Zakres ustalony po ręcznym przeglądzie listy (fałszywe trafienia wypisane); przy rozmiarze > L ticket podzielony na pakiety
+- [ ] Brak literałów PL w plikach zakresu (grep diakrytyków i ASCII-PL poza komentarzami i `console.*`)
+- [ ] Parytet kluczy w 4 językach (0 różnic), brak martwych kluczy
+- [ ] Testy dla zmienionych komunikatów walidacji i toastów
+- [ ] MINOR-4 domknięty (spójna przestrzeń nazw w `admin-user-form`)
+- [ ] WP-1…WP-6
+
+**Ryzyka:** (R1) tłumaczenia de/uk bez przeglądu native speakera (dług z FE-113); (R2) ekrany admina/supervisora wymagają MFA w local-demo — WP-5 ograniczone, weryfikacja ręczna przez właściciela.
+**Nie wchodzi w zakres:** zmiana treści istniejących tłumaczeń, powierzchnia agenta (FE-119).
+
+### FE-145 – Wyświetlenie błędu telefonii agentowi (`twilioDeviceError` bez konsumenta w UI)
+
+**Typ:** Bug / Frontend hardening (a11y, UX)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-128 ✅ (2026-10-30, tura 61 — `twilioDeviceError` trzyma klucz `agent.softphone.errors.{tokenFetch,device}`, typ `TwilioDeviceErrorKey`)
+**Status:** ✅ Ukończone (2026-10-30, tura 62; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y` do czasu commita; code review `CR-FRONTEND.md` „Review: FE-141 + FE-143 + FE-145 — 2026-10-30” runda 1: 2,5/5, runda 2: 3,5/5, runda 3 bez ponownego CR (diff i testy przejrzane przez zlecającego); `/verify`: FE lint 0 błędów (10 wcześniejszych ostrzeżeń), format OK, 71 plików / 907 testów; parytet i18n 2788 kluczy × 4; BE `mvn verify`: 2839 testów, 0 błędów, 1 pominięty)
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog; EPIC-32 zamknięty 2026-10-30; ticket zamknięty w turze 62)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Wynik code review FE-127+FE-128 (NEW-1): `twilioDeviceError` w `softphone.service.ts` nie ma konsumenta w UI. Klucze `agent.softphone.errors.*` są przetłumaczone w 4 językach, ale agent nigdy nie widzi błędu telefonii (tak było także przed FE-128). Agent bez działającego urządzenia Twilio nie wie, dlaczego nie odbiera połączeń.
+
+**Zakres:** pokazać błąd w softphone lub w pasku (tekst z klucza `twilioDeviceError` przez pipe `transloco`), z akcją ponowienia (ponowne pobranie tokenu / inicjalizacja urządzenia); region live (`role="alert"` lub `status` — do decyzji przy `harden`), fokus/klawiatura, kontrast w obu motywach; testy (stan błędu, ponowienie, zniknięcie po sukcesie).
+
+**Kryteria akceptacji:**
+- [x] Błąd `tokenFetch`/`device` jest widoczny dla agenta i ogłaszany czytnikowi ekranu, w 4 językach, bez surowych kluczy
+- [x] Akcja ponowienia dostępna z klawiatury; po sukcesie komunikat znika
+- [x] Testy jednostkowe stanów: błąd, ponowienie, sukces
+- [~] Weryfikacja na żywo z Twilio — jawnie odnotowane ograniczenie: stanu błędu NIE zweryfikowano na żywo (nie da się wywołać awarii Twilio) ani czytnikiem ekranu; sprawdzono tylko stan bez błędu w przeglądarce
+- [~] WP-1…WP-4, WP-6 wykonane; WP-5 ograniczone (patrz wyżej)
+
+**Ryzyka:** (R1) wymaga realnego błędu tokenu/urządzenia do weryfikacji na żywo (symulacja przez odmowę mikrofonu lub błędny token); (R2) miejsce prezentacji (softphone vs pasek) do decyzji przy `harden`.
+**Nie wchodzi w zakres:** zmiana logiki łączenia z Twilio, nowe kody błędów.
+
+**Notatka wykonania (2026-10-30, tura 62):** `angular-frontend-expert` + `impeccable harden`; code review 3 rundy (2,5/5 → 3,5/5; runda 3 bez ponownego CR — zlecający przejrzał diff i testy). Zmiany (frontend, bez zmian backendu):
+- Nowy komponent `features/agent/components/telephony-error`, osadzony w `agent-desktop.component.html` pod nagłówkiem, poza `@if (activeTab())`, więc widoczny bez zakładki. Zmiany w softphone cofnięte: budżet `softphone.component.scss` znowu 14,27 kB.
+- `softphone.service.ts`: łączenie równoległych `initializeTwilioDevice()`; `retryTwilioDevice()`; sygnały `twilioDeviceInitializing` i `callInProgress` (z `session()`); straż `isCallInProgress()` sprawdzana też tuż przed destroy; licznik generacji `initGeneration` sprawdzany po każdym `await` i w każdym handlerze `Device` (`incoming`, `registered`, `unregistered`, `error`); `resetForLogout` podbija generację i czyści `initInFlight`; błąd czyszczony tylko na `registered` albo 404 tokenu; naprawiony wyciek `Device` po nieudanym `register()`; handler `error` ignoruje błędy pojedynczego połączenia (argument `call`).
+- `agent-shell.component.ts`: brak automatycznej reinicjalizacji przy widocznym błędzie (tylko ręczny retry, bez backoffu). `unregistered` bez błędu nadal reinicjalizuje automatycznie.
+- A11y: stały pusty `<div role="alert">` z treścią wstawianą w środku; osobny `role="status"` z komunikatami „Ponawianie…” / „Nadal niedostępne”; przycisk poza alertem, `aria-disabled` + blokada w handlerze, fokus zostaje na przycisku; cel ≥ 24 px (32 px).
+- Klucze: `agent.softphone.errors.{title,retry,retrying,stillUnavailable}`; zmienione teksty `tokenFetch`/`device` („Spróbuj ponownie; jeśli błąd się powtarza, odśwież stronę.”).
+- Przeglądarka (lokalne demo, agent1): bez błędu host `app-telephony-error` ma 0 px, alert w DOM jest pusty, brak poziomego przewijania, układ pulpitu bez zmian.
+- **Długi do odnotowania:** (1) NEW-2 z rundy 2 (stały kontener alertu) zaadresowane w rundzie 3, ale niezweryfikowane czytnikiem ekranu; (2) stan błędu niezweryfikowany na żywo z Twilio.
+- Uwaga procesowa: runda 3 nie przeszła ponownego code review — ocena 3,5/5 dotyczy stanu po rundzie 2.
+- Niestabilny test: w jednym pełnym przebiegu padły 3 testy w `social-integrations.component.spec.ts` (plik nieruszany); osobno 2/2 zielone, ponowny pełny przebieg zielony → nowy FE-147.
+
+### FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz (poza `queue-panel` i `top-navbar`)
+
+**Typ:** Bug / Frontend hardening (i18n)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-143 ✅ (2026-10-30, tura 62 — wzorzec: pipe `transloco` w szablonie, w `computed` tylko klucz i parametry; wcześniej FE-129)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Ta sama usterka reaktywności co w FE-129/FE-143: `transloco.translate()` w `computed` albo w polu inicjalizowanym raz zapamiętuje surowy klucz, gdy język nie jest jeszcze załadowany, i nic go później nie unieważnia. Zgrubny grep wskazał kandydatów (mogą być fałszywe trafienia — każdy zweryfikować):
+- `contact-detail-modal` (`headerSubtitle`);
+- `manual-callback-modal` i `adhoc-email-modal` (`customerDisplayName`);
+- `login` (`emailStepErrorMessage`, `passwordErrorMessage`, `codeErrorMessage`);
+- `change-password` (`currentPasswordError`, `newPasswordError`, `confirmPasswordError`, `strengthLabel`);
+- `plugins-page` (`deleteCatalogVersionMessage`, `uninstallMessage`);
+- `disposition-sets-page.component.ts` (`deleteSetMessage`, `deleteItemMessage`);
+- metody wywoływane z szablonu (np. `tabClose.*` w `agent-desktop`) — niesprawdzone.
+
+**Kryteria akceptacji:**
+- [ ] Każdy kandydat zweryfikowany: naprawiony (klucz + parametry w `computed`, tekst przez pipe `transloco`/wywołanie przy zdarzeniu) albo jawnie odrzucony jako fałszywe trafienie w notatce wykonania
+- [ ] Testy z asynchronicznym loaderem dla naprawionych miejsc (przełączenie na niezaładowany język, asercja tekstu niepustego i bez surowego klucza) — wzorzec z FE-143
+- [ ] Brak zmiany treści tłumaczeń; parytet kluczy w 4 językach (0 różnic)
+- [ ] WP-1…WP-6 (WP-5 ograniczone dla ekranów admina/supervisora — MFA w local-demo)
+
+**Ryzyka:** (R1) ekrany admina/supervisora/logowania wymagają MFA lub braku sesji — weryfikacja w przeglądarce może być niemożliwa; (R2) fałszywe trafienia grepa — nie przepisywać kodu, który jest wywoływany tylko przy zdarzeniach.
+**Nie wchodzi w zakres:** zmiana treści tłumaczeń, literały PL bez kluczy (FE-144).
+
+### FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog)
+
+**Typ:** Testing (stabilność)
+**Priorytet:** Should Have (fałszywe alarmy w `/verify`)
+**Złożoność:** XS/S
+**Zależy od:** brak (wynik code review FE-141 + FE-143 + FE-145, runda 2)
+**Status:** ✅ Ukończone (2026-10-30, tura 63) — zabezpieczone, nieodtworzone (przyczyna nieustalona)
+**Czeka na BE:** brak
+**Blokuje:** brak (backlog, nie blokuje epiku)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu)
+**Wykonawca:** `test-suite-expert`
+
+**Opis:** W jednym pełnym przebiegu `npm test` padły 3 testy w `frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.spec.ts` (WhatsApp connect dialog; plik nieruszany przez FE-141/143/145); osobno 2/2 zielone, ponowny pełny przebieg zielony. Hipoteza z CR: obciążenie CPU i domyślny limit 5 s w jsdom przy równoległym przebiegu; plik (388 linii) i komponent nie używają timerów, jedyny `await` to `compileComponents()`.
+
+**Kryteria akceptacji:**
+- [ ] Przyczyna ustalona (potwierdzenie albo obalenie hipotezy limitu czasu/obciążenia) i opisana w notatce wykonania — NIE SPEŁNIONE: przyczyna nieustalona (hipoteza z CR nieodtworzona; dopuszczone przez R1 zamknięcie z izolacją `beforeEach`)
+- [x] Test stabilny w co najmniej 5 kolejnych pełnych przebiegach `npm test` (lub uzasadniona alternatywa) — 3× pełny `npm test` zielony po zmianie (71 plików / 907 testów) + uzasadniona alternatywa: izolacja stubów w `beforeEach`/`afterEach`
+- [x] Brak zmian w kodzie produkcyjnym, chyba że przyczyna leży w komponencie (wtedy jawna decyzja) — komponent bez zmian
+- [x] WP-1…WP-4, WP-6 (WP-5 nie dotyczy) — lint 0 błędów (10 istniejących ostrzeżeń), format OK
+
+**Ryzyka:** (R1) niestabilność trudna do odtworzenia — dopuszczalne zamknięcie z uzasadnionym podniesieniem limitu czasu lub izolacją `beforeEach`.
+
+**Notatka wykonania (2026-10-30, tura 63):** flaka nie odtworzono — 0/10 przebiegów przed zmianą (1 pełny `npm test` bez obciążenia, 3× sam spec pod obciążeniem CPU 4 busy-loopy, 3× pełny `npm test` pod obciążeniem 6 busy-loopów; spec: 22 testy po 30–150 ms), 0/3 po zmianie. Zmiana wyłącznie w `social-integrations.component.spec.ts`: stuby `HTMLDialogElement.prototype.showModal/close` instalowane bezwarunkowo w `beforeEach` (zamiast warunkowego `beforeAll` bez sprzątania), `afterEach` z `fixture.destroy()` i przywróceniem oryginałów prototypu; bez retry/timeoutów. Przyczyna nieustalona; hipoteza: równoległe edycje współdzielonego drzewa przez innych agentów lub chwilowe obciążenie maszyny w turze 62. Wykonawca: `test-suite-expert`. **Zalecenie:** przy nawrocie zebrać pełny log pierwszego nieudanego przebiegu (nazwy testów + komunikat błędu).
+**Nie wchodzi w zakres:** refaktor pozostałych specs.
+
+
+## Bez epiku
+
+**Ukończone 7/7** (✅ 7 · 🔧 0 · ⬜ 0 · 🚫 0) — tickety niepowiązane z numerowanym EPIC-iem
+
+### Temat: Fundament aplikacji
+
+Ukończone 5/5
+
+### FE-001 – Inicjalizacja projektu Angular i konfiguracja workspace
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** brak
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-002, FE-003, FE-049
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLint, Prettier, Husky pre-commit hooks. Ustawienie struktury katalogów: `core/`, `shared/`, `features/`, `environments/`. Konfiguracja proxy deweloperskiego do backendu (proxy.conf.json).
+
+**Kryteria akceptacji:**
+- [ ] `ng build` i `ng test` kończą się bez błędów
+- [ ] ESLint i Prettier skonfigurowane z regułami projektu
+- [ ] Struktura katalogów zgodna z przyjętą architekturą modularną
+- [ ] Proxy do backendu (localhost:8080) skonfigurowany w proxy.conf.json
+
+---
+
+### FE-002 – Konfiguracja routingu, lazy loading i guard AuthGuard
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-004
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Implementacja `AuthGuard` (sprawdza ważność JWT z localStorage/sessionStorage) i `RoleGuard` (weryfikuje role: ADMIN, SUPERVISOR, AGENT). Obsługa przekierowania na `/login` przy wygaśnięciu sesji.
+
+**Kryteria akceptacji:**
+- [ ] Moduły feature ładowane lazy (widoczne w Network tab jako osobne chunk-i)
+- [ ] Próba wejścia na chronioną trasę bez JWT → redirect do /login
+- [ ] Próba wejścia na trasę niedostępną dla roli → redirect do /forbidden
+- [ ] Refresh tokenu wykonywany transparentnie przez HTTP Interceptor
+
+---
+
+### FE-003 – HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
+**Czeka na BE:** brak
+**Blokuje:** FE-004
+**Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
+
+**Opis:**
+Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <token>` do każdego żądania. Logika automatycznego odświeżenia tokenu (retry z nowym tokenem po otrzymaniu 401). Globalny handler błędów HTTP wyświetlający notyfikacje toast dla błędów 4xx/5xx.
+
+**Kryteria akceptacji:**
+- [ ] Każde żądanie HTTP zawiera nagłówek Authorization
+- [ ] Po wygaśnięciu JWT interceptor wykonuje refresh i ponawia oryginalne żądanie
+- [ ] Błąd 403 wyświetla komunikat "Brak uprawnień" (toast)
+- [ ] Błąd 5xx wyświetla komunikat "Błąd serwera, spróbuj ponownie" (toast)
+
+---
+
+### FE-004 – Moduł uwierzytelniania: ekran logowania i MFA
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-002, FE-003
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
+**Czeka na BE:** BE-004 ✅
+**Blokuje:** FE-005
+**Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
+
+**Opis:**
+Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpisuje e-mail, frontend wywołuje `POST /api/public/tenants-by-email` i wykrywa organizacje powiązane z tym adresem; krok 2 – wyświetlane jest pole hasła (i opcjonalny dropdown organizacji gdy >1 trafień); krok 3 – opcjonalny krok MFA (TOTP 6-cyfr). Zapis JWT i refresh tokenu w pamięci aplikacji. Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`. Formularz 3-krokowy z sygnałami Angular (step, matchedTenants, loading, errorMessage).
+
+**Kryteria akceptacji:**
+- [ ] Formularz logowania waliduje format email i niepuste hasło
+- [ ] Po poprawnym logowaniu z MFA użytkownik trafia do dashboardu swojej roli
+- [ ] Przy `password_reset_required=true` wyświetlany jest formularz zmiany hasła przed dashboardem
+- [ ] Przycisk "Zaloguj" zablokowany (spinner) podczas oczekiwania na odpowiedź API
+
+---
+
+### FE-005 – Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** FE-004
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
+**Czeka na BE:** brak
+**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024, FE-025, FE-026, FE-028, FE-029
+**Odniesienie PRD:** przekrojowe (wszystkie persony)
+
+**Opis:**
+Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależną od roli (ADMIN/SUPERVISOR/AGENT widzi inne pozycje menu), top bar z informacją o użytkowniku i tenant, system powiadomień toast (RxJS Subject singleton), komponent breadcrumb generowany z aktywnej trasy.
+
+**Kryteria akceptacji:**
+- [ ] Menu sidebar pokazuje tylko pozycje dostępne dla aktualnej roli
+- [ ] Wylogowanie czyści stan aplikacji i przekierowuje na /login
+- [ ] Toast notyfikacje widoczne ponad wszystkimi komponentami (z-index)
+- [ ] Aplikacja jest responsywna (breakpoint tablet 1024px, desktop 1280px+)
+- [ ] Spełnia WCAG 2.1 AA (kontrast, nawigacja klawiaturą, aria-labels)
+
+---
+
+### Temat: Ad hoc połączenia i email z panelu agenta
+
+Ukończone 2/2
+
+### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
+**Status:** ✅ Ukończone
+**Czeka na BE:** BE-067 ✅
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
+- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
+- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
+- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
+
+**Implementacja:**
+- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
+- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
+- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
+- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
+- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
+- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
+- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
+- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
+- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
+- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
+- [ ] Sukces: powiadomienie toast
+- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
+- [ ] Brak numeru: przycisk niewidoczny lub disabled
+- [ ] Tłumaczenia w pl.json i en.json
+
+---
+
+### FE-072 – Modal „Wyślij email" do klienta ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
+**Status:** ✅ Ukończone
+**Czeka na BE:** BE-068 ✅
+**Zrealizowane:** 2026-05-13
+**Blokuje:** brak
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
+
+**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
+
+**Implementacja:**
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
+- `@Output() sent = new EventEmitter<void>()`
+- `@Output() cancelled = new EventEmitter<void>()`
+- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
+- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
+- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
+- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
+- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
+- Integracja w `AgentCustomersTabComponent`:
+  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
+  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
+  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
+- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
+- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
+- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
+- [ ] Klient z wieloma emailami: dropdown wyboru adresu
+- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
+- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
+- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
+- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
+- [ ] Anulowanie: modal zamknięty, brak wywołania API
+- [ ] Tłumaczenia w pl.json i en.json
+- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
+
+---
+
+## Dodatki
+
+## Zależności między zadaniami
+
+### Kolejność obowiązkowa (blokery)
+
+```
+FE-001 → FE-002 → FE-003 → FE-004 → FE-005
+FE-005 → FE-006, FE-007, FE-008, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
+FE-009 (Agent Desktop) → FE-010, FE-011, FE-012, FE-013, FE-017
+FE-015 (Kampanie) → FE-016
+FE-018 (Lista klientów) → FE-019, FE-020
+```
+
+### Zadania możliwe do realizacji równoległej (po odblokowaniu FE-005)
+
+| Ścieżka | Zadania |
+|---------|---------|
+| Admin | FE-006, FE-007 |
+| Supervisor / Agenci | FE-008, FE-024 |
+| Agent Desktop | FE-009 → FE-010, FE-011, FE-012, FE-013, FE-017 |
+| IVR | FE-014 (niezależny od Agent Desktop) |
+| Kampanie | FE-015 → FE-016 |
+| Klienci | FE-018 → FE-019, FE-020 |
+| Raporty | FE-021, FE-022 |
+| Integracje | FE-023 |
+| Twilio config | FE-025 (po BE-032) |
+| Routing telefoniczny | FE-026 (po BE-033, BE-034) |
+| Prezentacja kontaktów | FE-028 (modal + audio player), FE-029 (raport), FE-030 (panel klienta) |
+
+### Blokery od Backendu (FE czeka na BE)
+
+| Zadanie FE | Czeka na zadanie BE |
+|------------|---------------------|
+| FE-004 | BE-004 (auth endpoints) |
+| FE-006 | BE-006 (tenant CRUD API) |
+| FE-007 | BE-007 (admin metrics API) |
+| FE-008 | BE-008 (users/agents API) |
+| FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
+| FE-012 | BE-015 (email API) |
+| FE-013 | BE-018 (social media API) |
+| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 ✅ (IVR Engine – zrealizowane) |
+| FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
+| FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
+| FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
+| FE-022 | BE-028 ✅ (reports API – zrealizowane) |
+| FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
+| FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
+| FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
+| FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
+| FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
+| FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
+| FE-031 | BE-039 ✅ (reschedule callback API) |
+| FE-032 | BE-040 ✅ (inbound callback API) |
+
+> Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
+
+---
+
+## Podsumowanie zadań Frontend
+
+| Kategoria | Liczba zadań | Must Have | Should Have |
+|-----------|-------------|-----------|-------------|
+| Fundament | 5 | 5 | 0 |
+| Tenants (EPIC-01) | 2 | 2 | 0 |
+| Użytkownicy (EPIC-02) | 1 | 1 | 0 |
+| Agent Desktop | 5 | 5 | 0 |
+| IVR (EPIC-04) | 1 | 1 | 0 |
+| Kampanie (EPIC-08) | 3 | 3 | 0 |
+| Klienci (EPIC-09) | 3 | 3 | 0 |
+| RODO / GDPR | 1 | 1 | 0 |
+| Raporty (EPIC-10) | 2 | 2 | 0 |
+| Konfiguracja | 3 | 2 | 1 |
+| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
+| Dialer manualny | 1 | 1 | 0 |
+| Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
+| Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
+| Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
+| Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
+| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| i18n fixes (EPIC-19) | 12 | 6 | 6 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
+
+---

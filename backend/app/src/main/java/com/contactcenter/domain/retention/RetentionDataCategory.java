@@ -14,13 +14,17 @@ package com.contactcenter.domain.retention;
  */
 public enum RetentionDataCategory {
 
-    /** Historia kontaktów (contact, contact_event, contact_ai_summary) — retencja platformowa 60 mies. */
+    /**
+     * Historia kontaktów (contact, contact_event, email_message, social_message) — retencja platformowa
+     * 60 mies. ({@code contact_ai_summary} należy do {@link #TRANSCRIPTS}, nie tutaj — zob.
+     * {@code PartitionReclaimJob} i {@code RetentionPurgeServiceImpl#purgeTranscripts}).
+     */
     CONTACT_INTERACTIONS,
 
     /** Nagrania rozmów (URL w contact.recording_url + obiekt S3) — personalizowalna per tenant. */
     RECORDINGS,
 
-    /** Transkrypcje rozmów (contact_transcription) — retencja platformowa 3 mies. (90 dni). */
+    /** Transkrypcje rozmów i podsumowania AI (contact_transcription, contact_ai_summary) — retencja platformowa 3 mies. (90 dni). */
     TRANSCRIPTS,
 
     /** Zarchiwizowane dane kampanii (campaign_contact_archive) — retencja platformowa 60 mies. */

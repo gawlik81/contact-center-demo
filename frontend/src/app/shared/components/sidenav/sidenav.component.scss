@@ -1,7 +1,7 @@
-$sidenav-width: 232px;
-$sidenav-collapsed-width: 72px;
-$breakpoint-tablet: 1024px;
-$breakpoint-desktop: 1280px;
+@use '../../styles/breakpoints' as bp;
+
+$sidenav-width: var(--sidenav-w);
+$sidenav-collapsed-width: var(--sidenav-collapsed-w);
 
 // Overlay (mobile/tablet only)
 .sidenav-overlay {
@@ -16,7 +16,7 @@ $breakpoint-desktop: 1280px;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 
-  @media (max-width: #{$breakpoint-desktop - 1px}) {
+  @include bp.below(xl) {
     display: block;
   }
 
@@ -57,7 +57,7 @@ $breakpoint-desktop: 1280px;
   }
 
   // Mobile: hidden by default
-  @media (max-width: #{$breakpoint-tablet - 1px}) {
+  @include bp.below(lg) {
     transform: translateX(-100%);
 
     &--open {
@@ -67,9 +67,9 @@ $breakpoint-desktop: 1280px;
   }
 
   // Tablet: overlay drawer
-  @media (min-width: $breakpoint-tablet) and (max-width: #{$breakpoint-desktop - 1px}) {
+  @media (min-width: #{bp.width(lg)}) and (max-width: #{bp.width(xl) - 1px}) {
     transform: translateX(-100%);
-    top: 64px;
+    top: var(--navbar-h);
 
     &--open {
       transform: translateX(0);
@@ -78,7 +78,7 @@ $breakpoint-desktop: 1280px;
   }
 
   // Desktop: always visible, static
-  @media (min-width: $breakpoint-desktop) {
+  @include bp.up(xl) {
     position: relative;
     top: auto;
     left: auto;
@@ -95,12 +95,12 @@ $breakpoint-desktop: 1280px;
   &__header {
     display: flex;
     align-items: center;
-    height: 64px;
+    height: var(--navbar-h);
     padding: 0 14px;
     border-bottom: 1px solid var(--border-1, #e2e8f0);
     flex-shrink: 0;
 
-    @media (min-width: $breakpoint-desktop) {
+    @include bp.up(xl) {
       display: none;
     }
   }
@@ -325,8 +325,8 @@ $breakpoint-desktop: 1280px;
     padding: 0 4px;
     border-radius: 9px;
     background: var(--danger, #ef4444);
-    color: #ffffff;
-    font-size: 0.625rem;
+    color: var(--on-danger, #ffffff);
+    font-size: var(--fs-2xs);
     font-weight: 700;
     line-height: 1;
     flex-shrink: 0;
@@ -347,7 +347,7 @@ $breakpoint-desktop: 1280px;
     flex-direction: column;
     gap: 4px;
 
-    @media (max-width: #{$breakpoint-desktop - 1px}) {
+    @include bp.below(xl) {
       display: none;
     }
   }

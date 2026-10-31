@@ -96,6 +96,21 @@ public interface ContactEventService {
     void closeAgent(UUID contactId, UUID tenantId);
 
     /**
+     * Closes the last open AGENT stage like {@link #closeAgent}, but a missing open stage is expected
+     * (async contacts never had one) and is logged at DEBUG only (BE-160).
+     */
+    void closeAgentIfOpen(UUID contactId, UUID tenantId);
+
+    /**
+     * Closes the last open QUEUE stage with an explicit {@code ended_at} (BE-160: the agent took the
+     * contact at {@code assigned_at}, so the wait ended then, not when the contact is returned).
+     * A missing open stage is expected for async contacts and is logged at DEBUG only.
+     *
+     * @param endedAt end of the stage (null = now)
+     */
+    void closeQueueIfOpen(UUID contactId, UUID tenantId, Instant endedAt);
+
+    /**
      * Otwiera etap ON_HOLD (kontakt zawieszony przez agenta).
      *
      * @param contactId UUID kontaktu

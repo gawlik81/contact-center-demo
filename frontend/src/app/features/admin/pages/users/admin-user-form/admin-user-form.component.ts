@@ -23,10 +23,12 @@ import {
 } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { AdminUserService } from '../../../services/admin-user.service';
+import { UserService } from '../../../../supervisor/services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Tenant } from '../../../../tenants/tenant.model';
 import { AdminUserResponse } from '../../../models/admin-user.model';
 import { UserRole } from '../../../../supervisor/models/user.model';
+import { ListboxNavDirective } from '../../../../../shared/directives/listbox-nav.directive';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -40,7 +42,7 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'cc-admin-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, ListboxNavDirective],
   templateUrl: './admin-user-form.component.html',
   styleUrl: './admin-user-form.component.scss',
   host: {
@@ -56,6 +58,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   readonly cancelled = output<void>();
 
   private readonly adminUserService = inject(AdminUserService);
+  private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
@@ -65,6 +68,10 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
 
   readonly submitting = signal(false);
   readonly availableSkills = signal<string[]>([]);
+  /** True while the suggestion list is being fetched. */
+  readonly skillsLoading = signal(false);
+  /** True when the suggestion list could not be loaded; the form stays fully usable. */
+  readonly skillsLoadFailed = signal(false);
   readonly selectedSkills = signal<string[]>([]);
   readonly skillInput = signal('');
   readonly showSkillDropdown = signal(false);
@@ -77,15 +84,15 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
    * przez backend (wymagałaby też wyzerowania tenantId, którego ten formularz
    * nie edytuje).
    */
-  readonly roleOptions = computed<{ value: UserRole; label: string }[]>(() => {
-    const base: { value: UserRole; label: string }[] = [
-      { value: 'AGENT', label: 'Agent' },
-      { value: 'SUPERVISOR', label: 'Supervisor' },
-      { value: 'ADMIN', label: 'Admin' },
+  readonly roleOptions = computed<{ value: UserRole; labelKey: string }[]>(() => {
+    const base: { value: UserRole; labelKey: string }[] = [
+      { value: 'AGENT', labelKey: 'role.agent' },
+      { value: 'SUPERVISOR', labelKey: 'role.supervisor' },
+      { value: 'ADMIN', labelKey: 'role.admin' },
     ];
     return this.isEditMode()
       ? base
-      : [{ value: 'SUPER_ADMIN', label: 'Administrator Główny' }, ...base];
+      : [{ value: 'SUPER_ADMIN', labelKey: 'role.superAdmin' }, ...base];
   });
 
   readonly form = this.fb.group({
@@ -99,6 +106,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   });
 
   ngOnInit(): void {
+    this.loadSkills();
     const editUser = this.user();
     if (editUser) {
       // Tryb edycji – wypełnij formularz danymi użytkownika
@@ -142,6 +150,27 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
     }
   }
 
+  /**
+   * Loads skill suggestions from the same endpoint as user-form / queue-form.
+   * A failure never blocks the form: skills can still be typed by hand.
+   */
+  private loadSkills(): void {
+    this.skillsLoading.set(true);
+    this.userService
+      .getSkills()
+      .pipe(
+        catchError(() => {
+          this.skillsLoadFailed.set(true);
+          return of<string[]>([]);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((skills) => {
+        this.availableSkills.set(skills);
+        this.skillsLoading.set(false);
+      });
+  }
+
   /** True gdy w trybie tworzenia wybrano rolę SUPER_ADMIN (pole tenanta ukryte). */
   get isSuperAdminRoleSelected(): boolean {
     return this.form.get('role')?.value === 'SUPER_ADMIN';
@@ -178,16 +207,14 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   }
 
   onSkillInputBlur(): void {
-    setTimeout(() => this.showSkillDropdown.set(false), 150);
+    this.showSkillDropdown.set(false);
   }
 
-  onSkillInputKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const val = this.skillInput().trim();
-      if (val) {
-        this.addSkill(val);
-      }
+  /** Enter with no highlighted option: commit the typed text as a new skill. */
+  onSkillEnter(): void {
+    const val = this.skillInput().trim();
+    if (val) {
+      this.addSkill(val);
     }
   }
 
@@ -203,51 +230,47 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
     this.selectedSkills.update((list) => list.filter((s) => s !== skill));
   }
 
+  // Error getters return i18n keys; the template resolves them through the transloco pipe,
+  // so messages follow the active language without calling translate() here.
   get tenantIdError(): string | null {
     const ctrl = this.form.get('tenantId')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('admin.userForm.errors.tenantRequired');
+    if (ctrl.hasError('required')) return 'admin.userForm.errors.tenantRequired';
     return null;
   }
 
   get firstNameError(): string | null {
     const ctrl = this.form.get('firstName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('admin.userForm.errors.firstNameRequired');
-    if (ctrl.hasError('maxlength')) return 'Imie nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return 'admin.userForm.errors.firstNameRequired';
+    if (ctrl.hasError('maxlength')) return 'supervisor.userForm.errors.firstNameMaxLength';
     return null;
   }
 
   get lastNameError(): string | null {
     const ctrl = this.form.get('lastName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('admin.userForm.errors.lastNameRequired');
-    if (ctrl.hasError('maxlength')) return 'Nazwisko nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return 'admin.userForm.errors.lastNameRequired';
+    if (ctrl.hasError('maxlength')) return 'supervisor.userForm.errors.lastNameMaxLength';
     return null;
   }
 
   get emailError(): string | null {
     const ctrl = this.form.get('email')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('admin.userForm.errors.emailRequired');
-    if (ctrl.hasError('email')) return 'Nieprawidlowy format adresu email.';
-    if (ctrl.hasError('maxlength')) return 'Email nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('required')) return 'admin.userForm.errors.emailRequired';
+    if (ctrl.hasError('email')) return 'admin.userForm.errors.emailInvalid';
+    if (ctrl.hasError('maxlength')) return 'supervisor.userForm.errors.emailMaxLength';
     return null;
   }
 
   get passwordError(): string | null {
     const ctrl = this.form.get('password')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('admin.userForm.errors.passwordRequired');
-    if (ctrl.hasError('minLength')) return 'Haslo musi miec co najmniej 8 znakow.';
-    if (ctrl.hasError('requireUppercase'))
-      return 'Haslo musi zawierac co najmniej jedna wielka litere.';
-    if (ctrl.hasError('requireDigit')) return 'Haslo musi zawierac co najmniej jedna cyfre.';
+    if (ctrl.hasError('required')) return 'admin.userForm.errors.passwordRequired';
+    if (ctrl.hasError('minLength')) return 'supervisor.userForm.errors.passwordMinLength';
+    if (ctrl.hasError('requireUppercase')) return 'supervisor.userForm.errors.passwordUppercase';
+    if (ctrl.hasError('requireDigit')) return 'supervisor.userForm.errors.passwordDigit';
     return null;
   }
 

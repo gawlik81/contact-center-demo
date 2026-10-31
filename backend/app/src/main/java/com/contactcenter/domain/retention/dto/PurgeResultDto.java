@@ -25,7 +25,10 @@ import java.util.UUID;
  * @param status       RUNNING, COMPLETED lub FAILED
  * @param startedAt    znacznik czasu rozpoczęcia
  * @param completedAt  znacznik czasu zakończenia (null dopóki RUNNING)
- * @param errorMessage komunikat błędu przy status=FAILED (null przy sukcesie)
+ * @param errorMessage komunikat błędu (status=FAILED) LUB ostrzeżenia przy sukcesie częściowym
+ *                     (status=COMPLETED, np. awarie S3 przy usuwaniu wiadomości — BE-126); {@code null}
+ *                     tylko przy pełnym sukcesie bez ostrzeżeń. Kod czytający to pole (np. FE-110) NIE
+ *                     może zakładać {@code errorMessage != null ⇒ status == FAILED} (CR-BACKEND.md BE126-03)
  */
 public record PurgeResultDto(
         UUID purgeId,

@@ -7,7 +7,8 @@ package com.contactcenter.api.contact.dto;
  * po recovery WebSocket – minimalny zestaw pól potrzebnych do renderowania zakładki kontaktu.
  *
  * @param contactId          UUID kontaktu (String) – do wywołań REST API (np. disposition)
- * @param channel            kanał kontaktu: "PHONE", "EMAIL", "CHAT" itp.
+ * @param channel            typ kontaktu dla pulpitu agenta: "PHONE", "EMAIL", "CHAT" lub "SOCIAL"
+ *                           (rodzina SOCIAL_FACEBOOK/INSTAGRAM/WHATSAPP zwijana przez ContactChannels)
  * @param customerIdentifier numer telefonu / adres email dzwoniącego (remote_address)
  * @param customerName       nazwa wyświetlana klienta (fallback: customerIdentifier)
  * @param queueName          nazwa kolejki, do której trafił kontakt (może być pusty)

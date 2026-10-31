@@ -1,0 +1,37 @@
+:host {
+  display: contents;
+}
+
+.no-contacts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 3rem 2rem;
+  text-align: center;
+  height: 100%;
+  animation: slide-up 300ms var(--ease-out-expo);
+
+  &__icon {
+    width: 56px;
+    height: 56px;
+    color: var(--border-strong);
+    margin-bottom: 1.25rem;
+  }
+
+  &__text {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-2);
+    margin: 0 0 0.5rem;
+  }
+
+  &__subtext {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0;
+    max-width: 300px;
+    line-height: 1.6;
+  }
+}

@@ -1,0 +1,59 @@
+// Single breakpoint scale (FE-123). SCSS cannot read CSS custom properties inside @media, so the
+// scale lives here and DESIGN.md / .impeccable/design.json mirror it. Never write a literal
+// px value in an @media rule of the agent surface or the shell: add a step here instead.
+//
+//   xs 480   narrow phone            lg 1024  tablet / navbar KPI strip appears
+//   sm 640   phone, hide brand text  xl 1280  sidenav becomes a static column
+//   md 768   small tablet            xxl 1440 tight laptop: status label dropped, sidenav rail
+//
+// Height scale: `compact` (<= 720px viewport height) is a 1366x768 laptop with browser chrome;
+// the shell and the agent desktop shrink their bars there (--navbar-h etc. in styles.scss).
+@use 'sass:map';
+
+$widths: (
+  xs: 480px,
+  sm: 640px,
+  md: 768px,
+  lg: 1024px,
+  xl: 1280px,
+  xxl: 1440px,
+);
+
+$heights: (
+  compact: 720px,
+);
+
+@function width($name) {
+  @if not map.has-key($widths, $name) {
+    @error 'Unknown width breakpoint `#{$name}`. Known: #{map.keys($widths)}';
+  }
+  @return map.get($widths, $name);
+}
+
+/// Viewport width <= breakpoint (inclusive, same semantics as the old `max-width: Npx`).
+@mixin down($name) {
+  @media (max-width: #{width($name)}) {
+    @content;
+  }
+}
+
+/// Viewport width < breakpoint.
+@mixin below($name) {
+  @media (max-width: #{width($name) - 1px}) {
+    @content;
+  }
+}
+
+/// Viewport width >= breakpoint.
+@mixin up($name) {
+  @media (min-width: #{width($name)}) {
+    @content;
+  }
+}
+
+/// Low viewport height (1366x768 laptops): compact chrome.
+@mixin compact-height {
+  @media (max-height: #{map.get($heights, compact)}) {
+    @content;
+  }
+}

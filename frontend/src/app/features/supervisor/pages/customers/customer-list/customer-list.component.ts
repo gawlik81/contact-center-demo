@@ -15,7 +15,7 @@ import { Router } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, finalize, of } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
-import { CustomerDeleteModalComponent } from '../customer-delete-modal/customer-delete-modal.component';
+import { GdprAnonymizeModalComponent } from '../gdpr-anonymize-modal/gdpr-anonymize-modal.component';
 import { CustomerCreateModalComponent } from '../customer-create-modal/customer-create-modal.component';
 import { CustomerEditComponent } from '../customer-edit/customer-edit.component';
 import { CustomerResponse } from '../../../models/customer.model';
@@ -30,7 +30,7 @@ type SortDir = 'asc' | 'desc';
     TranslocoModule,
     DatePipe,
     ReactiveFormsModule,
-    CustomerDeleteModalComponent,
+    GdprAnonymizeModalComponent,
     CustomerCreateModalComponent,
     CustomerEditComponent,
   ],
@@ -46,7 +46,6 @@ export class CustomerListComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
-  readonly deleting = signal(false);
   readonly customers = signal<CustomerResponse[]>([]);
   readonly totalElements = signal(0);
   readonly totalPages = signal(0);
@@ -57,7 +56,7 @@ export class CustomerListComponent implements OnInit {
   readonly sortDir = signal<SortDir>('desc');
 
   readonly selectedCustomer = signal<CustomerResponse | null>(null);
-  readonly showDeleteModal = signal(false);
+  readonly showAnonymizeModal = signal(false);
   readonly showEditModal = signal(false);
 
   private readonly createModalRef = viewChild(CustomerCreateModalComponent);
@@ -114,45 +113,25 @@ export class CustomerListComponent implements OnInit {
     this.loadCustomers();
   }
 
-  openDeleteModal(customer: CustomerResponse): void {
+  openAnonymizeModal(customer: CustomerResponse): void {
     this.selectedCustomer.set(customer);
-    this.showDeleteModal.set(true);
+    this.showAnonymizeModal.set(true);
   }
 
-  closeDeleteModal(): void {
-    this.showDeleteModal.set(false);
+  closeAnonymizeModal(): void {
+    this.showAnonymizeModal.set(false);
     this.selectedCustomer.set(null);
   }
 
-  onDeleteConfirmed(): void {
-    const customer = this.selectedCustomer();
-    if (!customer) return;
-
-    this.deleting.set(true);
-
-    this.customerService
-      .deleteCustomer(customer.customerId)
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError(() => {
-          this.notifications.error(
-            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
-          );
-          return of(null);
-        }),
-        finalize(() => {
-          this.deleting.set(false);
-          this.closeDeleteModal();
-        }),
-      )
-      .subscribe((result) => {
-        if (result !== null) {
-          this.notifications.success(
-            this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'),
-          );
-          this.loadCustomers();
-        }
-      });
+  /**
+   * Wywoływane przez (confirmed) z app-gdpr-anonymize-modal — ten sam modal (podgląd D9 +
+   * GdprService#anonymize) co na stronie szczegółów klienta (FE-112, unifikacja jednej ścieżki
+   * anonimizacji). Modal sam wykonuje wywołanie HTTP i pokazuje toast sukcesu/błędu; tutaj
+   * wystarczy zamknąć modal i odświeżyć listę.
+   */
+  onGdprAnonymizeConfirmed(): void {
+    this.closeAnonymizeModal();
+    this.loadCustomers();
   }
 
   navigateToProfile(customer: CustomerResponse): void {

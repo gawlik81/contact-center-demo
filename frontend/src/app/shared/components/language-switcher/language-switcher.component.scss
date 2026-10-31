@@ -10,7 +10,7 @@
     gap: 0.25rem;
     padding: 0.375rem 0.625rem;
     background: none;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.8125rem;
@@ -25,7 +25,7 @@
 
     &:hover {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
       color: var(--text-1);
     }
 

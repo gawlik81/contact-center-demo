@@ -104,7 +104,11 @@ public interface CustomerService {
      * @param customerId UUID klienta do anonimizacji
      * @param tenantId   UUID tenanta
      * @throws EntityNotFoundException HTTP 404 gdy klient nie istnieje lub już anonimizowany
+     * @deprecated BE-129 (EPIC-30): aktualizuje WYŁĄCZNIE tabelę {@code customer}. Aktywna ścieżka
+     *             anonimizacji to {@code GdprService#anonymizeCustomer} (funkcja SQL
+     *             {@code anonymize_customer}, DB-062 — pełny zakres wg macierzy DB-060 + sprzątanie S3).
      */
+    @Deprecated
     void anonymizeCustomer(UUID customerId, UUID tenantId);
 
     /**
@@ -196,7 +200,11 @@ public interface CustomerService {
      * @param customerId UUID klienta do anonimizacji
      * @param tenantId   UUID tenanta (cross-tenant guard)
      * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
+     * @deprecated BE-129 (EPIC-30): aktualizuje WYŁĄCZNIE tabelę {@code customer} — zobacz
+     *             {@link #anonymizeCustomer(UUID, UUID)}. {@code GdprServiceImpl} nie woła już tej
+     *             metody (woła funkcję SQL {@code anonymize_customer} przez {@code GdprRepository}).
      */
+    @Deprecated
     int anonymize(UUID customerId, UUID tenantId);
 
     /**

@@ -15,9 +15,10 @@ import java.util.UUID;
  *
  * <p><strong>Zakres kategorii:</strong>
  * <ul>
- *   <li>{@code CONTACT_INTERACTIONS} ({@code contact} + {@code contact_event}) i
- *       {@code TRANSCRIPTS} ({@code contact_transcription} + {@code contact_ai_summary}) —
- *       liczone partition-aware przez {@link PartitionScanner} (algorytm poniżej).</li>
+ *   <li>{@code CONTACT_INTERACTIONS} ({@code contact} + {@code contact_event} + {@code social_message},
+ *       ostatnia dołączona w BE-133/EPIC-30) i {@code TRANSCRIPTS} ({@code contact_transcription} +
+ *       {@code contact_ai_summary}) — liczone partition-aware przez {@link PartitionScanner}
+ *       (algorytm poniżej).</li>
  *   <li>{@code CAMPAIGN_DATA} ({@code campaign_contact_archive}) — tabela NIE jest
  *       partycjonowana, więc {@link PartitionScanner} się do niej nie stosuje. Liczona
  *       bezpośrednim zapytaniem przez {@link CampaignArchiveRetentionRepository}.</li>

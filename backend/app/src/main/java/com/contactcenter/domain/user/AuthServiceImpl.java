@@ -67,6 +67,7 @@ class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final LoginRateLimiter loginRateLimiter;
     private final UserService userService;
+    private final PendingLoginTracker pendingLoginTracker;
 
     // =========================================================================
     // Login
@@ -154,16 +155,38 @@ class AuthServiceImpl implements AuthService {
         if (user.isPasswordResetRequired()) {
             log.info("[Auth] Logowanie z wymaganą zmianą hasła: userId={}, tenantId={}",
                     user.getId(), user.getTenantId());
+            // lastLoginAt zapisze changePassword() (i ewentualnie verifyMfa()) po dokończeniu logowania
+            pendingLoginTracker.markPending(user.getId());
             return LoginResponse.passwordResetRequired(accessToken, refreshTokenValue, ttl);
         }
 
         if (user.isMfaEnabled()) {
             log.info("[Auth] Logowanie z MFA: userId={}, tenantId={}", user.getId(), user.getTenantId());
+            // lastLoginAt zapisze verifyMfa() dopiero po poprawnym kodzie TOTP
+            pendingLoginTracker.markPending(user.getId());
             return LoginResponse.mfaRequired(accessToken, refreshTokenValue, ttl);
         }
 
+        // Pełne uwierzytelnienie zakończone (brak MFA, brak wymuszonej zmiany hasła)
+        recordLogin(user);
         log.info("[Auth] Logowanie bez MFA: userId={}, tenantId={}", user.getId(), user.getTenantId());
         return LoginResponse.of(accessToken, refreshTokenValue, ttl);
+    }
+
+    /**
+     * Zapisuje moment zakończonego logowania w {@code app_user.last_login_at} (BE-158).
+     * Brak zapisu = brak wpływu na logowanie (nie blokuje go), tylko WARN.
+     */
+    private void recordLogin(AppUser user) {
+        Instant now = Instant.now();
+        int updated = user.getTenantId() != null
+                ? appUserRepository.updateLastLoginAt(user.getId(), user.getTenantId(), now)
+                : appUserRepository.updateLastLoginAtGlobal(user.getId(), now);
+        if (updated == 0) {
+            log.warn("[Auth] Nie zapisano lastLoginAt (0 wierszy): userId={}", user.getId());
+            return;
+        }
+        user.setLastLoginAt(now);
     }
 
     // =========================================================================
@@ -249,6 +272,7 @@ class AuthServiceImpl implements AuthService {
 
         // Krok 3: Jeśli wylogowuje się agent – ustaw status OFFLINE
         setAgentOfflineOnLogout();
+        clearPendingLoginOfCurrentUser();
 
         log.info("[Auth] Logout wykonany pomyślnie");
     }
@@ -265,7 +289,29 @@ class AuthServiceImpl implements AuthService {
         blacklistAccessToken(accessToken);
         int count = refreshTokenRepository.revokeAllByUserId(userId);
         setAgentOfflineOnLogout();
+        clearPendingLogin(userId);
         log.info("[Auth] Logout ze wszystkich urządzeń: userId={}, unieważniono {} tokenów", userId, count);
+    }
+
+    private void clearPendingLoginOfCurrentUser() {
+        try {
+            clearPendingLogin(TenantContext.getUserId());
+        } catch (IllegalStateException e) {
+            // brak userId w TenantContext (np. wywołanie spoza filtra) - nic do czyszczenia
+            log.debug("[Auth] Logout bez userId w TenantContext - pomijam czyszczenie znacznika logowania");
+        }
+    }
+
+    /** Best-effort: usuwa znacznik oczekującego logowania (BE-158) - wylogowanie nie może przez niego zawieść. */
+    private void clearPendingLogin(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        try {
+            pendingLoginTracker.consume(userId);
+        } catch (Exception e) {
+            log.warn("[Auth] Nie udało się wyczyścić znacznika oczekującego logowania: {}", e.getMessage());
+        }
     }
 
     /**
@@ -370,6 +416,12 @@ class AuthServiceImpl implements AuthService {
             blacklistAccessToken(oldAccessToken);
         }
 
+        // Logowanie zakończone dopiero tutaj – ale TYLKO gdy poprzedzało je świeże logowanie hasłem.
+        // Verify po refresh tokenu lub pierwsza aktywacja MFA w trwającej sesji nie zmieniają lastLoginAt.
+        if (pendingLoginTracker.consume(userId)) {
+            recordLogin(user);
+        }
+
         // Wystaw nowy access token z mfaVerified=true
         String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), true);
         log.info("[MFA] Weryfikacja TOTP pomyślna: userId={}", userId);
@@ -417,6 +469,9 @@ class AuthServiceImpl implements AuthService {
         // Walidacja siły nowego hasła: min 1 cyfra, min 1 wielka litera
         validatePasswordStrength(request.newPassword());
 
+        // Wymuszona zmiana hasła kończy logowanie (login() zwrócił passwordResetRequired)
+        boolean completesLogin = user.isPasswordResetRequired();
+
         // Zakoduj nowe hasło i zapisz
         String newHash = passwordEncoder.encode(request.newPassword());
         appUserRepository.updatePasswordAndClearReset(userId, newHash);
@@ -435,6 +490,17 @@ class AuthServiceImpl implements AuthService {
         // Wystaw nowe tokeny
         String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled());
         String newRefreshTokenValue = createRefreshToken(user);
+
+        if (completesLogin) {
+            if (user.isMfaEnabled()) {
+                pendingLoginTracker.markPending(userId); // dokończy verifyMfa()
+            } else {
+                // znacznik ustawiony w login() nie jest już potrzebny - bez tego późniejsza pierwsza
+                // aktywacja MFA w ciągu 15 min zużyłaby go i przestawiła lastLoginAt
+                pendingLoginTracker.consume(userId);
+                recordLogin(user);
+            }
+        }
 
         log.info("[Auth] Hasło zmienione pomyślnie: userId={}, tenantId={}", userId, tenantId);
         return LoginResponse.of(newAccessToken, newRefreshTokenValue, jwtService.getAccessTokenTtlSeconds());

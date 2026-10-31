@@ -104,3 +104,42 @@ its own executor without fixing this, the same Critical finding applies there.
   there too.
 - Migration for `tenant_plugin_installation`: `backend/src/main/resources/db/migration/V075__create_tenant_plugin_installation.sql`
   (DB-043) — has RLS, out of scope for BE-101 review, not re-audited here.
+- `PluginRevokeController` (`/api/admin/plugins/.../revoke`, BE-106) correctly requires
+  `SUPER_ADMIN` and is explicitly cross-tenant (iterates all tenants, `findAllEnabledAcrossTenantsByVersionId`).
+  Confirmed by the 2026-10-01 review that this is NOT inconsistent with `PluginUploadController`
+  requiring only `ADMIN` — `plugin_version` is per-tenant (V078, `UNIQUE (plugin_id, version, tenant_id)`),
+  so upload/overwrite is scoped to the calling tenant's own row, unlike revoke. Don't re-litigate
+  this ADMIN-vs-SUPER_ADMIN comparison unless the per-tenant scoping of `plugin_version` changes.
+
+## `fix/plugin-version-overwrite` review (2026-10-01, commit `2b1e210`) — status: BLOCKER open
+
+Added `overwrite` param to `POST /api/supervisor/plugins`: `overwrite=true` updates an existing
+`PluginVersion` row in place (same `id`, preserves `tenant_plugin_installation` FK under
+`ON DELETE RESTRICT`) instead of the previous always-reject-on-duplicate behavior. Full findings
+in `CR-BACKEND.md` ("Review: PluginUploadController, PluginStorageService(Impl)... — 2026-10-01").
+Multi-tenancy and FK-integrity aspects of this change are sound (old tenant-unscoped
+`findByPluginIdAndVersion` removed with zero dangling callers verified). **Not yet re-verified
+whether the blocker below was fixed — re-check before trusting this subsystem's overwrite path
+in any later ticket.**
+
+- **Blocker (open as of 2026-10-01): `PluginStorageServiceImpl#storeValidatedJar`/`applyOverwrite`
+  reuses the same S3 key when the overwrite's filename is unchanged, and `uploadToS3` happens
+  before the DB transaction commits** — see anti-pattern #15 in
+  `project_recurring_antipatterns.md` for the general shape of this bug. Concretely: a DB
+  rollback after a successful same-key `putObject` leaves the DB row pointing at its OLD
+  checksum/status while the physical S3 object already has the NEW bytes — undetectable, since
+  `PluginRuntimeManagerImpl` never re-verifies `checksumSha256` at load time (confirmed via grep,
+  zero references). Fix recommended: always write to a fresh, salted S3 key on overwrite
+  (never reuse the old key even when the filename matches) and delete the stale key only
+  `afterCommit`, collapsing the "same filename"/"different filename" branches into one safe path.
+- **Major (open): no `@Audited`/audit_log trail for `overwrite=true`.** The whole `domain.plugin`
+  package has never used `@Audited` (pre-existing gap, not a regression of this commit), but this
+  commit is the first genuinely destructive mutation in that package (overwrites
+  checksum/jarObjectKey/manifestJson/status in place) — there's no way to reconstruct what code
+  was running at a given `plugin_version.id` before an overwrite, which matters for incident
+  response given RT-10's threat model. Minimal fix: one audit/log entry with old→new checksum and
+  jarObjectKey, not full version history.
+- Minor/non-blocking: no optimistic locking (`@Version`) on `PluginVersion`, so two concurrent
+  `overwrite=true` calls race with silent lost-update semantics and a permanently orphaned winner's
+  S3 object (no sweep job for the plugin catalog bucket prefix, unlike `OrphanAttachmentSweepJob`
+  for email attachments, BE-127). Low practical likelihood (admin upload isn't a hot path).

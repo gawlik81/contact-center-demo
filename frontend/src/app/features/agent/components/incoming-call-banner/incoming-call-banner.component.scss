@@ -4,12 +4,15 @@
 
 .banner {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  inset: 0 0 auto 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border: none;
+  overflow: visible;
   z-index: 9000;
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
   padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
@@ -54,7 +57,7 @@
 
   &__cta {
     flex-shrink: 0;
-    background: var(--accent-fg);
+    background: var(--on-danger);
     color: var(--danger);
     border: none;
     border-radius: var(--radius-sm);
@@ -70,11 +73,29 @@
     }
   }
 
+  &__reject {
+    flex-shrink: 0;
+    background: transparent;
+    color: var(--on-danger);
+    border: 1px solid var(--on-danger);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 0.85;
+    }
+  }
+
   &__close {
     flex-shrink: 0;
     background: none;
     border: none;
-    color: var(--accent-fg);
+    color: var(--on-danger);
     opacity: 0.7;
     cursor: pointer;
     padding: 0.25rem;

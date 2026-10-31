@@ -1,4 +1,5 @@
 <dialog
+  (cancel)="onNativeCancel($event)"
   #dialogEl
   class="break-dialog"
   [attr.aria-labelledby]="isEditMode() ? 'break-dialog-title-edit' : 'break-dialog-title-add'"
@@ -89,9 +90,21 @@
               }
               <button
                 id="break-type-btn"
+                #breakTypeTrigger
                 type="button"
                 class="custom-select__trigger"
+                role="combobox"
                 aria-haspopup="listbox"
+                aria-controls="break-type-list"
+                appListboxNav="break-type"
+                #nav="appListboxNav"
+                [listboxOpen]="breakTypeOpen()"
+                [listboxCount]="breakTypes.length"
+                [listboxSelected]="breakTypeIndex()"
+                (listboxSelect)="selectBreakType(breakTypes[$event].value)"
+                (listboxOpenRequest)="breakTypeOpen.set(true)"
+                (listboxCloseRequest)="breakTypeOpen.set(false)"
+                (blur)="breakTypeOpen.set(false)"
                 aria-labelledby="break-type-label"
                 [attr.aria-expanded]="breakTypeOpen()"
                 (click)="breakTypeOpen.update(v => !v)"
@@ -112,16 +125,22 @@
                 </svg>
               </button>
               @if (breakTypeOpen()) {
-                <ul class="custom-select__menu" role="listbox" aria-labelledby="break-type-label">
-                  @for (opt of breakTypes; track opt.value) {
+                <ul
+                  id="break-type-list"
+                  class="custom-select__menu"
+                  role="listbox"
+                  aria-labelledby="break-type-label"
+                  (mousedown)="$event.preventDefault()"
+                >
+                  @for (opt of breakTypes; track opt.value; let i = $index) {
                     <li
                       role="option"
+                      [id]="nav.optionId(i)"
                       class="custom-select__option"
-                      tabindex="0"
-                      [class.custom-select__option--active]="form.controls.breakType.value === opt.value"
+                      [class.custom-select__option--highlighted]="nav.activeIndex() === i"
+                      [class.custom-select__option--selected]="form.controls.breakType.value === opt.value"
                       [attr.aria-selected]="form.controls.breakType.value === opt.value"
-                      (click)="selectBreakType(opt.value)"
-                      (keydown.enter)="selectBreakType(opt.value)"
+                      (mousedown)="selectBreakType(opt.value)"
                     >
                       @if (form.controls.breakType.value === opt.value) {
                         <svg
@@ -170,7 +189,7 @@
                   formControlName="startDate"
                   [min]="minDate()"
                   aria-required="true"
-                  aria-label="Data rozpoczęcia przerwy"
+                  [attr.aria-label]="'agent.addBreak.startDateLabel' | transloco"
                   [attr.aria-invalid]="form.controls.startDate.invalid && form.controls.startDate.touched"
                 />
                 @if (startDateError) {
@@ -189,7 +208,7 @@
                   <select
                     class="form-field__select time-selects__select"
                     formControlName="startHour"
-                    aria-label="Godzina rozpoczęcia"
+                    [attr.aria-label]="'agent.addBreak.startHourLabel' | transloco"
                     aria-required="true"
                   >
                     @for (h of hours; track h) {
@@ -200,7 +219,7 @@
                   <select
                     class="form-field__select time-selects__select"
                     formControlName="startMinute"
-                    aria-label="Minuty rozpoczęcia"
+                    [attr.aria-label]="'agent.addBreak.startMinuteLabel' | transloco"
                     aria-required="true"
                   >
                     @for (m of minutes; track m) {
@@ -246,7 +265,7 @@
                   formControlName="endDate"
                   [min]="minDate()"
                   aria-required="true"
-                  aria-label="Data zakończenia przerwy"
+                  [attr.aria-label]="'agent.addBreak.endDateLabel' | transloco"
                   [attr.aria-invalid]="form.controls.endDate.invalid && form.controls.endDate.touched"
                 />
                 @if (endDateError) {
@@ -268,7 +287,7 @@
                   <select
                     class="form-field__select time-selects__select"
                     formControlName="endHour"
-                    aria-label="Godzina zakończenia"
+                    [attr.aria-label]="'agent.addBreak.endHourLabel' | transloco"
                     aria-required="true"
                   >
                     @for (h of hours; track h) {
@@ -279,7 +298,7 @@
                   <select
                     class="form-field__select time-selects__select"
                     formControlName="endMinute"
-                    aria-label="Minuty zakończenia"
+                    [attr.aria-label]="'agent.addBreak.endMinuteLabel' | transloco"
                     aria-required="true"
                   >
                     @for (m of minutes; track m) {
@@ -315,7 +334,7 @@
           <div class="form-field">
             <label class="form-field__label" for="break-notes">
               {{ 'agent.addBreak.notesLabel' | transloco }}
-              <span class="form-field__optional">(opcjonalne)</span>
+              <span class="form-field__optional">{{ 'common.optional' | transloco }}</span>
             </label>
             <textarea
               id="break-notes"
@@ -355,7 +374,7 @@
           type="button"
           class="btn btn--danger-outline"
           [disabled]="loading()"
-          aria-label="Anuluj tę przerwę"
+          [attr.aria-label]="'agent.addBreak.cancelBreakLabel' | transloco"
           (click)="cancelBreak()"
         >
           {{ 'agent.addBreak.cancelBreakBtn' | transloco }}

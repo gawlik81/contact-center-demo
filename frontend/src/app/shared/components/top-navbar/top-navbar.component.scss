@@ -1,13 +1,13 @@
+@use '../../styles/breakpoints' as bp;
+
 .navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: var(--navbar-h);
   padding: 0 1rem;
   background: var(--bg-elevated, #ffffff);
   border-bottom: 1px solid var(--border-1, #e2e8f0);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -25,7 +25,10 @@
     display: flex;
     align-items: center;
     gap: 0.625rem;
-    flex-shrink: 0;
+    // The user chip may shrink (ellipsis on the e-mail); the controls around it never do. Without
+    // this the bar overflowed horizontally around 945px (Logout clipped).
+    flex-shrink: 1;
+    min-width: 0;
   }
 
   // Hamburger button
@@ -33,9 +36,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    padding: 6px;
+    width: 36px;
+    height: 36px;
+    padding: 0.5rem;
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radius-sm, 6px);
@@ -93,7 +96,8 @@
     flex-direction: column;
     gap: 0;
 
-    @media (max-width: 640px) {
+    // Logo only on tablet-width windows: the text is the first thing to give way (FE-123).
+    @include bp.down(lg) {
       display: none;
     }
   }
@@ -108,7 +112,7 @@
   }
 
   &__brand-sub {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted, #94a3b8);
     line-height: 1.2;
     white-space: nowrap;
@@ -129,31 +133,34 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.25rem 0.625rem 0.25rem 0.375rem;
-    border-radius: 9999px;
-    border: 1px solid var(--border-1, #e2e8f0);
+    border-radius: var(--radius-full, 9999px);
+    border: 1px solid var(--border-1);
     background: var(--bg-subtle, #f8fafc);
     // Szerokość musi pomieścić pełny e-mail obok najdłuższej plakietki roli
     // ("ADMINISTRATOR GŁÓWNY" – SUPER_ADMIN, refaktor ról). Plakietka ma
     // flex-shrink: 0, więc bez odpowiedniego zapasu e-mail i tak obcina się
     // przez ellipsis, niezależnie od min-width na user-info.
     max-width: 460px;
+    min-width: 0;
+    flex-shrink: 1;
 
-    @media (max-width: 900px) {
+    @include bp.down(lg) {
       max-width: 260px;
     }
 
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       display: none;
     }
   }
 
   &__user-avatar {
+    flex-shrink: 0;
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent, #1a56db) 0%, var(--violet, #7c3aed) 100%);
-    color: #fff;
-    font-size: 0.6875rem;
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-size: var(--fs-2xs);
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -181,7 +188,7 @@
   }
 
   &__user-tenant {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted, #94a3b8);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -194,9 +201,10 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
+    min-height: 2.25rem;
     padding: 0.375rem 0.75rem;
     background: none;
-    border: 1px solid var(--border-1, #e2e8f0);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm, 6px);
     cursor: pointer;
     font-size: 0.8125rem;
@@ -227,23 +235,33 @@
   }
 
   &__logout-label {
-    @media (max-width: 640px) {
+    @include bp.down(sm) {
       display: none;
     }
   }
 }
 
 // ── KPI Strip ──────────────────────────────────────────────────────────────────
+.navbar__status {
+  // The status pill never shrinks or truncates; the KPI strip (min-width 0) gives way instead.
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .navbar__kpi-strip {
   display: flex;
   align-items: stretch;
-  gap: 5px;
+  gap: 0.375rem;
   flex: 1;
-  justify-content: center;
+  // `safe` keeps the first tile reachable instead of clipping both ends equally.
+  justify-content: safe center;
   min-width: 0;
   overflow: hidden;
+  // The strip measures ITS OWN width (what is left after the status pill and the user controls),
+  // not the viewport: the tiers below depend on that, and on translated labels (pl/en/de/uk).
+  container: kpi / inline-size;
 
-  @media (max-width: 1100px) {
+  @include bp.down(lg) {
     display: none;
   }
 }
@@ -256,11 +274,14 @@
   border-radius: var(--radius-md, 10px);
   border: 1px solid var(--border-1, #e2e8f0);
   background: var(--bg-elevated, #ffffff);
-  min-width: 112px;
-  transition: box-shadow 150ms ease;
+  // Never shrinks below its content: no mid-word clipping, no truncated value.
+  min-width: max-content;
+  flex: 0 0 auto;
+  // Read-only metric: flat at rest and on hover (no shadow, nothing that suggests a click).
 
-  &:hover {
-    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
+  // Low viewport: the strip must fit the 48px bar (tile = 2+2 padding + label + value + bar).
+  @include bp.compact-height {
+    padding-block: 2px;
   }
 
   // Tone variants — only icon gets the color, tile stays neutral
@@ -328,7 +349,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm, 6px);
     flex-shrink: 0;
 
     svg {
@@ -341,14 +362,14 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
-    min-width: 0;
-    flex: 1;
+    min-width: max-content;
+    flex: 0 0 auto;
   }
 
   &__label {
-    font-size: 9.5px;
+    font-size: var(--fs-2xs);
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-3, #64748b);
     white-space: nowrap;
@@ -362,17 +383,20 @@
   }
 
   &__value {
-    font-size: 13.5px;
+    font-size: 0.84375rem; // 13.5px
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     line-height: 1.15;
     white-space: nowrap;
+    flex-shrink: 0; // the number must never be clipped; ellipsis only on labels/captions
+    // Geist Mono is the data face in DESIGN.md (numerals, measurements): an intentional exception
+    // to the generic overused-font heuristic.
     font-family: 'Geist Mono', ui-monospace, monospace;
   }
 
   &__sub {
-    font-size: 9.5px;
+    font-size: var(--fs-2xs);
     color: var(--text-3, #94a3b8);
     line-height: 1.2;
     white-space: nowrap;
@@ -390,7 +414,7 @@
   &__bar-fill {
     height: 100%;
     border-radius: 99px;
-    transition: width 360ms ease;
+    transition: width 360ms var(--ease-out, cubic-bezier(0, 0, 0.2, 1));
   }
 }
 
@@ -400,7 +424,7 @@
   align-items: center;
   gap: 1px;
   background: var(--bg-subtle, #f1f5f9);
-  border: 1px solid var(--border-1, #e2e8f0);
+  border: 1px solid var(--border-control);
   border-radius: 8px;
   padding: 2px;
 
@@ -448,8 +472,8 @@
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.625rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -478,5 +502,69 @@
     background: var(--accent-soft, #ede9fe);
     color: var(--accent-text, #4c1d95);
     border: 1px solid oklch(85% 0.06 290);
+  }
+}
+
+// Visually hidden, still read by assistive technology.
+@mixin kpi-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// ── KPI adaptation tiers (FE-134) ──────────────────────────────────────────────
+// A tile is never clipped or shrunk; instead the strip degrades in steps. Thresholds come from
+// the widest tile text over pl/en/de/uk (see top-navbar.kpi-layout.spec.ts, which checks them):
+//   full tiles: 4 x label+value  ........ need ~560px  -> shown from 600px
+//   compact (icon + value): 4 tiles .... need ~385px   -> shown from 400px
+//   priority: Obsluzone > SLA > AHT > Czas pracy; a dropped tile becomes screen-reader-only.
+@container kpi (max-width: 599px) {
+  .kpi-tile__label,
+  .kpi-tile__sub {
+    @include kpi-sr-only;
+  }
+
+  // Compact tile = icon + value, centred on one line. The value is the only text left, so it
+  // steps up to 14px, and the SLA bar becomes an underline pinned to the tile bottom so it no
+  // longer lifts that tile's value off the centre line shared with the other tiles.
+  .kpi-tile {
+    position: relative;
+    gap: 0.5rem;
+  }
+
+  .kpi-tile__value {
+    font-size: 0.875rem;
+  }
+
+  .kpi-tile__bar {
+    position: absolute;
+    inset: auto 0.625rem 3px;
+    width: auto;
+    margin-top: 0;
+  }
+}
+
+@container kpi (max-width: 399px) {
+  .kpi-tile:nth-child(4) {
+    @include kpi-sr-only;
+  }
+}
+
+@container kpi (max-width: 289px) {
+  .kpi-tile:nth-child(3) {
+    @include kpi-sr-only;
+  }
+}
+
+@container kpi (max-width: 189px) {
+  .kpi-tile:nth-child(2) {
+    @include kpi-sr-only;
   }
 }

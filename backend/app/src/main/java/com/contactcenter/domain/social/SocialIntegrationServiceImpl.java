@@ -3,6 +3,7 @@ package com.contactcenter.domain.social;
 import com.contactcenter.api.social.dto.SocialIntegrationDto;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,31 @@ class SocialIntegrationServiceImpl implements SocialIntegrationService {
             String platformConfig) {
 
         UUID tenantId = TenantContext.getTenantId();
+
+        // KRYTYCZNE: (platform, pageId) nie może należeć już do INNEGO tenanta – w przeciwnym
+        // razie webhook (SocialIntegrationRepository.findByPlatformAndPageId, identyfikacja
+        // tenanta wyłącznie po tej parze, brak JWT) mógłby trwale/niedeterministycznie routować
+        // wiadomości klienta jednego tenanta do innego. Dla FB/Instagram pageId pochodzi z OAuth
+        // (administrator fizycznie nie może podać cudzej strony), ale ręczne podłączenie WhatsApp
+        // (phoneNumberId wklejany jako wolny tekst) nie ma tej naturalnej ochrony. Sprawdzenie
+        // aplikacyjne poniżej daje czytelny 409 zamiast surowego constraint violation z DB
+        // (globalny constraint uq_social_integration_global_platform_page, migracja V092, jest
+        // ostatnią linią obrony niezależną od tej walidacji).
+        //
+        // Celowo ConflictException (nie ResponseStatusException, mimo że reszta tej klasy go
+        // używa dla 404/422) – zweryfikowano empirycznie, że GlobalExceptionHandler ma tylko
+        // catch-all @ExceptionHandler(Exception.class), który przechwytuje ResponseStatusException
+        // PRZED jakąkolwiek szansą Springa na użycie jego statusu, zwracając 500 zamiast
+        // zadeklarowanego kodu. ConflictException ma dedykowany handler (handleConflictException)
+        // mapujący poprawnie na 409 – patrz podsumowanie zadania po szczegóły tego ustalenia.
+        if (repository.existsByPlatformAndPageIdAndTenantIdNot(platform, pageId, tenantId)) {
+            log.warn("[SocialIntegration] Odrzucono próbę podłączenia – page_id już przypisany innemu "
+                            + "tenantowi: platform={}, pageId={}, tenant={}",
+                    platform, pageId, tenantId);
+            throw new ConflictException(
+                    "Ten numer/strona jest już podłączona do innego konta w systemie. "
+                            + "Skontaktuj się z administratorem, jeśli uważasz że to błąd.");
+        }
 
         // Szyfruj token przed zapisem
         byte[] encryptedToken = encryptionService.encrypt(accessToken);
@@ -134,6 +160,33 @@ class SocialIntegrationServiceImpl implements SocialIntegrationService {
         if (encryptedToken != null && encryptedToken.length > 0) {
             revokeTokenAtProvider(platform, pageId, encryptedToken);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SocialIntegrationDecrypted getDecryptedIntegration(UUID integrationId) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        SocialIntegration integration = repository
+                .findByTenantIdAndIntegrationId(tenantId, integrationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Integracja nie istnieje: " + integrationId));
+
+        if (integration.getAccessTokenEncrypted() == null || integration.getAccessTokenEncrypted().length == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Integracja nie posiada skonfigurowanego tokenu dostępu: " + integrationId);
+        }
+
+        String accessToken = encryptionService.decrypt(integration.getAccessTokenEncrypted());
+
+        return new SocialIntegrationDecrypted(
+                integration.getIntegrationId(),
+                integration.getPlatform(),
+                integration.getPageId(),
+                accessToken
+        );
     }
 
     /**

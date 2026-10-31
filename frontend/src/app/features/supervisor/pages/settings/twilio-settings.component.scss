@@ -106,7 +106,7 @@
 
 .form-input {
   padding: 0.5rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   color: var(--text-1);
@@ -210,7 +210,7 @@
 
 .btn-danger {
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
   min-width: 200px;
 
   &:hover:not(:disabled) {
@@ -279,15 +279,15 @@
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 
   &--white {
-    border-color: rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
+    border-color: color-mix(in oklch, var(--on-accent) 35%, transparent);
+    border-top-color: var(--on-accent);
   }
 }
 

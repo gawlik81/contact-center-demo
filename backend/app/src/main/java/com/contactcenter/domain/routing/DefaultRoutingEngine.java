@@ -70,7 +70,10 @@ class DefaultRoutingEngine implements RoutingEngine {
         // 1. Sticky agent – sprawdź preferowanego agenta
         // Gdy all_agents=FALSE i preferredAgentId nie należy do eligibleAgentIds,
         // pomijamy sticky i przechodzimy od razu do strategii routingu.
-        if (request.hasStickyAgent()) {
+        if (request.hasStickyAgent() && request.isExcluded(request.preferredAgentId())) {
+            log.debug("[RoutingEngine] Sticky agent {} wykluczony dla tego kontaktu (zwrot do kolejki) – pomijam",
+                    request.preferredAgentId());
+        } else if (request.hasStickyAgent()) {
             if (request.hasAgentFilter()
                     && !request.eligibleAgentIds().contains(request.preferredAgentId())) {
                 log.debug("[RoutingEngine] Sticky agent {} spoza eligibleAgentIds kolejki {} – pomijam sticky",
@@ -91,6 +94,15 @@ class DefaultRoutingEngine implements RoutingEngine {
         List<AgentSessionData> availableAgents = scanAvailableAgents(request.tenantId());
         int totalAvailable = availableAgents.size();
         log.debug("[RoutingEngine] Dostępnych agentów w tenancie {}: {}", request.tenantId(), totalAvailable);
+
+        // 2b. Agenci wykluczeni dla tego kontaktu (anti-ping-pong po zwrocie do kolejki) – wszystkie strategie
+        if (!request.excludedAgentIds().isEmpty()) {
+            availableAgents = availableAgents.stream()
+                    .filter(a -> !request.isExcluded(a.agentId()))
+                    .toList();
+            log.debug("[RoutingEngine] Po wykluczeniach kontaktu ({}): {}/{} agentów",
+                    request.excludedAgentIds().size(), availableAgents.size(), totalAvailable);
+        }
 
         // 3. Filtruj po liście uprawnionych agentów (all_agents=FALSE)
         if (request.hasAgentFilter()) {

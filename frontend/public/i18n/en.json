@@ -92,6 +92,7 @@
       "title": "Sign In",
       "emailLabel": "Email address",
       "emailPlaceholder": "Enter your email address",
+      "signedInAs": "Signing in as {{ email }}",
       "passwordLabel": "Password",
       "submitButton": "Sign In",
       "nextButton": "Next",
@@ -185,12 +186,19 @@
     "ivrEditor": "IVR Editor",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigation path",
+    "skipToContent": "Skip to content",
     "settingsTwilioConfig": "Twilio Integration",
     "settingsAiConfig": "AI Configuration",
     "settingsDispositionSets": "Disposition Sets",
     "settingsPlugins": "Plugins",
     "settingsDataRetention": "Data Retention",
-    "retentionPendingBadge": "{{ count }} data categories pending deletion"
+    "retentionPendingBadge": "{{ count }} data categories pending deletion",
+    "toggleSidenav": "Toggle side navigation",
+    "themeGroup": "Interface theme",
+    "themeLight": "Light theme",
+    "themeAuto": "Automatic theme",
+    "themeDark": "Dark theme",
+    "roleAria": "Role: {{ role }}"
   },
   "role": {
     "superAdmin": "Super Admin",
@@ -205,15 +213,17 @@
       "break": "On break",
       "afterContact": "After contact work",
       "offline": "Offline",
+      "breakDuration": "Break duration",
+      "breakDurationHint": "Time since the status changed in this session",
       "errorLoad": "Failed to load agent status.",
-      "errorChange": "Failed to change status. Please try again."
+      "errorChange": "Failed to change status. Please try again.",
+      "changedAnnouncement": "Status changed to: {{status}}"
     },
     "desktop": {
       "title": "Agent Desktop",
       "noActiveContact": "No active contact",
       "yourStatus": "Your status:",
-      "changeStatus": "Change status",
-      "changingStatus": "Changing status...",
+      "statusTriggerLabel": "Status: {{status}}. Change status",
       "selectStatus": "Select status",
       "connected": "Connected",
       "connecting": "Connecting...",
@@ -226,17 +236,36 @@
       "tabLimitTotal": "You have reached the maximum limit of 4 active contacts.",
       "queueTitle": "Queue",
       "queueEmpty": "No waiting contacts",
-      "queueWaiting": "waiting",
+      "queueWaitingCount_one": "{{count}} waiting",
+      "queueWaitingCount_few": "{{count}} waiting",
+      "queueWaitingCount_many": "{{count}} waiting",
+      "queueWaitingCount_other": "{{count}} waiting",
       "queueWaitTime": "Wait time",
       "sidebarLabel": "Contact queue and manual campaigns",
-      "activeContactsLabel": "Active contacts",
+      "mainRegionLabel": "Contacts and calendar",
       "noActiveContacts": "No active contacts",
       "noActiveContactsSub": "Wait for a contact assignment or pick up a call from the queue",
       "tabBarLabel": "Active contacts",
-      "closeContact": "Close contact",
       "contactSince": "Since",
-      "chatPlaceholder": "Chat panel",
-      "chatPlaceholderSub": "Chat view will be loaded here",
+      "chatPlaceholder": "Chat is not available yet",
+      "chatPlaceholderSub": "This contact cannot be handled here. Close the tab.",
+      "kpiStripLabel": "Agent indicators",
+      "kpiHandled": "Handled",
+      "kpiHandledSub": "today",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "avg. time",
+      "kpiWorkTime": "Work time",
+      "kpiWorkTimeHours_one": "{{count}} hour",
+      "kpiWorkTimeHours_other": "{{count}} hours",
+      "kpiWorkTimeHours_few": "{{count}} hours",
+      "kpiWorkTimeHours_many": "{{count}} hours",
+      "kpiWorkTimeMinutes_one": "{{count}} minute",
+      "kpiWorkTimeMinutes_other": "{{count}} minutes",
+      "kpiWorkTimeMinutes_few": "{{count}} minutes",
+      "kpiWorkTimeMinutes_many": "{{count}} minutes",
+      "kpiAhtSr": "{{minutes}} min {{seconds}} s",
+      "kpiNoData": "no data",
       "profileLabel": "Customer profile",
       "expandCustomerPanel": "Expand customer panel",
       "collapseCustomerPanel": "Collapse customer panel",
@@ -251,7 +280,42 @@
       "pluginPanelsLabel": "Plugin panels",
       "pluginActionTimeout": "Plugin action timed out (504). Please try again.",
       "pluginActionError": "Plugin action failed.",
-      "pluginActionSuccess": "Plugin action completed."
+      "pluginActionSuccess": "Plugin action completed.",
+      "ringingAnnouncement": "Incoming call: {{ who }}",
+      "ringingAnnouncementQueue": "Queue: {{ queue }}",
+      "ringingAnnouncementUnknown": "Incoming call",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "On hold",
+        "CALL": "In call",
+        "DRAFT": "Draft"
+      },
+      "tabMarkerSr": {
+        "ACW": "after-call work (ACW)",
+        "HOLD": "call on hold",
+        "CALL": "call in progress",
+        "DRAFT": "unsent draft"
+      },
+      "newContactAnnouncement": "New contact: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Hang up and close contact {{name}}",
+        "closeAsync": "Return to queue and close contact {{name}}",
+        "wrapping": "Save the disposition to close this tab",
+        "busy": "Returning the contact to the queue",
+        "confirmHangup": "Hang up the call with {{name}} and close the tab?",
+        "confirmHangupAction": "Hang up",
+        "confirmReturn": "Contact {{name}} has an unsent reply draft. Returning the contact to the queue will discard it. Continue?",
+        "confirmReturnAction": "Return to queue",
+        "cancel": "Cancel",
+        "returned": "Contact {{name}} was returned to the queue",
+        "returnError": "Could not return contact {{name}} to the queue. The tab stays open, please try again.",
+        "closeReject": "Reject the call from {{name}}",
+        "closeStale": "Close tab {{name}}",
+        "closeWrapping": "Closing unavailable, save the disposition for {{name}}",
+        "confirmReject": "Reject the call from {{name}}?",
+        "confirmRejectAction": "Reject",
+        "notYours": "Contact {{name}} is no longer assigned to you. The tab was closed."
+      }
     },
     "softphone": {
       "incomingCall": "Incoming call",
@@ -317,26 +381,48 @@
       "loadAgentsError": "Failed to load agent list.",
       "noQueuesAvailable": "No queues available.",
       "loadQueuesError": "Failed to load queue list.",
+      "loadingQueues": "Loading queue list",
+      "loadingAgents": "Loading agent list",
+      "transferTargetLabel": "Transfer target",
       "waitingContacts": "waiting",
-      "availableAgents": "agents"
+      "availableAgents": "agents",
+      "errors": {
+        "title": "Telephony unavailable",
+        "tokenFetch": "Could not fetch the telephony token. Try again; if the error persists, refresh the page.",
+        "device": "A browser telephony error occurred. Try again; if the error persists, refresh the page.",
+        "retry": "Try again",
+        "retrying": "Retrying…",
+        "stillUnavailable": "Still unavailable"
+      }
     },
     "disposition": {
       "title": "End contact",
       "acwLabel": "ACW time",
-      "acwTimer": "After contact time:",
       "codeLabel": "Disposition",
       "codeRequired": "Please select a disposition before saving",
       "codePlaceholder": "-- Select disposition --",
       "notesLabel": "Note",
       "notesOptional": "(optional)",
       "notesPlaceholder": "Add a note to the contact...",
-      "notesAriaLabel": "Contact note, optional",
       "saveLabel": "Save disposition and set status to available",
       "save": "Save and close",
       "saving": "Saving...",
       "errorSave": "Failed to save disposition. Please try again.",
-      "successSave": "Disposition saved. Changing status to Available...",
-      "statusChanged": "Status changed to Available."
+      "fallbackNotice": "Showing system dispositions (custom ones could not be loaded).",
+      "successSave": "Disposition saved."
+    },
+    "aiSummary": {
+      "title": "AI summary",
+      "generate": "Generate AI summary",
+      "generating": "Generating…",
+      "needsRecording": "AI summary requires a call recording",
+      "expand": "Expand AI summary",
+      "collapse": "Collapse AI summary",
+      "copyToNotes": "Copy to note",
+      "meta": "Model: {{ model }} · tokens: {{ tokens }}",
+      "errorNotConfigured": "Set up an AI provider in the supervisor settings.",
+      "errorUnavailable": "The AI service is temporarily unavailable. Please try again.",
+      "errorUnknown": "Failed to generate the summary. Please try again."
     },
     "customerPanel": {
       "empty": "Customer card will appear here when a contact is assigned.",
@@ -348,22 +434,39 @@
       "createProfileLabel": "Create customer profile for number",
       "viewProfile": "View full profile",
       "errorText": "Unable to load customer data (server error).",
+      "retry": "Try again",
+      "channels": {
+        "PHONE": "Phone",
+        "EMAIL": "Email",
+        "CHAT": "Chat",
+        "SOCIAL": "Social"
+      },
       "recentContacts": "Recent contacts",
       "noHistory": "No contact history",
       "lookupError": "Failed to load customer data.",
+      "contactDetailsDated": "Contact details from {{ date }}",
       "noteExpand": "Show more",
       "noteCollapse": "Show less",
       "externalId": "External ID"
     },
     "incomingCall": {
       "label": "Incoming call",
-      "goToDesktop": "Go to desktop and answer",
-      "dismiss": "Dismiss",
       "limitMaxPhone": "You can only handle 1 phone call at a time.",
       "limitMaxAsync": "You have reached the limit of 3 chat/email contacts.",
       "limitMaxTotal": "You have reached the maximum limit of 4 active contacts.",
       "limitGeneral": "You have reached the active contact limit.",
-      "systemNotificationTitle": "Incoming call"
+      "systemNotificationTitle": "Incoming call",
+      "labelAsync": "New contact",
+      "goToContact": "Go to contact",
+      "hide": "Hide notification",
+      "inCall": "Call in progress",
+      "openDesktop": "Go to desktop"
+    },
+    "acwBanner": {
+      "title": "Disposition is waiting",
+      "action": "Complete disposition",
+      "announcement": "The call with {{who}} has ended. Complete the disposition.",
+      "more": "+{{count}} more"
     },
     "addBreak": {
       "titleAdd": "Add break",
@@ -404,7 +507,13 @@
         "OTHER": "Other"
       },
       "errorStartInPast": "Start time must be in the future.",
-      "errorConflict": "The break conflicts with an existing schedule entry."
+      "errorConflict": "The break conflicts with an existing schedule entry.",
+      "breakTypeRequired": "Select a break type.",
+      "startDateRequired": "Start date is required.",
+      "startTimeRequired": "Start time is required.",
+      "endDateRequired": "End date is required.",
+      "endTimeRequired": "End time is required.",
+      "endNotAfterStart": "The end time must be later than the start time."
     },
     "rescheduleCallback": {
       "title": "Reschedule callback",
@@ -456,9 +565,12 @@
     },
     "manualCampaign": {
       "title": "Manual campaigns",
-      "recordsLabel": "records to call",
       "refreshLabel": "Refresh manual campaigns list",
       "refreshTitle": "Refresh",
+      "sectionLabel": "Manual campaigns to dial",
+      "recordsPendingLabel": "Pending records: {{ count }}",
+      "campaignRecordsLabel": "Records of campaign {{ name }}",
+      "recordsListLabel": "Records to dial",
       "statusNotAvailable": "Change status to Available to make calls",
       "loadingLabel": "Loading campaigns...",
       "empty": "No active manual campaigns",
@@ -508,6 +620,8 @@
       "errorThread": "Failed to load email thread.",
       "errorPreview": "Failed to preview template.",
       "errorSend": "Failed to send reply. Please try again.",
+      "errorTemplate": "Failed to load the template.",
+      "uploadFailed": "Failed to upload file: {{ name }}",
       "from": "From",
       "to": "To",
       "loadOlder": "Load more",
@@ -539,6 +653,8 @@
       "loadingLabel": "Loading message history",
       "emptyText": "No messages in this conversation",
       "emptySub": "Send the first message below",
+      "errorLoad": "Failed to load message history.",
+      "errorSend": "Failed to send message. Please try again.",
       "historyLabel": "Message history",
       "loadEarlier": "Load earlier",
       "loadEarlierLabel": "Load earlier messages",
@@ -571,7 +687,6 @@
       "campaignDays": "Days",
       "callbackLabel": "Callback to",
       "addBreak": "Add break",
-      "addBreakLabel": "Add break",
       "errorLoad": "Failed to load calendar. Please try again.",
       "breakTypes": {
         "LUNCH": "Lunch",
@@ -774,7 +889,12 @@
       "scheduledDateLabel": "Callback date",
       "hourLabel": "Hour",
       "minuteLabel": "Minutes",
-      "notesPlaceholder": "Add callback notes..."
+      "notesPlaceholder": "Add callback notes...",
+      "discardMessage": "You have unsaved changes. Close the form without saving?",
+      "discardConfirm": "Discard changes",
+      "discardKeep": "Back to the form",
+      "successScheduled": "Callback scheduled for {{ date }}",
+      "customerFallback": "Customer"
     },
     "callbacksPage": {
       "title": "My callbacks",
@@ -814,6 +934,7 @@
       "searchLabel": "Search customer",
       "clearSearch": "Clear search",
       "searchMinChars": "Enter at least 2 characters to search",
+      "searchError": "Customer search failed. Please try again.",
       "found": "{{ count }} customers"
     },
     "manualCallback": {
@@ -865,6 +986,17 @@
         "COMPLETED": "Completed",
         "CANCELLED": "Cancelled"
       }
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "open": "Keyboard shortcuts",
+      "close": "Close keyboard shortcuts",
+      "answer": "Answer the call",
+      "hangup": "Hang up the active call or reject a ringing one",
+      "mute": "Mute / unmute microphone",
+      "cheatSheet": "Show / hide shortcuts",
+      "tabs": "Move between contact tabs",
+      "statusMenu": "Navigate the status menu"
     }
   },
   "supervisor": {
@@ -1055,7 +1187,16 @@
       "assignmentTitle": "Agent assignment",
       "assignmentHint": "Save the queue to configure agent assignment.",
       "saveLabel": "Save queue",
-      "dispositionsTitle": "Post-contact dispositions"
+      "dispositionsTitle": "Post-contact dispositions",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameMaxLength": "Name cannot exceed 100 characters.",
+        "routingStrategyRequired": "Select a routing strategy."
+      },
+      "successCreate": "Queue \"{{name}}\" was created.",
+      "successEdit": "Queue \"{{name}}\" was updated.",
+      "errorCreate": "Could not create the queue. Try again.",
+      "errorEdit": "Could not update the queue. Try again."
     },
     "queueDelete": {
       "title": "Delete queue",
@@ -1433,7 +1574,7 @@
       "next": "Next",
       "noContactHint": "This customer has not had any contact with the center yet.",
       "anonymizedNote": "Data anonymized – GDPR operations unavailable",
-      "gdprDownloadNote": "Download the full package of customer personal data in accordance with data access law.",
+      "gdprDownloadNote": "Download a ZIP archive with the customer's full data (profile, contacts, email and social media messages, scheduled callbacks, campaign records, transcriptions and AI summaries) plus a manifest with time-limited download links (presigned URLs) for recordings and attachments — the files themselves are not included in the archive.",
       "backToListLabel": "Back to customer list",
       "customerSince": "Customer since {{ date }}",
       "editLabel": "Edit customer",
@@ -1467,7 +1608,7 @@
       "gdprExporting": "Exporting...",
       "gdprExportBtn": "Export data (Art. 15)",
       "gdprAnonymizeTitle": "Anonymize customer (Art. 17)",
-      "gdprAnonymizeDesc": "Permanently anonymize all personal data of this customer. This operation is irreversible.",
+      "gdprAnonymizeDesc": "Permanently anonymizes the customer's personal data along with related contacts, email and social media messages, scheduled callbacks, campaign records (operational and archived), and contact notes. Deletes call transcriptions, AI summaries, and recordings and attachments in file storage. This operation is irreversible.",
       "gdprAnonymizeBtnLabel": "Anonymize customer data under Art. 17 GDPR",
       "gdprAnonymizeBtn": "Anonymize customer (Art. 17)",
       "channelLabels": {
@@ -1545,16 +1686,6 @@
       "consentMarketing": "Marketing consent",
       "errorCreate": "Failed to create customer.",
       "successCreate": "Customer added."
-    },
-    "customerDelete": {
-      "title": "Delete customer",
-      "body": "Are you sure you want to delete customer",
-      "warning": "This action cannot be undone.",
-      "cancel": "Cancel",
-      "confirm": "Delete",
-      "message1": "Customer data",
-      "message2": "will be anonymized in accordance with GDPR requirements.",
-      "confirmLabel": "Anonymize customer data"
     },
     "customerImport": {
       "title": "Import customers",
@@ -1634,14 +1765,42 @@
       "effect1": "First and last name will be replaced with ANONYMIZED",
       "effect2": "All phone numbers will be deleted",
       "effect3": "All email addresses will be deleted",
-      "effect4": "Contact history will be retained without personal data",
+      "effect4": "Contact history (calls, chats) will be retained, but without personal data — notes and the recording will be removed",
+      "effect5": "Email and social media message content, sender/recipient addresses, and attachments will be deleted or anonymized",
+      "effect6": "Scheduled callbacks will be anonymized; pending ones will be cancelled",
+      "effect7": "Campaign records — both operational and archived — will be anonymized",
+      "effect8": "Call transcriptions and AI summaries will be permanently deleted",
+      "effect9": "Call recordings and file storage attachments will be permanently deleted",
+      "previewTitle": "Anonymization scope preview",
+      "previewLoading": "Loading scope preview…",
+      "previewError": "Failed to load the anonymization scope preview. Please try again.",
+      "previewRetry": "Try again",
+      "previewCountsLabel": "Number of records affected by anonymization",
+      "previewMatchedByLink": "Matched by relation",
+      "previewMatchedByIdentifier": "Matched by phone/email",
+      "previewIdentifierWarning": "Records were also matched by phone number or email address — verify they belong to the same person.",
+      "previewBlockedHint": "Wait for the scope preview to load before you can confirm anonymization.",
+      "previewCount": {
+        "customer": "Customer profile",
+        "contact": "Contacts (calls, chats)",
+        "scheduledCallback": "Scheduled callbacks",
+        "campaignContact": "Campaign records (operational)",
+        "campaignContactArchive": "Campaign records (archive)",
+        "contactTranscription": "Call transcriptions",
+        "contactAiSummary": "AI summaries",
+        "emailMessage": "Email messages",
+        "socialMessage": "Social media messages",
+        "contactsDw": "Analytics data (data warehouse)",
+        "s3Objects": "Files in storage (recordings, attachments)"
+      },
       "confirmLabel": "To confirm, type",
-      "confirmHint": "Type exactly: ANONIMIZUJ",
+      "confirmPhrase": "ANONYMIZE",
+      "confirmHint": "Type exactly: {{ phrase }}",
       "confirmButton": "Confirm anonymization",
       "confirmButtonLabel": "Confirm customer data anonymization",
       "errorAnonymize": "Failed to anonymize customer data.",
       "successAnonymize": "Customer data anonymized.",
-      "confirmMismatch": "Type exactly: ANONYMIZE"
+      "confirmMismatch": "Type exactly: {{ phrase }}"
     },
     "ivr": {
       "title": "IVR",
@@ -2261,6 +2420,10 @@
         "errorInvalidExtension": "The file must have a .jar extension.",
         "errorTooLarge": "The file is too large (limit: 50 MB).",
         "errorUpload": "Failed to upload the plugin file.",
+        "overwriteLabel": "Replace existing version (overwrite)",
+        "overwriteHint": "Applies to uploading a version with the same number. The change overwrites the version's content in place, so installations of this version will start using the new JAR.",
+        "errorConflict": "This plugin version has already been uploaded for this tenant.",
+        "errorConflictHint": "Enable the \"Replace existing version\" option to overwrite it, or increase the version number in the plugin manifest and upload it again.",
         "errorRejected": "The plugin was rejected by validation.",
         "successUpload": "Plugin uploaded and validated successfully.",
         "validationErrorsTitle": "Validation errors:",
@@ -2343,6 +2506,7 @@
         "summaryNotComputed": "Not yet computed",
         "summaryZeroEligible": "No data to delete",
         "summaryEligibleCount": "{{ count }} records eligible for deletion",
+        "summaryEligibleCountHint": "The number is a sum of different record types (e.g. contacts, events, and messages).",
         "summaryOldestPeriod": "Oldest eligible period",
         "summaryComputedAt": "Last computed",
         "errorLoadSummary": "Failed to load the deletion summary.",
@@ -2363,9 +2527,11 @@
           "message": "You are about to permanently delete {{ count }} records from category {{ category }}.",
           "rangeLabel": "Period range covered by the deletion",
           "confirmLabel": "To confirm, type",
-          "confirmHint": "Type exactly: USUŃ",
+          "confirmPhrase": "DELETE",
+          "confirmHint": "Type exactly: {{ phrase }}",
           "confirmButton": "Delete data",
-          "confirmButtonAria": "Confirm data deletion for category {{ category }}"
+          "confirmButtonAria": "Confirm data deletion for category {{ category }}",
+          "contactInteractionsNote": "The count also includes e-mail and social media messages and their attachments. Attachments will also be permanently deleted from file storage (S3) and cannot be recovered."
         },
         "category": {
           "CONTACT_INTERACTIONS": "Contact interactions",
@@ -2373,12 +2539,19 @@
           "TRANSCRIPTS": "Call transcripts",
           "CAMPAIGN_DATA": "Campaign data"
         },
+        "categoryDescription": {
+          "CONTACT_INTERACTIONS": "Contacts, processing events, and e-mail and social media messages (content, addresses, attachments) linked to contacts",
+          "RECORDINGS": "Call recordings together with audio files in file storage",
+          "TRANSCRIPTS": "Call transcripts and AI-generated summaries",
+          "CAMPAIGN_DATA": "Archived contact records of completed outbound campaigns (archive)"
+        },
         "history": {
           "title": "Deletion history",
           "errorLoad": "Failed to load the deletion history.",
           "columnCategory": "Category",
           "columnTrigger": "Trigger",
           "columnRowsDeleted": "Rows deleted",
+          "columnRowsDeletedHint": "For “Contact interactions” rows, the number of deleted records is a total of different types (contacts, events, messages).",
           "columnStatus": "Status",
           "columnStartedAt": "Started",
           "columnCompletedAt": "Completed",
@@ -2393,6 +2566,36 @@
           "paginationLabel": "Deletion history pagination",
           "showing": "Showing",
           "ofEntries": "entries"
+        },
+        "campaignArchive": {
+          "title": "Campaign contact archiving period",
+          "label": "Campaign contact archiving period (days after campaign end)",
+          "description": "This many days after a campaign ends (COMPLETED/STOPPED), its contacts are archived. This is not the campaign data retention period in the table above (there: months, counted from archiving).",
+          "unit": "days",
+          "defaultBadge": "Default ({{ days }} days)",
+          "customBadge": "Set manually",
+          "help": "Range: {{ min }}–{{ max }} days (whole number). Default is {{ default }} days.",
+          "validationError": "Enter a whole number between {{ min }} and {{ max }}.",
+          "saveButton": "Save",
+          "saved": "Campaign contact archiving period has been saved.",
+          "errorLoad": "Failed to load the campaign contact archiving period.",
+          "errorLoadForbidden": "You do not have permission to view the archiving period for this tenant.",
+          "errorSaveValidation": "Value rejected by the server — enter a whole number between {{ min }} and {{ max }} days.",
+          "errorForbidden": "You do not have permission to change the archiving period for this tenant.",
+          "errorSave": "Failed to save the campaign contact archiving period.",
+          "lastChange": "Last change",
+          "warning": "After archiving, campaign contacts disappear from the UI, statistics and the dialer (there is no archive view). Shortening the period means campaigns that ended earlier than the new period will be archived on the next run. The change does not restore contacts that were already archived.",
+          "confirmModal": {
+            "title": "Confirm shortening the archiving period",
+            "intro": "You are shortening the archiving period from {{ from }} to {{ to }} days after campaign end.",
+            "previewLoading": "Calculating the impact of the change…",
+            "previewError": "Could not calculate the impact of the change. You can still confirm — campaigns that ended earlier than the new period will be archived on the next run.",
+            "previewNothing": "This change will not cause any additional archiving.",
+            "previewResult": "Additionally archived — campaigns: {{ campaigns }}, contacts: {{ contacts }}.",
+            "previewTotal": "Total on the next run — campaigns: {{ campaigns }}, contacts: {{ contacts }} (of which already pending with the current period: campaigns: {{ currentCampaigns }}, contacts: {{ currentContacts }}).",
+            "irreversible": "Archived contacts will disappear from the UI, statistics and the dialer; changing the period will not restore them.",
+            "confirmButton": "Shorten and save"
+          }
         }
       }
     },
@@ -2714,11 +2917,17 @@
         "tenantRequired": "Tenant is required.",
         "roleRequired": "Role is required."
       },
-      "activeHint": "Unchecking will prevent the user from logging in."
+      "activeHint": "Unchecking will prevent the user from logging in.",
+      "skillsSelectedLabel": "Selected skills",
+      "skillsAddPlaceholder": "Add skill...",
+      "saveEditLabel": "Save user changes",
+      "skillsLoadError": "Could not load skill suggestions. Type skills manually and press Enter.",
+      "skillsEmpty": "No skills are defined yet. Type a name and press Enter."
     }
   },
   "language": {
     "select": "Select language",
+    "available": "Available languages",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",
@@ -2827,8 +3036,8 @@
       "errorDisconnect": "Failed to disconnect.",
       "successDisconnect": "Successfully disconnected.",
       "pageDescription": "Manage connections with social media platforms to receive messages directly in the Contact Center system.",
-      "whatsappNote": "WhatsApp Business API is configured through Meta Business Suite – it does not use standard OAuth.",
-      "whatsappCta": "Click the button below to go to configuration.",
+      "whatsappNote": "WhatsApp Business API does not support standard OAuth login. Generate an access token (preferably a permanent token via a System User) and find the Phone Number ID in Meta Business Suite.",
+      "whatsappCta": "Open Meta Business Suite",
       "confirmDisconnectTitle": "Confirm disconnection",
       "refreshLabel": "Refresh integration list",
       "pageName": "Page name",
@@ -2837,6 +3046,16 @@
       "facebookDescription": "Connect your Facebook page to receive Messenger messages.",
       "instagramDescription": "Connect your Instagram Business account to receive Direct messages.",
       "whatsappDescription": "WhatsApp Business API integration via Meta Business Suite.",
+      "whatsappConnectDialogTitle": "Connect WhatsApp Business",
+      "phoneNumberIdLabel": "Phone Number ID",
+      "accessTokenLabel": "Access Token",
+      "accessTokenHint": "This is sensitive data – do not share the token with unauthorized people.",
+      "displayNameLabel": "Display name",
+      "businessAccountIdLabel": "Business Account ID",
+      "fieldRequired": "This field is required.",
+      "fieldTooLong": "This field can have at most {{ max }} characters.",
+      "showTokenLabel": "Show token",
+      "hideTokenLabel": "Hide token",
       "webhookStatus": {
         "ACTIVE": "Active",
         "INACTIVE": "Inactive",

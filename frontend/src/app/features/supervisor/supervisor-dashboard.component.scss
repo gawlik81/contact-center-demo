@@ -50,7 +50,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-2);
@@ -63,7 +63,7 @@
 
   &:hover {
     background: var(--bg-subtle);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 
   &:focus-visible {

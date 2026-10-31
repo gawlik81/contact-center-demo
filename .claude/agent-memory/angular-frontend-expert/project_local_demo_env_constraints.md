@@ -37,3 +37,22 @@ zrzut ekranu przez `mcp__claude-in-chrome`. Do testu media query na wąskim view
 width="375">` z `srcdoc` (media queries reagują na viewport ramki/iframe, NIE na szerokość kontenera
 div w tej samej stronie — zwykły `<div style="width:375px">` nie wyzwoli `@media(max-width:480px)`).
 Zawsze jawnie ujawnij użytkownikowi że to rekonstrukcja, nie prawdziwe logowanie.
+
+**Dostępność `claude-in-chrome` jest zmienna między sesjami — sprawdzaj za każdym razem, nie zakładaj z pamięci.**
+Sesja FE-098 (wcześniejsza notatka w tym pliku): niedostępne. Sesja FE-104 (`reference_local_demo_browser_testing.md`
+w pamięci użytkownika, 2026-08-12): dostępne i **działało** (zalogowano się realnie jako ADMIN). Sesja FE-112
+(2026-09-30): narzędzie `mcp__claude-in-chrome__*` było dostępne i odpowiadało, ALE przeglądarka rozszerzenia nie
+miała sieciowego dostępu do `localhost` tego sandboxa — `navigate` do `http://localhost/` kończył się błędem
+(`Frame with ID 0 is showing error page` przy próbie screenshotu) mimo że `curl http://localhost/` z tego samego
+sandboxa (shell) działał poprawnie i zwracał świeży HTML po przebudowie obrazu; dla kontrastu `http://example.com/`
+w TEJ SAMEJ karcie załadował się i zrobił się z niego poprawny screenshot — czyli przeglądarka miała internet, ale
+"localhost" w jej kontekście to inny host niż sandbox z docker-compose. Nie próbowałem `socat`
+port-forward w tej sesji (to obejście dla portu backendu 8080 przy `npm start`, nie dla tego objawu — nie było jasne
+czy pomogłoby, a task nie wymagał dalszego drążenia).
+**How to apply:** (1) Zawsze najpierw spróbuj `tabs_context_mcp` + `navigate` do `http://localhost/` + `screenshot`
+— jeśli się nie uda, zrób DIAGNOSTYKĘ przez nawigację do zewnętrznego URL (np. `example.com`) w tej samej karcie:
+jeśli TO działa, a `localhost` nie — to jest izolacja sieciowa tej konkretnej sesji (nie błąd w kodzie), zgłoś to
+użytkownikowi i idź dalej bez wizualnej weryfikacji zamiast drążyć w kółko (zgodnie z regułą skilla
+`claude-in-chrome`: "stop and ask... do not keep retrying"). (2) Nie trać czasu na wielokrotne retry
+nawigacji/screenshotów tego samego URL-a — jeden nieudany + jeden diagnostyczny test zewnętrznego URL-a wystarczy do
+pewnej diagnozy.

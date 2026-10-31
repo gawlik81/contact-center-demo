@@ -52,8 +52,11 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
      *
      * <p>Kolumna {@code updated_at} używana jako wersja przez ReplacingMergeTree –
      * zawsze ustawiamy NOW() przy zapisie (etl_synced_at w semantyce PostgresDwWriter).
-     * Kolumny {@code queued_at} i {@code remote_address} mapowane na {@code wait_time_seconds}
-     * (null – brak kalkulacji w ETL) i bezpośredni string.
+     * Schemat ClickHouse (V001) nigdy nie zawierał PII klienta – brak kolumny
+     * {@code remote_address} (numer CLI / e-mail); od BE-141 {@link ContactDwRow}
+     * też już go nie niesie, więc ten writer nie wymagał zmiany zachowania.
+     * Kolumna {@code queued_at} z {@link ContactDwRow} nie jest tu zapisywana –
+     * {@code wait_time_seconds} zostaje {@code null} (brak kalkulacji w ETL).
      *
      * <p>Schemat ClickHouse (V001) nie ma kolumny {@code etl_synced_at} – ClickHouse
      * używa {@code updated_at DEFAULT now64()} jako marker czasu zapisu.

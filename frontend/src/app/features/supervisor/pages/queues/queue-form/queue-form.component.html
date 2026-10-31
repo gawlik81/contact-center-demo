@@ -51,7 +51,7 @@
               [attr.aria-invalid]="nameError ? 'true' : null"
             />
             @if (nameError) {
-              <span id="queue-name-error" class="form-error" role="alert">{{ nameError }}</span>
+              <span id="queue-name-error" class="form-error" role="alert">{{ nameError | transloco }}</span>
             }
           </div>
 
@@ -71,7 +71,7 @@
               [attr.aria-invalid]="emailAddressError ? 'true' : null"
             />
             @if (emailAddressError) {
-              <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError }}</span>
+              <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError | transloco }}</span>
             } @else {
               <span id="queue-email-hint" class="form-hint">{{ 'supervisor.queueForm.emailHint' | transloco }}</span>
             }
@@ -102,7 +102,9 @@
               }
             </select>
             @if (routingStrategyError) {
-              <span id="routing-strategy-error" class="form-error" role="alert">{{ routingStrategyError }}</span>
+              <span id="routing-strategy-error" class="form-error" role="alert">{{
+                routingStrategyError | transloco
+              }}</span>
             }
           </div>
 
@@ -147,21 +149,32 @@
                   (input)="onSkillInputChange($event)"
                   (focus)="onSkillInputFocus()"
                   (blur)="onSkillInputBlur()"
-                  (keydown)="onSkillInputKeydown($event)"
+                  appListboxNav="skill"
+                  #nav="appListboxNav"
+                  [listboxOpen]="showSkillDropdown() && filteredSkills().length > 0"
+                  [listboxCount]="filteredSkills().length"
+                  [listboxEditable]="true"
+                  (listboxSelect)="addSkill(filteredSkills()[$event])"
+                  (listboxEnter)="onSkillEnter()"
+                  (listboxCloseRequest)="showSkillDropdown.set(false)"
+                  (listboxOpenRequest)="showSkillDropdown.set(true)"
                 />
                 @if (showSkillDropdown() && filteredSkills().length > 0) {
                   <ul
                     id="skill-dropdown"
                     class="skill-dropdown"
+                    (mousedown)="$event.preventDefault()"
                     role="listbox"
                     [attr.aria-label]="'supervisor.queueForm.skillsAvailable' | transloco"
                   >
-                    @for (skill of filteredSkills(); track skill) {
+                    @for (skill of filteredSkills(); track skill; let i = $index) {
                       <li
+                        [id]="nav.optionId(i)"
                         class="skill-dropdown__item"
+                        [class.skill-dropdown__item--highlighted]="nav.activeIndex() === i"
                         role="option"
                         (mousedown)="addSkill(skill)"
-                        [attr.aria-selected]="false"
+                        [attr.aria-selected]="nav.activeIndex() === i"
                       >
                         {{ skill }}
                       </li>

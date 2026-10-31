@@ -83,6 +83,20 @@ export class AgentRecoveryService {
     if (contact.channel === 'EMAIL' || contact.channel === 'CHAT') {
       const type = contact.channel as 'EMAIL' | 'CHAT';
 
+      // Being returned to the queue right now: the tab is re-opened when the release ends
+      if (
+        this.tabStore.noteAssignedDuringRelease({
+          contactId: contact.contactId,
+          type,
+          customerName: contact.customerName || contact.customerIdentifier,
+          customerIdentifier: contact.customerIdentifier,
+          queueName: contact.queueName,
+          customerId: contact.customerId,
+        })
+      ) {
+        return;
+      }
+
       // Check if this tab is already open (e.g. component already mounted)
       const alreadyOpen = this.tabStore.tabs().some((t) => t.contactId === contact.contactId);
       if (alreadyOpen) return;

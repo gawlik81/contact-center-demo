@@ -372,8 +372,7 @@ class EtlSyncServiceImplTest {
                 "PHONE", "INBOUND", "COMPLETED", "SALE",
                 120, Instant.now().minus(2, ChronoUnit.HOURS),
                 Instant.now().minus(1, ChronoUnit.HOURS).plusSeconds(3600),
-                Instant.now().minus(2, ChronoUnit.HOURS),
-                "+48123456789"
+                Instant.now().minus(2, ChronoUnit.HOURS)
         );
     }
 

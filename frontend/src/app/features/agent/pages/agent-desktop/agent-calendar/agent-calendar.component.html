@@ -9,7 +9,7 @@
 }
 
 <!-- AddBreakModal (FE-045) -->
-@if (selectedBreak() || addBreakMode()) {
+@if (selectedBreak()) {
   <app-add-break-modal
     [existingBreak]="selectedBreak()"
     (saved)="onBreakSaved()"
@@ -241,16 +241,3 @@
     }
   </div>
 </div>
-
-<!-- FAB: Add break -->
-<button
-  type="button"
-  class="cal__fab"
-  [attr.aria-label]="'agent.calendar.addBreakLabel' | transloco"
-  (click)="openAddBreak()"
->
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-  </svg>
-  {{ 'agent.calendar.addBreak' | transloco }}
-</button>

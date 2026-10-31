@@ -12,6 +12,7 @@
 - [ScheduledCallbackExecutor BE-038](project_be038_scheduled_callback_executor.md) — @Scheduled oddzwonienia, ochrona double-processing
 - [Inbound Callback Endpoint BE-040](project_be040_inbound_callback.md) — POST contacts/{id}/callback, sourceType=INBOUND_CALLBACK
 - [Email Attachments](project_email_attachments.md) — S3 storage, IMAP extraction, SMTP multipart/mixed
+- [fix/plugin-version-overwrite (EPIC-28)](project_plugin_version_overwrite_fix.md) — UPDATE w miejscu (FK RESTRICT), afterCommit S3 cleanup, reużycie ConflictException, default method dla kompatybilności
 
 ## Wzorce/konwencje
 
@@ -104,3 +105,43 @@
 - [ctid NIEBEZPIECZNE na tabelach partycjonowanych](feedback_partitioned_table_ctid_delete_pitfall.md) — DELETE...WHERE ctid IN (...) usuwa wiersze z innych partycji/tenantów; bezpieczny wzorzec: pełny PK (id+partition_col)
 - [@Scheduled job + TenantContext ThreadLocal](feedback_scheduled_job_tenantcontext_missing.md) — pętla per-tenant MUSI setTenantId/clear per iterację; mockowane testy tego nie łapią (bug BE-112/BE-116, EPIC-29)
 - [Dual entry point (scheduler + REST) — TenantContext prekontrakt](feedback_dual_entry_point_tenantcontext_precontract.md) — rdzeń per-tenant bez set/clear; clear() zabronione na ścieżce REST (BE-112/BE-118 recompute)
+- [EPIC-30 BE-124 ADR retencja treści wiadomości (D1)](project_epic30_be124_message_retention_adr.md) — D1=A przyjęte BEZ potwierdzenia PO; `pending/` S3 wskazywane przez wysłane maile; EML w `contact.recording_url`; allow-list prefiksu kluczy
+- [RecordingService#deleteFromS3 połyka S3Exception](feedback_recording_delete_from_s3_swallows_errors.md) — brak sygnału porażki; nie używać przy „S3 przed wierszem" (BE-125/126/129/131)
+- [EPIC-30 BE-125 purge wiadomości + S3](project_epic30_be125_message_purge.md) — kontrakt `purgeByContactIds`/`PurgedMessages`, orkiestracja bez tx, `contactIdsBlocked`, RLS „ciche 0 wierszy", punkt wejścia BE-126/127
+- [EPIC-30 BE-143 walidacja s3Key allow-listą](project_epic30_be143_attachment_key_validation.md) — `EmailAttachmentKeys` public + `isRecordingKeyOwnedByTenant` (API dla BE-126/129/131), `EmailAttachmentAccessDeniedException`→403, walidacja jako krok 0 w `EmailSendServiceImpl`
+- [EPIC-30 BE-126 integracja usuwania wiadomości](project_epic30_be126_message_deletion_integration.md) — flaga `retention.purge.delete-messages`, strategia H-1 (keyset), drugi przebieg BE125-02, punkt (b) odłożony, testowanie na granicy pakietów
+- [EPIC-30 BE-129 GdprServiceImpl ↔ anonymize_customer/export_customer_data](project_epic30_be129_gdpr_java_integration.md) — GdprRepository jedyny wołający, guard rekordów w toku (409), konsolidacja DELETE/POST, testy z mockiem EmailAttachmentStorageService (nie realnym bean, package-private cross-package pułapka)
+- [UUID.compareTo() vs porządek ORDER BY w Postgresie](feedback_uuid_compareto_vs_postgres_order.md) — testy sortowania po `uuid`: `Comparator.comparing(UUID::toString)`, nie `sorted()`
+- [Harness testów na prawdziwej bazie](feedback_jpa_real_db_integration_test_harness.md) — `PostgresTestDatabase`/`JpaTestContext` (Testcontainers+Flyway+Hibernate), pułapki EXPLAIN/ctid/RLS
+- [Obrazy MinIO: Docker Hub → quay.io](project_minio_image_registry.md) — `minio/minio` i `minio/mc` nie do pobrania z Docker Hub (401); compose nadal na Docker Hub
+- [Równoległy Maven = nieuruchomione nowe testy](feedback_maven_parallel_agents_stale_classes.md) — stale-detection po cudzym buildzie; sprawdzaj raporty per klasa, `touch`
+- [EPIC-30 BE-129 code review fixes](project_epic30_be129_code_review_fixes.md) — TOCTOU guard `FOR UPDATE` bez filtra statusu, `GdprControllerTest` @PreAuthorize przez `@EnableMethodSecurity`, usunięcie tautologicznego assertSameTenant
+- [Code review „istniejący wzorzec testowy" — zweryfikuj treść, nie grep](feedback_code_review_test_pattern_claim_unverified.md) — `RetentionControllerTest`/`EmailAttachmentControllerTest` wspominają „MockMvc" tylko w Javadoc o jego BRAKU
+- [EPIC-30 BE-127 sweep wiadomości osieroconych](project_epic30_be127_orphan_message_purge.md) — `purgeOrphansOlderThan` scala fetch+purge, dangling pominięty (uzasadnienie), filtr resztkowy tylko email, metodologia scratch DB w kontenerze cc-postgres
+- [BE-145 PartitionReclaimJob blokuje DROP niepustej partycji](project_be145_partition_reclaim_drop_guard.md) — `warnIfStillHasRows`→`boolean`, relacja z BE-123 (horyzont platformowy, ✅ 2026-10-08), test mock+real-DB
+- [EPIC-30 BE-128 liczenie wiadomości w eligibleRowCount CONTACT_INTERACTIONS](project_epic30_be128_message_count_dashboard.md) — DOKŁADNE nie oszacowanie, EXPLAIN-zweryfikowana decyzja, `countLinkedToContactsOlderThan`
+- [BE-132 SocialMessage @IdClass + ON CONFLICT (EPIC-30)](project_be132_social_message_idclass.md) — natywny INSERT zamiast catch(DataIntegrityViolationException); deterministyczny sent_at FB/IG z payloadu Meta (timestamp millis, sibling message)
+- [Reużycie tenant-prefiksowanego UNIQUE indeksu dla ad-hoc COUNT per-tenant](feedback_tenant_prefixed_unique_index_reuse.md) — sprawdź EXPLAIN pod realistyczną wielotenantową selektywnością przed projektowaniem nowej migracji
+- [BE-144 skip MinIO testu — pułapka @AfterAll po Assumptions w @BeforeAll](project_be144_minio_test_skip_afterall_pitfall.md) — @AfterAll JEST wołane mimo Assumptions.assumeTrue(false) w @BeforeAll; wymaga null-guardów na WSZYSTKICH polach; ContainerFetchException nieopakowany empirycznie
+- [EPIC-30 BE-142 maskowanie PII w audit_log (Java)](project_epic30_be142_audit_pii_masking_java.md) — AuditPiiKeys/AuditAspect, spójność z V098 przez parsowanie migracji (nie kopia), nowy ticket BE-146 (bug entity_id=tenantId dla *_CREATED)
+- [Refleksja cross-package: target class musi być public](feedback_reflection_cross_package_target_visibility.md) — nie tylko metoda; IllegalAccessException połknięty przez szeroki catch, myląco wygląda jak null z logiki biznesowej
+- [Zabrudzony target/classes → fałszywe failures EXPLAIN/indeksów](feedback_stale_target_classes_migrations_false_failures.md) — zawsze `mvn clean -pl app` przed `verify`, izolacja NIE jest dowodem "pre-existing"
+- [BE-133 social_message podpięta do partycji/retencji (EPIC-30)](project_be133_social_message_partition_retention.md) — TABLE_CATEGORIES/PARTITIONED_TABLES/PARTITION_AWARE_TABLES, bez czekania na BE-123, countEligibleMessages przestał liczyć social
+- [Shared-DB integration test partition leak łamie EXPLAIN gdzie indziej](feedback_shared_db_integration_test_partition_leak.md) — test "nonEmpty blocks DROP" musi DROP-ować partycję po asercjach (finally), inaczej psuje doesNotContain("Seq Scan") w innej klasie
+
+- [Flip default retention.purge.delete-messages (2026-10-07)](project_be_delete_messages_default_flip.md) — true domyślnie, @Value SpEL fallback nieruszony (nieosiągalny), testy jawnie ustawiają false
+
+## BE-134 (2026-10-04)
+
+- [BE-134 email_message na kluczu złożonym](project_be134_email_message_composite_key.md) — @IdClass(id, messageAt), natywny INSERT/UPDATE, lookupy po id, V103 odłożona
+- [ON CONFLICT nie działa na constraint DEFERRABLE](feedback_native_insert_on_conflict_deferrable_unique.md) — WHERE NOT EXISTS + pg_advisory_xact_lock w natywnym INSERT
+- [EXPLAIN: Seq Scan na pustych partycjach](feedback_explain_empty_partitions_seq_scan.md) — asercjuj zapełnioną partycję; sonda planu = tymczasowy test Testcontainers
+- [Klucz czasowy: precyzja µs](feedback_timestamptz_microsecond_keys.md) — Instant z nanosekundami nie trafia w wiersz po kluczu; obcinaj u źródła
+
+## BE-123 (2026-10-08)
+
+- [BE-123 horyzont platformowy audit_log/plugin_invocation_log](project_be123_platform_horizon_reclaim.md) — ReclaimTarget/ThresholdSource/DropMode, PlatformRetentionProperties, poprawka NPE countRowsByTenant
+- [Mockito when().thenReturn() wykonuje stubowane wywołanie](feedback_mockito_when_thenreturn_executes_stubbed_call.md) — na static mocku, stary when(any()).thenThrow() przechwytuje ponowne stubowanie w setUp(); fix: reset(mock)
+- [BE-120 CampaignArchiveJob (EPIC-30)](project_be120_campaign_archive_job.md) — flaga false, pomiar RLS app_user (GUC '' = blad uuid), perf 30x10k=17.7s/186MB WAL
+- [BE-121 pętla partii purge campaign_contact_archive](project_be121_campaign_archive_purge_loop.md) — koniec = wynik 0, REQUIRES_NEW per partia, guard max-batches
+- [DB-082 CronFailureLogRepository (Java)](project_db082_cron_failure_log_java.md) — REQUIRES_NEW ślad ERROR, wpięcie w 3 miejscach, purge tylko wokół purgeCampaignData

@@ -3,8 +3,10 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.api.contact.dto.AssignedContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.contact.ContactChannels;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.queue.QueueService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,6 +44,7 @@ public class AgentSelfController {
 
     private final ContactService contactService;
     private final QueueService queueService;
+    private final UserService userService;
 
     /**
      * Zwraca kontakt aktualnie przypisany do agenta ze statusem ASSIGNED
@@ -89,7 +92,7 @@ public class AgentSelfController {
 
                     AssignedContactResponse response = new AssignedContactResponse(
                             contact.getContactId().toString(),
-                            contact.getChannel(),
+                            ContactChannels.toAgentDesktopType(contact.getChannel()),
                             contact.getRemoteAddress(),
                             contact.getRemoteAddress(), // customerName – fallback na numer/adres
                             queueName,
@@ -116,6 +119,10 @@ public class AgentSelfController {
      * zwraca wynik – gdy agent nie obsłużył dziś żadnego kontaktu, wszystkie wartości
      * wynoszą 0.
      *
+     * <p>{@code workTimeSeconds} = {@code now - max(lastLoginAt, dayStartUtc)}, nie mniej niż 0;
+     * {@code 0} gdy {@code lastLoginAt == null} (np. konto, które nie logowało się od wdrożenia BE-158,
+     * albo logowanie przed zapisem znacznika). Decyzja właściciela 2026-10-28.
+     *
      * <p>Dane używane przez frontend do wyświetlania paska KPI w top-navbar.
      *
      * @return {@link AgentKpiResponse} ze statystykami agenta za dziś
@@ -129,7 +136,10 @@ public class AgentSelfController {
                     - contactsHandledToday – liczba zakończonych kontaktów
                     - slaPercent – % kontaktów z czasem oczekiwania < 30s (0.0 gdy brak danych)
                     - avgHandleTimeSeconds – średni czas obsługi w sekundach (0.0 gdy brak danych)
-                    - workTimeSeconds – sekundy od pierwszego kontaktu do teraz (0 gdy brak kontaktów)
+                    - workTimeSeconds – czas pracy w sekundach liczony od ostatniego logowania agenta (po pełnym
+                      uwierzytelnieniu, z MFA jeśli włączone; refresh tokenu go nie zmienia) do teraz.
+                      Gdy logowanie było przed dzisiejszą północą UTC, liczone od północy UTC (spójnie
+                      z pozostałymi KPI liczonymi per dzień UTC). 0 gdy brak zapisanego logowania.
 
                     Używane przez frontend do wyświetlania paska KPI w top-navbar.
                     Zawsze zwraca 200 OK – wartości zerowe oznaczają brak danych na dziś.
@@ -150,10 +160,13 @@ public class AgentSelfController {
 
         Object[] row = contactService.findAgentKpiToday(agentId, tenantId, dayStart, dayEnd);
 
-        long contactsHandledToday = ((Number) row[0]).longValue();
-        double avgHandleTimeSeconds = ((Number) row[1]).doubleValue();
-        double slaPercent = ((Number) row[2]).doubleValue();
-        long workTimeSeconds = ((Number) row[3]).longValue();
+        long contactsHandledToday = toLong(row, 0, agentId);
+        double avgHandleTimeSeconds = toDouble(row, 1, agentId);
+        double slaPercent = toDouble(row, 2, agentId);
+
+        // BE-158: czas pracy od logowania (app_user.last_login_at), nie z danych kontaktów
+        Instant lastLoginAt = userService.findLastLoginAt(agentId, tenantId).orElse(null);
+        long workTimeSeconds = computeWorkTimeSeconds(lastLoginAt, dayStart, Instant.now());
 
         AgentKpiResponse response = new AgentKpiResponse(
                 contactsHandledToday,
@@ -171,6 +184,57 @@ public class AgentSelfController {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /** Number of columns returned by {@code findAgentKpiToday}: contacts_count, avg_handle_time, sla_percent. */
+    static final int KPI_ROW_COLUMNS = 3;
+
+    /**
+     * Work time in seconds: {@code now - max(lastLoginAt, dayStart)}, clamped to >= 0.
+     * {@code lastLoginAt == null} gives 0; a login before today's UTC midnight counts from midnight.
+     */
+    static long computeWorkTimeSeconds(Instant lastLoginAt, Instant dayStart, Instant now) {
+        if (lastLoginAt == null) {
+            return 0L;
+        }
+        Instant from = lastLoginAt.isAfter(dayStart) ? lastLoginAt : dayStart;
+        return Math.max(0L, ChronoUnit.SECONDS.between(from, now));
+    }
+
+    private static long toLong(Object[] row, int index, UUID agentId) {
+        Number n = columnAsNumber(row, index, agentId);
+        return n == null ? 0L : n.longValue();
+    }
+
+    private static double toDouble(Object[] row, int index, UUID agentId) {
+        Number n = columnAsNumber(row, index, agentId);
+        return n == null ? 0.0d : n.doubleValue();
+    }
+
+    /**
+     * Reads a numeric KPI column defensively: SQL NULL gives {@code null} (caller maps it to 0),
+     * a missing row/column or a non-numeric value is a programming error (query changed) and fails
+     * with a descriptive {@link IllegalStateException} instead of NPE/ClassCastException/AIOOBE.
+     */
+    private static Number columnAsNumber(Object[] row, int index, UUID agentId) {
+        if (row == null || row.length < KPI_ROW_COLUMNS) {
+            String shape = row == null ? "null" : "length=" + row.length;
+            log.error("[AgentSelf] kpi: unexpected row shape ({}), expected >= {} columns, agentId={}",
+                    shape, KPI_ROW_COLUMNS, agentId);
+            throw new IllegalStateException("Unexpected agent KPI row shape (" + shape + ", expected at least "
+                    + KPI_ROW_COLUMNS + " columns) for agentId=" + agentId);
+        }
+        Object value = row[index];
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof Number number)) {
+            log.error("[AgentSelf] kpi: column {} is {} instead of a number, agentId={}",
+                    index, value.getClass().getName(), agentId);
+            throw new IllegalStateException("Agent KPI row column " + index + " is "
+                    + value.getClass().getName() + ", expected a Number, agentId=" + agentId);
+        }
+        return number;
+    }
 
     /**
      * Pobiera nazwę kolejki dla kontaktu – defensywnie, nie rzuca wyjątku.

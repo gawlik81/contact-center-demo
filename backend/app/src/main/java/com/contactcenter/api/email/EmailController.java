@@ -84,6 +84,9 @@ public class EmailController {
     /**
      * Szczegóły wiadomości email.
      */
+    // BE-134: endpoint zna tylko {id} (message_id), bez message_at — lookup po samym identyfikatorze.
+    // Koszt: PostgreSQL odpytuje indeks PK każdej partycji email_message (liczba partycji × indeks PK);
+    // przy większej liczbie partycji rośnie wyłącznie koszt tego pojedynczego wiersza, nie skan tabeli.
     @GetMapping("/messages/{id}")
     @Operation(summary = "Szczegóły wiadomości email")
     public ResponseEntity<EmailMessageResponse> getMessage(@PathVariable UUID id) {

@@ -17,6 +17,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/ro
 import { filter, map } from 'rxjs';
 import { TranslocoModule } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
+import { initialSidenavCollapsed, storeSidenavCollapsed } from '../../utils/sidenav-collapsed';
 import { UserRole } from '../../../core/models/jwt-payload.model';
 import { AdminMetricsService } from '../../../features/admin/services/admin-metrics.service';
 import { RetentionService } from '../../../features/supervisor/services/retention.service';
@@ -265,9 +266,6 @@ const ALERT_BADGE_ROUTE = '/admin/dashboard';
  */
 const RETENTION_BADGE_ROUTE = '/supervisor/settings';
 
-/** localStorage key for the collapsed state */
-const COLLAPSED_STORAGE_KEY = 'cc_sidenav_collapsed';
-
 @Component({
   selector: 'cc-sidenav',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -384,9 +382,9 @@ export class SidenavComponent implements OnInit {
 
   /** Persist collapsed state and notify parent whenever it changes */
   private readonly _persistCollapsedEffect = effect(() => {
-    const collapsed = this.isCollapsed();
-    this._saveCollapsedState(collapsed);
-    this.collapsedChange.emit(collapsed);
+    // Only emits: the preference is stored by toggleCollapsed(), so a default that was merely
+    // derived from the window (see _loadCollapsedState) is never frozen as the user's choice.
+    this.collapsedChange.emit(this.isCollapsed());
   });
 
   ngOnInit(): void {
@@ -406,6 +404,7 @@ export class SidenavComponent implements OnInit {
   /** Toggle between expanded and collapsed (icon-only) modes */
   toggleCollapsed(): void {
     this.isCollapsed.update((v) => !v);
+    this._saveCollapsedState(this.isCollapsed());
   }
 
   /** Badge label capped at 99+ for display */
@@ -470,21 +469,13 @@ export class SidenavComponent implements OnInit {
     if (!isPlatformBrowser(this.platformId)) {
       return false;
     }
-    try {
-      return localStorage.getItem(COLLAPSED_STORAGE_KEY) === 'true';
-    } catch {
-      return false;
-    }
+    return initialSidenavCollapsed(this.auth.currentRole(), window);
   }
 
   private _saveCollapsedState(collapsed: boolean): void {
     if (!isPlatformBrowser(this.platformId)) {
       return;
     }
-    try {
-      localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
-    } catch {
-      // Storage unavailable – fail silently
-    }
+    storeSidenavCollapsed(window, collapsed);
   }
 }

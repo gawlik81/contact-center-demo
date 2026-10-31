@@ -92,8 +92,8 @@ class EmailContactCreator {
 
         try {
             UUID contactId = createContact(tenantId, queueId, event);
-            linkMessageToContact(messageId, contactId, tenantId);
-            generateAndStoreEml(messageId, contactId, tenantId);
+            linkMessageToContact(messageId, event.messageAt(), contactId, tenantId);
+            generateAndStoreEml(messageId, event.messageAt(), contactId, tenantId);
             publishContactQueued(contactId, queueId, tenantId);
 
             log.info("[EmailContact] Kontakt EMAIL gotowy do routingu: contactId={}, queueId={}, messageId={}",
@@ -161,14 +161,40 @@ class EmailContactCreator {
     }
 
     /**
+     * Lookup wiadomości na podstawie klucza z eventu RabbitMQ (BE-134).
+     *
+     * <p>Event niesie {@code messageAt} → pełny klucz {@code (message_id, message_at)} i partition
+     * pruning do jednej partycji. Event w formacie sprzed BE-134 (kolejka może jeszcze zawierać takie
+     * zdarzenia po wdrożeniu) nie ma {@code messageAt} → fallback na lookup po samym {@code message_id}
+     * (skan indeksów PK wszystkich partycji — wolniejszy, ale poprawny; {@code FAIL_ON_UNKNOWN_PROPERTIES}
+     * nie dotyczy, bo brakujące pole jest tolerowane przez rekord).
+     *
+     * @param messageId UUID wiadomości z eventu (może być null — wtedy {@code empty})
+     * @param messageAt klucz partycjonowania z eventu; {@code null} dla zdarzeń starego formatu
+     * @return wiadomość lub empty
+     */
+    private Optional<EmailMessage> findMessage(UUID messageId, Instant messageAt) {
+        if (messageId == null) {
+            return Optional.empty();
+        }
+        if (messageAt != null) {
+            return emailMessageRepository.findById(messageId, messageAt);
+        }
+        log.debug("[EmailContact] Zdarzenie bez messageAt (format sprzed BE-134) — lookup po samym messageId: {}",
+                messageId);
+        return emailMessageRepository.findById(messageId);
+    }
+
+    /**
      * Ustawia {@code contact_id} na wiadomości email, łącząc ją z kontaktem.
      *
      * @param messageId UUID wiadomości email
+     * @param messageAt klucz partycjonowania z eventu (może być null — format sprzed BE-134)
      * @param contactId UUID powiązanego kontaktu
      * @param tenantId  UUID tenanta
      */
-    private void linkMessageToContact(UUID messageId, UUID contactId, UUID tenantId) {
-        Optional<EmailMessage> messageOpt = emailMessageRepository.findById(messageId);
+    private void linkMessageToContact(UUID messageId, Instant messageAt, UUID contactId, UUID tenantId) {
+        Optional<EmailMessage> messageOpt = findMessage(messageId, messageAt);
         if (messageOpt.isEmpty()) {
             log.warn("[EmailContact] Nie znaleziono wiadomości email: messageId={}", messageId);
             return;
@@ -186,12 +212,13 @@ class EmailContactCreator {
      * Wyjątki są tylko logowane.
      *
      * @param messageId UUID wiadomości email
+     * @param messageAt klucz partycjonowania z eventu (może być null — format sprzed BE-134)
      * @param contactId UUID powiązanego kontaktu
      * @param tenantId  UUID tenanta
      */
-    private void generateAndStoreEml(UUID messageId, UUID contactId, UUID tenantId) {
+    private void generateAndStoreEml(UUID messageId, Instant messageAt, UUID contactId, UUID tenantId) {
         try {
-            Optional<EmailMessage> msgOpt = emailMessageRepository.findById(messageId);
+            Optional<EmailMessage> msgOpt = findMessage(messageId, messageAt);
             if (msgOpt.isEmpty()) {
                 log.warn("[EmailContact] Nie znaleziono wiadomości do generowania EML: messageId={}", messageId);
                 return;
@@ -314,7 +341,7 @@ class EmailContactCreator {
         // Pobierz adres odbiorcy z wiadomości OUTBOUND
         String recipientAddress = null;
         if (event.messageId() != null) {
-            Optional<EmailMessage> outboundMsgOpt = emailMessageRepository.findById(event.messageId());
+            Optional<EmailMessage> outboundMsgOpt = findMessage(event.messageId(), event.messageAt());
             recipientAddress = outboundMsgOpt
                     .map(EmailMessage::getToAddress)
                     .orElse(null);
@@ -354,7 +381,7 @@ class EmailContactCreator {
 
         // Generuj EML dla wiadomości OUTBOUND i zapisz klucz S3 w recording_url
         if (event.messageId() != null) {
-            generateAndStoreEml(event.messageId(), outboundContactId, tenantId);
+            generateAndStoreEml(event.messageId(), event.messageAt(), outboundContactId, tenantId);
         }
     }
 
@@ -390,7 +417,7 @@ class EmailContactCreator {
         // Pobierz adres odbiorcy z zapisanej wiadomości OUTBOUND
         String toAddress = null;
         UUID customerId = null;
-        Optional<EmailMessage> outboundMsgOpt = emailMessageRepository.findById(event.messageId());
+        Optional<EmailMessage> outboundMsgOpt = findMessage(event.messageId(), event.messageAt());
         if (outboundMsgOpt.isPresent()) {
             EmailMessage outboundMsg = outboundMsgOpt.get();
             toAddress = outboundMsg.getToAddress();
@@ -442,10 +469,10 @@ class EmailContactCreator {
                 outboundContactId, toAddress, event.agentId(), event.messageId());
 
         // Powiąż wiadomość z nowym kontaktem
-        linkMessageToContact(event.messageId(), outboundContactId, tenantId);
+        linkMessageToContact(event.messageId(), event.messageAt(), outboundContactId, tenantId);
 
         // Generuj EML (best-effort)
-        generateAndStoreEml(event.messageId(), outboundContactId, tenantId);
+        generateAndStoreEml(event.messageId(), event.messageAt(), outboundContactId, tenantId);
     }
 
     /**

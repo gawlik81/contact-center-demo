@@ -1,54 +1,34 @@
-// Disposition dialog – modal overlay after contact ends
-// Uses native <dialog> semantics without Angular Material
+// Disposition panel (ACW) - inline, non-modal content of a PHONE tab in WRAPPING state.
+// Nothing here may block the rest of the page: no overlay, no backdrop, no fixed positioning.
+
+:host {
+  display: block;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+}
 
 .disposition-dialog {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  border: none;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 900;
-
-  &__backdrop {
-    position: fixed;
-    inset: 0;
-    background: oklch(15% 0.02 250 / 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 0;
-  }
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
 
   &__panel {
-    position: relative;
-    z-index: 1;
-    background: var(--bg-elevated, #fff);
-    border: 1px solid var(--border-1, #e2e8f0);
-    border-radius: var(--radius-xl, 18px);
-    box-shadow: var(--shadow-pop, 0 12px 40px rgba(0, 0, 0, 0.15));
-    width: 100%;
-    max-width: 560px;
-    margin: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-xl);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: disposition-slide-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   &__header {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 20px 24px 16px;
-    background: var(--accent-soft, #e3f2fd);
-    border-bottom: 1px solid var(--border-1, #bbdefb);
+    padding: 16px 24px;
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--border-1);
   }
 
   &__icon {
@@ -56,8 +36,8 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--accent, #1565c0);
-    color: var(--accent-fg, #fff);
+    background: var(--accent);
+    color: var(--accent-fg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -76,14 +56,19 @@
   &__title {
     font-size: 1.0625rem;
     font-weight: 700;
-    color: var(--accent-text, #0d47a1);
+    color: var(--accent-text);
     margin: 0 0 2px;
     letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+
+    &:focus {
+      outline: none;
+    }
   }
 
   &__subtitle {
     font-size: 0.8125rem;
-    color: var(--accent, #1565c0);
+    color: var(--accent-text);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -98,7 +83,7 @@
   }
 
   &__body {
-    padding: 24px;
+    padding: 20px 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -106,7 +91,7 @@
 
   &__footer {
     padding: 16px 24px 20px;
-    border-top: 1px solid var(--border-1, #e0e0e0);
+    border-top: 1px solid var(--border-1);
     display: flex;
     justify-content: flex-end;
   }
@@ -115,7 +100,7 @@
 // ACW Timer
 .acw {
   &__label {
-    font-size: 0.625rem;
+    font-size: var(--fs-2xs);
     color: var(--accent, #1565c0);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -164,7 +149,7 @@
     padding: 10px 36px 10px 12px;
     font-size: 0.9375rem;
     color: var(--text-1, #212121);
-    border: 1.5px solid var(--border-2, #bdbdbd);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-sm, 6px);
     background-color: var(--bg-input, #fff);
     cursor: pointer;
@@ -172,7 +157,7 @@
     font-family: inherit;
 
     &:hover {
-      border-color: var(--border-strong, #cbd5e1);
+      border-color: var(--border-control-hover);
     }
 
     &:focus {
@@ -190,7 +175,7 @@
     padding: 10px 12px;
     font-size: 0.9375rem;
     color: var(--text-1, #212121);
-    border: 1.5px solid var(--border-2, #bdbdbd);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-sm, 6px);
     resize: vertical;
     font-family: inherit;
@@ -199,7 +184,7 @@
     transition: border-color 150ms;
 
     &:hover {
-      border-color: var(--border-strong, #cbd5e1);
+      border-color: var(--border-control-hover);
     }
 
     &:focus {
@@ -224,7 +209,7 @@
   }
 
   &__char-count {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-muted, #9e9e9e);
     text-align: right;
   }
@@ -273,21 +258,10 @@
     display: inline-block;
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
+    border: 2px solid color-mix(in oklch, var(--on-accent) 35%, transparent);
+    border-top-color: var(--on-accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
-  }
-}
-
-@keyframes disposition-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-12px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -324,7 +298,7 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   background: var(--bg-surface);
   cursor: pointer;
   font-family: inherit;
@@ -335,7 +309,7 @@
   transition: all 160ms ease;
 
   &:hover {
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
     background: var(--bg-elevated);
   }
 
@@ -434,7 +408,12 @@
     width: 120px;
     height: 36px;
     border-radius: 6px;
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background: linear-gradient(
+      90deg,
+      var(--bg-subtle) 25%,
+      var(--border-1) 50%,
+      var(--bg-subtle) 75%
+    );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
@@ -500,6 +479,12 @@
   .disp-card__dot {
     background: var(--neutral, #616161);
   }
+}
+
+// Shown only after a save attempt without a code (danger-text keeps AA contrast on both themes)
+.form-field__hint--error {
+  color: var(--danger-text);
+  font-weight: 600;
 }
 
 // ── Fallback warning hint ─────────────────────────────────────────────────────

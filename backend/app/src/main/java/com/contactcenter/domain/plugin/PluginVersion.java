@@ -101,7 +101,21 @@ public class PluginVersion {
     @Column(name = "uploaded_by_user_id")
     private UUID uploadedByUserId;
 
-    @Column(name = "uploaded_at", nullable = false, updatable = false)
+    /**
+     * Kiedy TA treść (te bajty JAR-a) zostały wgrane — nie kiedy wiersz powstał.
+     *
+     * <p><strong>Świadomie bez {@code updatable = false}</strong> (fix/plugin-version-overwrite,
+     * EPIC-28): V074 dokumentuje {@code plugin_version} jako niemutowalne po {@code VALIDATED}
+     * ("nowa wersja = nowy wiersz, nigdy edycja"), ale {@link PluginStorageServiceImpl#storeValidatedJar}
+     * dodaje jedną, wąską, jawną wyjątkowy ścieżkę: administrator może zastąpić treść JAR-a DLA
+     * TEJ SAMEJ wersji (np. poprawka buga bez bumpu numeru wersji), przez parametr
+     * {@code overwrite=true}. Wiersz jest wtedy aktualizowany w miejscu (ten sam {@code id} —
+     * wymóg integralności {@code tenant_plugin_installation.plugin_version_id} z FK
+     * {@code ON DELETE RESTRICT}, V075), a {@code uploaded_at} musi odzwierciedlać ten nowy
+     * upload, nie oryginalny czas utworzenia wiersza. Gdyby kolumna miała {@code updatable =
+     * false}, Hibernate zignorowałby zmianę tego pola przy UPDATE.
+     */
+    @Column(name = "uploaded_at", nullable = false)
     private Instant uploadedAt;
 
     /**

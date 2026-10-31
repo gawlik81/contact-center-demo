@@ -40,7 +40,7 @@
 
 <!-- ===== Unknown customer state ===== -->
 @if (state() === 'unknown') {
-  <div class="cp cp--unknown" role="status">
+  <div class="cp cp--unknown" role="status" tabindex="-1" data-card>
     <svg class="cp__unknown-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
       <path
         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"
@@ -49,33 +49,40 @@
     <h3 class="cp__unknown-title">{{ 'agent.customerPanel.unknownTitle' | transloco }}</h3>
     <p class="cp__unknown-phone">{{ cli() }}</p>
     <p class="cp__unknown-desc">{{ 'agent.customerPanel.unknownDesc' | transloco }}</p>
-    <button
-      type="button"
-      class="cp__cta-btn"
-      (click)="navigateToCreateProfile()"
-      [attr.aria-label]="('agent.customerPanel.createProfileLabel' | transloco) + ' ' + cli()"
-    >
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-      </svg>
-      {{ 'agent.customerPanel.createProfile' | transloco }}
-    </button>
+    @if (canManageProfiles()) {
+      <button
+        type="button"
+        class="cp__cta-btn"
+        (click)="navigateToCreateProfile()"
+        [attr.aria-label]="('agent.customerPanel.createProfileLabel' | transloco) + ' ' + cli()"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        {{ 'agent.customerPanel.createProfile' | transloco }}
+      </button>
+    }
   </div>
 }
 
 <!-- ===== Error state: server error (5xx / network failure) ===== -->
 @if (state() === 'error') {
-  <div class="cp cp--error" role="alert">
-    <svg class="cp__error-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-    </svg>
-    <p class="cp__error-text">{{ 'agent.customerPanel.errorText' | transloco }}</p>
+  <div class="cp cp--error">
+    <div class="cp__error-message" role="alert">
+      <svg class="cp__error-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      <p class="cp__error-text">{{ 'agent.customerPanel.errorText' | transloco }}</p>
+    </div>
+    <button type="button" class="cp__cta-btn" data-retry (click)="retry()">
+      {{ 'agent.customerPanel.retry' | transloco }}
+    </button>
   </div>
 }
 
 <!-- ===== Known customer state ===== -->
 @if (state() === 'known' && profile()) {
-  <div class="cp cp--known">
+  <div class="cp cp--known" tabindex="-1" data-card>
     <!-- Customer header -->
     <div class="cp__customer-header">
       <div class="cp__avatar" aria-hidden="true">
@@ -111,8 +118,8 @@
       </div>
     </div>
 
-    <!-- Full profile link – visible only to SUPERVISOR and ADMIN; AGENT has no access to /supervisor/** -->
-    @if (authService.currentRole() === 'SUPERVISOR' || authService.currentRole() === 'ADMIN') {
+    <!-- Full profile link – not rendered for AGENT (FE-134): the target is under /supervisor/** -->
+    @if (canManageProfiles()) {
       <button
         type="button"
         class="cp__profile-link"
@@ -145,7 +152,9 @@
               <button
                 type="button"
                 class="cp__history-detail-btn"
-                [attr.aria-label]="'Szczegóły kontaktu ' + (item.date | date: 'dd.MM.yyyy')"
+                [attr.aria-label]="
+                  'agent.customerPanel.contactDetailsDated' | transloco: { date: (item.date | date: 'dd.MM.yyyy') }
+                "
                 (click)="onContactDetails(item)"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

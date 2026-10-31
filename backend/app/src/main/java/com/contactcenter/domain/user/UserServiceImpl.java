@@ -90,7 +90,7 @@ class UserServiceImpl implements UserService {
      * @throws IllegalArgumentException HTTP 422 gdy email już zajęty w tenancie
      */
     @Transactional
-    @Audited(action = "USER_CREATED", entityType = "USER")
+    @Audited(action = "USER_CREATED", entityType = "USER", entityIdResultAccessor = "id")
     @Override
     public UserResponse createUser(CreateUserRequest request, UUID tenantId) {
         // SUPER_ADMIN nie może powstać przez ten endpoint (ani żaden inny poza bootstrapem
@@ -492,6 +492,12 @@ class UserServiceImpl implements UserService {
     @Override
     public Optional<AppUser> findAgentByIdAndTenantId(UUID agentId, UUID tenantId) {
         return appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<java.time.Instant> findLastLoginAt(UUID userId, UUID tenantId) {
+        return appUserRepository.findLastLoginAt(userId, tenantId);
     }
 
     @Transactional(readOnly = true)

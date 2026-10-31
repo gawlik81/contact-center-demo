@@ -47,6 +47,7 @@ class SocialMessageServiceTest {
     private static final UUID TENANT_ID       = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static final UUID INTEGRATION_ID  = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static final UUID CONTACT_ID      = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID QUEUE_ID        = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static final String PAGE_ID       = "TEST_PAGE_123";
     private static final String SENDER_ID     = "USER_456";
     private static final String EXTERNAL_MSG_ID = "MID_789";
@@ -56,6 +57,7 @@ class SocialMessageServiceTest {
     @Mock private ContactService contactService;
     @Mock private SocialAdapterRegistry adapterRegistry;
     @Mock private RabbitTemplate rabbitTemplate;
+    @Mock private SocialDefaultQueueResolver defaultQueueResolver;
 
     private SocialMessageServiceImpl service;
 
@@ -66,8 +68,10 @@ class SocialMessageServiceTest {
                 socialMessageRepository,
                 contactService,
                 adapterRegistry,
-                rabbitTemplate
+                rabbitTemplate,
+                defaultQueueResolver
         );
+        when(defaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.of(QUEUE_ID));
     }
 
     @AfterEach
@@ -127,7 +131,7 @@ class SocialMessageServiceTest {
         when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.empty()); // brak aktywnego kontaktu
         when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         IncomingSocialMessage incoming = buildIncomingMessage();
 
@@ -144,16 +148,46 @@ class SocialMessageServiceTest {
         assertThat(createdContact.getStatus()).isEqualTo("QUEUED");
         assertThat(createdContact.getRemoteAddress()).isEqualTo(SENDER_ID);
         assertThat(createdContact.getTenantId()).isEqualTo(TENANT_ID);
+        // BE-155: kontakt dostaje domyślną kolejkę social tenanta (nie null)
+        assertThat(createdContact.getQueueId()).isEqualTo(QUEUE_ID);
 
         // Wiadomość musi być zapisana
         verify(socialMessageRepository).save(any(SocialMessage.class));
 
-        // ContactQueuedMessage musi być opublikowany
+        // ContactQueuedMessage musi być opublikowany – z kolejką
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitMQConfig.EXCHANGE_EVENTS),
                 eq("contact.queued"),
-                any(Object.class)
+                payload.capture()
         );
+        assertThat(payload.getValue())
+                .isInstanceOfSatisfying(com.contactcenter.domain.routing.ContactQueuedMessage.class,
+                        m -> assertThat(m.queueId()).isEqualTo(QUEUE_ID));
+    }
+
+    @Test
+    @DisplayName("BE-155: tenant bez aktywnej kolejki → kontakt QUEUED bez kolejki, brak contact.queued, bez wyjątku")
+    void processIncomingMessage_noTenantQueue_contactStaysQueuedWithoutPublish() {
+        when(defaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.empty());
+        when(socialIntegrationRepository.findByPlatformAndPageId(SocialPlatform.FACEBOOK, PAGE_ID))
+                .thenReturn(Optional.of(buildIntegration()));
+        when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
+                .thenReturn(Optional.empty());
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+                .thenReturn(Optional.empty());
+        when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
+
+        assertThatCode(() -> service.processIncomingMessage(buildIncomingMessage()))
+                .doesNotThrowAnyException();
+
+        ArgumentCaptor<Contact> contactCaptor = ArgumentCaptor.forClass(Contact.class);
+        verify(contactService).insertContact(contactCaptor.capture());
+        assertThat(contactCaptor.getValue().getQueueId()).isNull();
+        assertThat(contactCaptor.getValue().getStatus()).isEqualTo("QUEUED");
+        verify(socialMessageRepository).save(any(SocialMessage.class));
+        verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
     // =========================================================================
@@ -180,7 +214,7 @@ class SocialMessageServiceTest {
                 .thenReturn(Optional.empty());
         when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.of(existingContact));
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         IncomingSocialMessage incoming = buildIncomingMessage();
 
@@ -225,7 +259,7 @@ class SocialMessageServiceTest {
         when(socialIntegrationRepository.findByTenantIdAndPlatform(TENANT_ID, SocialPlatform.FACEBOOK))
                 .thenReturn(List.of(integration));
         when(adapterRegistry.getAdapter(SocialPlatform.FACEBOOK)).thenReturn(adapter);
-        when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
 
         // Ustaw TenantContext (normalnie robi TenantFilter dla żądań HTTP)
         TenantContext.setTenantId(TENANT_ID);
@@ -248,6 +282,46 @@ class SocialMessageServiceTest {
         assertThat(msgCaptor.getValue().getContactId()).isEqualTo(CONTACT_ID);
         assertThat(msgCaptor.getValue().getTenantId()).isEqualTo(TENANT_ID);
         assertThat(msgCaptor.getValue().getPlatform()).isEqualTo(SocialPlatform.FACEBOOK);
+    }
+
+    // =========================================================================
+    // Test 4b: sendMessage → błąd adaptera – naprawa granicy transakcyjnej (code review 2026-08-29)
+    // =========================================================================
+
+    @Test
+    @DisplayName("sendMessage → adapter rzuca wyjątek -> wyjątek propaguje się do wywołującego, "
+            + "wiadomość OUTBOUND NIE jest zapisywana (zachowanie biznesowe sprzed refaktoryzacji "
+            + "granicy transakcyjnej: wywołanie adaptera jest teraz POZA transakcją, ale zapis "
+            + "nadal następuje tylko po udanej wysyłce)")
+    void sendMessage_adapterThrows_propagatesExceptionWithoutSavingOutboundMessage() {
+        // Given
+        Contact contact = Contact.builder()
+                .contactId(CONTACT_ID)
+                .tenantId(TENANT_ID)
+                .channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE")
+                .remoteAddress(SENDER_ID)
+                .startedAt(Instant.now())
+                .build();
+
+        SocialIntegration integration = buildIntegration();
+        SocialMediaAdapter adapter = mock(SocialMediaAdapter.class);
+        RuntimeException graphApiFailure = new RuntimeException("WhatsApp Cloud API zwróciło błąd HTTP 500");
+
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(socialIntegrationRepository.findByTenantIdAndPlatform(TENANT_ID, SocialPlatform.FACEBOOK))
+                .thenReturn(List.of(integration));
+        when(adapterRegistry.getAdapter(SocialPlatform.FACEBOOK)).thenReturn(adapter);
+        doThrow(graphApiFailure).when(adapter).sendMessage(any(), any(), any(), any());
+
+        TenantContext.setTenantId(TENANT_ID);
+
+        // When / Then – wyjątek adaptera musi się propagować bez opakowania
+        assertThatThrownBy(() -> service.sendMessage(CONTACT_ID, TENANT_ID, "Test", List.of()))
+                .isSameAs(graphApiFailure);
+
+        // Then – brak zapisu wiadomości OUTBOUND (etap 3 nie może wykonać się po błędzie etapu 2)
+        verify(socialMessageRepository, never()).save(any());
     }
 
     // =========================================================================

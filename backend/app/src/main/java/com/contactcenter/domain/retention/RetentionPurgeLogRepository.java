@@ -93,25 +93,58 @@ class RetentionPurgeLogRepository extends TenantAwareRepository {
      */
     @Transactional
     public int markCompleted(UUID purgeId, UUID tenantId, long rowsDeleted) {
+        return markCompleted(purgeId, tenantId, rowsDeleted, null);
+    }
+
+    /**
+     * Oznacza operację jako zakończoną sukcesem, z opcjonalnym ostrzeżeniem w {@code error_message}
+     * (BE-126, EPIC-30) — status pozostaje {@code COMPLETED}, kolumna niesie informację diagnostyczną,
+     * a nie błąd blokujący. Użycie: purge CONTACT_INTERACTIONS z włączonym usuwaniem wiadomości
+     * ({@code retention.purge.delete-messages=true}), gdy część obiektów S3 nie została usunięta
+     * ({@code s3Failures > 0}) — kontakty i wiadomości, których to dotyczy, zostają nieusunięte
+     * (kolejny purge jest idempotentny), więc traktowanie CAŁEJ operacji jako {@code FAILED} byłoby
+     * mylące dla reszty batcha, który zakończył się poprawnie.
+     *
+     * @param purgeId        UUID operacji
+     * @param tenantId       UUID tenanta (cross-tenant safety)
+     * @param rowsDeleted    suma usuniętych wierszy ze wszystkich batchy i tabel kategorii
+     * @param warningMessage komunikat ostrzegawczy ({@code null} = zachowanie identyczne z
+     *                       {@link #markCompleted(UUID, UUID, long)}); przycięty do 1000 znaków
+     * @return liczba zaktualizowanych wierszy (0 = purgeId nie istnieje lub inny tenant)
+     */
+    @Transactional
+    public int markCompleted(UUID purgeId, UUID tenantId, long rowsDeleted, String warningMessage) {
         assertSameTenant(tenantId);
         setTenantContextInDb(tenantId);
 
+        String truncated = warningMessage != null && warningMessage.length() > 1000
+                ? warningMessage.substring(0, 1000)
+                : warningMessage;
+
         int updated = em.createNativeQuery("""
                 UPDATE retention_purge_log
-                   SET status       = :status,
-                       rows_deleted = :rowsDeleted,
-                       completed_at = NOW()
+                   SET status        = :status,
+                       rows_deleted  = :rowsDeleted,
+                       error_message = :warningMessage,
+                       completed_at  = NOW()
                  WHERE purge_id  = CAST(:purgeId AS uuid)
                    AND tenant_id = CAST(:tenantId AS uuid)
                 """)
                 .setParameter("status", RetentionPurgeLog.STATUS_COMPLETED)
                 .setParameter("rowsDeleted", rowsDeleted)
+                .setParameter("warningMessage", truncated)
                 .setParameter("purgeId", purgeId.toString())
                 .setParameter("tenantId", tenantId.toString())
                 .executeUpdate();
 
-        log.info("[RetentionPurgeLogRepo] Zapisano COMPLETED: purgeId={}, tenant={}, rowsDeleted={}",
-                purgeId, tenantId, rowsDeleted);
+        if (truncated != null) {
+            log.warn("[RetentionPurgeLogRepo] Zapisano COMPLETED z ostrzeżeniem: purgeId={}, tenant={}, "
+                            + "rowsDeleted={}, warning={}",
+                    purgeId, tenantId, rowsDeleted, truncated);
+        } else {
+            log.info("[RetentionPurgeLogRepo] Zapisano COMPLETED: purgeId={}, tenant={}, rowsDeleted={}",
+                    purgeId, tenantId, rowsDeleted);
+        }
         return updated;
     }
 

@@ -1,6 +1,10 @@
 <div class="transfer-queue-list">
   @if (loadState() === 'loading') {
-    <div class="transfer-queue-list__skeletons" aria-busy="true" aria-label="Ładowanie listy kolejek">
+    <div
+      class="transfer-queue-list__skeletons"
+      aria-busy="true"
+      [attr.aria-label]="'agent.softphone.loadingQueues' | transloco"
+    >
       @for (i of [1, 2, 3]; track i) {
         <div class="transfer-queue-list__skeleton"></div>
       }

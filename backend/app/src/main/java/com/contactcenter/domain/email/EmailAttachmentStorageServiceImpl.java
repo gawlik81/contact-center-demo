@@ -5,12 +5,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -18,6 +23,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -42,7 +49,7 @@ class EmailAttachmentStorageServiceImpl implements EmailAttachmentStorageService
     @Override
     public String store(UUID tenantId, UUID messageId, String filename, String contentType, byte[] data) {
         String encodedFilename = encodeFilename(filename);
-        String s3Key = String.format("email-attachments/%s/%s/%s", tenantId, messageId, encodedFilename);
+        String s3Key = EmailAttachmentKeys.inboundKey(tenantId, messageId, encodedFilename);
         upload(s3Key, contentType, data);
         return s3Key;
     }
@@ -50,7 +57,7 @@ class EmailAttachmentStorageServiceImpl implements EmailAttachmentStorageService
     @Override
     public String storePending(UUID tenantId, UUID pendingId, String filename, String contentType, byte[] data) {
         String encodedFilename = encodeFilename(filename);
-        String s3Key = String.format("email-attachments/%s/pending/%s/%s", tenantId, pendingId, encodedFilename);
+        String s3Key = EmailAttachmentKeys.pendingKey(tenantId, pendingId, encodedFilename);
         upload(s3Key, contentType, data);
         return s3Key;
     }
@@ -111,6 +118,73 @@ class EmailAttachmentStorageServiceImpl implements EmailAttachmentStorageService
     }
 
     // =========================================================================
+    // Usuwanie (BE-125)
+    // =========================================================================
+
+    @Override
+    public void delete(String s3Key) {
+        if (s3Key == null || s3Key.isBlank()) {
+            throw new IllegalArgumentException("Klucz S3 do usunięcia nie może być pusty");
+        }
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(s3Properties.getBucket())
+                    .key(s3Key)
+                    .build();
+
+            // Brak obiektu = sukces (S3/MinIO odpowiada 204) — ponowny przebieg jest idempotentny.
+            s3Client.deleteObject(deleteRequest);
+
+            log.debug("[EmailAttachment] Usunięto obiekt z S3: s3Key={}", EmailAttachmentKeys.forLog(s3Key));
+        } catch (SdkException e) {
+            // SdkException obejmuje S3Exception (odpowiedź usługi) ORAZ SdkClientException (sieć,
+            // timeout) — dla „S3 przed wierszem" oba znaczą to samo: obiekt mógł nie zostać usunięty.
+            log.error("[EmailAttachment] Błąd usuwania obiektu z S3: s3Key={}, error={}",
+                    EmailAttachmentKeys.forLog(s3Key), e.getMessage(), e);
+            throw new EmailAttachmentException(
+                    "Nie udało się usunąć załącznika z S3: " + EmailAttachmentKeys.forLog(s3Key), e);
+        }
+    }
+
+    // =========================================================================
+    // Listowanie pending (BE-131)
+    // =========================================================================
+
+    @Override
+    public List<PendingObject> listPendingObjects(UUID tenantId) {
+        String prefix = EmailAttachmentKeys.tenantPrefix(tenantId) + "pending/";
+        List<PendingObject> result = new ArrayList<>();
+        try {
+            String continuationToken = null;
+            do {
+                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                        .bucket(s3Properties.getBucket())
+                        .prefix(prefix)
+                        .maxKeys(1000);
+                if (continuationToken != null) {
+                    requestBuilder.continuationToken(continuationToken);
+                }
+
+                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                for (S3Object object : response.contents()) {
+                    result.add(new PendingObject(object.key(), object.lastModified()));
+                }
+                continuationToken = Boolean.TRUE.equals(response.isTruncated())
+                        ? response.nextContinuationToken() : null;
+            } while (continuationToken != null);
+
+            log.debug("[EmailAttachment] Listowanie pending: tenant={}, prefix={}, obiektów={}",
+                    tenantId, prefix, result.size());
+            return result;
+        } catch (S3Exception e) {
+            log.error("[EmailAttachment] Błąd listowania obiektów pending: tenant={}, prefix={}, error={}",
+                    tenantId, prefix, e.getMessage(), e);
+            throw new EmailAttachmentException(
+                    "Nie udało się wylistować obiektów pending z S3: tenant=" + tenantId, e);
+        }
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 
@@ -140,13 +214,10 @@ class EmailAttachmentStorageServiceImpl implements EmailAttachmentStorageService
         if (filename == null || filename.isBlank()) {
             return "attachment";
         }
-        return URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "_");
-    }
-
-    /** Wyjątek operacji na załącznikach email w S3. */
-    static class EmailAttachmentException extends RuntimeException {
-        public EmailAttachmentException(String message, Throwable cause) {
-            super(message, cause);
-        }
+        String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "_");
+        // URLEncoder nie koduje kropek: nazwa dokładnie "." lub ".." (kontrolowana przez nadawcę INBOUND)
+        // dałaby segment klucza, który allow-lista purge (EmailAttachmentKeys#isOwnedByTenant) słusznie
+        // odrzuca — obiekt zostałby nieusuwalny przez retencję. Oryginalna nazwa zostaje w JSONB attachments.
+        return ".".equals(encoded) || "..".equals(encoded) ? "attachment" : encoded;
     }
 }

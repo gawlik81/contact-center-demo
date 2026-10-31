@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../../../environments/environment';
+import { AnonymizePreviewResponse } from '../gdpr.model';
+import { SKIP_ERROR_TOAST } from '../../../../../core/interceptors/error-handler.interceptor';
 
 @Injectable({ providedIn: 'root' })
 export class GdprService {
@@ -14,7 +16,19 @@ export class GdprService {
     });
   }
 
+  // Modal pokazuje własny, bardziej szczegółowy komunikat błędu (gdpr-anonymize-modal.component.ts)
+  // — SKIP_ERROR_TOAST zapobiega dodatkowemu, ogólnemu komunikatowi z errorHandlerInterceptor.
   anonymize(customerId: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/${customerId}/gdpr/anonymize`, null);
+    return this.http.post<void>(`${this.baseUrl}/${customerId}/gdpr/anonymize`, null, {
+      context: new HttpContext().set(SKIP_ERROR_TOAST, true),
+    });
+  }
+
+  /** Podgląd anonimizacji (BE-129, D9 = A) — bez efektów ubocznych. */
+  previewAnonymize(customerId: string): Observable<AnonymizePreviewResponse> {
+    return this.http.get<AnonymizePreviewResponse>(
+      `${this.baseUrl}/${customerId}/gdpr/anonymize/preview`,
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
+    );
   }
 }

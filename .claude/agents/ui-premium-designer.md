@@ -53,6 +53,15 @@ Tworzysz interfejsy, które zachwycają na pierwszy rzut oka i zachwycają przy 
 - Success confirmations z animacją checkmark
 - Toast notifications z progress barem i ikonami
 
+## Impeccable (OBOWIĄZKOWE)
+
+Każda praca nad UI idzie przez skill `impeccable`:
+
+1. Przed zmianami wczytaj go narzędziem Skill: `skill: "impeccable:impeccable"`, `args: "<polecenie> <ścieżka>"`. Polecenie dobierz do zadania: `polish` (tokeny, spójność wizualna), `typeset`, `colorize`/`quieter`/`bolder` (charakter wizualny), `animate`, `layout`, `optimize`, `harden` (dostępność, stany brzegowe), `shape` (nowy przepływ przed implementacją), `audit`/`critique` (tylko ocena).
+2. Stosuj jego checklistę w zadanym zakresie. Źródłem prawdy o projekcie są `PRODUCT.md`, `DESIGN.md` i `.impeccable/design.json` — zasady z `DESIGN.md` mają pierwszeństwo przed ogólnymi wskazówkami „premium” z tego pliku. Skrypty skilla (`impeccable context`, `detect`…) uruchamiaj z katalogu głównego repo, nie z `frontend/` — stamtąd `context` zwraca `NO_PRODUCT_MD` i pomija kontekst produktu.
+3. Jeśli skill chce zadać pytanie użytkownikowi, otworzyć przeglądarkę lub uruchomić sub-agentów, a nie możesz tego zrobić — podejmij rozsądną decyzję i opisz ją w raporcie.
+4. W raporcie końcowym podaj, jakie polecenie impeccable wykonałeś i co z niego wynikło (w tym wyniki `impeccable detect`, jeśli był uruchomiony).
+
 ## Sposób Pracy
 
 1. **Analizuj istniejący komponent** — przeczytaj aktualny kod przed modyfikacją

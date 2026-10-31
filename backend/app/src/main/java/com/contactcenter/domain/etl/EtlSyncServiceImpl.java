@@ -85,7 +85,6 @@ class EtlSyncServiceImpl implements EtlSyncService {
                    c.started_at,
                    c.ended_at,
                    c.queued_at,
-                   c.remote_address,
                    COALESCE(c.updated_at, c.created_at) AS effective_updated_at
             FROM contact c
             WHERE COALESCE(c.updated_at, c.created_at) > ?
@@ -686,8 +685,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     durationNull ? null : durationSec,
                     startedTs != null ? startedTs.toInstant() : null,
                     endedTs != null ? endedTs.toInstant() : null,
-                    queuedTs != null ? queuedTs.toInstant() : null,
-                    rs.getString("remote_address")
+                    queuedTs != null ? queuedTs.toInstant() : null
             );
         }
     }

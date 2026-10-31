@@ -283,7 +283,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .optional {
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
   font-weight: 400;
   color: var(--text-muted);
 }
@@ -294,7 +294,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
   color: var(--text-1);
   background: var(--bg-input, var(--bg-surface));
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-md);
   width: 100%;
   transition:
@@ -307,7 +307,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &:hover:not(:focus) {
-    border-color: var(--border-2, var(--border-1));
+    border-color: var(--border-control-hover);
   }
 
   &:focus {
@@ -375,7 +375,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
   color: var(--text-1);
   background: var(--bg-input, var(--bg-surface));
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-md);
   width: 100%;
   appearance: none;
@@ -389,7 +389,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow 180ms $ease-standard;
 
   &:hover:not(:focus) {
-    border-color: var(--border-2, var(--border-1));
+    border-color: var(--border-control-hover);
   }
 
   &:focus {
@@ -451,11 +451,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 .btn-cancel {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--bg-subtle);
-    border-color: var(--border-2, var(--border-1));
+    border-color: var(--border-control-hover);
     color: var(--text-1);
   }
 
@@ -510,8 +510,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 30%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.65s linear infinite;
   flex-shrink: 0;
@@ -525,7 +525,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   .spinner {
     animation: none;
-    border-top-color: rgba(255, 255, 255, 0.8);
+    border-top-color: color-mix(in oklch, var(--on-accent) 80%, transparent);
   }
 }
 

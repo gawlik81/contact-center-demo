@@ -1,5 +1,6 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { NgClass } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -47,6 +48,14 @@ export class PluginsPageComponent implements OnInit {
   readonly isDragOver = signal(false);
   readonly uploadResult = signal<PluginVersionDto | null>(null);
   readonly uploadClientError = signal<string | null>(null);
+
+  /**
+   * Przełącznik „Zastąp istniejącą wersję” (overwrite). Domyślnie wyłączony — nigdy nie
+   * włączamy go automatycznie po konflikcie, decyzja należy do użytkownika.
+   */
+  readonly overwriteEnabled = signal(false);
+  /** Ponowny upload tej samej wersji bez overwrite zwrócił 409 — pokazujemy podpowiedź inline. */
+  readonly uploadConflict = signal(false);
 
   readonly uploadIsRejected = computed(() => this.uploadResult()?.status === 'REJECTED');
   readonly uploadIsInstallable = computed(() => {
@@ -189,8 +198,13 @@ export class PluginsPageComponent implements OnInit {
     this.fileInputRef.nativeElement.click();
   }
 
+  onOverwriteToggle(event: Event): void {
+    this.overwriteEnabled.set((event.target as HTMLInputElement).checked);
+  }
+
   private handleFile(file: File): void {
     this.uploadClientError.set(null);
+    this.uploadConflict.set(false);
     this.uploadResult.set(null);
 
     if (!file.name.toLowerCase().endsWith('.jar')) {
@@ -208,7 +222,7 @@ export class PluginsPageComponent implements OnInit {
 
     this.uploading.set(true);
     this.pluginAdminService
-      .uploadJar(file)
+      .uploadJar(file, this.overwriteEnabled())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
@@ -224,8 +238,14 @@ export class PluginsPageComponent implements OnInit {
             );
           }
         },
-        error: () => {
+        error: (err: unknown) => {
           this.uploading.set(false);
+          // 409 przy overwrite=false: pokazujemy inline podpowiedź o przełączniku (bez toastu,
+          // żeby nie dublować komunikatu). Przy overwrite=true 409 to zwykły błąd — toast.
+          if (this.isConflict(err) && !this.overwriteEnabled()) {
+            this.uploadConflict.set(true);
+            return;
+          }
           this.notifications.error(
             this.transloco.translate('supervisor.settings.plugins.errorUpload'),
           );
@@ -233,9 +253,14 @@ export class PluginsPageComponent implements OnInit {
       });
   }
 
+  private isConflict(err: unknown): boolean {
+    return err instanceof HttpErrorResponse && err.status === 409;
+  }
+
   clearUploadResult(): void {
     this.uploadResult.set(null);
     this.uploadClientError.set(null);
+    this.uploadConflict.set(false);
   }
 
   // ---- Installations list ----

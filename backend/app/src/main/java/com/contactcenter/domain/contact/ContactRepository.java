@@ -12,9 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -614,6 +616,169 @@ class ContactRepository extends TenantAwareRepository {
     return deletedIds;
   }
 
+  // =========================================================================
+  // BE-126: Retencja – usuwanie kontaktów WRAZ z wiadomościami (EPIC-30, flaga
+  // retention.purge.delete-messages=true)
+  // =========================================================================
+
+  /** SQL pierwszej strony (brak kursora) — package-private dla testu EXPLAIN. */
+  static final String FIND_CONTACT_IDS_OLDER_THAN_FIRST_PAGE_SQL = """
+      SELECT contact_id, started_at
+      FROM contact
+      WHERE tenant_id = CAST(:tenantId AS uuid)
+        AND started_at < :cutoff
+      ORDER BY started_at, contact_id
+      LIMIT :batchSize
+      """;
+
+  /** SQL kolejnych stron (kursor keyset) — package-private dla testu EXPLAIN. */
+  static final String FIND_CONTACT_IDS_OLDER_THAN_NEXT_PAGE_SQL = """
+      SELECT contact_id, started_at
+      FROM contact
+      WHERE tenant_id = CAST(:tenantId AS uuid)
+        AND started_at < :cutoff
+        AND (started_at, contact_id) > (:cursorStartedAt, CAST(:cursorContactId AS uuid))
+      ORDER BY started_at, contact_id
+      LIMIT :batchSize
+      """;
+
+  /**
+   * Zwraca stronę kandydatów do usunięcia — retencja CONTACT_INTERACTIONS (BE-126, ścieżka z flagą
+   * {@code retention.purge.delete-messages=true}). W odróżnieniu od {@link #deleteBatchOlderThan}
+   * NIC nie usuwa: wywołujący ({@code RetentionPurgeServiceImpl}) najpierw usuwa wiadomości
+   * powiązane z kandydatami ({@code EmailMessageService}/{@code SocialMessageService#purgeByContactIds}),
+   * a dopiero potem kontakty spoza zablokowanych ({@link #deleteContacts}) — kolejność „dzieci przed
+   * rodzicem" (DESIGN R3).
+   *
+   * <p><strong>Strategia H-1 (head-of-line blocking, code review BE-125):</strong> porządek jest
+   * deterministyczny ({@code ORDER BY started_at, contact_id} — {@code started_at} sam w sobie nie
+   * jest unikalny) i wspiera stronicowanie keyset przez {@code cursor}: strona zaczyna się ŚCIŚLE PO
+   * ostatnim kandydacie poprzedniej strony, niezależnie od tego, czy ten kandydat został faktycznie
+   * usunięty, czy zablokowany (porażka S3/RLS). Dzięki temu kontakt trwale zablokowany NIE jest
+   * zwracany ponownie i nie zatrzymuje purge kontaktów młodszych — terminacja pętli wywołującego nie
+   * zależy od liczby faktycznie usuniętych kontaktów w stronie (może być 0, gdy cała strona jest
+   * zablokowana), tylko od wyczerpania kandydatów, co ta metoda gwarantuje strukturalnie (predykat
+   * {@code >} wyklucza już zwrócone wiersze, więc każda kolejna strona jest rozłączna z poprzednimi).
+   *
+   * <p>Brak indeksu pokrywającego {@code (tenant_id, started_at, contact_id)} bez dodatkowego filtra
+   * — identyczna sytuacja jak w {@link #deleteBatchOlderThan} (partycjonowanie po {@code started_at}
+   * ogranicza skan do partycji sprzed {@code cutoff}, sortowanie/LIMIT dogrywa planner). Ten ticket
+   * nie wymaga nowej migracji (brak nowych kolumn/tabel/indeksów).
+   *
+   * @param tenantId  UUID tenanta
+   * @param cutoff    granica czasowa – kandydują kontakty z {@code started_at < cutoff}
+   * @param cursor    ostatni kandydat poprzedniej strony ({@code null} dla pierwszej strony)
+   * @param batchSize maksymalna liczba kandydatów na stronę
+   * @return strona kandydatów posortowana rosnąco po {@code (started_at, contact_id)} – pusta, gdy
+   *         nie ma więcej kandydatów; {@code page.size() < batchSize} sygnalizuje ostatnią stronę
+   */
+  @Transactional(readOnly = true)
+  public List<ContactPurgeCandidate> findContactIdsOlderThan(
+      UUID tenantId, Instant cutoff, ContactPurgeCandidate cursor, int batchSize) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    var query = cursor == null
+        ? em.createNativeQuery(FIND_CONTACT_IDS_OLDER_THAN_FIRST_PAGE_SQL)
+            .setParameter("tenantId", tenantId.toString())
+            .setParameter("cutoff", cutoff)
+            .setParameter("batchSize", batchSize)
+        : em.createNativeQuery(FIND_CONTACT_IDS_OLDER_THAN_NEXT_PAGE_SQL)
+            .setParameter("tenantId", tenantId.toString())
+            .setParameter("cutoff", cutoff)
+            .setParameter("cursorStartedAt", cursor.startedAt())
+            .setParameter("cursorContactId", cursor.contactId().toString())
+            .setParameter("batchSize", batchSize);
+
+    @SuppressWarnings("unchecked")
+    List<Object[]> rows = query.getResultList();
+
+    List<ContactPurgeCandidate> candidates = rows.stream()
+        .map(row -> new ContactPurgeCandidate(toPurgeUuid(row[0]), toPurgeInstant(row[1])))
+        .toList();
+
+    log.debug("[ContactRepo] Strona kandydatów do purge (z usuwaniem wiadomości): tenant={}, cutoff={}, "
+            + "cursor={}, zwrócono={}",
+        tenantId, cutoff, cursor, candidates.size());
+    return candidates;
+  }
+
+  /** SQL usuwania kontaktów po ID — package-private dla testu EXPLAIN. */
+  static final String DELETE_CONTACTS_SQL = """
+      DELETE FROM contact
+      WHERE tenant_id = CAST(:tenantId AS uuid)
+        AND contact_id IN (:contactIds)
+      RETURNING contact_id
+      """;
+
+  /** Maksymalna liczba elementów listy w jednym {@code IN (...)} — jak {@code EmailMessageRepository}. */
+  private static final int PURGE_IN_LIST_CHUNK_SIZE = 1000;
+
+  /**
+   * Usuwa kontakty tenanta o podanych ID (retencja CONTACT_INTERACTIONS, BE-126 — ścieżka z flagą
+   * {@code retention.purge.delete-messages=true}). Wywoływane WYŁĄCZNIE dla kandydatów spoza
+   * {@code PurgedMessages#contactIdsBlocked()} zwróconego przez purge wiadomości poprzedzający to
+   * wywołanie (wołający filtruje przed wywołaniem tej metody) — inaczej kontakt zniknąłby, a jego
+   * niesprzątnięta wiadomość (porażka S3) zostałaby sierotą z PII.
+   *
+   * <p><strong>Dlaczego bez {@code started_at} w WHERE</strong> (w odróżnieniu od
+   * {@link #deleteBatchOlderThan}): identyfikacja przez sam {@code contact_id} jest bezpieczna, bo to
+   * logiczny, globalnie unikalny klucz (UUID z {@code uuid_generate_v4()}) — NIE fizyczny
+   * {@code ctid}, który koliduje między partycjami (patrz Javadoc {@link #deleteBatchOlderThan}). Ten
+   * sam wzorzec (DELETE/UPDATE po {@code contact_id} bez {@code started_at} na tabeli partycjonowanej)
+   * już istnieje w {@link #assignAgent}. Koszt: bez {@code started_at} PostgreSQL nie może przyciąć
+   * partycji (partition pruning) i skanuje indeks PK każdej partycji — akceptowalne dla rozmiarów
+   * batcha retencji (≤ kilkaset wierszy na wywołanie).
+   *
+   * <p>Zwracanie faktycznie usuniętych ID (a nie liczby zleconych) jest kluczowe: pod rolą bez
+   * BYPASSRLS {@code DELETE} bez polityki {@code FOR DELETE} usuwa 0 wierszy BEZ błędu (DESIGN §2 U8,
+   * R1; ten sam mechanizm co {@code EmailMessageRepository#deleteByIds}) — niezmiennik pętli purge
+   * ({@code RetentionPurgeServiceImpl}) opiera się na tym zbiorze, nie na liczbie zleconych.
+   *
+   * @param tenantId UUID tenanta
+   * @param ids      kontakty do usunięcia — pusta/{@code null} lista = pusty wynik, brak zapytania
+   * @return zbiór {@code contact_id} FAKTYCZNIE usuniętych wierszy (potwierdzonych przez
+   *         {@code DELETE … RETURNING}), nigdy {@code null}
+   */
+  @Transactional
+  public Set<UUID> deleteContacts(UUID tenantId, List<UUID> ids) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    Set<UUID> deleted = new HashSet<>();
+    if (ids == null || ids.isEmpty()) {
+      return deleted;
+    }
+
+    for (int from = 0; from < ids.size(); from += PURGE_IN_LIST_CHUNK_SIZE) {
+      List<UUID> chunk = ids.subList(from, Math.min(from + PURGE_IN_LIST_CHUNK_SIZE, ids.size()));
+
+      @SuppressWarnings("unchecked")
+      List<Object> returned = em.createNativeQuery(DELETE_CONTACTS_SQL)
+          .setParameter("tenantId", tenantId.toString())
+          .setParameter("contactIds", chunk)
+          .getResultList();
+
+      for (Object id : returned) {
+        deleted.add(toPurgeUuid(id));
+      }
+    }
+
+    log.info("[ContactRepo] Purge kontaktów (z usuwaniem wiadomości): tenant={}, zlecono={}, usunięto={}",
+        tenantId, ids.size(), deleted.size());
+    return deleted;
+  }
+
+  /** Konwersja wartości kolumny {@code uuid} z natywnego zapytania (BE-126). */
+  private static UUID toPurgeUuid(Object value) {
+    return value instanceof UUID uuid ? uuid : UUID.fromString(value.toString());
+  }
+
+  /** Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania (BE-126). */
+  private static Instant toPurgeInstant(Object value) {
+    return value instanceof java.sql.Timestamp ts ? ts.toInstant() : (Instant) value;
+  }
+
   /**
    * Assigns an agent to a contact that was created without one (e.g. inbound Twilio call).
    *
@@ -659,6 +824,87 @@ class ContactRepository extends TenantAwareRepository {
     em.clear();
 
     log.debug("[ContactRepo] assignAgent: zaktualizowano {} wierszy dla contactId={}", updated, contactId);
+    return updated;
+  }
+
+  // =========================================================================
+  // BE-160: return of an agent-held async contact to the queue
+  // =========================================================================
+
+  /**
+   * Conditionally returns an agent-held contact to {@code QUEUED} (BE-160).
+   *
+   * <p>The WHERE clause carries {@code status IN ('ASSIGNED','ACTIVE')} AND {@code agent_id = :agentId}
+   * (plus tenant), so the update is atomic against a concurrent routing pass / accept / other release:
+   * whoever changed the row first wins, the loser gets 0 rows. Sets {@code agent_id = NULL},
+   * {@code assigned_at = NULL}, {@code queued_at = :queuedAt} (owner decision: the returned contact goes to the END of the FIFO queue; the same instant opens the new QUEUE stage) and fills
+   * {@code queue_id} only when it is missing. No {@code started_at} in WHERE (partition key is unknown to
+   * the caller; PostgreSQL scans partitions by contact_id + tenant_id, same as {@link #assignAgent}).
+   *
+   * @return updated rows (0 = contact not found, other tenant, other agent or no longer agent-held)
+   */
+  @Transactional
+  public int releaseToQueue(UUID contactId, UUID tenantId, UUID agentId, UUID queueId, Instant queuedAt) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET agent_id    = NULL,
+                   assigned_at = NULL,
+                   status      = 'QUEUED',
+                   queued_at   = ?,
+                   queue_id    = COALESCE(queue_id, ?::uuid),
+                   updated_at  = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND agent_id   = ?::uuid
+               AND status IN ('ASSIGNED', 'ACTIVE')
+            """,
+        java.sql.Timestamp.from(queuedAt),
+        queueId.toString(),
+        contactId.toString(),
+        tenantId.toString(),
+        agentId.toString());
+
+    // Native UPDATE via JdbcTemplate bypasses the EntityManager - drop the L1 cache
+    em.flush();
+    em.clear();
+
+    log.info("[ContactRepo] releaseToQueue: contactId={}, agentId={}, queueId={}, rows={}",
+        contactId, agentId, queueId, updated);
+    return updated;
+  }
+
+  /**
+   * Conditionally moves a contact {@code ASSIGNED -> ACTIVE} for the owning agent (BE-160 review).
+   *
+   * <p>Unlike {@link #update(Contact)} (unconditional full-state write) the WHERE clause carries
+   * {@code status = 'ASSIGNED' AND agent_id = :agentId}, so an accept that lost a race with
+   * {@link #releaseToQueue} or a re-assignment cannot resurrect the old owner.
+   *
+   * @return updated rows (0 = not found, other tenant/agent, or no longer ASSIGNED)
+   */
+  @Transactional
+  public int acceptIfAssigned(UUID contactId, UUID tenantId, UUID agentId) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'ACTIVE',
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND agent_id   = ?::uuid
+               AND status     = 'ASSIGNED'
+            """,
+        contactId.toString(), tenantId.toString(), agentId.toString());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] acceptIfAssigned: contactId={}, agentId={}, rows={}", contactId, agentId, updated);
     return updated;
   }
 
@@ -2044,14 +2290,16 @@ class ContactRepository extends TenantAwareRepository {
    *   <li>{@code contacts_count}   – liczba zakończonych kontaktów</li>
    *   <li>{@code avg_handle_time}  – AVG(duration_seconds), 0 gdy brak</li>
    *   <li>{@code sla_percent}      – % kontaktów z (assigned_at - queued_at) &lt; 30s, 0 gdy brak</li>
-   *   <li>{@code work_time_seconds} – sekundy od pierwszego started_at do NOW(), 0 gdy brak</li>
    * </ol>
+   *
+   * <p>BE-158: czas pracy NIE jest już liczony tym zapytaniem (wcześniej: od pierwszego ZAKOŃCZONEGO
+   * kontaktu dnia). Wylicza go {@code AgentSelfController} z {@code app_user.last_login_at}.
    *
    * @param agentId  UUID agenta
    * @param tenantId UUID tenanta
    * @param dayStart początek dnia UTC (włącznie)
    * @param dayEnd   koniec dnia UTC (wyłącznie)
-   * @return tablica Object[] z czterema wartościami liczbowymi
+   * @return tablica Object[] z trzema wartościami liczbowymi (contacts_count, avg_handle_time, sla_percent)
    */
   @Transactional(readOnly = true)
   public Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd) {
@@ -2072,8 +2320,7 @@ class ContactRepository extends TenantAwareRepository {
                             THEN 1.0 ELSE 0.0
                         END) * 100,
                         0
-                    )                                                               AS sla_percent,
-                    COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(c.started_at))), 0)   AS work_time_seconds
+                    )                                                               AS sla_percent
                 FROM contact c
                 WHERE c.tenant_id  = CAST(:tenantId AS uuid)
                   AND c.agent_id   = CAST(:agentId AS uuid)

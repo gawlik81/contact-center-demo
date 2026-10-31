@@ -5,6 +5,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Serwis zarządzania integracjami social media (OAuth, tokeny, odświeżanie).
@@ -64,4 +65,19 @@ public interface SocialIntegrationService {
      * @throws ResponseStatusException 404 gdy integracja nie istnieje dla tego tenanta
      */
     void deleteIntegration(java.util.UUID integrationId);
+
+    /**
+     * Zwraca dane integracji z odszyfrowanym tokenem dostępu – do użytku przez adaptery
+     * warstwy infrastruktury (np. {@code WhatsAppAdapter}) wywołujące zewnętrzne API platformy.
+     *
+     * <p>Repozytorium i serwis szyfrowania tokenów są klasami pakietowymi (package-private)
+     * w {@code domain.social} – adaptery w {@code infrastructure.social} nie mają do nich
+     * bezpośredniego dostępu i muszą korzystać z tej metody.
+     *
+     * @param integrationId UUID integracji
+     * @return dane integracji z odszyfrowanym tokenem
+     * @throws ResponseStatusException 404 gdy integracja nie istnieje dla aktualnego tenanta,
+     *                                  422 gdy integracja nie ma skonfigurowanego tokenu
+     */
+    SocialIntegrationDecrypted getDecryptedIntegration(UUID integrationId);
 }

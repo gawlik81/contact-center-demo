@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService, LoginResponse } from '../../../core/services/auth.service';
 import { PublicTenantService, PublicTenant } from '../services/public-tenant.service';
+import { BRAND } from '../../../core/brand';
 
 type LoginStep = 'email' | 'credentials' | 'mfa';
 
@@ -15,6 +16,7 @@ type LoginStep = 'email' | 'credentials' | 'mfa';
   styleUrl: './login.component.scss',
 })
 export class LoginComponent {
+  protected readonly brand = BRAND;
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);

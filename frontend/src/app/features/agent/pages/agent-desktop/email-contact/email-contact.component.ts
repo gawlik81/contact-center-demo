@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -6,7 +6,10 @@ import {
   ElementRef,
   OnInit,
   ViewChild,
+  SecurityContext,
   computed,
+  effect,
+  untracked,
   inject,
   input,
   output,
@@ -14,6 +17,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { DomSanitizer } from '@angular/platform-browser';
 import { catchError, debounceTime, of, startWith } from 'rxjs';
 
 import {
@@ -24,6 +28,8 @@ import {
   SendReplyRequest,
 } from '../../../services/email.service';
 import { ContactService } from '../../../services/contact.service';
+import { ContactDraftStore } from '../../../services/contact-draft.store';
+import { EmailReplyService } from '../../../services/email-reply.service';
 import { EmailThreadMessageComponent } from './email-thread-message/email-thread-message.component';
 import { AiSummaryPanelComponent } from '../../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 
@@ -43,16 +49,38 @@ export class EmailContactComponent implements OnInit {
   contactId = input.required<string>();
   replySent = output<boolean>();
 
-  @ViewChild('editor') private editorRef?: ElementRef<HTMLDivElement>;
+  private editorRef?: ElementRef<HTMLDivElement>;
+
+  /**
+   * The editor lives inside an @if (appears after the message loads), so restore the draft
+   * body the moment the element is created instead of relying on ngOnInit timing.
+   */
+  @ViewChild('editor')
+  private set editorElement(ref: ElementRef<HTMLDivElement> | undefined) {
+    const isNew = ref !== undefined && ref !== this.editorRef;
+    this.editorRef = ref;
+    if (isNew && ref && this.replyHtml() && ref.nativeElement.innerHTML !== this.replyHtml()) {
+      ref.nativeElement.innerHTML = this.replyHtml();
+    }
+  }
   @ViewChild('fileInput') private fileInputRef?: ElementRef<HTMLInputElement>;
 
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
+  private readonly drafts = inject(ContactDraftStore);
+  private readonly emailReply = inject(EmailReplyService);
+  private readonly sanitizer = inject(DomSanitizer);
+
+  /** Set once the reply was sent / returned to queue; stops draft write-back. */
+  private draftClosed = false;
+  private readonly subjectEdited = signal(false);
 
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
-  protected readonly sending = signal(false);
+  /** True while a send for this contact is in flight, also after the card was remounted. */
+  protected readonly sending = computed(() => this.drafts.isSending(this.contactId()));
   protected readonly error = signal<string | null>(null);
   protected readonly threadCollapsed = signal(false);
 
@@ -87,20 +115,75 @@ export class EmailContactComponent implements OnInit {
     return html.trim().length > 0 && !this.sending();
   });
 
+  constructor() {
+    // A send that failed while this card was unmounted is reported once when it is shown again.
+    effect(() => {
+      const contactId = this.contactId();
+      if (!this.drafts.hasSendFailed(contactId)) return;
+      untracked(() => {
+        this.error.set(this.transloco.translate('agent.emailContact.errorSend'));
+        this.drafts.clearSendFailed(contactId);
+      });
+    });
+
+    // Write every draft change back to the store so it survives the card being unmounted.
+    effect(() => {
+      const draft = {
+        bodyHtml: this.replyHtml(),
+        subject: this.replySubject(),
+        subjectEdited: this.subjectEdited(),
+        template: this.selectedTemplate(),
+        templateVariables: this.templateVariables(),
+        showVariableForm: this.showVariableForm(),
+        attachments: this.pendingAttachments(),
+      };
+      if (this.draftClosed || !this.restored) return;
+      this.drafts.setEmailDraft(this.contactId(), draft);
+    });
+  }
+
+  private restored = false;
+
+  private restoreDraft(): void {
+    const draft = this.drafts.emailDraft(this.contactId());
+    if (draft) {
+      this.replyHtml.set(this.sanitizeHtml(draft.bodyHtml));
+      this.replySubject.set(draft.subject);
+      this.subjectEdited.set(draft.subjectEdited);
+      this.selectedTemplate.set(draft.template);
+      this.templateVariables.set(draft.templateVariables);
+      this.showVariableForm.set(draft.showVariableForm);
+      this.pendingAttachments.set(draft.attachments);
+      if (draft.template) {
+        this.templateSearchControl.setValue(draft.template.name, { emitEvent: false });
+      }
+    }
+    this.restored = true;
+  }
+
   ngOnInit(): void {
+    this.restoreDraft();
     this.loadMessage();
     this.loadTemplates();
 
     // Notify backend that the agent opened this contact (ASSIGNED → ACTIVE).
     // This stops ContactAssignmentMonitor from re-queueing the contact.
     // Fire-and-forget — idempotent, failure is non-critical.
-    this.contactService
-      .acceptContact(this.contactId())
-      .pipe(
-        catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe();
+    // Only the first mount per contact sends it: returning to the tab remounts this component.
+    // No takeUntilDestroyed: a quick tab switch must not cancel an in-flight request that the
+    // store already counts as sent. On failure the flag is reverted so the next mount retries.
+    const acceptedContactId = this.contactId();
+    if (this.drafts.markAccepted(acceptedContactId)) {
+      this.contactService
+        .acceptContact(acceptedContactId)
+        .pipe(
+          catchError(() => {
+            this.drafts.unmarkAccepted(acceptedContactId);
+            return of(null);
+          }),
+        )
+        .subscribe();
+    }
 
     this.templateSearchControl.valueChanges
       .pipe(startWith(''), debounceTime(150), takeUntilDestroyed(this.destroyRef))
@@ -123,11 +206,15 @@ export class EmailContactComponent implements OnInit {
       .subscribe({
         next: (msg) => {
           this.rootMessage.set(msg);
-          this.replySubject.set(msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`);
+          if (!this.subjectEdited()) {
+            this.replySubject.set(
+              msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`,
+            );
+          }
           this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id, 0, true);
         },
         error: () => {
-          this.error.set('Nie udalo sie zaladowac wiadomosci email.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorLoad'));
           this.loading.set(false);
         },
       });
@@ -158,7 +245,7 @@ export class EmailContactComponent implements OnInit {
           this.loadingMore.set(false);
         },
         error: () => {
-          this.error.set('Nie udalo sie zaladowac watku email.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorThread'));
           this.loading.set(false);
           this.loadingMore.set(false);
         },
@@ -218,20 +305,33 @@ export class EmailContactComponent implements OnInit {
       .subscribe({
         next: (preview) => {
           this.setEditorHtml(preview.bodyHtml);
+          this.subjectEdited.set(true);
           this.replySubject.set(preview.subject);
           this.showVariableForm.set(false);
         },
         error: () => {
-          this.error.set('Nie udało się wczytać szablonu.');
+          this.error.set(this.transloco.translate('agent.emailContact.errorTemplate'));
         },
       });
   }
 
   private setEditorHtml(html: string): void {
+    // Template previews and restored drafts both go through Angular's HTML sanitizer before
+    // they reach innerHTML (no scripts / event-handler attributes).
+    const safe = this.sanitizeHtml(html);
     if (this.editorRef) {
-      this.editorRef.nativeElement.innerHTML = html;
+      this.editorRef.nativeElement.innerHTML = safe;
     }
-    this.replyHtml.set(html);
+    this.replyHtml.set(safe);
+  }
+
+  private sanitizeHtml(html: string): string {
+    return this.sanitizer.sanitize(SecurityContext.HTML, html) ?? '';
+  }
+
+  protected onSubjectInput(value: string): void {
+    this.subjectEdited.set(true);
+    this.replySubject.set(value);
   }
 
   protected onEditorInput(event: Event): void {
@@ -289,7 +389,9 @@ export class EmailContactComponent implements OnInit {
           },
           error: () => {
             this.uploading.set(false);
-            this.uploadError.set('Nie udało się przesłać pliku: ' + file.name);
+            this.uploadError.set(
+              this.transloco.translate('agent.emailContact.uploadFailed', { name: file.name }),
+            );
           },
         });
     };
@@ -313,7 +415,6 @@ export class EmailContactComponent implements OnInit {
     const root = this.rootMessage();
     if (!root || !this.canSend()) return;
 
-    this.sending.set(true);
     this.error.set(null);
 
     const request: SendReplyRequest = {
@@ -331,20 +432,9 @@ export class EmailContactComponent implements OnInit {
       }
     }
 
-    this.emailService
-      .sendReply(root.id, request)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.sending.set(false);
-          this.pendingAttachments.set([]);
-          this.replySent.emit(true);
-        },
-        error: () => {
-          this.sending.set(false);
-          this.error.set('Nie udalo sie wyslac odpowiedzi. Sprobuj ponownie.');
-        },
-      });
+    // Owned by a root service, not by this component: a tab switch must not cancel the request
+    // nor allow a second send (see EmailReplyService). Success closes the tab from there.
+    this.emailReply.send(this.contactId(), root.id, request);
   }
 
   protected cancelReply(): void {
@@ -352,13 +442,16 @@ export class EmailContactComponent implements OnInit {
     // Fire-and-forget — idempotent, UI closes regardless of backend response.
     this.contactService
       .abandonContact(this.contactId())
-      .pipe(
-        catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
+      .pipe(catchError(() => of(null)))
       .subscribe();
 
+    this.discardDraft();
     this.replySent.emit(false);
+  }
+
+  private discardDraft(): void {
+    this.draftClosed = true;
+    this.drafts.clear(this.contactId());
   }
 
   protected getVariableKeys(): string[] {

@@ -198,7 +198,7 @@ import { CustomerSummary } from '../../models/customer-search.model';
       height: 2.75rem;
       border-radius: 12px;
       background: linear-gradient(135deg, var(--violet) 0%, var(--accent) 100%);
-      color: #fff;
+      color: var(--on-accent);
       font-size: 0.875rem;
       font-weight: 700;
       display: flex;
@@ -291,11 +291,11 @@ import { CustomerSummary } from '../../models/customer-search.model';
       &--secondary {
         background: var(--bg-elevated);
         color: var(--accent-text);
-        border-color: var(--border-2);
+        border-color: var(--border-control);
 
         &:hover {
           background: var(--accent-soft);
-          border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+          border-color: var(--border-control-hover);
         }
       }
 
@@ -305,7 +305,7 @@ import { CustomerSummary } from '../../models/customer-search.model';
         justify-content: center;
         gap: 0.25rem;
         background: var(--success);
-        color: var(--accent-fg);
+        color: var(--on-success);
         border-color: var(--success);
 
         &:hover {
@@ -316,11 +316,11 @@ import { CustomerSummary } from '../../models/customer-search.model';
       &--email {
         background: var(--bg-elevated);
         color: var(--accent-text);
-        border-color: var(--border-2);
+        border-color: var(--border-control);
 
         &:hover {
           background: var(--accent-soft);
-          border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+          border-color: var(--border-control-hover);
         }
       }
     }
@@ -351,7 +351,7 @@ import { CustomerSummary } from '../../models/customer-search.model';
     .customer-card__phone-dropdown-label {
       margin: 0;
       padding: 0.375rem 0.625rem;
-      font-size: 0.6875rem;
+      font-size: var(--fs-2xs);
       font-weight: 600;
       color: var(--text-muted);
       text-transform: uppercase;

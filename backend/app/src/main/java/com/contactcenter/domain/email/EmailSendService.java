@@ -35,8 +35,13 @@ public interface EmailSendService {
      * @param bodyHtml          treść odpowiedzi w HTML
      * @param subject           temat odpowiedzi (przekazany przez klienta lub auto-generowany)
      * @param agentId           UUID agenta wysyłającego odpowiedź
-     * @param attachments       lista załączników do dołączenia (null lub pusta = brak)
+     * @param attachments       lista załączników do dołączenia (null lub pusta = brak); każdy
+     *                          {@code s3Key} jest walidowany PRZED wysyłką allow-listą prefiksu
+     *                          tenanta (BE-143) — patrz {@code @throws} niżej
      * @return zapisana encja wiadomości OUTBOUND
+     * @throws EmailAttachmentAccessDeniedException gdy którykolwiek {@code s3Key} nie należy do
+     *                                               tenanta (BE-143) — całe żądanie jest odrzucane
+     *                                               PRZED odczytem z S3 i wysyłką SMTP
      * @throws ResourceNotFoundException gdy oryginalna wiadomość nie istnieje
      * @throws EmailSendException        gdy wysyłka SMTP się nie powiedzie
      */
@@ -74,6 +79,9 @@ public interface EmailSendService {
      * @param bodyHtml  treść wiadomości w HTML
      * @param agentId   UUID agenta wysyłającego wiadomość
      * @return zapisana encja wiadomości OUTBOUND
+     * @throws EmailAttachmentAccessDeniedException gdy którykolwiek {@code s3Key} nie należy do
+     *                                               tenanta (BE-143) — całe żądanie jest odrzucane
+     *                                               PRZED odczytem z S3 i wysyłką SMTP
      * @throws ResourceNotFoundException gdy tenant nie istnieje
      * @throws EmailSendException        gdy brak konfiguracji SMTP lub wysyłka się nie powiedzie
      */

@@ -49,7 +49,7 @@
 .filter-select {
   height: 36px;
   padding: 0 0.625rem;
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
@@ -126,7 +126,7 @@
   &-secondary {
     background: transparent;
     color: var(--text-2);
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
 
     &:not(:disabled):hover {
       background: var(--bg-subtle);
@@ -147,7 +147,7 @@
   &-pagination {
     background: transparent;
     color: var(--accent-text);
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     padding: 0 0.75rem;
 
     &:not(:disabled):hover {
@@ -360,7 +360,7 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid color-mix(in oklch, var(--on-accent) 40%, transparent);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

@@ -36,7 +36,7 @@ repozytoria i serwisy danej domeny znajdują się w jej pakiecie. Wyjątkiem są
 
 Aktualna lista pakietów domenowych: `agentbreak`, `agentgroup`, `audit`, `campaign`,
 `contact`, `customer`, `disposition`, `email`, `etl`, `exception`, `gdpr`, `ivr`,
-`messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `repository`, `routing`,
+`messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `repository`, `retention`, `routing`,
 `social`, `telephony`, `tenant`, `user`, `voicebot`, `websocket`.
 
 ### 1.0 Konwencje pakietów domenowych i enkapsulacja
@@ -847,6 +847,76 @@ Szczegóły – sekcja 5.
 
 ---
 
+### 1.25 retention – okres archiwizacji kontaktów kampanii (EPIC-30, BE-151)
+
+**Cel:** konfigurowalny **per tenant** okres, po którym kontakty zakończonych kampanii
+(`COMPLETED`/`STOPPED`) są przenoszone z `campaign_contact` do `campaign_contact_archive`, oraz
+cykliczny job, który to wykonuje. Pakiet `com.contactcenter.domain.retention` zawiera też inne klasy
+retencji (polityki, purge, partycje) – tu opisano wyłącznie ten fragment; model danych: `06-database.md`
+(sekcja 3.4, „Okres archiwizacji kontaktów kampanii per tenant”).
+
+| Klasa | Rola |
+|---|---|
+| `CampaignArchiveSettingController` (`api/retention`) | `/api/tenants/{tenantId}/retention/campaign-archive` |
+| `CampaignArchiveSettingService` (interfejs, public: stałe `DEFAULT_ARCHIVE_AFTER_DAYS=180`, `MIN…=30`, `MAX…=730`) + `CampaignArchiveSettingServiceImpl` (package-private) | odczyt/zapis ustawienia, podgląd skutku, audyt |
+| `TenantCampaignArchiveSetting` + `TenantCampaignArchiveSettingRepository` | encja/repozytorium tabeli `tenant_campaign_archive_setting` (natywny SQL) |
+| `CampaignArchiveJob` + `CampaignArchiveJobRepository` | `@Scheduled` – woła `archive_completed_campaign_contacts()` |
+
+| Metoda | Ścieżka | Rola | Opis |
+|---|---|---|---|
+| GET | `/api/tenants/{tenantId}/retention/campaign-archive` | ADMIN | okres efektywny |
+| PUT | `/api/tenants/{tenantId}/retention/campaign-archive` | ADMIN | ustawienie okresu (body `{"archiveAfterDays": N}`) |
+| GET | `/api/tenants/{tenantId}/retention/campaign-archive/preview?archiveAfterDays=N` | ADMIN | podgląd skutku (tylko odczyt) |
+
+**Bezpieczeństwo:** `@PreAuthorize("hasRole('ADMIN')")` + istniejąca reguła
+`/api/tenants/*/retention/**` w `SecurityConfig` (nowych publicznych ścieżek brak). `{tenantId}` z URL
+musi być równe tenantowi z JWT (`assertOwnTenant`), inaczej `CrossTenantAccessException` → 403.
+
+**Kształty odpowiedzi (DTO):**
+- `CampaignArchiveSettingDto` (GET/PUT): `archiveAfterDays`, `isDefault` (true = brak wiersza w bazie,
+  obowiązuje 180), `defaultDays`, `minDays`, `maxDays`, `updatedBy` (nullable), `updatedAt` (nullable),
+  `warning` (stały tekst ostrzeżenia o skutkach skrócenia okresu).
+- `CampaignArchivePreviewDto` (preview): `currentDays`, `newDays`, `campaignsToArchive`,
+  `contactsToArchive` (dla `newDays`), `campaignsToArchiveAtCurrentDays`, `contactsToArchiveAtCurrentDays`,
+  `additionalCampaigns`, `additionalContacts` (różnica względem okresu bieżącego, ujemna przy
+  wydłużeniu), `shortensPeriod` (`newDays < currentDays`).
+
+**Walidacja:** `archiveAfterDays` musi być liczbą całkowitą z zakresu 30–730; naruszenie (brak/`null`,
+tekst, ułamek, poza zakresem – także w `preview`) daje **HTTP 422** (`validation-failed`). Body przechodzi
+przez `StrictIntegerDeserializer` (odrzuca ułamki), a lokalne `@ExceptionHandler`-y kontrolera
+(`HttpMessageNotReadableException`, `MethodArgumentTypeMismatchException` dla `archiveAfterDays`) mapują
+nieczytelne body i nienumeryczny parametr na 422 (globalny handler dałby 500/400). Serwis powtarza
+sprawdzenie zakresu (obrona w głąb), a baza ma `CHECK` (V136).
+
+**Zapis (`PUT`) i audyt:** `TenantCampaignArchiveSettingRepository#upsertReturningPrevious` działa atomowo
+w jednej transakcji (`INSERT … ON CONFLICT DO NOTHING`, a przy konflikcie `SELECT … FOR UPDATE` +
+`UPDATE`) i zwraca poprzednią wartość – równoległe `PUT` serializują się na wierszu. `PUT` z wartością już
+obowiązującą nic nie zapisuje (idempotentny no-op, bez audytu). Przy zmianie wartości **efektywnej**
+publikowany jest `AuditLogEvent` o akcji `CAMPAIGN_ARCHIVE_PERIOD_CHANGED` (`entityType`
+`TENANT_CAMPAIGN_ARCHIVE_SETTING`, `entityId` = `tenantId`; `oldValue` `{archiveAfterDays, isDefault}`,
+`newValue` `{archiveAfterDays, shortened}`). Pierwszy jawny zapis wartości równej domyślnej tworzy wiersz,
+ale nie jest audytowany. **Audyt jest best-effort:** `AuditLogService#publishAuditEvent` jest `@Async`
+i połyka błędy brokera, więc zmiana może zostać zapisana bez wpisu w `audit_log` (utrata logowana na ERROR).
+
+**Semantyka podglądu:** `preview` liczy (`countArchivable`) kampanie `COMPLETED`/`STOPPED` tenanta z
+`COALESCE(ended_at, updated_at, created_at) < NOW() - N dni` – predykat zgodny z funkcją SQL `archive_completed_campaign_contacts()` od V140 (oba zapytania `countArchivable`: kampanie i kontakty; wiersze z `ended_at` i `updated_at` jednocześnie `NULL` są liczone wg `created_at`) – ale **tylko te,
+które mają jeszcze wiersze w `campaign_contact`** (kampanie już zarchiwizowane nie mają nic do przeniesienia
+i dawałyby wiecznie niezerowy wynik). Nic nie zapisuje i nie uruchamia archiwizacji.
+
+**`CampaignArchiveJob`:** `@Scheduled` wg `retention.campaign-archive-cron` (domyślnie `0 0 4 * * *`, UTC);
+flaga `retention.campaign-archive.enabled` jest **domyślnie `false`** (decyzja D8) – wyłączony job tylko loguje
+INFO i nie wykonuje SQL. Włączenie wymaga zgody właściciela produktu (po archiwizacji kontakty znikają z UI,
+statystyk i dialera; pierwszy przebieg archiwizuje całą zaległość). Wyjątek nie zatrzymuje schedulera; ślad
+awarii zapisuje `CronFailureLogRepository` w osobnej transakcji. Funkcja jest cross-tenant, więc rola DB
+musi widzieć wszystkich tenantów (obecnie `BYPASSRLS`).
+
+> **Ostrzeżenie:** **skrócenie** okresu archiwizacji powoduje masową archiwizację przy najbliższym
+> przebiegu joba (kontakty wszystkich kampanii zakończonych dawniej niż nowy okres znikną z UI, statystyk
+> i dialera) – przed zapisem użyj `preview`. Okres archiwizacji (dni od zakończenia kampanii) to coś innego
+> niż retencja kategorii `CAMPAIGN_DATA` (miesiące od `archived_at`, usuwanie wierszy archiwum).
+
+---
+
 ## 2. Warstwa security
 
 ### 2.1 Kolejność filtrów (krytyczne)
@@ -1309,6 +1379,7 @@ Profil domyślny: `dev` (`spring.profiles.default`).
 | Email | `email.encryption-key` | (dev: zera) | AES-256 hasła IMAP/SMTP |
 | Social | `social.token-encryption-key` | dev fallback | AES-256 tokeny OAuth |
 | Voicebot | `voicebot.enabled` | `false` | aktywuje `VoicebotClient` |
+| Retention | `retention.campaign-archive.enabled` / `retention.campaign-archive-cron` | `false` / `0 0 4 * * *` (UTC) | `CampaignArchiveJob` (sekcja 1.25); włączenie wymaga zgody właściciela |
 | Dialer | `dialer.enabled` | `true` | Progressive Dialer + ScheduledCallbackExecutor |
 | Dialer | `dialer.callback-executor.interval-ms` | `60000` | |
 | Agent breaks | `agent.breaks.activator.enabled` | `true` | |

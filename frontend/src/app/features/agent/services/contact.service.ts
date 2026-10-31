@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import {
   ContactEventResponse,
   ContactResponse,
@@ -47,9 +48,11 @@ export class ContactService {
     notes: string,
   ): Observable<ContactResponse> {
     const body: SetDispositionRequest = { dispositionCode, notes };
+    // DispositionSaveService shows the single, specific error toast itself.
     return this.http.patch<ContactResponse>(
       `${environment.apiUrl}/contacts/${contactId}/disposition`,
       body,
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
     );
   }
 
@@ -95,6 +98,20 @@ export class ContactService {
     return this.http.post<ContactResponse>(
       `${environment.apiUrl}/contacts/${contactId}/abandon`,
       {},
+    );
+  }
+
+  /**
+   * Returns an EMAIL/SOCIAL/CHAT contact to the queue (agent cleared) so someone else can take
+   * it. Idempotent when it is already queued; 404 = unknown contact, 409 = it is not (or no
+   * longer) this agent's, or it is not releasable (PHONE, terminal state).
+   * The caller shows its own, status-specific message, so the global error toast is skipped.
+   */
+  releaseContact(contactId: string): Observable<ContactResponse> {
+    return this.http.post<ContactResponse>(
+      `${environment.apiUrl}/contacts/${contactId}/release`,
+      {},
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
     );
   }
 

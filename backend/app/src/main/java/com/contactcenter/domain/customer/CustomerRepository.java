@@ -325,8 +325,12 @@ class CustomerRepository extends TenantAwareRepository {
      * @param customerId UUID klienta do anonimizacji
      * @param tenantId   UUID tenanta (cross-tenant guard)
      * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
+     * @deprecated BE-129 (EPIC-30): aktualizuje WYŁĄCZNIE {@code customer} (nie kontakty/callbacki/
+     *             rekordy kampanii/wiadomości/S3). Aktywna ścieżka anonimizacji woła funkcję SQL
+     *             {@code anonymize_customer} (DB-062) przez {@code domain.gdpr.GdprRepository}.
      */
     @Transactional
+    @Deprecated
     public int anonymize(UUID customerId, UUID tenantId) {
         setTenantContextInDb(tenantId);
 

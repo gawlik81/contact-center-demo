@@ -38,7 +38,7 @@ class QueueServiceImpl implements QueueService {
 
     @Override
     @Transactional
-    @Audited(action = "QUEUE_CREATED", entityType = "QUEUE")
+    @Audited(action = "QUEUE_CREATED", entityType = "QUEUE", entityIdResultAccessor = "queueId")
     public QueueResponse createQueue(CreateQueueRequest request, UUID tenantId) {
         tenantResourceLimitService.checkQueueLimit(tenantId);
 

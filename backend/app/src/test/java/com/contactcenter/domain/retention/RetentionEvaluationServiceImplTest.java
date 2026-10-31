@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -140,6 +141,7 @@ class RetentionEvaluationServiceImplTest {
 
             verify(partitionScanner).listPartitions("contact");
             verify(partitionScanner).listPartitions("contact_event");
+            verify(partitionScanner).listPartitions("social_message");
             verify(partitionScanner).listPartitions("contact_transcription");
             verify(partitionScanner).listPartitions("contact_ai_summary");
             verify(partitionScanner).countRowsByTenant("contact_2020_01");
@@ -332,6 +334,214 @@ class RetentionEvaluationServiceImplTest {
 
             verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
                     eq(15L), any(), any());
+        }
+
+        @Test
+        @DisplayName("BE-133: suma liczby wierszy z trzech tabel kategorii (contact + contact_event + social_message) dla jednego tenanta")
+        void sumsRowCountsAcrossAllThreeTablesOfCategoryIncludingSocialMessage() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            PartitionScanner.PartitionInfo contactPartition =
+                    partitionEndingAt("contact_2020_06", today.minusMonths(65));
+            PartitionScanner.PartitionInfo eventPartition =
+                    partitionEndingAt("contact_event_2020_06", today.minusMonths(65));
+            PartitionScanner.PartitionInfo socialPartition =
+                    partitionEndingAt("social_message_2020_06", today.minusMonths(65));
+
+            when(partitionScanner.listPartitions("contact")).thenReturn(List.of(contactPartition));
+            when(partitionScanner.listPartitions("contact_event")).thenReturn(List.of(eventPartition));
+            when(partitionScanner.listPartitions("social_message")).thenReturn(List.of(socialPartition));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 10)));
+            when(partitionScanner.countRowsByTenant("contact_event_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 5)));
+            when(partitionScanner.countRowsByTenant("social_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 2)));
+
+            service.runForAllActiveTenants();
+
+            // 10 (contact) + 5 (contact_event) + 2 (social_message) = 17 — liczone WYŁĄCZNIE przez
+            // PartitionScanner (scanPartitionAwareCategory), nie przez countEligibleMessages.
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(17L), any(), any());
+        }
+    }
+
+    // =========================================================================
+    // BE-128: wiadomości w eligibleRowCount CONTACT_INTERACTIONS
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-133/BE-135 – wiadomości (social, e-mail) liczone partycyjnie w eligibleRowCount CONTACT_INTERACTIONS")
+    class MessagesInEligibleRowCount {
+
+        @Test
+        @DisplayName("BE-135: suma contact + contact_event + social_message + email_message dla jednego tenanta (wszystkie partycyjnie)")
+        void sumsEmailAndSocialPartitionRowsWithContactRows() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("contact"))
+                    .thenReturn(List.of(partitionEndingAt("contact_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 10)));
+            when(partitionScanner.listPartitions("social_message"))
+                    .thenReturn(List.of(partitionEndingAt("social_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("social_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 4)));
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 3)));
+
+            service.runForAllActiveTenants();
+
+            // 10 (contact) + 4 (social) + 3 (email) = 17
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(17L), any(), any());
+            verify(partitionScanner).listPartitions("email_message");
+            verify(partitionScanner).countRowsByTenant("email_message_2020_06");
+        }
+
+        @Test
+        @DisplayName("BE-135: wiersze e-mail NIE trafiają do TRANSCRIPTS ani CAMPAIGN_DATA")
+        void emailRowsDoNotLeakIntoOtherCategories() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 100)));
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.TRANSCRIPTS),
+                    eq(0L), any(), any());
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CAMPAIGN_DATA),
+                    eq(0L), any(), any());
+        }
+
+        @Test
+        @DisplayName("BE-135: wiadomości e-mail spoza granicy retencji (partycja za młoda) NIE są liczone")
+        void emailPartitionWithinRetentionWindow_isNotCounted() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            // Partycja młodsza niż próg retencji (60 mies.) — nie kwalifikuje się do liczenia.
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2025_12", today.minusMonths(10))));
+            when(partitionScanner.countRowsByTenant("email_message_2025_12"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 50)));
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(0L), any(), any());
+        }
+
+        @Test
+        @DisplayName("CR-BACKEND.md BE128-01 / BE-135: wyłącznie wiadomości e-mail, deleteMessagesEnabled=false (jawnie wyłączona w teście) "
+                + "-> dashboard pokazuje sumę, ale auto-purge NIE jest wywołany")
+        void emailAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 2)));
+            // Od 2026-10-07 domyślny efektywny default (application.yml) to true -- test tej ścieżki
+            // musi jawnie wyłączyć flagę, nie może już zależeć cicho od Java default dla boolean.
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", false);
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(2L), any(), any());
+            verify(retentionPurgeService, never()).purge(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("BE-133 (regresja naprawiona w BE-135): wyłącznie social_message, deleteMessagesEnabled=false -> auto-purge NIE jest wywołany")
+        void socialAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("social_message"))
+                    .thenReturn(List.of(partitionEndingAt("social_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("social_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 5)));
+            // Jawne wyłączenie -- patrz komentarz w emailAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled.
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", false);
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(5L), any(), any());
+            verify(retentionPurgeService, never()).purge(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("deleteMessagesEnabled=false: kontakty kwalifikują się + e-mail -> auto-purge WYWOŁANY, ale wartość decyzji to TYLKO kontakty (suma minus wiadomości)")
+        void contactsWithMessages_triggerDecisionUsesContactsOnly_whenDeleteMessagesDisabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("contact"))
+                    .thenReturn(List.of(partitionEndingAt("contact_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("contact_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 5)));
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 3)));
+            // Jawne wyłączenie -- patrz komentarz w emailAlone_doNotTriggerAutoPurge_whenDeleteMessagesDisabled.
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", false);
+
+            service.runForAllActiveTenants();
+
+            // Dashboard: pełna suma 8.
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(8L), any(), any());
+            // Decyzja: 8 - 3 = 5 > 0 -> purge wywołany raz (z powodu kontaktów).
+            verify(retentionPurgeService).purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    PurgeTriggerType.AUTO, null);
+        }
+
+        @Test
+        @DisplayName("deleteMessagesEnabled=true: wyłącznie wiadomości e-mail -> auto-purge WYWOŁANY (suma decyduje)")
+        void emailAlone_triggerAutoPurge_whenDeleteMessagesEnabled() {
+            when(retentionPolicyService.listPolicies(TENANT_A)).thenReturn(List.of(
+                    policy(RetentionDataCategory.CONTACT_INTERACTIONS, 60, true)));
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 2)));
+            ReflectionTestUtils.setField(service, "deleteMessagesEnabled", true);
+
+            service.runForAllActiveTenants();
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(2L), any(), any());
+            verify(retentionPurgeService).purge(TENANT_A, RetentionDataCategory.CONTACT_INTERACTIONS,
+                    PurgeTriggerType.AUTO, null);
+        }
+
+        @Test
+        @DisplayName("runForTenant (REST) dolicza wiersze e-mail identycznie jak ścieżka schedulera (bez auto-purge)")
+        void runForTenant_alsoAddsEmailPartitionRows() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(partitionScanner.listPartitions("email_message"))
+                    .thenReturn(List.of(partitionEndingAt("email_message_2020_06", today.minusMonths(65))));
+            when(partitionScanner.countRowsByTenant("email_message_2020_06"))
+                    .thenReturn(List.of(new PartitionScanner.TenantRowCount(TENANT_A, 9)));
+            when(retentionPurgeService.getPendingSummary(TENANT_A)).thenReturn(List.of());
+
+            TenantContext.setTenantId(TENANT_A);
+            try {
+                service.runForTenant(TENANT_A);
+            } finally {
+                TenantContext.clear();
+            }
+
+            verify(summaryRepository).upsert(eq(TENANT_A), eq(RetentionDataCategory.CONTACT_INTERACTIONS),
+                    eq(9L), any(), any());
+            verify(retentionPurgeService, never()).purge(any(), any(), any(), any());
         }
     }
 

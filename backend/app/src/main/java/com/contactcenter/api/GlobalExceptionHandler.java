@@ -1,11 +1,13 @@
 package com.contactcenter.api;
 
+import com.contactcenter.domain.email.EmailAttachmentAccessDeniedException;
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
+import com.contactcenter.domain.exception.WhatsAppApiException;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
@@ -111,6 +113,30 @@ public class GlobalExceptionHandler {
 
         // WARNING z detalami – do analizy security (nie ujawniamy w odpowiedzi HTTP)
         log.warn("[API][CrossTenant][Security] Odmowa dostępu cross-tenant: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    /**
+     * Klucz S3 załącznika e-mail spoza allow-listy tenanta – HTTP 403 Forbidden (BE-143).
+     *
+     * <p>Analogicznie do {@link CrossTenantAccessException} (BE-002): próba wysłania wiadomości
+     * z załącznikiem wskazującym na obiekt S3 innego tenanta, na obiekt spoza schematu załączników
+     * e-mail (nagranie, EML), albo próba wyjścia z prefiksu przez segment {@code .}/{@code ..}.
+     * Celowo 403, nie 400 — to przekroczenie granicy tenanta, nie błąd formatu danych.
+     */
+    @ExceptionHandler(EmailAttachmentAccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailAttachmentAccessDeniedException(
+            EmailAttachmentAccessDeniedException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setType(URI.create(ERROR_BASE_URI + "email-attachment-access-denied"));
+        problem.setTitle("Brak dostępu do załącznika");
+        // Celowo ogólny komunikat – nie ujawniamy szczegółów allow-listy klientowi
+        problem.setDetail("Załącznik wskazuje na obiekt S3 spoza dozwolonego zakresu tenanta");
+        problem.setProperty("timestamp", Instant.now());
+
+        // WARNING z detalami – do analizy security (surowy s3Key już zsanityzowany przez wołającego)
+        log.warn("[API][EmailAttachment][Security] Odmowa dostępu do załącznika: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
@@ -579,6 +605,26 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         log.warn("[API][Twilio] Błąd Twilio API: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
+    }
+
+    /**
+     * Błąd zewnętrznego API WhatsApp Business (Meta Graph API) – HTTP 502 Bad Gateway.
+     *
+     * <p>Rzucany przez {@code WhatsAppAdapter} gdy wysyłka wiadomości przez Cloud API
+     * zakończy się niepowodzeniem (błąd HTTP, timeout, błąd sieciowy).
+     */
+    @ExceptionHandler(WhatsAppApiException.class)
+    public ResponseEntity<ProblemDetail> handleWhatsAppApiException(
+            WhatsAppApiException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
+        problem.setType(URI.create(ERROR_BASE_URI + "whatsapp-api-error"));
+        problem.setTitle("Błąd zewnętrznego API WhatsApp");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][WhatsApp] Błąd WhatsApp Cloud API: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 

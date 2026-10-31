@@ -190,7 +190,7 @@
                   <button
                     class="btn btn-icon-danger"
                     type="button"
-                    (click)="openDeleteModal(customer)"
+                    (click)="openAnonymizeModal(customer)"
                     [attr.aria-label]="
                       ('supervisor.customers.deleteLabel' | transloco) + ' ' + getCustomerName(customer)
                     "
@@ -276,12 +276,13 @@
   }
 </div>
 
-<!-- Delete / GDPR modal -->
-@if (showDeleteModal() && selectedCustomer()) {
-  <app-customer-delete-modal
+<!-- GDPR anonymize modal (unified with customer detail, FE-112) -->
+@if (showAnonymizeModal() && selectedCustomer()) {
+  <app-gdpr-anonymize-modal
+    [customerId]="selectedCustomer()!.customerId"
     [customerName]="getCustomerName(selectedCustomer()!)"
-    (confirmed)="onDeleteConfirmed()"
-    (cancelled)="closeDeleteModal()"
+    (confirmed)="onGdprAnonymizeConfirmed()"
+    (cancelled)="closeAnonymizeModal()"
   />
 }
 

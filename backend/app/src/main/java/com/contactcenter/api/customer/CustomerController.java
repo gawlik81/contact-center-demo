@@ -5,6 +5,7 @@ import com.contactcenter.api.customer.dto.CustomerLookupResponse;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.gdpr.GdprService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -51,6 +52,7 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final GdprService gdprService;
 
     // =========================================================================
     // Tworzenie klienta
@@ -257,22 +259,25 @@ public class CustomerController {
     @Operation(
         summary = "Anonimizuj klienta (RODO)",
         description = "Anonimizuje dane osobowe klienta zgodnie z RODO Art. 17 (prawo do bycia zapomnianym). " +
-                      "NIE usuwa rekordu – zachowuje historię kontaktów. " +
-                      "Zastępuje: first_name='ANONYMIZED', last_name='ANONYMIZED', phone=[], email=[], is_deleted=true. " +
+                      "NIE usuwa rekordu – zachowuje historię kontaktów (zanonimizowaną). " +
+                      "Deleguje do GdprService#anonymizeCustomer (BE-129) — identyczny efekt w bazie co " +
+                      "POST /api/customers/{id}/gdpr/anonymize: wywołuje funkcję SQL anonymize_customer " +
+                      "(DB-062, pełny zakres wg macierzy DB-060 — kontakty, callbacki, rekordy kampanii, " +
+                      "wiadomości, transkrypcje) i sprząta best-effort powiązane obiekty S3. " +
                       "Operacja jest nieodwracalna.",
         responses = {
             @ApiResponse(responseCode = "204", description = "Klient zanonimizowany"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
-            @ApiResponse(responseCode = "404", description = "Klient nie istnieje lub już zanonimizowany")
+            @ApiResponse(responseCode = "404", description = "Klient nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Klient ma powiązany rekord w trakcie realizacji połączenia (DIALING/PROCESSING)")
         }
     )
     public ResponseEntity<Void> anonymizeCustomer(
             @Parameter(description = "UUID klienta do anonimizacji", required = true)
             @PathVariable UUID id
     ) {
-        UUID tenantId = TenantContext.getTenantId();
-        customerService.anonymizeCustomer(id, tenantId);
+        gdprService.anonymizeCustomer(id);
         return ResponseEntity.noContent().build();
     }
 }

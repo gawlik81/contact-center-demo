@@ -10,6 +10,24 @@
   <section class="pp-section">
     <h2 class="pp-section__title">{{ 'supervisor.settings.plugins.uploadTitle' | transloco }}</h2>
 
+    <div class="pp-overwrite">
+      <label class="pp-checkbox pp-overwrite__label">
+        <input
+          id="pp-overwrite-toggle"
+          type="checkbox"
+          class="pp-overwrite__input"
+          [checked]="overwriteEnabled()"
+          [disabled]="uploading()"
+          aria-describedby="pp-overwrite-hint"
+          (change)="onOverwriteToggle($event)"
+        />
+        <span>{{ 'supervisor.settings.plugins.overwriteLabel' | transloco }}</span>
+      </label>
+      <p id="pp-overwrite-hint" class="pp-muted pp-overwrite__hint">
+        {{ 'supervisor.settings.plugins.overwriteHint' | transloco }}
+      </p>
+    </div>
+
     <input #fileInput type="file" accept=".jar" class="pp-file-input-hidden" (change)="onFileSelected($event)" />
 
     <div
@@ -42,6 +60,15 @@
     @if (uploadClientError()) {
       <div class="pp-alert pp-alert--error">
         {{ uploadClientError() }}
+      </div>
+    }
+
+    @if (uploadConflict()) {
+      <div class="pp-alert pp-alert--error" role="alert">
+        <div class="pp-alert__body">
+          <p class="pp-alert__title">{{ 'supervisor.settings.plugins.errorConflict' | transloco }}</p>
+          <p>{{ 'supervisor.settings.plugins.errorConflictHint' | transloco }}</p>
+        </div>
       </div>
     }
 

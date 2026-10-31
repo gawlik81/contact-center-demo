@@ -37,6 +37,10 @@ export class BreadcrumbService {
     const pathSegments = route.url.map((seg) => seg.path).filter(Boolean);
     const currentUrl = pathSegments.length ? `${url}/${pathSegments.join('/')}` : url;
 
+    // The flag hides breadcrumbs for the whole subtree: it is checked while descending, so any
+    // crumbs collected from ancestors are discarded too.
+    if (route.data?.['hideBreadcrumbs']) return [];
+
     const label: string | undefined = route.data?.['breadcrumb'];
     if (label) {
       breadcrumbs.push({ label, url: currentUrl });

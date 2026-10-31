@@ -26,6 +26,8 @@ import { ManualCallbackService } from '../../../services/manual-callback.service
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
 import { ManualCallbackResponse } from '../../../models/manual-callback.model';
+import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { rememberFocus } from '../../../../../shared/utils/focus.util';
 
 /** Custom validator: E.164 phone number format */
 function e164Validator(control: AbstractControl): ValidationErrors | null {
@@ -37,12 +39,9 @@ function e164Validator(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-manual-callback-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, ConfirmDialogComponent],
   templateUrl: './manual-callback-modal.component.html',
   styleUrl: './manual-callback-modal.component.scss',
-  host: {
-    '(document:keydown.escape)': 'onEscapeKey($event)',
-  },
 })
 export class ManualCallbackModalComponent implements AfterViewInit {
   readonly customer = input.required<CustomerSummary>();
@@ -57,10 +56,14 @@ export class ManualCallbackModalComponent implements AfterViewInit {
   private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
 
   readonly loading = signal(false);
   readonly visible = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  /** True while the "discard unsaved changes?" confirmation is shown. */
+  readonly discardConfirmOpen = signal(false);
 
   /** True when the customer has at least one phone number — show select, else show text input */
   readonly hasPhones = computed(() => this.customer().phone.length > 0);
@@ -120,7 +123,10 @@ export class ManualCallbackModalComponent implements AfterViewInit {
 
   readonly customerDisplayName = computed(() => {
     const c = this.customer();
-    return [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Klient';
+    return (
+      [c.firstName, c.lastName].filter(Boolean).join(' ') ||
+      this.translocoService.translate('agent.manualCallbackModal.customerFallback')
+    );
   });
 
   // ── Field error getters (consistent with tenant-add-modal pattern) ───────────
@@ -202,27 +208,48 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     this.visible.set(false);
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && dialog.open) dialog.close();
-  }
-
-  onEscapeKey(event: Event): void {
-    if (this.visible()) {
-      event.preventDefault();
-      this.close();
-      this.cancelled.emit();
-    }
+    this.restoreFocus();
   }
 
   onBackdropClick(event: MouseEvent): void {
     const dialog = this.dialogRef()?.nativeElement;
-    if (event.target === dialog) {
-      this.close();
-      this.cancelled.emit();
-    }
+    if (event.target === dialog) this.requestClose();
+  }
+
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    this.requestClose();
   }
 
   protected cancel(): void {
+    this.requestClose();
+  }
+
+  /**
+   * Minimal draft protection (FE-120): closing with edits asks for confirmation, a pristine form
+   * closes at once. The per-contact draft store (FE-121) will replace this prompt.
+   */
+  private requestClose(): void {
+    if (this.loading()) return;
+    if (this.form.dirty) {
+      this.discardConfirmOpen.set(true);
+      return;
+    }
+    this.discard();
+  }
+
+  protected discard(): void {
+    this.discardConfirmOpen.set(false);
     this.close();
     this.cancelled.emit();
+  }
+
+  protected keepEditing(): void {
+    this.discardConfirmOpen.set(false);
   }
 
   protected submit(): void {
@@ -277,8 +304,14 @@ export class ManualCallbackModalComponent implements AfterViewInit {
       )
       .subscribe((response) => {
         this.loading.set(false);
-        const formattedDate = new Date(response.scheduledAt).toLocaleString('pl-PL');
-        this.notifications.success(`Oddzwonienie zaplanowane na ${formattedDate}`);
+        const formattedDate = new Date(response.scheduledAt).toLocaleString(
+          this.translocoService.getActiveLang(),
+        );
+        this.notifications.success(
+          this.translocoService.translate('agent.manualCallbackModal.successScheduled', {
+            date: formattedDate,
+          }),
+        );
         this.close();
         this.scheduled.emit(response);
       });

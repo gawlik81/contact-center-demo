@@ -1,0 +1,20 @@
+---
+name: project_social_module_technical_debt
+description: Known recurring gaps in backend/.../domain/social (social media integrations: Facebook/Instagram/WhatsApp) — check these on every future review touching this module
+metadata:
+  type: project
+---
+
+The `domain.social` / `infrastructure.social` / `api.social` module (Facebook, Instagram, WhatsApp integrations) has a history of the same defect classes being fixed in one spot and reintroduced elsewhere. As of 2026-08-29:
+
+- **Zero test coverage for the whole module.** No `SocialOAuthControllerTest`, `SocialIntegrationServiceImplTest`, `WhatsAppAdapterTest`, `FacebookAdapterTest`, etc. exist at all (checked via `find`). This was true before the WhatsApp manual-connect feature (2026-08-29 review) and remains true after it. Flag this on every review of this module until someone adds a baseline suite.
+
+- **Blocking synchronous HTTP-in-`@Transactional` anti-pattern keeps reappearing.** The 2026-04-16 review (`BE-017` in CR-BACKEND.md) flagged this as CRITICAL for `SocialIntegrationServiceImpl.revokeTokenAtProvider()` (called from `@Transactional deleteIntegration()`), and it was fixed by splitting `deleteIntegration()` into 3 stages (read → DB delete → revoke, with revoke explicitly outside the transaction). The 2026-08-29 review found the *identical* anti-pattern reintroduced via a new path: `WhatsAppAdapter.sendMessage()` now makes a real blocking `HttpClient.send()` call to Meta Graph API, invoked synchronously from `SocialMessageServiceImpl.sendMessage()` which is still `@Transactional` and was never touched by either PR. Root cause: `WhatsAppAdapter` used to be a no-op stub, so the always-`@Transactional` caller was harmless until this PR gave it real blocking I/O. **When reviewing any new adapter or new call path in this module, explicitly check whether it's invoked from inside a `@Transactional` method that predates it** — the transactional boundary won't show up in the diff since it's unchanged code.
+
+- **`HttpClient.newHttpClient()` used without `connectTimeout`/`.timeout(...)` in multiple places** (`SocialIntegrationServiceImpl`, and now also `WhatsAppAdapter`) — flagged in 2026-04-16 review, never fixed, now duplicated into new code. Worth proposing a single shared `@Bean HttpClient` with sane timeouts injected everywhere instead of each class instantiating its own.
+
+- **Multi-tenancy gap: `social_integration` has NO global-uniqueness guarantee on `(platform, page_id)` across tenants** — the only DB constraint is `uq_social_integration_tenant_platform_page` UNIQUE(tenant_id, platform, page_id), i.e. scoped *per tenant*. For OAuth-based platforms (Facebook/Instagram) this was a latent-but-unexploitable gap because `page_id` is derived server-side from the OAuth token response (provider verifies ownership). The WhatsApp manual-connect feature (2026-08-29) is the first path where a tenant admin can freely type an arbitrary `phoneNumberId`/`page_id` with no ownership check — meaning two tenants can now collide on the same `page_id`, and the cross-tenant webhook lookup `SocialIntegrationRepository.findByPlatformAndPageId()` (`.setMaxResults(1)`, no `ORDER BY`) would then non-deterministically route a customer's inbound message to the wrong tenant. Not yet fixed as of 2026-08-29 review. If a future PR adds a fix (app-level conflict check and/or a new migration adding a global partial unique index), verify it actually closes this, and update this memory.
+
+- Note: `SocialIntegrationRepository.java` has a javadoc comment (near `findByPlatformAndPageId`) claiming a constraint named `uq_social_integration_platform_page` enforces global uniqueness — that constraint name doesn't exist in any migration; the real one is `uq_social_integration_tenant_platform_page` and is tenant-scoped. This stale/incorrect comment is likely *why* nobody added the missing cross-tenant check — worth double-checking whether this comment has been corrected in later reviews.
+
+See also [[reference_review_logs]].

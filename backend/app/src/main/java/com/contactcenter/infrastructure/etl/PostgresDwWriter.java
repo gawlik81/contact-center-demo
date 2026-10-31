@@ -40,11 +40,11 @@ public class PostgresDwWriter implements DataWarehouseWriter {
             INSERT INTO contacts_dw (
                 contact_id, tenant_id, agent_id, queue_id, campaign_id,
                 channel, direction, status, disposition_code,
-                duration_sec, started_at, ended_at, queued_at, remote_address, etl_synced_at
+                duration_sec, started_at, ended_at, queued_at, etl_synced_at
             ) VALUES (
                 ?::uuid, ?::uuid, ?::uuid, ?::uuid, ?::uuid,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, NOW()
+                ?, ?, ?, ?, NOW()
             )
             ON CONFLICT (contact_id) DO UPDATE SET
                 tenant_id        = EXCLUDED.tenant_id,
@@ -59,7 +59,6 @@ public class PostgresDwWriter implements DataWarehouseWriter {
                 started_at       = EXCLUDED.started_at,
                 ended_at         = EXCLUDED.ended_at,
                 queued_at        = EXCLUDED.queued_at,
-                remote_address   = EXCLUDED.remote_address,
                 etl_synced_at    = NOW()
             """;
 
@@ -99,7 +98,6 @@ public class PostgresDwWriter implements DataWarehouseWriter {
                 ps.setTimestamp(11, row.startedAt() != null ? Timestamp.from(row.startedAt()) : null);
                 ps.setTimestamp(12, row.endedAt() != null ? Timestamp.from(row.endedAt()) : null);
                 ps.setTimestamp(13, row.queuedAt() != null ? Timestamp.from(row.queuedAt()) : null);
-                ps.setString(14, row.remoteAddress());
             });
 
             log.debug("[PostgresDwWriter] Upsert zakończony sukcesem: {} wierszy", rows.size());

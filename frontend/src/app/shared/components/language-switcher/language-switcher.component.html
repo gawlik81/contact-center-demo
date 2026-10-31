@@ -4,7 +4,7 @@
     type="button"
     [attr.aria-expanded]="isOpen()"
     aria-haspopup="listbox"
-    aria-label="Wybierz język"
+    [attr.aria-label]="'language.select' | transloco"
     (click)="toggleDropdown($event)"
   >
     <span class="lang-switcher__flag" aria-hidden="true">{{ flags[currentLang()] }}</span>
@@ -26,7 +26,7 @@
   </button>
 
   @if (isOpen()) {
-    <ul class="lang-switcher__list" role="listbox" aria-label="Dostępne języki">
+    <ul class="lang-switcher__list" role="listbox" [attr.aria-label]="'language.available' | transloco">
       @for (lang of languages; track lang) {
         <li
           class="lang-switcher__option"

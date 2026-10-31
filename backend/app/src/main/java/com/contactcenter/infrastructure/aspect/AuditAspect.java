@@ -34,7 +34,17 @@ import java.util.UUID;
  * </ol>
  *
  * <p><strong>Wykluczanie pól wrażliwych:</strong> Pola {@code password}, {@code passwordHash},
- * {@code mfaSecret}, {@code token}, {@code refreshToken} są usuwane z serializacji JSON.
+ * {@code mfaSecret}, {@code token}, {@code refreshToken} są usuwane z serializacji JSON
+ * (całkowicie, klucz znika – {@link #SENSITIVE_FIELDS}, zawsze, niezależnie od typu encji).
+ *
+ * <p><strong>Maskowanie PII (BE-142):</strong> dla encji CUSTOMER i CONTACT wartości kluczy
+ * z {@link AuditPiiKeys#KEYS} (firstName, phone, remoteAddress, notes, ...) są zastępowane
+ * placeholderem {@code "[MASKED]"} – klucz ZOSTAJE widoczny (widać, że pole istniało / się
+ * zmieniło), tylko treść znika. Innym mechanizmem niż {@link #SENSITIVE_FIELDS}: maskowanie
+ * jest warunkowe (tylko CUSTOMER/CONTACT) i płytkie (zastępuje wartość, nie usuwa klucza) –
+ * scalanie z {@code SENSITIVE_FIELDS} zaciemniłoby te dwie różne semantyki, więc mechanizmy
+ * żyją obok siebie. Lista kluczy MUSI być identyczna z funkcją SQL {@code fn_mask_pii_jsonb_value}
+ * (V098) – patrz {@link AuditPiiKeys} i test {@code AuditPiiKeysSqlConsistencyTest}.
  *
  * <p><strong>Bezpieczeństwo błędów:</strong> Błędy w logice audytu (serializacja, publikacja)
  * nie przerywają operacji biznesowej – są logowane i pomijane.
@@ -110,7 +120,7 @@ public class AuditAspect {
 
         // 4. Zbuduj i opublikuj zdarzenie audytowe (błędy nie przerywają flow)
         try {
-            String newValue  = serializeToJson(result);
+            String newValue  = serializeToJson(result, audited.entityType());
             UUID   entityId  = extractEntityId(pjp, audited, result);
 
             AuditLogEvent event = new AuditLogEvent(
@@ -185,14 +195,14 @@ public class AuditAspect {
                 Object target = pjp.getTarget();
                 Method getter = target.getClass().getMethod(fetchMethod, UUID.class);
                 Object oldEntity = getter.invoke(target, entityId);
-                return serializeToJson(oldEntity);
+                return serializeToJson(oldEntity, audited.entityType());
             }
 
             // Szybka ścieżka: em.find() trafia w L1 cache jeśli encja jest już załadowana
             // w bieżącej transakcji serwisu (np. przez findById wykonany przez serwis).
             // Gdy nie ma w cache – wykona jeden SELECT bez overhead proxy.
             Object oldEntity = em.find(entityClass, entityId);
-            return serializeToJson(oldEntity);
+            return serializeToJson(oldEntity, audited.entityType());
 
         } catch (Exception e) {
             log.warn("[AuditAspect] Nie udało się pobrać old_value: {}", e.getMessage());
@@ -201,19 +211,22 @@ public class AuditAspect {
     }
 
     /**
-     * Serializuje obiekt do JSON string, usuwając pola wrażliwe.
+     * Serializuje obiekt do JSON string, usuwając pola wrażliwe i maskując PII.
      *
-     * @param obj obiekt do serializacji (może być null)
+     * @param obj        obiekt do serializacji (może być null)
+     * @param entityType {@link Audited#entityType()} bieżącej operacji – decyduje, czy maskowanie
+     *                   PII ({@link #maskPiiFields}) jest w ogóle stosowane (wyłącznie CUSTOMER/CONTACT)
      * @return JSON string lub null gdy obj jest null
      */
-    private String serializeToJson(Object obj) {
+    private String serializeToJson(Object obj, String entityType) {
         if (obj == null) {
             return null;
         }
         try {
-            // Konwertuj przez ObjectNode żeby móc usunąć wrażliwe pola
+            // Konwertuj przez ObjectNode żeby móc usunąć wrażliwe pola / zamaskować PII
             ObjectNode node = objectMapper.convertValue(obj, ObjectNode.class);
             SENSITIVE_FIELDS.forEach(node::remove);
+            maskPiiFields(node, entityType);
             return objectMapper.writeValueAsString(node);
         } catch (Exception e) {
             log.warn("[AuditAspect] Nie udało się serializować obiektu {} do JSON: {}",
@@ -224,13 +237,54 @@ public class AuditAspect {
     }
 
     /**
+     * Maskuje wartości kluczy PII (BE-142, {@link AuditPiiKeys}) na placeholder {@code "[MASKED]"},
+     * zachowując sam klucz w JSON (widać, że pole istniało / się zmieniło, bez ujawniania treści).
+     *
+     * <p>Stosowane WYŁĄCZNIE dla {@code entityType} z {@link AuditPiiKeys#MASKED_ENTITY_TYPES}
+     * (CUSTOMER, CONTACT) – inne audytowane encje (TENANT, USER, QUEUE, EMAIL_TEMPLATE, RECORDING)
+     * nie niosą tych samych pól PII. W szczególności {@code RECORDING_URL_REQUESTED}
+     * (entityType = CONTACT) NIE jest tu specjalnie wykluczane – jego jedyne pole ryzykowne,
+     * {@code presignedUrl}, po prostu nie występuje na liście {@link AuditPiiKeys#KEYS}
+     * (świadoma decyzja BE-142: TTL 15 min, ryzyko PII niskie – patrz notatka wykonania w
+     * {@code TASKS-BACKEND.md}), więc zostaje nietknięte samą nieobecnością na liście.
+     *
+     * <p>Maskowanie jest PŁYTKIE (tylko klucze najwyższego poziomu obiektu) – identycznie jak
+     * funkcja SQL {@code fn_mask_pii_jsonb_value} (V098). {@code channelMetadata} jest maskowany
+     * w całości jako pojedyncza wartość, co przy okazji pokrywa zagnieżdżone {@code fromAddress}/
+     * {@code subject} (dziś występują wyłącznie zagnieżdżone wewnątrz {@code channelMetadata} w
+     * danych CONTACT – patrz komentarz nagłówka V098) – to efekt uboczny maskowania rodzica,
+     * nie rekurencja.
+     *
+     * @param node       węzeł JSON do zmodyfikowania w miejscu
+     * @param entityType wartość {@link Audited#entityType()} bieżącej operacji
+     */
+    private void maskPiiFields(ObjectNode node, String entityType) {
+        // Set.of(...).contains(null) rzuca NPE (immutable Set nie akceptuje null jako argumentu
+        // zapytania) – entityType() nigdy nie jest null w praktyce (wymagany element adnotacji),
+        // ale jawny guard jest tani i chroni przed tym zaskakującym zachowaniem w testach/refaktorach.
+        if (entityType == null || !AuditPiiKeys.MASKED_ENTITY_TYPES.contains(entityType)) {
+            return;
+        }
+        for (String key : AuditPiiKeys.KEYS) {
+            if (node.has(key)) {
+                node.put(key, AuditPiiKeys.MASK_PLACEHOLDER);
+            }
+        }
+    }
+
+    /**
      * Wyodrębnia UUID encji z parametrów wywołania lub wyniku metody.
      *
      * <p>Kolejność prób:
      * <ol>
      *   <li>Parametr pod indeksem {@link Audited#entityIdParamIndex()} (gdy >= 0)</li>
-     *   <li>Pierwszy parametr typu UUID</li>
-     *   <li>Pole {@code id} na obiekcie wynikowym przez refleksję</li>
+     *   <li>Akcesor {@link Audited#entityIdResultAccessor()} na wyniku metody (gdy ustawiony) –
+     *       gdy skonfigurowany, PRZESŁANIA Próbę "skan parametrów" poniżej (zamiast tylko
+     *       mieć od niej niższy priorytet) – zob. {@link Audited#entityIdResultAccessor()}
+     *       i BE-146: bez tego jawna deklaracja "ID jest w wyniku" mogłaby zostać przesłonięta
+     *       przez przypadkowy UUID w parametrach (typowo {@code tenantId} dla operacji CREATE).</li>
+     *   <li>Pierwszy parametr typu UUID (tylko gdy {@code entityIdResultAccessor} NIE ustawiony)</li>
+     *   <li>Pole {@code id} / {@code getId()} na obiekcie wynikowym przez refleksję</li>
      * </ol>
      *
      * @param pjp     punkt złączenia z argumentami wywołania
@@ -241,41 +295,100 @@ public class AuditAspect {
     private UUID extractEntityId(ProceedingJoinPoint pjp, Audited audited, Object result) {
         Object[] args = pjp.getArgs();
 
-        // Próba 1: jawnie wskazany indeks parametru
+        // Próba 1: jawnie wskazany indeks parametru – najwyższy priorytet, autor adnotacji
+        // jawnie zadeklarował, które parametr niesie entity_id.
         int idx = audited.entityIdParamIndex();
         if (idx >= 0 && idx < args.length && args[idx] instanceof UUID uuid) {
             return uuid;
         }
 
-        // Próba 2: pierwszy parametr UUID
+        // Próba 2: jawnie wskazany akcesor na wyniku metody (BE-146). Konfiguracja jawna –
+        // ma priorytet nad heurystyką skanu parametrów (Próba 3), żeby heurystyka nie mogła
+        // błędnie przechwycić np. tenantId jako entity_id dla operacji CREATE, gdzie
+        // prawdziwe ID encji jest dostępne wyłącznie w wyniku.
+        String accessorName = audited.entityIdResultAccessor();
+        if (!accessorName.isBlank()) {
+            UUID fromAccessor = invokeUuidAccessor(result, accessorName);
+            if (fromAccessor != null) {
+                return fromAccessor;
+            }
+            log.warn("[AuditAspect] entityIdResultAccessor='{}' skonfigurowany dla action={}, " +
+                            "entityType={}, ale nie udało się pobrać z niego UUID (wynik null, " +
+                            "metoda nie istnieje lub nie zwraca UUID) – pomijam skan parametrów " +
+                            "(świadomie, zob. Audited#entityIdResultAccessor) i próbuję " +
+                            "id()/getId() na wyniku jako ostatni fallback",
+                    accessorName, audited.action(), audited.entityType());
+            // Świadomie NIE wracamy do skanu parametrów (Próba 3) – autor adnotacji jawnie
+            // zadeklarował, że ID jest w wyniku; fallback to wyłącznie Próba 4 (id()/getId()).
+            return extractIdFromResult(result);
+        }
+
+        // Próba 3: pierwszy parametr UUID (heurystyka – tylko gdy brak jawnej konfiguracji wyżej)
         UUID fromParam = findFirstUuidParam(args, -1);
         if (fromParam != null) {
             return fromParam;
         }
 
-        // Próba 3: pole "id" na wyniku metody
-        if (result != null) {
-            try {
-                Method idGetter = result.getClass().getMethod("id");
-                Object idValue = idGetter.invoke(result);
-                if (idValue instanceof UUID uuid) {
-                    return uuid;
-                }
-            } catch (NoSuchMethodException ignored) {
-                // Próbuj przez pole "getId"
-            } catch (Exception e) {
-                log.trace("[AuditAspect] Nie udało się pobrać id() z wyniku: {}", e.getMessage());
-            }
+        // Próba 4: pole "id" / "getId()" na wyniku metody
+        return extractIdFromResult(result);
+    }
 
-            try {
-                Method idGetter = result.getClass().getMethod("getId");
-                Object idValue = idGetter.invoke(result);
-                if (idValue instanceof UUID uuid) {
-                    return uuid;
-                }
-            } catch (Exception e) {
-                log.trace("[AuditAspect] Nie udało się pobrać getId() z wyniku: {}", e.getMessage());
+    /**
+     * Wywołuje bezargumentowy akcesor o podanej nazwie na wyniku metody i zwraca jego wynik
+     * jako UUID.
+     *
+     * @param result       wynik wywołania metody (może być null)
+     * @param accessorName nazwa metody-akcesora (np. {@code "customerId"})
+     * @return UUID zwrócony przez akcesor lub null, gdy wynik jest null, metoda nie istnieje,
+     *         rzuca wyjątek, lub zwraca wartość inną niż UUID
+     */
+    private UUID invokeUuidAccessor(Object result, String accessorName) {
+        if (result == null) {
+            return null;
+        }
+        try {
+            Method accessor = result.getClass().getMethod(accessorName);
+            Object value = accessor.invoke(result);
+            return value instanceof UUID uuid ? uuid : null;
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się wywołać akcesora '{}' na wyniku {}: {}",
+                    accessorName, result.getClass().getSimpleName(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Pobiera UUID encji przez konwencjonalne {@code id()} (rekordy) lub {@code getId()}
+     * (klasy JavaBean) na wyniku metody.
+     *
+     * @param result wynik wywołania metody (może być null)
+     * @return UUID lub null, gdy wynik jest null albo żadna z metod nie istnieje / nie zwraca UUID
+     */
+    private UUID extractIdFromResult(Object result) {
+        if (result == null) {
+            return null;
+        }
+
+        try {
+            Method idGetter = result.getClass().getMethod("id");
+            Object idValue = idGetter.invoke(result);
+            if (idValue instanceof UUID uuid) {
+                return uuid;
             }
+        } catch (NoSuchMethodException ignored) {
+            // Próbuj przez pole "getId"
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się pobrać id() z wyniku: {}", e.getMessage());
+        }
+
+        try {
+            Method idGetter = result.getClass().getMethod("getId");
+            Object idValue = idGetter.invoke(result);
+            if (idValue instanceof UUID uuid) {
+                return uuid;
+            }
+        } catch (Exception e) {
+            log.trace("[AuditAspect] Nie udało się pobrać getId() z wyniku: {}", e.getMessage());
         }
 
         return null;

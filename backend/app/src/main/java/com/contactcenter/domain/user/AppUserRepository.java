@@ -71,6 +71,29 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     void enableMfa(@Param("userId") UUID userId);
 
     /**
+     * Zapisz moment zakończonego logowania użytkownika tenant-scoped (BE-158: baza dla {@code workTimeSeconds}).
+     * Wołane wyłącznie po pełnym uwierzytelnieniu (hasło + ewentualne MFA), nigdy przy refresh.
+     *
+     * <p>{@code flushAutomatically = true} jest KRYTYCZNE: wywołanie następuje w tej samej transakcji
+     * co {@code INSERT} refresh tokenu (odroczony do flush, bo {@code @GeneratedValue}), a
+     * {@code clearAutomatically} wyczyściłby persistence context i po cichu zgubił niezflushowany token.
+     * Warunek {@code tenantId} nie pozwala zapisać wiersza obcego tenanta.
+     *
+     * @return liczba zaktualizowanych wierszy
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE AppUser u SET u.lastLoginAt = :at WHERE u.id = :userId AND u.tenantId = :tenantId")
+    int updateLastLoginAt(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId,
+                          @Param("at") java.time.Instant at);
+
+    /**
+     * Jak {@link #updateLastLoginAt}, ale dla globalnego SUPER_ADMIN ({@code tenant_id IS NULL}).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE AppUser u SET u.lastLoginAt = :at WHERE u.id = :userId AND u.tenantId IS NULL")
+    int updateLastLoginAtGlobal(@Param("userId") UUID userId, @Param("at") java.time.Instant at);
+
+    /**
      * Zmień hasło i wyczyść flagę wymaganej zmiany hasła.
      *
      * <p>Używane przez endpoint /auth/change-password. Operacja atomowa – hash
@@ -197,6 +220,14 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * @return Optional z użytkownikiem lub empty jeśli nie istnieje/inny tenant
      */
     Optional<AppUser> findByIdAndTenantIdAndDeletedFalse(UUID userId, UUID tenantId);
+
+    /**
+     * Projekcja samego {@code last_login_at} (BE-158, KPI odpytywane cyklicznie – bez ładowania encji).
+     * Empty gdy użytkownik nie istnieje / inny tenant / usunięty / nigdy się nie zalogował.
+     */
+    @Query("SELECT u.lastLoginAt FROM AppUser u "
+            + "WHERE u.id = :userId AND u.tenantId = :tenantId AND u.deleted = false")
+    Optional<java.time.Instant> findLastLoginAt(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
 
     /**
      * Pobiera wielu użytkowników po liście UUID w obrębie tenanta.

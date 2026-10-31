@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -208,6 +209,25 @@ public interface ContactService {
      * @throws InvalidOperationException HTTP 409 gdy kontakt należy do innego agenta
      */
     ContactResponse abandonContact(UUID contactId, UUID tenantId, UUID agentId);
+
+    /**
+     * Returns an async contact (EMAIL / CHAT / SOCIAL_*) held by the agent back to the queue (BE-160).
+     *
+     * <p>Unlike {@link #abandonContact} this is NOT terminal: the contact goes back to {@code QUEUED}
+     * with {@code agent_id} cleared, the AGENT stage is closed, a new QUEUE stage is opened and
+     * {@code contact.queued} is published (after commit) so routing can hand it to another agent.
+     *
+     * <p>Idempotent: a contact that is already {@code QUEUED} with no agent is returned as is.
+     *
+     * @param contactId UUID of the contact
+     * @param tenantId  UUID of the tenant
+     * @param agentId   UUID of the calling agent (from TenantContext) - ownership check
+     * @return the contact in {@code QUEUED} state
+     * @throws EntityNotFoundException   HTTP 404 when the contact does not exist
+     * @throws InvalidOperationException HTTP 409 for a non-async channel, a state that is not agent-held,
+     *                                   another agent's contact, or a contact without any resolvable queue
+     */
+    ContactResponse releaseContact(UUID contactId, UUID tenantId, UUID agentId);
 
     /**
      * Pobiera historię kontaktów dla konkretnego klienta.
@@ -683,7 +703,7 @@ public interface ContactService {
      * @param tenantId UUID tenanta
      * @param dayStart początek dnia UTC (włącznie)
      * @param dayEnd   koniec dnia UTC (wyłącznie)
-     * @return tablica Object[] z czterema wartościami liczbowymi
+     * @return tablica Object[] z trzema wartościami liczbowymi (contacts_count, avg_handle_time, sla_percent)
      */
     Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd);
 
@@ -748,6 +768,58 @@ public interface ContactService {
      *         – pusta gdy brak kwalifikujących się wierszy
      */
     List<UUID> purgeContactsOlderThan(UUID tenantId, Instant cutoff, int batchSize);
+
+    // =========================================================================
+    // BE-126: Retencja – usuwanie kontaktów WRAZ z wiadomościami (EPIC-30, flaga
+    // retention.purge.delete-messages=true)
+    // =========================================================================
+
+    /**
+     * Zwraca stronę kandydatów do usunięcia (retencja CONTACT_INTERACTIONS, BE-126 — ścieżka z
+     * flagą {@code retention.purge.delete-messages=true}), uporządkowaną deterministycznie
+     * ({@code ORDER BY started_at, contact_id}) i wspierającą stronicowanie keyset przez
+     * {@code cursor}.
+     *
+     * <p>W odróżnieniu od {@link #purgeContactsOlderThan} NIC nie usuwa — tylko wybiera
+     * kandydatów. Wywołujący ({@code RetentionPurgeServiceImpl}) najpierw usuwa powiązane
+     * wiadomości ({@code EmailMessageService}/{@code SocialMessageService#purgeByContactIds}), a
+     * dopiero potem kontakty spoza zablokowanych, przez {@link #deleteContacts}.
+     *
+     * @param tenantId  UUID tenanta
+     * @param cutoff    granica czasowa – kandydują kontakty z {@code started_at < cutoff}
+     * @param cursor    ostatni kandydat z POPRZEDNIEJ strony ({@code null} dla pierwszej strony) –
+     *                  strona zaczyna się ŚCIŚLE PO nim ({@code (started_at, contact_id) > cursor}),
+     *                  więc kandydaci zwróceni w poprzedniej stronie (w tym zablokowani przez S3)
+     *                  nigdy nie są zwracani ponownie – to jest mechanizm obrony przed
+     *                  head-of-line blocking (H-1, code review BE-125): zablokowane kontakty nie
+     *                  zatrzymują purge kontaktów młodszych
+     * @param batchSize maksymalna liczba kandydatów na stronę
+     * @return strona kandydatów, uporządkowana rosnąco po {@code (started_at, contact_id)} – pusta
+     *         gdy nie ma więcej kandydatów; {@code page.size() < batchSize} sygnalizuje ostatnią
+     *         stronę
+     */
+    List<ContactPurgeCandidate> findContactIdsOlderThan(
+            UUID tenantId, Instant cutoff, ContactPurgeCandidate cursor, int batchSize);
+
+    /**
+     * Usuwa kontakty tenanta o podanych ID (retencja CONTACT_INTERACTIONS, BE-126 — ścieżka z
+     * flagą {@code retention.purge.delete-messages=true}), wywoływane WYŁĄCZNIE dla kandydatów
+     * spoza {@code PurgedMessages#contactIdsBlocked()} (wywołujący filtruje przed wywołaniem tej
+     * metody).
+     *
+     * <p>Identyfikuje wiersze przez {@code contact_id} (bez {@code started_at}) — bezpieczne na
+     * tabeli partycjonowanej, bo {@code contact_id} jest logicznym, globalnie unikalnym kluczem
+     * (UUID), NIE fizycznym {@code ctid} (patrz ostrzeżenie w
+     * {@code ContactRepository#deleteBatchOlderThan}); ten sam wzorzec już istnieje w
+     * {@code ContactRepository#assignAgent}.
+     *
+     * @param tenantId UUID tenanta
+     * @param ids      kontakty do usunięcia — pusta lista = pusty wynik
+     * @return zbiór {@code contact_id} FAKTYCZNIE usuniętych (potwierdzonych przez
+     *         {@code DELETE … RETURNING}) – niezmiennik pętli purge opiera się na tym zbiorze, nie
+     *         na liczbie zleconych (RLS bez polityki DELETE usuwa 0 wierszy bez błędu)
+     */
+    Set<UUID> deleteContacts(UUID tenantId, List<UUID> ids);
 
     /**
      * Usuwa batch transkrypcji tenanta starszych niż {@code cutoff} (retencja EPIC-29, BE-113 –

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,14 @@ class EmailSendServiceImpl implements EmailSendService {
                                    String bodyHtml, String subject, UUID agentId,
                                    List<EmailReplyRequest.PendingAttachment> attachments) {
 
-        // 1. Pobierz oryginalną wiadomość
+        // 0. Allow-lista s3Key PRZED jakąkolwiek interakcją z DB/S3/SMTP (BE-143) — cudzy klucz
+        //    albo próba path traversal odrzuca CAŁE żądanie, nie tylko wadliwy załącznik.
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+        validateAttachmentKeys(tenantId, safeAttachments);
+
+        // 1. Pobierz oryginalną wiadomość (BE-134: lookup po samym id — API nie zna message_at;
+        //    koszt i uzasadnienie: Javadoc EmailMessageRepository#findById(UUID))
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wiadomość email nie istnieje: " + originalMessageId));
@@ -75,9 +83,6 @@ class EmailSendServiceImpl implements EmailSendService {
         String newMessageId = "<" + UUID.randomUUID() + "@" + extractDomain(config.getUsername()) + ">";
 
         // 5. Wyślij przez SMTP
-        List<EmailReplyRequest.PendingAttachment> safeAttachments =
-                attachments != null ? attachments : List.of();
-
         log.info("[EmailSend] Wysyłam odpowiedź: originalId={}, to={}, tenant={}, agent={}, attachments={}",
                 originalMessageId, original.getFromAddress(), tenantId, agentId, safeAttachments.size());
 
@@ -96,7 +101,8 @@ class EmailSendServiceImpl implements EmailSendService {
         // 6. Zbuduj JSON metadanych załączników dla OUTBOUND
         String attachmentsJson = buildAttachmentsJson(safeAttachments);
 
-        // 7. Zapisz jako OUTBOUND w DB
+        // 7. Zapisz jako OUTBOUND w DB. BE-134: messageAt = sentAt — ten sam Instant, ustawiany RAZ.
+        Instant sentAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         EmailMessage reply = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(original.getContactId())
@@ -108,11 +114,12 @@ class EmailSendServiceImpl implements EmailSendService {
                 .messageIdHeader(newMessageId)
                 .inReplyTo(original.getMessageIdHeader())
                 .attachments(attachmentsJson)
-                .sentAt(Instant.now())
+                .sentAt(sentAt)
+                .messageAt(sentAt)
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
                 .build();
 
-        EmailMessage saved = emailMessageRepository.save(reply);
+        EmailMessage saved = saveNewOutbound(reply);
 
         // 8. Publikuj event
         emailEventPublisher.publishSent(saved, agentId);
@@ -137,6 +144,7 @@ class EmailSendServiceImpl implements EmailSendService {
                 templateId, originalMessageId, tenantId, agentId);
 
         // Pobierz contactId z oryginalnej wiadomości, aby auto-uzupełnić predefiniowane zmienne
+        // (BE-134: lookup po samym id — koszt: Javadoc EmailMessageRepository#findById(UUID))
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wiadomość email nie istnieje: " + originalMessageId));
@@ -161,6 +169,12 @@ class EmailSendServiceImpl implements EmailSendService {
                                 String bodyHtml, UUID agentId,
                                 List<EmailReplyRequest.PendingAttachment> attachments) {
 
+        // 0. Allow-lista s3Key PRZED jakąkolwiek interakcją z DB/S3/SMTP (BE-143) — cudzy klucz
+        //    albo próba path traversal odrzuca CAŁE żądanie, nie tylko wadliwy załącznik.
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+        validateAttachmentKeys(tenantId, safeAttachments);
+
         // 1. Pobierz konfigurację SMTP tenanta
         Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
@@ -183,9 +197,6 @@ class EmailSendServiceImpl implements EmailSendService {
         // 3. Wyślij przez SMTP
         log.info("[EmailSend] Wysyłam nową wiadomość: to={}, tenant={}, agent={}", toAddress, tenantId, agentId);
 
-        List<EmailReplyRequest.PendingAttachment> safeAttachments =
-                attachments != null ? attachments : List.of();
-
         try {
             sendSmtp(config, password, config.getUsername(), toAddress,
                     subject, bodyHtml, newMessageId, null, null, safeAttachments);
@@ -195,8 +206,9 @@ class EmailSendServiceImpl implements EmailSendService {
             throw new EmailSendException("Wysyłka SMTP nie powiodła się: " + e.getMessage(), e);
         }
 
-        // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc)
+        // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc). BE-134: messageAt = sentAt (jeden Instant).
         String attachmentsJson = buildAttachmentsJson(safeAttachments);
+        Instant sentAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         EmailMessage outbound = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(null)
@@ -206,12 +218,13 @@ class EmailSendServiceImpl implements EmailSendService {
                 .subject(subject)
                 .bodyHtml(bodyHtml)
                 .messageIdHeader(newMessageId)
-                .sentAt(Instant.now())
+                .sentAt(sentAt)
+                .messageAt(sentAt)
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
                 .attachments(attachmentsJson)
                 .build();
 
-        EmailMessage saved = emailMessageRepository.save(outbound);
+        EmailMessage saved = saveNewOutbound(outbound);
 
         // 5. Publikuj event email.sent
         emailEventPublisher.publishSent(saved, agentId);
@@ -320,6 +333,11 @@ class EmailSendServiceImpl implements EmailSendService {
     /**
      * Pobiera bajty załącznika z S3 i buduje {@link MimeBodyPart}.
      * Błędy logowane per-załącznik – nie przerywają wysyłki pozostałych.
+     *
+     * <p>Od BE-143 {@code attachment.s3Key()} zawsze przeszedł już {@link #validateAttachmentKeys}
+     * (wywołane na początku {@link #sendReply}/{@link #sendNew}, przed {@link #sendSmtp}) — ta
+     * metoda dostaje wyłącznie klucze własnego tenanta. Try/catch tutaj pozostaje dla realnych
+     * błędów S3 (np. obiekt usunięty między uploadem a wysyłką) — nie dla walidacji allow-listy.
      */
     private MimeBodyPart buildAttachmentPart(EmailReplyRequest.PendingAttachment attachment) {
         try {
@@ -370,6 +388,33 @@ class EmailSendServiceImpl implements EmailSendService {
     // =========================================================================
 
     /**
+     * Allow-lista {@code s3Key} każdego załącznika PRZED wysyłką (BE-143): odrzuca CAŁE żądanie,
+     * gdy choćby jeden klucz nie należy do {@code tenantId} wg {@link EmailAttachmentKeys#isOwnedByTenant}
+     * — inny tenant, obiekt spoza schematu {@code email-attachments/{tenantId}/} (nagranie, EML),
+     * albo próba wyjścia z prefiksu przez segment {@code .}/{@code ..}.
+     *
+     * <p>Świadoma zmiana zachowania względem poprzedniego stanu (przed BE-143): wcześniej błąd
+     * pojedynczego załącznika był logowany i pomijany w {@link #buildAttachmentPart}, a wiadomość
+     * wychodziła bez niego. Teraz całe żądanie jest odrzucane PRZED SMTP i zapisem wiadomości —
+     * po tej walidacji {@link #buildAttachmentPart} zawsze dostaje wyłącznie własne klucze
+     * tenanta, więc nie musi już sam odrzucać cudzych.
+     *
+     * @throws EmailAttachmentAccessDeniedException gdy którykolwiek klucz nie przejdzie allow-listy
+     */
+    private void validateAttachmentKeys(UUID tenantId, List<EmailReplyRequest.PendingAttachment> attachments) {
+        for (EmailReplyRequest.PendingAttachment attachment : attachments) {
+            String s3Key = attachment != null ? attachment.s3Key() : null;
+            if (!EmailAttachmentKeys.isOwnedByTenant(tenantId, s3Key)) {
+                log.warn("[EmailSend] Odrzucono żądanie wysyłki: załącznik wskazuje na s3Key spoza "
+                                + "allow-listy tenanta: tenant={}, s3Key={}",
+                        tenantId, EmailAttachmentKeys.forLog(s3Key));
+                throw new EmailAttachmentAccessDeniedException(
+                        "Załącznik wskazuje na obiekt S3 spoza dozwolonego zakresu tenanta");
+            }
+        }
+    }
+
+    /**
      * Serializuje listę załączników do JSON dla kolumny JSONB {@code attachments}.
      * Format: [{"filename": "...", "content_type": "...", "size_bytes": N, "s3_key": "..."}]
      */
@@ -392,6 +437,17 @@ class EmailSendServiceImpl implements EmailSendService {
             log.warn("[EmailSend] Nie można serializować metadanych załączników: {}", e.getMessage());
             return "[]";
         }
+    }
+
+    /**
+     * Zapis nowej wiadomości OUTBOUND. Nagłówek Message-ID jest generowany losowo, więc {@code empty}
+     * z {@link EmailMessageRepository#save} oznacza błąd programisty/kolizję UUID, nie zwykły duplikat —
+     * stąd wyjątek, a nie ciche pominięcie wysłanej wiadomości (wysyłka SMTP już się odbyła).
+     */
+    private EmailMessage saveNewOutbound(EmailMessage message) {
+        return emailMessageRepository.save(message).orElseThrow(() -> new IllegalStateException(
+                "Wysłana wiadomość OUTBOUND nie została zapisana (duplikat Message-ID): "
+                        + message.getMessageIdHeader()));
     }
 
     private String buildReplySubject(String originalSubject) {

@@ -23,7 +23,21 @@ interface PluginVersionRepository extends JpaRepository<PluginVersion, UUID> {
 
     List<PluginVersion> findByPluginIdOrderByUploadedAtDesc(UUID pluginId);
 
-    Optional<PluginVersion> findByPluginIdAndVersion(UUID pluginId, String version);
+    /**
+     * Dokładny odpowiednik unikalnego ograniczenia {@code uq_plugin_version_plugin_version_tenant}
+     * (plugin_id, version, tenant_id) z V078 (EPIC-28) — używane przez
+     * {@code PluginStorageServiceImpl#storeValidatedJar} do wykrycia, czy wersja jest już
+     * wgrana dla danego tenanta, przed INSERT-em (żeby zwrócić jawny {@code ConflictException}
+     * z czytelnym komunikatem, a nie generyczne 409 z {@code DataIntegrityViolationException}),
+     * albo — przy {@code overwrite=true} — do odnalezienia wiersza do aktualizacji w miejscu.
+     *
+     * <p>W odróżnieniu od starszej {@code findByPluginIdAndVersion(UUID, String)} (usunięta w
+     * fix/plugin-version-overwrite — była nieużywana i niebezpieczna: bez filtra po
+     * {@code tenantId} zwracałaby niedeterministyczny wynik, gdyby wielu tenantów wgrało tę
+     * samą wersję tego samego pluginu), ta metoda jest jedynym poprawnym sposobem odnalezienia
+     * wiersza po pełnym kluczu unikalności.
+     */
+    Optional<PluginVersion> findByPluginIdAndVersionAndTenantId(UUID pluginId, String version, UUID tenantId);
 
     /**
      * Wersje pluginów wgrane przez danego tenanta, najnowsze pierwsze (EPIC-28, V078).

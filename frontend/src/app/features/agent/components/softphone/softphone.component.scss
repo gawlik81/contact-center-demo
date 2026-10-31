@@ -128,7 +128,7 @@
     height: 5.25rem;
     border-radius: 50%;
     background: linear-gradient(135deg, var(--accent) 0%, var(--violet) 100%);
-    color: #fff;
+    color: var(--on-accent);
     font-size: 1.75rem;
     font-weight: 700;
     display: flex;
@@ -245,7 +245,7 @@
 
     &--answer {
       background: var(--success);
-      color: #fff;
+      color: var(--on-success);
       box-shadow: 0 8px 20px color-mix(in oklch, var(--success) 40%, transparent);
 
       &:hover {
@@ -340,7 +340,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.875rem 0.75rem;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     background: var(--bg-surface);
     border-radius: var(--radius-lg, 14px);
     cursor: pointer;
@@ -372,7 +372,7 @@
 
     &:hover {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
     }
 
     &:focus-visible {
@@ -406,7 +406,7 @@
     width: 100%;
     padding: 0.875rem;
     background: var(--danger);
-    color: #fff;
+    color: var(--on-danger);
     border: none;
     border-radius: var(--radius-md, 10px);
     font-size: 0.9375rem;
@@ -524,7 +524,7 @@
     flex: 1;
     padding: 8px;
     background: var(--bg-subtle);
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.75rem;
@@ -558,7 +558,7 @@
 
   &__transfer-input {
     padding: 10px 12px;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     font-size: 0.875rem;
     color: var(--text-1);
@@ -579,7 +579,7 @@
   }
 
   &__transfer-hint {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-2);
   }
 
@@ -606,6 +606,7 @@
 
     &--complete {
       background: var(--success);
+      color: var(--on-success);
 
       &:hover {
         opacity: 0.88;
@@ -638,7 +639,7 @@
   &__target-tab {
     flex: 1;
     padding: 6px 8px;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     background: var(--bg-subtle);
     color: var(--text-2);
@@ -650,7 +651,7 @@
 
     &:hover:not(&--active) {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
     }
 
     &:focus-visible {
@@ -711,7 +712,7 @@
     width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     font-size: 0.875rem;
     color: var(--text-1);
@@ -733,7 +734,7 @@
   }
 
   &__note-hint {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-2);
   }
 

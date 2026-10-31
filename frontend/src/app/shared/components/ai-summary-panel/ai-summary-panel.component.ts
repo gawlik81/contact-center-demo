@@ -8,8 +8,11 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslocoModule } from '@jsverse/transloco';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import {
+  AiConfigNotSetError,
+  AiServiceUnavailableError,
   AiSummaryService,
   AiSummaryResponse,
 } from '../../../features/agent/services/ai-summary.service';
@@ -17,6 +20,7 @@ import {
 @Component({
   selector: 'app-ai-summary-panel',
   standalone: true,
+  imports: [TranslocoModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ai-summary-panel.component.html',
   styleUrl: './ai-summary-panel.component.scss',
@@ -36,6 +40,7 @@ export class AiSummaryPanelComponent {
   readonly aiSummary = signal<string | null>(null);
   readonly aiModelUsed = signal<string | null>(null);
   readonly aiTokensUsed = signal<number | null>(null);
+  /** i18n key of the current error, so the message follows the active language. */
   readonly aiError = signal<string | null>(null);
 
   onCopyToNotes(): void {
@@ -51,7 +56,7 @@ export class AiSummaryPanelComponent {
       .generateSummary(this.contactId())
       .pipe(
         catchError((err: unknown) => {
-          this.aiError.set(err instanceof Error ? err.message : 'Nieznany błąd.');
+          this.aiError.set(this.errorKey(err));
           return EMPTY;
         }),
         finalize(() => this.aiLoading.set(false)),
@@ -62,5 +67,11 @@ export class AiSummaryPanelComponent {
         this.aiModelUsed.set(res.modelUsed);
         this.aiTokensUsed.set(res.tokensUsed);
       });
+  }
+
+  private errorKey(err: unknown): string {
+    if (err instanceof AiConfigNotSetError) return 'agent.aiSummary.errorNotConfigured';
+    if (err instanceof AiServiceUnavailableError) return 'agent.aiSummary.errorUnavailable';
+    return 'agent.aiSummary.errorUnknown';
   }
 }

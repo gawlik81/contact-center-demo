@@ -56,12 +56,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 3 | 0 | 5 | 0 | 8 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **143** | **0** | **10** | **3** | **156** | |
+| **RAZEM** | | **145** | **0** | **15** | **3** | **163** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -90,6 +91,17 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-148 | Przejście produkcji na rolę połączenia aplikacji BEZ BYPASSRLS i bez superusera (+ rola migrac… | ⬜ Nie rozpoczęte — parasol; WP-1 wykonane |
 | BE-149 | Ścieżki HTTP, audyt, logowanie i lookupy pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
 | BE-150 | Joby retencji/partycji, ETL i routing/dialer pod rolą aplikacji bez BYPASSRLS (`cc_app`) | ⬜ Nie rozpoczęte — nie rozpoczęty |
+
+**EPIC-32 – UX i dostępność stanowiska agenta**
+
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ⬜ Do zrobienia — blokuje FE-130 |
+| BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social | ⬜ Do zrobienia — blokuje FE-135 |
+| BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
+| BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ⬜ Do zrobienia — blokuje FE-136 |
+| BE-159 | Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela; powiązany z BE-156) | ⬜ Do zrobienia — propozycja |
+| BE-160 | `POST /api/contacts/{id}/release` — zwrot kontaktu async do kolejki (koniec FIFO), `ReleaseExclusionStore` (wycinek BE-156), poprawki CR (`acceptIfAssigned`, guard AGENT) | ✅ Ukończone (2026-10-29) — blokuje FE-132 (✅) |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8398,6 +8410,348 @@ backend/app/src/test/java/com/contactcenter/
 **Adnotacja (tura 35, 2026-10-11):** `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmienia też BE-151 (okres archiwizacji per tenant, funkcja SQL z DB-084); brak formalnej zależności — przy równoległej pracy uzgodnić kolejność merge; DB-084 zachowuje sygnaturę funkcji bez parametrów. **Tura 38:** BE-151 ✅ (`760fb263`) — WP-4 BE-120 (flaga w demo) czeka na FE-113 i ponowną zgodę właściciela.
 
 **Adnotacja (tura 36, 2026-10-11):** DB-083 `Zależy od` DB-084 (decyzja P6: DB-084 PRZED DB-083). Czujnik kandydatów archiwizacji kampanii (DB-083 pkt 3(v)) ma predykat identyczny z pętlą funkcji po DB-084 — próg per tenant (`tenant_campaign_archive_setting`, brak wiersza = 180) i `COALESCE(ended_at, updated_at)`; funkcja przełączana na definera przez `ALTER FUNCTION`, nie przez kopię ciała. W BE-150 testy joba pod `cc_app` mają obejmować ≥ 2 tenanty o RÓŻNYCH progach (parytet czujnika z wynikiem przebiegu). Brak nowej formalnej zależności BE-150 od DB-084 (przechodnia przez DB-083).
+
+**Znany dług (inwentarz, 2026-10-28, z code review BE-158):** zapisy na `app_user` w ścieżce logowania/MFA wykonywane zwykłym `JpaRepository` bez ustawienia GUC `app.current_tenant_id` — `AppUserRepository.updateLastLoginAt`/`updateLastLoginAtGlobal` (BE-158), a także starsze `updateMfaSecret`, `enableMfa`, `updatePasswordAndClearReset`. Pod rolą bez BYPASSRLS (`FORCE ROW LEVEL SECURITY`, V123) `login()` nie ma `TenantContext`, więc nawet odczyt `findById` w `AuthServiceImpl.login` nie przechodzi (GUC `''` → błąd rzutowania na uuid) — cała ścieżka logowania wymaga rozwiązania w BE-150 (mechanizm dla operacji przed ustaleniem tenanta, np. funkcja `SECURITY DEFINER` albo ustawienie GUC z `tenantId` z żądania logowania). BE-158 dodał do UPDATE-ów warunek tenanta (`tenant_id = :tenantId`; wariant `...Global` dla SUPER_ADMIN z `tenant_id IS NULL`), ale pod FORCE RLS pozostaje to długiem BE-150 razem z pozostałymi.
+
+## EPIC-32 – UX i dostępność stanowiska agenta
+
+**Ukończone 3/8** · ✅ 3 · 🔧 0 · ⬜ 5 · 🚫 0
+
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). Następne wolne numery: BE-161, FE-138, DB-088.
+
+### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
+
+**Typ:** Feature (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak twardych (kontekst: FE-120 ✅ — licznik przerwy liczony dziś po stronie klienta, bo API nie zwraca czasu zmiany statusu)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-130
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** API ma zwracać czas rozpoczęcia bieżącego statusu agenta (`statusSince`, ISO 8601 UTC) w odpowiedzi `GET /users/me` oraz w payloadzie WS zmiany statusu (w zgłoszeniu: `AgentStatusChangedPayload`; w kodzie zdarzenie `AgentStatusChangedEvent` w `api/user/dto`), aby licznik przerwy w UI przeżywał przeładowanie strony (FE-130).
+
+**Zakres:**
+- Ustalić źródło czasu zmiany statusu (czy `users` ma znacznik zmiany statusu; jeśli nie — czy wystarczy wartość utrzymywana w Redis/serwisie, czy potrzebna kolumna). Jeśli potrzebna migracja — osobny ticket DB zakładany wtedy (numer wolny: DB-088), NIE z góry.
+- `statusSince` w DTO `GET /users/me` i w `AgentStatusChangedEvent`; ustawiane przy każdej zmianie statusu (także przez `AgentBreakActivator`).
+- Tenant isolation; brak wycieku `statusSince` innych agentów przez endpointy bez uprawnień; OpenAPI zaktualizowane.
+
+**Kryteria akceptacji:**
+- [ ] `GET /users/me` zwraca `statusSince` zgodny z ostatnią zmianą statusu (test integracyjny)
+- [ ] Zdarzenie WS zmiany statusu zawiera `statusSince` (test)
+- [ ] Zmiana statusu przez `AgentBreakActivator` aktualizuje `statusSince`
+- [ ] Pole opcjonalne (zgodność wsteczna z FE bez FE-130); OpenAPI/dokumentacja zaktualizowane
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) brak trwałego źródła czasu zmiany statusu może wymagać migracji DB; (R2) zmiana kontraktu WS — zachować kompatybilność wsteczną.
+**Nie wchodzi w zakres:** historia statusów, raportowanie czasu w statusach, zmiany FE (FE-130).
+**Zależności (tura 50):** `Zależy od` brak; `Blokuje` FE-130.
+
+### BE-154 – Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social
+
+**Typ:** Feature (Backend, WebSocket)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-135
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51):** gdy w już przydzielonym kontakcie e-mail/social przychodzi kolejna wiadomość klienta, backend jej tylko zapisuje (`SocialMessageServiceImpl.java` ok. linii 96–99: gałąź „Dołączam do istniejącego kontaktu”, bez publikacji zdarzenia); front nasłuchuje `SOCIAL_MESSAGE_RECEIVED` (`ws-event.model.ts`, `social-contact.component.ts` ok. linii 104), którego `WebSocketEvent.java` (ok. linii 47–59) w ogóle nie definiuje. Skutek: agent nie dowiaduje się o nowej wiadomości w nieaktywnej karcie (znacznik „nieprzeczytane/czeka klient” niemożliwy — FE-135).
+
+**Zakres:**
+- Nowy typ zdarzenia w `WebSocketEvent` (np. `CONTACT_MESSAGE_RECEIVED`; nazwa do uzgodnienia z FE — ujednolicić z `SOCIAL_MESSAGE_RECEIVED` oczekiwanym przez front, albo go zastąpić) z payloadem: `contactId`, `channel`, `messageId`, `receivedAt` (bez treści wiadomości — RODO/minimalizacja).
+- Publikacja do przydzielonego agenta (tenant-aware) po zapisie kolejnej wiadomości w kontakcie e-mail i social; brak publikacji, gdy kontakt nie ma agenta.
+- Kontrakt WS udokumentowany (OpenAPI/dokumentacja zdarzeń); zgodność wsteczna — nieznany typ jest ignorowany przez starszy front.
+
+**Kryteria akceptacji:**
+- [ ] Kolejna wiadomość w kontakcie z przydzielonym agentem publikuje zdarzenie tylko do TEGO agenta i tenanta (test integracyjny, w tym izolacja tenantów)
+- [ ] Payload nie zawiera treści wiadomości; zawiera `contactId`, `channel`, `messageId`, `receivedAt`
+- [ ] Pierwsza wiadomość nowego kontaktu nie publikuje tego zdarzenia (ścieżka routingu bez zmian)
+- [ ] Nazwa zdarzenia uzgodniona z FE i spójna z `ws-event.model.ts`; `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zależność od BE-155 — dopóki social nie trafia do agenta, zdarzenie dla social jest niewidoczne w praktyce (e-mail działa niezależnie); (R2) zmiana kontraktu WS — zachować zgodność wsteczną.
+**Nie wchodzi w zakres:** powiadomienia push/e-mail do agenta, licznik nieprzeczytanych po stronie serwera, zmiany FE (FE-135).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` FE-135.
+
+### BE-155 – [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'` we froncie, `isReadOnly` porównuje z nieistniejącym `COMPLETED`
+
+**Typ:** Bug (Backend + mała część Frontend)
+**Priorytet:** Must Have (rekomendacja — kanał niedziałający; do oceny właściciela)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; testy na prawdziwej bazie `SocialContactQueueIntegrationTest`; `mvn verify` 2753 testy, BUILD SUCCESS, JDK 21; frontend 596 testów zielone). Uwaga: stan `WRAPPING` jest dziś ustawiany tylko dla PHONE, więc realny efekt `isReadOnly` dla SOCIAL pojawi się po FE-122/FE-136
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (dotyczy kanału z EPIC-06; EPIC-06 pozostaje ✅ — ticket nie zmienia jego licznika)
+**Wykonawca:** `backend-dev-expert` (część BE); `angular-frontend-expert` (punkt 3, mała poprawka FE)
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51; do zweryfikowania w kodzie i na żywym środowisku przed naprawą — stąd „prawdopodobnie”):**
+1. Nowy kontakt social jest kolejkowany z `queueId = null` (`SocialMessageServiceImpl.java` ok. linii 139–141: „brak kolejki dla social → null queueId”).
+2. `RoutingServiceImpl.java` (ok. linii 219–226): kontakt bez `queueId` kończy ze statusem `ERROR` i `endedAt`; poller kolejki takie kontakty pomija → agent nigdy nie dostaje kontaktu social.
+3. Kanał: `platformToChannel` zwraca `SOCIAL_FACEBOOK`/`SOCIAL_INSTAGRAM`/`SOCIAL_WHATSAPP` (ok. linii 426–431), a front oczekuje kanału `'SOCIAL'`; `social-contact.component.ts` (ok. linii 57) liczy `isReadOnly` jako `contactStatus() === 'COMPLETED'`, którego `ContactTabStatus` nie zawiera (martwy warunek).
+
+**Zakres:**
+- Ustalić (testem na żywo w local-demo + lekturą kodu), czy opisany łańcuch rzeczywiście odrzuca kontakt social; potwierdzenie lub obalenie zapisać w tickecie.
+- Przypisać kontakt social do kolejki (konfiguracja kolejki per integracja/tenant — decyzja: domyślna kolejka social tenanta albo kolejka w ustawieniach integracji; ustalić z właścicielem) tak, by routing go przydzielał.
+- Ujednolicić kontrakt kanału BE↔FE (albo mapowanie `SOCIAL_*` → `SOCIAL` w jednym miejscu, albo FE rozpoznaje rodzinę kanałów), bez łamania zapisanych danych historycznych.
+- FE: `isReadOnly` oparty o realny status zakończenia (wartość z `ContactTabStatus`/API), nie o `'COMPLETED'`.
+
+**Kryteria akceptacji:**
+- [x] Test integracyjny: wiadomość social od klienta tworzy kontakt z kolejką, routing przydziela go agentowi `AVAILABLE`, agent dostaje `CONTACT_ASSIGNED`
+- [x] Kontakt social NIE kończy ze statusem `ERROR` z powodu braku `queueId`
+- [x] Kanał social rozpoznawany spójnie na BE i FE (test mapowania dla FACEBOOK/INSTAGRAM/WHATSAPP)
+- [x] `isReadOnly` karty social poprawnie wyznaczane dla kontaktu zakończonego (test FE; oparte na `WRAPPING`, realny efekt dla SOCIAL po FE-122/FE-136)
+- [x] Istniejące kontakty social w bazie nie są łamane (migracja danych tylko jeśli konieczna — wtedy osobny ticket DB, numer wolny: DB-088)
+- [x] `mvn verify -pl app`, `npm test` zielone
+
+**Ryzyka:** (R1) wybór kolejki dla social to decyzja produktowa; (R2) zmiana kanału może dotknąć raportów i filtrów (`channel`); (R3) część obserwacji pochodzi z lektury kodu — możliwe, że istnieje ścieżka obejścia (np. ręczne przypisanie), zweryfikować przed zmianą.
+**Nie wchodzi w zakres:** nowe platformy social, zdarzenie nowej wiadomości (BE-154), limit równoległych kontaktów (BE-156).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak (praktycznie warunkuje wartość BE-154 dla social).
+
+**Weryfikacja łańcucha (2026-10-28): POTWIERDZONY w kodzie** (żywa weryfikacja local-demo pominięta, nieobowiązkowa).
+- `SocialMessageServiceImpl` (przed zmianą, ok. l. 139–141) publikował `contact.queued` z `queueId = null`, a `createSocialContact` tworzył kontakt bez `queueId`.
+- `RoutingServiceImpl.onContactQueued` → `routeContact(…, null, …)` → `queueService.findQueueEntity(null)` → `EntityNotFoundException` → retry Spring AMQP → DLQ (kontakt nigdy nie przydzielony).
+- `RoutingServiceImpl.onAgentStatusChanged` (ok. l. 219–226 przed zmianą): kontakt QUEUED z `queueId == null` → `status = ERROR` + `endedAt`. Dla social obie ścieżki kończyły się utratą kontaktu.
+- Ścieżki obejścia (R3): brak — kolejka nie była nigdzie uzupełniana dla `SOCIAL_*` (IVR `updateQueueId` dotyczy tylko telefonii).
+
+**Decyzja właściciela 2026-10-28:** domyślna kolejka social per tenant; nowy kontakt social dostaje ją zamiast `queueId = null`.
+
+**Implementacja (BE, bez migracji — DB-088 NIE jest potrzebne):**
+- `SocialDefaultQueueResolver`: `tenant.config["social_default_queue_id"]` (musi wskazywać AKTYWNĄ kolejkę TEGO tenanta) → fallback: pierwsza aktywna kolejka tenanta (nazwa rosnąco) + WARN → brak aktywnej kolejki: `Optional.empty()` + WARN. Konwencja jak `email_default_queue_id`.
+- Brak kolejki: kontakt zostaje `QUEUED` bez `queueId`, `contact.queued` NIE jest publikowane; `RoutingServiceImpl.onAgentStatusChanged` ponownie rozwiązuje kolejkę dla kontaktów `SOCIAL_*` bez `queueId` (też ulecza kontakty sprzed zmiany) — zamiast `ERROR`. Kontakty nie-social bez `queueId` nadal kończą `ERROR` (bez zmiany).
+- Kanał: w bazie, raportach, filtrach i macierzy admina zostaje `SOCIAL_FACEBOOK/INSTAGRAM/WHATSAPP` (CHECK z V025, dane historyczne nietknięte). Jedno miejsce mapowania na typ pulpitu agenta: `ContactChannels.toAgentDesktopType` (`SOCIAL_*` → `SOCIAL`), użyte w `WebSocketEvent.contactAssigned` (payload `type`), w aktualizacji kolejki i w `GET /api/agent/me/assigned-contact`. Frontend nie wymaga zmiany kanału.
+- FE (punkt 3) WYKONANE 2026-10-28: `isReadOnly` w `social-contact.component.ts` oparty o `WRAPPING` (realny status z `ContactTabStatus`), nie `'COMPLETED'`; WRAPPING ustawiany obecnie tylko dla PHONE — pełny efekt dla SOCIAL po FE-122/FE-136. Opcjonalnie UI wyboru `social_default_queue_id` w ustawieniach tenanta (dziś klucz ustawia się w `tenant.config`; bez niego działa fallback).
+- Testy (w tym `SocialContactQueueIntegrationTest` na prawdziwej bazie): `SocialContactToAgentFlowTest` (flow: wiadomość → kontakt z kolejką → agent AVAILABLE → `contact.assigned`, 3 platformy), `SocialDefaultQueueResolverTest`, `ContactChannelsTest`, rozszerzone `SocialMessageServiceTest`, `RoutingServiceTest`.
+
+### BE-156 – Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social)
+
+**Typ:** Feature / Bug (Backend, routing)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak (kontekst: BE-159 — propozycja warunkowego przydziału, ta sama ścieżka `routeContact`/`assignContactToAgent`; uzgodnić kolejność merge); kontekst: BE-160 ✅ (wycinek anti-ping-pong zrobiony tam)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst (odkrycie `/impeccable shape` FE-121, tura 51; do zweryfikowania w kodzie):**
+- Kolumna `queue.max_concurrent_contacts_per_agent` jest tylko zapisywana — routing jej nie egzekwuje: `DefaultRoutingEngine` w strategii `SKILL_BASED` nie ma limitu, `ROUND_ROBIN`/`FIRST_AVAILABLE` nie patrzą na obciążenie.
+- Przydział kontaktu e-mail/social nie zmienia statusu agenta (agent zostaje `AVAILABLE` mimo kilku otwartych kontaktów).
+- Front ma własne limity kart: `MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3` (SOCIAL liczony tylko do `MAX_TOTAL_TABS=4`, nie do limitu async). Po odrzuceniu kontaktu przez front (limit) kontakt wraca do kolejki dopiero po 3 próbach `ContactAssignmentMonitor`.
+
+**Zakres:**
+- Egzekwować `max_concurrent_contacts_per_agent` we wszystkich strategiach `DefaultRoutingEngine` (liczba kontaktów `ASSIGNED`+`ACTIVE` agenta w danej kolejce; ustalić, czy limit jest per kolejka czy globalny dla agenta).
+- Ustalić politykę dla kontaktów e-mail/social wobec statusu agenta (czy przydział zmienia status; propozycja: bez zmiany, ale z uwzględnieniem obciążenia).
+- Uzgodnić z FE limity (`MAX_*_TABS`) tak, by backend nie przydzielał kontaktów, które front odrzuci; opisać kontrakt w dokumentacji.
+
+**Kryteria akceptacji:**
+- [ ] Agent z liczbą otwartych kontaktów równą limitowi kolejki nie otrzymuje kolejnego (test dla każdej strategii routingu)
+- [ ] Brak regresji: kolejki bez ustawionego limitu zachowują dotychczasowe zachowanie
+- [ ] Test integracyjny: kontakt nieprzydzielony z powodu limitu pozostaje w kolejce i trafia do kolejnego dostępnego agenta
+- [ ] Limity BE i FE uzgodnione i udokumentowane (jedna tabela wartości)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana routingu wpływa na wszystkie kolejki — wprowadzić za konfiguracją/flagą lub z domyślnym „brak limitu”; (R2) kolizja z BE-150 (routing pod rolą `cc_app`) — uzgodnić kolejność merge; (R3) różne definicje „otwartego kontaktu” (PHONE vs async).
+**Nie wchodzi w zakres:** nowe strategie routingu, zmiany FE (limity kart FE zostają do uzgodnienia), kanał social bez kolejki (BE-155).
+**Zależności (tura 51):** `Zależy od` brak; `Blokuje` brak.
+
+**Wycinek zrealizowany w BE-160 ✅ (2026-10-29):** anti-ping-pong po zwrocie — `ReleaseExclusionStore` w Redis (`routing:release-excl:{tenant}:{contact}`, TTL `routing.release-exclusion-ttl` = 5 min); routing pomija wykluczonych agentów dla kanałów async. Limit `max_concurrent_contacts_per_agent` NADAL niezaimplementowany.
+**Poza wycinkiem — pozostaje do zrobienia w BE-156:**
+- trwała historia „kto miał kontakt” (dziś tylko klucz Redis z TTL);
+- wykluczenie także przy odrzuceniu / przekroczeniu czasu `ContactAssignmentMonitor` oraz przy re-kolejkowaniu;
+- konfiguracja per kolejka/tenant (dziś jedno globalne `routing.release-exclusion-ttl`);
+- telefonia (wykluczenie dotyczy tylko kanałów async);
+- zamykanie wiersza `QUEUE` / otwieranie `AGENT` w routingu i `accept`;
+- reguły „wszyscy wykluczeni” (co robi routing, gdy każdy dostępny agent jest na liście wykluczeń);
+- test realnego silnika routingu z Redis (BE-160 testuje przez mock/podmianę store).
+**Ryzyko (odkryte w BE-160):** `terminateStaleQueuedContacts` kończy jako `ABANDONED` kontakty `QUEUED` starsze niż 30 min także dla kanałów async — zwrócony e-mail (`queued_at=NOW()` resetuje wiek, ale przy braku agentów > 30 min) może przepaść. Rozstrzygnąć przy BE-156 (wyłączyć async z tego sprzątania albo dłuższy próg).
+
+### BE-157 – Lista aktywnych kontaktów agenta: `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu)
+
+**Typ:** Feature (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-136
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (systemowa Java to 25 — Mockito/Byte Buddy nie działają, testy masowo padają).
+
+**Kontekst (stan kodu, zweryfikowany w turze 52, 2026-10-23):**
+- Jedyny dziś endpoint recovery to `GET /api/agent/me/assigned-contact` — `AgentSelfController.getAssignedContact()` (ok. linii 78), który woła `ContactService.findAssignedContactForAgent` (interfejs ok. linii 669, `ContactServiceImpl` ok. linii 1464) → `ContactRepository.findAssignedContactForAgent` (ok. linii 2108). Zapytanie: `c.agentId = :agentId AND c.tenantId = :tenantId AND c.status = 'ASSIGNED'` z `setMaxResults(1)`, więc zwraca co najwyżej JEDEN kontakt `ASSIGNED`; kontakty `ACTIVE` i po rozmowie nie są widoczne. Odpowiedź `AssignedContactResponse` ma tylko 6 pól (`contactId`, `channel`, `customerIdentifier`, `customerName`, `queueName`, `customerId`), a `customerName` to dziś zawsze `remoteAddress` (fallback) — brak prawdziwej nazwy klienta, tematu e-maila ani czasów. Nazwa kolejki jest rozwiązywana osobnym wywołaniem `resolveQueueName` (ok. linii 182, `queueService.findQueueEntity`) na kontakt — przy liście to byłby N+1.
+- Jedyny konsument we froncie: `AgentRecoveryService.recoverAfterReconnect()` (`frontend/src/app/features/agent/services/agent-recovery.service.ts`); limity kart FE: `MAX_PHONE_TABS=1`, `MAX_ASYNC_TABS=3`, `MAX_TOTAL_TABS=4` (`contact-tab.store.ts`).
+- Statusy kontaktu w kodzie: `QUEUED`, `ASSIGNED` (ustawiany w `RoutingServiceImpl` ok. linii 461), `ACTIVE` (`ContactServiceImpl.acceptContact` ok. linii 649), `ON_HOLD`, `COMPLETED`, `TRANSFERRED`, `ABANDONED`, `NOT_REACHED`, `ERROR` (zbiór terminalnych: `ContactServiceImpl` ok. linii 124 i `ContactRepository` ok. linii 1333). Javadoc pola `Contact.status` jest nieaktualny (nie wymienia `ASSIGNED`/`TRANSFERRED`).
+- **Stan ACW NIE istnieje w backendzie.** „Kontakt po rozmowie bez dyspozycji” to stan pochodny: `status = 'COMPLETED'`, ustawione `ended_at`, `disposition_code IS NULL`, `agent_id` = agent (dyspozycję ustawia `ContactServiceImpl.setDisposition` ok. linii 539, która dopuszcza ją dopiero po zakończeniu kontaktu). Backend nie zapisuje czasu wejścia w ACW — najbliższym przybliżeniem jest `ended_at`.
+
+**Opis:** Nowy endpoint zwraca WSZYSTKIE aktywne kontakty zalogowanego agenta w jednym wywołaniu — dane wystarczające do odbudowania kart na pulpicie bez dodatkowych zapytań (bez N+1 po stronie FE i BE).
+
+**Kontrakt API:**
+- `GET /api/agent/me/active-contacts` w `AgentSelfController` (prefiks `/api/agent/me`, `@PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMIN')")`, identyfikacja agenta przez `TenantContext.getUserId()` — jak `assigned-contact`; BEZ parametru `agentId`). Ścieżka pod istniejącym prefiksem, więc NIE wymaga zmian w `SecurityConfig`/`TenantFilter.PUBLIC_PATH_PREFIXES` (endpoint chroniony JWT, nie publiczny).
+- Odpowiedź: `200 OK` zawsze, ciało = tablica JSON (pusta `[]`, gdy brak kontaktów; NIE 204 — inaczej niż `assigned-contact`, żeby FE nie rozróżniał dwóch „pustych” przypadków). Limit bezpieczeństwa: maks. 20 elementów (kod stały/konfig; ponad limit — ucinane od najstarszych w ACW).
+- Element `ActiveContactResponse` (nowy rekord w `api/contact/dto`):
+  - `contactId` (UUID jako String, jak `AssignedContactResponse`), `channel` (`PHONE`/`EMAIL`/`CHAT`/`SOCIAL`; wartość z bazy bez normalizacji — kanał `SOCIAL_*` do ujednolicenia w BE-155), `direction`,
+  - `status` (surowy status bazy: `ASSIGNED`/`ACTIVE`/`ON_HOLD`/`COMPLETED`) oraz `phase` — wartość pochodna wygodna dla FE: `RINGING` (`ASSIGNED`), `IN_PROGRESS` (`ACTIVE`, `ON_HOLD`), `WRAP_UP` (ACW, wg definicji niżej),
+  - `assignedAt`, `startedAt`, `endedAt` (ISO 8601 UTC, nullable), `wrapUpStartedAt` (= `endedAt` dla `WRAP_UP`, w pozostałych `null`; pole jawne, by FE nie zgadywał semantyki `endedAt`),
+  - `customerId`, `customerIdentifier` (= `remote_address`), `customerName` (nazwa klienta, gdy `customer_id` ustawione i rozwiązywalne jednym zapytaniem zbiorczym; inaczej fallback na `customerIdentifier`), `queueId`, `queueName`,
+  - `subject` (temat dla e-mail z `channel_metadata.subject`, inaczej `null`) — razem z pozostałymi polami pozwala FE odtworzyć kartę bez dociągania `GET /api/contacts/{id}`.
+- Kolejność: stabilna, `assigned_at ASC NULLS LAST`, następnie `created_at ASC`, następnie `contact_id ASC` (deterministyczny remis).
+- Zakres „aktywnych” (ZAAKCEPTOWANA decyzja tymczasowa właściciela, 2026-10-23; trwały stan ACW poza zakresem i bez ticketu): `agent_id = <agent>` AND (`status IN ('ASSIGNED','ACTIVE','ON_HOLD')` OR ACW). ACW = `status = 'COMPLETED' AND disposition_code IS NULL AND ended_at >= now() - <okno>`, okno konfigurowalne (`agent.active-contacts.wrap-up-window`, domyślnie 12 h — ucina „wieczne” ACW po porzuconej dyspozycji), tylko kanał `PHONE` (kontakty e-mail/social/chat zamykane po stronie systemu nie wymagają dyspozycji agenta — zob. `EmailContactCreator` ok. linii 292, gdzie `ended_at` ustawia system; rozszerzenie na `CHAT` do rozstrzygnięcia z FE-122). `TRANSFERRED` nie jest ACW (agent oddał kontakt).
+- Dostęp: tylko własne kontakty zalogowanego agenta, w obrębie jego tenanta. Brak parametru pozwalającego pobrać kontakty innego agenta (supervisor ma osobne endpointy).
+
+**Zakres implementacji:**
+- `ContactRepository.findActiveContactsForAgent(UUID agentId, UUID tenantId, Instant wrapUpSince, int limit)` — `setTenantContextInDb(tenantId)` jak w `findAssignedContactForAgent` (repozytorium rozszerza `TenantAwareRepository`), warunek `tenantId` JAWNIE w zapytaniu (nie polegać wyłącznie na RLS), jedno zapytanie z `ORDER BY` j.w.
+- Rozwiązanie nazw kolejek i klientów zbiorczo (1 zapytanie na typ, `WHERE id IN (...)` i `tenant_id = ...`), nie `resolveQueueName` w pętli; ewentualna nowa metoda zbiorcza w `QueueService` (zachować wzorzec: błąd rozwiązania nazwy → pusty string, nie 500).
+- `ContactService.findActiveContactsForAgent` + implementacja w `ContactServiceImpl` (mapowanie do `phase`), kontroler tylko deleguje.
+- Sprawdzić plan zapytania (`EXPLAIN`) na tabeli `contact` (partycjonowanej): jeśli brak indeksu pod `(tenant_id, agent_id, status)` powoduje skan wszystkich partycji, założyć OSOBNY ticket DB (numer wolny: DB-088), nie wstawiać migracji w ten ticket bez uzgodnienia.
+- OpenAPI (`@Operation`, `@ApiResponse` 200/401/403) po polsku jak sąsiednie endpointy.
+- **Poprawka opisów 401/403 w całym `AgentSelfController` (decyzja użytkownika, tura 53):** `@ApiResponse` i Javadoc dla braku/nieprawidłowego JWT mają mówić 401, a dla niewystarczającej roli 403 — dla nowego endpointu ORAZ istniejących `getAssignedContact()` (`@ApiResponse` 403 ok. linii 75) i `getKpi()` (ok. linii 139), które dziś opisują „JWT brakuje lub niewystarczająca rola” jako 403 i nie mają wpisu 401. Źródło prawdy: `TenantFilter` (Javadoc ok. linii 45–47: brak tokenu, token nieprawidłowy/wygasły, brak claims → 401) oraz `AgentSelfControllerTest` (commit `1f645fec`, potwierdza 401). Tylko adnotacje i Javadoc, bez zmiany zachowania runtime.
+- **Lista informacyjna (NIE poprawiać w BE-157)** — inne kontrolery z tym samym rozjazdem znalezione grepem w turze 53: `TwilioVoiceController` (ok. linii 106, „Brak JWT lub niewystarczająca rola” przy 403) i `AgentCallController` (ok. linii 171, „JWT missing or insufficient role” przy 403, opis po angielsku). Opisy typu „Brak roli ADMIN” przy 403 (np. `TenantController`, `AdminMetricsController`, `RetentionController`) są poprawne. Lista bez ticketu — do ewentualnej decyzji właściciela.
+
+**Uwaga (2026-10-29, z FE-123):** zaobserwowano, że kontakt w stanie `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu agenta (dzisiejszy `assigned-contact` zwraca tylko `ASSIGNED`; w backendzie nie ma klasy `AgentRecoveryService` — odtwarzanie to FE `agent-recovery.service`). Zakres `active-contacts` tego ticketu (`ASSIGNED`, `ACTIVE`, `ON_HOLD`, ACW) już to pokrywa, więc nie założono osobnego ticketu BE; weryfikacja po stronie FE-136 (scenariusz wylogowanie → ponowne logowanie). Dodatkowy test do rozważenia w tym tickecie: `ACTIVE` zwracany z `phase=IN_PROGRESS` także po zmianie sesji (nowy token) tego samego agenta.
+
+**Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (jedyny wyjątek: `customerName` korzysta ze wspólnego mapowania prawdziwej nazwy klienta, jak nowy endpoint) (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/agent/me/active-contacts` zwraca 200 i tablicę wszystkich kontaktów agenta w statusach `ASSIGNED`, `ACTIVE`, `ON_HOLD` oraz kontaktów ACW (wg definicji wyżej); brak kontaktów → `[]`
+- [ ] Każdy element zawiera pola z kontraktu (w tym `phase`, `assignedAt`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`) — FE odtwarza kartę bez dodatkowych wywołań
+- [ ] Kolejność stabilna: `assigned_at ASC NULLS LAST`, `created_at`, `contact_id` (test z remisem `assigned_at`)
+- [ ] Nie zwraca kontaktów: innego agenta tego samego tenanta, agenta innego tenanta, terminalnych (`ABANDONED`, `NOT_REACHED`, `ERROR`, `TRANSFERRED`), `COMPLETED` z ustawioną dyspozycją, `COMPLETED` starszych niż okno ACW, `COMPLETED` kanałów innych niż `PHONE`
+- [ ] `customerName` to prawdziwa nazwa klienta (mapowanie z `customer` po `customer_id`, w obrębie tenanta); fallback na `customerIdentifier` tylko gdy klient nieznany lub nazwa pusta (test)
+- [ ] Ta sama poprawka mapowania `customerName` obejmuje istniejący `assigned-contact` (wspólny kod; rekomendacja: TAK, test regresyjny zmienionego pola)
+- [ ] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
+- [ ] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
+- [ ] `assigned-contact` działa bez zmian poza poprawionym `customerName` (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
+- [ ] `@ApiResponse` i Javadoc w `AgentSelfController` opisują brak/nieprawidłowy JWT jako 401 i niewystarczającą rolę jako 403 — dla `active-contacts`, `assigned-contact` i `kpi` (zgodnie z `TenantFilter` i `AgentSelfControllerTest`); wygenerowany `/v3/api-docs` pokazuje 401 dla tych endpointów
+- [ ] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
+
+**Testy:**
+- Jednostkowe: `ContactServiceTest` (mapowanie statusu na `phase`, ACW tylko `PHONE` + brak dyspozycji + w oknie, fallback nazwy klienta) oraz `AgentSelfControllerTest` — klasę z testami bazowymi istniejących endpointów (`assigned-contact`, `kpi`) tworzy równolegle `test-suite-expert` (dotąd brak jakichkolwiek testów `AgentSelfController`); testy BE-157 ROZSZERZAJĄ tę istniejącą klasę, nie tworzą jej (bez nowego ticketu); pokrycie: 200 + `[]`, rola, użycie `TenantContext.getUserId()` zamiast parametru.
+- Integracyjne (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`, prawdziwa baza): zestaw danych z 2 tenantami × 2 agentami; **kontakty innego agenta i innego tenanta NIE mogą wyciec** (asercja na pełnym zbiorze identyfikatorów, nie tylko na liczbie), kolejność, limit, okno ACW, kontakt `COMPLETED` z dyspozycją pominięty, test pod RLS (`app.current_tenant`).
+- Test bezpieczeństwa: wywołanie bez JWT → 401/403; agent nie może podać cudzego `agentId` (brak parametru; próba przez query string ignorowana).
+
+**Ryzyka:** (R1) definicja ACW jest pochodna (`COMPLETED` + brak dyspozycji + okno) — kontakty zamknięte automatycznie przez system mogą wyglądać jak ACW, stąd ograniczenie do `PHONE` i okna; trwały stan ACW z `wrap_up_started_at` wymagałby migracji (poza zakresem, osobny ticket DB tylko jeśli właściciel zażąda dokładnego licznika ACW); (R2) kontakty `SOCIAL` mogą w ogóle nie trafiać do agenta do czasu BE-155 — endpoint zadziała, ale lista nie będzie ich zawierać; (R3) wydajność na tabeli partycjonowanej bez indeksu (zob. EXPLAIN w zakresie); (R4) `customerName` dziś nigdy nie jest prawdziwą nazwą (`AgentSelfController` używa `remoteAddress`) — zmiana jest widoczna dla FE, wymaga mapowania `customer` w tenantcie.
+**Nie wchodzi w zakres:** migracja DB i trwały stan ACW, usunięcie `assigned-contact`, zmiany routingu i limitów (BE-156), zdarzenia WS (BE-154), poprawka kanału social (BE-155), zmiany FE (FE-136).
+**Zależności (tura 52):** `Zależy od` brak; `Blokuje` FE-136. Kontekstowo: BE-155 (kanał `SOCIAL`), BE-156 (limity równoległych kontaktów — te same definicje „otwartego kontaktu”).
+
+### BE-158 – KPI agenta `GET /api/agent/me/kpi`: odporne mapowanie wiersza i poprawna semantyka `workTimeSeconds` („Czas pracy”)
+
+**Typ:** Bug / Hardening (Backend, API)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak (kontekst: BE-153 — przyszłe źródło czasu startu pracy; FE-129 — powiązany, NIE blokowany ani blokujący)
+**Status:** ✅ Ukończone (2026-10-28; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; semantyka wg decyzji właściciela: od logowania; `mvn verify` 2753 testy, BUILD SUCCESS, JDK 21; dług RLS zapisany w BE-150)
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (pole „Czas pracy” w pasie KPI pulpitu agenta; ticket powiązany z FE-129 z tego epiku)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (systemowa Java to 25 — Mockito/Byte Buddy nie działają).
+
+**Kontekst (odkrycie `test-suite-expert` przy `AgentSelfControllerTest`, commit `1f645fec`; stan kodu zweryfikowany w turze 53, 2026-10-23):**
+- (a) `AgentSelfController.getKpi()` (ok. linii 142) rzutuje `row[0]`…`row[3]` na `Number` (ok. linii 153–156) bez sprawdzenia `null` ani długości tablicy. Dziś jest bezpiecznie, bo `ContactRepository.findAgentKpiToday` (ok. linii 2224) opakowuje kolumny w `COALESCE`/`COUNT`, ale każda zmiana SQL może dać `NullPointerException`/`ClassCastException`/`ArrayIndexOutOfBoundsException` → HTTP 500.
+- (b) `workTimeSeconds` = `COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(c.started_at))), 0)` (ok. linii 2241) liczone po wierszach filtrowanych `status IN ('COMPLETED','TRANSFERRED') AND duration_seconds IS NOT NULL` (ok. linii 2248–2249). „Czas pracy” startuje więc od pierwszego ZAKOŃCZONEGO kontaktu dnia (nie od początku pracy), nie uwzględnia kontaktów trwających, a przed pierwszym zakończonym kontaktem wynosi 0.
+- Źródła „początku pracy” w systemie: brak tabeli historii statusów agenta ani czasu logowania (w migracjach nie ma `agent_status_history`/`last_login`); status bieżący jest tylko w Redis z TTL 8 h (`UserServiceImpl.REDIS_AGENT_STATUS_TTL`, ok. linii 57), a czas zmiany statusu dopiero planuje BE-153 (`statusSince`).
+- **Powiązanie z FE-129:** wartość `225:56` w pasie KPI NIE wynika z błędu backendu. Backend zwraca sekundy (13 556 s = 3 h 45 min 56 s), a `TopNavbarComponent.formatSeconds` (`top-navbar.component.ts`, ok. linii 43) formatuje je jako `m:ss` (minuty bez przejścia na godziny) — przyczyną formatu jest FE. Naprawia to FE-129; FE-129 NIE zależy od BE-158. BE-158 poprawia natomiast SEMANTYKĘ liczby, którą FE formatuje (po poprawce wartość będzie rosła od pierwszego kontaktu dnia, także trwającego).
+
+**Decyzja o semantyce (b) — rekomendacja:** `workTimeSeconds` = sekundy od najwcześniejszego `COALESCE(started_at, assigned_at)` WSZYSTKICH kontaktów agenta rozpoczętych w bieżącym dniu UTC (statusy `ASSIGNED`, `ACTIVE`, `ON_HOLD`, `COMPLETED`, `TRANSFERRED`, bez filtra `duration_seconds`, z pominięciem `ABANDONED`/`ERROR`/`NOT_REACHED`) do `NOW()`; 0 gdy brak. Liczniki `contacts_count`, `avg_handle_time`, `sla_percent` zostają policzone jak dziś (tylko `COMPLETED`/`TRANSFERRED` z `duration_seconds`). Dlaczego ta opcja: jest dostępna od ręki z istniejących danych (bez migracji), uwzględnia kontakt trwający i usuwa „zero do pierwszego zakończonego”. Alternatywa „od pierwszego logowania/statusu `AVAILABLE`” jest semantycznie lepsza, ale nie ma dla niej danych (zob. wyżej); po wdrożeniu BE-153 można przełączyć źródło na czas pierwszego wejścia w `AVAILABLE` danego dnia — poza zakresem tego ticketu, bez osobnego ticketu do czasu decyzji właściciela. Decyzja do potwierdzenia przez właściciela przed implementacją (zaproponowana, nie zatwierdzona).
+
+**Zakres:**
+- Wydzielić mapowanie wiersza do metody (np. w `AgentSelfController` lub małym mapperze): `null` → 0, wartość nie-`Number` lub tablica krótsza niż 4 → jasny wyjątek (`IllegalStateException` z opisem kształtu wiersza i `agentId`), nie `ClassCastException`; log `ERROR` bez PII.
+- Zmiana zapytania `ContactRepository.findAgentKpiToday` wg semantyki (b); aktualizacja Javadoc repozytorium (ok. linii 2212) oraz opisu `@Operation` w `getKpi()` (ok. linii 132: „sekundy od pierwszego kontaktu do teraz”).
+- Nie zmieniać kontraktu JSON (`AgentKpiResponse`).
+
+**Kryteria akceptacji:**
+- [x] Wiersz z `null` w dowolnej kolumnie daje 0 dla tej kolumny (test jednostkowy), a wiersz o złej długości/typie — wyjątek z czytelnym komunikatem, nie `ClassCastException`/NPE (test)
+- [ ] ~~`workTimeSeconds` liczone od najwcześniejszego kontaktu dnia…~~ — BEZPRZEDMIOTOWE po decyzji właściciela 2026-10-28 (czas liczony od logowania; zastępuje je test `AuthServiceLastLoginTest` + `AgentSelfControllerTest`)
+- [ ] ~~Kontakty `ABANDONED`/`ERROR`/`NOT_REACHED`… NIE wpływają na wynik~~ — BEZPRZEDMIOTOWE (czas pracy nie zależy już od kontaktów)
+- [x] Agent bez kontaktów dziś: wszystkie wartości 0, odpowiedź 200 (fallbacki: `lastLoginAt == null` → 0, w przyszłości → 0)
+- [x] Pozostałe KPI (`contactsHandledToday`, `avgHandleTimeSeconds`, `slaPercent`) bez zmiany wartości dla tych samych danych (test regresyjny)
+- [x] `mvn verify -pl app` zielone (z `JAVA_HOME` dla JDK 21)
+
+**Testy:** rozszerzyć istniejące `AgentSelfControllerTest` (klasa `Kpi`, ok. linii 304; `findAgentKpiToday` mockowane przez `contactService`) o przypadki `null`/zła długość/zły typ wiersza; nowy test integracyjny repozytorium na prawdziwej bazie (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`) dla zapytania `findAgentKpiToday` — izolacja agent/tenant, granice dnia UTC, kontakty trwające.
+
+**Ryzyka:** (R1) zmiana semantyki zmienia wyświetlaną wartość „Czas pracy” dla wszystkich agentów — uzgodnić z właścicielem przed wdrożeniem; (R2) „czas pracy” liczony od pierwszego kontaktu nadal nie jest czasem obecności (przerwy, brak kontaktów) — świadome ograniczenie do czasu BE-153; (R3) dzień UTC vs strefa agenta (granica doby) — bez zmian względem dziś.
+**Nie wchodzi w zakres:** historia statusów i czas logowania (migracja DB), format wyświetlania (FE-129), zmiany FE.
+**Zależności (tura 53):** `Zależy od` brak; `Blokuje` brak; powiązany z FE-129 (przyczyną `225:56` jest `formatSeconds` na FE) i kontekstowo z BE-153.
+
+**Decyzja właściciela 2026-10-28 (zastępuje rekomendację z sekcji „Decyzja o semantyce (b)” powyżej):** `workTimeSeconds` liczone OD LOGOWANIA agenta, a nie od pierwszego kontaktu dnia.
+- Stan zweryfikowany: kolumna `app_user.last_login_at` i `AppUser.lastLoginAt` istniały (V003), ale NIC ich nie ustawiało (tylko odczyt w `UserResponse`).
+- `lastLoginAt` ustawiane po PEŁNYM uwierzytelnieniu: `AuthServiceImpl.login` (brak MFA i brak wymuszonej zmiany hasła), `verifyMfa` (tylko po świeżym logowaniu hasłem — znacznik Redis `PendingLoginTracker`, TTL 15 min, więc verify po refresh ani pierwsza aktywacja MFA go nie zmieniają), `changePassword` (tylko gdy kończy wymuszony reset). Refresh nie dotyka znacznika.
+- `workTimeSeconds = now - max(lastLoginAt, początek dnia UTC)`, minimum 0. Fallbacki: `lastLoginAt == null` → 0; logowanie przed dzisiejszą północą UTC → liczone od północy UTC (spójnie z pozostałymi KPI liczonymi per dzień UTC); `lastLoginAt` w przyszłości (rozjazd zegarów) → 0.
+- `findAgentKpiToday` zwraca teraz 3 kolumny (contacts_count, avg_handle_time, sla_percent) — kolumna `work_time_seconds` usunięta z SQL; pozostałe KPI bez zmiany semantyki.
+- (a) mapowanie wiersza: `null` → 0; wiersz null/krótszy niż 3 kolumny lub wartość nie-`Number` → `IllegalStateException` z kształtem wiersza i `agentId` + log ERROR (bez PII); kontrakt JSON `AgentKpiResponse` bez zmian (zmieniony tylko opis pola `workTimeSeconds`).
+- Uwaga do kryteriów: kryteria o zapytaniu SQL liczącym czas od najwcześniejszego kontaktu (w tym `ACTIVE`/`ON_HOLD`) oraz o statusach `ABANDONED`/`ERROR`/`NOT_REACHED` są bezprzedmiotowe po tej decyzji; test integracyjny zapytania na prawdziwej bazie nie został dodany (zapytanie zostało tylko uproszczone — usunięta kolumna).
+- Testy: rozszerzony `AgentSelfControllerTest` (klasa `Kpi`), nowy `AuthServiceLastLoginTest`, `PendingLoginTrackerTest`.
+
+**Notatka z wykonania (2026-10-28):** `workTimeSeconds = now - max(lastLoginAt, północ UTC)`; fallbacki: null → 0, przyszłość → 0. `last_login_at` zapisywane po pełnym uwierzytelnieniu (login bez MFA, `verifyMfa` po logowaniu hasłem, `changePassword` po wymuszonym resecie) z użyciem Redis `PendingLoginTracker` (TTL 15 min, jednorazowy, czyszczony przy wylogowaniu). Naprawiony zgubiony refresh token (`flushAutomatically`, potwierdzone testem Testcontainers). Warunek tenanta w `updateLastLoginAt`. Dług RLS (zapisy `app_user` w ścieżce logowania pod rolą bez BYPASSRLS) zapisany w BE-150.
+
+
+### BE-159 – Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela)
+
+**Typ:** Bug / Hardening (Backend, routing) — propozycja z code review BE-155/BE-158 (2026-10-28), NIE zaimplementowana
+**Priorytet:** Should Have (do oceny właściciela)
+**Złożoność:** S/M
+**Zależy od:** brak (kontekst: BE-156 — ta sama ścieżka `routeContact`/`assignContactToAgent`; BE-155 ✅ — healing nie zwiększa istotnie ryzyka)
+**Status:** ⬜ Do zrobienia (propozycja, nie zatwierdzona przez właściciela)
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z code review BE-155/BE-158)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert` dla testu współbieżności)
+
+**Opis:** `RoutingServiceImpl.routeContact` czyta kontakt przez `findContactEntity` bez sprawdzenia `status == QUEUED`, a `assignContactToAgent` robi bezwarunkowy `updateContactEntity` (bez `WHERE status = 'QUEUED'`). Dwa równoległe przebiegi (np. kilku agentów przechodzących na AVAILABLE jednocześnie — listener `agent.status.changed` — albo `contact.queued` i healing z BE-155) mogą przydzielić ten sam kontakt dwóm agentom. Ryzyko ISTNIEJĄCE przed BE-155 (BE-155 go istotnie nie zwiększa: healing nie publikuje `contact.queued`).
+**Proponowana zmiana:** warunkowy `UPDATE contact SET agent_id = :agent, status = 'ASSIGNED', assigned_at = NOW() WHERE contact_id = :id AND tenant_id = :tenant AND status = 'QUEUED' AND agent_id IS NULL`, z kontrolą liczby zaktualizowanych wierszy (0 = kontakt już przydzielony → pomiń, bez publikacji `contact.assigned`, agent pozostaje wolny); test współbieżności na prawdziwej bazie (dwa wątki, jeden kontakt, jeden zwycięzca).
+**Powiązane:** BE-156 (limit równoległych kontaktów — ta sama ścieżka), BE-155.
+
+**Kryteria akceptacji:**
+- [ ] Przydział jest warunkowy (`WHERE contact_id = :id AND tenant_id = :tenant AND status = 'QUEUED' AND agent_id IS NULL`) i sprawdza liczbę zaktualizowanych wierszy
+- [ ] 0 zaktualizowanych wierszy → kontakt pominięty, bez publikacji `contact.assigned`, agent pozostaje wolny
+- [ ] Test współbieżności na prawdziwej bazie (Testcontainers): dwa wątki, jeden kontakt, dokładnie jeden zwycięzca
+- [ ] Brak regresji istniejących testów routingu (`RoutingServiceTest`), `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** limit równoległych kontaktów (BE-156), nowe strategie routingu, zmiany FE.
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązany z BE-156 (uzgodnić kolejność merge — ta sama metoda).
+
+**Ścieżki zapisu NADAL bez guardu (stan po BE-160, 2026-10-29; do objęcia przez BE-159):** BE-160 dodał warunkowy zapis tylko w `acceptContact` (`acceptIfAssigned`) i w nowym `release`; pozostałe nadal piszą bezwarunkowo:
+- `ContactRepository.update` — używane przez `updateContact`, `setDisposition`, `abandonContact`, `terminateStaleQueuedContacts`;
+- `RoutingServiceImpl.assignContactToAgent` / `updateContactEntity` oraz ścieżka `ERROR`;
+- `onDirectAgentAssignment`;
+- `ContactAssignmentMonitor.handleMaxRetriesExceeded`;
+- `EmailContactCreator.updateContactEntity` (~l. 294);
+- `ContactRepository.assignAgent` (bez warunku na `agent_id`) i `updateAgentId` (bez żadnego warunku).
+
+### BE-160 – `POST /api/contacts/{id}/release`: zwrot kontaktu async do kolejki (koniec FIFO) + anti-ping-pong (wycinek BE-156) + poprawki code review
+
+**Typ:** Feature / Hardening (Backend, kontakty i routing)
+**Priorytet:** Must Have (wymagany przez FE-132)
+**Złożoność:** M
+**Zależy od:** brak (kontekst: BE-156 — wycinek anti-ping-pong zrealizowany tutaj; BE-159 — pozostałe ścieżki zapisu bez guardu)
+**Status:** ✅ Ukończone (2026-10-29; zmiany niezacommitowane na gałęzi `feature/epic-32-agent-ux-a11y`; testy MockMvc i współbieżności; `mvn verify` backend 2839 testów BUILD SUCCESS, JDK 21; frontend 676 testów zielone)
+**Blokuje:** FE-132 (✅ — front używa tego endpointu do „Zwróć do kolejki” dla EMAIL/SOCIAL)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie przy FE-132: `abandonContact` kończy kontakt jako ABANDONED, więc nie nadaje się do zwrotu e-mail/social)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert` dla testów współbieżności)
+
+**Opis:** Nowy endpoint `POST /api/contacts/{id}/release` zwraca kontakt kanału async (EMAIL/SOCIAL) do kolejki, tak by inny agent mógł go obsłużyć.
+
+**Zakres (zrealizowany):**
+- Warunkowy `UPDATE`: kontakt wraca do `QUEUED`, `agent_id = NULL`, `queued_at = NOW()` (kontakt trafia na KONIEC kolejki FIFO — decyzja właściciela).
+- `closeQueueIfOpen(ended_at = assigned_at)` — zamknięcie otwartego segmentu historii; zdarzenie `contact.queued` publikowane `afterCommit`.
+- Kody: 200 (idempotentnie — powtórne wywołanie również zwraca 200), 404 (brak kontaktu), 409 (konflikt stanu kontaktu).
+- Wycinek BE-156 (anti-ping-pong): `ReleaseExclusionStore` w Redis, klucz `routing:release-excl:{tenant}:{contact}`, TTL `routing.release-exclusion-ttl` (domyślnie 5 min); routing pomija wykluczonych agentów dla kanałów async, żeby zwrócony kontakt nie wrócił od razu do tego samego agenta.
+- Poprawki z code review: `acceptContact` warunkowy (`acceptIfAssigned`); guard roli AGENT na `QUEUED` async bez agenta w `abandon` / `updateContact` / `setDisposition`.
+
+**Kryteria akceptacji:**
+- [x] `POST /api/contacts/{id}/release` ustawia `QUEUED`, `agent_id NULL`, `queued_at = NOW()` (koniec FIFO)
+- [x] Warunkowy UPDATE + `closeQueueIfOpen(ended_at = assigned_at)`; `contact.queued` publikowane po commicie
+- [x] 404 dla nieistniejącego kontaktu, 409 dla konfliktu stanu, idempotentny 200
+- [x] `ReleaseExclusionStore` (Redis, TTL `routing.release-exclusion-ttl` = 5 min); routing pomija wykluczonych dla kanałów async
+- [x] `acceptContact` warunkowy (`acceptIfAssigned`); guard AGENT na `QUEUED` async bez agenta w `abandon` / `updateContact` / `setDisposition`
+- [x] Testy MockMvc i współbieżności (release vs ponowny przydział); `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** reszta BE-156 (limity, trwała historia, timeout monitora, konfiguracja per kolejka, telefonia, „wszyscy wykluczeni”, test z realnym Redis — zob. BE-156); pozostałe ścieżki zapisu bez guardu (BE-159); zmiany FE (FE-132).
+**Ryzyko znane:** `terminateStaleQueuedContacts` kończy `ABANDONED` kontakty `QUEUED` > 30 min także async — zwrócony mail może przepaść (zob. BE-156).
+**Zależności:** `Zależy od` brak; `Blokuje` FE-132 ✅; powiązane: BE-156 (wycinek), BE-159.
 
 ## Bez epiku
 

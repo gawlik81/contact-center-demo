@@ -28,6 +28,7 @@ class SocialMessageServiceImpl implements SocialMessageService {
     private final ContactService contactService;
     private final SocialAdapterRegistry adapterRegistry;
     private final RabbitTemplate rabbitTemplate;
+    private final SocialDefaultQueueResolver defaultQueueResolver;
 
     // =========================================================================
     // Przetwarzanie przychodzących wiadomości
@@ -89,8 +90,11 @@ class SocialMessageServiceImpl implements SocialMessageService {
         boolean isNewContact = activeContact.isEmpty();
         UUID contactId;
 
+        UUID queueId = null;
         if (isNewContact) {
-            contactId = createSocialContact(tenantId, incoming, channel);
+            // BE-155: new social contact gets the tenant's default social queue (no more queueId = null)
+            queueId = defaultQueueResolver.resolve(tenantId).orElse(null);
+            contactId = createSocialContact(tenantId, incoming, channel, queueId);
             log.info("[SocialMessage] Nowy kontakt social: contactId={}, channel={}, sender={}",
                     contactId, channel, incoming.senderExternalId());
         } else {
@@ -137,9 +141,16 @@ class SocialMessageServiceImpl implements SocialMessageService {
         log.info("[SocialMessage] Wiadomość zapisana: messageId={}, contactId={}, tenant={}",
                 message.getMessageId(), contactId, tenantId);
 
-        // 6. Dla nowego kontaktu – opublikuj do routingu (brak kolejki dla social → null queueId)
+        // 6. Dla nowego kontaktu – opublikuj do routingu. Bez kolejki (tenant nie ma aktywnej kolejki)
+        // NIE publikujemy contact.queued (routeContact wymaga kolejki): kontakt zostaje QUEUED,
+        // a RoutingService ponownie rozwiąże kolejkę przy kolejnym przebiegu (agent.status.changed).
         if (isNewContact) {
-            publishContactQueued(contactId, null, tenantId);
+            if (queueId != null) {
+                publishContactQueued(contactId, queueId, tenantId);
+            } else {
+                log.warn("[SocialMessage] Kontakt {} pozostaje QUEUED bez kolejki (brak aktywnej kolejki " +
+                        "tenanta {}) – nie publikuję contact.queued", contactId, tenantId);
+            }
         }
     }
 
@@ -377,15 +388,18 @@ class SocialMessageServiceImpl implements SocialMessageService {
      * @param tenantId UUID tenanta
      * @param incoming dane przychodzącego zdarzenia
      * @param channel  kanał (np. "SOCIAL_FACEBOOK")
+     * @param queueId  domyślna kolejka social tenanta (nullable gdy tenant nie ma aktywnej kolejki)
      * @return UUID nowo utworzonego kontaktu
      */
-    private UUID createSocialContact(UUID tenantId, IncomingSocialMessage incoming, String channel) {
+    private UUID createSocialContact(UUID tenantId, IncomingSocialMessage incoming, String channel,
+                                     UUID queueId) {
         UUID contactId = UUID.randomUUID();
         Instant now = Instant.now();
 
         Contact contact = Contact.builder()
                 .contactId(contactId)
                 .tenantId(tenantId)
+                .queueId(queueId)
                 .channel(channel)
                 .direction("INBOUND")
                 .status("QUEUED")
@@ -403,11 +417,11 @@ class SocialMessageServiceImpl implements SocialMessageService {
     /**
      * Publikuje event contact.queued do kolejki routingu.
      *
-     * <p>Dla kanałów social media kolejka może być null (brak konfiguracji routingu
-     * przez reguły kolejkowe). RoutingService obsłuży brak kolejki przez domyślną kolejkę.
+     * <p>Kolejka to domyślna kolejka social tenanta ({@link SocialDefaultQueueResolver}, BE-155);
+     * nigdy null – przy braku kolejki event nie jest publikowany.
      *
      * @param contactId UUID kontaktu
-     * @param queueId   UUID kolejki (może być null)
+     * @param queueId   UUID kolejki (nie null – metoda wołana tylko po rozwiązaniu kolejki)
      * @param tenantId  UUID tenanta
      */
     private void publishContactQueued(UUID contactId, UUID queueId, UUID tenantId) {

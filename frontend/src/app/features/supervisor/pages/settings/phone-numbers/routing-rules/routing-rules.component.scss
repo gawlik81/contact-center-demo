@@ -175,7 +175,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   cursor: pointer;
@@ -188,7 +188,7 @@
   &:hover:not(:disabled) {
     background: var(--bg-subtle);
     color: var(--text-1);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
   }
 
   &--danger:hover:not(:disabled) {

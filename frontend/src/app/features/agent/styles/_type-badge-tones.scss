@@ -1,0 +1,29 @@
+@use 'sass:map';
+@use 'sass:list';
+
+// Colour pairs per contact channel, shared by the tab strip badge and the contact header badge.
+// Each pair is a soft background + matching text token (>= 4.5:1 in both themes).
+$type-tones: (
+  phone: (
+    accent-soft,
+    accent-text,
+  ),
+  chat: (
+    success-soft,
+    success-text,
+  ),
+  email: (
+    violet-soft,
+    violet-text,
+  ),
+  social: (
+    warning-soft,
+    warning-text,
+  ),
+);
+
+@mixin type-tone($type) {
+  $pair: map.get($type-tones, $type);
+  background: var(--#{list.nth($pair, 1)});
+  color: var(--#{list.nth($pair, 2)});
+}

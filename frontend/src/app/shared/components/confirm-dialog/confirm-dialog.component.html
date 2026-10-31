@@ -1,4 +1,6 @@
-<dialog #dialogEl class="confirm-dialog">
+<!-- Backdrop click is a mouse-only shortcut; keyboard users close via Esc (native cancel). -->
+<!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+<dialog #dialogEl class="confirm-dialog" (cancel)="onNativeCancel($event)" (click)="onBackdropClick($event)">
   <div class="confirm-dialog__content">
     <p class="confirm-dialog__message">{{ message() }}</p>
     <div class="confirm-dialog__actions">

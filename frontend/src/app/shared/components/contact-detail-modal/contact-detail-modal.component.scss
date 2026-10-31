@@ -1,3 +1,5 @@
+@use '../../styles/breakpoints' as bp;
+
 @use '../../styles/contact-badges' as *;
 @use '../../styles/resizable-dialog' as *;
 
@@ -38,7 +40,7 @@
     backdrop-filter: blur(2px);
   }
 
-  @media (max-width: 600px) {
+  @include bp.down(sm) {
     max-width: 100%;
     max-height: 95vh;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
@@ -166,7 +168,7 @@
   gap: 18px;
   padding: 4px 0;
 
-  @media (max-width: 600px) {
+  @include bp.down(sm) {
     grid-template-columns: 1fr;
   }
 }
@@ -193,7 +195,7 @@
 }
 
 .cd-section__label {
-  font-size: 0.65625rem;
+  font-size: var(--fs-2xs);
   color: var(--text-3);
   font-weight: 700;
   text-transform: uppercase;
@@ -236,7 +238,7 @@
 }
 
 .cd-stat-label {
-  font-size: 0.625rem;
+  font-size: var(--fs-2xs);
   color: var(--text-3);
   font-weight: 600;
   text-transform: uppercase;
@@ -392,7 +394,7 @@
 .cd-tl-badge {
   padding: 2px 7px;
   border-radius: 5px;
-  font-size: 0.625rem;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   font-family: 'Geist Mono', ui-monospace, monospace;
@@ -541,11 +543,11 @@
   padding: 0.5625rem 1.25rem;
   background: var(--bg-surface);
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover {
     background: var(--bg-subtle);
-    border-color: var(--border-2, var(--border-1));
+    border-color: var(--border-control-hover);
     color: var(--text-1);
   }
 }
@@ -612,7 +614,7 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text-2);

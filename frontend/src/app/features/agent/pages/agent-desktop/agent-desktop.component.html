@@ -1,116 +1,53 @@
+<!-- Assertive announcement of a ringing call (the incoming-call banner is hidden on the desktop) -->
+<div class="sr-only" role="alert">{{ ringingAnnouncement() }}</div>
+
+<!-- Polite announcement of a new contact that did not take the active tab (FE-133) -->
+<div class="sr-only" role="status" aria-live="polite">{{ politeAnnouncement() }}</div>
+
+<!-- Close-tab confirmation: hang up a live call / return a contact that has an unsent draft -->
+@if (pendingClose(); as pending) {
+  <app-confirm-dialog
+    [message]="closeConfirmMessage(pending)"
+    [confirmLabel]="closeConfirmLabel(pending)"
+    [cancelLabel]="'agent.desktop.tabClose.cancel' | transloco"
+    [danger]="true"
+    (confirmed)="confirmClose()"
+    (cancelled)="cancelClose()"
+  />
+}
+
 <!-- Add Break Modal -->
 @if (addBreakOpen()) {
   <app-add-break-modal (saved)="onBreakSavedFromHeader()" (cancelled)="addBreakOpen.set(false)" />
 }
 
-<!-- After Contact Work – Disposition Panel -->
-@if (wrappingTab()) {
-  <app-disposition-panel
-    [contactId]="wrappingTab()!.originalContactId ?? wrappingTab()!.contactId"
-    [customerName]="wrappingTab()!.customerName"
-    [prefillNotes]="wrappingTab()!.note ?? ''"
-    (saved)="onDispositionSaved()"
-  />
-}
-
 <!-- WebSocket disconnection banner -->
 @if (isOffline()) {
-  <div class="ws-banner" role="alert" aria-live="assertive">
-    <svg class="ws-banner__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-      <path
-        d="M1 5.18l1.55-1.55C3.92 2.31 5.34 1.65 7 1.2V3.3C5.9 3.68 4.92 4.3 4.1 5.1L1 5.18zm9-2.96V0H8v2.22c.68.1 1.35.26 2 .46zm-4 1.54V1.2C4.34 1.65 2.92 2.31 1.55 3.63L3.1 5.18C4.1 4.28 5.5 3.58 7 3.28 ... "
-      />
-    </svg>
-    @if (isReconnecting()) {
-      <span class="ws-banner__text">
-        {{ 'agent.desktop.wsReconnecting' | transloco
-        }}<span class="ws-banner__dots"><span>.</span><span>.</span><span>.</span></span>
-      </span>
-    } @else {
-      <span class="ws-banner__text">{{ 'agent.desktop.wsDisconnected' | transloco }}</span>
-    }
-  </div>
-}
-
-<!-- Tab limit warning -->
-@if (tabLimitMessage()) {
-  <div class="limit-banner" role="alert" aria-live="polite">
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-    </svg>
-    {{ tabLimitMessage() }}
-  </div>
+  <app-ws-banner [reconnecting]="isReconnecting()" />
 }
 
 <div class="desktop">
-  <!-- ===== HEADER: status panel ===== -->
+  <!-- ===== HEADER: toolbar (agent status lives in the shell top bar, FE-134) ===== -->
   <header class="desktop__header">
-    <div class="status-panel">
-      <span class="status-panel__label">{{ 'agent.desktop.yourStatus' | transloco }}</span>
-      <div class="status-panel__control">
-        <button
-          type="button"
-          class="status-btn"
-          [style.border-color]="currentStatusConfig().color"
-          [style.color]="currentStatusConfig().color"
-          [style.background-color]="currentStatusConfig().bgColor"
-          [attr.aria-expanded]="statusMenuOpen()"
-          aria-haspopup="listbox"
-          [attr.aria-label]="'agent.desktop.changeStatus' | transloco"
-          (click)="toggleStatusMenu()"
-        >
-          <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-            <path [attr.d]="currentStatusConfig().icon" />
-          </svg>
-          <span class="status-btn__text">{{ currentStatusConfig().labelKey | transloco }}</span>
-          @if (statusService.isChanging()) {
-            <span class="status-btn__spinner" [attr.aria-label]="'agent.desktop.changingStatus' | transloco"></span>
-          } @else {
-            <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-          }
-        </button>
-
-        @if (statusMenuOpen()) {
-          <div
-            class="status-menu"
-            role="listbox"
-            [attr.aria-label]="'agent.desktop.selectStatus' | transloco"
-            (blur)="closeStatusMenu()"
-          >
-            @for (status of allStatuses; track status) {
-              <button
-                type="button"
-                class="status-menu__item"
-                role="option"
-                [attr.aria-selected]="statusService.currentStatus() === status"
-                [class.status-menu__item--active]="statusService.currentStatus() === status"
-                (click)="changeStatus(status)"
-              >
-                <svg
-                  class="status-menu__icon"
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  [style.color]="statusConfig[status].color"
-                >
-                  <path [attr.d]="statusConfig[status].icon" />
-                </svg>
-                <span>{{ statusConfig[status].labelKey | transloco }}</span>
-                @if (statusService.currentStatus() === status) {
-                  <svg class="status-menu__check" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                  </svg>
-                }
-              </button>
-            }
-          </div>
-          <!-- Overlay to close menu on outside click -->
-          <div class="status-menu-overlay" (click)="closeStatusMenu()" aria-hidden="true"></div>
-        }
-      </div>
-    </div>
+    <button
+      type="button"
+      class="desktop__header-action-btn"
+      [class.desktop__header-action-btn--active]="hotkeys.cheatSheetOpen()"
+      data-cheat-sheet-trigger
+      aria-haspopup="dialog"
+      aria-controls="cheat-sheet-panel"
+      [attr.aria-expanded]="hotkeys.cheatSheetOpen()"
+      [attr.aria-keyshortcuts]="shortcuts.cheatSheet.aria"
+      [title]="('agent.shortcuts.open' | transloco) + ' (' + shortcuts.cheatSheet.label + ')'"
+      (click)="hotkeys.toggleCheatSheet()"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"
+        />
+      </svg>
+      <span>{{ 'agent.shortcuts.open' | transloco }}</span>
+    </button>
 
     <div class="header-info">
       <span
@@ -133,6 +70,11 @@
         }}
       </span>
     </div>
+
+    <!-- ACW reminder as an inline chip in the free space of the toolbar (FE-123): the contact
+         column keeps its height. Visible only here; on other agent pages the shell shows the
+         floating card, and only that instance owns the live region. -->
+    <cc-acw-banner placement="toolbar" />
 
     <!-- Quick actions: Calendar + Add Break -->
     <div class="desktop__header-actions">
@@ -183,59 +125,14 @@
     </div>
   </header>
 
+  <!-- Telephony (Twilio Device) failure: visible regardless of the active tab -->
+  <app-telephony-error />
+
   <!-- ===== BODY: sidebar + main ===== -->
   <div class="desktop__body">
     <!-- SIDEBAR: queue + manual campaigns -->
     <aside class="desktop__sidebar" [attr.aria-label]="'agent.desktop.sidebarLabel' | transloco">
-      <div class="queue-panel">
-        <div class="queue-panel__header">
-          <h2 class="queue-panel__title">{{ 'agent.desktop.queueTitle' | transloco }}</h2>
-          @if (queueItems().length > 0) {
-            <span
-              class="queue-panel__badge"
-              [attr.aria-label]="queueItems().length + ' ' + ('agent.desktop.queueWaiting' | transloco)"
-            >
-              {{ queueItems().length }}
-            </span>
-          }
-        </div>
-
-        @if (queueItems().length === 0) {
-          <div class="queue-panel__empty-state">
-            <svg class="queue-panel__empty-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"
-              />
-            </svg>
-            <p class="queue-panel__empty-text">{{ 'agent.desktop.queueEmpty' | transloco }}</p>
-          </div>
-        } @else {
-          <ul class="queue-list" role="list">
-            @for (item of queueItems(); track trackByQueueId($index, item)) {
-              <li class="queue-item">
-                <div class="queue-item__avatar" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path [attr.d]="getQueueTypeIcon(item)" />
-                  </svg>
-                </div>
-                <div class="queue-item__info">
-                  <span class="queue-item__name">{{ item.customerName }}</span>
-                  <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
-                  <span class="queue-item__queue">{{ item.queueName }}</span>
-                </div>
-                <div
-                  class="queue-item__wait"
-                  [attr.aria-label]="
-                    ('agent.desktop.queueWaitTime' | transloco) + ' ' + getWaitingTime(item.waitingSince)
-                  "
-                >
-                  {{ getWaitingTime(item.waitingSince) }}
-                </div>
-              </li>
-            }
-          </ul>
-        }
-      </div>
+      <app-queue-panel />
 
       <!-- Manual campaign dialer panel -->
       <app-manual-campaign-panel [agentStatus]="statusService.currentStatus()" />
@@ -243,53 +140,106 @@
 
     <!-- MAIN: contact tabs + customer panel -->
     <div class="desktop__content-area">
-      <main class="desktop__main" id="main-content" [attr.aria-label]="'agent.desktop.activeContactsLabel' | transloco">
+      <section
+        #mainRegion
+        class="desktop__main"
+        tabindex="-1"
+        [attr.aria-label]="'agent.desktop.mainRegionLabel' | transloco"
+      >
         @if (calendarTabActive()) {
           <!-- ── Calendar view ── -->
           <app-agent-calendar />
         } @else {
           <!-- ── Contacts view ── -->
           @if (tabs().length === 0) {
-            <div class="no-contacts" role="status">
-              <svg class="no-contacts__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 13v1h2v-1c0-4.41 3.59-8 8-8s8 3.59 8 8v1h2v-1c0-5.52-4.48-10-10-10zm0 4c-3.31 0-6 2.69-6 6v1h2v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1h2v-1c0-3.31-2.69-6-6-6zm0 4c-1.1 0-2 .9-2 2v4h4v-4c0-1.1-.9-2-2-2z"
-                />
-              </svg>
-              <p class="no-contacts__text">{{ 'agent.desktop.noActiveContacts' | transloco }}</p>
-              <p class="no-contacts__subtext">
-                {{ 'agent.desktop.noActiveContactsSub' | transloco }}
-              </p>
-            </div>
+            <app-no-contacts />
           } @else {
             <div class="contact-tabs">
               <!-- Tab bar -->
-              <div class="contact-tabs__bar" role="tablist" [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco">
+              <div class="contact-tabs__bar">
+                <!-- The tablist owns ONLY the tabs (by id). The close buttons sit next to their tab
+                     in the DOM and visually, but are not tablist content, so the tablist keeps
+                     the required "owns only tabs" structure. -->
+                <div
+                  class="contact-tabs__tablist"
+                  role="tablist"
+                  [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco"
+                  [attr.aria-owns]="tabDomIds()"
+                ></div>
                 @for (tab of tabs(); track trackByTabId($index, tab)) {
-                  <button
-                    type="button"
-                    class="contact-tab"
-                    role="tab"
-                    [class.contact-tab--active]="tab.isActive"
-                    [class.contact-tab--phone]="tab.type === 'PHONE'"
-                    [class.contact-tab--chat]="tab.type === 'CHAT'"
-                    [class.contact-tab--email]="tab.type === 'EMAIL'"
-                    [class.contact-tab--social]="tab.type === 'SOCIAL'"
-                    [attr.aria-selected]="tab.isActive"
-                    [attr.aria-controls]="'tab-panel-' + tab.id"
-                    [id]="'tab-' + tab.id"
-                    (click)="setActiveTab(tab)"
+                  <!-- The close button is a SIBLING of the tab, never its descendant (nested
+                       interactive content inside role="tab" is invalid ARIA). -->
+                  <div
+                    class="contact-tab-item"
+                    role="presentation"
+                    [class.contact-tab-item--active]="tab.isActive"
+                    [class.contact-tab-item--phone]="tab.type === 'PHONE'"
+                    [class.contact-tab-item--chat]="tab.type === 'CHAT'"
+                    [class.contact-tab-item--email]="tab.type === 'EMAIL'"
+                    [class.contact-tab-item--social]="tab.type === 'SOCIAL'"
                   >
-                    <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                      <path [attr.d]="getTabTypeIcon(tab)" />
-                    </svg>
-                    <span class="contact-tab__name">{{ tab.customerName }}</span>
-                    <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
                     <button
+                      #tabBtn
+                      type="button"
+                      class="contact-tab"
+                      role="tab"
+                      [attr.tabindex]="isTabStop(tab) ? 0 : -1"
+                      [class.contact-tab--active]="tab.isActive"
+                      [attr.aria-selected]="tab.isActive"
+                      [attr.aria-controls]="'tab-panel-' + tab.id"
+                      [attr.aria-label]="tabAriaLabel(tab)"
+                      [id]="'tab-' + tab.id"
+                      (click)="setActiveTab(tab)"
+                      (keydown)="onTabKeydown($event, tab)"
+                    >
+                      <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                        <path [attr.d]="getTabTypeIcon(tab)" />
+                      </svg>
+                      <span class="contact-tab__name" [attr.title]="tab.customerName">{{ tab.customerName }}</span>
+                      <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
+                      @if (markerOf(tab); as marker) {
+                        <span class="contact-tab__marker contact-tab__marker--{{ marker | lowercase }}">
+                          <svg
+                            class="contact-tab__marker-icon"
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            @switch (marker) {
+                              @case ('ACW') {
+                                <path
+                                  d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"
+                                />
+                              }
+                              @case ('HOLD') {
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                              }
+                              @case ('CALL') {
+                                <path
+                                  d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+                                />
+                              }
+                              @case ('DRAFT') {
+                                <path
+                                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                />
+                              }
+                            }
+                          </svg>
+                          <span class="contact-tab__marker-text">{{ markerLabel(marker) }}</span>
+                        </span>
+                      }
+                    </button>
+                    <button
+                      #closeBtn
                       type="button"
                       class="contact-tab__close"
-                      [attr.aria-label]="('agent.desktop.closeContact' | transloco) + ' ' + tab.customerName"
-                      (click)="closeTab($event, tab)"
+                      [class.contact-tab__close--disabled]="isCloseDisabled(tab)"
+                      [attr.aria-label]="closeLabel(tab)"
+                      [attr.aria-disabled]="isCloseDisabled(tab) ? 'true' : null"
+                      [attr.aria-describedby]="isCloseDisabled(tab) ? 'tab-close-reason-' + tab.id : null"
+                      [attr.title]="closeDisabledReason(tab) ?? closeLabel(tab)"
+                      (click)="requestClose(tab, closeBtn)"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -297,7 +247,10 @@
                         />
                       </svg>
                     </button>
-                  </button>
+                    @if (closeDisabledReason(tab); as reason) {
+                      <span class="sr-only" [id]="'tab-close-reason-' + tab.id">{{ reason }}</span>
+                    }
+                  </div>
                 }
               </div>
 
@@ -310,53 +263,53 @@
                   [attr.aria-labelledby]="'tab-' + activeTab()!.id"
                 >
                   <div class="contact-panel">
-                    <div class="contact-panel__header">
-                      <div class="contact-panel__avatar" aria-hidden="true">
-                        {{ activeTab()!.customerName.charAt(0).toUpperCase() }}
-                      </div>
-                      <div class="contact-panel__info">
-                        <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
-                        <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
-                        <p class="contact-panel__since">
-                          {{ 'agent.desktop.contactSince' | transloco }}
-                          {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}
-                        </p>
-                      </div>
-                      <span
-                        class="contact-panel__type-badge contact-panel__type-badge--{{ activeTab()!.type | lowercase }}"
-                      >
-                        {{ getTabTypeLabel(activeTab()!) }}
-                      </span>
-                    </div>
+                    <app-contact-header [tab]="activeTab()!" [typeLabel]="getTabTypeLabel(activeTab()!)" />
 
                     <!-- Body fills remaining vertical space; each inner component handles its own scroll -->
-                    <div class="contact-panel__body">
-                      @switch (activeTab()!.type) {
-                        @case ('PHONE') {
-                          <app-softphone [tab]="activeTab()!" />
-                        }
-                        @case ('CHAT') {
-                          <div class="chat-placeholder">
-                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                            </svg>
-                            <p>{{ 'agent.desktop.chatPlaceholder' | transloco }}</p>
-                            <p class="chat-placeholder__sub">
-                              {{ 'agent.desktop.chatPlaceholderSub' | transloco }}
-                            </p>
-                          </div>
-                        }
-                        @case ('EMAIL') {
-                          <cc-email-contact
-                            [contactId]="activeTab()!.contactId"
-                            (replySent)="onEmailReplySent(activeTab()!, $event)"
-                          />
-                        }
-                        @case ('SOCIAL') {
-                          <cc-social-contact
-                            [contactId]="activeTab()!.contactId"
-                            [contactStatus]="activeTab()!.status"
-                          />
+                    <div
+                      class="contact-panel__body"
+                      [attr.inert]="isReturning(activeTab()) ? '' : null"
+                      [attr.aria-busy]="isReturning(activeTab()) ? 'true' : null"
+                    >
+                      <!-- track by tab id: switching between two tabs of the same type must remount the
+                           contact component, otherwise it keeps the previous contact's local state -->
+                      @for (current of [activeTab()!]; track current.id) {
+                        @switch (current.type) {
+                          @case ('PHONE') {
+                            @if (current.status === 'WRAPPING') {
+                              <!-- ACW: the disposition form is the content of the card (non-modal) -->
+                              <app-disposition-panel
+                                [contactId]="current.originalContactId ?? current.contactId"
+                                [tabId]="current.id"
+                                [draftKey]="draftKeyOf(current)"
+                                [wrappingSince]="current.wrappingSince ?? null"
+                                [customerName]="current.customerName"
+                                [prefillNotes]="phoneNoteOf(current)"
+                              />
+                            } @else {
+                              <app-softphone [tab]="current" />
+                            }
+                          }
+                          @case ('CHAT') {
+                            <div class="chat-placeholder" role="status">
+                              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                              </svg>
+                              <p>{{ 'agent.desktop.chatPlaceholder' | transloco }}</p>
+                              <p class="chat-placeholder__sub">
+                                {{ 'agent.desktop.chatPlaceholderSub' | transloco }}
+                              </p>
+                            </div>
+                          }
+                          @case ('EMAIL') {
+                            <cc-email-contact
+                              [contactId]="current.contactId"
+                              (replySent)="onEmailReplySent(current, $event)"
+                            />
+                          }
+                          @case ('SOCIAL') {
+                            <cc-social-contact [contactId]="current.contactId" [contactStatus]="current.status" />
+                          }
                         }
                       }
                     </div>
@@ -366,7 +319,7 @@
             </div>
           }
         }
-      </main>
+      </section>
 
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {

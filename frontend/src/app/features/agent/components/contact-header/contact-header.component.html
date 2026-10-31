@@ -1,0 +1,18 @@
+<div class="contact-header">
+  <div class="contact-header__avatar" aria-hidden="true">
+    {{ tab().customerName.charAt(0).toUpperCase() }}
+  </div>
+  <div class="contact-header__info" [attr.title]="fullTitle()">
+    <h2 class="contact-header__name">{{ tab().customerName }}</h2>
+    @if (showIdentifier()) {
+      <p class="contact-header__identifier">{{ tab().customerIdentifier }}</p>
+    }
+    <p class="contact-header__since">
+      {{ 'agent.desktop.contactSince' | transloco }}
+      {{ tab().startedAt | date: 'HH:mm:ss' }}
+    </p>
+  </div>
+  <span class="contact-header__type-badge contact-header__type-badge--{{ tab().type | lowercase }}">
+    {{ typeLabel() }}
+  </span>
+</div>

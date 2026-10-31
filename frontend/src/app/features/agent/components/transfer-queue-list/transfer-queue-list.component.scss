@@ -119,22 +119,22 @@
 
   // ── Badge base ────────────────────────────────────────────
   &__badge {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 600;
     padding: 3px 8px;
     border-radius: 20px;
     white-space: nowrap;
 
-    // Waiting contacts — orange/amber
+    // Waiting contacts
     &--waiting {
-      background: #fff3e0;
-      color: #e65100;
+      background: var(--warning-soft);
+      color: var(--warning-text);
     }
 
-    // Available agents — green
+    // Available agents
     &--agents {
-      background: #e8f5e9;
-      color: #2e7d32;
+      background: var(--success-soft);
+      color: var(--success-text);
     }
   }
 }

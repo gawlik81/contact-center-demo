@@ -19,7 +19,7 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -38,7 +38,7 @@
     padding: 0 4px;
     background: var(--accent);
     color: var(--accent-fg);
-    font-size: 0.625rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     border-radius: 9999px;
     letter-spacing: 0;
@@ -50,8 +50,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 24px; // WCAG 2.5.8 minimum target
+    height: 24px;
     border: none;
     background: transparent;
     border-radius: var(--radius-sm, 4px);
@@ -87,7 +87,7 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--warning, #f59e0b);
     background: color-mix(in oklch, var(--warning, #f59e0b) 12%, transparent);
     border-radius: var(--radius-sm, 4px);
@@ -238,7 +238,7 @@
     padding: 0 4px;
     background: var(--accent-soft);
     color: var(--accent-text);
-    font-size: 0.625rem;
+    font-size: var(--fs-2xs);
     font-weight: 700;
     border-radius: 9999px;
     flex-shrink: 0;
@@ -300,7 +300,7 @@
   }
 
   &__name {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;

@@ -1,4 +1,4 @@
-<dialog #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title">
+<dialog (cancel)="onNativeCancel($event)" #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title">
   <div class="callback-dialog__content" role="document">
     <!-- Header -->
     <div class="callback-dialog__header">
@@ -224,3 +224,14 @@
     </div>
   </div>
 </dialog>
+
+@if (discardConfirmOpen()) {
+  <app-confirm-dialog
+    [message]="'agent.manualCallbackModal.discardMessage' | transloco"
+    [confirmLabel]="'agent.manualCallbackModal.discardConfirm' | transloco"
+    [cancelLabel]="'agent.manualCallbackModal.discardKeep' | transloco"
+    [danger]="true"
+    (confirmed)="discard()"
+    (cancelled)="keepEditing()"
+  />
+}

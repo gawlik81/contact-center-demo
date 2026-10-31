@@ -12,14 +12,14 @@ export interface AiSummaryResponse {
 
 export class AiConfigNotSetError extends Error {
   constructor() {
-    super('Skonfiguruj dostawcę AI w ustawieniach supervisora.');
+    super('AI provider is not configured for this tenant.');
     this.name = 'AiConfigNotSetError';
   }
 }
 
 export class AiServiceUnavailableError extends Error {
   constructor() {
-    super('Serwis AI tymczasowo niedostępny. Spróbuj ponownie.');
+    super('AI service is temporarily unavailable.');
     this.name = 'AiServiceUnavailableError';
   }
 }

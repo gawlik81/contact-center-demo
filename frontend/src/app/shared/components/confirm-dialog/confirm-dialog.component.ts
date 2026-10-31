@@ -53,6 +53,12 @@ export class ConfirmDialogComponent implements AfterViewInit, OnChanges {
     this.confirmed.emit();
   }
 
+  /** Esc: route through onCancel so the parent is told (otherwise the <dialog> closes silently). */
+  onNativeCancel(event: Event): void {
+    event.preventDefault();
+    this.onCancel();
+  }
+
   onCancel(): void {
     this.close();
     this.cancelled.emit();

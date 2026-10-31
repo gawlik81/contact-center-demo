@@ -1,0 +1,68 @@
+<div class="status-switcher">
+  <span class="status-switcher__label" aria-hidden="true">
+    {{ 'agent.desktop.yourStatus' | transloco }}
+  </span>
+  <div class="status-switcher__control">
+    <button
+      #statusTrigger
+      type="button"
+      class="status-btn"
+      [attr.data-status-tone]="current().tone"
+      [attr.aria-expanded]="menuOpen()"
+      [attr.aria-busy]="statusService.isChanging()"
+      aria-haspopup="menu"
+      [attr.aria-controls]="menuOpen() ? menuId : null"
+      [attr.aria-label]="'agent.desktop.statusTriggerLabel' | transloco: { status: current().labelKey | transloco }"
+      (click)="toggle()"
+      (keydown)="onTriggerKeydown($event)"
+    >
+      <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path [attr.d]="current().icon" />
+      </svg>
+      <span class="status-btn__text">{{ current().labelKey | transloco }}</span>
+      @if (statusService.isChanging()) {
+        <span class="status-btn__spinner" aria-hidden="true"></span>
+      } @else {
+        <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7 10l5 5 5-5z" />
+        </svg>
+      }
+    </button>
+
+    @if (menuOpen()) {
+      <div [id]="menuId" class="status-menu" role="menu" [attr.aria-label]="'agent.desktop.selectStatus' | transloco">
+        @for (status of allStatuses; track status) {
+          <button
+            #statusItem
+            type="button"
+            class="status-menu__item"
+            role="menuitemradio"
+            tabindex="-1"
+            [attr.data-status-tone]="statusConfig[status].tone"
+            [attr.aria-checked]="statusService.currentStatus() === status"
+            [class.status-menu__item--active]="statusService.currentStatus() === status"
+            (click)="select(status)"
+            (keydown)="onMenuKeydown($event)"
+          >
+            <svg class="status-menu__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path [attr.d]="statusConfig[status].icon" />
+            </svg>
+            <span>{{ statusConfig[status].labelKey | transloco }}</span>
+            @if (statusService.currentStatus() === status) {
+              <svg class="status-menu__check" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+            }
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+  @if (statusService.currentStatus() === 'BREAK') {
+    <cc-status-elapsed />
+  }
+
+  <!-- Polite announcement of a successful change (the spinner and aria-busy are silent). -->
+  <span class="status-switcher__live" role="status" aria-live="polite">{{ announcement() }}</span>
+</div>

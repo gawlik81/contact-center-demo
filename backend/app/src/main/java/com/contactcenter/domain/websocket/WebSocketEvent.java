@@ -1,5 +1,6 @@
 package com.contactcenter.domain.websocket;
 
+import com.contactcenter.domain.contact.ContactChannels;
 import com.contactcenter.domain.customer.CustomerCliResult;
 import com.contactcenter.domain.telephony.CallEvent;
 import org.slf4j.Logger;
@@ -215,7 +216,8 @@ public record WebSocketEvent(
         return new WebSocketEvent(
                 TYPE_CONTACT_ASSIGNED,
                 tenantId,
-                new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel,
+                new ContactAssignedPayload(agentId.toString(), contactId.toString(),
+                        ContactChannels.toAgentDesktopType(channel),
                         customerName, customerIdentifier, queueName, customerId),
                 Instant.now()
         );
@@ -396,7 +398,7 @@ public record WebSocketEvent(
      * Payload dla eventów przydzielenia kontaktu.
      *
      * <p>Pole {@code type} odpowiada interfejsowi Angular {@code ContactAssignedPayload.type}
-     * (wartości: "PHONE", "CHAT", "EMAIL") i pochodzi z pola {@code channel} encji Contact.
+     * (wartości: "PHONE", "CHAT", "EMAIL", "SOCIAL") i pochodzi z pola {@code channel} encji Contact.
      *
      * <p>Pole {@code customerId} jest nullable – ustawiane gdy kontakt ma przypisanego klienta
      * (po naprawie Problemu 1: EmailContactCreator lookup po emailu). Używane przez frontend
@@ -514,7 +516,7 @@ public record WebSocketEvent(
      * <p>Pole {@code type} odpowiada wartościom Angular {@code ContactType}:
      * {@code PHONE}, {@code EMAIL}, {@code SOCIAL}.
      * Kanały {@code SOCIAL_FACEBOOK}, {@code SOCIAL_INSTAGRAM}, {@code SOCIAL_WHATSAPP}
-     * są mapowane do {@code SOCIAL} przez {@code RoutingService.mapChannelToType()}.
+     * są mapowane do {@code SOCIAL} przez {@code ContactChannels.toAgentDesktopType()}.
      */
     public record QueueItemDto(
             String id,

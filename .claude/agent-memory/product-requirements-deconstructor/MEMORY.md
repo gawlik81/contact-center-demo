@@ -21,3 +21,9 @@
 - [BE-151 zakończone (tura 38)](project_be151_tura38.md) — 332/348, FE-113 odblokowany, luka handlera 500 jako rekomendacja bez numeru
 - [Tura 40: EPIC-31, DB-085/086](project_tura40_epic31.md) — FE-113 ✅, 333/350, rozbieżność skryptu EPIC-30 (+2 stałe)
 - [Tura 43: zamknięcie EPIC-30](project_tura43_epic30_closure.md) — warunkowe, DB-087/V142, 337/352, odłożone DB-069/BE-137
+- [Tura 47: EPIC-32 UX agenta](project_tura47_epic32.md) — FE-114..125, 338/372, fazy i otwarte decyzje
+- [EPIC-32 po turze 48](project_epic32_tura48.md) — FE 3/12; reszta kontrastu przeniesiona do FE-116 (M/L)
+- [EPIC-32 po turze 49](project_epic32_tura49.md) — FE 5/13, nowy FE-126, 342/373, faza 1 zamknięta
+- [Tura 51: shape FE-121/122](project_tura51_shape.md) — FE-121 parasol FE-131..134, FE-135/136, BE-154..156, 345/387
+- [Tura 54: EPIC-32 FE-131/134, BE-155/158](project_tura54_epic32.md) — 349/390, BE-159 jako ⬜, wolne BE-160/FE-137/DB-088
+- [Tura 60: FE-129 ✅, FE-143](project_tura60_fe129.md) — 358/398, EPIC-32 18/30, blokują tylko FE-127/FE-128

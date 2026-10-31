@@ -11,6 +11,7 @@ import {
   DestroyRef,
   ElementRef,
   OnInit,
+  afterNextRender,
   computed,
   inject,
   input,
@@ -25,6 +26,8 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AgentCalendarService } from '../../services/agent-calendar.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentBreakRequest, BreakType, CalendarBreak } from '../../models/agent-calendar.model';
+import { rememberFocus } from '../../../../shared/utils/focus.util';
+import { ListboxNavDirective } from '../../../../shared/directives/listbox-nav.directive';
 
 function endAfterStartValidator(group: AbstractControl): ValidationErrors | null {
   const startDate = group.get('startDate')?.value as string;
@@ -55,6 +58,15 @@ function startInFutureValidator(group: AbstractControl): ValidationErrors | null
   return start <= new Date() ? { startNotInFuture: true } : null;
 }
 
+/**
+ * Defaults for a new break: the most common one is a short break (the `BreakType` set is the
+ * backend contract, no new values are invented), starting at the next 5-minute slot that is
+ * still in the future when the agent submits, lasting 15 minutes.
+ */
+const DEFAULT_BREAK_TYPE: BreakType = 'SHORT_BREAK';
+const DEFAULT_BREAK_MINUTES = 15;
+const MINUTE_STEP = 5;
+
 export interface BreakTypeOption {
   value: BreakType;
   label: string;
@@ -64,7 +76,7 @@ export interface BreakTypeOption {
   selector: 'app-add-break-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, TranslocoModule],
+  imports: [ReactiveFormsModule, TranslocoModule, ListboxNavDirective],
   templateUrl: './add-break-modal.component.html',
   styleUrl: './add-break-modal.component.scss',
 })
@@ -82,6 +94,14 @@ export class AddBreakModalComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
+  private readonly breakTypeTrigger = viewChild<ElementRef<HTMLButtonElement>>('breakTypeTrigger');
+
+  constructor() {
+    // The first field gets focus instead of the dialog's close button (keyboard-first flow).
+    afterNextRender(() => this.breakTypeTrigger()?.nativeElement.focus());
+  }
 
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -110,7 +130,7 @@ export class AddBreakModalComponent implements OnInit {
 
   readonly form = this.fb.group(
     {
-      breakType: ['LUNCH' as BreakType, [Validators.required]],
+      breakType: [DEFAULT_BREAK_TYPE, [Validators.required]],
       startDate: ['', [Validators.required]],
       startHour: ['', [Validators.required]],
       startMinute: ['', [Validators.required]],
@@ -127,8 +147,12 @@ export class AddBreakModalComponent implements OnInit {
   });
 
   private readonly _breakTypeValue = toSignal(this.form.controls.breakType.valueChanges, {
-    initialValue: 'LUNCH' as BreakType,
+    initialValue: DEFAULT_BREAK_TYPE,
   });
+
+  readonly breakTypeIndex = computed(() =>
+    this.breakTypes.findIndex((t) => t.value === this._breakTypeValue()),
+  );
 
   readonly currentBreakTypeLabel = computed(
     () =>
@@ -149,14 +173,16 @@ export class AddBreakModalComponent implements OnInit {
   get breakTypeError(): string | null {
     const ctrl = this.form.controls.breakType;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('agent.addBreak.breakTypeLabel');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('agent.addBreak.breakTypeRequired');
     return null;
   }
 
   get startDateError(): string | null {
     const ctrl = this.form.controls.startDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Data rozpoczęcia jest wymagana.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('agent.addBreak.startDateRequired');
     return null;
   }
 
@@ -165,14 +191,15 @@ export class AddBreakModalComponent implements OnInit {
     const m = this.form.controls.startMinute;
     if (!h.touched && !m.touched) return null;
     if (h.hasError('required') || m.hasError('required'))
-      return 'Godzina rozpoczęcia jest wymagana.';
+      return this.transloco.translate('agent.addBreak.startTimeRequired');
     return null;
   }
 
   get endDateError(): string | null {
     const ctrl = this.form.controls.endDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('agent.addBreak.endLabel');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('agent.addBreak.endDateRequired');
     return null;
   }
 
@@ -181,7 +208,7 @@ export class AddBreakModalComponent implements OnInit {
     const m = this.form.controls.endMinute;
     if (!h.touched && !m.touched) return null;
     if (h.hasError('required') || m.hasError('required'))
-      return 'Godzina zakończenia jest wymagana.';
+      return this.transloco.translate('agent.addBreak.endTimeRequired');
     return null;
   }
 
@@ -191,7 +218,7 @@ export class AddBreakModalComponent implements OnInit {
     const endDateTouched = this.form.controls.endDate.touched;
     if (!endHourTouched && !endMinuteTouched && !endDateTouched) return null;
     return this.form.hasError('endNotAfterStart')
-      ? 'Czas zakończenia musi być późniejszy niż czas rozpoczęcia.'
+      ? this.transloco.translate('agent.addBreak.endNotAfterStart')
       : null;
   }
 
@@ -213,7 +240,39 @@ export class AddBreakModalComponent implements OnInit {
     const existing = this.existingBreak();
     if (existing) {
       this.prefillForm(existing);
+    } else {
+      this.applyDefaults();
     }
+  }
+
+  private applyDefaults(): void {
+    const stepMs = MINUTE_STEP * 60_000;
+    // +2 min grace so the slot is still in the future when the agent hits "Save".
+    const start = new Date(Math.ceil((Date.now() + 2 * 60_000) / stepMs) * stepMs);
+    const end = new Date(start.getTime() + DEFAULT_BREAK_MINUTES * 60_000);
+    const dateOf = (d: Date) =>
+      `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
+    this.form.patchValue({
+      startDate: dateOf(start),
+      startHour: this.pad(start.getHours()),
+      startMinute: this.pad(start.getMinutes()),
+      endDate: dateOf(end),
+      endHour: this.pad(end.getHours()),
+      endMinute: this.pad(end.getMinutes()),
+    });
+  }
+
+  /**
+   * An untouched default start slot may have slipped into the past while the dialog sat open;
+   * recompute it instead of reporting an error the agent never caused.
+   */
+  private refreshStaleDefaults(): void {
+    if (this.isEditMode()) return;
+    const c = this.form.controls;
+    const untouched = [c.startDate, c.startHour, c.startMinute, c.endDate, c.endHour, c.endMinute];
+    if (untouched.some((ctrl) => ctrl.dirty)) return;
+    this.form.updateValueAndValidity();
+    if (this.form.hasError('startNotInFuture')) this.applyDefaults();
   }
 
   private prefillForm(br: CalendarBreak): void {
@@ -241,7 +300,10 @@ export class AddBreakModalComponent implements OnInit {
 
   protected selectBreakType(value: BreakType): void {
     this.form.controls.breakType.setValue(value);
+    this.form.controls.breakType.markAsDirty();
     this.breakTypeOpen.set(false);
+    // Mouse selection moves focus off the trigger; keep the keyboard flow on the field.
+    this.breakTypeTrigger()?.nativeElement.focus();
   }
 
   protected onBackdropClick(event: MouseEvent): void {
@@ -250,13 +312,32 @@ export class AddBreakModalComponent implements OnInit {
     }
   }
 
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    // An open type list absorbs Esc first (the listbox already stops it; this covers the
+    // browser's own close request path).
+    if (this.breakTypeOpen()) {
+      this.breakTypeOpen.set(false);
+      return;
+    }
+    this.close();
+  }
+
   protected close(): void {
     this.dialogRef().nativeElement.close();
+    this.restoreFocus();
     this.cancelled.emit();
   }
 
   protected submit(): void {
+    this.refreshStaleDefaults();
     this.form.markAllAsTouched();
+    // The "start in the future" rule depends on the clock, not only on field values.
+    this.form.updateValueAndValidity();
     if (!this.canSubmit()) return;
 
     const raw = this.form.getRawValue();
@@ -303,6 +384,7 @@ export class AddBreakModalComponent implements OnInit {
           : this.transloco.translate('common.success');
         this.notifications.success(msg);
         this.dialogRef().nativeElement.close();
+        this.restoreFocus();
         this.saved.emit();
       });
   }
@@ -336,6 +418,7 @@ export class AddBreakModalComponent implements OnInit {
         this.loading.set(false);
         this.notifications.success(this.transloco.translate('common.success'));
         this.dialogRef().nativeElement.close();
+        this.restoreFocus();
         this.breakCancelled.emit();
       });
   }

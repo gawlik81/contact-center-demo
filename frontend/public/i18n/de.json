@@ -92,6 +92,7 @@
       "title": "Anmelden",
       "emailLabel": "E-Mail-Adresse",
       "emailPlaceholder": "E-Mail-Adresse eingeben",
+      "signedInAs": "Anmeldung als {{ email }}",
       "passwordLabel": "Passwort",
       "submitButton": "Anmelden",
       "nextButton": "Weiter",
@@ -185,12 +186,19 @@
     "ivrEditor": "IVR-Editor",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigationspfad",
+    "skipToContent": "Zum Inhalt springen",
     "settingsTwilioConfig": "Twilio-Integration",
     "settingsAiConfig": "KI-Konfiguration",
     "settingsDispositionSets": "Dispositions-Sets",
     "settingsPlugins": "Plugins",
     "settingsDataRetention": "Datenaufbewahrung",
-    "retentionPendingBadge": "{{ count }} Datenkategorien warten auf Löschung"
+    "retentionPendingBadge": "{{ count }} Datenkategorien warten auf Löschung",
+    "toggleSidenav": "Seitennavigation umschalten",
+    "themeGroup": "Oberflächendesign",
+    "themeLight": "Helles Design",
+    "themeAuto": "Automatisches Design",
+    "themeDark": "Dunkles Design",
+    "roleAria": "Rolle: {{ role }}"
   },
   "role": {
     "superAdmin": "Hauptadministrator",
@@ -205,15 +213,17 @@
       "break": "Pause",
       "afterContact": "Nachbearbeitungszeit",
       "offline": "Offline",
+      "breakDuration": "Dauer der Pause",
+      "breakDurationHint": "Zeit seit der Statusänderung in dieser Sitzung",
       "errorLoad": "Agentenstatus konnte nicht geladen werden.",
-      "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen."
+      "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen.",
+      "changedAnnouncement": "Status geändert auf: {{status}}"
     },
     "desktop": {
       "title": "Agenten-Desktop",
       "noActiveContact": "Kein aktiver Kontakt",
       "yourStatus": "Ihr Status:",
-      "changeStatus": "Status ändern",
-      "changingStatus": "Status wird geändert...",
+      "statusTriggerLabel": "Status: {{status}}. Status ändern",
       "selectStatus": "Status auswählen",
       "connected": "Verbunden",
       "connecting": "Verbinden...",
@@ -226,17 +236,36 @@
       "tabLimitTotal": "Sie haben das Maximum von 4 aktiven Kontakten erreicht.",
       "queueTitle": "Warteschlange",
       "queueEmpty": "Keine wartenden Kontakte",
-      "queueWaiting": "wartend",
+      "queueWaitingCount_one": "{{count}} wartend",
+      "queueWaitingCount_few": "{{count}} wartend",
+      "queueWaitingCount_many": "{{count}} wartend",
+      "queueWaitingCount_other": "{{count}} wartend",
       "queueWaitTime": "Wartezeit",
       "sidebarLabel": "Kontaktwarteschlange und manuelle Kampagnen",
-      "activeContactsLabel": "Aktive Kontakte",
+      "mainRegionLabel": "Kontakte und Kalender",
       "noActiveContacts": "Keine aktiven Kontakte",
       "noActiveContactsSub": "Warten Sie auf eine Kontaktzuweisung oder nehmen Sie einen Anruf aus der Warteschlange an",
       "tabBarLabel": "Aktive Kontakte",
-      "closeContact": "Kontakt schließen",
       "contactSince": "Seit",
-      "chatPlaceholder": "Chat-Bereich",
-      "chatPlaceholderSub": "Chat-Ansicht wird hier geladen",
+      "chatPlaceholder": "Chat ist noch nicht verfügbar",
+      "chatPlaceholderSub": "Dieser Kontakt kann hier nicht bearbeitet werden. Schließen Sie den Tab.",
+      "kpiStripLabel": "Agenten-Kennzahlen",
+      "kpiHandled": "Bearbeitet",
+      "kpiHandledSub": "heute",
+      "kpiSla": "SLA",
+      "kpiAht": "AHT",
+      "kpiAhtSub": "Ø Zeit",
+      "kpiWorkTime": "Arbeitszeit",
+      "kpiWorkTimeHours_one": "{{count}} Stunde",
+      "kpiWorkTimeHours_other": "{{count}} Stunden",
+      "kpiWorkTimeHours_few": "{{count}} Stunden",
+      "kpiWorkTimeHours_many": "{{count}} Stunden",
+      "kpiWorkTimeMinutes_one": "{{count}} Minute",
+      "kpiWorkTimeMinutes_other": "{{count}} Minuten",
+      "kpiWorkTimeMinutes_few": "{{count}} Minuten",
+      "kpiWorkTimeMinutes_many": "{{count}} Minuten",
+      "kpiAhtSr": "{{minutes}} Min. {{seconds}} Sek.",
+      "kpiNoData": "keine Daten",
       "profileLabel": "Kundenprofil",
       "expandCustomerPanel": "Kundenpanel erweitern",
       "collapseCustomerPanel": "Kundenpanel reduzieren",
@@ -251,7 +280,42 @@
       "pluginPanelsLabel": "Plugin-Panels",
       "pluginActionTimeout": "Die Plugin-Aktion hat das Zeitlimit überschritten (504). Bitte erneut versuchen.",
       "pluginActionError": "Die Plugin-Aktion ist fehlgeschlagen.",
-      "pluginActionSuccess": "Plugin-Aktion abgeschlossen."
+      "pluginActionSuccess": "Plugin-Aktion abgeschlossen.",
+      "ringingAnnouncement": "Eingehender Anruf: {{ who }}",
+      "ringingAnnouncementQueue": "Warteschlange: {{ queue }}",
+      "ringingAnnouncementUnknown": "Eingehender Anruf",
+      "tabMarker": {
+        "ACW": "ACW",
+        "HOLD": "Gehalten",
+        "CALL": "Im Gespräch",
+        "DRAFT": "Entwurf"
+      },
+      "tabMarkerSr": {
+        "ACW": "Nachbearbeitung (ACW)",
+        "HOLD": "Gespräch gehalten",
+        "CALL": "Gespräch läuft",
+        "DRAFT": "nicht gesendeter Entwurf"
+      },
+      "newContactAnnouncement": "Neuer Kontakt: {{who}} ({{type}})",
+      "tabClose": {
+        "closePhone": "Auflegen und Kontakt {{name}} schließen",
+        "closeAsync": "In die Warteschlange zurückgeben und Kontakt {{name}} schließen",
+        "wrapping": "Speichern Sie die Disposition, um diesen Tab zu schließen",
+        "busy": "Kontakt wird in die Warteschlange zurückgegeben",
+        "confirmHangup": "Gespräch mit {{name}} beenden und Tab schließen?",
+        "confirmHangupAction": "Auflegen",
+        "confirmReturn": "Für den Kontakt {{name}} gibt es einen nicht gesendeten Antwortentwurf. Beim Zurückgeben in die Warteschlange geht er verloren. Fortfahren?",
+        "confirmReturnAction": "In Warteschlange zurückgeben",
+        "cancel": "Abbrechen",
+        "returned": "Kontakt {{name}} wurde in die Warteschlange zurückgegeben",
+        "returnError": "Kontakt {{name}} konnte nicht in die Warteschlange zurückgegeben werden. Der Tab bleibt offen, bitte erneut versuchen.",
+        "closeReject": "Anruf von {{name}} abweisen",
+        "closeStale": "Tab {{name}} schließen",
+        "closeWrapping": "Schließen nicht möglich, Disposition für {{name}} speichern",
+        "confirmReject": "Anruf von {{name}} abweisen?",
+        "confirmRejectAction": "Abweisen",
+        "notYours": "Kontakt {{name}} ist Ihnen nicht mehr zugewiesen. Der Tab wurde geschlossen."
+      }
     },
     "softphone": {
       "incomingCall": "Eingehender Anruf",
@@ -317,26 +381,48 @@
       "loadAgentsError": "Agentenliste konnte nicht geladen werden.",
       "noQueuesAvailable": "Keine Warteschlangen verfügbar.",
       "loadQueuesError": "Warteschlangenliste konnte nicht geladen werden.",
+      "loadingQueues": "Warteschlangenliste wird geladen",
+      "loadingAgents": "Agentenliste wird geladen",
+      "transferTargetLabel": "Transferziel",
       "waitingContacts": "wartend",
-      "availableAgents": "Agenten"
+      "availableAgents": "Agenten",
+      "errors": {
+        "title": "Telefonie nicht verfügbar",
+        "tokenFetch": "Das Telefonie-Token konnte nicht abgerufen werden. Erneut versuchen; bei wiederholtem Fehler Seite neu laden.",
+        "device": "Ein Telefoniefehler im Browser ist aufgetreten. Erneut versuchen; bei wiederholtem Fehler Seite neu laden.",
+        "retry": "Erneut versuchen",
+        "retrying": "Wird wiederholt…",
+        "stillUnavailable": "Weiterhin nicht verfügbar"
+      }
     },
     "disposition": {
       "title": "Kontakt beenden",
       "acwLabel": "ACW-Zeit",
-      "acwTimer": "Nachbearbeitungszeit:",
       "codeLabel": "Disposition",
       "codeRequired": "Bitte wählen Sie eine Disposition vor dem Speichern",
       "codePlaceholder": "-- Disposition auswählen --",
       "notesLabel": "Notiz",
       "notesOptional": "(optional)",
       "notesPlaceholder": "Notiz zum Kontakt hinzufügen...",
-      "notesAriaLabel": "Kontaktnotiz, optional",
       "saveLabel": "Disposition speichern und Status auf verfügbar setzen",
       "save": "Speichern und schließen",
       "saving": "Speichern...",
       "errorSave": "Disposition konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
-      "successSave": "Disposition gespeichert. Status wird auf Verfügbar geändert...",
-      "statusChanged": "Status auf Verfügbar geändert."
+      "fallbackNotice": "Systemdispositionen werden angezeigt (eigene konnten nicht geladen werden).",
+      "successSave": "Disposition gespeichert."
+    },
+    "aiSummary": {
+      "title": "KI-Zusammenfassung",
+      "generate": "KI-Zusammenfassung erstellen",
+      "generating": "Wird erstellt…",
+      "needsRecording": "Die KI-Zusammenfassung erfordert eine Gesprächsaufzeichnung",
+      "expand": "KI-Zusammenfassung aufklappen",
+      "collapse": "KI-Zusammenfassung zuklappen",
+      "copyToNotes": "In Notiz kopieren",
+      "meta": "Modell: {{ model }} · Tokens: {{ tokens }}",
+      "errorNotConfigured": "KI-Anbieter in den Supervisor-Einstellungen einrichten.",
+      "errorUnavailable": "Der KI-Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.",
+      "errorUnknown": "Die Zusammenfassung konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
     },
     "customerPanel": {
       "emptyTitle": "Kein aktiver Kontakt",
@@ -348,22 +434,39 @@
       "createProfileLabel": "Kundenprofil für Nummer erstellen",
       "viewProfile": "Vollständiges Profil anzeigen",
       "errorText": "Kundendaten können nicht geladen werden (Serverfehler).",
+      "retry": "Erneut versuchen",
+      "channels": {
+        "PHONE": "Telefon",
+        "EMAIL": "E-Mail",
+        "CHAT": "Chat",
+        "SOCIAL": "Social"
+      },
       "recentContacts": "Letzte Kontakte",
       "noHistory": "Keine Kontakthistorie",
       "lookupError": "Kundendaten konnten nicht abgerufen werden.",
+      "contactDetailsDated": "Kontaktdetails vom {{ date }}",
       "noteExpand": "Mehr anzeigen",
       "noteCollapse": "Weniger anzeigen",
       "externalId": "Externe ID"
     },
     "incomingCall": {
       "label": "Eingehender Anruf",
-      "goToDesktop": "Zum Desktop gehen und annehmen",
-      "dismiss": "Schließen",
       "limitMaxPhone": "Sie können nur 1 Telefonanruf gleichzeitig bearbeiten.",
       "limitMaxAsync": "Sie haben das Limit von 3 Chat/E-Mail-Kontakten erreicht.",
       "limitMaxTotal": "Sie haben das Maximum von 4 aktiven Kontakten erreicht.",
       "limitGeneral": "Sie haben das Limit aktiver Kontakte erreicht.",
-      "systemNotificationTitle": "Eingehender Anruf"
+      "systemNotificationTitle": "Eingehender Anruf",
+      "labelAsync": "Neuer Kontakt",
+      "goToContact": "Zum Kontakt",
+      "hide": "Benachrichtigung ausblenden",
+      "inCall": "Gespräch läuft",
+      "openDesktop": "Zum Desktop"
+    },
+    "acwBanner": {
+      "title": "Dispositionscode fehlt noch",
+      "action": "Disposition ausfüllen",
+      "announcement": "Das Gespräch mit {{who}} ist beendet. Bitte die Disposition ausfüllen.",
+      "more": "+{{count}} weitere"
     },
     "addBreak": {
       "titleAdd": "Pause hinzufügen",
@@ -404,7 +507,13 @@
         "OTHER": "Andere"
       },
       "errorStartInPast": "Die Startzeit muss in der Zukunft liegen.",
-      "errorConflict": "Die Pause steht in Konflikt mit einem bestehenden Termineintrag."
+      "errorConflict": "Die Pause steht in Konflikt mit einem bestehenden Termineintrag.",
+      "breakTypeRequired": "Wählen Sie eine Pausenart aus.",
+      "startDateRequired": "Das Startdatum ist erforderlich.",
+      "startTimeRequired": "Die Startzeit ist erforderlich.",
+      "endDateRequired": "Das Enddatum ist erforderlich.",
+      "endTimeRequired": "Die Endzeit ist erforderlich.",
+      "endNotAfterStart": "Die Endzeit muss nach der Startzeit liegen."
     },
     "rescheduleCallback": {
       "title": "Rückruf verschieben",
@@ -456,9 +565,12 @@
     },
     "manualCampaign": {
       "title": "Manuelle Kampagnen",
-      "recordsLabel": "Datensätze zum Anrufen",
       "refreshLabel": "Liste der manuellen Kampagnen aktualisieren",
       "refreshTitle": "Aktualisieren",
+      "sectionLabel": "Manuelle Kampagnen zum Anwählen",
+      "recordsPendingLabel": "Ausstehende Datensätze: {{ count }}",
+      "campaignRecordsLabel": "Datensätze der Kampagne {{ name }}",
+      "recordsListLabel": "Datensätze zum Anwählen",
       "statusNotAvailable": "Status auf Verfügbar ändern, um Anrufe zu tätigen",
       "loadingLabel": "Kampagnen werden geladen...",
       "empty": "Keine aktiven manuellen Kampagnen",
@@ -508,6 +620,8 @@
       "errorThread": "E-Mail-Thread konnte nicht geladen werden.",
       "errorPreview": "Vorlagenvorschau fehlgeschlagen.",
       "errorSend": "Antwort konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+      "errorTemplate": "Vorlage konnte nicht geladen werden.",
+      "uploadFailed": "Datei konnte nicht hochgeladen werden: {{ name }}",
       "from": "Von",
       "to": "An",
       "loadOlder": "Mehr laden",
@@ -539,6 +653,8 @@
       "loadingLabel": "Nachrichtenverlauf wird geladen",
       "emptyText": "Keine Nachrichten in dieser Unterhaltung",
       "emptySub": "Senden Sie die erste Nachricht unten",
+      "errorLoad": "Nachrichtenverlauf konnte nicht geladen werden.",
+      "errorSend": "Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
       "historyLabel": "Nachrichtenverlauf",
       "loadEarlier": "Frühere laden",
       "loadEarlierLabel": "Frühere Nachrichten laden",
@@ -571,7 +687,6 @@
       "campaignDays": "Tage",
       "callbackLabel": "Rückruf an",
       "addBreak": "Pause hinzufügen",
-      "addBreakLabel": "Pause hinzufügen",
       "errorLoad": "Kalender konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
       "breakTypes": {
         "LUNCH": "Mittagspause",
@@ -774,7 +889,12 @@
       "scheduledDateLabel": "Rückrufdatum",
       "hourLabel": "Stunde",
       "minuteLabel": "Minuten",
-      "notesPlaceholder": "Rückrufnotiz hinzufügen..."
+      "notesPlaceholder": "Rückrufnotiz hinzufügen...",
+      "discardMessage": "Es gibt nicht gespeicherte Änderungen. Formular ohne Speichern schließen?",
+      "discardConfirm": "Änderungen verwerfen",
+      "discardKeep": "Zurück zum Formular",
+      "successScheduled": "Rückruf geplant für {{ date }}",
+      "customerFallback": "Kunde"
     },
     "callbacksPage": {
       "title": "Meine Rückrufe",
@@ -814,6 +934,7 @@
       "searchLabel": "Kunden suchen",
       "clearSearch": "Suche löschen",
       "searchMinChars": "Mindestens 2 Zeichen eingeben, um zu suchen",
+      "searchError": "Kundensuche fehlgeschlagen. Bitte versuchen Sie es erneut.",
       "found": "{{ count }} Kunden"
     },
     "manualCallback": {
@@ -865,6 +986,17 @@
         "COMPLETED": "Abgeschlossen",
         "CANCELLED": "Abgebrochen"
       }
+    },
+    "shortcuts": {
+      "title": "Tastenkürzel",
+      "open": "Tastenkürzel",
+      "close": "Tastenkürzel schließen",
+      "answer": "Anruf annehmen",
+      "hangup": "Aktiven Anruf beenden oder klingelnden ablehnen",
+      "mute": "Mikrofon stummschalten / aktivieren",
+      "cheatSheet": "Kürzel ein- / ausblenden",
+      "tabs": "Zwischen Kontakt-Tabs wechseln",
+      "statusMenu": "Im Statusmenü navigieren"
     }
   },
   "supervisor": {
@@ -1055,7 +1187,16 @@
       "assignmentTitle": "Agentenzuweisung",
       "assignmentHint": "Warteschlange speichern, um die Agentenzuweisung zu konfigurieren.",
       "saveLabel": "Warteschlange speichern",
-      "dispositionsTitle": "Dispositionen nach Kontakt"
+      "dispositionsTitle": "Dispositionen nach Kontakt",
+      "errors": {
+        "nameRequired": "Name ist erforderlich.",
+        "nameMaxLength": "Name darf nicht mehr als 100 Zeichen enthalten.",
+        "routingStrategyRequired": "Routing-Strategie auswählen."
+      },
+      "successCreate": "Warteschlange „{{name}}“ wurde erstellt.",
+      "successEdit": "Warteschlange „{{name}}“ wurde aktualisiert.",
+      "errorCreate": "Die Warteschlange konnte nicht erstellt werden. Bitte erneut versuchen.",
+      "errorEdit": "Die Warteschlange konnte nicht aktualisiert werden. Bitte erneut versuchen."
     },
     "queueDelete": {
       "title": "Warteschlange löschen",
@@ -2762,6 +2903,9 @@
       "cancel": "Abbrechen",
       "tenantPlaceholder": "-- Mandant auswählen --",
       "activeHint": "Deaktivieren verhindert die Anmeldung des Benutzers.",
+      "skillsSelectedLabel": "Ausgewählte Fähigkeiten",
+      "skillsAddPlaceholder": "Fähigkeit hinzufügen...",
+      "saveEditLabel": "Benutzeränderungen speichern",
       "errorCreate": "Benutzer konnte nicht erstellt werden.",
       "errorEdit": "Benutzer konnte nicht aktualisiert werden.",
       "errors": {
@@ -2776,11 +2920,14 @@
       "passwordHint": "Min. 8 Zeichen, 1 Großbuchstabe, 1 Ziffer.",
       "superAdminHint": "Der Hauptadministrator ist global und keinem Mandanten zugeordnet.",
       "successCreate": "Benutzer wurde erstellt.",
-      "successEdit": "Benutzer wurde aktualisiert."
+      "successEdit": "Benutzer wurde aktualisiert.",
+      "skillsLoadError": "Fähigkeitsvorschläge konnten nicht geladen werden. Fähigkeiten manuell eingeben und Enter drücken.",
+      "skillsEmpty": "Es sind noch keine Fähigkeiten definiert. Namen eingeben und Enter drücken."
     }
   },
   "language": {
     "select": "Sprache auswählen",
+    "available": "Verfügbare Sprachen",
     "pl": "Polski",
     "en": "English",
     "de": "Deutsch",

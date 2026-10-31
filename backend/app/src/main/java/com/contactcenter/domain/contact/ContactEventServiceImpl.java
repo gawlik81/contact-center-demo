@@ -178,6 +178,16 @@ class ContactEventServiceImpl implements ContactEventService {
         closeStage(contactId, tenantId, "AGENT");
     }
 
+    @Override
+    public void closeAgentIfOpen(UUID contactId, UUID tenantId) {
+        closeStage(contactId, tenantId, "AGENT", Instant.now(), false);
+    }
+
+    @Override
+    public void closeQueueIfOpen(UUID contactId, UUID tenantId, Instant endedAt) {
+        closeStage(contactId, tenantId, "QUEUE", endedAt != null ? endedAt : Instant.now(), false);
+    }
+
     // =========================================================================
     // ON_HOLD
     // =========================================================================
@@ -385,11 +395,20 @@ class ContactEventServiceImpl implements ContactEventService {
      * Zamyka ostatni otwarty etap danego stage. Loguje ostrzeżenie gdy brak otwartego etapu.
      */
     private void closeStage(UUID contactId, UUID tenantId, String stage) {
+        closeStage(contactId, tenantId, stage, Instant.now(), true);
+    }
+
+    private void closeStage(UUID contactId, UUID tenantId, String stage, Instant endedAt, boolean warnIfMissing) {
         try {
-            int updated = repository.closeLastOpen(contactId, tenantId, stage, Instant.now());
+            int updated = repository.closeLastOpen(contactId, tenantId, stage, endedAt);
             if (updated == 0) {
-                log.warn("[ContactEventService] Brak otwartego etapu {} do zamknięcia: contactId={}",
-                        stage, contactId);
+                if (warnIfMissing) {
+                    log.warn("[ContactEventService] Brak otwartego etapu {} do zamknięcia: contactId={}",
+                            stage, contactId);
+                } else {
+                    log.debug("[ContactEventService] Brak otwartego etapu {} (oczekiwane): contactId={}",
+                            stage, contactId);
+                }
             }
         } catch (Exception e) {
             log.warn("[ContactEventService] Błąd zamknięcia etapu {}: contactId={}, error={}",

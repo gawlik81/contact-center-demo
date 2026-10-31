@@ -1,3 +1,5 @@
+@use '../../styles/breakpoints' as bp;
+
 // AI Summary Panel — shared standalone component
 // Visual pattern mirrors email-contact.component.scss
 
@@ -16,11 +18,29 @@
   background: var(--bg-subtle);
   border-top: 2px solid var(--border-1);
 
+  // Low viewport (FE-123): ~69px -> ~44px. The action keeps a >= 28px target.
+  @include bp.compact-height {
+    padding: 0.375rem 1rem 0.5rem;
+  }
+
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.625rem;
+
+    @include bp.compact-height {
+      margin-bottom: 0.375rem;
+
+      // Nothing follows (collapsed, or no summary yet): no dead space under the button.
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .btn--sm {
+        padding: 0.1875rem 0.625rem;
+      }
+    }
   }
 
   &__header-actions {
@@ -35,7 +55,7 @@
     justify-content: center;
     width: 1.125rem;
     height: 1.125rem;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     background: transparent;
     cursor: pointer;
@@ -47,9 +67,14 @@
       border-color var(--duration-fast, 120ms),
       color var(--duration-fast, 120ms);
 
+    @include bp.compact-height {
+      width: 1.5rem; // 24px target
+      height: 1.5rem;
+    }
+
     &:hover {
       background: var(--bg-elevated);
-      border-color: var(--border-2, var(--border-1));
+      border-color: var(--border-control-hover);
       color: var(--text-1);
     }
 

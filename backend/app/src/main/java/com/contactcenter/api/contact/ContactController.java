@@ -815,6 +815,42 @@ public class ContactController {
     }
 
     // =========================================================================
+    // Zwrot kontaktu asynchronicznego do kolejki (BE-160)
+    // =========================================================================
+
+    @PostMapping("/{id}/release")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+        summary = "Zwróć kontakt asynchroniczny do kolejki (→ QUEUED)",
+        description = """
+                Zwraca kontakt EMAIL/CHAT/SOCIAL przypisany do agenta (ASSIGNED lub ACTIVE) do kolejki:
+                status QUEUED, agent_id wyczyszczony, a routing może przydzielić go innemu agentowi.
+                W odróżnieniu od /abandon nie jest to stan końcowy. Kanał PHONE oraz stany końcowe
+                są odrzucane (409). Operacja jest idempotentna – kontakt już w kolejce (QUEUED, bez agenta)
+                jest zwracany bez błędu. Uwaga: routing może ponownie przydzielić kontakt temu samemu agentowi.
+                """,
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Kontakt w kolejce (status QUEUED, bez agenta)"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "409",
+                    description = "Kanał nieasynchroniczny, stan niedozwolony, kontakt cudzy lub brak kolejki")
+        }
+    )
+    public ResponseEntity<ContactResponse> releaseContact(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId  = TenantContext.getTenantId();
+        UUID agentId   = TenantContext.getUserId();
+
+        log.debug("[ContactController] releaseContact: contactId={}, agent={}, tenant={}", contactId, agentId, tenantId);
+
+        ContactResponse response = contactService.releaseContact(contactId, tenantId, agentId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
     // Generowanie podsumowania AI dla kontaktu (BE-090)
     // =========================================================================
 

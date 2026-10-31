@@ -11,6 +11,7 @@ import {
 import { Router } from '@angular/router';
 import { merge } from 'rxjs';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
+import { BRAND } from '../../../core/brand';
 import { AuthService } from '../../../core/services/auth.service';
 
 /** Cross-field validator: newPassword must equal confirmPassword */
@@ -41,6 +42,7 @@ function computeStrength(password: string): number {
   styleUrl: './change-password.component.scss',
 })
 export class ChangePasswordComponent {
+  protected readonly brand = BRAND;
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);

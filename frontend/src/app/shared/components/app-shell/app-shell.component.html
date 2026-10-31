@@ -1,5 +1,5 @@
 <!-- Skip link for WCAG keyboard navigation -->
-<a href="#main-content" class="skip-link">Przejdz do tresci</a>
+<a href="#main-content" class="skip-link" (click)="onSkipToContent($event)">{{ 'nav.skipToContent' | transloco }}</a>
 
 <div class="shell" [class.shell--sidenav-open]="sidenavOpen()" [class.shell--sidenav-collapsed]="sidenavCollapsed()">
   <!-- Top Navbar -->
@@ -16,9 +16,11 @@
     <!-- Main content area -->
     <main id="main-content" class="shell__main" tabindex="-1">
       <!-- Breadcrumbs -->
-      <div class="shell__breadcrumbs">
-        <cc-breadcrumbs />
-      </div>
+      @if (breadcrumbService.breadcrumbs().length > 0) {
+        <div class="shell__breadcrumbs">
+          <cc-breadcrumbs />
+        </div>
+      }
 
       <!-- Page content -->
       <div class="shell__content">

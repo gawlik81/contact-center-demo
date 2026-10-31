@@ -479,7 +479,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -496,10 +496,10 @@
 }
 
 .node-entry-badge {
-  font-size: 0.6rem;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   background: var(--success);
-  color: #fff;
+  color: var(--on-success);
   padding: 1px 5px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -771,9 +771,9 @@
   padding: 2px 8px 4px;
 
   .node-var-label {
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     color: var(--accent-text);
-    font-family: monospace;
+    font-family: 'Geist Mono', ui-monospace, monospace;
     font-weight: 600;
   }
 }
@@ -824,7 +824,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 0.65rem;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -1011,7 +1011,7 @@
 
 .btn-danger {
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
   border-color: var(--danger);
 
   &:hover:not(:disabled) {

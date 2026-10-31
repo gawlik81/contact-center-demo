@@ -1,0 +1,26 @@
+<div class="telephony-error" [class.telephony-error--visible]="!!error()">
+  <!-- Assertive region stays in the DOM (empty) so the error is announced when it appears. -->
+  <div role="alert">
+    @if (error(); as key) {
+      <p class="telephony-error__title">{{ 'agent.softphone.errors.title' | transloco }}</p>
+      <p class="telephony-error__text">{{ key | transloco }}</p>
+    }
+  </div>
+  <!-- Polite region: "retrying" / "still unavailable" (the alert text does not change). -->
+  <p class="telephony-error__status" role="status">
+    @if (statusKey(); as status) {
+      {{ status | transloco }}
+    }
+  </p>
+  @if (error()) {
+    <button
+      type="button"
+      class="telephony-error__retry"
+      [attr.aria-disabled]="retryBlocked()"
+      [attr.aria-busy]="retrying()"
+      (click)="retry()"
+    >
+      {{ (retrying() ? 'agent.softphone.errors.retrying' : 'agent.softphone.errors.retry') | transloco }}
+    </button>
+  }
+</div>

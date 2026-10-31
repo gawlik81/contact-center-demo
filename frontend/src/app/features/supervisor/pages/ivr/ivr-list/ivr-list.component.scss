@@ -338,7 +338,7 @@
 
 .btn-success {
   background: var(--success);
-  color: #fff;
+  color: var(--on-success);
   border-color: var(--success);
 
   &:hover:not(:disabled) {
@@ -348,7 +348,7 @@
 
 .btn-danger {
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
   border-color: var(--danger);
 
   &:hover:not(:disabled) {

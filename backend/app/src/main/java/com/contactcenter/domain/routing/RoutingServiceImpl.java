@@ -4,6 +4,8 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.social.SocialDefaultQueueResolver;
+import com.contactcenter.domain.contact.ContactChannels;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
@@ -58,6 +60,8 @@ class RoutingServiceImpl implements RoutingService {
     private final WebSocketEventBroadcaster broadcaster;
     private final ContactService contactService;
     private final ContactEventService contactEventService;
+    private final SocialDefaultQueueResolver socialDefaultQueueResolver;
+    private final ReleaseExclusionStore releaseExclusionStore;
 
     // =========================================================================
     // Główna metoda routingu
@@ -96,7 +100,12 @@ class RoutingServiceImpl implements RoutingService {
         }
 
         // 4. Zbuduj RoutingRequest
-        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds);
+        // BE-160 anti-ping-pong: agents who just returned this async contact to the queue are skipped.
+        // Phone contacts are never excluded, so the phone path does not even touch Redis.
+        Set<UUID> excludedAgentIds = ContactChannels.isAsync(contact.getChannel())
+                ? releaseExclusionStore.excludedAgents(tenantId, contactId)
+                : Set.of();
+        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds, excludedAgentIds);
 
         // 5. Wywołaj silnik routingu
         Optional<RoutingResult> result = routingEngine.findBestAgent(request);
@@ -204,6 +213,14 @@ class RoutingServiceImpl implements RoutingService {
             log.info("[RoutingService] Znaleziono {} oczekujących kontaktów dla tenanta: {}",
                     queuedContacts.size(), event.tenantId());
 
+            // BE-155: the default social queue is resolved at most ONCE per pass (2 queries + one WARN),
+            // and only when some social contact actually lacks a queue.
+            boolean needsSocialQueue = queuedContacts.stream()
+                    .anyMatch(c -> c.getQueueId() == null && ContactChannels.isSocial(c.getChannel()));
+            Optional<UUID> socialQueueId = needsSocialQueue
+                    ? socialDefaultQueueResolver.resolve(event.tenantId())
+                    : Optional.empty();
+
             for (Contact contact : queuedContacts) {
                 // Kontakty OUTBOUND z kampanii mają agentId ustawiony przez dialer w momencie
                 // inicjowania połączenia. RoutingService nie powinien ich dotykać – agent jest
@@ -214,6 +231,15 @@ class RoutingServiceImpl implements RoutingService {
                     log.debug("[RoutingService] Pomijam kontakt OUTBOUND z przypisanym agentem: " +
                             "contactId={}, agentId={}", contact.getContactId(), contact.getAgentId());
                     continue;
+                }
+
+                if (contact.getQueueId() == null && ContactChannels.isSocial(contact.getChannel())) {
+                    // BE-155: social contact without a queue (created before the default social queue
+                    // existed, or the tenant had no queue at that time) - resolve the tenant default
+                    // instead of ending the contact with ERROR.
+                    if (!assignDefaultSocialQueue(contact, event.tenantId(), socialQueueId)) {
+                        continue; // stays QUEUED, retried on the next pass; WARN logged by the resolver
+                    }
                 }
 
                 if (contact.getQueueId() == null) {
@@ -520,7 +546,7 @@ class RoutingServiceImpl implements RoutingService {
             List<WebSocketEvent.QueueItemDto> items = views.stream()
                     .map(v -> new WebSocketEvent.QueueItemDto(
                             v.contactId().toString(),
-                            mapChannelToType(v.channel()),
+                            ContactChannels.toAgentDesktopType(v.channel()),
                             v.customerName(),
                             v.remoteAddress(),
                             v.queuedAt(),
@@ -539,13 +565,26 @@ class RoutingServiceImpl implements RoutingService {
     }
 
     /**
-     * Maps a contact channel value to the frontend ContactType.
-     * All {@code SOCIAL_*} variants are collapsed to {@code SOCIAL}.
+     * Assigns the tenant's default social queue to a QUEUED social contact without a queue (BE-155).
+     *
+     * @param queueId the tenant's default social queue, resolved once per pass by the caller
+     * @return true when the contact now has a queue (in memory and in DB); false when the tenant has
+     *         no usable queue or the update did not apply - the contact is left untouched (QUEUED)
      */
-    private static String mapChannelToType(String channel) {
-        if (channel == null) return "PHONE";
-        if (channel.startsWith("SOCIAL")) return "SOCIAL";
-        return channel;
+    private boolean assignDefaultSocialQueue(Contact contact, UUID tenantId, Optional<UUID> queueId) {
+        if (queueId.isEmpty()) {
+            return false;
+        }
+        int updated = contactService.updateQueueId(contact.getContactId(), tenantId, queueId.get());
+        if (updated == 0) {
+            log.warn("[RoutingService] Nie udało się przypisać kolejki social do kontaktu: contactId={}",
+                    contact.getContactId());
+            return false;
+        }
+        contact.setQueueId(queueId.get());
+        log.info("[RoutingService] Kontakt social bez kolejki dostał domyślną kolejkę: contactId={}, queueId={}",
+                contact.getContactId(), queueId.get());
+        return true;
     }
 
     /**

@@ -1,4 +1,5 @@
 /* You can add global styles to this file, and also import other style files */
+@use './app/shared/styles/breakpoints' as bp;
 
 // ── Base reset ────────────────────────────────────────────────────────────────
 *,
@@ -30,9 +31,9 @@ body {
   --color-danger-bg: #ffebee;
 
   // Text
-  --color-text-primary: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  --color-text-primary: oklch(24% 0.012 250);
+  --color-text-secondary: oklch(42% 0.012 250);
+  --color-text-muted: oklch(51% 0.012 250);
 
   // Surface
   --color-surface: #ffffff;
@@ -46,11 +47,67 @@ body {
 
   // Transitions
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  // Legacy name for --ease-out-expo (same curve, no overshoot).
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --duration-fast: 120ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+
+  // Type scale floor (DESIGN.md → Typography). Never go below --fs-2xs.
+  // 2xs: uppercase labels, pills, counters, KPI captions. xs: small secondary text.
+  --fs-2xs: 0.6875rem; // 11px
+  --fs-xs: 0.75rem; // 12px
+  --fs-sm: 0.8125rem; // 13px
+  // Numeric / measured values (timers, counters).
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  // Chrome heights (FE-123). One place so the shell, the sidenav and the agent desktop agree.
+  // Normal: navbar 64 + toolbar 48 + tab bar 44 = 156px. Compact (<= 720px tall viewport,
+  // e.g. 1366x768 with browser chrome): 48 + 36 + 36 = 120px.
+  --navbar-h: 64px;
+  --desktop-toolbar-h: 48px;
+  --desktop-tabbar-h: 44px;
+  // Flexible agent columns: queue sidebar and customer panel give way before the contact content.
+  --desktop-sidebar-w: clamp(13.5rem, 17vw, 16.5rem); // 216..264px, 232px at 1366
+  --desktop-customer-w: clamp(14rem, 19vw, 17.5rem); // 224..280px, 260px at 1366
+  // Sidenav widths (single source for the sidenav and for what must stay clear of it).
+  --sidenav-w: 232px;
+  --sidenav-collapsed-w: 72px;
+  // Strip at the bottom of the shell reserved for the fixed ACW banner (0 when it is absent).
+  --shell-reserve-bottom: 0px;
+
+  @include bp.compact-height {
+    --navbar-h: 48px;
+    --desktop-toolbar-h: 36px;
+    --desktop-tabbar-h: 36px;
+  }
+}
+
+// Width the sidenav occupies at the left edge of the viewport: 0 while it is an overlay drawer
+// (< xl). `app-shell` toggles `sidenav-collapsed` on <html>. The floating ACW card starts after
+// it, so it never covers the collapse toggle, the connection indicator or the rail (FE-123).
+html {
+  --shell-sidenav-w: 0px;
+
+  @include bp.up(xl) {
+    --shell-sidenav-w: var(--sidenav-w);
+
+    &.sidenav-collapsed {
+      --shell-sidenav-w: var(--sidenav-collapsed-w);
+    }
+  }
+}
+
+// Set by cc-acw-banner while the banner is on screen (FE-123).
+html.has-acw-banner {
+  --shell-reserve-bottom: 4rem;
+
+  @include bp.compact-height {
+    --shell-reserve-bottom: 3rem;
+  }
 }
 
 // ── New Design System Tokens (oklch) ─────────────────────────────────────────
@@ -65,20 +122,28 @@ body {
   --bg-input: oklch(98% 0.004 80);
 
   --text-1: oklch(24% 0.012 250);
-  --text-2: oklch(45% 0.012 250);
-  --text-3: oklch(58% 0.012 250);
-  --text-muted: oklch(70% 0.008 250);
+  --text-2: oklch(42% 0.012 250);
+  --text-3: oklch(47% 0.012 250);
+  --text-muted: oklch(51% 0.012 250);
 
   --border-1: oklch(91% 0.005 80);
   --border-2: oklch(87% 0.005 80);
   --border-strong: oklch(80% 0.008 80);
+  // Control outline (input/select/checkbox): >= 3:1 vs every surface (WCAG 1.4.11)
+  --border-control: oklch(60% 0.008 250);
+  // Control outline on hover / focus-within: darker than rest state, contrast >= --border-control
+  --border-control-hover: oklch(48% 0.01 250);
 
-  --accent: oklch(58% 0.13 255);
+  --accent: oklch(55% 0.13 255);
   --accent-soft: oklch(94% 0.025 255);
   --accent-text: oklch(45% 0.14 255);
-  --accent-fg: #ffffff;
+  --on-accent: oklch(100% 0 0);
+  --on-danger: oklch(100% 0 0);
+  --on-success: oklch(100% 0 0);
+  --on-warning: oklch(22% 0.02 250);
+  --accent-fg: var(--on-accent);
 
-  --success: oklch(58% 0.12 155);
+  --success: oklch(52% 0.12 155);
   --success-soft: oklch(94% 0.03 155);
   --success-text: oklch(42% 0.12 155);
 
@@ -86,7 +151,7 @@ body {
   --warning-soft: oklch(95% 0.04 75);
   --warning-text: oklch(50% 0.12 60);
 
-  --danger: oklch(60% 0.18 25);
+  --danger: oklch(55% 0.18 25);
   --danger-soft: oklch(95% 0.025 25);
   --danger-text: oklch(48% 0.18 25);
 
@@ -119,18 +184,24 @@ body {
   --bg-input: oklch(23% 0.012 250);
 
   --text-1: oklch(92% 0.008 250);
-  --text-2: oklch(74% 0.008 250);
-  --text-3: oklch(62% 0.008 250);
-  --text-muted: oklch(50% 0.008 250);
+  --text-2: oklch(80% 0.008 250);
+  --text-3: oklch(74% 0.008 250);
+  --text-muted: oklch(68% 0.008 250);
 
   --border-1: oklch(28% 0.012 250);
   --border-2: oklch(33% 0.012 250);
   --border-strong: oklch(40% 0.012 250);
+  --border-control: oklch(54% 0.012 250);
+  --border-control-hover: oklch(68% 0.012 250);
 
   --accent: oklch(70% 0.13 255);
   --accent-soft: oklch(30% 0.07 255);
   --accent-text: oklch(82% 0.1 255);
-  --accent-fg: oklch(15% 0.02 250);
+  --on-accent: oklch(15% 0.02 250);
+  --on-danger: oklch(15% 0.02 250);
+  --on-success: oklch(15% 0.02 250);
+  --on-warning: oklch(15% 0.02 250);
+  --accent-fg: var(--on-accent);
 
   --success: oklch(70% 0.12 155);
   --success-soft: oklch(28% 0.06 155);
@@ -168,8 +239,8 @@ body {
   --color-surface-3: oklch(22% 0.012 250);
   --color-border: oklch(28% 0.012 250);
   --color-text-primary: oklch(92% 0.008 250);
-  --color-text-secondary: oklch(74% 0.008 250);
-  --color-text-muted: oklch(50% 0.008 250);
+  --color-text-secondary: oklch(80% 0.008 250);
+  --color-text-muted: oklch(68% 0.008 250);
 }
 
 // ── Global animations ─────────────────────────────────────────────────────────
@@ -233,7 +304,7 @@ textarea {
   color-scheme: inherit;
   background: var(--bg-input);
   color: var(--text-1);
-  border-color: var(--border-2);
+  border-color: var(--border-control);
 }
 
 select {
@@ -242,6 +313,19 @@ select {
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 14px;
+}
+
+// ── Screen-reader-only text ────────────────────────────────────────────────────
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 // ── Reduced motion support ─────────────────────────────────────────────────────

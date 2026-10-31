@@ -1,4 +1,4 @@
-<section class="manual-panel" aria-label="Kampanie manualne do wydzwonienia">
+<section class="manual-panel" [attr.aria-label]="'agent.manualCampaign.sectionLabel' | transloco">
   <!-- Panel header -->
   <div class="manual-panel__header">
     <h2 class="manual-panel__title">
@@ -6,7 +6,7 @@
       @if (totalPending() > 0) {
         <span
           class="manual-panel__badge"
-          [attr.aria-label]="totalPending() + ' ' + ('agent.manualCampaign.recordsLabel' | transloco)"
+          [attr.aria-label]="'agent.manualCampaign.recordsPendingLabel' | transloco: { count: totalPending() }"
         >
           {{ totalPending() }}
         </span>
@@ -18,8 +18,8 @@
       [class.manual-panel__refresh--spinning]="loading()"
       [disabled]="loading()"
       (click)="refresh()"
-      aria-label="Odswiezenie listy kampanii manualnych"
-      title="Odswiez"
+      [attr.aria-label]="'agent.manualCampaign.refreshLabel' | transloco"
+      [title]="'agent.manualCampaign.refreshTitle' | transloco"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="14" height="14">
         <path
@@ -98,7 +98,12 @@
         </svg>
         <span class="campaign-section__name" [title]="row.group.campaignName">{{ row.group.campaignName }}</span>
         @if (row.group.records.length > 0) {
-          <span class="campaign-section__count" aria-label="{{ row.group.records.length }} rekordów PENDING">
+          <span
+            class="campaign-section__count"
+            [attr.aria-label]="
+              'agent.manualCampaign.recordsPendingLabel' | transloco: { count: row.group.records.length }
+            "
+          >
             {{ row.group.records.length }}
           </span>
         }
@@ -109,12 +114,16 @@
         <div
           [id]="'campaign-contacts-' + row.group.campaignId"
           role="region"
-          [attr.aria-label]="'Rekordy kampanii ' + row.group.campaignName"
+          [attr.aria-label]="'agent.manualCampaign.campaignRecordsLabel' | transloco: { name: row.group.campaignName }"
         >
           @if (row.group.records.length === 0) {
             <p class="contacts-empty">{{ 'agent.manualCampaign.recordsEmpty' | transloco }}</p>
           } @else {
-            <ul class="contact-records" role="list" aria-label="Rekordy do wydzwonienia">
+            <ul
+              class="contact-records"
+              role="list"
+              [attr.aria-label]="'agent.manualCampaign.recordsListLabel' | transloco"
+            >
               @for (record of row.group.records; track trackByRecordId($index, record)) {
                 <li class="contact-record">
                   <div class="contact-record__info">

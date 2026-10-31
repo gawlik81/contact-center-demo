@@ -1,11 +1,10 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   ElementRef,
-  OnDestroy,
   OnInit,
   computed,
   inject,
@@ -22,18 +21,19 @@ import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
 import { QueueDispositionsComponent } from '../queue-dispositions/queue-dispositions.component';
+import { ListboxNavDirective } from '../../../../../shared/directives/listbox-nav.directive';
 
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, QueueDispositionsComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, QueueDispositionsComponent, ListboxNavDirective],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
+export class QueueFormComponent implements OnInit, AfterViewInit {
   readonly queue = input<Queue | null>(null);
   readonly isEditMode = input<boolean>(false);
 
@@ -43,12 +43,11 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly queueService = inject(QueueService);
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
-
-  private blurTimerId: ReturnType<typeof setTimeout> | null = null;
 
   readonly submitting = signal(false);
   readonly loadingOptions = signal(false);
@@ -139,22 +138,14 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onSkillInputBlur(): void {
-    this.blurTimerId = setTimeout(() => this.showSkillDropdown.set(false), 150);
+    this.showSkillDropdown.set(false);
   }
 
-  ngOnDestroy(): void {
-    if (this.blurTimerId !== null) {
-      clearTimeout(this.blurTimerId);
-    }
-  }
-
-  onSkillInputKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const val = this.skillInput().trim();
-      if (val) {
-        this.addSkill(val);
-      }
+  /** Enter with no highlighted option: commit the typed text as a new skill. */
+  onSkillEnter(): void {
+    const val = this.skillInput().trim();
+    if (val) {
+      this.addSkill(val);
     }
   }
 
@@ -170,26 +161,27 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedSkills.update((list) => list.filter((s) => s !== skill));
   }
 
+  // Error getters return i18n keys; the template resolves them with the transloco pipe.
   get nameError(): string | null {
     const ctrl = this.form.get('name')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwa jest wymagana.';
-    if (ctrl.hasError('maxlength')) return 'Nazwa nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return 'supervisor.queueForm.errors.nameRequired';
+    if (ctrl.hasError('maxlength')) return 'supervisor.queueForm.errors.nameMaxLength';
     return null;
   }
 
   get routingStrategyError(): string | null {
     const ctrl = this.form.get('routingStrategy')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Strategia routingu jest wymagana.';
+    if (ctrl.hasError('required')) return 'supervisor.queueForm.errors.routingStrategyRequired';
     return null;
   }
 
   get emailAddressError(): string | null {
     const ctrl = this.form.get('emailAddress')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('email')) return 'Podaj prawidlowy adres email.';
-    if (ctrl.hasError('maxlength')) return 'Adres email nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('email')) return 'supervisor.userForm.errors.emailInvalid';
+    if (ctrl.hasError('maxlength')) return 'supervisor.userForm.errors.emailMaxLength';
     return null;
   }
 
@@ -220,12 +212,14 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
         .subscribe({
           next: () => {
             this.submitting.set(false);
-            this.notifications.success(`Kolejka "${raw.name}" zostala zaktualizowana.`);
+            this.notifications.success(
+              this.transloco.translate('supervisor.queueForm.successEdit', { name: raw.name }),
+            );
             this.saved.emit();
           },
           error: () => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie zaktualizowac kolejki. Sprobuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.queueForm.errorEdit'));
           },
         });
     } else {
@@ -240,12 +234,16 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
         .subscribe({
           next: (created) => {
             this.submitting.set(false);
-            this.notifications.success(`Kolejka "${created.name}" zostala utworzona.`);
+            this.notifications.success(
+              this.transloco.translate('supervisor.queueForm.successCreate', {
+                name: created.name,
+              }),
+            );
             this.saved.emit();
           },
           error: () => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie utworzyc kolejki. Sprobuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.queueForm.errorCreate'));
           },
         });
     }

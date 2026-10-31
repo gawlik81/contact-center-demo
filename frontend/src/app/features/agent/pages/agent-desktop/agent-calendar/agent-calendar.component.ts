@@ -71,7 +71,6 @@ export class AgentCalendarComponent implements OnInit {
   readonly selectedCallback = signal<CalendarCallback | null>(null);
   readonly selectedBreak = signal<CalendarBreak | null>(null);
   readonly selectedCampaign = signal<CalendarCampaign | null>(null);
-  readonly addBreakMode = signal(false);
   readonly showClosedCampaigns = signal(false);
   readonly currentLang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
@@ -266,7 +265,7 @@ export class AgentCalendarComponent implements OnInit {
       .pipe(
         catchError(() => {
           this.isLoading.set(false);
-          this.notifications.error('Nie udalo sie zaladowac kalendarza. Sprobuj ponownie.');
+          this.notifications.error(this.transloco.translate('agent.calendar.errorLoad'));
           return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -312,14 +311,8 @@ export class AgentCalendarComponent implements OnInit {
     this.loadData();
   }
 
-  openAddBreak(): void {
-    this.selectedBreak.set(null);
-    this.addBreakMode.set(true);
-  }
-
   closeBreakModal(): void {
     this.selectedBreak.set(null);
-    this.addBreakMode.set(false);
   }
 
   onBreakSaved(): void {

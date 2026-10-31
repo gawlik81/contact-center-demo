@@ -1,0 +1,9 @@
+// Shared keyboard-focus treatment for form controls inside dialogs (FE-124).
+// One ring: 2px accent outline, 2px gap, accent border. Matches the global :focus-visible token.
+@mixin field-focus {
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-color: var(--accent);
+  }
+}

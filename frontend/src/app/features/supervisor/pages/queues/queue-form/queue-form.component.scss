@@ -206,7 +206,7 @@
 .form-input,
 .form-select {
   padding: 0.5625rem 0.75rem;
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-md);
   font-size: 0.9375rem;
   color: var(--text-1);
@@ -218,7 +218,7 @@
     background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover:not(:disabled):not(:focus) {
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
     background: var(--bg-surface);
   }
 
@@ -427,6 +427,13 @@
     &:hover {
       background: var(--bg-subtle);
     }
+
+    // Keyboard-active option (aria-activedescendant): fill + accent ring so it is not colour-only.
+    &--highlighted {
+      background: var(--bg-subtle);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
   }
 }
 
@@ -467,11 +474,11 @@
 .btn-cancel {
   background: transparent;
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--neutral-soft);
-    border-color: var(--border-strong);
+    border-color: var(--border-control-hover);
     color: var(--text-1);
   }
 }
@@ -497,8 +504,8 @@
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 35%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

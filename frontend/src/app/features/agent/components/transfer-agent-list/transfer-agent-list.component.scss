@@ -17,7 +17,7 @@
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--border-1);
+    border: 1px solid var(--border-control);
     border-radius: var(--radius-sm);
     font-size: 0.8125rem;
     color: var(--text-1);
@@ -145,8 +145,8 @@
     }
 
     &--break {
-      background: #ffc107;
-      box-shadow: 0 0 0 2px color-mix(in oklch, #ffc107 25%, transparent);
+      background: var(--warning);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning) 25%, transparent);
     }
 
     &--inactive,
@@ -174,7 +174,7 @@
   }
 
   &__queues {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -183,7 +183,7 @@
 
   // ── Action badge ──────────────────────────────────────────
   &__mode-badge {
-    font-size: 0.6875rem;
+    font-size: var(--fs-2xs);
     font-weight: 600;
     padding: 3px 8px;
     border-radius: 20px;

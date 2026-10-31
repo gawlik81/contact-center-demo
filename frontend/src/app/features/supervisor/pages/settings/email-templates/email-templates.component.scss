@@ -96,7 +96,7 @@
 
   &--danger {
     background: var(--danger);
-    color: var(--accent-fg);
+    color: var(--on-danger);
     border-color: var(--danger);
 
     &:not(:disabled):hover {
@@ -544,7 +544,7 @@
 
 .et-input {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
@@ -603,7 +603,7 @@
   color: var(--text-2);
 
   code {
-    font-family: monospace;
+    font-family: 'Geist Mono', ui-monospace, monospace;
     background: var(--neutral-soft);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
@@ -660,7 +660,7 @@
   margin-left: 4px;
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -763,7 +763,7 @@
   color: var(--text-muted);
 
   code {
-    font-family: monospace;
+    font-family: 'Geist Mono', ui-monospace, monospace;
     background: var(--neutral-soft);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
@@ -796,8 +796,8 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 40%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -895,8 +895,8 @@
   }
 
   code {
-    font-family: monospace;
-    font-size: 10px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: var(--fs-2xs);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

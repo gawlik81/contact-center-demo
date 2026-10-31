@@ -17,6 +17,7 @@ import com.contactcenter.security.JwtParser;
 import com.contactcenter.security.JwtService;
 import com.contactcenter.security.LoginRateLimiter;
 import com.contactcenter.security.MfaService;
+import com.contactcenter.security.PendingLoginTracker;
 import com.contactcenter.security.TenantContext;
 import com.contactcenter.security.TokenBlacklistService;
 import org.junit.jupiter.api.AfterEach;
@@ -91,6 +92,7 @@ class AuthServiceTest {
     @Mock private PasswordEncoder       passwordEncoder;
     @Mock private LoginRateLimiter      loginRateLimiter;
     @Mock private UserService           userService;
+    @Mock private PendingLoginTracker   pendingLoginTracker;
 
     private AuthService authService;
 
@@ -99,7 +101,7 @@ class AuthServiceTest {
         authService = new AuthServiceImpl(
                 authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService,
-                passwordEncoder, loginRateLimiter, userService
+                passwordEncoder, loginRateLimiter, userService, pendingLoginTracker
         );
 
         // Wspólne defaulty

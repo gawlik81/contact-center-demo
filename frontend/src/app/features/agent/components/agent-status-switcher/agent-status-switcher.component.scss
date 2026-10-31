@@ -1,0 +1,231 @@
+@use '../../../../shared/styles/breakpoints' as bp;
+
+// Exponential ease-out (quint-like): decelerates smoothly, no overshoot.
+$ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+
+.status-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2, #64748b);
+    white-space: nowrap;
+
+    // Tight top bar (KPI strip, long de/uk labels): the pill alone carries the status; its
+    // accessible name keeps the "Status:" label.
+    @include bp.down(xxl) {
+      display: none;
+    }
+  }
+
+  // Visually hidden live region.
+  &__live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  &__control {
+    position: relative;
+  }
+}
+
+// Status tone triad: one place maps the model's tone to theme-aware tokens (FE-116).
+[data-status-tone='success'] {
+  --tone: var(--success);
+  --tone-soft: var(--success-soft);
+  --tone-text: var(--success-text);
+}
+
+[data-status-tone='danger'] {
+  --tone: var(--danger);
+  --tone-soft: var(--danger-soft);
+  --tone-text: var(--danger-text);
+}
+
+[data-status-tone='warning'] {
+  --tone: var(--warning);
+  --tone-soft: var(--warning-soft);
+  --tone-text: var(--warning-text);
+}
+
+[data-status-tone='violet'] {
+  --tone: var(--violet);
+  --tone-soft: var(--violet-soft);
+  --tone-text: var(--violet-text);
+}
+
+[data-status-tone='neutral'] {
+  --tone: var(--neutral);
+  --tone-soft: var(--neutral-soft);
+  --tone-text: var(--neutral-text);
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  // 36px: same height as the compact KPI tile and the user chip, so the bar reads as one row.
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.625rem;
+  border: 1.5px solid var(--tone-text, var(--border-control));
+  border-radius: var(--radius-full, 9999px);
+  background: var(--tone-soft, transparent);
+  color: var(--tone-text, var(--text-1));
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color var(--duration-fast, 120ms)
+    var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+  white-space: nowrap;
+  letter-spacing: -0.005em;
+
+  // Tone changes, position and opacity do not (opacity would pull the text under the contrast
+  // floor): hover, pressed and open step the soft fill towards the full tone.
+  &:hover {
+    background: color-mix(in oklch, var(--tone-soft, transparent), var(--tone, currentColor) 12%);
+  }
+
+  &:active,
+  &[aria-expanded='true'] {
+    background: color-mix(in oklch, var(--tone-soft, transparent), var(--tone, currentColor) 20%);
+  }
+
+  &[aria-busy='true'] {
+    cursor: progress;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent, #1a56db);
+    outline-offset: 2px;
+  }
+
+  &__icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__spinner {
+    // Same box as the chevron it replaces, so the pill does not change width while busy.
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+}
+
+.status-menu {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  z-index: 200;
+  min-width: 200px;
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border-1, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-pop, 0 12px 40px rgba(0, 0, 0, 0.12));
+  // Inset items: the hover/active fill gets its own rounded edge instead of being clipped by
+  // the menu corners.
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top left;
+  animation: menu-enter 160ms $ease-out-expo;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: 0.375rem 0.625rem;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm, 6px);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: left;
+    color: var(--text-1, #1e293b);
+    transition: background-color var(--duration-fast, 120ms)
+      var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+
+    &:hover {
+      background: var(--bg-subtle, #f1f5f9);
+    }
+
+    &:active {
+      background: var(--border-1, #e2e8f0);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #1a56db);
+      outline-offset: -2px;
+    }
+
+    // The current status: soft accent fill, semibold, check mark. Stays tinted on hover.
+    &--active {
+      background: var(--accent-soft, #e3f2fd);
+      font-weight: 600;
+
+      &:hover,
+      &:active {
+        background: color-mix(in oklch, var(--accent-soft, #e3f2fd), var(--accent, #1a56db) 8%);
+      }
+    }
+  }
+
+  &__icon {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+    color: var(--tone-text, currentColor);
+  }
+
+  &__check {
+    width: 1rem;
+    height: 1rem;
+    margin-left: auto;
+    color: var(--accent-text, #1a56db);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes menu-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+// prefers-reduced-motion is handled globally in styles.scss (animation and transition off).

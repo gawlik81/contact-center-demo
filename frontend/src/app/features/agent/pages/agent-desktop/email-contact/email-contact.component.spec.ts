@@ -223,10 +223,7 @@ describe('EmailContactComponent', () => {
 
   // ── Test: sendReply calls EmailService and emits replySent ─────────────────
 
-  it('should call EmailService.sendReply and emit replySent on successful send', () => {
-    let replySentFired = false;
-    component.replySent.subscribe(() => (replySentFired = true));
-
+  it('should call EmailService.sendReply once on send (tab is closed by EmailReplyService)', () => {
     access.replyHtml.set('<p>Odpowiedz testowa</p>');
     access.replySubject.set('Re: Pytanie o zamowienie');
     fixture.detectChanges();
@@ -242,7 +239,6 @@ describe('EmailContactComponent', () => {
         subject: 'Re: Pytanie o zamowienie',
       }),
     );
-    expect(replySentFired).toBe(true);
   });
 
   it('should set error signal and NOT emit replySent when sendReply fails', () => {
@@ -256,6 +252,7 @@ describe('EmailContactComponent', () => {
 
     access.sendReply();
     fixture.detectChanges();
+    TestBed.tick();
 
     expect(access.error()).not.toBeNull();
     expect(replySentFired).toBe(false);

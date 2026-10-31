@@ -27,6 +27,7 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { DialerService } from '../../../supervisor/services/dialer.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CreateInboundCallbackRequest, ScheduledCallbackDto } from '../../models/callback.model';
+import { rememberFocus } from '../../../../shared/utils/focus.util';
 
 /** Custom validator: phone number – E.164 or local format */
 function phoneValidator(control: AbstractControl): ValidationErrors | null {
@@ -57,6 +58,8 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
   private readonly transloco = inject(TranslocoService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
+  /** Returns focus to the element that opened the dialog once it closes. */
+  private readonly restoreFocus = rememberFocus();
 
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -153,8 +156,18 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
     this.dialogRef().nativeElement.showModal();
   }
 
+  /**
+   * Native Esc fires `cancel` and would close the <dialog> behind the component's back;
+   * route it through the same path as the Cancel button so state and outputs stay in sync.
+   */
+  protected onNativeCancel(event: Event): void {
+    event.preventDefault();
+    this.cancel();
+  }
+
   protected cancel(): void {
     this.dialogRef().nativeElement.close();
+    this.restoreFocus();
     this.cancelled.emit();
   }
 
@@ -209,6 +222,7 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
           }),
         );
         this.dialogRef().nativeElement.close();
+        this.restoreFocus();
         this.scheduled.emit(dto);
       });
   }

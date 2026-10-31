@@ -185,7 +185,7 @@
     width: 100%;
     box-sizing: border-box;
     padding: 0.5rem 0.75rem;
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-sm);
     font-size: 0.9375rem;
     font-family: 'Courier New', Courier, monospace;
@@ -263,7 +263,7 @@
 .btn-cancel {
   background: var(--bg-surface);
   color: var(--text-2);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
 
   &:hover:not(:disabled) {
     background: var(--bg-subtle);
@@ -279,7 +279,7 @@
 
 .btn-anonymize {
   background: var(--danger);
-  color: var(--accent-fg);
+  color: var(--on-danger);
 
   &:hover:not(:disabled) {
     opacity: 0.88;
@@ -291,8 +291,8 @@
 .btn-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in oklch, var(--on-accent) 40%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;

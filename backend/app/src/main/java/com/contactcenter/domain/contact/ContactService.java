@@ -211,6 +211,25 @@ public interface ContactService {
     ContactResponse abandonContact(UUID contactId, UUID tenantId, UUID agentId);
 
     /**
+     * Returns an async contact (EMAIL / CHAT / SOCIAL_*) held by the agent back to the queue (BE-160).
+     *
+     * <p>Unlike {@link #abandonContact} this is NOT terminal: the contact goes back to {@code QUEUED}
+     * with {@code agent_id} cleared, the AGENT stage is closed, a new QUEUE stage is opened and
+     * {@code contact.queued} is published (after commit) so routing can hand it to another agent.
+     *
+     * <p>Idempotent: a contact that is already {@code QUEUED} with no agent is returned as is.
+     *
+     * @param contactId UUID of the contact
+     * @param tenantId  UUID of the tenant
+     * @param agentId   UUID of the calling agent (from TenantContext) - ownership check
+     * @return the contact in {@code QUEUED} state
+     * @throws EntityNotFoundException   HTTP 404 when the contact does not exist
+     * @throws InvalidOperationException HTTP 409 for a non-async channel, a state that is not agent-held,
+     *                                   another agent's contact, or a contact without any resolvable queue
+     */
+    ContactResponse releaseContact(UUID contactId, UUID tenantId, UUID agentId);
+
+    /**
      * Pobiera historię kontaktów dla konkretnego klienta.
      *
      * <p>Używane przez panel profilu klienta (FE-019). Dostępne dla AGENT,
@@ -684,7 +703,7 @@ public interface ContactService {
      * @param tenantId UUID tenanta
      * @param dayStart początek dnia UTC (włącznie)
      * @param dayEnd   koniec dnia UTC (wyłącznie)
-     * @return tablica Object[] z czterema wartościami liczbowymi
+     * @return tablica Object[] z trzema wartościami liczbowymi (contacts_count, avg_handle_time, sla_percent)
      */
     Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd);
 

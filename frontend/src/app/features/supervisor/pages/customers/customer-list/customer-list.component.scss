@@ -41,7 +41,7 @@
   &__input {
     width: 100%;
     padding: 0.5625rem 0.75rem 0.5625rem 2.5rem;
-    border: 1.5px solid var(--border-1);
+    border: 1.5px solid var(--border-control);
     border-radius: var(--radius-sm);
     font-size: 0.9375rem;
     color: var(--text-1);
@@ -251,7 +251,7 @@
   padding: 0.375rem;
   background: transparent;
   color: var(--accent-text);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
 
   &:hover:not(:disabled) {
@@ -305,7 +305,7 @@
   padding: 0.4375rem 0.875rem;
   background: var(--bg-surface);
   color: var(--accent-text);
-  border: 1.5px solid var(--border-1);
+  border: 1.5px solid var(--border-control);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   display: inline-flex;

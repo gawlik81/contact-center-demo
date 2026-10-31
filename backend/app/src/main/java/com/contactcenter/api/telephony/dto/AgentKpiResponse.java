@@ -11,8 +11,12 @@ package com.contactcenter.api.telephony.dto;
  *                             był krótszy niż 30 sekund; 0.0 gdy brak danych
  * @param avgHandleTimeSeconds średni czas obsługi (duration_seconds) zakończonych kontaktów dziś;
  *                             0.0 gdy brak danych
- * @param workTimeSeconds      czas pracy w sekundach liczony od pierwszego started_at dziś do NOW();
- *                             0 gdy agent nie obsłużył żadnego kontaktu dziś
+ * @param workTimeSeconds      czas pracy w sekundach liczony od OSTATNIEGO logowania agenta
+ *                             ({@code app_user.last_login_at}, zapisywane po pełnym uwierzytelnieniu
+ *                             wraz z MFA; refresh tokenu go nie zmienia) do teraz, nie więcej niż od
+ *                             dzisiejszej północy UTC (gdy sesja przekracza północ, liczone od północy);
+ *                             0 gdy brak zapisanego logowania. Niezależne od liczby obsłużonych kontaktów
+ *                             (decyzja właściciela 2026-10-28, BE-158)
  */
 public record AgentKpiResponse(
     long contactsHandledToday,

@@ -30,13 +30,15 @@ class SocialMessageServicePurgeTest {
     @Mock private ContactService contactService;
     @Mock private SocialAdapterRegistry adapterRegistry;
     @Mock private RabbitTemplate rabbitTemplate;
+    @Mock private SocialDefaultQueueResolver defaultQueueResolver;
 
     private SocialMessageServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new SocialMessageServiceImpl(
-                socialIntegrationRepository, socialMessageRepository, contactService, adapterRegistry, rabbitTemplate);
+                socialIntegrationRepository, socialMessageRepository, contactService, adapterRegistry, rabbitTemplate,
+                defaultQueueResolver);
     }
 
     @Test

@@ -56,13 +56,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 3 | 0 | 5 | 0 | 8 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 4 | 0 | 6 | 0 | 10 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **145** | **0** | **15** | **3** | **163** | |
+| **RAZEM** | | **147** | **0** | **16** | **3** | **166** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -99,9 +99,11 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ⬜ Do zrobienia — blokuje FE-130 |
 | BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social | ⬜ Do zrobienia — blokuje FE-135 |
 | BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
-| BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ⬜ Do zrobienia — blokuje FE-136 |
+| BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ✅ Ukończone (2026-10-31, `fcb8fe5a`) — odblokował FE-136 (✅) |
 | BE-159 | Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela; powiązany z BE-156) | ⬜ Do zrobienia — propozycja |
 | BE-160 | `POST /api/contacts/{id}/release` — zwrot kontaktu async do kolejki (koniec FIFO), `ReleaseExclusionStore` (wycinek BE-156), poprawki CR (`acceptIfAssigned`, guard AGENT) | ✅ Ukończone (2026-10-29) — blokuje FE-132 (✅) |
+| BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ⬜ Do zrobienia |
+| BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8415,9 +8417,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 3/8** · ✅ 3 · 🔧 0 · ⬜ 5 · 🚫 0
+**Ukończone 4/10** · ✅ 4 · 🔧 0 · ⬜ 6 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). Następne wolne numery: BE-161, FE-138, DB-088.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Następne wolne numery: BE-163, FE-150, DB-089.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8573,9 +8575,9 @@ backend/app/src/test/java/com/contactcenter/
 **Typ:** Feature (Backend, API)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** brak
-**Status:** ⬜ Do zrobienia
-**Blokuje:** FE-136
+**Zależy od:** brak (kontekst: BE-155 ✅ — kanał `SOCIAL` w kolejce agenta i `ContactChannels`; BE-156 — te same definicje „otwartego kontaktu”; DB-088 — indeks pod zapytania tego ticketu, ⬜ backlog bramkowany wolumenem)
+**Status:** ✅ Ukończone (2026-10-31, commit `fcb8fe5a`; code review `CR-BACKEND.md` 4/5 → 4,5/5; `mvn verify` 2870 testów, 0 F, 0 E, 1 pominięty; start aplikacji potwierdzony w local-demo; odstępstwa od spec w „Notatce wykonania”)
+**Blokuje:** FE-136 ✅ (odblokowany; FE-136 ukończony 2026-10-31, tura 64)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `backend-dev-expert`
 
@@ -8616,26 +8618,35 @@ backend/app/src/test/java/com/contactcenter/
 **Decyzja o istniejącym endpoincie (rekomendacja):** `GET /api/agent/me/assigned-contact` ZOSTAJE bez zmian zachowania w tym tickecie (jedyny wyjątek: `customerName` korzysta ze wspólnego mapowania prawdziwej nazwy klienta, jak nowy endpoint) (zgodność wsteczna: starszy front i ewentualne inne klienty). Po wdrożeniu FE-136 oznaczyć jako `@Deprecated` w OpenAPI (`deprecated = true`, opis wskazuje następcę); usunięcie w osobnym, późniejszym ticketcie po potwierdzeniu w logach, że nikt go nie woła. Nie przepisywać go na nowy endpoint (inna semantyka: 204, jeden kontakt `ASSIGNED`).
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/agent/me/active-contacts` zwraca 200 i tablicę wszystkich kontaktów agenta w statusach `ASSIGNED`, `ACTIVE`, `ON_HOLD` oraz kontaktów ACW (wg definicji wyżej); brak kontaktów → `[]`
-- [ ] Każdy element zawiera pola z kontraktu (w tym `phase`, `assignedAt`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`) — FE odtwarza kartę bez dodatkowych wywołań
-- [ ] Kolejność stabilna: `assigned_at ASC NULLS LAST`, `created_at`, `contact_id` (test z remisem `assigned_at`)
-- [ ] Nie zwraca kontaktów: innego agenta tego samego tenanta, agenta innego tenanta, terminalnych (`ABANDONED`, `NOT_REACHED`, `ERROR`, `TRANSFERRED`), `COMPLETED` z ustawioną dyspozycją, `COMPLETED` starszych niż okno ACW, `COMPLETED` kanałów innych niż `PHONE`
-- [ ] `customerName` to prawdziwa nazwa klienta (mapowanie z `customer` po `customer_id`, w obrębie tenanta); fallback na `customerIdentifier` tylko gdy klient nieznany lub nazwa pusta (test)
-- [ ] Ta sama poprawka mapowania `customerName` obejmuje istniejący `assigned-contact` (wspólny kod; rekomendacja: TAK, test regresyjny zmienionego pola)
-- [ ] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
-- [ ] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
-- [ ] `assigned-contact` działa bez zmian poza poprawionym `customerName` (test regresyjny); w OpenAPI opisany jako następca-do-wycofania po FE-136
-- [ ] `@ApiResponse` i Javadoc w `AgentSelfController` opisują brak/nieprawidłowy JWT jako 401 i niewystarczającą rolę jako 403 — dla `active-contacts`, `assigned-contact` i `kpi` (zgodnie z `TenantFilter` i `AgentSelfControllerTest`); wygenerowany `/v3/api-docs` pokazuje 401 dla tych endpointów
-- [ ] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
+- [x] `GET /api/agent/me/active-contacts` zwraca 200 i tablicę wszystkich kontaktów agenta w statusach `ASSIGNED`, `ACTIVE`, `ON_HOLD` oraz kontaktów ACW (wg definicji wyżej); brak kontaktów → `[]`
+- [x] Każdy element zawiera pola z kontraktu (w tym `phase`, `assignedAt`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`) — FE odtwarza kartę bez dodatkowych wywołań
+- [x] Kolejność stabilna: `assigned_at ASC NULLS LAST`, `created_at`, `contact_id` (test z remisem `assigned_at`)
+- [x] Nie zwraca kontaktów: innego agenta tego samego tenanta, agenta innego tenanta, terminalnych (`ABANDONED`, `NOT_REACHED`, `ERROR`, `TRANSFERRED`), `COMPLETED` z ustawioną dyspozycją, `COMPLETED` starszych niż okno ACW, `COMPLETED` kanałów innych niż `PHONE`
+- [x] `customerName` to prawdziwa nazwa klienta (mapowanie z `customer` po `customer_id`, w obrębie tenanta); fallback na `customerIdentifier` tylko gdy klient nieznany lub nazwa pusta (test)
+- [x] Ta sama poprawka mapowania `customerName` obejmuje istniejący `assigned-contact` (wspólny kod; rekomendacja: TAK, test regresyjny zmienionego pola)
+- [x] Liczba zapytań SQL nie rośnie z liczbą kontaktów (kolejki i klienci zbiorczo; test liczący zapytania lub przegląd w code review)
+- [x] Limit 20 elementów egzekwowany; okno ACW konfigurowalne
+- [ ] `assigned-contact` działa bez zmian poza poprawionym `customerName` (test regresyjny) — SPEŁNIONE w części działania; część „w OpenAPI opisany jako następca-do-wycofania po FE-136” (`deprecated = true`) NIE zrobiona, przeniesiona do BE-162
+- [x] `@ApiResponse` i Javadoc w `AgentSelfController` opisują brak/nieprawidłowy JWT jako 401 i niewystarczającą rolę jako 403 — dla `active-contacts`, `assigned-contact` i `kpi` (zgodnie z `TenantFilter` i `AgentSelfControllerTest`); wygenerowany `/v3/api-docs` pokazuje 401 dla tych endpointów
+- [x] OpenAPI zaktualizowane; `mvn verify -pl app` zielone (z JAVA_HOME dla JDK 21)
 
 **Testy:**
 - Jednostkowe: `ContactServiceTest` (mapowanie statusu na `phase`, ACW tylko `PHONE` + brak dyspozycji + w oknie, fallback nazwy klienta) oraz `AgentSelfControllerTest` — klasę z testami bazowymi istniejących endpointów (`assigned-contact`, `kpi`) tworzy równolegle `test-suite-expert` (dotąd brak jakichkolwiek testów `AgentSelfController`); testy BE-157 ROZSZERZAJĄ tę istniejącą klasę, nie tworzą jej (bez nowego ticketu); pokrycie: 200 + `[]`, rola, użycie `TenantContext.getUserId()` zamiast parametru.
 - Integracyjne (wzorzec `ContactRepositoryPurgeCandidatesIntegrationTest`, prawdziwa baza): zestaw danych z 2 tenantami × 2 agentami; **kontakty innego agenta i innego tenanta NIE mogą wyciec** (asercja na pełnym zbiorze identyfikatorów, nie tylko na liczbie), kolejność, limit, okno ACW, kontakt `COMPLETED` z dyspozycją pominięty, test pod RLS (`app.current_tenant`).
 - Test bezpieczeństwa: wywołanie bez JWT → 401/403; agent nie może podać cudzego `agentId` (brak parametru; próba przez query string ignorowana).
 
+**Notatka wykonania (2026-10-31, tura 64; commit `fcb8fe5a`; `backend-dev-expert`):** endpoint `GET /api/agent/me/active-contacts` działa; `CR-BACKEND.md` 4/5 → 4,5/5; `mvn verify` (JDK 21) 2870 testów, 0 F, 0 E, 1 pominięty; start aplikacji potwierdzony w local-demo (po przebudowie backendu: 200 `[]` dla agenta bez kontaktów, 401 bez tokenu, parametr `agentId` w query ignorowany). **Odstępstwa od specyfikacji powyżej:**
+- `channel` jest NORMALIZOWANY `SOCIAL_*` → `SOCIAL` (jak `assigned-contact` po BE-155, `ContactChannels`), a nie zwracany „bez normalizacji” z bazy.
+- Kanał `CHAT` nie istnieje w bazie (CHECK `chk_contact_channel`), więc rozszerzenie ACW na CHAT jest bezprzedmiotowe (ACW tylko `PHONE`).
+- Limit 20 ucina NAJSTARSZE kontakty ACW; kontakty otwarte (`ASSIGNED`/`ACTIVE`/`ON_HOLD`) zostają zawsze. Dwa zapytania (otwarte + ACW) scalane w Javie, nie jedno zapytanie z `ORDER BY`.
+- Lookupy nazw kolejek i klientów (zbiorczo) bez wspólnej transakcji z zapytaniem głównym; błąd lookupu → fallback (nazwa pusta / `customerIdentifier`), nie HTTP 500.
+- Okno ACW (`agent.active-contacts.wrap-up-window`) walidowane przy starcie aplikacji (fail-fast).
+- `phase` jako enum `ContactPhase` (`RINGING`/`IN_PROGRESS`/`WRAP_UP`).
+- `assigned-contact` dostaje prawdziwą nazwę klienta (wspólne mapowanie), poza tym bez zmian zachowania.
+- Kryterium „`assigned-contact` jako deprecated w OpenAPI” NIE wykonane → BE-162. Powiązane odkrycie z FE-136: nieznana ścieżka API zwraca 500 zamiast 404 → BE-161. Indeks pod zapytania → DB-088 (⬜, bramkowany wolumenem).
 **Ryzyka:** (R1) definicja ACW jest pochodna (`COMPLETED` + brak dyspozycji + okno) — kontakty zamknięte automatycznie przez system mogą wyglądać jak ACW, stąd ograniczenie do `PHONE` i okna; trwały stan ACW z `wrap_up_started_at` wymagałby migracji (poza zakresem, osobny ticket DB tylko jeśli właściciel zażąda dokładnego licznika ACW); (R2) kontakty `SOCIAL` mogą w ogóle nie trafiać do agenta do czasu BE-155 — endpoint zadziała, ale lista nie będzie ich zawierać; (R3) wydajność na tabeli partycjonowanej bez indeksu (zob. EXPLAIN w zakresie); (R4) `customerName` dziś nigdy nie jest prawdziwą nazwą (`AgentSelfController` używa `remoteAddress`) — zmiana jest widoczna dla FE, wymaga mapowania `customer` w tenantcie.
 **Nie wchodzi w zakres:** migracja DB i trwały stan ACW, usunięcie `assigned-contact`, zmiany routingu i limitów (BE-156), zdarzenia WS (BE-154), poprawka kanału social (BE-155), zmiany FE (FE-136).
-**Zależności (tura 52):** `Zależy od` brak; `Blokuje` FE-136. Kontekstowo: BE-155 (kanał `SOCIAL`), BE-156 (limity równoległych kontaktów — te same definicje „otwartego kontaktu”).
+**Zależności (tura 52, zaktualizowane w turze 64):** `Zależy od` brak; `Blokuje` FE-136 ✅. Kontekstowo: BE-155 ✅ (kanał `SOCIAL`), BE-156 (limity równoległych kontaktów — te same definicje „otwartego kontaktu”). Następcy: BE-161 (404 zamiast 500), BE-162 (deprecation `assigned-contact`), DB-088 (indeks, ⬜); konsument: FE-136 ✅ → FE-148, FE-149.
 
 ### BE-158 – KPI agenta `GET /api/agent/me/kpi`: odporne mapowanie wiersza i poprawna semantyka `workTimeSeconds` („Czas pracy”)
 
@@ -8752,6 +8763,67 @@ backend/app/src/test/java/com/contactcenter/
 **Nie wchodzi w zakres:** reszta BE-156 (limity, trwała historia, timeout monitora, konfiguracja per kolejka, telefonia, „wszyscy wykluczeni”, test z realnym Redis — zob. BE-156); pozostałe ścieżki zapisu bez guardu (BE-159); zmiany FE (FE-132).
 **Ryzyko znane:** `terminateStaleQueuedContacts` kończy `ABANDONED` kontakty `QUEUED` > 30 min także async — zwrócony mail może przepaść (zob. BE-156).
 **Zależności:** `Zależy od` brak; `Blokuje` FE-132 ✅; powiązane: BE-156 (wycinek), BE-159.
+
+### BE-161 – [BUG] Nieznana ścieżka API zwraca HTTP 500 zamiast 404 (brak handlera `NoResourceFoundException` w `GlobalExceptionHandler`)
+
+**Typ:** Bug / Hardening (Backend, obsługa błędów)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak (kontekst: FE-136 ✅ — fallback frontu na `assigned-contact` obsługuje dziś także 500; BE-157 ✅ — endpoint, przy którym to wykryto)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak (po wdrożeniu fallback FE-136 można zawęzić do samego 404 — notatka, bez twardej zależności)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z FE-136, backlog)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (systemowa Java to 25 — Mockito/Byte Buddy nie działają).
+
+**Opis:** Żądanie do nieistniejącej ścieżki API zwraca 500 `problem+json` typu „internal-error” zamiast 404. Zweryfikowane: `GET /api/agent/me/does-not-exist` → 500. Przyczyna: `GlobalExceptionHandler` nie ma handlera `NoResourceFoundException` (Spring 6.1+, rzucany dla nieobsłużonych zasobów), więc wyjątek trafia do catch-all `Exception` (ok. linii 677). Konsekwencje: błędny sygnał dla klientów i monitoringu (fałszywe 5xx), a fallback FE-136 musi traktować 500 jak „starszy backend bez endpointu” (zamiast samego 404).
+
+**Zakres:**
+- Handler `NoResourceFoundException` w `GlobalExceptionHandler` zwracający 404 w formacie `problem+json` zgodnym z pozostałymi handlerami (bez ujawniania szczegółów wewnętrznych, bez logowania na poziomie ERROR).
+- Test MockMvc: nieznana ścieżka pod `/api/**` → 404 `problem+json`.
+- Sprawdzić, że handler NIE maskuje 405 (`HttpRequestMethodNotSupportedException`) ani 401/403 z łańcucha filtrów (zła metoda na istniejącej ścieżce nadal 405).
+- Notatka dla FE: po wdrożeniu fallback w `agent-recovery.service` (FE-136) można zawęzić z „404 lub 500” do 404 (osobna, drobna zmiana FE bez numeru lub w ramach FE-148).
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/agent/me/does-not-exist` (z poprawnym JWT) zwraca 404 `application/problem+json`, nie 500
+- [ ] Istniejąca ścieżka z niewłaściwą metodą HTTP nadal zwraca 405 (test)
+- [ ] Brak ścieżki bez JWT nadal obsługiwany przez łańcuch filtrów (401 dla ścieżek chronionych) — bez regresji
+- [ ] Log nieznanej ścieżki na poziomie niższym niż ERROR (brak fałszywych alarmów)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zmiana kodu statusu dla nieznanych ścieżek może zmienić zachowanie klientów, którzy dziś (przypadkiem) polegają na 500 — jedynym znanym jest fallback FE-136 (obsługuje oba kody).
+**Nie wchodzi w zakres:** zmiana fallbacku FE-136, przegląd pozostałych handlerów wyjątków Spring MVC.
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: FE-136 ✅ (fallback na 404/500), BE-157 ✅.
+
+### BE-162 – Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI (następca: `active-contacts`)
+
+**Typ:** Refactor / Documentation (Backend, API)
+**Priorytet:** Could Have
+**Złożoność:** XS
+**Zależy od:** BE-157 ✅ (następca `active-contacts`), FE-136 ✅ (front nie woła `assigned-contact` jako ścieżki głównej)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (przeniesione kryterium z BE-157, backlog)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`.
+
+**Opis:** Kryterium z BE-157 („`assigned-contact` opisany w OpenAPI jako następca-do-wycofania po FE-136”) nie zostało wykonane w tamtym tickecie. `GET /api/agent/me/assigned-contact` ma zostać oznaczony `@Operation(deprecated = true)` z opisem wskazującym następcę `GET /api/agent/me/active-contacts`. Endpoint działa bez zmian (zgodność wsteczna; FE-136 używa go wyłącznie jako fallbacku przy 404/500).
+
+**Zakres:**
+- `@Operation(deprecated = true)` + opis w `AgentSelfController.getAssignedContact()` wskazujący `active-contacts` jako następcę; `/v3/api-docs` pokazuje `deprecated: true`.
+- Bez zmian zachowania runtime.
+- Usunięcie endpointu i fallbacku FE-136 — osobny, późniejszy ticket po potwierdzeniu w logach, że nikt go nie woła (okres obserwacji do uzgodnienia z właścicielem; ticket usunięcia NIE założony).
+
+**Kryteria akceptacji:**
+- [ ] `/v3/api-docs` zawiera `deprecated: true` dla `GET /api/agent/me/assigned-contact` z odwołaniem do `active-contacts` w opisie
+- [ ] Zachowanie endpointu bez zmian (istniejące testy `AgentSelfControllerTest` zielone)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) generatory klientów OpenAPI mogą wygenerować ostrzeżenia o deprecation — frontend nie korzysta z generatora (ręczne serwisy).
+**Nie wchodzi w zakres:** usunięcie endpointu, usunięcie fallbacku FE-136.
+**Zależności:** `Zależy od` BE-157 ✅, FE-136 ✅; `Blokuje` brak; następnik (niezałożony): usunięcie `assigned-contact` i fallbacku FE po obserwacji logów.
 
 ## Bez epiku
 

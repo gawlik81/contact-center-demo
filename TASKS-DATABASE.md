@@ -4354,7 +4354,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Typ:** Perf (migracja indeksu na tabeli partycjonowanej) — ticket profilaktyczny, bramkowany wolumenem
 **Priorytet:** Could Have (przy obecnym wolumenie bez problemu; podnieść do Should Have po wyzwalaczu)
 **Złożoność:** M (indeks na tabeli partycjonowanej + decyzja o wdrożeniu bez blokady zapisu + pomiar na scratch)
-**Zależy od:** BE-157 (endpoint `GET /api/agent/me/active-contacts`, `ContactRepository#findActiveContactsForAgent`; kod niezacommitowany na gałęzi `feature/agent-active-contacts-recovery`)
+**Zależy od:** BE-157 ✅ (ukończony 2026-10-31, commit `fcb8fe5a`; endpoint `GET /api/agent/me/active-contacts`, `ContactRepository#findActiveContactsForAgent`; zależność spełniona — ticket pozostaje ⬜ wyłącznie z powodu wyzwalacza wolumenowego)
 **Status:** ⬜ Nie rozpoczęte (założony 2026-10-31, tura po BE-157; wyzwalacz wolumenowy poniżej)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; brak numerowanego epiku wydajności w tym pliku — spójnie z BE-157, z którego ticket wynika; mianownik tabeli DB: nowy wiersz EPIC-32 = 0/1)
@@ -4399,7 +4399,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 **Ryzyka / uwagi:** (R1) `CREATE INDEX` na rodzicu w transakcji Flyway blokuje zapisy `contact` na czas budowy — mitygacja: `ON ONLY` + `CONCURRENTLY` per partycja jako krok DBA przy dużym wolumenie, `lock_timeout`; (R2) wiersze `COMPLETED` bez dyspozycji nigdy nieuzupełnione zostają w indeksie A — monitorować rozmiar, ewentualnie wariant B/C; (R3) predykat częściowy musi być **dosłownie implikowany** przez WHERE zapytania (planer nie dowodzi `channel='PHONE'` z innego warunku; parametryzowane `IN` w JPQL nie psuje dopasowania, bo statusy są literałami) — sprawdzić na planie generycznym (`force_generic_plan`); (R4) każda zmiana reguł BE-157 (lista statusów otwartych, kanał ACW) wymaga nowej migracji indeksu — dopisać komentarz na indeksie (`COMMENT ON INDEX`) z odnośnikiem do `findActiveContactsForAgent`; (R5) przy zmianie pruningu (wariant C) sprawdzić interakcję z partycją `contact_default` (kontakty ze starym/przyszłym `started_at`).
 **Nie wchodzi w zakres:** zmiana kodu Javy/JPQL (wariant C = osobny ticket BE po decyzji), przebudowa `idx_contact_tenant_status` (chyba że świadomie włączona — patrz kryteria), zmiana partycjonowania `contact`, zmiany RLS/uprawnień, nowy endpoint.
-**Zależności:** `Zależy od` BE-157 (zapytania i reguły ACW); `Blokuje` brak; powiązane: DB-055/V093 (porządek indeksów `contact`), V088/V014 (maszyneria partycji).
+**Zależności:** `Zależy od` BE-157 ✅ (zapytania i reguły ACW; BE-157 ukończony 2026-10-31, tura 64); `Blokuje` brak; powiązane: DB-055/V093 (porządek indeksów `contact`), V088/V014 (maszyneria partycji).
 
 ## Bez epiku – tematy poza numerowanymi epikami
 

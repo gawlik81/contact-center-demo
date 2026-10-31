@@ -546,7 +546,7 @@ class EmailMessagePurgeIntegrationTest {
                         .replace(":rows", "'" + keysJson + "'");
 
                 String selectPlan = explain(select);
-                String deletePlan = explain(delete);
+                String deletePlan = explainWithoutScanFallbacks(delete);
 
                 // Partycja z danymi testu (now() → bieżący miesiąc). Planner NIE przycina partycji w tych
                 // zapytaniach (brak warunku na message_at po stronie SELECT, klucz łączenia po stronie DELETE),
@@ -578,6 +578,36 @@ class EmailMessagePurgeIntegrationTest {
             } finally {
                 jdbc.update("DELETE FROM email_message WHERE tenant_id = ?", tenant);
             }
+        }
+
+        /**
+         * EXPLAIN z wyłączonymi Seq Scan / Hash Join / Merge Join na jednej połączeniowej sesji.
+         * {@code jsonb_to_recordset} ma stały domyślny szacunek 100 wierszy, więc przy 30k wierszy
+         * w partycji planner (zależnie od statystyk i wersji PG, np. w CI) wybiera Hash Join + Seq Scan,
+         * mimo że PK jest użyteczny. Test ma dowodzić, że indeks <i>istnieje i jest dostępny</i> dla
+         * planu DELETE — wybór kosztowy planera nie jest tu przedmiotem weryfikacji.
+         */
+        private String explainWithoutScanFallbacks(String sql) {
+            return jdbc.execute((java.sql.Connection con) -> {
+                try (java.sql.Statement st = con.createStatement()) {
+                    st.execute("SET enable_seqscan = off");
+                    st.execute("SET enable_hashjoin = off");
+                    st.execute("SET enable_mergejoin = off");
+                    try (java.sql.ResultSet rs = st.executeQuery("EXPLAIN " + sql)) {
+                        StringBuilder plan = new StringBuilder();
+                        while (rs.next()) {
+                            plan.append(rs.getString(1)).append('\n');
+                        }
+                        return plan.toString();
+                    }
+                } finally {
+                    try (java.sql.Statement st = con.createStatement()) {
+                        st.execute("RESET enable_seqscan");
+                        st.execute("RESET enable_hashjoin");
+                        st.execute("RESET enable_mergejoin");
+                    }
+                }
+            });
         }
 
         private String explain(String sql) {

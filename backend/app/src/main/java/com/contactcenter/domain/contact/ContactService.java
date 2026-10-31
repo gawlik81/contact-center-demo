@@ -1,6 +1,7 @@
 package com.contactcenter.domain.contact;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.contact.dto.ActiveContactResponse;
 import com.contactcenter.api.contact.dto.ContactEventResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
 import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
@@ -686,6 +687,26 @@ public interface ContactService {
      * @return Optional z kontaktem ASSIGNED lub empty gdy brak
      */
     Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId);
+
+    /**
+     * Lists all active contacts of the agent (BE-157): ASSIGNED, ACTIVE, ON_HOLD and derived ACW
+     * (COMPLETED PHONE contact without disposition within the configured wrap-up window).
+     * Queue and customer names are resolved in bulk (no N+1); a name-resolution failure never fails the call.
+     *
+     * @param agentId  UUID of the agent
+     * @param tenantId UUID of the tenant
+     * <p>Over the limit the OLDEST wrap-up (ACW) contacts are dropped; open contacts are always kept.
+     *
+     * @return up to 20 contacts in stable order, empty list when none
+     */
+    List<ActiveContactResponse> findActiveContactsForAgent(UUID agentId, UUID tenantId);
+
+    /**
+     * Display name of the customer of a single contact: real customer name when resolvable,
+     * otherwise {@code remoteAddress}. Same mapping as {@link #findActiveContactsForAgent}.
+     * Never throws - a lookup failure falls back to {@code remoteAddress}.
+     */
+    String resolveCustomerDisplayName(Contact contact, UUID tenantId);
 
     /**
      * Zwraca listę oczekujących kontaktów (status QUEUED) z detalami potrzebnymi

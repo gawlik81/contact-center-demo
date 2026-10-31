@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -403,6 +405,36 @@ class CustomerRepository extends TenantAwareRepository {
         log.info("[CustomerRepo] Auto-utworzono klienta: customerId={}, phone={}, tenant={}",
                 customer.getCustomerId(), phone, tenantId);
         return customer;
+    }
+
+    /**
+     * Bulk display-name lookup (one query), tenant condition explicit in the query (RLS is a second line).
+     * Anonymized customers and blank names are omitted.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> findDisplayNamesByIds(UUID tenantId, Collection<UUID> customerIds) {
+        Map<UUID, String> names = new HashMap<>();
+        if (customerIds == null || customerIds.isEmpty()) {
+            return names;
+        }
+        setTenantContextInDb(tenantId);
+
+        List<Object[]> rows = em.createQuery(
+                        "SELECT c.customerId, c.firstName, c.lastName FROM Customer c " +
+                        "WHERE c.tenantId = :tenantId AND c.customerId IN :ids AND c.deleted = false",
+                        Object[].class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("ids", customerIds)
+                .getResultList();
+        for (Object[] row : rows) {
+            String first = row[1] == null ? "" : ((String) row[1]).trim();
+            String last = row[2] == null ? "" : ((String) row[2]).trim();
+            String full = (first + " " + last).trim();
+            if (!full.isEmpty()) {
+                names.put((UUID) row[0], full);
+            }
+        }
+        return names;
     }
 
     // =========================================================================

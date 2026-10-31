@@ -116,7 +116,8 @@ class ContactReleaseIntegrationTest {
                     c.getBeanFactory().registerSingleton("extensionPointPublisher", mock(ExtensionPointPublisher.class));
                     c.registerBean(ContactServiceImpl.class, () -> new ContactServiceImpl(
                             c.getBean(ContactRepository.class), null, null, mock(RecordingService.class),
-                            mock(EmailMessageService.class), queueService, mock(CampaignService.class),
+                            mock(EmailMessageService.class), queueService,
+                            mock(com.contactcenter.domain.customer.CustomerService.class), mock(CampaignService.class),
                             mock(CustomDispositionService.class), c.getBean(ContactEventService.class),
                             mock(TelephonyAdapter.class), mock(TelephonyEventPublisher.class),
                             new ObjectMapper(), rabbitTemplate, exclusionStore));

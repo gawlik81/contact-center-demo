@@ -5,6 +5,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.user.UserService;
+import com.contactcenter.api.contact.dto.ActiveContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.security.JwtAuthFilter;
 import com.contactcenter.security.JwtParser;
@@ -79,6 +80,7 @@ class AgentSelfControllerTest {
 
     private static final String ASSIGNED = "/api/agent/me/assigned-contact";
     private static final String KPI = "/api/agent/me/kpi";
+    private static final String ACTIVE = "/api/agent/me/active-contacts";
 
     private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_TENANT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -155,7 +157,22 @@ class AgentSelfControllerTest {
                     .andExpect(jsonPath("$.customerIdentifier").value("+48501234567"))
                     .andExpect(jsonPath("$.queueName").value("Sales PL"))
                     .andExpect(jsonPath("$.customerId").value(customerId.toString()));
-            // customerName celowo nieasertowane: obecnie fallback na remoteAddress, do zmiany w BE-157.
+        }
+
+        @Test
+        @DisplayName("BE-157: customerName to nazwa klienta ze wspolnego mapowania, nie remoteAddress")
+        void should_returnRealCustomerName_when_customerResolvable() throws Exception {
+            UUID customerId = UUID.randomUUID();
+            Contact contact = assignedContact(null, customerId);
+            when(contactService.findAssignedContactForAgent(AGENT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.resolveCustomerDisplayName(any(Contact.class), eq(TENANT_ID)))
+                    .thenReturn("Jan Kowalski");
+
+            mockMvc.perform(get(ASSIGNED).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.customerName").value("Jan Kowalski"))
+                    .andExpect(jsonPath("$.customerIdentifier").value("+48501234567"))
+                    .andExpect(jsonPath("$.channel").value("PHONE"));
         }
 
         @Test
@@ -295,6 +312,124 @@ class AgentSelfControllerTest {
 
             // getTenantId() rzuca IllegalStateException, gdy kontekst nie jest ustawiony.
             assertThatThrownBy(TenantContext::getTenantId).isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    // =========================================================================
+    // GET /api/agent/me/active-contacts (BE-157)
+    // =========================================================================
+
+    private static ActiveContactResponse activeContact(String id, String status, String phase, Instant ended) {
+        return new ActiveContactResponse(id, "PHONE", "INBOUND", status,
+                com.contactcenter.api.contact.dto.ContactPhase.valueOf(phase),
+                Instant.parse("2026-10-30T09:00:00Z"), Instant.parse("2026-10-30T09:01:00Z"),
+                ended, "WRAP_UP".equals(phase) ? ended : null, UUID.randomUUID().toString(), "+48501234567",
+                "Jan Kowalski", UUID.randomUUID().toString(), "Sales PL", null);
+    }
+
+    @Nested
+    @DisplayName("GET /active-contacts")
+    class ActiveContacts {
+
+        @Test
+        @DisplayName("200 z tablica kontaktow i pelnym kontraktem pol (RINGING + WRAP_UP)")
+        void should_return200WithAllFields() throws Exception {
+            Instant ended = Instant.parse("2026-10-30T09:30:00Z");
+            when(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID)).thenReturn(List.of(
+                    activeContact("c1", "ASSIGNED", "RINGING", null),
+                    activeContact("c2", "COMPLETED", "WRAP_UP", ended)));
+
+            mockMvc.perform(get(ACTIVE).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].contactId").value("c1"))
+                    .andExpect(jsonPath("$[0].phase").value("RINGING"))
+                    .andExpect(jsonPath("$[0].status").value("ASSIGNED"))
+                    .andExpect(jsonPath("$[0].wrapUpStartedAt").doesNotExist())
+                    .andExpect(jsonPath("$[0].customerName").value("Jan Kowalski"))
+                    .andExpect(jsonPath("$[0].queueName").value("Sales PL"))
+                    .andExpect(jsonPath("$[0].customerIdentifier").value("+48501234567"))
+                    .andExpect(jsonPath("$[0].assignedAt").value("2026-10-30T09:00:00Z"))
+                    .andExpect(jsonPath("$[0].direction").value("INBOUND"))
+                    .andExpect(jsonPath("$[0].subject").doesNotExist())
+                    .andExpect(jsonPath("$[1].phase").value("WRAP_UP"))
+                    .andExpect(jsonPath("$[1].wrapUpStartedAt").value("2026-10-30T09:30:00Z"))
+                    .andExpect(jsonPath("$[1].endedAt").value("2026-10-30T09:30:00Z"));
+        }
+
+        @Test
+        @DisplayName("200 z [] (nie 204) gdy brak kontaktow")
+        void should_return200EmptyArray_when_noContacts() throws Exception {
+            when(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID)).thenReturn(List.of());
+
+            mockMvc.perform(get(ACTIVE).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().json("[]"));
+        }
+
+        @Test
+        @DisplayName("agentId i tenantId pochodza z JWT; parametry zadania sa ignorowane")
+        void should_useAgentAndTenantFromJwt() throws Exception {
+            when(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID)).thenReturn(List.of());
+
+            mockMvc.perform(get(ACTIVE)
+                            .param("agentId", OTHER_AGENT_ID.toString())
+                            .param("tenantId", OTHER_TENANT_ID.toString())
+                            .header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk());
+
+            verify(contactService).findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+            verify(contactService, never()).findActiveContactsForAgent(eq(OTHER_AGENT_ID), any());
+            verify(contactService, never()).findActiveContactsForAgent(any(), eq(OTHER_TENANT_ID));
+        }
+
+        @ParameterizedTest(name = "rola {0} ma dostep (200)")
+        @ValueSource(strings = {"AGENT", "SUPERVISOR", "ADMIN"})
+        void should_allowRole(String role) throws Exception {
+            when(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID)).thenReturn(List.of());
+
+            mockMvc.perform(get(ACTIVE).header("Authorization", bearerFor(role, TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("SUPER_ADMIN dostaje 403 i serwis nie jest wywolywany")
+        void should_return403_when_superAdmin() throws Exception {
+            mockMvc.perform(get(ACTIVE).header("Authorization", bearerFor("SUPER_ADMIN", null, AGENT_ID)))
+                    .andExpect(status().isForbidden());
+
+            verifyNoInteractions(contactService);
+        }
+
+        @Test
+        @DisplayName("401 bez tokenu i przy niepoprawnym tokenie")
+        void should_return401_when_noOrInvalidToken() throws Exception {
+            mockMvc.perform(get(ACTIVE)).andExpect(status().isUnauthorized());
+            when(jwtParser.parse("garbage")).thenThrow(new JwtParser.JwtValidationException("bad"));
+            mockMvc.perform(get(ACTIVE).header("Authorization", "Bearer garbage"))
+                    .andExpect(status().isUnauthorized());
+
+            verifyNoInteractions(contactService);
+        }
+
+        @Test
+        @DisplayName("ACTIVE jest zwracany z phase=IN_PROGRESS takze po zmianie sesji (nowy token tego samego agenta)")
+        void should_returnActiveContact_afterNewSessionToken() throws Exception {
+            when(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID))
+                    .thenReturn(List.of(activeContact("c1", "ACTIVE", "IN_PROGRESS", null)));
+
+            String firstSession = bearerFor("AGENT", TENANT_ID, AGENT_ID);
+            mockMvc.perform(get(ACTIVE).header("Authorization", firstSession)).andExpect(status().isOk());
+            // new login = new token, same user id
+            String newToken = "jwt-second-session";
+            when(jwtParser.parse(newToken)).thenReturn(
+                    new JwtClaims(TENANT_ID, AGENT_ID, "AGENT", "user@example.com", Instant.now().plusSeconds(600)));
+            when(tokenBlacklistService.isBlacklisted(newToken)).thenReturn(false);
+
+            mockMvc.perform(get(ACTIVE).header("Authorization", "Bearer " + newToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].phase").value("IN_PROGRESS"))
+                    .andExpect(jsonPath("$[0].status").value("ACTIVE"));
         }
     }
 

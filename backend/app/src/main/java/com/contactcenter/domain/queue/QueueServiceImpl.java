@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -173,6 +174,12 @@ class QueueServiceImpl implements QueueService {
     @Transactional(readOnly = true)
     public Optional<Queue> findQueueEntity(UUID queueId, UUID tenantId) {
         return queueRepository.findByIdAndTenantId(queueId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> findQueueNamesByIds(UUID tenantId, Collection<UUID> queueIds) {
+        return queueRepository.findNamesByIds(tenantId, queueIds);
     }
 
     @Override

@@ -7,6 +7,8 @@ import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import jakarta.persistence.EntityNotFoundException;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -188,6 +190,17 @@ public interface CustomerService {
      * @return Optional z encją klienta lub empty gdy nie istnieje, inny tenant lub anonimizowany
      */
     Optional<Customer> findById(UUID customerId, UUID tenantId);
+
+    /**
+     * Resolves customer display names ("first last", trimmed) in bulk (one query) within the tenant.
+     * Customers that are unknown, anonymized (is_deleted) or have a blank name are absent from the map,
+     * so callers can fall back to another label.
+     *
+     * @param tenantId    UUID of the tenant
+     * @param customerIds customer ids to resolve (empty allowed)
+     * @return map customerId to non-blank display name
+     */
+    Map<UUID, String> findDisplayNamesByIds(UUID tenantId, Collection<UUID> customerIds);
 
     /**
      * Anonimizuje dane osobowe klienta zgodnie z RODO (Art. 17).

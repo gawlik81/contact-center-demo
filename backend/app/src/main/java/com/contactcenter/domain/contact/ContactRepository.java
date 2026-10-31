@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -2202,6 +2204,66 @@ class ContactRepository extends TenantAwareRepository {
         .getResultList();
 
     return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+  }
+
+  /**
+   * Active contacts of one agent (BE-157): statuses ASSIGNED/ACTIVE/ON_HOLD plus derived ACW
+   * (COMPLETED PHONE contact without disposition that ended at or after {@code wrapUpSince}).
+   *
+   * <p>At most two tenant-scoped queries regardless of the data size: (1) open contacts, (2) ACW contacts
+   * newest-first, only as many as still fit under {@code limit}. Truncation therefore always keeps open
+   * contacts (a ringing contact must never disappear) and drops the OLDEST ACW by {@code ended_at}.
+   * If open contacts alone exceed {@code limit} (practically impossible - the frontend caps open tabs),
+   * the first {@code limit} in the final order are kept, deterministically.
+   *
+   * <p>Final order of the returned list: {@code assigned_at ASC NULLS LAST, created_at ASC, contact_id ASC}
+   * (contact_id compared like PostgreSQL does: bytewise == lexicographic hex).
+   *
+   * @param agentId      agent (owner of the contacts)
+   * @param tenantId     tenant
+   * @param wrapUpSince  lower bound of {@code ended_at} for ACW contacts
+   * @param limit        maximum number of returned contacts
+   * @return contacts in the stable order described above, never more than {@code limit}
+   */
+  @Transactional(readOnly = true)
+  public List<Contact> findActiveContactsForAgent(UUID agentId, UUID tenantId, Instant wrapUpSince, int limit) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findActiveContactsForAgent: agentId={}, tenant={}, wrapUpSince={}, limit={}",
+        agentId, tenantId, wrapUpSince, limit);
+
+    List<Contact> open = em.createQuery(
+            "SELECT c FROM Contact c WHERE c.agentId = :agentId AND c.tenantId = :tenantId " +
+            "AND c.status IN ('ASSIGNED', 'ACTIVE', 'ON_HOLD') " +
+            "ORDER BY c.assignedAt ASC NULLS LAST, c.createdAt ASC, c.contactId ASC",
+            Contact.class)
+        .setParameter("agentId", agentId)
+        .setParameter("tenantId", tenantId)
+        .setMaxResults(limit)
+        .getResultList();
+
+    List<Contact> merged = new ArrayList<>(open);
+    int remaining = limit - open.size();
+    if (remaining > 0) {
+      List<Contact> wrapUp = em.createQuery(
+              "SELECT c FROM Contact c WHERE c.agentId = :agentId AND c.tenantId = :tenantId " +
+              "AND c.status = 'COMPLETED' AND c.dispositionCode IS NULL AND c.channel = 'PHONE' " +
+              "AND c.endedAt IS NOT NULL AND c.endedAt >= :wrapUpSince " +
+              "ORDER BY c.endedAt DESC, c.contactId ASC",
+              Contact.class)
+          .setParameter("agentId", agentId)
+          .setParameter("tenantId", tenantId)
+          .setParameter("wrapUpSince", wrapUpSince)
+          .setMaxResults(remaining)
+          .getResultList();
+      merged.addAll(wrapUp);
+    }
+
+    merged.sort(Comparator
+        .comparing(Contact::getAssignedAt, Comparator.nullsLast(Comparator.<Instant>naturalOrder()))
+        .thenComparing(Contact::getCreatedAt, Comparator.nullsLast(Comparator.<Instant>naturalOrder()))
+        .thenComparing(c -> c.getContactId().toString()));
+    return merged;
   }
 
   // =========================================================================

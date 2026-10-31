@@ -1,5 +1,89 @@
 # Changelog
 
+## [1.7.0](https://github.com/gawlik81/contact-center-demo/compare/v1.6.0...v1.7.0) (2026-10-31)
+
+
+### Features
+
+* **agent:** baner bledu telefonii z ponowieniem na pulpicie agenta (FE-145) ([22d4d24](https://github.com/gawlik81/contact-center-demo/commit/22d4d242ca4f3812ea16253eed78058e8722d13a))
+* **agent:** bezpieczne zamykanie kart i znaczniki stanu (FE-132, FE-133) ([a80fb05](https://github.com/gawlik81/contact-center-demo/commit/a80fb053c86326d399a93f2ff9ec1b7bda1443c8))
+* **agent:** elastyczny uklad pulpitu 1366x768 i skala breakpointow (FE-123) ([ae5654f](https://github.com/gawlik81/contact-center-demo/commit/ae5654fcc2b7fdd5b17165d27a7b54417c8e6735))
+* **agent:** i18n, domkniecia hardeningu i listy z klawiatury (EPIC-32 FE-119, FE-120, FE-126) ([7e15637](https://github.com/gawlik81/contact-center-demo/commit/7e156376c07bf3e639b3449bea082d800059a686))
+* **agent:** kontrast tokenow i landmarki z fokusem (EPIC-32 FE-115, FE-117) ([005bffc](https://github.com/gawlik81/contact-center-demo/commit/005bffc89735ce50c1a619d59f0883ab7edebf3c))
+* **agent:** niemodalny stan ACW w karcie i baner dyspozycji (FE-122) ([c405f24](https://github.com/gawlik81/contact-center-demo/commit/c405f24d971c2edc1bd439d8e4448c0aa6890619))
+* **agent:** palety na tokeny i skala typografii (EPIC-32 FE-116, FE-118) ([1eec4f7](https://github.com/gawlik81/contact-center-demo/commit/1eec4f72e613a4d52aa9bdb2565d78e71a3f2ede))
+* **agent:** szkice per kontakt, status agenta w pasku, social tylko do odczytu ([eaed523](https://github.com/gawlik81/contact-center-demo/commit/eaed5234b1cee36d9dfc90ab7085fca3c8819dfe))
+* **customers:** podgląd D9 i unifikacja anonimizacji RODO (FE-112) ([0437a2f](https://github.com/gawlik81/contact-center-demo/commit/0437a2f1f1e9646823b3c70e2fb3e2f8fb7901aa))
+* **db:** dodaj indeksy pod sweep wiadomości osieroconych (DB-059, V097) ([6b4797c](https://github.com/gawlik81/contact-center-demo/commit/6b4797cde1c796369e7ead32fe8c24b646aa3c30))
+* **db:** okres archiwizacji kontaktow kampanii per tenant (DB-084, V136-V138) ([bc09af7](https://github.com/gawlik81/contact-center-demo/commit/bc09af77d7028dbaaff9f2de7a3497f71010816b))
+* **db:** porzadki indeksow scheduled_callback, agent_group_member, archiwum (DB-057) ([6110fdd](https://github.com/gawlik81/contact-center-demo/commit/6110fdde80749b773d4fcc0d4822704c0ea7dcbc))
+* **db:** usun nieuzywane widoki materializowane (DB-058) ([cbbe74a](https://github.com/gawlik81/contact-center-demo/commit/cbbe74aae71e43469dc7526676886cb17351d6a5))
+* **db:** uzgodnij scheduled_job z wykonawcami Java i doc retencji (DB-076, DB-077) ([f4c8228](https://github.com/gawlik81/contact-center-demo/commit/f4c822895e30f744786c633014b1e6f5f16c35bd))
+* **email:** partycjonowanie email_message i klucz złożony EmailMessage (DB-067, BE-134) ([c3ca6e6](https://github.com/gawlik81/contact-center-demo/commit/c3ca6e6e831bf8594e20283a968f4f40305d95dd))
+* **email:** sprzątaj porzucone załączniki pending w S3 (BE-131) ([5fa469c](https://github.com/gawlik81/contact-center-demo/commit/5fa469c042748aac062287e0a1546f4e82ed4545))
+* **gdpr:** podepnij anonymize_customer/export_customer_data do Javy (BE-129) ([8eff7ad](https://github.com/gawlik81/contact-center-demo/commit/8eff7adac5f5f4b1f0c9e0b1e51f97974cc87d67))
+* **plugins:** dodaj overwrite przy reupload tej samej wersji (EPIC-28) ([2b1e210](https://github.com/gawlik81/contact-center-demo/commit/2b1e21007eb67d1232918deb23d7f5769638133a))
+* **plugins:** przełącznik overwrite przy wgrywaniu pluginu (EPIC-28) ([a34a107](https://github.com/gawlik81/contact-center-demo/commit/a34a107db0c348bce7028b768a21176bb048b11d))
+* **retention:** api okresu archiwizacji kontaktow kampanii per tenant (BE-151) ([760fb26](https://github.com/gawlik81/contact-center-demo/commit/760fb263860180b13b1158f5cf1990463b9db637))
+* **retention:** horyzont platformowy audit_log/plugin_invocation_log (BE-123) ([a0071d5](https://github.com/gawlik81/contact-center-demo/commit/a0071d53b334d26adf1cc5321b12652e5a00fa86))
+* **retention:** job archiwizacji kampanii i batch purge archiwum (BE-120, DB-056) ([bbaaade](https://github.com/gawlik81/contact-center-demo/commit/bbaaade3a3aae5619444c0cf1947af2fc82ec6a2))
+* **retention:** job czyszczenia refresh tokenow i opisy retencji w UI (BE-122, FE-110) ([2a7ec16](https://github.com/gawlik81/contact-center-demo/commit/2a7ec164784be6a76b42ed38e120ad1010f632d8))
+* **retention:** licz wiadomości w eligibleRowCount dashboardu retencji (BE-128) ([d5c0143](https://github.com/gawlik81/contact-center-demo/commit/d5c014301bc1814125b90a0eb5cbc4d103ccad6f))
+* **retention:** maskuj PII w audit_log przy anonimizacji klienta (BE-142) ([9e28ebc](https://github.com/gawlik81/contact-center-demo/commit/9e28ebc3e568bb951c63744d8ba114ec0d5796d2))
+* **retention:** partycjonuj social_message RANGE po sent_at (DB-065) ([5de7756](https://github.com/gawlik81/contact-center-demo/commit/5de7756a819e994fef087398bc0bbeaecb18b2d0))
+* **retention:** petla batchowa purge archiwum i drop contacts_dw.remote_address (BE-121, DB-078) ([4eb54ec](https://github.com/gawlik81/contact-center-demo/commit/4eb54ec84366962ba65a5bce7809cbb97b779612))
+* **retention:** podepnij email_message, REVOKE na partycjach, włącz delete-messages ([b4def99](https://github.com/gawlik81/contact-center-demo/commit/b4def99bc4a0738947ebfffa8bc401e1b5d40a32))
+* **retention:** podepnij social_message do maszynerii partycji/retencji (BE-133) ([1f00054](https://github.com/gawlik81/contact-center-demo/commit/1f000541581a5cc4853490035cbd144d639e2852))
+* **retention:** podepnij usuwanie wiadomości do purge kontaktów (BE-126) ([58b5f82](https://github.com/gawlik81/contact-center-demo/commit/58b5f82dd30a46e1b69cf35d73990f7f7a581e99))
+* **retention:** pole okresu archiwizacji kontaktow kampanii w GUI (FE-113) ([81c5561](https://github.com/gawlik81/contact-center-demo/commit/81c5561ec6b2bfb9868cc63a2cc72420beba16b6))
+* **retention:** purge wiadomości osieroconych (BE-127) ([bdd716a](https://github.com/gawlik81/contact-center-demo/commit/bdd716a8ac157255d005b01653c5b944ae1c66f1))
+* **retention:** trwaly slad awarii zadan cyklicznych (DB-082, BE-147) ([7bea097](https://github.com/gawlik81/contact-center-demo/commit/7bea097b4996ed0fdadf29c426657ba4bf13fb7b))
+* **retention:** usuwanie wiadomości e-mail/social po contact_id wraz z S3 (BE-125) ([8c1d710](https://github.com/gawlik81/contact-center-demo/commit/8c1d71079da5708f73feb5da42aa35a3a45bf5ad))
+* **rls:** domknij RLS pozostalych tabel tenantowych (DB-074, BE-138, DB-081) ([7810048](https://github.com/gawlik81/contact-center-demo/commit/78100483ed0416a263f125429b63d41a32e750ad))
+* **rls:** pelne RLS campaign_contact/campaign_contact_archive (D7 Opcja 1, DB-072/DB-073) ([fce75f9](https://github.com/gawlik81/contact-center-demo/commit/fce75f91a1502cdc7ac3fb3bffd15141d25387d8))
+* **routing:** kontakty social trafiaja do agenta, czas pracy KPI od zalogowania ([f947842](https://github.com/gawlik81/contact-center-demo/commit/f94784208ad94b691738696d4051b1404082fc1d))
+* **routing:** zwrot kontaktu async do kolejki i wykluczenie zwracajacego agenta (BE-160) ([20ce2f4](https://github.com/gawlik81/contact-center-demo/commit/20ce2f48fac18fff95b18b16773f53bfdacc4461))
+* **security:** wzmocnij RLS email_message/social_message na ALL+WITH CHECK+FORCE (DB-064) ([d855b1f](https://github.com/gawlik81/contact-center-demo/commit/d855b1f489c561b1d8505a5562ff9d9cf096f2dd))
+* **social:** dodaj integrację WhatsApp Business (ręczne podłączenie … ([aa8a799](https://github.com/gawlik81/contact-center-demo/commit/aa8a799ffc45b4d6d799852c3cff77e3f7399916))
+* **social:** dodaj integrację WhatsApp Business (ręczne podłączenie + realna wysyłka) ([67943eb](https://github.com/gawlik81/contact-center-demo/commit/67943ebdb8ea2a9ab0391106acbac76ae3c61d14))
+* **social:** migruj SocialMessage na klucz złożony (messageId, sentAt) (BE-132) ([4a3fc83](https://github.com/gawlik81/contact-center-demo/commit/4a3fc83b4d8c9f3ba8679ca4dd2c986ec6e90ce0))
+
+
+### Bug Fixes
+
+* **admin:** podpowiedzi umiejetnosci w formularzu uzytkownika i i18n literalow pl (FE-127, FE-128) ([c41bbef](https://github.com/gawlik81/contact-center-demo/commit/c41bbefe63f9c2cef575512b668c70704f806920))
+* **agent:** domkniecia audytu ux agenta - kontrast, cele 24px, region live (FE-125) ([9eac998](https://github.com/gawlik81/contact-center-demo/commit/9eac998303ce6330f81a9a25d436624aa71f7416))
+* **agent:** moment dzwonienia - widoczny baner, skroty klawiszowe, Esc w modalach ([322db0c](https://github.com/gawlik81/contact-center-demo/commit/322db0c16ba2ec1a0c357bb5612aab78389925a1))
+* **agent:** reaktywne tlumaczenie etykiety kolejki i domkniecia kpi navbara (FE-143) ([a019f56](https://github.com/gawlik81/contact-center-demo/commit/a019f569ec2c7aeecf749d3e07a3adcd0d27ad71))
+* **audit:** popraw entity_id dla akcji CREATED w AuditAspect (BE-146) ([04c40d7](https://github.com/gawlik81/contact-center-demo/commit/04c40d7e13402a3dd29f9ca385520726c7a3d4c5))
+* **ci:** pomiń test MinIO gdy obraz niedostępny w rejestrze (BE-144) ([d3038c3](https://github.com/gawlik81/contact-center-demo/commit/d3038c3857dbc4fdeb3555b824d8e0d174fa6244))
+* **db:** napraw export_customer_data, dodaj funkcję pomocniczą reguły D9 (DB-061, V095) ([deec652](https://github.com/gawlik81/contact-center-demo/commit/deec652990139ab3f7a6446fc23d778282ad83fd))
+* **db:** purge archiwum kontaktow - archived_at w kluczu usuwania i guard tenanta (DB-087, V143) ([15cf66d](https://github.com/gawlik81/contact-center-demo/commit/15cf66df00f45c9389d441d63a978572b5caac1b))
+* **db:** rozszerz anonymize_customer o pełen zakres RODO Art. 17 (DB-062, V096) ([4da4c68](https://github.com/gawlik81/contact-center-demo/commit/4da4c684f59f4a0a04b7fc28098140a0cd4efe29))
+* **db:** trigger ended_at na insert i bezpieczny delete w archiwizacji kontaktow (DB-085, DB-086) ([fa9820a](https://github.com/gawlik81/contact-center-demo/commit/fa9820a5a97c4d6b9e13892fe91e8bd351ba9978))
+* **db:** usuń zduplikowane indeksy z tabeli contact (DB-055, V093) ([09f5623](https://github.com/gawlik81/contact-center-demo/commit/09f5623e43b865351f010ed4900e36742964918f))
+* **db:** usuń zduplikowane indeksy z tabeli contact (DB-055, V093) ([bc0c520](https://github.com/gawlik81/contact-center-demo/commit/bc0c5207eba668ffeef01e674e5cf7bbf5c8fb8e))
+* **db:** zawężenie fn_contact_ref_integrity - UPDATE bez zmiany referencji (DB-079, V094) ([e9d6d65](https://github.com/gawlik81/contact-center-demo/commit/e9d6d658923ef642f4a5a61da333ceb962d658d7))
+* **email:** waliduj prefiks tenanta dla s3Key w wysyłce i pobieraniu załącznika (BE-143) ([dc385e8](https://github.com/gawlik81/contact-center-demo/commit/dc385e85c884abb5dbf0148a115b9797eabad685))
+* **navbar:** czas pracy w formacie h:mm i jednostki dla czytnika ekranu (FE-129) ([20ab715](https://github.com/gawlik81/contact-center-demo/commit/20ab7150b31afefe3b2fbe621b785b712de14186))
+* **plugins:** wymuś unikalny klucz S3 przy overwrite wersji pluginu ([28b8a58](https://github.com/gawlik81/contact-center-demo/commit/28b8a58b2b26a030e04631b0368ab5450908e36e))
+* **retention:** dialog okresu archiwizacji pokazuje przyrost, dostepnosc i wyscig podgladu (FE-113) ([67c85f8](https://github.com/gawlik81/contact-center-demo/commit/67c85f8c2db0dbe098a1698cd7dc88fdc1be3cc2))
+* **retention:** nie usuwaj (DROP TABLE) niepustej partycji tabel per-tenant (BE-145) ([ba23c70](https://github.com/gawlik81/contact-center-demo/commit/ba23c70e2d6273f62424a294cb0424d34f32aa47))
+* **retention:** podglad okresu archiwizacji uzywa zegara z created_at jak funkcja sql ([a0ad887](https://github.com/gawlik81/contact-center-demo/commit/a0ad8870ea3c2eb860545054f46e9a75048a5fc3))
+* **retention:** purge z flaga truncated, V134, poprawki i18n po review (BE-121, FE-110) ([f09ab9e](https://github.com/gawlik81/contact-center-demo/commit/f09ab9ecfed1b8f549cb6bd9d3835c2a3134991b))
+* **retention:** test podgladu archiwizacji odporny na wyjatek i przypadek przeciwny (BE-152) ([3e48367](https://github.com/gawlik81/contact-center-demo/commit/3e4836711a038fdbcc3ac63bd94137338282d58e))
+* **retention:** tlumaczona fraza potwierdzenia i zawijanie tabeli polityk (FE-110) ([23ac56b](https://github.com/gawlik81/contact-center-demo/commit/23ac56b1b56a08cfb2f8af83caa68b2a0f936d11))
+* **supervisor:** tokeny systemu zamiast niezdefiniowanych --color-* w zestawach dyspozycji (FE-141) ([c4129f9](https://github.com/gawlik81/contact-center-demo/commit/c4129f94ce9d9cde1ecda77738996ddedd5fb65b))
+* **test:** deterministyczny plan DELETE w EmailMessagePurgeIntegratio… ([d282700](https://github.com/gawlik81/contact-center-demo/commit/d2827002b2f35db746ff50eb3d53f39e2f039eec))
+* **test:** deterministyczny plan DELETE w EmailMessagePurgeIntegrationTest ([23cc5ff](https://github.com/gawlik81/contact-center-demo/commit/23cc5ff49d2c391e20da44a4d314b73e1137322f))
+* **test:** rozwiąż kolizję nazw CustomerLikeResult/ContactLikeResult po merge BE-142+BE-146 ([700610f](https://github.com/gawlik81/contact-center-demo/commit/700610ff3471eafed92c24f8e2a7c008cc8ef494))
+
+
+### Performance Improvements
+
+* **agent:** budzet stylow pulpitu, tokeny zamiast fallbackow i plaski ruch (FE-124) ([592bedf](https://github.com/gawlik81/contact-center-demo/commit/592bedf23cc1659a916a61a6ca2a80ed504da3c4))
+* **db:** purge archiwum kontaktow usuwa po kluczu glownym zamiast seq scan (DB-056, V142) ([9c800c8](https://github.com/gawlik81/contact-center-demo/commit/9c800c814bcad885fc53a29a71c23b0b73856381))
+
 ## [1.6.0](https://github.com/gawlik81/contact-center-demo/compare/v1.5.0...v1.6.0) (2026-08-23)
 
 

@@ -45,10 +45,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
+| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 0 | 0 | 1 | 0 | 1 | ⬜ Backlog (DB-088, bramkowany wolumenem) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
-| **RAZEM** | | **82** | **0** | **2** | **3** | **87** | |
+| **RAZEM** | | **82** | **0** | **3** | **3** | **88** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) nie ma ticketów DB: BE-155 (tura 2026-10-28) zakończony BEZ migracji, więc DB-088 NIE został założony i pozostaje następnym wolnym numerem (DB-087 = ostatni użyty); warunkowo DB-088 mógłby powstać z BE-157 (indeks pod `(tenant_id, agent_id, status)` na `contact`, jeśli `EXPLAIN` wykaże skan wszystkich partycji).
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma jeden ticket DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem; numer DB-088 użyty, następny wolny: DB-089). BE-155 (tura 2026-10-28) zakończony BEZ migracji.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -59,6 +60,10 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 **EPIC-31 – Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app)**
 
 - DB-083 – Role i uprawnienia pod rolę aplikacji `cc_app` (bez BYPASSRLS): GRANT-y, funkcje `SECURITY DEFINER`, REVOKE… – ⬜
+
+**EPIC-32 – UX i dostępność stanowiska agenta**
+
+- DB-088 – [BRAMKOWANY WOLUMENEM] Indeks częściowy pod `findActiveContactsForAgent` (BE-157): brak pruningu partycji `contact` – ⬜
 
 ---
 
@@ -4339,6 +4344,62 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Adnotacja (tura 35, 2026-10-11):** pkt 3(v) (archiwizacja kampanii jako definer) dotyka funkcji `archive_completed_campaign_contacts()`, którą DB-084 przedefiniowuje (okres archiwizacji per tenant, domyślnie 180 dni, zakres 30–730; sygnatura bez parametrów zachowana). DB-083 i DB-084 NIE zależą od siebie formalnie — kto startuje drugi, bazuje na aktualnej definicji funkcji (`pg_get_functiondef`), nie na V015/V133; odczyt ustawienia per tenant w definerze bez GUC (join po `tenant_id`).
 
 **Adnotacja (tura 36, 2026-10-11 — KOREKTA adnotacji z tury 35):** zdanie „DB-083 i DB-084 NIE zależą od siebie formalnie” jest NIEAKTUALNE — decyzja właściciela P6: **DB-084 wchodzi PRZED DB-083** (`Zależy od` DB-084, `Blokuje` w DB-084 uzupełnione bez ✅). Powód: DB-083 pkt 3(v) po DB-084 przełącza funkcję przez `ALTER FUNCTION` zamiast kopiować ciało. Testy krzyżowe: (a) test czujnika kandydatów z danymi DWÓCH tenantów o RÓŻNYCH progach i parytetem „kandydaci = zarchiwizowane w jednym przebiegu”; (b) test atrybutów funkcji po przełączeniu (`prosecdef = true`, `proconfig` zawiera `search_path=public, pg_temp`, brak regresji progu 30 dni: tenant bez wiersza ustawienia nadal archiwizuje po 180, nie po 30). Zapis w DB-084 („Wynik WP-1”, kryteria „Testy krzyżowe”).
+
+## EPIC-32 – UX i dostępność stanowiska agenta
+
+**Ukończone 0/1** (⬜ nie rozpoczęte: 1) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu jedyny ticket DB, ⬜ backlog)
+
+### DB-088 – Indeks częściowy pod `findActiveContactsForAgent` (BE-157): brak pruningu partycji `contact` w `GET /api/agent/me/active-contacts`
+
+**Typ:** Perf (migracja indeksu na tabeli partycjonowanej) — ticket profilaktyczny, bramkowany wolumenem
+**Priorytet:** Could Have (przy obecnym wolumenie bez problemu; podnieść do Should Have po wyzwalaczu)
+**Złożoność:** M (indeks na tabeli partycjonowanej + decyzja o wdrożeniu bez blokady zapisu + pomiar na scratch)
+**Zależy od:** BE-157 (endpoint `GET /api/agent/me/active-contacts`, `ContactRepository#findActiveContactsForAgent`; kod niezacommitowany na gałęzi `feature/agent-active-contacts-recovery`)
+**Status:** ⬜ Nie rozpoczęte (założony 2026-10-31, tura po BE-157; wyzwalacz wolumenowy poniżej)
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; brak numerowanego epiku wydajności w tym pliku — spójnie z BE-157, z którego ticket wynika; mianownik tabeli DB: nowy wiersz EPIC-32 = 0/1)
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert` dla testu planu/propagacji indeksu)
+
+**Wyzwalacz realizacji (nie robić wcześniej):** (a) czas odpowiedzi `GET /api/agent/me/active-contacts` p95 powyżej uzgodnionego progu (propozycja: 50 ms po stronie DB) albo (b) liczba partycji `contact` / wolumen historii pojedynczego agenta, przy którym `EXPLAIN (ANALYZE)` obu zapytań przekracza kilka ms na partycję. Do tego czasu ticket zostaje w backlogu.
+
+**Kontekst:** BE-157 dodał endpoint odtwarzający karty kontaktów agenta po przeładowaniu. `ContactRepository#findActiveContactsForAgent` wykonuje dwa zapytania JPQL z jawnym `tenant_id` + `agent_id` (plus RLS): (1) otwarte `status IN ('ASSIGNED','ACTIVE','ON_HOLD')` z `LIMIT` (`ORDER BY assigned_at ASC NULLS LAST, created_at, contact_id`); (2) ACW — `status = 'COMPLETED' AND disposition_code IS NULL AND channel = 'PHONE' AND ended_at IS NOT NULL AND ended_at >= now() - okno` (domyślnie 12 h), `ORDER BY ended_at DESC, contact_id`, na pozostałą pojemność (limit 20). `EXPLAIN` na bazie local-demo (453 wiersze, 2026-10-31): `contact` jest partycjonowana RANGE po `started_at` (12 partycji + `contact_default`), zapytania NIE mają predykatu po `started_at`, więc **brak pruningu — dotykane są wszystkie partycje**. W każdej planer używa `idx_contact_agent_history (tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL` (Index Cond tenant + agent), a status/dyspozycja/kanał/`ended_at` to dopiero filtr — koszt rośnie liniowo z liczbą partycji i z całą historią agenta (nie z liczbą kontaktów aktywnych). Małe partycje → Seq Scan.
+
+**Zweryfikowane w migracjach (`backend/src/main/resources/db/migration`, stan V143):**
+- `idx_contact_agent_history` — V007 (`ON contact (tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL`); V093 usunął duplikat `idx_contact_tenant_agent_date` i zostawił tę nazwę.
+- `idx_contact_tenant_status` — V007, odtworzony w V025: `ON contact (tenant_id, status) WHERE status IN ('QUEUED','ACTIVE','ON_HOLD')`. **Nie zawiera `ASSIGNED`** (status dodany w V046, indeksu nie przebudowano) i nie ma `agent_id` — nie obsługuje zapytania (1) ani (2). Uwaga: to osobne, istniejące zaniedbanie (ASSIGNED poza indeksem aktywnych); decyzję o jego poszerzeniu podjąć w tym tickecie albo wydzielić (nie przesądzać).
+- Dozwolone statusy (`chk_contact_status`, ostatnio V073): `IVR, QUEUED, ASSIGNED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED, ERROR, NOT_REACHED, TRANSFERRED` (V046/V056/V060/V073).
+- Partycjonowanie: V007 (`PARTITION BY RANGE (started_at)`, partycje miesięczne, `contact_default`), funkcja `create_contact_partition(INT, INT)` tworzy partycję przez `CREATE TABLE … PARTITION OF contact` (V007; wywoływana z `create_next_month_partitions` V014 i V088) — **partycja utworzona tym poleceniem automatycznie dziedziczy wszystkie indeksy rodzica**, więc indeks założony na rodzicu obejmie przyszłe partycje bez zmiany funkcji. V088 ma bezpiecznik/ATTACH dla `contact_default`.
+
+**Opis / zakres:**
+1. **Indeks(y) częściowy(e) na `contact` (rodzic)** — nazwy i definicję ustalić po pomiarze; kandydaci (ocena wariantów niżej).
+2. **Wdrożenie na tabeli partycjonowanej:** w projekcie indeksy zakładano jako `CREATE INDEX` na rodzicu (V007/V025) — w transakcji Flyway to blokada `SHARE` na rodzicu i każdej partycji (blokuje zapisy `contact`, tabela gorąca). V093 zaznacza: `DROP INDEX CONCURRENTLY` na indeksie partycjonowanym nie jest możliwy; dla dużego wolumenu zalecany ręczny krok DBA: `CREATE INDEX … ON ONLY contact (…)` (indeks rodzica nieważny, bez skanu) + `CREATE INDEX CONCURRENTLY` na każdej partycji (łącznie z `contact_default`) + `ALTER INDEX parent ATTACH PARTITION child` (rodzic staje się ważny po dołączeniu wszystkich). Migracja Flyway MUSI być idempotentna (`IF NOT EXISTS` / guard w `pg_class`/`pg_index`) i użyć `SET LOCAL lock_timeout` (wzór V093); przy małym wolumenie dopuszczalny zwykły `CREATE INDEX` na rodzicu poza szczytem ruchu — decyzja zależna od pomiaru czasu budowy na scratch.
+3. **Dziedziczenie przez nowe partycje:** test (i kryterium), że partycja utworzona przez `create_contact_partition` po migracji ma odpowiednik indeksu (`pg_inherits` / `pg_index.indisvalid`) oraz że `contact_default` go ma. Nie zmieniać `create_contact_partition`, o ile test to potwierdza.
+4. **Pomiar przed/po:** `EXPLAIN (ANALYZE, BUFFERS)` obu zapytań na scratch o realistycznym wolumenie (propozycja: ≥ 500 tys. wierszy `contact`, 20+ tenantów, 24+ partycje, agent z wieloletnią historią, w tym dużo `COMPLETED` bez dyspozycji nie-PHONE); porównanie liczby trafionych buforów i czasu. Pomiar rolą `BYPASSRLS` z jawnym GUC / uwaga na RLS (zob. pułapki skryptów pomiarowych).
+
+**Warianty (ocena):**
+- **A (rekomendowany): jeden indeks częściowy** `(tenant_id, agent_id, ended_at DESC)` z `WHERE status IN ('ASSIGNED','ACTIVE','ON_HOLD') OR (status = 'COMPLETED' AND disposition_code IS NULL)`. Plusy: jeden obiekt, mały (obejmuje tylko wiersze otwarte i „niedomknięte”), pokrywa oba zapytania, koszt zapisu niski (wiersz wypada z indeksu po nadaniu dyspozycji/zamknięciu). Minusy: kolejność kolumn/`ended_at` pod ACW nie służy zapytaniu (1) (sort w pamięci na ≤ kilku wierszach — pomijalny); wiersze `COMPLETED` bez dyspozycji, które nigdy jej nie dostaną (np. kanały bez dyspozycji), zostają w indeksie na stałe — rośnie z historią (ryzyko R2; mitygacja: wariant C lub okno po `ended_at`).
+- **B: dwa osobne indeksy częściowe** — (1) `(tenant_id, agent_id) WHERE status IN ('ASSIGNED','ACTIVE','ON_HOLD')` — minimalny, praktycznie stały rozmiar; (2) `(tenant_id, agent_id, ended_at DESC) WHERE status = 'COMPLETED' AND disposition_code IS NULL AND channel = 'PHONE'` — dokładne dopasowanie do ACW i `ORDER BY ended_at DESC`. Plusy: najlepsze plany i najmniejsze indeksy; Minusy: dwa obiekty do utrzymania × (liczba partycji), predykat `channel='PHONE'` trwale wiąże indeks z regułą biznesową BE-157 (zmiana reguły ACW = nowa migracja).
+- **C (wariant po stronie BE, wymaga decyzji, NIE przesądzać):** dolna granica po `started_at` w zapytaniach (np. `started_at >= now() - N dni`, N ≥ okno ACW + margines na kontakty długie/`ON_HOLD`), by partition pruning ciął partycje — działa bez nowego indeksu lub razem z A/B (wtedy zapytanie dotyka kilku ostatnich partycji, nie wszystkich). Koszt: reguła „kontakt otwarty starszy niż N dni nie wraca w liście” (kontakt `ASSIGNED/ACTIVE/ON_HOLD` zawieszony dłużej niż N dni znikałby z odtwarzania) — to zmiana semantyki BE-157, decyzja właściciela; implementacja po stronie `backend-dev-expert` (osobny ticket BE, jeśli wybrany).
+- **D (odrzucony):** poszerzenie istniejącego `idx_contact_tenant_status` o `agent_id` — zmienia indeks używany przez dashboard RT/V016, nie rozwiązuje ACW, ryzyko regresji innych zapytań.
+- **Rekomendacja:** A (lub B, jeśli pomiar pokaże, że ACW wymaga `ended_at DESC` bez sortu przy dużej liczbie niedomkniętych), ewentualnie w połączeniu z C po decyzji właściciela. Ostateczny wybór po pomiarze na scratch, nie z góry.
+
+**Numer migracji:** kolejny wolny numer ustalić W MOMENCIE REALIZACJI (sprawdzić `flyway_schema_history` żywej bazy ORAZ wszystkie gałęzie; ostatni znany plik w repo: V143). Nie edytować zastosowanych migracji — tylko nowy plik `V{n}__…`.
+
+**Kryteria akceptacji:**
+- [ ] Zmierzone `EXPLAIN (ANALYZE, BUFFERS)` obu zapytań przed i po na danych o realistycznym wolumenie (scratch, nie local-demo), z liczbami (bufory, czas, liczba partycji) zapisanymi w tickecie
+- [ ] Nowy indeks jest faktycznie używany w planie obu zapytań (Index/Bitmap Scan po nowym indeksie, na każdej dotkniętej partycji); bez Seq Scan na partycjach powyżej progu małych tabel
+- [ ] Brak regresji zapisu: pomiar kosztu INSERT/UPDATE statusu (`pgbench`/skrypt) w granicach ustalonego progu (np. ≤ 5%); brak nowych blokad dłuższych niż `lock_timeout` przy wdrożeniu
+- [ ] Nowe partycje (`create_contact_partition`) oraz `contact_default` dziedziczą indeks (test migracyjny: `pg_inherits` + `indisvalid`); indeks rodzica ważny (`indisvalid = true`)
+- [ ] Migracja idempotentna; nie zmienia istniejących indeksów (`idx_contact_agent_history`, `idx_contact_tenant_status`) ani `chk_contact_status`; decyzja o `ASSIGNED` w `idx_contact_tenant_status` zapisana (zrobione tu albo wydzielone)
+- [ ] Test (Testcontainers, wzór pre/post lub „pojedyncza świeża baza”) obejmujący: obecność indeksu, propagację na partycje, plan zapytania (np. `PostgresTestDatabase#explainUsesIndexOrItsPartitionChildren`)
+- [ ] `mvn verify -pl app` zielone (JDK 21), w tym dotychczasowe `ContactRepositoryActiveContactsIntegrationTest` bez zmian semantyki wyników
+- [ ] Dokumentacja `documentation/tech/06-database.md` (nowy indeks, powód, wariant) oraz aktualizacja `PROGRESS.md` po realizacji
+
+**Testy:** integracyjny test migracji (obecność/ważność/propagacja indeksu, idempotencja), test planu na danych syntetycznych (symulacja dziesiątek tenantów i kilkunastu partycji — plan na małych dev-partycjach jest niedeterministyczny), regresja `ContactRepositoryActiveContactsIntegrationTest` i `ContactActiveContactsLookupFallbackIntegrationTest`.
+
+**Ryzyka / uwagi:** (R1) `CREATE INDEX` na rodzicu w transakcji Flyway blokuje zapisy `contact` na czas budowy — mitygacja: `ON ONLY` + `CONCURRENTLY` per partycja jako krok DBA przy dużym wolumenie, `lock_timeout`; (R2) wiersze `COMPLETED` bez dyspozycji nigdy nieuzupełnione zostają w indeksie A — monitorować rozmiar, ewentualnie wariant B/C; (R3) predykat częściowy musi być **dosłownie implikowany** przez WHERE zapytania (planer nie dowodzi `channel='PHONE'` z innego warunku; parametryzowane `IN` w JPQL nie psuje dopasowania, bo statusy są literałami) — sprawdzić na planie generycznym (`force_generic_plan`); (R4) każda zmiana reguł BE-157 (lista statusów otwartych, kanał ACW) wymaga nowej migracji indeksu — dopisać komentarz na indeksie (`COMMENT ON INDEX`) z odnośnikiem do `findActiveContactsForAgent`; (R5) przy zmianie pruningu (wariant C) sprawdzić interakcję z partycją `contact_default` (kontakty ze starym/przyszłym `started_at`).
+**Nie wchodzi w zakres:** zmiana kodu Javy/JPQL (wariant C = osobny ticket BE po decyzji), przebudowa `idx_contact_tenant_status` (chyba że świadomie włączona — patrz kryteria), zmiana partycjonowania `contact`, zmiany RLS/uprawnień, nowy endpoint.
+**Zależności:** `Zależy od` BE-157 (zapytania i reguły ACW); `Blokuje` brak; powiązane: DB-055/V093 (porządek indeksów `contact`), V088/V014 (maszyneria partycji).
 
 ## Bez epiku – tematy poza numerowanymi epikami
 

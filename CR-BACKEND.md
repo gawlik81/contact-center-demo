@@ -3335,3 +3335,60 @@ Zweryfikowane: kod + ponowne uruchomienie `ContactServiceTest`, `ContactReposito
 **Pozostałe uwagi (bez wpływu na ocenę):** wciąż do zrobienia po stronie dokumentacji: zapis odchyleń 1-2 (normalizacja `channel`, brak CHAT) w spec oraz założenie DB-088.
 
 **Ocena po rundzie 2: 4.5/5 ⭐** — oba MEDIUM zamknięte poprawnie i z testami dowodzącymi zachowania; odjęta połowa gwiazdki za brak uruchomieniowego dowodu startu kontekstu i niezamkniętą dokumentację odchyleń/DB-088.
+
+---
+
+## Review: BE-161 + BE-162 (`GlobalExceptionHandler`, `AgentSelfController`, `AgentSelfControllerTest`) — 2026-11-04
+
+Zakres: tylko `backend/` (zmiany FE-148 pominięte). Uruchomiono `AgentSelfControllerTest` na JDK 21 — zielone (w tym zagnieżdżone `UnknownPath`). Pełnego `mvn verify` nie powtarzano.
+
+### 🐛 Bugs / Critical Issues
+_None identified._
+
+### ⚠️ Security Concerns
+_None identified._
+- `GlobalExceptionHandler` ~l. 682-698: odpowiedź 404 nie zawiera ścieżki ani komunikatu wyjątku (statyczny `detail`); `ex.getResourcePath()` trafia tylko do logu DEBUG. Brak wycieku. Ścieżka w logu pochodzi od klienta (potencjalny log-injection ze znakami sterującymi), ale jest to DEBUG i URL jest już zdekodowany przez kontener — ryzyko pomijalne.
+- Łańcuch filtrów bez zmian: nieznana ścieżka chroniona bez tokenu → 401 (test z prawdziwym `SecurityConfig`/`JwtAuthFilter`/`TenantFilter`). Handler `@RestControllerAdvice` działa dopiero po przejściu filtrów, więc 404 nie omija autoryzacji.
+
+### 🏗️ Architecture / Pattern Violations
+_None identified._
+- Kolejność handlerów względem catch-all nie ma znaczenia: `ExceptionHandlerMethodResolver` wybiera najbliższy typ wyjątku (głębokość w hierarchii), a nie kolejność w pliku. `NoResourceFoundException`/`HttpRequestMethodNotSupportedException` są bliższe niż `Exception`, więc wygrywają. Umiejscowienie przed `Exception.class` jest czytelne.
+- Odchylenie „405” jest uzasadnione i spójne ze specyfikacją: kryterium akceptacji BE-161 wymaga, aby zła metoda „nadal zwracała 405”, a na stanie wyjściowym catch-all `Exception` (w `ExceptionHandlerExceptionResolver`, który ma pierwszeństwo przed `DefaultHandlerExceptionResolver`) dawał 500. Bez handlera 405 kryterium byłoby niespełnialne. Akceptuję (do dopisania w TASKS-BACKEND.md jako odchylenie, bo sekcja „Nie wchodzi w zakres” mówi o braku przeglądu innych handlerów MVC).
+- Format zgodny z resztą (`ProblemDetail`, `type` pod `ERROR_BASE_URI`, `timestamp`). Typ 404 jest współdzielony z `ResourceNotFoundException` (`resource-not-found`) — zgodne z założeniem implementera; klient nie rozróżni „nie ma encji” od „nie ma ścieżki” po `type`, tylko po `detail`. Akceptowalne, bo `ResourceNotFoundException` i tak ma własny `detail`.
+
+### 🔧 Improvements & Suggestions
+- **`GlobalExceptionHandler` ~l. 702-718 (405)** Zamiast ręcznego składania `Allow` użyć `ex.getHeaders()` (`HttpRequestMethodNotSupportedException` implementuje `ErrorResponse` i sam buduje nagłówek `Allow`) albo `ResponseEntity.status(405).headers(ex.getHeaders())`. Obecny kod jest poprawny: `getSupportedHttpMethods()` bywa `null`/puste (obsłużone), nagłówek `Allow` jest tworzony z tego samego zbioru, który Spring wylicza dla ścieżki (nie zawiera sztucznie HEAD/OPTIONS — tak samo jak domyślna obsługa Springa). To tylko uproszczenie, nie błąd.
+- **Styl** — FQN `org.springframework.http.HttpMethod` w kodzie (dodać import), importy `org.springframework.web.HttpRequestMethodNotSupportedException` wstawiony po `web.bind.*` (kolejność alfabetyczna: powinien być przed `web.bind`), nieużywany parametr `WebRequest request` w obu handlerach (spójne z resztą pliku, więc NIT).
+- **Testy `UnknownPath`**:
+  - 404: brak asercji na `title` oraz — co istotniejsze — na brak ścieżki w odpowiedzi (`jsonPath("$.detail").value(...)` pośrednio to pokrywa, ale warto jawnie sprawdzić, że body nie zawiera `does-not-exist`; to właśnie deklarowana własność bezpieczeństwa).
+  - 405: test sprawdza tylko status (`isNotEqualTo(404)` jest redundantne wobec `isEqualTo(405)`). Brak asercji na `Allow` (np. `GET`) i `application/problem+json` — czyli dokładnie to, co jest „odchyleniem” i nie jest przetestowane. Dodać `header().string("Allow", containsString("GET"))` i `contentTypeCompatibleWith("application/problem+json")`.
+  - Brak testu: nieznana ścieżka spoza `/api/**` (np. `/plugin-assets/nieistnieje.js`, permitAll) → 404 zamiast 500. To realny, tańszy w teście przypadek wejścia `NoResourceFoundException` poza API.
+  - Użycie FQN (`MockMvcRequestBuilders.post`, `SecurityMockMvcRequestPostProcessors.csrf()`) zamiast importów; CSRF jest wyłączone w `SecurityConfig` (`csrf.disable`), więc `.with(csrf())` jest zbędne.
+- **BE-162 test (refleksja)**: potwierdza adnotacje, ale nie wyjście OpenAPI (springdoc nie jest ładowany w `@WebMvcTest`). Akceptowalne dla XS-ticketu; przy okazji `@Deprecated` jest rzeczywiście źródłem `deprecated: true` w springdoc, więc samo `@Operation(deprecated=true)` byłoby wystarczające — podwójne oznaczenie jest nieszkodliwe, ale `@Deprecated` w Javie powoduje ostrzeżenia kompilatora przy każdym wywołaniu `getAssignedContact()` (poza kontrolerem brak wywołań — zweryfikowano grepem; testy w tym samym pakiecie wołają przez MockMvc). Ryzyko kompilacji: brak `-Werror`/`-Xlint` w pom. Do rozważenia `forRemoval`/`since` w `@Deprecated`, jeśli planowane wycofanie jest realne.
+- **BE-162 opis**: tekst „frontend używa go tylko jako fallbacku” jest przyszłą/niesprawdzoną deklaracją w opisie publicznego API — jeśli FE-148 zmienia użycie, opis może się zdezaktualizować. NIT. Ścieżka springdoc to `/api-docs` (potwierdzone w `SecurityConfig` l. 121).
+
+### Informacyjnie — wyjątki Spring MVC, które nadal wpadają w catch-all (500)
+Nie wymagane do naprawy w tym tickecie (poza zakresem), ale ta sama klasa błędu co BE-161 — fałszywe 5xx dla błędów klienta:
+- `HttpMediaTypeNotSupportedException` (powinno 415), `HttpMediaTypeNotAcceptableException` (406)
+- `MissingServletRequestParameterException`, `MissingRequestHeaderException`, `MissingServletRequestPartException`, `ServletRequestBindingException` (400)
+- `HttpMessageNotReadableException` (400; lokalnie obsłużony tylko w `CampaignArchiveSettingController` → 422)
+- `HandlerMethodValidationException` (Spring 6.1, 400), `MaxUploadSizeExceededException` (413), `AsyncRequestTimeoutException` (503)
+- `NoHandlerFoundException` — nie występuje, dopóki `throw-exception-if-no-handler-found` jest domyślne (Spring 6.1+ rzuca `NoResourceFoundException`).
+Zalecenie: osobny ticket „standard handler dla `ErrorResponse`” — jeden handler `@ExceptionHandler(ErrorResponse.class)`/dziedziczenie po `ResponseEntityExceptionHandler` zastąpiłby lawinę pojedynczych handlerów i dał 405/415/400/406 za darmo (z `ex.getBody()` + `getHeaders()`).
+
+### Wpływ na zasoby statyczne / SPA / actuator / ścieżki nie-API
+- Backend nie serwuje SPA (brak fallbacku `forward:/index.html`, brak `WebMvcConfigurer`/`ResourceHandler`); statyk to `plugin-ui-sdk.js` i `/plugin-assets/**` (permitAll). Istniejące zasoby są obsługiwane normalnie przez `ResourceHttpRequestHandler` — handler łapie tylko brak zasobu, więc nie koliduje.
+- `NoResourceFoundException` może być rzucony poza `/api`: `/plugin-assets/nieistnieje`, `/plugin-ui-sdk.jsx`, nieistniejące `/actuator/xyz` (endpointy actuatora mają własny `HandlerMapping`; brak endpointu przechodzi do handlera zasobów), `/swagger-ui/nieistnieje` (jeśli springdoc nie obsłuży). Wszystkie te przypadki wcześniej dawały 500 `internal-error` (+ stack trace ERROR); teraz 404 `problem+json` — poprawa. Kształt odpowiedzi jest akceptowalny także poza API (klienci to skrypty/iframe pluginów, nie ludzie). Poprawnie działające `/actuator/health` nie jest dotknięte.
+- Drobne ryzyko (niezweryfikowane, ten sam mechanizm co inne handlery): przy `Accept: text/html` bez `*/*` serializacja `ProblemDetail` może dać 406 w trakcie obsługi wyjątku. Przeglądarki wysyłają `*/*`, więc w praktyce pomijalne.
+- Kontrola operacyjna: monitoring/alerty oparte na 5xx przestaną widzieć skany nieistniejących ścieżek (zamierzone). Brak limitowania 404 — skanery będą widoczne tylko w DEBUG; rozważyć metrykę/INFO z limitem, jeśli potrzebna obserwowalność.
+
+### ✅ Positive Observations
+- Log nieznanej ścieżki na DEBUG i statyczny `detail` — dokładnie to, o co prosiła specyfikacja (brak fałszywych alarmów ERROR, brak echa ścieżki).
+- Implementer wykrył i uczciwie opisał odchylenie 405 zamiast po cichu go pominąć lub cofnąć kryterium; handler ma poprawną obsługę `null`/pustego zbioru metod.
+- Test 401 wykorzystuje prawdziwy łańcuch bezpieczeństwa, a nie mocki — dowodzi braku regresji w kolejności `JwtAuthFilter → TenantFilter`.
+- BE-162: zachowanie runtime endpointu nie zmienione (tylko metadane), opis wskazuje następcę i ścieżkę.
+
+### Summary
+**Ocena: 4/5 ⭐** — poprawne, minimalne i bezpieczne naprawy bez blokerów (kolejność handlerów, 401 i zasoby statyczne OK); odjęto za niedotestowane odchylenie 405 (brak asercji `Allow` i `problem+json`), brak testu ścieżki poza `/api` oraz drobne niedociągnięcia stylu (FQN, import, ręczny `Allow`).
+
+**Priorytety (żaden blokujący):** (1) dodać asercje `Allow` + `problem+json` w teście 405 i asercję braku ścieżki w body 404; (2) test `/plugin-assets/...` → 404; (3) uprościć 405 przez `ex.getHeaders()`, posprzątać importy/FQN; (4) dopisać odchylenie 405 do TASKS-BACKEND.md i rozważyć osobny ticket na pozostałe wyjątki MVC (lista wyżej).

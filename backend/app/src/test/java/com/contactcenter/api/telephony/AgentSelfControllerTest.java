@@ -16,6 +16,7 @@ import com.contactcenter.security.TenantContext;
 import com.contactcenter.security.TenantFilter;
 import com.contactcenter.security.TokenBlacklistService;
 import com.contactcenter.security.UserDetailsServiceImpl;
+import io.swagger.v3.oas.annotations.Operation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +34,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -41,6 +43,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -49,7 +53,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -688,5 +694,73 @@ class AgentSelfControllerTest {
             assertThat(body.workTimeSeconds()).isBetween(0L, 35L);
             assertThat(body.contactsHandledToday()).isZero();
         }
+    }
+
+    // =========================================================================
+    // BE-161: nieznana sciezka -> 404 (nie 500); 405 i 401 bez regresji
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Nieznana sciezka (BE-161)")
+    class UnknownPath {
+
+        @Test
+        @DisplayName("404 problem+json (nie 500) dla nieistniejacej sciezki z poprawnym JWT")
+        void should_return404ProblemJson_when_pathUnknown() throws Exception {
+            mockMvc.perform(get("/api/agent/me/does-not-exist")
+                            .header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/resource-not-found"))
+                    .andExpect(jsonPath("$.title").value("Zasób nie istnieje"))
+                    .andExpect(jsonPath("$.detail").value("Żądana ścieżka nie istnieje."))
+                    // path is not echoed in title/detail; only the standard RFC 7807 "instance" carries it
+                    .andExpect(jsonPath("$.title").value(not(containsString("does-not-exist"))))
+                    .andExpect(jsonPath("$.detail").value(not(containsString("does-not-exist"))))
+                    .andExpect(jsonPath("$.instance").value("/api/agent/me/does-not-exist"));
+        }
+
+        @Test
+        @DisplayName("404 problem+json takze dla sciezki spoza /api (publiczne zasoby)")
+        void should_return404ProblemJson_when_nonApiPathUnknown() throws Exception {
+            mockMvc.perform(get("/plugin-assets/nonexistent.js"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/resource-not-found"))
+                    .andExpect(jsonPath("$.detail").value(not(containsString("nonexistent.js"))));
+        }
+
+        @Test
+        @DisplayName("405 problem+json z naglowkiem Allow dla niewlasciwej metody na istniejacej sciezce")
+        void should_return405WithAllowHeader_when_wrongMethodOnExistingPath() throws Exception {
+            mockMvc.perform(post(KPI).header("Authorization", bearerFor("AGENT", TENANT_ID, AGENT_ID)))
+                    .andExpect(status().isMethodNotAllowed())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(header().string("Allow", containsString("GET")))
+                    .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/method-not-allowed"));
+        }
+
+        @Test
+        @DisplayName("401 bez tokenu dla nieistniejacej sciezki chronionej (lancuch filtrow bez zmian)")
+        void should_return401_when_noTokenOnUnknownProtectedPath() throws Exception {
+            mockMvc.perform(get("/api/agent/me/does-not-exist"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    // =========================================================================
+    // BE-162: assigned-contact oznaczony jako deprecated w OpenAPI
+    // =========================================================================
+
+    @Test
+    @DisplayName("assigned-contact: @Operation(deprecated=true) z odwolaniem do active-contacts (BE-162)")
+    void should_markAssignedContactDeprecatedInOpenApi() throws Exception {
+        Method m = AgentSelfController.class.getMethod("getAssignedContact");
+        Operation op = m.getAnnotation(Operation.class);
+
+        assertThat(op.deprecated()).isTrue();
+        assertThat(op.description()).contains("GET /api/agent/me/active-contacts");
+        assertThat(m.isAnnotationPresent(Deprecated.class)).isTrue();
     }
 }

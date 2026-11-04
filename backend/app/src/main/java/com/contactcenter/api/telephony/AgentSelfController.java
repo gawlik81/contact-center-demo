@@ -67,8 +67,13 @@ public class AgentSelfController {
     @GetMapping("/assigned-contact")
     @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
     @Operation(
-            summary = "Pobierz kontakt oczekujący na odebranie przez agenta",
+            summary = "Pobierz kontakt oczekujący na odebranie przez agenta (DEPRECATED)",
+            deprecated = true,
             description = """
+                    DEPRECATED - użyj GET /api/agent/me/active-contacts (następca; zwraca wszystkie aktywne
+                    kontakty agenta, w tym ASSIGNED, ACTIVE, ON_HOLD i po rozmowie). Zachowanie tego
+                    endpointu pozostaje bez zmian (zgodność wsteczna, frontend używa go tylko jako fallbacku).
+
                     Zwraca kontakt ze statusem ASSIGNED przydzielony przez routing do zalogowanego agenta.
                     Status ASSIGNED oznacza że routing wybrał agenta, ale agent jeszcze nie odebrał połączenia.
 
@@ -78,8 +83,7 @@ public class AgentSelfController {
 
                     Zwraca 204 No Content gdy agent nie ma żadnego oczekującego kontaktu (stan normalny).
 
-                    Endpoint zostanie wycofany po wdrożeniu FE-136; następca: GET /api/agent/me/active-contacts
-                    (wszystkie aktywne kontakty agenta, w tym ACTIVE/ON_HOLD i po rozmowie).
+                    Endpoint zostanie wycofany po okresie obserwacji; następca: GET /api/agent/me/active-contacts.
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Kontakt ASSIGNED znaleziony – agent powinien wyświetlić dzwonek"),
@@ -88,6 +92,7 @@ public class AgentSelfController {
                     @ApiResponse(responseCode = "403", description = "Niewystarczająca rola")
             }
     )
+    @Deprecated // successor: getActiveContacts(); springdoc also derives OpenAPI "deprecated" from it
     public ResponseEntity<AssignedContactResponse> getAssignedContact() {
         UUID agentId = TenantContext.getUserId();
         UUID tenantId = TenantContext.getTenantId();

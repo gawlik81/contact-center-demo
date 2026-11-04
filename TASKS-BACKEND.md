@@ -57,12 +57,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
 | EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 10 | 0 | 18 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 25 | 0 | 25 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **151** | **0** | **20** | **3** | **174** | |
+| **RAZEM** | | **151** | **0** | **45** | **3** | **199** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -112,6 +113,36 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ⬜ Do zrobienia |
 | BE-169 | Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses` (tura 66) | ⬜ Do zrobienia |
 | BE-170 | [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail (ryzyko zaakceptowane przez właściciela; wynik BE-154; tura 66) | ⬜ Do zrobienia — opcjonalny |
+
+**EPIC-33 – Skalowanie poziome i pojemność platformy**
+
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-171 | ShedLock (JDBC) na jobach cron/nocnych + klasyfikacja 22 metod `@Scheduled` (P0) | ⬜ Do zrobienia |
+| BE-172 | ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) + idempotencja (P0) | ⬜ Do zrobienia |
+| BE-173 | Dialer i routing: blokada na poziomie kampanii/kolejki (P0) | ⬜ Do zrobienia |
+| BE-174 | ADR-14: broker WebSocket dla wielu instancji (RabbitMQ STOMP relay vs alternatywa) – spike + decyzja (P0) | ⬜ Do zrobienia |
+| BE-175 | WebSocket: przejście na broker zewnętrzny (STOMP relay) zgodnie z ADR-14 (P0) | ⬜ Do zrobienia |
+| BE-176 | Test między-instancyjny WebSocket: 2 instancje + wspólny broker (P0) | ⬜ Do zrobienia |
+| BE-177 | IVR: stan `pendingConference*`/`pendingQueueTransfer*` z pamięci JVM do Redis (P0) | ⬜ Do zrobienia |
+| BE-178 | Wtyczki: synchronizacja `PluginRegistry`/`PluginRuntimeManager`/`CircuitBreakerState` między instancjami (P0) | ⬜ Do zrobienia |
+| BE-179 | Cache lokalne: unieważnianie `TwilioRestClient` (Caffeine) i stan `WaitTimeEstimationServiceImpl` (P0) | ⬜ Do zrobienia |
+| BE-180 | Parametryzacja pul wątków (`AsyncConfig`, scheduler, wtyczki) i budżet zasobów per instancja (P1) | ⬜ Do zrobienia |
+| BE-181 | PgBouncer (transaction pooling) + budżet `max_connections`; zgodność z RLS i `set_tenant_context` (P1) | ⬜ Do zrobienia |
+| BE-182 | Flyway przy wielu instancjach: job migracji, expand/contract, test równoległego startu (P1) | ⬜ Do zrobienia |
+| BE-183 | Metryki pojemności (Micrometer/Prometheus), dashboardy i alerty nasycenia pul (P1) | ⬜ Do zrobienia |
+| BE-184 | Harness testów obciążeniowych (k6): 500 agentów WS+REST, baseline jednej instancji (P1) | ⬜ Do zrobienia |
+| BE-185 | Testy obciążeniowe: webhooki Twilio, dialer, N instancji; bramka akceptacji pojemności (P1) | ⬜ Do zrobienia |
+| BE-186 | Voicebot (FastAPI): skalowanie poziome, współbieżność i limity CPU/GPU (P1) | ⬜ Do zrobienia |
+| BE-187 | Kubernetes: Helm chart bazowy, HPA, probes i graceful shutdown (drain WS) (P1) | ⬜ Do zrobienia |
+| BE-188 | Repliki odczytowe: routing zapytań raportowych na replikę (P2) | ⬜ Do zrobienia |
+| BE-189 | ADR-15: model komórkowy (cell-based) – decyzja i aktualizacja ARCHITECTURE.md (P2) | ⬜ Do zrobienia |
+| BE-190 | Routing tenant → komórka: rejestr komórek, subdomena/brama, URL-e webhooków Twilio (P2) | ⬜ Do zrobienia |
+| BE-191 | Provisioning komórki: `values-<cell>.yaml` (Helm) i moduł Terraform (P2) | ⬜ Do zrobienia |
+| BE-192 | Orkiestracja migracji Flyway po wielu bazach (komórki) (P2) | ⬜ Do zrobienia |
+| BE-193 | Dedykowana komórka dla dużego tenanta: procedura przeniesienia tenanta między komórkami (P2) | ⬜ Do zrobienia |
+| BE-194 | Dokumentacja pojemności: limity w `ARCHITECTURE.md`, runbook skalowania w `DEPLOYMENT.md` (P1) | ⬜ Do zrobienia |
+| BE-195 | Ochrona przed „hałaśliwym sąsiadem” (noisy neighbor): limity per tenant (P2) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -9050,6 +9081,675 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) skrzynki bez nagłówków `Authentication-Results` (IMAP) — fałszywe odrzucenia; (R2) koszt utrzymania weryfikacji po stronie aplikacji.
 **Nie wchodzi w zakres:** zmiany FE; wdrożenie do czasu decyzji właściciela.
 **Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167 (poszerzenie nagłówków dopasowania).
+
+## EPIC-33 – Skalowanie poziome i pojemność platformy
+
+**Ukończone 0/25** · ✅ 0 · 🔧 0 · ⬜ 25 · 🚫 0
+
+> **Założony 2026-11-04 (tura 67)** na podstawie analizy kodu (bez testów obciążeniowych): jedna instancja backendu obsłuży szacunkowo ok. 300 agentów / 20 tenantów; cel z `ARCHITECTURE.md` (§7, HPA 3+ replik) to 50 tenantów × 100 agentów. Szacunek jest HIPOTEZĄ do potwierdzenia w BE-184/BE-185. Epik obejmuje usunięcie blokerów skalowania poziomego (WebSocket in-memory, brak blokad `@Scheduled`, stan w pamięci JVM), zarządzanie pulami i połączeniami DB, obserwowalność, testy obciążeniowe jako bramkę, voicebota, oraz (P2) repliki odczytowe i model komórkowy (cell-based). Tickety DB: DB-090…DB-093 (`TASKS-DATABASE.md`); tickety FE: FE-155 (`TASKS-FRONTEND.md`). **Konwencja:** w repo nie ma prefiksu `INF-`; zadania infrastrukturalne mają w tym pliku Typ „Infrastructure” (jak „Bez epiku – Infrastruktura i Fundament”), a numeracja jest wspólna z BE.
+>
+> **Fazy i priorytety (P0 = Must Have, P1 = Should Have, P2 = Could Have):**
+> - **Faza 0 (P0) – blokery poziomego skalowania:** DB-090 → BE-171 → BE-172/BE-173 (ShedLock); BE-174 → BE-175 → BE-176 (WebSocket przez RabbitMQ); BE-177, BE-178, BE-179 (stan w pamięci JVM). Bez fazy 0 uruchomienie 2. repliki powoduje: zdublowane joby, utratę zdarzeń WS między instancjami i błędy IVR.
+> - **Faza 1 (P1) – pojemność i bramka akceptacji:** BE-180 (pule), BE-181 (PgBouncer), BE-182 (Flyway), BE-183 (metryki/alerty), BE-184 → BE-185 (testy obciążeniowe), BE-186 (voicebot), BE-187 (K8s/HPA), BE-194 (dokumentacja), FE-155, DB-091 (indeksy pod obciążeniem).
+> - **Faza 2 (P2) – skala poza jedną bazą:** DB-092 → BE-188 (repliki odczytowe), DB-093 (partycjonowanie po `tenant_id`, ocena), BE-195 (noisy neighbor), BE-189 → BE-190/BE-191/BE-192 → BE-193 (model komórkowy).
+>
+> **Graf zależności (A → B = kolejność):** `DB-090 → BE-171 → BE-172, BE-173`; `BE-174 → BE-175 → BE-176`; `BE-171 → BE-176` (singleton publikacji metryk WS); `BE-177`, `BE-178`, `BE-179` (bez zależności, równolegle); `BE-180 → BE-181`; `BE-183 → BE-184 → BE-185`; `BE-182, BE-175, BE-171 → BE-187`; `BE-175 → FE-155`; `BE-185 → DB-091 → DB-093`; `BE-185, BE-187 → BE-194`; `DB-092, BE-181 → BE-188`; `BE-183 → BE-195`; `BE-185 → BE-189 → BE-190, BE-191, BE-192 → BE-193`; `BE-186` (bez zależności).
+> **Bramka zamknięcia EPIC-33 (propozycja):** wszystkie P0 ✅, BE-185 ✅ z wynikiem „N instancji obsługuje 500 agentów WS+REST przy progach z ticketu”, BE-194 ✅. Faza 2 może zostać odłożona z wyzwalaczem wolumenowym (precedens: EPIC-30, DB-069).
+> **Powiązania:** EPIC-29/EPIC-30 (partycjonowanie i retencja), EPIC-31 (rola `cc_app` bez BYPASSRLS — DB-083/BE-148; wpływa na BE-181 i BE-188), FE-152 (resynchronizacja kart po reconnect WS).
+> **Weryfikacja odwołań do kodu (2026-11-04):** `WebSocketConfig.java:69` (`enableSimpleBroker("/topic", "/user")`), `AsyncConfig` (core 4 / max 16 / queue 500, scheduler 4), `application-prod.yml:38` (`DB_POOL_MAX_SIZE:30`, min-idle 10), `IvrEngineServiceImpl:51-60` (3 mapy `pendingConference*`/`pendingQueueTransfer*`), `WaitTimeEstimationServiceImpl:75` (`lastKnownAgentCounts`), `PluginRegistryImpl:27`, `PluginRuntimeManagerImpl:71,82` (`newCachedThreadPool` bez limitu, `activeHandles`), `CircuitBreakerState:41`, `TwilioTelephonyAdapter:170,200` (Caffeine `clientCache`), `V023` (`set_tenant_context` = `set_config(..., TRUE)`, czyli transakcyjne), `ProgressiveDialerServiceImpl:430` (`FOR UPDATE SKIP LOCKED`). 22 metody `@Scheduled` w 19 klasach, brak ShedLock w `pom.xml`. W `docker-compose.yml` RabbitMQ (`rabbitmq:3.13-management-alpine`) NIE ma włączonego pluginu STOMP; brak `micrometer-registry-prometheus` w `pom.xml`; brak katalogów Helm/Terraform w repo.
+
+### BE-171 – ShedLock (JDBC) na jobach cron/nocnych + klasyfikacja wszystkich 22 metod `@Scheduled`
+
+**Typ:** Infrastructure (Backend, współbieżność)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M
+**Zależy od:** DB-090 (tabela `shedlock`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-172, BE-173, BE-176, BE-187
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Przy >1 instancji każda metoda `@Scheduled` wykona się na każdej instancji. Ticket wprowadza ShedLock (`shedlock-spring` + `shedlock-provider-jdbc-template`, Postgres), `@EnableSchedulerLock`, konwencję nazw blokad i konfigurację `lockAtMostFor`/`lockAtLeastFor`, oraz zabezpiecza 7 jobów cron/nocnych. Dokument klasyfikacji (w nagłówku ticketu lub `documentation/tech/04-backend.md`) przypisuje KAŻDĄ z 22 metod do jednej z klas: (S) singleton globalny (ShedLock), (I) per instancja (bez blokady, świadomie), (T) shardowalny per tenant/kampania (BE-173).
+
+**Zakres:**
+- Zależności w `backend/pom.xml`; `@EnableSchedulerLock(defaultLockAtMostFor = ...)` w nowej konfiguracji w `infrastructure/config`; `LockProvider` na `JdbcTemplateLockProvider` z `usingDbTime()` (odporność na rozjazd zegarów instancji).
+- `@SchedulerLock` na jobach cron: `RecordingRetentionJob`, `RefreshTokenCleanupJob`, `PendingAttachmentSweepJob`, `CampaignArchiveJob`, `PartitionReclaimJob`, `RetentionEvaluationJob`, `PartitionMaintenanceJob` (wszystkie w `domain/...`). `lockAtMostFor` > realny maksymalny czas przebiegu (kampania/retencja mogą trwać minuty), `lockAtLeastFor` ≥ rozjazd zegarów.
+- Usunięcie adnotacji o braku ShedLock z `CampaignArchiveJobRepository` (linie ok. 23 i 45: odczyt „najnowszego wpisu” przestaje być zawodny przy wielu instancjach) i dostosowanie tamtego kodu, jeśli zakładał wyścig.
+- Tabela klasyfikacji 22 metod z uzasadnieniem (np. `SupervisorMetricsService` co 5 s publikuje przez WS — (S); `AgentBreakActivator`, `ContactAssignmentMonitor`, `WaitTimeEstimationServiceImpl` — decyzja z uzasadnieniem, uwzględniając idempotencję i stan lokalny).
+
+**Kryteria akceptacji:**
+- [ ] Zależności dodane, `LockProvider` z `usingDbTime()`, `@EnableSchedulerLock`; aplikacja startuje na `dev` i `prod`
+- [ ] 7 jobów cron ma `@SchedulerLock` z unikalnymi nazwami (`<klasa>_<metoda>`), uzasadnionymi `lockAtMostFor`/`lockAtLeastFor`
+- [ ] Tabela klasyfikacji obejmuje 22/22 metod (weryfikacja `grep -rn "@Scheduled"` = liczba wierszy tabeli)
+- [ ] Test integracyjny (Testcontainers Postgres, 2 konteksty/wątki): job cron uruchomiony równolegle wykonuje się dokładnie raz; po `lockAtMostFor` blokada się zwalnia
+- [ ] `RLS`: tabela `shedlock` poza RLS i poza `tenant_id` (tabela platformowa) — potwierdzone w DB-090, test `RlsValidationService` zielony
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zbyt krótki `lockAtMostFor` → job równolegle na 2 instancjach; zbyt długi → po awarii instancji job nie wystartuje do wygaśnięcia; (R2) joby partycji/retencji używają `SECURITY DEFINER` i rozbudowanej własnej serializacji — ShedLock jest dodatkiem, nie zamiennikiem (zweryfikować, że nie dubluje blokad); (R3) rola `cc_app` (EPIC-31) wymaga GRANT na `shedlock`.
+**Nie wchodzi w zakres:** joby krótkiego interwału (BE-172), blokada per kampania (BE-173), przeniesienie jobów do osobnego procesu „worker”.
+**Zależności:** `Zależy od` DB-090; `Blokuje` BE-172, BE-173, BE-176, BE-187.
+
+### BE-172 – ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) z weryfikacją idempotencji
+
+**Typ:** Infrastructure (Backend, współbieżność)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M/L
+**Zależy od:** BE-171
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** 15 metod krótkiego interwału klasy (S) z tabeli BE-171: `EtlSyncServiceImpl` (4 metody, `etl.sync.fixed-delay-ms`), `EmailPollingServiceImpl` (60 s; podwójny polling tej samej skrzynki IMAP = zdublowane kontakty), `SocialIntegrationServiceImpl` (co godzinę), `ScheduledCallbackExecutor` (60 s), `DialerCallbackHandlerImpl` (ring-timeout 5 s), `CampaignWindowActivator` (60 s), `ContactAssignmentMonitor` (10 s), `AgentBreakActivator` (30 s), `SupervisorMetricsService` (5 s), `WaitTimeEstimationServiceImpl` (30 s). Wybrane metody dostają `@SchedulerLock` z krótkimi `lockAtMostFor`; metody klasy (I)/(T) z BE-171 pozostają bez zmian lub trafiają do BE-173.
+
+**Zakres:**
+- Dla każdej metody: decyzja (S)/(I)/(T) z BE-171 zrealizowana w kodzie; `lockAtMostFor` ≈ 2–3× interwał, `lockAtLeastFor` ≈ ½ interwału.
+- `EmailPollingServiceImpl`: blokada globalna lub per skrzynka/tenant (preferowane per `tenantId`+skrzynka, jeśli kod już iteruje po integracjach) — uniknąć serializacji całego pollingu na jednej instancji.
+- `SupervisorMetricsService`: jedna instancja publikuje metryki przez WS (po BE-175 broker dostarczy zdarzenie do wszystkich sesji); wynik bez blokady = N× publikacja.
+- Audyt idempotencji: co się stanie, gdy blokada wygaśnie w trakcie przebiegu (podwójny przebieg) — każda metoda ma być bezpieczna (UPSERT / `FOR UPDATE SKIP LOCKED` / status).
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie metody klasy (S) z BE-171 mają `@SchedulerLock`; tabela klasyfikacji zaktualizowana o stan „zrealizowane”
+- [ ] Test integracyjny na 2 kontekstach: ETL, e-mail polling i monitory wykonują się raz na interwał (zliczanie wywołań mockowanych zależności)
+- [ ] Test idempotencji: wymuszone wygaśnięcie blokady w trakcie przebiegu nie tworzy duplikatów kontaktów/wpisów ETL
+- [ ] `ContactAssignmentMonitor`, `AgentBreakActivator`, `WaitTimeEstimationServiceImpl`: decyzja udokumentowana, `TenantContext` w jobach wielotenantowych zgodny z regułą snapshot/restore
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) blokada globalna dla ETL serializuje pracę — przy dużej liczbie tenantów rozważyć shard per tenant (zapisać jako dług, nie robić tu); (R2) job wykonujący się na instancji A, a wynik czytany z pamięci instancji B (zob. BE-179).
+**Nie wchodzi w zakres:** joby dialera/routingu (BE-173), zmiana interwałów, przenoszenie jobów do osobnego deploymentu.
+**Zależności:** `Zależy od` BE-171; `Blokuje` brak; powiązane: BE-179.
+
+### BE-173 – Dialer i routing: blokada na poziomie kampanii/kolejki zamiast pętli na każdej instancji
+
+**Typ:** Infrastructure (Backend, współbieżność)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M
+**Zależy od:** BE-171
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** `ProgressiveDialerServiceImpl` (`@Scheduled`, `dialer.agent-poll-interval-ms`, linia ok. 173) i `RoutingServiceImpl` (ta sama właściwość, linia ok. 412) dobierają kontakty i agentów. Pobranie kolejnego kontaktu używa już `FOR UPDATE SKIP LOCKED` (`ProgressiveDialerServiceImpl` ok. linii 430), ale przydział AGENTÓW i limity równoległych połączeń kampanii nie są chronione między instancjami: dwie instancje mogą wybrać tego samego wolnego agenta lub przekroczyć limit kanałów kampanii. Ticket wprowadza blokadę na poziomie kampanii (dialer) i kolejki (routing), tak aby pętle mogły pracować na wielu instancjach równolegle dla RÓŻNYCH kampanii/kolejek, ale nigdy dla tej samej.
+
+**Zakres:**
+- Blokada per `campaignId`/`queueId` (ShedLock z dynamiczną nazwą `LockConfiguration` lub `pg_try_advisory_xact_lock` w tej samej transakcji co wybór kontaktu — wybrać i uzasadnić; advisory xact lock jest zgodny z PgBouncer w trybie transaction, zob. BE-181).
+- Warunkowy przydział agenta (`UPDATE ... WHERE status = 'AVAILABLE'` z weryfikacją liczby zmienionych wierszy) — wspólne z BE-159 (propozycja EPIC-32), zakres nie dubluje; koordynacja zapisana w obu ticketach.
+- Test: 2 instancje, 1 wolny agent, 10 kontaktów — dokładnie 1 połączenie wychodzące; limit kanałów kampanii nieprzekroczony.
+
+**Kryteria akceptacji:**
+- [ ] Żadna para instancji nie przetwarza jednocześnie tej samej kampanii/kolejki (test na 2 kontekstach)
+- [ ] Brak podwójnego przydziału agenta przy równoległych przebiegach (test wyścigu, ≥ 100 iteracji)
+- [ ] Różne kampanie mogą być obsługiwane równolegle przez różne instancje (test: 2 kampanie → 2 instancje)
+- [ ] `TenantContext` w pętli per kampania: snapshot/restore, `clear()` w `finally`
+- [ ] Metryki (licznik pominiętych przebiegów z powodu blokady) — surowy licznik Micrometer, dashboard w BE-183
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) rozjazd z BE-159 i BE-156 (EPIC-32) — jedna implementacja warunkowego przydziału; (R2) lock leak przy awarii w połowie przebiegu (advisory xact lock zwalnia się z transakcją).
+**Nie wchodzi w zakres:** zmiana algorytmu dialera, nowe tryby (predictive), limity per tenant (BE-195).
+**Zależności:** `Zależy od` BE-171; `Blokuje` brak; powiązane: BE-156, BE-159 (EPIC-32).
+
+### BE-174 – ADR-14: broker WebSocket dla wielu instancji (RabbitMQ STOMP relay vs alternatywa) – spike + decyzja
+
+**Typ:** Design / ADR (Backend, WebSocket)
+**Priorytet:** Must Have (P0)
+**Złożoność:** S/M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-175
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `architecture-designer` (+ `backend-dev-expert` dla spike’a)
+
+**Opis:** `WebSocketConfig.java:69` używa `registry.enableSimpleBroker("/topic", "/user")` — broker w pamięci jednej instancji: zdarzenie wysłane przez `SimpMessagingTemplate` (`WebSocketEventBroadcasterImpl`) dociera tylko do sesji podpiętych do TEJ instancji. Ticket rozstrzyga rozwiązanie i zapisuje je jako ADR-14 w `ARCHITECTURE.md` (§9; ostatni istniejący to ADR-13).
+
+**Opcje do oceny (każda z wynikiem pomiaru/spike’a):** (A) `enableStompBrokerRelay` do RabbitMQ z pluginem `rabbitmq_stomp` (RabbitMQ już jest w stosie, ADR-03; wymaga włączenia pluginu — dziś brak w `docker-compose.yml`; klaster RabbitMQ z DEPLOYMENT.md §20); (B) własny relay przez Redis pub/sub (Redis już jest, ADR-04) z `SimpUserRegistry` rozgłaszanym między instancjami; (C) osobny serwis gatewayowy WS (większy koszt, na później). Kryteria wyboru: obsługa destynacji `/user/...` (adresowanie do konkretnego agenta) i `/topic/...`, uwierzytelnianie (`WebSocketAuthInterceptor`), autoryzacja subskrypcji per tenant (brak wycieku `/topic` między tenantami), opóźnienie, zachowanie przy restarcie brokera, koszt operacyjny.
+
+**Kryteria akceptacji:**
+- [ ] ADR-14 w `ARCHITECTURE.md` (kontekst, opcje A/B/C, decyzja, konsekwencje) zatwierdzony przez właściciela
+- [ ] Spike potwierdza dla wybranej opcji: dostarczenie `/user/{id}/...` z instancji A do sesji na instancji B oraz izolację tenantów w nazwach destynacji
+- [ ] Zmierzone opóźnienie dostarczenia (p50/p95) i zużycie zasobów brokera przy 500 symulowanych sesjach — liczby w ADR
+- [ ] Wymagania dla BE-175 (konfiguracja, pluginy, credentials systemowe, TLS) wyliczone
+
+**Ryzyka:** (R1) relay STOMP RabbitMQ ma inną semantykę `/user` niż broker prosty (wymaga `setUserDestinationBroadcast`/`setUserRegistryBroadcast` lub kolejek per użytkownik); (R2) plugin STOMP zwiększa liczbę połączeń do RabbitMQ (limity deskryptorów).
+**Nie wchodzi w zakres:** implementacja (BE-175), zmiany FE.
+**Zależności:** `Zależy od` brak; `Blokuje` BE-175.
+
+### BE-175 – WebSocket: przejście na broker zewnętrzny (STOMP relay) zgodnie z ADR-14
+
+**Typ:** Infrastructure / Feature (Backend, WebSocket)
+**Priorytet:** Must Have (P0)
+**Złożoność:** L
+**Zależy od:** BE-174
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-176, BE-187, FE-155
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Zastąpienie `enableSimpleBroker("/topic", "/user")` w `WebSocketConfig` rozwiązaniem z ADR-14 (domyślnie: `enableStompBrokerRelay("/topic", "/queue")` na RabbitMQ). Zachowanie dotychczasowych kontraktów destynacji używanych przez FE (`websocket.service.ts`) i `WebSocketEventBroadcaster`. Konfiguracja wyłączalna flagą (profil `dev`/`local-demo` może dalej używać brokera prostego, żeby nie wymagać pluginu lokalnie — decyzja w ADR).
+
+**Zakres:**
+- Włączenie pluginu STOMP w `docker-compose.yml` i `docker-compose.local-demo.yml` (`enabled_plugins`) oraz w dokumentacji klastra RabbitMQ (DEPLOYMENT.md §20); osobny użytkownik RabbitMQ „relay” z minimalnymi uprawnieniami (vhost, hasło w `.env`, nie w repo).
+- `WebSocketConfig`: parametry relay (host, port 61613, login/passcode, heartbeat, `setUserDestinationBroadcast`/`setUserRegistryBroadcast` jeśli wymagane), konfiguracja przez właściwości.
+- `WebSocketAuthInterceptor` i autoryzacja subskrypcji `/topic/tenant/{tenantId}/...` działają bez zmian kontraktu; test negatywny: agent tenanta A nie subskrybuje destynacji tenanta B.
+- Zachowanie przy utracie połączenia z brokerem: backend nie przechodzi w stan „zdrowy” bez relay (wskaźnik w `/actuator/health`), logowanie, ponowne połączenie.
+- Aktualizacja `SupervisorMetricsService` lub innych nadawców tylko jeśli ADR tego wymaga.
+
+**Kryteria akceptacji:**
+- [ ] Brak `enableSimpleBroker` w profilu `prod`; konfiguracja relay parametryzowana
+- [ ] Wszystkie dotychczasowe zdarzenia WS (`AGENT_STATUS_CHANGED`, `CONTACT_MESSAGE_RECEIVED`, powiadomienia o połączeniu, metryki supervisora) docierają do klienta przy pojedynczej instancji (regresja: istniejące testy WS zielone)
+- [ ] Health relay w `/actuator/health`; po restarcie RabbitMQ backend odnawia relay bez restartu aplikacji (test ręczny + opis w DEPLOYMENT.md)
+- [ ] Test izolacji tenantów (subskrypcja cudzego `/topic` odrzucona)
+- [ ] Przepustowość: 500 sesji, 10 zdarzeń/s/tenant bez utraty (wynik pomiaru w tickecie)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) rozjazd local-demo vs prod (różne brokery) — mitygacja: BE-176 uruchamia test na relay także lokalnie; (R2) `heartbeatIncoming: 0` po stronie FE (zob. FE-155); (R3) autoryzacja subskrypcji działa tylko na `inboundChannel` — upewnić się, że relay nie omija `ChannelInterceptor`.
+**Nie wchodzi w zakres:** test między-instancyjny (BE-176), zmiany FE (FE-155), klaster RabbitMQ (infrastruktura DEPLOYMENT.md).
+**Zależności:** `Zależy od` BE-174; `Blokuje` BE-176, BE-187, FE-155.
+
+### BE-176 – Test między-instancyjny WebSocket: 2 instancje backendu + wspólny broker (Testcontainers)
+
+**Typ:** Testing (Backend, integracyjny)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M
+**Zależy od:** BE-175, BE-171
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `test-suite-expert`
+
+**Opis:** Dowód, że zdarzenia WS przechodzą między instancjami. Test uruchamia 2 konteksty Spring (różne porty) na wspólnym Postgres/Redis/RabbitMQ (Testcontainers), łączy klientów STOMP z różnymi instancjami i sprawdza dostarczenie zdarzeń.
+
+**Kryteria akceptacji:**
+- [ ] Zdarzenie wysłane przez instancję A (`WebSocketEventBroadcaster`) dociera do sesji agenta podpiętej do instancji B (`/user/...` i `/topic/...`)
+- [ ] Zdarzenie dla agenta bez sesji nie powoduje błędu; po reconnect agent nie dostaje zdarzeń „z przeszłości” (świadoma semantyka: bez odtwarzania, zob. FE-152)
+- [ ] Zdarzenia nie wyciekają między tenantami
+- [ ] `SupervisorMetricsService` publikuje raz na interwał mimo 2 instancji (współpraca z BE-171/BE-172)
+- [ ] Test odporności: restart brokera w trakcie testu → sesje wracają do dostarczania w limicie czasowym
+- [ ] Test uruchamiany w `mvn verify -pl app` (lub osobnym profilu `-Pmulti-instance` z uzasadnieniem czasu)
+
+**Ryzyka:** (R1) czas i niestabilność testów z Testcontainers + 2 kontekstami; (R2) konkurencja portów.
+**Nie wchodzi w zakres:** obciążenie (BE-184), testy FE.
+**Zależności:** `Zależy od` BE-175, BE-171; `Blokuje` brak.
+
+### BE-177 – IVR: stan `pendingConference*`/`pendingQueueTransfer*` z pamięci JVM do Redis (klucz po CallSid)
+
+**Typ:** Refactor / Infrastructure (Backend, telefonia)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** `IvrEngineServiceImpl` trzyma stan transferów w `ConcurrentHashMap`: `pendingConferenceContactId`, `pendingConferenceQueueId` (UUID) i `pendingQueueTransferPrompt` (linie ok. 51–60), usuwane przez `remove(callId)` (ok. 457–462, 564–565). Webhook Twilio kolejnego kroku może trafić na inną instancję niż ten, który zapisał stan — wtedy transfer konferencyjny/kolejkowy gubi kontekst. Rozwiązanie: Redis (już używany do sesji agentów, `RedisConfig`) z kluczem `ivr:pending:<typ>:<callSid>` i TTL (np. 15–30 min, parametryzowany) ALBO sticky routing po `CallSid` (alternatywa — wymaga LB; mniej odporna na restart i rolling deploy; domyślnie Redis).
+
+**Zakres:**
+- Wydzielenie interfejsu `IvrPendingStateStore` (implementacja Redis; implementacja in-memory tylko dla testów jednostkowych), atomowe `getAndDelete` (`GETDEL`) zastępujące `remove`.
+- Klucze zawierają `tenantId` w prefiksie lub wartości; brak PII (tylko UUID); TTL zabezpiecza przed wyciekiem kluczy przy porzuconej rozmowie.
+- Inwentarz pozostałych pól stanowych w klasach IVR/telefonii (grep po `ConcurrentHashMap`/`static` w `domain/ivr`, `domain/telephony`) — wynik w notatce; nowe tickety tylko dla znalezisk ponad zakres.
+
+**Kryteria akceptacji:**
+- [ ] Brak `ConcurrentHashMap` ze stanem rozmowy w `IvrEngineServiceImpl`
+- [ ] Test integracyjny (Redis Testcontainers): zapis przez instancję A, odczyt+usunięcie przez instancję B; powtórny odczyt zwraca pusty wynik (jednorazowość)
+- [ ] Test TTL: wygaśnięcie klucza → ścieżka awaryjna (dotychczasowe zachowanie przy braku stanu) bez wyjątku
+- [ ] Brak regresji istniejących testów IVR; transfer konferencyjny i do kolejki działają (test ręczny w local-demo lub ścieżka zasymulowana webhookami)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) niedostępność Redis = utrata kontekstu transferu (dziś niemożliwa) — zachowanie awaryjne i log ERROR; (R2) wyścig `GETDEL` przy duplikacie webhooka Twilio (retry) — drugi odczyt pusty, obsłużyć idempotentnie.
+**Nie wchodzi w zakres:** BE-178/BE-179 (inne stany), migracja sesji agentów (już w Redis).
+**Zależności:** `Zależy od` brak; `Blokuje` brak.
+
+### BE-178 – Wtyczki (EPIC-28): synchronizacja `PluginRegistry`/`PluginRuntimeManager`/`CircuitBreakerState` między instancjami
+
+**Typ:** Infrastructure (Backend, plugin runtime)
+**Priorytet:** Must Have (P0)
+**Złożoność:** L
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `architecture-designer` dla decyzji)
+
+**Opis:** Wtyczki działają in-process w izolowanych ClassLoaderach (ADR-09). `PluginRegistryImpl` (`byTenantAndExtensionPoint`, ok. linii 27) i `PluginRuntimeManagerImpl` (`activeHandles`, ok. linii 82) są stanem LOKALNYM instancji; `CircuitBreakerState` (`consecutiveFailuresByInstallation`, ok. linii 41) zlicza błędy per instancja. Instalacja/odinstalowanie/odwołanie (`REVOKED`) wtyczki zrealizowane na instancji A nie zmienia stanu instancji B. Ponadto `PluginInvocationConsumer` (RabbitMQ) może odebrać wywołanie na instancji, która nie ma załadowanego handle. Ticket zapewnia spójność.
+
+**Zakres:**
+- Źródło prawdy = baza (instalacje w DB); każda instancja przy starcie ładuje aktywne instalacje (`PluginRuntimeManagerImpl`), a zmiany cyklu życia są rozgłaszane zdarzeniem RabbitMQ (exchange fanout/kolejka per instancja) lub Redis pub/sub; odbiorca ładuje/zwalnia handle.
+- Lazy-load w ścieżce wywołania: brak handle → próba załadowania z DB zamiast błędu (z ochroną przed burzą ładowań).
+- `CircuitBreakerState`: decyzja i implementacja — licznik w Redis (wspólny stan otwarcia obwodu) albo świadomie per instancja z dokumentacją semantyki; domyślnie wspólny stan otwarcia/zamknięcia (kill-switch `REVOKED` musi działać globalnie i natychmiast).
+- `lifecycleExecutor = Executors.newCachedThreadPool(...)` (ok. linii 71): ograniczenie liczby wątków (zob. BE-180 — tu tylko przypisanie właściwości, jeśli BE-180 nie jest gotowy).
+
+**Kryteria akceptacji:**
+- [ ] Odwołanie wtyczki (`REVOKED`) na instancji A zatrzymuje wywołania na instancji B w ≤ 5 s (test integracyjny, 2 konteksty)
+- [ ] Nowa instancja startująca po instalacji wtyczek ma poprawny rejestr (test: instalacja przed startem drugiej instancji)
+- [ ] Wywołanie dostarczone przez RabbitMQ do instancji bez handle kończy się załadowaniem handle i sukcesem lub kontrolowanym błędem, nie wyjątkiem 500
+- [ ] Otwarcie obwodu (circuit breaker) widoczne dla wszystkich instancji albo udokumentowane inaczej (decyzja zapisana w ADR/notatce)
+- [ ] Izolacja tenantów zachowana (klucze zawierają `tenantId`)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) ClassLoader per instancja = pamięć × liczba instancji (limit heap, zob. BE-180); (R2) pobieranie JAR z MinIO (`downloadJarToLocalCache`) na każdej instancji — lokalny cache dysku w kontenerach efemerycznych; (R3) rozbieżność wersji wtyczki podczas rolling deploy.
+**Nie wchodzi w zakres:** przeniesienie wtyczek do osobnego procesu (odrzucone w ADR-09), zmiany SDK `plugin-sdk`.
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-180, BE-187.
+
+### BE-179 – Cache lokalne: unieważnianie `TwilioRestClient` (Caffeine) i stan `WaitTimeEstimationServiceImpl` między instancjami
+
+**Typ:** Infrastructure (Backend)
+**Priorytet:** Must Have (P0)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** (1) `TwilioTelephonyAdapter` trzyma `Cache<UUID, TwilioRestClient> clientCache` (Caffeine, ok. linii 170/200) — po zmianie konfiguracji Twilio tenanta (`TenantTwilioConfigServiceImpl`, rotacja `authToken`/`apiKey`) tylko instancja obsługująca żądanie unieważnia wpis; pozostałe używają starych poświadczeń do końca TTL. (2) `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` (ok. linii 75) to cache „ostatnio znanych liczb agentów” per tenant — przy blokadzie jobu (BE-172) i przełączeniach instancji wartość bywa nieaktualna lub zerowa. Ticket wprowadza unieważnianie cross-instance (Redis pub/sub lub RabbitMQ fanout) i przenosi/rekonstruuje stan.
+
+**Kryteria akceptacji:**
+- [ ] Zmiana/usunięcie konfiguracji Twilio tenanta unieważnia `clientCache` na wszystkich instancjach w ≤ 5 s (test 2 konteksty); TTL pozostaje siatką bezpieczeństwa
+- [ ] `lastKnownAgentCounts` w Redis (z TTL) albo wyliczane z istniejących sesji agentów w Redis (`scanAgentSessions`) bez stanu lokalnego — decyzja uzasadniona
+- [ ] Poświadczenia Twilio nie są logowane ani publikowane w zdarzeniu unieważnienia (tylko `tenantId`)
+- [ ] Inwentarz pozostałych cache Caffeine/`@Cacheable` w kodzie (grep) z oceną ryzyka nieaktualności per instancja — wynik w notatce wykonania
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) burza unieważnień przy masowej zmianie konfiguracji — zdarzenie per tenant, bez przeładowania globalnego; (R2) komunikat unieważnienia gubiony przy chwilowej awarii brokera → TTL jako zabezpieczenie.
+**Nie wchodzi w zakres:** BE-177 (IVR), BE-178 (wtyczki).
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-172.
+
+### BE-180 – Parametryzacja pul wątków (`AsyncConfig`, schedulera, wtyczek) i budżet zasobów per instancja
+
+**Typ:** Infrastructure (Backend, konfiguracja)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-181
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `AsyncConfig` ma na sztywno: `applicationTaskExecutor` core 4 / max 16 / queue 500 oraz scheduler 4 wątki. `PluginRuntimeManagerImpl` używa `Executors.newCachedThreadPool` (bez górnego limitu — ryzyko lawiny wątków). Przy 22 jobach `@Scheduled` i pool schedulera = 4, wolny job (ETL, e-mail) głodzi pozostałe. Ticket przenosi wartości do właściwości (`app.async.*`, `app.scheduler.pool-size`, `plugins.lifecycle.max-threads`) z domyślnymi bezpiecznymi wartościami i dokumentuje budżet (wątki, połączenia DB, heap) per instancja.
+
+**Kryteria akceptacji:**
+- [ ] Wartości puli w `application*.yml` z domyślnymi równymi dzisiejszym (brak zmiany zachowania bez konfiguracji)
+- [ ] `RejectedExecutionHandler` z metryką i logiem (zamiast cichej utraty/`CallerRuns` bez śladu) — zachowanie udokumentowane
+- [ ] `newCachedThreadPool` wtyczek ograniczony (bounded) z kolejką i metryką
+- [ ] Tabela budżetu per instancja (wątki × połączenia Hikari × heap) w `documentation/tech/08-infrastructure.md`
+- [ ] Testy konfiguracji (binding właściwości) i jednostkowy test zachowania przy przepełnieniu kolejki
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zbyt duże pule + Hikari 30 × N instancji przekraczają `max_connections` (formuła w BE-181); (R2) zmiana `CallerRuns`/Abort może zmienić semantykę istniejących `@Async`.
+**Nie wchodzi w zakres:** autoskalowanie wątków, zmiany Hikari (BE-181).
+**Zależności:** `Zależy od` brak; `Blokuje` BE-181; powiązane: BE-178, BE-183.
+
+### BE-181 – PgBouncer (transaction pooling) + budżet `max_connections`; zgodność z RLS i `set_tenant_context`
+
+**Typ:** Infrastructure (Backend + DB)
+**Priorytet:** Should Have (P1)
+**Złożoność:** L
+**Zależy od:** BE-180
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-188
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect`)
+
+**Opis:** Hikari prod: `maximum-pool-size ${DB_POOL_MAX_SIZE:30}`, `minimum-idle 10`. Przy N replikach backendu liczba połączeń = N × 30 (+ ETL/joby) i szybko zbliża się do `max_connections`. PgBouncer w trybie transaction pooling redukuje połączenia, ale wymaga zgodności: kontekst tenanta ustawia `set_tenant_context` → `set_config('app.current_tenant_id', ..., TRUE)` (V023, tx-local — kompatybilne), LECZ każde wywołanie poza transakcją (autocommit, np. `jdbcTemplate.execute("SELECT set_tenant_context(...)")` w `ScheduledCallbackRepository` ok. linii 438/489 oraz `TenantAwareRepository`) gubi kontekst między instrukcjami w trybie transaction. Ticket weryfikuje, naprawia i testuje.
+
+**Zakres:**
+- Audyt WSZYSTKICH miejsc wołających `set_tenant_context`/czytających RLS poza `@Transactional` (grep); poprawki tak, aby ustawienie kontekstu i zapytania były w jednej transakcji.
+- Kompatybilność: prepared statements (`prepareThreshold=0` lub PgBouncer ≥ 1.21 z `max_prepared_statements`), brak `SET` sesyjnych, brak `LISTEN/NOTIFY`, advisory locks wyłącznie `pg_advisory_xact_lock` (`EmailMessageRepository` — OK) — brak sesyjnych `pg_advisory_lock`.
+- Flyway łączy się BEZPOŚREDNIO z Postgresem (nie przez PgBouncer): osobne `spring.flyway.url/user` (zob. BE-182).
+- Konfiguracja PgBouncera w `docker-compose` (profil opcjonalny) i opis dla K8s; formuła budżetu: `max_connections ≥ Σ(pool_size_PgBouncer) + rezerwa admin + replikacja`; wartości domyślne `DB_POOL_MAX_SIZE` per instancja dostosowane.
+- Zgodność z rolą `cc_app` (EPIC-31): połączenia aplikacyjne przez PgBouncer z rolą bez BYPASSRLS — notatka zależności.
+
+**Kryteria akceptacji:**
+- [ ] Raport audytu: lista wywołań RLS poza transakcją i ich poprawki (0 pozostałych)
+- [ ] Test integracyjny z PgBouncer (Testcontainers, transaction mode): pełen zestaw testów izolacji tenantów (`RlsValidationService` + repozytoria) zielony; 0 wycieków kontekstu między żądaniami różnych tenantów w teście 1000 naprzemiennych żądań
+- [ ] Test negatywny: wywołanie bez transakcji jest wykrywane (guard/test), nie przechodzi cicho
+- [ ] `RlsValidationService` startowy działa przez PgBouncer
+- [ ] Dokumentacja: formuła budżetu połączeń + zalecane wartości dla 1/3/10 replik
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) cichy wyciek kontekstu tenanta = naruszenie izolacji — dlatego test wyścigowy jest kryterium krytycznym; (R2) `FORCE RLS` + brak kontekstu daje puste wyniki zamiast błędu (wniosek z DB-074: GUC placeholder na poolowanym połączeniu zwraca `''`, nie `NULL`); (R3) Hibernate batch i prepared statements.
+**Nie wchodzi w zakres:** repliki odczytowe (BE-188), zmiana ról (EPIC-31).
+**Zależności:** `Zależy od` BE-180; `Blokuje` BE-188; powiązane: EPIC-31 (DB-083, BE-148), BE-182.
+
+### BE-182 – Flyway przy wielu instancjach: job migracji, expand/contract, test równoległego startu
+
+**Typ:** Infrastructure (Backend + DB, wdrożenia)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-187, BE-192
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect`)
+
+**Opis:** Każda instancja uruchamia Flyway przy starcie (`FlywayConfig`, `spring.flyway.enabled=true` w prod). Flyway na Postgresie używa blokady advisory, więc równoległy start jest bezpieczny, ale pozostałe instancje czekają, a przy `rolling update` STARE instancje działają na NOWYM schemacie. Ticket: (a) tryb „migrate-job” — oddzielny krok wdrożenia (profil `migrate`, `spring.flyway.enabled=false` w runtime, `FlywayMigrationStrategy` uruchamiana w jobie), (b) zasady expand/contract dla migracji w okresie rolling deploy, (c) test równoległego startu.
+
+**Kryteria akceptacji:**
+- [ ] Profil/komenda `migrate` wykonuje migracje i kończy proces z kodem wyjścia 0/≠0; runtime w prod ma Flyway wyłączony za flagą (domyślnie zachowanie bez zmian dla local-demo)
+- [ ] Walidacja `validate-on-migrate` pozostaje; aplikacja runtime weryfikuje zgodność wersji schematu (odmowa startu, gdy schemat jest starszy niż wymagany) — `flyway.validate` lub sprawdzenie `flyway_schema_history`
+- [ ] Test: 3 instancje startujące równolegle na pustej bazie → migracje zastosowane raz, brak błędów
+- [ ] Dokument „Zasady migracji przy rolling deploy” (expand → deploy → contract; zakaz destrukcyjnych zmian w jednej wersji; dotyczy też migracji o `lock_timeout`) w `documentation/tech/06-database.md` (spójnie z regułą Flyway z `CLAUDE.md`)
+- [ ] Połączenie migracyjne używa bezpośredniego URL (nie PgBouncer) i dedykowanej roli (powiązanie z EPIC-31/BE-148)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) migracja destrukcyjna (np. V128/V132 z EPIC-30) blokuje starych instancji w trakcie rolling; (R2) job migracji jako SPOF wdrożenia — retry i alert.
+**Nie wchodzi w zakres:** orkiestracja po wielu bazach (BE-192), zmiana istniejących migracji (zakaz edycji zastosowanych).
+**Zależności:** `Zależy od` brak; `Blokuje` BE-187, BE-192; powiązane: BE-181.
+
+### BE-183 – Metryki pojemności (Micrometer/Prometheus), dashboardy i alerty nasycenia pul
+
+**Typ:** Infrastructure / Observability (Backend)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-184, BE-195
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `application.yml` eksponuje `health,info,metrics,flyway,loggers,env`, brak rejestru Prometheus w `pom.xml`. Ticket dodaje `micrometer-registry-prometheus`, endpoint `/actuator/prometheus` (zabezpieczony: tylko sieć wewnętrzna/rola, NIE publiczny — dwa miejsca: `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` tylko jeśli ma być bez JWT; zalecane: osobny port zarządzania), metryki własne i dashboard + reguły alertów.
+
+**Zakres:** metryki: aktywne sesje WS (gauge, tag `instance`; bez tagu `tenantId` o wysokiej kardynalności — agregat per tenant tylko dla top-N lub w logach), głębokość kolejki `applicationTaskExecutor`, aktywne wątki schedulera, Hikari (active/pending/timeout — wbudowane), opóźnienie jobów `@Scheduled`, lag konsumentów RabbitMQ, liczba pominiętych przebiegów ShedLock, rozmiar mapy/Redis kluczy IVR, czas webhooków Twilio. Dashboard Grafana (JSON w repo, np. `deploy/observability/`) i reguły alertów: Hikari pending > 0 przez 1 min, kolejka executor > 80% pojemności, heap > 85%, reconnect storm WS, lag konsumenta > próg.
+
+**Kryteria akceptacji:**
+- [ ] `/actuator/prometheus` zwraca metryki; dostęp ograniczony (test bezpieczeństwa: anonimowy 401/403 na publicznym porcie)
+- [ ] Wszystkie wymienione metryki zarejestrowane (test jednostkowy `MeterRegistry`), tagi bez kardynalności `tenantId`/`agentId`
+- [ ] Plik dashboardu + plik reguł alertów w repo, zwalidowane (`promtool check rules`)
+- [ ] Dokumentacja: progi alertów i kroki reakcji (runbook link z BE-194)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) kardynalność metryk per tenant (50 tenantów OK, ale nie per agent); (R2) ekspozycja endpointu.
+**Nie wchodzi w zakres:** wdrożenie Prometheus/Grafana w produkcji (infrastruktura klienta), tracing rozproszony.
+**Zależności:** `Zależy od` brak; `Blokuje` BE-184, BE-195; powiązane: ARCHITECTURE.md §8 (alerty).
+
+### BE-184 – Harness testów obciążeniowych (k6): 500 agentów WS+REST, baseline jednej instancji
+
+**Typ:** Testing / Performance (Backend)
+**Priorytet:** Should Have (P1)
+**Złożoność:** L
+**Zależy od:** BE-183 (metryki); uruchomienia wieloinstancyjne wymagają ukończonej fazy 0 (ShedLock i broker WS; zależność miękka, opisana w grafie epiku)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-185
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `test-suite-expert`
+
+**Opis:** Katalog `loadtest/` (k6, ewentualnie Gatling jako uzasadniona alternatywa) z seedem danych (`scripts/` generujący 50 tenantów × 100 agentów w bazie scratch, nie local-demo) i scenariuszami: logowanie + JWT, połączenie STOMP/WS, zmiana statusu agenta, odczyt `GET /users/me`, `active-contacts`, pulpity supervisora, praca na kontaktach. Pierwszy cel: zweryfikowanie hipotezy „1 instancja ≈ 300 agentów / 20 tenantów” i wskazanie pierwszego nasyconego zasobu (CPU, heap, Hikari, wątki).
+
+**Kryteria akceptacji:**
+- [ ] Skrypt seedu tworzy 50 tenantów × 100 agentów (deterministycznie, idempotentnie) wyłącznie na bazie scratch
+- [ ] Scenariusz „agent” (REST+WS) uruchamia 100/300/500 wirtualnych agentów; raport (p50/p95/p99, błędy, liczba utrzymanych sesji WS)
+- [ ] Wynik baseline 1 instancji zapisany w tickecie: maksymalna liczba agentów przy p95 REST < 500 ms (propozycja progu) i 0% błędów; wskazany pierwszy nasycony zasób (metryki z BE-183)
+- [ ] Instrukcja uruchomienia (`loadtest/README.md`), zasoby generatora, bezpieczne środowisko (zakaz uruchamiania na produkcji i local-demo z danymi użytkownika)
+- [ ] Uruchomienie nie wymaga zmian kodu produkcyjnego poza BE-183
+
+**Ryzyka:** (R1) generator obciążenia sam jest wąskim gardłem (rozproszenie k6); (R2) dane syntetyczne nie odzwierciedlają rozkładu produkcyjnego.
+**Nie wchodzi w zakres:** webhooki Twilio i dialer (BE-185), strojenie (osobne tickety po wynikach).
+**Zależności:** `Zależy od` BE-183; `Blokuje` BE-185; powiązane: BE-175, BE-171.
+
+### BE-185 – Testy obciążeniowe: webhooki Twilio, dialer, N instancji; bramka akceptacji pojemności
+
+**Typ:** Testing / Performance (Backend)
+**Priorytet:** Should Have (P1)
+**Złożoność:** L
+**Zależy od:** BE-184; uruchomienia wieloinstancyjne wymagają ukończonej fazy 0 (zależność miękka, opisana w grafie epiku)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-189, BE-194, DB-091
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert`)
+
+**Opis:** Rozszerzenie harnessu o: webhooki Twilio (symulowane żądania z poprawnym podpisem `X-Twilio-Signature` na testowych tokenach — bez ruchu do Twilio), pętlę dialera (kampanie z dużą pulą kontaktów, mock `TelephonyProvider`), oraz uruchomienia 1/2/3 instancji za load balancerem. Wynik to tabela pojemności (agenci/instancję, tenanci/instancję, zużycie Hikari/heap/CPU) i bramka: scenariusz „500 agentów WS+REST + 50 równoległych połączeń głosowych + 3 kampanie dialera” spełnia progi.
+
+**Kryteria akceptacji:**
+- [ ] Scenariusz webhooków (inbound voice, status callback, IVR gather) z podpisem; dedykowany test niezawodności: retry webhooków i duplikaty nie psują stanu (spójne z BE-177)
+- [ ] Scenariusz dialera: brak podwójnego przydziału agenta, brak przekroczenia limitu kanałów kampanii przy 3 instancjach (BE-173)
+- [ ] Skalowanie: 1 → 2 → 3 instancje daje ≥ 1,7× / ≥ 2,3× przepustowości agentów (progi do potwierdzenia w tym tickecie), zdarzenia WS dostarczone 100% między instancjami
+- [ ] Bramka akceptacji w pipeline (nightly lub ręcznie wyzwalana, nie w każdym PR): progi p95/p99, błędy < 0,1%, brak nasycenia Hikari (pending = 0)
+- [ ] Raport pojemności zapisany w `documentation/` oraz wprowadzony do BE-194; hipoteza 300 agentów/20 tenantów potwierdzona lub skorygowana
+- [ ] Test odporności: restart jednej instancji pod obciążeniem — agenci wracają (reconnect WS) w limicie czasowym
+
+**Ryzyka:** (R1) mock telefonii zaniża koszt realnych połączeń; (R2) koszt środowiska (3 instancje + Postgres + RabbitMQ + generator).
+**Nie wchodzi w zakres:** test z prawdziwym Twilio, test GPU voicebota (BE-186).
+**Zależności:** `Zależy od` BE-184; `Blokuje` BE-189, BE-194, DB-091; powiązane: BE-173, BE-175, BE-177.
+
+### BE-186 – Voicebot (FastAPI): skalowanie poziome, współbieżność i limity CPU/GPU
+
+**Typ:** Infrastructure (Python, voicebot)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (Python) (+ `test-suite-expert`)
+
+**Opis:** `voicebot/app` (`main.py`, `session.py`, `rabbit.py`, `asr.py`, `nlu.py`, `summarize.py`, `config.py`). Sesje są już w Redis (`voicebot:session:{id}`, `session.py`), więc usługa jest w dużej mierze bezstanowa. Ticket weryfikuje i domyka: konkurencyjni konsumenci RabbitMQ (`rabbit.py`: kolejka współdzielona, `prefetch`, ack po przetworzeniu), limity współbieżności ASR/NLU (semafor, zaległości), zasoby CPU/GPU (requests/limits, liczba workerów uvicorn/gunicorn względem rdzeni/GPU, brak ładowania modelu per żądanie), health/readiness (`/health`), graceful shutdown (dokończenie bieżących sesji).
+
+**Kryteria akceptacji:**
+- [ ] 2 repliki voicebota na wspólnym Redis/RabbitMQ: jedna sesja obsługiwana przez dowolną replikę, brak podwójnego przetwarzania komunikatu (test integracyjny)
+- [ ] Parametry `prefetch`, liczba workerów i limit współbieżności w `config.py` (zmienne środowiskowe) z domyślnymi i dokumentacją doboru dla CPU/GPU
+- [ ] Pomiar: sesje równoległe na 1 replikę (CPU i, jeśli dostępne, GPU) i punkt nasycenia; wynik w README voicebota
+- [ ] Zachowanie przy nasyceniu: odrzucenie/kolejkowanie z metryką, nie timeouty; metryki Prometheus (sesje aktywne, opóźnienie ASR/NLU)
+- [ ] Testy `voicebot/tests` zielone (`pytest`)
+
+**Ryzyka:** (R1) modele w pamięci GPU na replikę — koszt; (R2) kolejność komunikatów jednej sesji przy wielu konsumentach (partycjonowanie po `session_id`, jeśli wymagane).
+**Nie wchodzi w zakres:** zmiana modeli ASR/NLU, autoskalowanie GPU na bazie metryk (BE-187 definiuje HPA bazowy).
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-187.
+
+### BE-187 – Kubernetes: Helm chart bazowy, HPA, probes i graceful shutdown (drain WS)
+
+**Typ:** Infrastructure (DevOps)
+**Priorytet:** Should Have (P1)
+**Złożoność:** L
+**Zależy od:** BE-175, BE-171, BE-182
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-191, BE-194
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (DevOps; konsultacja `architecture-designer`)
+
+**Opis:** `ARCHITECTURE.md` §7 zakłada HPA (3+ replik backendu, scale na CPU > 70%), ale w repo nie ma Helm/Terraform. Ticket tworzy chart bazowy `deploy/helm/contact-center` (backend, voicebot, frontend/nginx, job migracji z BE-182) z `values.yaml`, HPA, PodDisruptionBudget, probes oraz graceful shutdown (`server.shutdown=graceful`, `preStop`, `terminationGracePeriodSeconds`, rozłączenie WS z kodem zachęcającym do reconnect z jitterem, FE-155).
+
+**Kryteria akceptacji:**
+- [ ] `helm lint` i `helm template` bez błędów dla `values.yaml` i przykładowego `values-example.yaml`
+- [ ] HPA: CPU 70% + metryka własna (sesje WS lub kolejka executor) jako opcja; `minReplicas` ≥ 2 w prod, `maxReplicas` parametryzowane
+- [ ] Probes: liveness (proces), readiness (DB, Redis, RabbitMQ, relay STOMP); startup probe uwzględnia czas migracji (gdy nie w jobie)
+- [ ] Graceful shutdown: rolling update 3 replik pod obciążeniem BE-184 nie powoduje błędów 5xx > próg i agenci wracają przez reconnect w ≤ 30 s (test w klastrze testowym, wynik w tickecie)
+- [ ] Sekrety wyłącznie przez `Secret`/zewnętrzny manager, bez wartości w repo
+- [ ] Sticky sessions NIE są wymagane (zweryfikowane — stan w Redis/brokerze); ingress WS z timeoutem ≥ 60 s i obsługą upgrade
+
+**Ryzyka:** (R1) brak klastra testowego w repo — kryteria dla środowiska docelowego do uzgodnienia z właścicielem; (R2) skalowanie w dół ścina sesje WS (PDB + drain).
+**Nie wchodzi w zakres:** provisioning chmury (Terraform: BE-191), zarządzane bazy.
+**Zależności:** `Zależy od` BE-175, BE-171, BE-182; `Blokuje` BE-191, BE-194; powiązane: BE-186, FE-155.
+
+### BE-188 – Repliki odczytowe: routing zapytań raportowych na replikę (read-only datasource)
+
+**Typ:** Feature (Backend, dane)
+**Priorytet:** Could Have (P2)
+**Złożoność:** M/L
+**Zależy od:** DB-092, BE-181
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Raporty i dashboardy (`reporting`, `SupervisorMetricsService`) obciążają główną bazę. Ticket dodaje drugi `DataSource` (replika, rola tylko do odczytu z DB-092) z routingiem przez `@Transactional(readOnly = true)` lub dedykowany kwalifikator repozytoriów raportowych, z ochroną przed opóźnieniem replikacji (lag guard: powyżej progu fallback na primary) i z zachowaniem RLS/kontekstu tenanta na replice.
+
+**Kryteria akceptacji:**
+- [ ] Flaga `reporting.replica.enabled` (domyślnie wyłączona); wyłączona = zachowanie dzisiejsze
+- [ ] Zapytania raportowe z listy (spis w tickecie) idą na replikę; zapisy i odczyty wymagające spójności (read-your-writes) — na primary
+- [ ] `set_tenant_context` działa na replice (test izolacji tenantów na replice, w tym PgBouncer z BE-181)
+- [ ] Lag guard: lag > próg (np. 5 s) → fallback na primary + metryka; test z symulowanym lagiem
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) odczyt nieaktualnych danych w UI; (R2) konflikt zapytań z recovery na replice (`max_standby_streaming_delay`).
+**Nie wchodzi w zakres:** Citus/sharding, przeniesienie raportów do ClickHouse (już istnieje DW).
+**Zależności:** `Zależy od` DB-092, BE-181; `Blokuje` brak.
+
+### BE-189 – ADR-15: model komórkowy (cell-based) – decyzja i aktualizacja ARCHITECTURE.md
+
+**Typ:** Design / ADR
+**Priorytet:** Could Have (P2)
+**Złożoność:** M
+**Zależy od:** BE-185 (dane o pojemności)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-190, BE-191, BE-192
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `architecture-designer`
+
+**Opis:** ADR-02 wybrał wspólny PostgreSQL z logiczną multi-tenancy; przy skali poza jedną bazą (lub tenancie o wyjątkowym wolumenie) rozważany jest model komórkowy: niezależne zestawy {backend, Postgres, Redis, RabbitMQ} („komórki”), tenant przypisany do komórki. Ticket opisuje: kryteria wejścia w model komórkowy (progi z BE-185), granice komórki, control plane (rejestr tenant→cell), routing, migracje, tożsamość (wspólny/odrębny logowanie), webhooki Twilio, dane globalne (super-admin, katalog wtyczek), obserwowalność, koszt. Zapisuje ADR-15 i aktualizuje sekcje `ARCHITECTURE.md` (§7 Infrastructure, §9, §10 Risks, Appendix C).
+
+**Kryteria akceptacji:**
+- [ ] ADR-15 z opcjami (A: pozostajemy przy jednej bazie + repliki; B: komórki; C: komórka dedykowana tylko dla dużego tenanta), decyzją i konsekwencjami
+- [ ] Diagram (zgodny z konwencją diagramów w `ARCHITECTURE.md`) komórki i control plane
+- [ ] Tabela „co jest globalne, co per komórka” (users? tenants? plugin catalog? `flyway_schema_history`)
+- [ ] Wyzwalacze wejścia (liczba tenantów/agentów, p95, rozmiar bazy) oparte na wynikach BE-185
+- [ ] Aktualizacja `ARCHITECTURE.md` zatwierdzona przez właściciela
+
+**Ryzyka:** (R1) decyzja przedwczesna bez danych — stąd zależność od BE-185; (R2) konflikt z RLS jako jedyną barierą izolacji (komórki zmieniają model zagrożeń).
+**Nie wchodzi w zakres:** implementacja (BE-190…BE-193).
+**Zależności:** `Zależy od` BE-185; `Blokuje` BE-190, BE-191, BE-192.
+
+### BE-190 – Routing tenant → komórka: rejestr komórek, subdomena/brama, URL-e webhooków Twilio
+
+**Typ:** Feature / Infrastructure (Backend, gateway)
+**Priorytet:** Could Have (P2)
+**Złożoność:** L
+**Zależy od:** BE-189
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-193
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `architecture-designer`)
+
+**Opis:** Implementacja routingu zgodnie z ADR-15: rejestr (`cell`, `tenant_cell` w control plane — tabela w control plane albo konfiguracja — zgodnie z ADR-15; ticket DB zostanie założony po ADR, numer nie jest rezerwowany), brama (nginx/ingress) kierująca po subdomenie `<tenant>.<cell>.<domena>` lub nagłówku/JWT claim `cell`, spójne URL-e webhooków Twilio per komórka (`TwilioProperties`, `tenant_twilio_config`), publiczne ścieżki (dwa miejsca: `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES`) bez regresji.
+
+**Kryteria akceptacji:**
+- [ ] Tenant przypisany do komórki trafia na właściwy backend; nieznany tenant — kontrolowany błąd (404/421), bez wycieku informacji o innych komórkach
+- [ ] Webhooki Twilio kierowane do komórki tenanta; test podpisu (`X-Twilio-Signature`) z URL komórki
+- [ ] Token JWT wydany w komórce A odrzucony w komórce B (klucze/issuer per komórka lub claim) — test
+- [ ] Zmiana przypisania tenanta (przeniesienie) wymaga jawnej operacji (BE-193), nie jest efektem ubocznym
+- [ ] `mvn verify -pl app` zielone; aktualizacja `nginx` (przykładowa konfiguracja)
+
+**Ryzyka:** (R1) cache DNS i sesje przy przenoszeniu tenanta; (R2) SSO/logowanie przed znajomością tenanta (login po e-mailu → ustalenie komórki).
+**Nie wchodzi w zakres:** provisioning (BE-191), migracja danych tenanta (BE-193).
+**Zależności:** `Zależy od` BE-189; `Blokuje` BE-193.
+
+### BE-191 – Provisioning komórki: `values-<cell>.yaml` (Helm) i moduł Terraform
+
+**Typ:** Infrastructure (DevOps)
+**Priorytet:** Could Have (P2)
+**Złożoność:** L
+**Zależy od:** BE-189, BE-187
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-193
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (DevOps)
+
+**Opis:** Powtarzalne tworzenie komórki: moduł Terraform (sieć, zarządzany Postgres + repliki, Redis, RabbitMQ, bucket obiektowy, DNS), `values-<cell>.yaml` dla chartu z BE-187, skrypt `new-cell` (walidacja, plan, apply, migracje, rejestracja w control plane z BE-190, smoke test).
+
+**Kryteria akceptacji:**
+- [ ] Jedno polecenie tworzy komórkę z szablonu parametryzowanego (nazwa, region, rozmiar); `terraform validate`/`plan` bez błędów
+- [ ] Migracje bazy komórki wykonane przez job z BE-182; smoke test (`/actuator/health`, logowanie testowego tenanta) zielony
+- [ ] Sekrety unikalne per komórka, rotacja udokumentowana
+- [ ] Procedura wyłączenia/usunięcia komórki (bez utraty danych w innych komórkach)
+
+**Ryzyka:** (R1) koszt per komórka (minimalny rozmiar); (R2) rozjazd wersji komórek.
+**Nie wchodzi w zakres:** migracja danych tenanta (BE-193), wybór dostawcy chmury (wejście: decyzja właściciela).
+**Zależności:** `Zależy od` BE-189, BE-187; `Blokuje` BE-193.
+
+### BE-192 – Orkiestracja migracji Flyway po wielu bazach (komórki): kolejność, kanarki, raport
+
+**Typ:** Infrastructure (Backend + DB)
+**Priorytet:** Could Have (P2)
+**Złożoność:** M
+**Zależy od:** BE-189, BE-182
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-193
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect`)
+
+**Opis:** Narzędzie uruchamiające job migracji z BE-182 kolejno po komórkach: komórka kanaryjska najpierw, zatrzymanie po błędzie, raport wersji schematu per komórka, blokada wdrożenia aplikacji, gdy wersja schematu komórki jest niższa niż wymagana.
+
+**Kryteria akceptacji:**
+- [ ] Polecenie `migrate-all` z listy komórek z control plane; tryb `--dry-run` (lista oczekujących migracji)
+- [ ] Błąd w komórce kanaryjskiej zatrzymuje resztę; stan częściowy raportowany (które komórki na jakiej wersji)
+- [ ] Test na 2 bazach Testcontainers (różne wersje startowe)
+- [ ] Zgodne z zasadą „nie edytuj zastosowanych migracji”; sprawdzenie sum kontrolnych per baza
+
+**Ryzyka:** (R1) migracje długie i blokujące (partycje) — okno serwisowe per komórka; (R2) rozjazd wersji w trakcie awarii.
+**Nie wchodzi w zakres:** provisioning (BE-191).
+**Zależności:** `Zależy od` BE-189, BE-182; `Blokuje` BE-193.
+
+### BE-193 – Dedykowana komórka dla dużego tenanta: procedura przeniesienia tenanta między komórkami
+
+**Typ:** Infrastructure / Runbook (Backend + DB)
+**Priorytet:** Could Have (P2)
+**Złożoność:** XL (do podziału po ADR-15)
+**Zależy od:** BE-190, BE-191, BE-192
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect`)
+
+**Opis:** Procedura i narzędzie przeniesienia tenanta (np. wyjątkowo dużego) do nowej komórki: eksport danych filtrowany po `tenant_id` (tabele zwykłe i partycjonowane `contact`, `email_message`, `social_message`, archiwa), plik/obiekty MinIO, konfiguracja Twilio, wtyczki, przełączenie routingu, okno read-only, weryfikacja spójności (liczności, sumy kontrolne), rollback. Ticket należy podzielić na podticket(y) po ADR-15.
+
+**Kryteria akceptacji:**
+- [ ] Rejestr tabel z `tenant_id` objętych migracją (generowany z katalogu, test wykrywa nową tabelę bez wpisu)
+- [ ] Przeniesienie tenanta testowego między dwiema komórkami w środowisku testowym: liczności tabel zgodne, brak danych tenanta w komórce źródłowej po zakończeniu (po potwierdzeniu)
+- [ ] Rollback do komórki źródłowej do momentu potwierdzenia
+- [ ] Czas okna read-only zmierzony i opisany; wpływ na webhooki Twilio w trakcie (kolejkowanie/odrzucenie z retry)
+- [ ] Runbook w `DEPLOYMENT.md`
+
+**Ryzyka:** (R1) spójność partycjonowanych tabel i sekwencji; (R2) dane zgodne z RODO/retencją (nie przenosić danych po retencji); (R3) klucze szyfrowania `tenant_twilio_config` per komórka.
+**Nie wchodzi w zakres:** automatyczne przenoszenie bez udziału operatora.
+**Zależności:** `Zależy od` BE-190, BE-191, BE-192; `Blokuje` brak.
+
+### BE-194 – Dokumentacja pojemności: limity w `ARCHITECTURE.md`, runbook skalowania w `DEPLOYMENT.md`
+
+**Typ:** Documentation
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** BE-185, BE-187
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `architecture-designer` (+ `backend-dev-expert`)
+
+**Opis:** Aktualizacja `ARCHITECTURE.md` (§7, Appendix C „Performance Budget”, §10 Risks), `DEPLOYMENT.md` (nowy rozdział: skalowanie poziome, wartości domyślne pul, PgBouncer, runbook „dodaj replikę”, „rolling deploy z migracją”, „WS reconnect storm”, „nasycenie Hikari”, „restart brokera”) oraz `documentation/tech/08-infrastructure.md` i `04-backend.md`. Liczby pochodzą z BE-185 (nie z szacunku).
+
+**Kryteria akceptacji:**
+- [ ] Tabela limitów pojemności (agenci/tenanci na instancję, na replikę DB, na RabbitMQ) z odwołaniem do raportu BE-185 i datą pomiaru
+- [ ] Runbooki dla alertów z BE-183 (kroki reakcji, odwołania do paneli)
+- [ ] Instrukcja dodania replik (HPA, PgBouncer, budżet połączeń) oraz lista ograniczeń (co NIE skaluje się poziomo, jeśli zostały)
+- [ ] Odwołania do ADR-14 i ADR-15 spójne; brak sprzecznych liczb z `PRD.md`
+
+**Ryzyka:** (R1) dokument starzeje się szybciej niż kod — wskazanie źródła liczb (skrypt BE-185).
+**Nie wchodzi w zakres:** dokumentacja użytkownika końcowego.
+**Zależności:** `Zależy od` BE-185, BE-187; `Blokuje` brak.
+
+### BE-195 – Ochrona przed „hałaśliwym sąsiadem” (noisy neighbor): limity per tenant (REST, WS, joby)
+
+**Typ:** Feature (Backend, bezpieczeństwo/operacje)
+**Priorytet:** Could Have (P2)
+**Złożoność:** M/L
+**Zależy od:** BE-183
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** W jednej instancji/bazie jeden tenant może zająć pule (Hikari, executor, połączenia WS). Ticket dodaje konfigurowalne limity per tenant: liczba równoległych sesji WS, rate limit REST (token bucket w Redis, wspólny dla instancji), maks. równoległych zadań async/ETL, z odpowiedzią 429 + `Retry-After` i metrykami. Limity domyślne wysokie (brak regresji), obniżane na podstawie danych z BE-185.
+
+**Kryteria akceptacji:**
+- [ ] Limity w konfiguracji (domyślne + nadpisanie per tenant w danych tenanta lub właściwościach — decyzja w tickecie, bez przeciążania istniejących kolumn)
+- [ ] 429 z `Retry-After` w formacie `problem+json` zgodnym z `GlobalExceptionHandler`; limit współdzielony między instancjami (Redis)
+- [ ] Test: tenant A przekracza limit, tenant B nie odczuwa degradacji (test obciążeniowy z BE-184)
+- [ ] Metryka odrzuceń per tenant (agregat, z kontrolą kardynalności)
+
+**Ryzyka:** (R1) fałszywe odrzucenia legalnego ruchu (peak o 9:00); (R2) nowa kolumna/tabela limitów wymaga ticketu DB — zapisać, jeśli wybrano trwałe ustawienia.
+**Nie wchodzi w zakres:** billing/quoty komercyjne.
+**Zależności:** `Zależy od` BE-183; `Blokuje` brak.
+
+---
 
 ## Bez epiku
 

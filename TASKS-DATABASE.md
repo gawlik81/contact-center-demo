@@ -46,10 +46,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
 | EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 1 | 0 | 1 | 0 | 2 | 🔧 W toku (DB-089 ✅; DB-088 ⬜ backlog, bramkowany wolumenem) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty (DB-090 P0, DB-091 P1, DB-092/DB-093 P2) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
-| **RAZEM** | | **83** | **0** | **3** | **3** | **89** | |
+| **RAZEM** | | **83** | **0** | **7** | **3** | **93** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); następny wolny: DB-094.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -64,6 +65,13 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 **EPIC-32 – UX i dostępność stanowiska agenta**
 
 - DB-088 – [BRAMKOWANY WOLUMENEM] Indeks częściowy pod `findActiveContactsForAgent` (BE-157): brak pruningu partycji `contact` – ⬜
+
+**EPIC-33 – Skalowanie poziome i pojemność platformy**
+
+- DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ⬜
+- DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
+- DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
+- DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
 
 ---
 
@@ -4432,6 +4440,116 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Ryzyka / uwagi:** (R1) `CREATE INDEX` na rodzicu w transakcji Flyway blokuje zapisy `contact` na czas budowy — mitygacja: `ON ONLY` + `CONCURRENTLY` per partycja jako krok DBA przy dużym wolumenie, `lock_timeout`; (R2) wiersze `COMPLETED` bez dyspozycji nigdy nieuzupełnione zostają w indeksie A — monitorować rozmiar, ewentualnie wariant B/C; (R3) predykat częściowy musi być **dosłownie implikowany** przez WHERE zapytania (planer nie dowodzi `channel='PHONE'` z innego warunku; parametryzowane `IN` w JPQL nie psuje dopasowania, bo statusy są literałami) — sprawdzić na planie generycznym (`force_generic_plan`); (R4) każda zmiana reguł BE-157 (lista statusów otwartych, kanał ACW) wymaga nowej migracji indeksu — dopisać komentarz na indeksie (`COMMENT ON INDEX`) z odnośnikiem do `findActiveContactsForAgent`; (R5) przy zmianie pruningu (wariant C) sprawdzić interakcję z partycją `contact_default` (kontakty ze starym/przyszłym `started_at`).
 **Nie wchodzi w zakres:** zmiana kodu Javy/JPQL (wariant C = osobny ticket BE po decyzji), przebudowa `idx_contact_tenant_status` (chyba że świadomie włączona — patrz kryteria), zmiana partycjonowania `contact`, zmiany RLS/uprawnień, nowy endpoint.
 **Zależności:** `Zależy od` BE-157 ✅ (zapytania i reguły ACW; BE-157 ukończony 2026-10-31, tura 64); `Blokuje` brak; powiązane: DB-055/V093 (porządek indeksów `contact`), V088/V014 (maszyneria partycji).
+
+## EPIC-33 – Skalowanie poziome i pojemność platformy
+
+**Ukończone 0/4** (⬜ nie rozpoczęte: 4) — status epiku: ⬜ Nie rozpoczęty (część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+
+### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
+
+**Typ:** Schema (migracja DDL, tabela platformowa)
+**Priorytet:** Must Have (P0)
+**Złożoność:** S
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-171 (→ BE-172, BE-173, BE-176)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** W repo nie ma ShedLock (potwierdza komentarz w `CampaignArchiveJobRepository`); 22 metody `@Scheduled` w 19 klasach uruchomią się na każdej instancji. ShedLock JDBC wymaga tabeli `shedlock(name VARCHAR(64) PK, lock_until TIMESTAMP(3) NOT NULL, locked_at TIMESTAMP(3) NOT NULL, locked_by VARCHAR(255) NOT NULL)`. Ostatnia migracja w repo: V144 (stan 2026-11-04) — numer ustalić W MOMENCIE REALIZACJI (sprawdzić `flyway_schema_history` żywej bazy i wszystkie gałęzie).
+
+**Opis / zakres:**
+- `CREATE TABLE IF NOT EXISTS shedlock` zgodnie ze specyfikacją biblioteki (typy czasowe dopasowane do `usingDbTime()` w BE-171: preferowane `TIMESTAMPTZ`, jeśli wspierane przez wybraną wersję providera — zweryfikować w spike’u).
+- Tabela platformowa: BEZ `tenant_id`, BEZ RLS (nie zawiera danych tenantów); `COMMENT ON TABLE`; `REVOKE ALL FROM PUBLIC`, GRANT dla roli aplikacji (zgodnie z modelem ról z EPIC-31/DB-083: przy rolach `cc_app` — jawny GRANT SELECT/INSERT/UPDATE/DELETE).
+- Wpis w liście wyjątków od reguły „każda tabela ma `tenant_id`” (`RlsValidationService` / DB-071 raport klasyfikacji RLS) — tabela musi być sklasyfikowana jako platformowa, aby walidacja startowa nie zgłaszała błędu.
+- Migracja idempotentna, `SET LOCAL lock_timeout`.
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V{n}__create_shedlock.sql` tworzy tabelę ze zgodną strukturą (test: ShedLock `JdbcTemplateLockProvider` zapisuje/odnawia/zwalnia blokadę)
+- [ ] `RlsValidationService` i test klasyfikacji RLS uznają `shedlock` za tabelę platformową (0 ostrzeżeń/błędów)
+- [ ] Migracja idempotentna; składnia zwalidowana w `BEGIN … ROLLBACK` na lokalnym PostgreSQL
+- [ ] Uprawnienia: brak dostępu PUBLIC; rola aplikacji ma wymagane GRANT-y
+- [ ] `mvn verify -pl app` zielone (migracja stosowana w Testcontainers)
+- [ ] Dokumentacja `documentation/tech/06-database.md` (nowa tabela, cel)
+
+**Ryzyka:** (R1) dryf definicji tabeli przy aktualizacji wersji ShedLock; (R2) `FORCE RLS`/polityki domyślne dodawane masowo przez wcześniejsze migracje — upewnić się, że `shedlock` nie jest nimi objęta.
+**Nie wchodzi w zakres:** zależność w `pom.xml` i adnotacje (BE-171), czyszczenie starych wpisów (ShedLock sam nadpisuje wiersze po nazwie).
+**Zależności:** `Zależy od` brak; `Blokuje` BE-171.
+
+### DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów)
+
+**Typ:** Perf (analiza + migracje indeksów)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M/L
+**Zależy od:** BE-185 (dane z testu obciążeniowego); powiązany: DB-088 (EPIC-32, indeks pod `findActiveContactsForAgent`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** DB-093
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `db-schema-architect` (+ `test-suite-expert`)
+
+**Opis:** Po uruchomieniu BE-185 na bazie scratch z 50 tenantami × 100 agentami: włączyć `pg_stat_statements` (parametr `shared_preload_libraries`, `CREATE EXTENSION` — zależnie od uprawnień), zebrać TOP-N zapytań wg czasu całkowitego i średniego, `EXPLAIN (ANALYZE, BUFFERS)` dla każdego, wskazać braki indeksów/seq scany na partycjach oraz zbędne indeksy (koszt zapisu). Dla kandydatów przygotować migracje indeksów (osobne numery wg konwencji) albo tickety wynikowe; DB-088 rozstrzygnąć na podstawie pomiaru (wyzwalacz wolumenowy tego ticketu).
+
+**Kryteria akceptacji:**
+- [ ] Raport TOP-20 zapytań (czas całkowity, wywołania, średnia, plan) z danych BE-185, zapisany w `documentation/` lub nocie w tickecie
+- [ ] Dla każdej pozycji: decyzja (OK / nowy indeks / zmiana zapytania BE / odrzucone) z uzasadnieniem
+- [ ] Migracje indeksów (jeśli są) idempotentne, `CONCURRENTLY` tam, gdzie zapisy nie mogą być blokowane (tabele partycjonowane: zob. DB-088 pkt 2), `lock_timeout`; pomiar przed/po
+- [ ] Lista nieużywanych indeksów (`pg_stat_user_indexes`, idx_scan = 0) z oceną usunięcia
+- [ ] Rozstrzygnięty status DB-088 (wykonać / pozostawić w backlogu z uzasadnieniem liczbowym)
+- [ ] `mvn verify -pl app` zielone dla każdej dołączonej migracji
+
+**Ryzyka:** (R1) plany na danych syntetycznych różnią się od produkcyjnych (rozkład skośny, tenant dominujący); (R2) pomiar z rolą BYPASSRLS vs. rola aplikacji (EPIC-31) — plan z RLS może być inny; mierzyć rolą z RLS.
+**Nie wchodzi w zakres:** partycjonowanie po `tenant_id` (DB-093), repliki (DB-092).
+**Zależności:** `Zależy od` BE-185; `Blokuje` DB-093; powiązane: DB-088, DB-055/V093.
+
+### DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty)
+
+**Typ:** Infrastructure (DB)
+**Priorytet:** Could Have (P2)
+**Złożoność:** M
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-188
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `db-schema-architect`
+
+**Opis:** `DEPLOYMENT.md` §18 opisuje Postgres Primary + Replica (HA), ARCHITECTURE.md zakłada replikę synchroniczną do failover — ticket rozstrzyga, czy ta sama replika służy do odczytów raportowych (replika asynchroniczna dedykowana raportom jest bezpieczniejsza dla wydajności primary). Zakres: rola `cc_report_ro` (SELECT na schemacie, `default_transaction_read_only`), uprawnienia a RLS (polityki działają na replice; `FORCE RLS`, brak BYPASSRLS dla roli raportowej), parametry replikacji (`hot_standby_feedback`, `max_standby_streaming_delay`), monitoring lagu (zapytanie + metryka dla BE-183/BE-188), procedura odtworzenia repliki.
+
+**Kryteria akceptacji:**
+- [ ] Skrypt/migracja roli `cc_report_ro` (idempotentny) oraz GRANT-y obejmują także tabele partycjonowane i przyszłe partycje (`ALTER DEFAULT PRIVILEGES`)
+- [ ] Test: rola raportowa nie może zapisywać; RLS izoluje tenantów na replice (zapytanie bez kontekstu tenanta zwraca 0 wierszy, nie dane obce)
+- [ ] Wyniki pomiaru lagu pod obciążeniem zapisów (BE-184) i próg rekomendowany dla lag guard w BE-188
+- [ ] Dokumentacja `DEPLOYMENT.md` §18 i `documentation/tech/06-database.md`
+
+**Ryzyka:** (R1) konflikty zapytań na replice (anulowanie długich zapytań); (R2) hasła/role to sekret — nie w repo, nie w `.env.local-demo`.
+**Nie wchodzi w zakres:** routing aplikacji (BE-188), failover automatyczny (Patroni).
+**Zależności:** `Zależy od` brak; `Blokuje` BE-188; powiązane: EPIC-31 (DB-083).
+
+### DB-093 – Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących – bramkowane wolumenem
+
+**Typ:** Design / Perf (analiza; migracja warunkowa)
+**Priorytet:** Could Have (P2)
+**Złożoność:** L
+**Zależy od:** DB-091
+**Status:** ⬜ Nie rozpoczęte — BRAMKOWANY (wyzwalacz wolumenowy poniżej)
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `db-schema-architect`
+
+**Wyzwalacz realizacji (nie robić wcześniej):** wynik DB-091/BE-185 pokazuje, że (a) VACUUM/autovacuum lub rozmiar indeksów tabeli gorącej degraduje p95 mimo indeksów, LUB (b) potrzebny jest ruch danych jednego tenanta (BE-193) i wydzielenie go jest kosztowne, LUB (c) rozmiar pojedynczej tabeli > uzgodniony próg (propozycja: 200 mln wierszy).
+
+**Opis:** `contact` jest już partycjonowany RANGE(`started_at`) (V007, EPIC-29), tabele wiadomości RANGE po czasie (EPIC-30). Ticket ocenia, czy dodatkowy wymiar `tenant_id` (subpartycje HASH/LIST) lub zamiana kolejności kluczy daje korzyść względem kosztów (liczba partycji = liczba partycji czasu × liczba segmentów, narzut planera, maszyneria `PartitionMaintenanceJob`/`PartitionReclaimJob`). Wynik: dokument decyzji z liczbami; migracja tylko po decyzji i wyzwalaczu.
+
+**Kryteria akceptacji:**
+- [ ] Zmierzone (scratch, wolumen BE-185×N) czasy zapytań i planowania dla wariantów: bez zmian / HASH(tenant_id, M segmentów) / LIST dla dużych tenantów — liczby w dokumencie
+- [ ] Wpływ na maszynerię partycji (V014, V088, `create_contact_partition`, retencja EPIC-29/30) opisany; brak konfliktu z DB-069/BE-137 (partycjonowanie archiwum)
+- [ ] Decyzja: wykonać / odłożyć z wyzwalaczem; jeśli wykonać — plan migracji (online, bez długiej blokady) i osobny ticket implementacyjny
+- [ ] Zgodność z EPIC-31 (`FORCE RLS` na partycjach) opisana
+
+**Ryzyka:** (R1) zmiana klucza partycji tabeli gorącej wymaga przepisania danych; (R2) wzrost liczby partycji pogarsza czas planowania.
+**Nie wchodzi w zakres:** sharding między bazami (zob. model komórkowy BE-189).
+**Zależności:** `Zależy od` DB-091; `Blokuje` brak; powiązane: EPIC-29, EPIC-30 (DB-069), BE-193.
+
+---
 
 ## Bez epiku – tematy poza numerowanymi epikami
 

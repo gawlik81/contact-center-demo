@@ -55,8 +55,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
 | EPIC-32 | UX i dostępność stanowiska agenta | 28 | 0 | 13 | 0 | 41 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **140** | **0** | **17** | **1** | **158** |
+| **Razem** | | **140** | **0** | **18** | **1** | **159** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -100,6 +101,10 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS (wiadomości z okresu rozłączenia) — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
 - FE-153 – Odświeżenie wątku e-mail wykonuje 2 GET (próba + ostatnia strona): wiadomość na granicy strony między nimi jest pomijana do następnego zdarzenia — ⬜ (Do zrobienia; wynik FE-135; po FE-150; backlog, nie blokuje epiku; Could Have, S)
 - FE-154 – Nazwa klienta zwężona do 2 liter na karcie ze znacznikiem przy wąskim viewport (~913 px); dotyczy też znaczników FE-133 — ⬜ (Do zrobienia; wynik FE-135/FE-133; backlog, nie blokuje epiku; Could Have, S)
+
+**EPIC-33 – Skalowanie poziome i pojemność platformy**
+
+- FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń (P1; po BE-175) — ⬜ (Do zrobienia)
 
 ---
 
@@ -7339,6 +7344,47 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Ryzyka:** (R1) kolizja z układem 1366×768 (FE-123 ✅) i skalą breakpointów.
 **Nie wchodzi w zakres:** zmiany hierarchii znaczników (FE-133).
 **Zależności:** `Zależy od` FE-133 ✅, FE-135 ✅; `Blokuje` brak; powiązane: FE-123 ✅.
+
+## EPIC-33 – Skalowanie poziome i pojemność platformy
+
+**Ukończone 0/1** (✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0) — status epiku: ⬜ Nie rozpoczęty (epik w przeważającej części backendowy/infrastrukturalny; tu jedyny ticket FE wynikający ze skalowania poziomego: FE-155; tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
+
+> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-156.
+
+### FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń
+
+**Typ:** Frontend implementation (odporność)
+**Priorytet:** Should Have (P1)
+**Złożoność:** M
+**Zależy od:** BE-175 (broker zewnętrzny; po nim rolling deploy i przełączenia instancji są normalnym zdarzeniem)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-175 (kontrakt: kody zamknięcia, zachowanie `/user` po reconnect)
+**Blokuje:** brak
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** `core/services/websocket.service.ts` konfiguruje klienta STOMP z `reconnectDelay: 1000` (stały), `heartbeatOutgoing: 20000` i `heartbeatIncoming: 0` (brak wykrywania martwego połączenia od strony serwera). Przy skalowaniu poziomym: (1) rolling deploy/skalowanie w dół zrywa jednocześnie wszystkie sesje danej instancji — stały 1 s bez jitteru powoduje burzę reconnectów (thundering herd) na pozostałe instancje; (2) `heartbeatIncoming: 0` nie wykryje „zawieszonej” instancji za load balancerem; (3) po reconnect zdarzenia mogą zostać dostarczone podwójnie (np. zdarzenie wysłane tuż przed zerwaniem i ponowione) lub w innej kolejności. Ticket nie zmienia kontraktu zdarzeń.
+
+**Zakres:**
+- Reconnect z wykładniczym backoffem + jitterem (np. 1 s → max 30 s, ±50%), reset po udanym połączeniu; ponowne subskrypcje po reconnect (bez duplikatów subskrypcji).
+- `heartbeatIncoming` > 0 (np. 20000, zgodnie z serwerem po BE-175) i obsługa timeoutu jako rozłączenia.
+- Deduplikacja zdarzeń po stronie klienta tam, gdzie zdarzenie niesie identyfikator/znacznik (np. `CONTACT_MESSAGE_RECEIVED` po `messageId`, `AGENT_STATUS_CHANGED` po `statusSince`); zdarzenia bez klucza — idempotentna obsługa w konsumentach (przegląd konsumentów, lista w notatce wykonania).
+- Wskaźnik stanu połączenia (istniejący, jeśli jest) pokazuje „łączenie ponowne”; brak migotania przy krótkim zerwaniu (debounce).
+- Współpraca z FE-152 (resynchronizacja kart po reconnect): FE-155 dostarcza sygnał „reconnected”, FE-152 odświeża wątki; kolejność dowolna, ale bez dublowania odświeżeń.
+
+**Kryteria akceptacji:**
+- [ ] Odstępy reconnectu rosną wykładniczo z jitterem, maks. 30 s; test jednostkowy z fałszywym zegarem (rozkład opóźnień, reset po sukcesie)
+- [ ] Po reconnect subskrypcje odtworzone dokładnie raz (test: wielokrotny reconnect nie mnoży handlerów)
+- [ ] Brak zdarzeń dostarczonych dwukrotnie do UI (test: to samo zdarzenie dwa razy → jeden efekt) dla `CONTACT_MESSAGE_RECEIVED` i `AGENT_STATUS_CHANGED`
+- [ ] `heartbeatIncoming` włączony; symulowany brak ramek serwera → rozłączenie i reconnect w limicie czasowym
+- [ ] Sygnał „reconnected” udostępniony serwisom (kontrakt z FE-152 opisany w komentarzu/notatce)
+- [ ] WP-1…WP-7 z sekcji EPIC-32 mają zastosowanie analogicznie (lint 0 błędów, format OK, `npm test` zielone, i18n pl/en/de/uk dla nowych tekstów, weryfikacja w przeglądarce na local-demo z restartem backendu)
+
+**Ryzyka:** (R1) zmiana `heartbeatIncoming` wymaga zgodnej konfiguracji serwera (BE-175) — niezgodność = pętla rozłączeń; (R2) deduplikacja po kluczu wymaga stabilnych identyfikatorów w payloadach (część zdarzeń ich nie ma); (R3) skumulowany efekt z FE-152 (podwójne odświeżenia).
+**Nie wchodzi w zakres:** odtwarzanie zdarzeń przez backend (świadomie poza zakresem — zob. FE-152), zmiany w protokole zdarzeń.
+**Zależności:** `Zależy od` BE-175; `Blokuje` brak; powiązane: FE-152, FE-135 ✅, BE-176.
+
+---
 
 ## Bez epiku
 

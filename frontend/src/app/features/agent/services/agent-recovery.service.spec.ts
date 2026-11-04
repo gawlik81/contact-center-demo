@@ -9,6 +9,7 @@ import {
   CALL_NOT_RESTORED_POLL_MS,
   RECOVERY_TIMEOUT_MS,
 } from './agent-recovery.service';
+import { ACCEPT_RETRY_BASE_MS } from './async-contact-accept.service';
 import { ContactDraftStore } from './contact-draft.store';
 import { AgentStatusService } from './agent-status.service';
 import { ContactTabStore } from './contact-tab.store';
@@ -48,7 +49,7 @@ describe('AgentRecoveryService (FE-136)', () => {
   let post: ReturnType<typeof vi.fn>;
   let agentStatus: ReturnType<typeof signal<string>>;
   let changeStatus: ReturnType<typeof vi.fn>;
-  let statusSince: ReturnType<typeof signal<number | null>>;
+  let statusEpisode: ReturnType<typeof signal<number>>;
 
   const respond = (list: ActiveContactResponse[]) => get.mockReturnValue(of(list));
 
@@ -57,13 +58,13 @@ describe('AgentRecoveryService (FE-136)', () => {
     post = vi.fn().mockReturnValue(of(null));
     agentStatus = signal('OFFLINE');
     changeStatus = vi.fn().mockReturnValue(of(undefined));
-    statusSince = signal<number | null>(null);
+    statusEpisode = signal(0);
     TestBed.configureTestingModule({
       providers: [
         { provide: HttpClient, useValue: { get, post } },
         {
           provide: AgentStatusService,
-          useValue: { currentStatus: agentStatus, statusSince, changeStatus },
+          useValue: { currentStatus: agentStatus, statusEpisode, changeStatus },
         },
       ],
     });
@@ -115,10 +116,48 @@ describe('AgentRecoveryService (FE-136)', () => {
     expect(drafts.markAccepted('old')).toBe(false);
   });
 
+  it('does not accept a RINGING SOCIAL contact again after the live path already did', async () => {
+    drafts.markAccepted('soc'); // what AsyncContactAcceptService does on the live path
+    respond([
+      contact({ contactId: 'soc', channel: 'SOCIAL', phase: 'RINGING', status: 'ASSIGNED' }),
+    ]);
+    await service.recoverAfterReconnect();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('live path then recovery sends one accept in total (no manual mark)', async () => {
+    tabs.openFromContactAssigned({
+      contactId: 'soc',
+      type: 'SOCIAL',
+      customerName: 'K',
+      customerIdentifier: 'k',
+    } as never);
+    expect(post).toHaveBeenCalledTimes(1);
+    tabs.tabs.set([]); // the card is gone (e.g. WS reconnect) but the accept was already sent
+    respond([
+      contact({ contactId: 'soc', channel: 'SOCIAL', phase: 'RINGING', status: 'ASSIGNED' }),
+    ]);
+    await service.recoverAfterReconnect();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a RINGING SOCIAL contact exactly once over repeated recovery runs', async () => {
+    respond([
+      contact({ contactId: 'soc', channel: 'SOCIAL', phase: 'RINGING', status: 'ASSIGNED' }),
+    ]);
+    await service.recoverAfterReconnect();
+    tabs.reset();
+    await service.recoverAfterReconnect();
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][0]).toContain('/contacts/soc/accept');
+  });
+
   it('reverts the accepted flag when the accept request fails', async () => {
-    post.mockReturnValue(throwError(() => new Error('x')));
+    vi.useFakeTimers();
+    post.mockReturnValue(throwError(() => ({ status: 503 })));
     respond([contact({ contactId: 'new', phase: 'RINGING', status: 'ASSIGNED' })]);
     await service.recoverAfterReconnect();
+    await vi.advanceTimersByTimeAsync(ACCEPT_RETRY_BASE_MS * 3);
     expect(drafts.markAccepted('new')).toBe(true);
   });
 
@@ -448,11 +487,11 @@ describe('AgentRecoveryService (FE-136)', () => {
   });
 
   describe('old backend', () => {
-    it.each([404, 500])('falls back to assigned-contact on %i', async (status) => {
+    it('falls back to assigned-contact on 404 (BE-161)', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       get.mockImplementation((url: string) =>
         url.includes('active-contacts')
-          ? throwError(() => new HttpErrorResponse({ status }))
+          ? throwError(() => new HttpErrorResponse({ status: 404 }))
           : of(
               new HttpResponse({
                 status: 200,
@@ -467,6 +506,20 @@ describe('AgentRecoveryService (FE-136)', () => {
       );
       await service.recoverAfterReconnect();
       expect(tabs.tabs().map((t) => t.contactId)).toEqual(['legacy']);
+    });
+
+    it('does not fall back on a 500: real error, desktop untouched, run reported as failed', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      get.mockImplementation((url: string) =>
+        url.includes('active-contacts')
+          ? throwError(() => new HttpErrorResponse({ status: 500 }))
+          : of(new HttpResponse({ status: 200, body: { contactId: 'legacy', channel: 'EMAIL' } })),
+      );
+      await expect(service.recoverAfterReconnect()).resolves.toBeUndefined();
+      expect(get).toHaveBeenCalledTimes(1);
+      expect(get.mock.calls[0][0]).toContain('active-contacts');
+      expect(tabs.tabs()).toEqual([]);
+      expect(service.lastRun()?.ok).toBe(false);
     });
 
     it('stays silent and non-blocking when the fallback fails too', async () => {
@@ -754,7 +807,7 @@ describe('AgentRecoveryService (FE-136)', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       get.mockImplementation((url: string) =>
         url.includes('active-contacts')
-          ? throwError(() => new HttpErrorResponse({ status: 500 }))
+          ? throwError(() => new HttpErrorResponse({ status: 404 }))
           : of(new HttpResponse({ status: 204, body: null })),
       );
       await service.checkAgain('card');
@@ -777,7 +830,7 @@ describe('AgentRecoveryService (FE-136)', () => {
       const answer = new Subject<ActiveContactResponse[]>();
       get.mockReturnValue(answer);
       const pending = service.recoverAfterReconnect();
-      statusSince.set(Date.now()); // the agent pressed AVAILABLE meanwhile
+      statusEpisode.update((n) => n + 1); // the agent pressed AVAILABLE meanwhile
       answer.next([wrap()]);
       answer.complete();
       await pending;

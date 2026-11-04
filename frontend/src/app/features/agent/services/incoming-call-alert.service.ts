@@ -7,6 +7,7 @@ import { filter, take, takeUntil } from 'rxjs/operators';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AsyncContactAcceptService } from './async-contact-accept.service';
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
@@ -53,6 +54,7 @@ export class IncomingCallAlertService implements OnDestroy {
   private readonly softphoneService = inject(SoftphoneService);
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
+  private readonly asyncAccept = inject(AsyncContactAcceptService);
   private readonly url = currentUrlSignal();
 
   private readonly destroy$ = new Subject<void>();
@@ -363,7 +365,13 @@ export class IncomingCallAlertService implements OnDestroy {
     if (this.tabStore.noteAssignedDuringRelease(payload)) return;
     const onDesktop = this.isOnDesktop();
     const exists = this.tabStore.tabs().some((t) => t.contactId === payload.contactId);
-    if (exists) return; // re-delivery (e.g. WS reconnect) of a contact that is already open
+    if (exists) {
+      // Re-delivery (WS reconnect, or ContactAssignmentMonitor because the contact is still
+      // ASSIGNED): no second tab, but a failed earlier accept is retried here (guarded, so a
+      // contact already accepted sends nothing).
+      this.asyncAccept.acceptOpened(payload.type, payload.contactId);
+      return;
+    }
 
     const reason = this.tabStore.openFromContactAssigned(payload);
     if (reason !== null) {

@@ -7,8 +7,11 @@ import { AgentStatusService } from '../../services/agent-status.service';
 /**
  * Elapsed time of the current agent status (shown next to the status pill during a break).
  *
- * The time is counted on the client from the moment the status was applied in this session, so
- * it restarts from 0:00 after a page reload; the tooltip / accessible name says so.
+ * The origin is `AgentStatusService.statusSince` (server value, client-clock fallback), so the
+ * count survives a page reload. Clock skew: the server instant is compared with the browser
+ * clock; a browser clock that is behind would give a negative value, which is clamped to 0:00,
+ * and one that is ahead adds a constant offset. Both are accepted (agent PCs are NTP-synced, the
+ * display is informational) instead of adding a server-time offset mechanism.
  *
  * Accessibility: `role="timer"` has an implicit `aria-live="off"`, so the per-second ticks are
  * never announced; the screen reader reads the label + value only when the agent navigates to it.
@@ -23,13 +26,9 @@ import { AgentStatusService } from '../../services/agent-status.service';
         class="status-elapsed"
         role="timer"
         aria-live="off"
-        [attr.title]="'agent.status.breakDurationHint' | transloco"
+        [attr.title]="'agent.status.breakDuration' | transloco"
       >
-        <span class="status-elapsed__sr"
-          >{{ 'agent.status.breakDuration' | transloco }} ({{
-            'agent.status.breakDurationHint' | transloco
-          }}):
-        </span>
+        <span class="status-elapsed__sr">{{ 'agent.status.breakDuration' | transloco }}: </span>
         <time class="status-elapsed__value" [attr.datetime]="isoDuration()">{{ value }}</time>
       </span>
     }
@@ -69,14 +68,20 @@ export class StatusElapsedComponent {
   );
 
   protected readonly text = computed(() => {
-    const since = this.statusService.statusSince();
-    if (since === null) return null;
-    return formatElapsed(Math.max(0, this.now() - since));
+    const ms = this.elapsedMs();
+    return ms === null ? null : formatElapsed(ms);
   });
 
   protected readonly isoDuration = computed(() => {
+    const ms = this.elapsedMs();
+    return ms === null ? null : toIsoDuration(ms);
+  });
+
+  /** Elapsed ms, never negative (clock skew); null while the origin is unknown/invalid. */
+  private readonly elapsedMs = computed(() => {
     const since = this.statusService.statusSince();
-    return since === null ? null : toIsoDuration(Math.max(0, this.now() - since));
+    if (since === null || !Number.isFinite(since)) return null;
+    return Math.max(0, this.now() - since);
   });
 }
 

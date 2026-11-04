@@ -5,6 +5,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.social.SocialAdapterRegistry;
+import com.contactcenter.domain.websocket.ContactMessageReceivedPublisher;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ class SocialMessageServiceImpl implements SocialMessageService {
     private final SocialAdapterRegistry adapterRegistry;
     private final RabbitTemplate rabbitTemplate;
     private final SocialDefaultQueueResolver defaultQueueResolver;
+    private final ContactMessageReceivedPublisher messageReceivedPublisher;
 
     // =========================================================================
     // Przetwarzanie przychodzących wiadomości
@@ -91,6 +93,7 @@ class SocialMessageServiceImpl implements SocialMessageService {
         UUID contactId;
 
         UUID queueId = null;
+        UUID assignedAgentId = null;
         if (isNewContact) {
             // BE-155: new social contact gets the tenant's default social queue (no more queueId = null)
             queueId = defaultQueueResolver.resolve(tenantId).orElse(null);
@@ -99,6 +102,7 @@ class SocialMessageServiceImpl implements SocialMessageService {
                     contactId, channel, incoming.senderExternalId());
         } else {
             contactId = activeContact.get().getContactId();
+            assignedAgentId = activeContact.get().getAgentId();
             log.info("[SocialMessage] Dołączam do istniejącego kontaktu: contactId={}, sender={}",
                     contactId, incoming.senderExternalId());
         }
@@ -144,6 +148,13 @@ class SocialMessageServiceImpl implements SocialMessageService {
         // 6. Dla nowego kontaktu – opublikuj do routingu. Bez kolejki (tenant nie ma aktywnej kolejki)
         // NIE publikujemy contact.queued (routeContact wymaga kolejki): kontakt zostaje QUEUED,
         // a RoutingService ponownie rozwiąże kolejkę przy kolejnym przebiegu (agent.status.changed).
+        // BE-154: kolejna wiadomość w istniejącym kontakcie -> zdarzenie WS do przydzielonego agenta
+        // (po commit, bez treści; błąd publikacji nie wpływa na zapis).
+        if (!isNewContact) {
+            messageReceivedPublisher.publish(tenantId, contactId, assignedAgentId, channel,
+                    message.getMessageId(), message.getReceivedAt());
+        }
+
         if (isNewContact) {
             if (queueId != null) {
                 publishContactQueued(contactId, queueId, tenantId);

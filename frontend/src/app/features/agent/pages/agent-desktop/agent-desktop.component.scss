@@ -420,6 +420,10 @@
       background: var(--success-soft);
       color: var(--success-text);
     }
+    &--unread {
+      background: var(--accent-soft);
+      color: var(--accent-text);
+    }
     &--draft {
       background: var(--neutral-soft);
       color: var(--neutral-text);

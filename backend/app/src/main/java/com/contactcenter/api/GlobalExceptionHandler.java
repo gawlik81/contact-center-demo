@@ -32,10 +32,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -667,6 +669,49 @@ public class GlobalExceptionHandler {
 
         log.warn("[API][AI] Błąd serwisu AI: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
+    }
+
+    /**
+     * Nieznana ścieżka (brak handlera i brak statycznego zasobu) – HTTP 404.
+     *
+     * <p>Spring 6.1+ rzuca {@link NoResourceFoundException} gdy żądanie trafi do
+     * {@code ResourceHttpRequestHandler} bez dopasowanego zasobu. Bez tego handlera wyjątek trafiałby
+     * do catch-all i dawał fałszywe 500 (BE-161). Nie loguje na ERROR i nie ujawnia szczegółów
+     * wewnętrznych (ani ścieżki zasobu z komunikatu wyjątku). Nie dotyczy 405 – to inny wyjątek.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ProblemDetail> handleNoResourceFoundException(
+            NoResourceFoundException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setType(URI.create(ERROR_BASE_URI + "resource-not-found"));
+        problem.setTitle("Zasób nie istnieje");
+        problem.setDetail("Żądana ścieżka nie istnieje.");
+        problem.setProperty("timestamp", Instant.now());
+
+        log.debug("[API] Nieznana ścieżka: {}", ex.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    /**
+     * Niewłaściwa metoda HTTP na istniejącej ścieżce – HTTP 405 (z nagłówkiem {@code Allow}).
+     *
+     * <p>Bez tego handlera catch-all przechwytywał wyjątek i zwracał fałszywe 500 (wykryte przy BE-161,
+     * kryterium „405 bez regresji” nie było spełnione już na stanie wyjściowym).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.METHOD_NOT_ALLOWED);
+        problem.setType(URI.create(ERROR_BASE_URI + "method-not-allowed"));
+        problem.setTitle("Metoda HTTP nieobsługiwana");
+        problem.setDetail("Metoda HTTP nie jest obsługiwana dla tej ścieżki.");
+        problem.setProperty("timestamp", Instant.now());
+
+        log.debug("[API] Niewłaściwa metoda HTTP: {}", ex.getMethod());
+        // getHeaders() builds the Allow header from the supported methods (empty when none known)
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).headers(ex.getHeaders()).body(problem);
     }
 
     /**

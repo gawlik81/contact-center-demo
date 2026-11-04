@@ -6,6 +6,7 @@ import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.inter
 import { SoftphoneService } from './softphone.service';
 import { ContactTabStore, TabLimitReason, tabLimitReason } from './contact-tab.store';
 import { ContactDraftStore } from './contact-draft.store';
+import { AsyncContactAcceptService, isAsyncAcceptable } from './async-contact-accept.service';
 import { AgentStatusService } from './agent-status.service';
 import {
   ActiveContactResponse,
@@ -39,7 +40,7 @@ export const CALL_NOT_RESTORED_POLL_MS = 20_000;
  * One call to `GET /api/agent/me/active-contacts` returns every contact the agent still owns;
  * each becomes a card according to its `phase`:
  * - RINGING     PHONE: ringing softphone session as for a fresh assignment. EMAIL/SOCIAL/CHAT: card
- *               plus `POST /contacts/{id}/accept` (once; ContactDraftStore remembers it).
+ *               plus `POST /contacts/{id}/accept` (AsyncContactAcceptService: once per contact).
  * - IN_PROGRESS the card only, never `accept` again (the contact is already ACTIVE). A PHONE card
  *               has no live call: the WebRTC leg died with the page, so it is flagged
  *               `callNotRestored` and explains that instead of offering call controls.
@@ -60,6 +61,7 @@ export class AgentRecoveryService {
   private readonly tabStore = inject(ContactTabStore);
   private readonly drafts = inject(ContactDraftStore);
   private readonly status = inject(AgentStatusService);
+  private readonly asyncAccept = inject(AsyncContactAcceptService);
 
   /** Contacts of this agent that have no card because of the tab limits (until the next run). */
   readonly overflow = signal<OverflowContact[]>([]);
@@ -153,7 +155,7 @@ export class AgentRecoveryService {
     // Local actions taken while the request is in flight (reject, disposition, release, close)
     // make its answer stale for those contacts: they must not come back.
     const closeMark = this.tabStore.closeMark();
-    const statusMark = this.status.statusSince();
+    const statusMark = this.status.statusEpisode();
     let fetched: Fetched | null;
     try {
       fetched = await this.fetchActiveContacts();
@@ -194,12 +196,12 @@ export class AgentRecoveryService {
           timeout(RECOVERY_TIMEOUT_MS),
           map((body): Fetched => ({ contacts: Array.isArray(body) ? body : [], complete: true })),
           catchError((err: unknown) =>
-            // An older backend does not know the path. Spring answers an unknown path with 404,
-            // but this API's catch-all handler turns it into 500 (checked against the running
-            // backend), so both mean "try the old endpoint". Safe because it is a read-only GET
-            // whose answer (one ASSIGNED contact) only ever adds a card; if the old call fails
-            // too, the error is swallowed below and the desktop is left alone.
-            err instanceof HttpErrorResponse && (err.status === 404 || err.status === 500)
+            // An older backend does not know the path and answers 404 (BE-161: an unknown path is
+            // a 404 problem+json, no longer swallowed into a 500). Only that means "try the old
+            // endpoint"; a 500 is a real error and takes the non-blocking failure path below.
+            // Safe because it is a read-only GET whose answer (one ASSIGNED contact) only ever
+            // adds a card; if the old call fails too, the error is swallowed below.
+            err instanceof HttpErrorResponse && err.status === 404
               ? this.fetchLegacyAssigned(context)
               : throwError(() => err),
           ),
@@ -247,7 +249,7 @@ export class AgentRecoveryService {
   private apply(
     fetched: Fetched,
     closedSince: ReadonlySet<string>,
-    statusMark: number | null,
+    statusMark: number,
   ): { opened: number; remaining: number; callNotRestored: number } {
     const live = this.softphoneService.session();
     const candidates: (Item & { type: ContactType })[] = [];
@@ -369,14 +371,14 @@ export class AgentRecoveryService {
    * when the call ends; here only an AVAILABLE agent is moved (a deliberate BREAK or the
    * backend's own AFTER_CONTACT stay), otherwise a new call would arrive on a phone slot that
    * the ACW card occupies. Not when the agent changed the status themselves since the run
-   * started (`statusSince` moved): an automatic run (polling, list refresh) must never undo a
-   * choice made meanwhile. Focus is not moved: it only follows an explicit agent action.
+   * started (a new status episode began): an automatic run (polling, list refresh) must never
+   * undo a choice made meanwhile. Focus is not moved: it only follows an explicit agent action.
    * If the status has not been loaded yet (page reload race), the backend's status stands.
    * The call is silent on failure (no global toast): the agent did not ask for it.
    */
-  private leaveAvailableForAcw(statusMark: number | null): void {
+  private leaveAvailableForAcw(statusMark: number): void {
     if (this.status.currentStatus() !== 'AVAILABLE') return;
-    if (this.status.statusSince() !== statusMark) return;
+    if (this.status.statusEpisode() !== statusMark) return;
     this.status
       .changeStatus('AFTER_CONTACT', { silent: true })
       .subscribe({ error: () => undefined });
@@ -427,34 +429,13 @@ export class AgentRecoveryService {
       if (type === 'PHONE') {
         this.softphoneService.incomingCall(toPayload(contact, type));
       } else {
-        this.acceptOnce(contact.contactId);
+        this.asyncAccept.acceptOpened(type, contact.contactId);
       }
-    } else if (type !== 'PHONE') {
+    } else if (isAsyncAcceptable(type)) {
       // Already ACTIVE: the e-mail card must not send `accept` when it mounts (FE-131).
       this.drafts.markAccepted(contact.contactId);
     }
     return null;
-  }
-
-  /**
-   * Tells the backend the agent has the contact (stops re-queueing); once per contact.
-   * Also sent for a SOCIAL contact although the live CONTACT_ASSIGNED path never accepts one
-   * (only the e-mail card does): `POST /accept` is channel-agnostic and idempotent, and
-   * ContactAssignmentMonitor re-queues ASSIGNED contacts of every channel, so skipping it here
-   * would only repeat the live path's gap (reported as a follow-up).
-   */
-  private acceptOnce(contactId: string): void {
-    if (!this.drafts.markAccepted(contactId)) return;
-    this.http
-      .post(`${environment.apiUrl}/contacts/${contactId}/accept`, {})
-      .pipe(
-        catchError(() => {
-          // Fire-and-forget: the card's first mount retries because the flag is reverted.
-          this.drafts.unmarkAccepted(contactId);
-          return of(null);
-        }),
-      )
-      .subscribe();
   }
 }
 

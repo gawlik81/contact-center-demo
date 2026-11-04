@@ -54,9 +54,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 25 | 0 | 11 | 0 | 36 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| EPIC-32 | UX i dostępność stanowiska agenta | 28 | 0 | 13 | 0 | 41 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **137** | **0** | **15** | **1** | **153** |
+| **Razem** | | **140** | **0** | **17** | **1** | **158** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -77,11 +77,11 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-127 – [BUG] `AdminUserFormComponent` nie ładuje `availableSkills` — lista podpowiedzi umiejętności zawsze pusta — ✅ (2026-10-30, tura 61; ładowanie przez `UserService.getSkills()`, `skillsLoading`/`skillsLoadFailed`, region live; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
 - FE-128 – i18n poza powierzchnią agenta: literały PL w `admin-user-form`, `queue-form`, `softphone.service` — ✅ (2026-10-30, tura 61; klucze i18n, parytet 2784 kluczy w 4 językach, `createTwilioDevice` jako seam testowy; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
 - FE-129 – Format KPI „Czas pracy” w top-navbar: 225:56 (minuty > 60 w formacie mm:ss) — ✅ (2026-10-30, tura 60; format `h:mm`, sr-only z jednostkami, `kpiNoData`; zmiany niezacommitowane; CR 3,5/5 → 4,5/5)
-- FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ⬜ (Do zrobienia; czeka na BE-153; backlog, nie blokuje epiku; powiązany z FE-129 — KPI)
+- FE-130 – Licznik przerwy (`cc-status-elapsed`) z `statusSince` z API; usunięcie adnotacji „w tej sesji” — ✅ (2026-11-04, tura 66; po BE-153 ✅; CR 4/5 (2 rundy); `npm test` 77 plików / 1076 testów; weryfikacja w przeglądarce: licznik ciągły między kartami 0:42 = 0:42 = DB, reset przez WS z drugiej karty; powiązany z FE-129 — KPI; następniki: BE-165, BE-166)
 - FE-132 – WP-B (FE-121): bezpieczne zamykanie kart — × poza `role="tab"`, Delete, potwierdzenia, „Zwróć do kolejki” — ✅ (2026-10-29; zależy od BE-160 ✅)
 - FE-133 – WP-C (FE-121): znaczniki stanu na kartach (ACW > Wstrzymana > Rozmowa > Szkic), nowy kontakt bez przejmowania aktywnej karty — ✅ (2026-10-29)
-- FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ⬜ (Do zrobienia; czeka na BE-154; FE-133 ✅; backlog, nie blokuje epiku)
-- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ✅ (2026-10-31, tura 64; po BE-157 ✅; CR 3,5 → 4 → 4/5, 4 rundy; `npm test` 74 plików / 995 testów; dług: test z prawdziwymi kontaktami i Twilio, czytnik ekranu)
+- FE-135 – Znacznik „nieprzeczytane / czeka klient” na kartach e-mail/social — ✅ (2026-11-04, tura 66; po BE-154 ✅, FE-133 ✅; CR 4/5 (2 rundy); `impeccable harden` + `polish`; `npm test` 77 plików / 1076 testów; kontrast znacznika 6,30:1 jasny / 7,79:1 ciemny; następniki: FE-150…FE-154)
+- FE-136 – Odtwarzanie kart po przeładowaniu: wiele kontaktów, SOCIAL, `ACTIVE`, ACW — ✅ (2026-10-31, tura 64; po BE-157 ✅; fallback zawężony do 404 w turze 65 po BE-161 ✅; CR 3,5 → 4 → 4/5, 4 rundy; `npm test` 74 plików / 995 testów; dług: test z prawdziwymi kontaktami i Twilio, czytnik ekranu)
 - FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta/powłoką na skalę breakpointów (`_breakpoints.scss`) — ⬜ (Do zrobienia; wynik FE-123; backlog, nie blokuje epiku)
 - FE-138 – Budżety stylów i bundla: pozostałe komponenty ponad 12 kB (`anyComponentStyle`) i bundle initial 567 kB przy budżecie 500 kB — ⬜ (Do zrobienia; wynik FE-124, backlog, nie blokuje epiku; wspólne pliki z FE-139/FE-140: softphone, email-contact, adhoc-email-modal)
 - FE-139 – Flat-at-Rest: usunięcie dekoracyjnych gradientów z powierzchni agenta (ok. 13 w 8 plikach) — ⬜ (Do zrobienia; wynik FE-125, P2; backlog, nie blokuje epiku)
@@ -93,8 +93,13 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-145 – Wyświetlenie błędu telefonii agentowi: konsument `twilioDeviceError` z akcją ponowienia — ✅ (2026-10-30, tura 62; CR 2,5/5 → 3,5/5, runda 3 bez ponownego CR; wynik FE-128 / NEW-1 CR; Should Have, S)
 - FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz poza `queue-panel` i `top-navbar` (wzorzec z FE-129/FE-143) — ⬜ (Do zrobienia; wynik FE-143; backlog, nie blokuje epiku; Should Have, S/M)
 - FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog; pada sporadycznie w pełnym `npm test`) — ✅ (2026-10-30, tura 63; zabezpieczone, nieodtworzone: 0/10 przebiegów przed zmianą, stuby `HTMLDialogElement` w `beforeEach` + sprzątanie w `afterEach`; wynik CR FE-145; Should Have, XS/S)
-- FE-148 – Akceptacja kontaktu SOCIAL w `ASSIGNED` na ścieżce na żywo: `social-contact.component` nie wysyła `POST /api/contacts/{id}/accept`, a `ContactAssignmentMonitor` przekolejkowuje obsługiwany kontakt — ⬜ (Do zrobienia; wynik FE-136; backlog, nie blokuje epiku; Should Have, S/M; FE + potwierdzenie BE)
+- FE-148 – Akceptacja kontaktów asynchronicznych (EMAIL/SOCIAL) w `ASSIGNED` na ścieżce na żywo: nowy `AsyncContactAcceptService` (jeden accept na kontakt, guard `markAccepted`; wynik FE-136) — ✅ (2026-11-04, tura 65; CR 3,5 → 4,5/5; `npm test` 75 plików / 1023 testy; dług: WP-5 bez weryfikacji w przeglądarce)
 - FE-149 – Przycisk „Zwróć do kolejki” przy pozycjach w `cc-recovery-overflow-notice` (`POST /api/contacts/{id}/release`, BE-160 ✅) — ⬜ (Do zrobienia; wynik FE-136; backlog, nie blokuje epiku; Could Have, S)
+- FE-150 – [BUG] Wątek e-mail > 20 wiadomości: pierwsze ładowanie czyta stronę 0 (najstarsze, `ORDER BY createdAt ASC`), a `hasMore` jest odwrócone — odwrócić stronicowanie; następnie odświeżenie z FE-135 bez warunku ciągłości — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
+- FE-151 – Znacznik UNREAD i ogłoszenie nowej wiadomości, gdy agent jest na trasie innej niż `/agent/desktop` lub karta przeglądarki jest w tle — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
+- FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS (wiadomości z okresu rozłączenia) — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
+- FE-153 – Odświeżenie wątku e-mail wykonuje 2 GET (próba + ostatnia strona): wiadomość na granicy strony między nimi jest pomijana do następnego zdarzenia — ⬜ (Do zrobienia; wynik FE-135; po FE-150; backlog, nie blokuje epiku; Could Have, S)
+- FE-154 – Nazwa klienta zwężona do 2 liter na karcie ze znacznikiem przy wąskim viewport (~913 px); dotyczy też znaczników FE-133 — ⬜ (Do zrobienia; wynik FE-135/FE-133; backlog, nie blokuje epiku; Could Have, S)
 
 ---
 
@@ -5908,11 +5913,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 25/36** (✅ 25 · 🔧 0 · ⬜ 11 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-130, FE-135…FE-140, FE-142, FE-144, FE-146, FE-148, FE-149 oraz BE-153, BE-154, BE-156, BE-159, BE-161, BE-162 (precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+**Ukończone 28/41** (✅ 28 · 🔧 0 · ⬜ 13 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149…FE-154 oraz BE-156, BE-159, BE-163…BE-170 (BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-148 i FE-149 dołożone w turze 64 (2026-10-31) z wyników FE-136 (akceptacja kontaktu SOCIAL na ścieżce na żywo; zwrot do kolejki z komunikatu „poza limitem kart”; oba backlog, nie blokują epiku; powiązane BE-161, BE-162 w `TASKS-BACKEND.md`); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE). Następne wolne numery (stan po turze 64): FE-150, BE-163, DB-089.
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-148 i FE-149 dołożone w turze 64 (2026-10-31) z wyników FE-136 (akceptacja kontaktu SOCIAL na ścieżce na żywo; zwrot do kolejki z komunikatu „poza limitem kart”; oba backlog, nie blokują epiku; powiązane BE-161, BE-162 w `TASKS-BACKEND.md`); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE). Tura 65 (2026-11-04): FE-148 ✅ (backlog się kurczy); BE-161 ✅ i BE-162 ✅ w `TASKS-BACKEND.md`; nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC → właściwe statusy). Tura 66 (2026-11-04): FE-130 ✅ (po BE-153 ✅) i FE-135 ✅ (po BE-154 ✅); nowe FE-150…FE-154 ⬜ (wyniki CR i weryfikacji w przeglądarce FE-135) oraz BE-164…BE-170 ⬜ w `TASKS-BACKEND.md`; DB-089 ✅ w `TASKS-DATABASE.md`. Następne wolne numery (stan po turze 66): FE-155, BE-171, DB-090.
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60; FE-127 ✅ i FE-128 ✅ tura 61) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -5925,7 +5930,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 > - **WP-7** (decyzja właściciela 2026-10-23) każdy ticket realizowany przez skill `impeccable:impeccable` z poleceniem właściwym dla ticketu (np. `polish`, `harden`, `typeset`, `clarify`, `shape`, `layout`, `optimize`), wczytanym przez agenta przed zmianami; w notatce wykonania: użyte polecenie i wynik `impeccable detect`.
 > - **Wykonawca:** `angular-frontend-expert`; tickety wizualne/tokenowe (FE-115, FE-116, FE-118, FE-123, FE-124) projekt/polish przez `ui-premium-designer`, implementacja i testy przez `angular-frontend-expert`; FE-121/FE-122 poprzedza `/impeccable shape`.
 >
-> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 ✅ → FE-136 ✅` (BE-157 ✅ `fcb8fe5a` 2026-10-31, FE-136 ✅ 2026-10-31, tura 64);  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143 ✅` (tura 60; zamknięty w turze 62; wzorzec naprawy reaktywności z FE-129);  `FE-143 ✅ → FE-146` (tura 62; backlog, nie blokuje epiku; ten sam wzorzec w pozostałych ekranach);  `FE-125 ✅ → FE-141 ✅` (zamknięty w turze 62);  `FE-141 ✅ → FE-140` (tura 62: wspólny wzorzec hover `opacity: .88` zamiast `color-mix(... black)` w 4 plikach);  `FE-128 ✅ → FE-145 ✅` (zamknięty w turze 62);  `FE-147 ✅` (bez zależności; niestabilny test, zamknięty w turze 63 jako zabezpieczony, nieodtworzony);  `BE-157 ✅ → FE-136 ✅` (tura 64);  `FE-136 ✅ → FE-148, FE-149` (tura 64; backlog, nie blokują epiku);  `BE-160 ✅ → FE-149` (endpoint `POST /api/contacts/{id}/release`);  `BE-155 ✅` (kontekst FE-148: kanał SOCIAL w ASSIGNED, bez twardej zależności);  `BE-157 ✅, FE-136 ✅ → BE-162` (deprecation `assigned-contact`, w `TASKS-BACKEND.md`);  `BE-161 ↔ FE-136 ✅` (bez twardej zależności; po BE-161 fallback FE-136 na 500 można zawęzić do 404);  `BE-157 ✅ → DB-088` (indeks pod `findActiveContactsForAgent`, ⬜ bramkowany wolumenem).
+> Graf zależności (A → B = kolejność wykonania): `FE-114 ✅`;  `FE-115 ✅ → FE-116 ✅`;  `FE-115 ✅ → FE-118 ✅`;  `FE-116 ✅ → FE-126` (faza 2, obok FE-119/FE-120);  `FE-117 ✅` (była równolegle z FE-115, bez zależności; zalecana przed FE-116/FE-118 — spełnione, nie twarda zależność);  `FE-119`, `FE-120` (bez twardych zależności; zalecane po fazie 1);  `FE-121` = parasol (brief zatwierdzony 2026-10-23, pakiety FE-131…FE-134; domknięcie procesowe po pakietach);  `FE-121 ✅` (parasol zamknięty 2026-10-29 po FE-131…FE-134);  `FE-131 ✅ → FE-132 ✅`;  `BE-160 ✅ → FE-132 ✅` (endpoint `POST /api/contacts/{id}/release`, 2026-10-29);  `FE-131 ✅ → FE-133 ✅`;  `FE-131 ✅, FE-133 ✅ → FE-122 ✅` (2026-10-29);  `FE-134 ✅` (bez zależności);  `FE-121 ✅, FE-131 ✅…FE-134 ✅, FE-122 ✅ → FE-123 ✅` (wszystkie pakiety ukończone; FE-123 ✅ 2026-10-29);  `FE-123 ✅ → FE-137` (migracja `px` w `@media` poza agentem/powłoką, nie blokuje FE-125);  `FE-124 ✅ → FE-138` (budżety stylów i bundla, nie blokuje FE-125);  `BE-154, FE-133 ✅ → FE-135`;  `FE-122 ✅, FE-131 ✅, BE-157 ✅ → FE-136 ✅` (BE-157 ✅ `fcb8fe5a` 2026-10-31, FE-136 ✅ 2026-10-31, tura 64);  `BE-155 ✅` (kanał SOCIAL i kolejka — warunek wartości FE-136 dla SOCIAL, bez twardej zależności);  `BE-158 ✅` (powiązany z FE-129, bez zależności);  `BE-159` (propozycja, powiązana z BE-156, bez zależności);  `BE-154 → FE-135`;  `BE-156` (wycinek anti-ping-pong zrobiony w BE-160 ✅; reszta otwarta);  `BE-159` (propozycja; ścieżki bez guardu wypisane w tickecie, BE-160 domknął część);  `FE-116 ✅, FE-118 ✅, FE-123 ✅ → FE-124 ✅` (2026-10-30);  `FE-119 ✅ → FE-128, FE-129`;  `FE-126 ✅ → FE-127`;  `BE-153 → FE-130` (FE-120 ✅);  `FE-114…FE-124 (z FE-131…FE-134), FE-126…FE-129 → FE-125` (FE-130/BE-153, FE-135/FE-136 i BE-154…BE-156 nie blokują);  `FE-125 ✅ → FE-139, FE-140, FE-141, FE-142` (tura 59; wszystkie backlog, nie blokują epiku);  `FE-139 → FE-140` (wspólne pliki: softphone, customer-panel, email-contact, modale callbacków);  `FE-138 ↔ FE-139/FE-140` (wspólne pliki softphone/email-contact/adhoc-email-modal — kolejność dowolna, ale koordynować, by nie rozjeżdżać pomiaru kB);  `FE-129 ↔ FE-130` (KPI, powiązane);  `FE-127 ✅, FE-128 ✅ → zamknięcie EPIC-32` (FE-129 ✅ 2026-10-30; FE-125 ✅ zamknięty bez nich decyzją właściciela 2026-10-30; EPIC-32 ✅ zamknięty 2026-10-30, tura 61);  `FE-128 ✅ → FE-144, FE-145` (tura 61; backlog, nie blokują epiku; FE-144 do podziału po przeglądzie listy);  `FE-129 ✅ → FE-143 ✅` (tura 60; zamknięty w turze 62; wzorzec naprawy reaktywności z FE-129);  `FE-143 ✅ → FE-146` (tura 62; backlog, nie blokuje epiku; ten sam wzorzec w pozostałych ekranach);  `FE-125 ✅ → FE-141 ✅` (zamknięty w turze 62);  `FE-141 ✅ → FE-140` (tura 62: wspólny wzorzec hover `opacity: .88` zamiast `color-mix(... black)` w 4 plikach);  `FE-128 ✅ → FE-145 ✅` (zamknięty w turze 62);  `FE-147 ✅` (bez zależności; niestabilny test, zamknięty w turze 63 jako zabezpieczony, nieodtworzony);  `BE-157 ✅ → FE-136 ✅` (tura 64);  `FE-136 ✅ → FE-148 ✅, FE-149` (tura 64; FE-148 ✅ zamknięty w turze 65 — jeden `AsyncContactAcceptService` dla e-mail/SOCIAL i recovery; FE-149 backlog, nie blokuje epiku);  `BE-161 ✅ → FE-136` (fallback `assigned-contact` zawężony do samego 404, tura 65);  `BE-160 ✅ → FE-149` (endpoint `POST /api/contacts/{id}/release`);  `BE-155 ✅` (kontekst FE-148: kanał SOCIAL w ASSIGNED, bez twardej zależności);  `BE-157 ✅, FE-136 ✅ → BE-162` (deprecation `assigned-contact`, w `TASKS-BACKEND.md`);  `BE-161 ✅ ↔ FE-136 ✅` (BE-161 ✅ 2026-11-04; fallback FE-136 zawężony do 404 w turze 65, 500 → nieblokujący błąd);  `BE-157 ✅ → DB-088` (indeks pod `findActiveContactsForAgent`, ⬜ bramkowany wolumenem).
 
 ### FE-114 – Hardening momentu dzwonienia: widoczny baner, skróty klawiszowe, ściąga, Esc w modalach
 
@@ -6572,23 +6577,26 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (follow-up BE-153)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-153 (API `statusSince`), FE-120 ✅ (ukończony 2026-10-23, tura 50 — licznik po stronie klienta)
-**Status:** ⬜ Do zrobienia
-**Czeka na BE:** BE-153
-**Blokuje:** brak
+**Zależy od:** BE-153 ✅ (API `statusSince`, ukończony 2026-11-04, tura 66), FE-120 ✅ (ukończony 2026-10-23, tura 50 — licznik po stronie klienta)
+**Status:** ✅ Ukończone (2026-11-04, tura 66; `angular-frontend-expert`; gałąź `feature/status-since-message-events`, niezacommitowane; `CR-FRONTEND.md` „Review: FE-130 + FE-135” 2 rundy, 4/5; `npm test` 77 plików / 1076 testów, lint 0 błędów (10 ostrzeżeń), format OK)
+**Czeka na BE:** BE-153 ✅
+**Blokuje:** brak (następniki backlogu: BE-165, BE-166)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert`
 
 **Opis:** Po BE-153 `cc-status-elapsed` ma liczyć czas od `statusSince` zwróconego przez `GET /users/me` oraz z payloadu WS `AgentStatusChangedPayload`, dzięki czemu licznik przeżywa przeładowanie strony. Usuwa się adnotację „w tej sesji” z `title`/tekstu dla czytnika.
 
 **Kryteria akceptacji:**
-- [ ] Licznik startuje od `statusSince` z API; po przeładowaniu strony wartość jest ciągła (test + przeglądarka)
-- [ ] Zmiana statusu przez WS aktualizuje punkt startu licznika
-- [ ] Usunięta adnotacja „w tej sesji” (4 języki, brak martwych kluczy); fallback do czasu klienta, gdy API nie zwraca `statusSince` (stary backend)
-- [ ] WP-1…WP-6
+- [x] Licznik startuje od `statusSince` z API; po przeładowaniu strony wartość jest ciągła (testy + przeglądarka: 0:42 = 0:42 = DB między kartami)
+- [x] Zmiana statusu przez WS aktualizuje punkt startu licznika (reset przez WS z drugiej karty zweryfikowany w przeglądarce)
+- [x] Usunięta adnotacja „w tej sesji” (klucz `agent.status.breakDurationHint` usunięty w 4 językach, brak martwych kluczy); fallback do czasu klienta, gdy API nie zwraca `statusSince` (stary backend / `NULL`)
+- [x] WP-1…WP-6
 
 **Ryzyka:** (R1) rozjazd zegarów klient/serwer — liczyć względem czasu serwera lub odnotować tolerancję; (R2) rolling deploy FE przed BE — stąd fallback.
 **Nie wchodzi w zakres:** zmiany backendu (BE-153).
+
+**Notatka wykonania (2026-11-04, tura 66; `angular-frontend-expert`):** `AgentStatusService` bierze `statusSince` z `GET /users/me` i z payloadu WS; `statusEpisode` jako znacznik odtworzenia licznika; straż przed spóźnioną odpowiedzią `/users/me` (`statusSeq`); wartość licznika obcięta do ≥ 0 (rozjazd zegarów klient/serwer); `status-elapsed` bez adnotacji „w tej sesji”. Dług: dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje zdarzenia — FE zna nowy status dopiero z `GET /users/me` → BE-165; zapis tego samego statusu publikuje zdarzenie → BE-166.
+**Zależności (zaktualizowane w turze 66):** `Zależy od` BE-153 ✅, FE-120 ✅; `Czeka na BE` BE-153 ✅; `Blokuje` brak; następniki: BE-165, BE-166.
 
 ### FE-131 – WP-A (FE-121): Magazyn szkiców per kontakt (e-mail, social, notatka PHONE) bez ponownego `acceptContact` przy powrocie na kartę
 
@@ -6739,24 +6747,31 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Frontend implementation (follow-up, poza zakresem briefu FE-121)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** BE-154 (zdarzenie WS o nowej wiadomości), FE-133 (znaczniki kart)
-**Status:** ⬜ Do zrobienia
-**Czeka na BE:** BE-154
-**Blokuje:** brak
+**Zależy od:** BE-154 ✅ (zdarzenie WS o nowej wiadomości, 2026-11-04), FE-133 ✅ (znaczniki kart)
+**Status:** ✅ Ukończone (2026-11-04, tura 66; `angular-frontend-expert` + `impeccable harden` + `polish`; gałąź `feature/status-since-message-events`, niezacommitowane; `CR-FRONTEND.md` „Review: FE-130 + FE-135” 2 rundy, 4/5; `npm test` 77 plików / 1076 testów, lint 0 błędów (10 ostrzeżeń), format OK)
+**Czeka na BE:** BE-154 ✅
+**Blokuje:** brak (następniki backlogu: FE-150…FE-154)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` + `impeccable polish`
 
 **Opis:** Po BE-154 karta kontaktu e-mail/social ma pokazywać, że w nieaktywnej karcie czeka nowa wiadomość klienta. Znacznik dołącza do hierarchii z FE-133 (miejsce w priorytecie do ustalenia: proponowane ponad „Szkic”, pod „Rozmowa”), znika po otwarciu karty.
 
 **Kryteria akceptacji:**
-- [ ] Nowa wiadomość klienta w otwartym kontakcie e-mail/social oznacza nieaktywną kartę znacznikiem (ikona + tekst dla czytnika) i ogłoszeniem polite
-- [ ] Znacznik znika po aktywacji karty; stan „nieprzeczytane” tylko w pamięci
-- [ ] Kontrast AA w obu motywach; i18n w 4 językach
-- [ ] Fallback: stary backend bez zdarzenia — brak znacznika, bez błędów
-- [ ] WP-1…WP-7
+- [x] Nowa wiadomość klienta w otwartym kontakcie e-mail/social oznacza nieaktywną kartę znacznikiem UNREAD (ikona + `aria-label`) i pojedynczym ogłoszeniem polite (kolejka `queuedAnnouncements`), także przy otwartym kalendarzu
+- [x] Znacznik znika po aktywacji karty; stan „nieprzeczytane” tylko w pamięci
+- [x] Kontrast AA w obu motywach (6,30:1 jasny / 7,79:1 ciemny); i18n w 4 językach
+- [x] Fallback: stary backend bez zdarzenia — brak znacznika, bez błędów
+- [x] WP-1…WP-7 (WP-5 w przeglądarce local-demo; przy 913 px nazwa klienta ucięta do 2 liter — jak przy znacznikach FE-133, → FE-154; przy 1366 px poprawnie)
 
 **Ryzyka:** (R1) zdarzenie WS nie jest wysyłane dziś (front nasłuchuje `SOCIAL_MESSAGE_RECEIVED`, którego backend nie emituje) — nie zaczynać przed BE-154.
 **Nie wchodzi w zakres:** powiadomienia systemowe/dźwiękowe, trwałe liczniki nieprzeczytanych.
+
+**Notatka wykonania (2026-11-04, tura 66; `angular-frontend-expert` + `impeccable harden` + `polish`):**
+- `ContactTabStore.noteMessageReceived`/`syncUnread`, `ContactMessageListenerService` (nasłuch `CONTACT_MESSAGE_RECEIVED`); usunięty martwy `SOCIAL_MESSAGE_RECEIVED` (`ws-event.model.ts`, `social-message.model.ts`).
+- Odświeżenie wątku w aktywnej karcie: social — `mergeChronological` (wątek social jest teraz chronologiczny, przewinięcie na dół, kotwiczenie przy „starsze”); e-mail — tylko ostatnia strona i tylko gdy ciągła z wczytanym zakresem.
+- Weryfikacja w przeglądarce (local-demo): znacznik + `aria-label` + ogłoszenie polite, znika po aktywacji; odświeżenie wątku social w aktywnej karcie; e-mail live (Gmail tenanta): „Re: test1” dołączył do istniejącego kontaktu bez tworzenia nowego.
+- **Nowe tickety (backlog):** FE-150 (BUG: wątek e-mail > 20 wiadomości — stronicowanie odwrócone; potem odświeżenie bez warunku ciągłości), FE-151 (UNREAD poza `/agent/desktop` / karta w tle), FE-152 (resync po reconnect WS), FE-153 (odświeżenie e-mail: 2 GET), FE-154 (nazwa klienta ucięta przy ~913 px).
+**Zależności (zaktualizowane w turze 66):** `Zależy od` BE-154 ✅, FE-133 ✅; `Czeka na BE` BE-154 ✅; `Blokuje` brak; następniki: FE-150, FE-151, FE-152, FE-153, FE-154.
 
 ### FE-136 – Odtwarzanie kart po przeładowaniu strony: wiele kontaktów, SOCIAL, `ACTIVE` i ACW (`agent-recovery.service`)
 
@@ -6766,7 +6781,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zależy od:** FE-122 ✅ (ACW jako stan karty, 2026-10-29), FE-131 ✅ (magazyn szkiców), BE-157 ✅ (lista aktywnych kontaktów agenta, `fcb8fe5a`, 2026-10-31); kontekstowo BE-155 ✅ (kanał SOCIAL i kolejka)
 **Status:** ✅ Ukończone (2026-10-31, tura 64; zmiany niezacommitowane na gałęzi `feature/agent-active-contacts-recovery`; 4 rundy code review `CR-FRONTEND.md` 3,5 → 4 → 4/5, MEDIUM-R3-1 zamknięty w rundzie 4; `npm test` 74 plików / 995 testów (było 71/907), lint 0 błędów; `impeccable harden` w każdej rundzie, `detect` bez nowych znalezisk)
 **Czeka na BE:** BE-157 ✅ (ukończony 2026-10-31, `fcb8fe5a`) — `GET /api/agent/me/active-contacts` (tablica wszystkich aktywnych kontaktów agenta: `ASSIGNED`, `ACTIVE`, `ON_HOLD` i ACW; pole `phase` = `RINGING`/`IN_PROGRESS`/`WRAP_UP`, `wrapUpStartedAt`, `queueName`, `customerName`, `subject`; kolejność `assigned_at ASC`; maks. 20; `[]` gdy brak). Pytanie otwarte rozstrzygnięte 2026-10-23 (tura 52) — właściciel zatwierdził ticket BE-157. Stary `GET /api/agent/me/assigned-contact` zostaje (zgodność wsteczna), po FE-136 oznaczany jako deprecated.
-**Blokuje:** brak (następniki backlogu: FE-148, FE-149; powiązane BE-161, BE-162)
+**Blokuje:** brak (następniki backlogu: FE-148 ✅, FE-149; powiązane BE-161 ✅, BE-162 ✅)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `angular-frontend-expert` + `impeccable harden` (backend: `backend-dev-expert` w BE-157)
 
@@ -6781,17 +6796,18 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - [x] WP-1…WP-7 (WP-5 w przeglądarce local-demo z PODMIENIONĄ odpowiedzią `active-contacts` — agent testowy bez prawdziwych kontaktów; EN, ciemny motyw; patrz dług w notatce wykonania)
 
 **Notatka wykonania (2026-10-31, tura 64; `angular-frontend-expert` + `impeccable harden`):**
-- `agent-recovery.service` korzysta z `GET /api/agent/me/active-contacts` (jedno wywołanie, kolejność `assignedAt`); fallback do `assigned-contact` przy 404 ORAZ 500 (backend zwraca 500 dla nieznanej ścieżki — zob. BE-161; po BE-161 fallback można zawęzić do 404).
+- `agent-recovery.service` korzysta z `GET /api/agent/me/active-contacts` (jedno wywołanie, kolejność `assignedAt`); fallback do `assigned-contact` przy 404 ORAZ 500 (backend zwracał 500 dla nieznanej ścieżki — zob. BE-161; po BE-161 ✅ fallback zawężony do 404 — notatka z tury 65 poniżej).
 - Fazy: `RINGING` — dzwonek (PHONE) lub jednokrotny accept (`acceptOnce`) dla e-mail/SOCIAL; `IN_PROGRESS` — bez ponownego accept; PHONE → karta `callNotRestored` z przyciskiem „Sprawdź ponownie” i pollingiem co 20 s (także po ukryciu karty) do przejścia kontaktu w ACW; `WRAP_UP` — karta ACW z licznikiem od `wrapUpStartedAt`.
 - Priorytet slotów PHONE; nadmiarowe kontakty nie giną po cichu: komponent `cc-recovery-overflow-notice` („poza limitem kart”, powody `UNSUPPORTED_CHANNEL` / `OTHER_CALL_ACTIVE`).
 - Brak zapisu szkiców w przeglądarce; `reset()` przy wylogowaniu, odtwarzanie działa też po ponownym zalogowaniu bez F5; `AFTER_CONTACT` ustawiany cicho tylko gdy bezpieczne.
 - Pliki: `agent-recovery.service.ts` (+ spec), `agent-shell.component.ts`, `agent-status.service.ts`, `contact-tab.store.ts`, `contact-tab.model.ts`, nowy `active-contact.model.ts`, `softphone.component.*` (karta `callNotRestored`, `softphone.not-restored.spec.ts`), `agent-desktop.component.*`, `recovery-overflow-notice/`, klucze i18n w 4 językach.
 - **Dług:** brak testu z prawdziwymi kontaktami i Twilio (WP-5 na podmienionej odpowiedzi); czytnik ekranu niesprawdzony; motyw jasny i 1366 px niesprawdzone; budżet `softphone.component.scss` 14,76 kB (stare przekroczenie → FE-138). **Nowe tickety backlogu:** FE-148 (accept SOCIAL na ścieżce na żywo), FE-149 („Zwróć do kolejki” z komunikatu poza limitem); BE-161 (404 zamiast 500), BE-162 (deprecation `assigned-contact`).
+**Notatka (2026-11-04, tura 65 — zawężenie fallbacku po BE-161 ✅):** fallback `agent-recovery.service` do `GET /api/agent/me/assigned-contact` obejmuje teraz wyłącznie 404 (starszy backend bez `active-contacts`); 500 traktowany jest jak zwykły błąd — nieblokujący (pulpit działa, błąd bez przerwania). Powód: BE-161 ✅ (handler `NoResourceFoundException` → 404 `problem+json`) usunął fałszywe 500 dla nieznanej ścieżki. Zmiana w gałęzi `fix/social-contact-accept` razem z FE-148; bez osobnego ticketu. Zależności: `BE-161 ✅ → FE-136` (fallback 404).
 **Notatka (2026-10-29, z FE-122):** po F5 stan ACW karty (`wrappingSince`, szkic dyspozycji) nie jest odtwarzany — odtworzenie karty ACW z `phase=WRAP_UP` należy do tego ticketu (R3); szkice w pamięci nie są trwałe (RODO).
 **Notatka (2026-10-29, z FE-123 — niezbadany objaw):** kontakt w stanie `ACTIVE` nie jest odtwarzany po ponownym zalogowaniu — `agent-recovery.service` korzysta dziś z `GET /api/agent/me/assigned-contact`, który zwraca tylko kontakt `ASSIGNED`. To jest już pokryte zakresem tego ticketu i BE-157 (`active-contacts` obejmuje `ACTIVE`/`ON_HOLD`, `phase=IN_PROGRESS`), więc NIE zakładano osobnego ticketu BE. Do sprawdzenia przy realizacji: scenariusz „wylogowanie → ponowne logowanie” (nie tylko F5) — czy `agent-recovery.service` jest uruchamiany także po ponownym zalogowaniu bez przeładowania strony, oraz test z kontaktem `ACTIVE` bez ponownego `acceptContact`.
 **Ryzyka:** (R1) kontakty `SOCIAL` pojawią się na liście dopiero po BE-155 (bug kanału); ACW to stan pochodny backendu (`COMPLETED` bez dyspozycji, tylko `PHONE`, okno 12 h) — czas ACW to `endedAt`, nie dokładny moment wejścia; (R2) rozbieżność liczby kart z limitami (`MAX_*_TABS`) — zob. BE-156.
 **Nie wchodzi w zakres:** trwałość szkiców po przeładowaniu, odtwarzanie rozmowy WebRTC.
-**Zależności (zaktualizowane w turze 64):** `Zależy od` FE-122 ✅, FE-131 ✅, BE-157 ✅; `Czeka na BE` BE-157 ✅; `Blokuje` brak; następniki: FE-148, FE-149; powiązane: BE-155 ✅, BE-160 ✅ (użyty w FE-149), BE-161 (fallback 404/500), BE-162 (deprecation endpointu zastępowanego).
+**Zależności (zaktualizowane w turze 64):** `Zależy od` FE-122 ✅, FE-131 ✅, BE-157 ✅; `Czeka na BE` BE-157 ✅; `Blokuje` brak; następniki: FE-148 ✅ (tura 65), FE-149; powiązane: BE-155 ✅, BE-160 ✅ (użyty w FE-149), BE-161 ✅ (fallback zawężony do 404 w turze 65), BE-162 ✅ (deprecation endpointu zastępowanego, tura 65).
 
 
 ### FE-137 – Migracja literałów `px` w `@media` poza powierzchnią agenta i powłoką na skalę breakpointów
@@ -7138,14 +7154,14 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Nie wchodzi w zakres:** refaktor pozostałych specs.
 
 
-### FE-148 – Akceptacja kontaktu SOCIAL w `ASSIGNED` na ścieżce na żywo (`social-contact.component` nie wysyła `POST /api/contacts/{id}/accept`)
+### FE-148 – Akceptacja kontaktu SOCIAL w `ASSIGNED` na ścieżce na żywo (`social-contact.component` nie wysyłał `POST /api/contacts/{id}/accept`) ✅
 
 **Typ:** Bug / Frontend implementation (kanały asynchroniczne; wymaga potwierdzenia po stronie BE)
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** FE-136 ✅ (recovery już wysyła accept dla RINGING SOCIAL — `acceptOnce`); kontekst: BE-155 ✅ (kanał SOCIAL trafia do agenta)
-**Status:** ⬜ Do zrobienia
-**Czeka na BE:** potwierdzenie (bez nowego ticketu BE, o ile potwierdzi się obecne zachowanie): przejście `ASSIGNED` → `ACTIVE` po `POST /api/contacts/{id}/accept` dla kanału SOCIAL oraz pomijanie przez `ContactAssignmentMonitor` kontaktów zaakceptowanych
+**Status:** ✅ Ukończone (2026-11-04, tura 65; gałąź `fix/social-contact-accept`, niezacommitowane, niewypchnięta; CR-FRONTEND.md 3,5 → 4,5/5, MINOR-R2-1 zamknięty w rundzie 3; `npm test` 75 plików / 1023 testy (było 74/995); `impeccable harden` w każdej rundzie; bez zmian UI/i18n)
+**Czeka na BE:** ✅ potwierdzone odczytem kodu 2026-11-04 (bez nowego ticketu BE; zob. notatka wykonania) — potwierdzenie (bez nowego ticketu BE, o ile potwierdzi się obecne zachowanie): przejście `ASSIGNED` → `ACTIVE` po `POST /api/contacts/{id}/accept` dla kanału SOCIAL oraz pomijanie przez `ContactAssignmentMonitor` kontaktów zaakceptowanych
 **Blokuje:** brak (backlog, nie blokuje epiku)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu; wynik FE-136)
 **Wykonawca:** `angular-frontend-expert` + `impeccable harden` (potwierdzenie BE: `backend-dev-expert`)
@@ -7159,15 +7175,23 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Potwierdzić z BE (`backend-dev-expert`, odczyt kodu `acceptContact`/`acceptIfAssigned` i `ContactAssignmentMonitor`): przejście `ASSIGNED` → `ACTIVE` i pominięcie kontaktu przez monitor po accept; wynik zapisać w notatce wykonania (jeśli monitor nadal przekolejkowuje — osobny ticket BE).
 
 **Kryteria akceptacji:**
-- [ ] Kontakt SOCIAL w `ASSIGNED` otwarty na żywo jest akceptowany dokładnie raz (`POST /api/contacts/{id}/accept`), bez podwójnego accept z recovery
-- [ ] Akceptacja kart asynchronicznych w jednym serwisie z guardem `markAccepted`/`unmarkAccepted`; błąd accept cofa znacznik i nie zostawia karty w stanie „zaakceptowany”
-- [ ] Test jednostkowy dokładnie jednego accept (na żywo i po recovery)
-- [ ] Potwierdzone z BE: `ASSIGNED` → `ACTIVE` po accept i pominięcie kontaktu przez `ContactAssignmentMonitor`; wynik w notatce
-- [ ] WP-1…WP-7 (z `impeccable harden`)
+- [x] Kontakt SOCIAL w `ASSIGNED` otwarty na żywo jest akceptowany dokładnie raz (`POST /api/contacts/{id}/accept`), bez podwójnego accept z recovery
+- [x] Akceptacja kart asynchronicznych w jednym serwisie z guardem `markAccepted`/`unmarkAccepted`; błąd accept cofa znacznik i nie zostawia karty w stanie „zaakceptowany”
+- [x] Test jednostkowy dokładnie jednego accept (na żywo i po recovery)
+- [x] Potwierdzone z BE: `ASSIGNED` → `ACTIVE` po accept i pominięcie kontaktu przez `ContactAssignmentMonitor`; wynik w notatce
+- [x] WP-1…WP-7 (z `impeccable harden`; WP-5 NIE wykonane w przeglądarce — dług, zob. notatka)
+
+**Notatka wykonania (2026-11-04, tura 65; `angular-frontend-expert` + `impeccable harden` w każdej rundzie; bez zmian UI i i18n):**
+- Nowy `AsyncContactAcceptService` (`frontend/src/app/features/agent/services/async-contact-accept.service.ts` + spec): accept kart asynchronicznych (EMAIL/SOCIAL; predykat `isAsyncAcceptable` = typ ≠ PHONE, wspólny z recovery) dokładnie raz, guard `ContactDraftStore.markAccepted`. Jeden trigger w `ContactTabStore.openFromContactAssigned` — tylko po udanym `openTab` (więc nie dla kontaktów odrzuconych limitem kart); obejmuje ścieżkę live i ponowne otwarcie po zwrocie do kolejki; redelivery `CONTACT_ASSIGNED` dla otwartej karty ponawia nieudany accept; mount kart e-mail/social to siatka bezpieczeństwa.
+- Accept cichy (`SKIP_ERROR_TOAST`); status 0/5xx ponawiany 2× (1 s, 2 s), po wyczerpaniu znacznik cofany (`unmarkAccepted`); 4xx zachowuje znacznik + `console.warn`. Epoka znacznika (`acceptEpoch`) anuluje ponowienia przy wylogowaniu, zwrocie i nowym przypisaniu. `agent-recovery.service` (`acceptOnce`) i `email-contact.component` korzystają z tego samego mechanizmu.
+- **Potwierdzenie BE (odczyt kodu, bez zmian):** `acceptContact` jest niezależny od kanału; warunkowy UPDATE `ASSIGNED` → `ACTIVE` (`acceptIfAssigned`), kontakt już `ACTIVE` → 200 idempotentnie; `ContactAssignmentMonitor` bierze tylko `ASSIGNED`, więc zaakceptowany kontakt nie jest przekolejkowywany. R1 nie zaszło — brak nowego ticketu BE. Przy okazji zapisano drobną notkę porządkową w BE-163 (Javadoc monitora i opisy accept mówią „EMAIL/CHAT”, a dotyczy każdego kanału; CHAT nie istnieje w `contact.channel`).
+- Dodatkowo w tej gałęzi: fallback FE-136 do `assigned-contact` zawężony z „404 lub 500” do samego 404 (po BE-161 ✅; zob. notatka w FE-136).
+- Pliki: `async-contact-accept.service.ts` (+ spec, nowe), `contact-tab.store.ts` (+ spec), `contact-draft.store.ts`, `contact.service.ts`, `agent-recovery.service.ts` (+ spec), `email-contact.component.ts` (+ spec szkiców), `social-contact.component.ts` (+ spec), `incoming-call-alert.service.ts` (+ spec), `agent-desktop.tabs.spec.ts`.
+- **Dług:** WP-5 (weryfikacja w przeglądarce) NIE wykonana — ścieżka live wymaga prawdziwego przypisania kontaktu SOCIAL, a zmiana nie ma efektu wizualnego; kryteria pokryte testami jednostkowymi.
 
 **Ryzyka:** (R1) jeśli BE nie traktuje accepta SOCIAL tak jak e-mail (np. brak przejścia statusu), potrzebny osobny ticket BE; (R2) wspólne pliki z FE-131/FE-136 (`ContactDraftStore`, `agent-recovery.service`) — uzgodnić kolejność merge.
 **Nie wchodzi w zakres:** zmiany `ContactAssignmentMonitor` (jeśli potwierdzenie wykaże błąd — nowy ticket BE), nowe kanały.
-**Zależności:** `Zależy od` FE-136 ✅; kontekst BE-155 ✅; `Blokuje` brak; powiązane: BE-159 (`ContactAssignmentMonitor.handleMaxRetriesExceeded` — ścieżka zapisu bez guardu).
+**Zależności (zaktualizowane w turze 65):** `Zależy od` FE-136 ✅; kontekst BE-155 ✅; `Czeka na BE` potwierdzone (bez zmian po stronie BE); `Blokuje` brak; powiązane: BE-159 (`ContactAssignmentMonitor.handleMaxRetriesExceeded` — ścieżka zapisu bez guardu), BE-161 ✅ (zawężenie fallbacku FE-136 w tej samej gałęzi), BE-163 (notka porządkowa „EMAIL/CHAT”).
 
 ### FE-149 – Przycisk „Zwróć do kolejki” przy pozycjach `cc-recovery-overflow-notice`
 
@@ -7199,6 +7223,122 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Ryzyka:** (R1) zwrot kontaktu `RINGING` ma inne skutki dla routingu (anti-ping-pong, `ReleaseExclusionStore`) — potwierdzić z BE-160/BE-156; (R2) ryzyko pomylenia z × z FE-132 (to samo wywołanie, inny punkt wejścia).
 **Nie wchodzi w zakres:** zmiany BE, przebudowa logiki limitów kart (BE-156), trwałość komunikatu po F5.
 **Zależności:** `Zależy od` FE-136 ✅, BE-160 ✅; `Blokuje` brak; powiązane: FE-132 ✅ (wzorzec „Zwróć do kolejki”).
+
+### FE-150 – [BUG] Wątek e-mail > 20 wiadomości: pierwsze ładowanie czyta stronę 0 (najstarsze), `hasMore` odwrócone
+
+**Typ:** Bug / Frontend implementation (kanał e-mail)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-135 ✅ (odświeżenie wątku z warunkiem ciągłości — do usunięcia w tym tickecie)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak (backend sortuje `ORDER BY createdAt ASC`; jeśli endpoint nie pozwala czytać od końca — odwrócenie po stronie FE przez `totalPages` z pierwszej odpowiedzi, ewentualnie parametr sortowania po stronie BE do rozstrzygnięcia przy realizacji)
+**Blokuje:** FE-153 (przebudowuje to samo odświeżenie na odwróconym stronicowaniu; zalecana kolejność FE-150 → FE-153)
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-135)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** W `email-contact.component` pierwsze ładowanie wątku czyta stronę 0, czyli NAJSTARSZE wiadomości (backend `ORDER BY createdAt ASC`), a flaga `hasMore` jest odwrócona względem faktycznego stanu. Przy wątku > 20 wiadomości agent widzi początek wątku zamiast najnowszych wiadomości. Należy odwrócić stronicowanie (najnowsza strona jako pierwsza, „starsze” dociąga wcześniejsze), a następnie uprościć odświeżenie z FE-135 — usunąć warunek ciągłości (ostatnia strona zawsze dokleja się do wczytanego zakresu).
+
+**Kryteria akceptacji:**
+- [ ] Wątek > 20 wiadomości otwiera się na najnowszych wiadomościach; „starsze” dociąga poprzednie strony w poprawnej kolejności; `hasMore` zgodne ze stanem (testy dla 20, 21, 40, 41 wiadomości)
+- [ ] Odświeżenie po `CONTACT_MESSAGE_RECEIVED` nie wymaga warunku ciągłości i nie duplikuje wiadomości
+- [ ] Brak regresji kotwiczenia przewijania i dostępności listy (WP-1…WP-7)
+
+**Ryzyka:** (R1) zmiana kolejności stron może zdublować wiadomość na granicy stron — scalanie po `messageId`; (R2) wspólny kod z FE-153.
+**Nie wchodzi w zakres:** zmiany routingu/joinu e-mail po stronie BE (BE-164, BE-167).
+**Zależności:** `Zależy od` FE-135 ✅; `Blokuje` FE-153; powiązane: FE-152.
+
+### FE-151 – Znacznik UNREAD i ogłoszenie nowej wiadomości poza `/agent/desktop` i przy karcie przeglądarki w tle
+
+**Typ:** Frontend implementation (UX / dostępność)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-135 ✅, BE-154 ✅ (zdarzenie WS)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-135)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Znacznik UNREAD i ogłoszenie z FE-135 działają, gdy agent jest na `/agent/desktop` przy aktywnym oknie. Gdy agent jest na innej trasie (np. `/agent/profile`, kalendarz poza pulpitem) lub karta przeglądarki jest w tle, nowa wiadomość nie jest sygnalizowana (nasłuch i stan są związane z pulpitem). Należy przenieść nasłuch na poziom powłoki agenta oraz dodać sygnał dla karty w tle (np. tytuł dokumentu / odznaka w nawigacji — decyzja UX w `impeccable clarify`), bez powiadomień systemowych/dźwiękowych.
+
+**Kryteria akceptacji:**
+- [ ] Wiadomość odebrana na innej trasie agenta oznacza kartę kontaktu UNREAD; po powrocie na pulpit znacznik jest widoczny
+- [ ] Przy karcie przeglądarki w tle nowa wiadomość jest sygnalizowana w sposób dostępny (ustalony w UX), znika po powrocie
+- [ ] Pojedyncze ogłoszenie polite (bez dubli przy wielu wiadomościach); i18n w 4 językach; kontrast AA
+- [ ] WP-1…WP-7
+
+**Ryzyka:** (R1) dublowanie nasłuchu z `ContactMessageListenerService`; (R2) zmiana tytułu dokumentu a czytniki ekranu.
+**Nie wchodzi w zakres:** powiadomienia systemowe/dźwiękowe, trwałe liczniki.
+**Zależności:** `Zależy od` FE-135 ✅, BE-154 ✅; `Blokuje` brak; powiązane: FE-152.
+
+### FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS
+
+**Typ:** Frontend implementation (odporność)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** FE-135 ✅; zalecana kolejność po FE-150 i FE-153 (korzysta z odświeżenia wątku e-mail)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-135)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** Zdarzenia `CONTACT_MESSAGE_RECEIVED` z okresu rozłączenia WS nie są odtwarzane — po ponownym połączeniu otwarte karty e-mail/social mogą nie mieć nowych wiadomości, a znaczniki UNREAD nie powstają. Po reconnect należy odświeżyć wątki otwartych kart (i ustawić UNREAD dla nieaktywnych, jeśli doszły wiadomości).
+
+**Kryteria akceptacji:**
+- [ ] Po ponownym połączeniu WS otwarte karty e-mail/social odświeżają wątek (jedno zapytanie na kartę, bez burzy żądań)
+- [ ] Nieaktywna karta z nowymi wiadomościami dostaje UNREAD; aktywna odświeża się bez migotania
+- [ ] Testy (reconnect, brak nowych wiadomości, błąd odświeżenia nie blokuje pulpitu); WP-1…WP-7
+
+**Ryzyka:** (R1) wykrycie „nowych” wiadomości bez licznika po stronie serwera (porównanie ostatniego `messageId`/`receivedAt`); (R2) burza żądań przy wielu kartach.
+**Nie wchodzi w zakres:** trwały licznik nieprzeczytanych po stronie serwera, odtwarzanie zdarzeń przez BE.
+**Zależności:** `Zależy od` FE-135 ✅; `Blokuje` brak; powiązane: FE-136 ✅ (recovery po przeładowaniu), FE-150, FE-151, FE-153.
+
+### FE-153 – Odświeżenie wątku e-mail: 2 GET (próba + ostatnia strona) pomija wiadomość na granicy strony
+
+**Typ:** Bug / Hardening (Frontend, kanał e-mail)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** FE-135 ✅; zalecana kolejność po FE-150 (ta sama funkcja odświeżenia na odwróconym stronicowaniu)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-135)
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Odświeżenie wątku e-mail wykonuje dwa żądania GET: próbne (liczba wiadomości/stron) i pobranie ostatniej strony. Wiadomość, która przyjdzie na granicy strony między tymi żądaniami, jest pomijana do następnego zdarzenia. Po FE-150 należy sprowadzić odświeżenie do jednego żądania lub zabezpieczyć je (ponowne sprawdzenie sumy po pobraniu).
+
+**Kryteria akceptacji:**
+- [ ] Wiadomość docierająca między żądaniami nie jest gubiona (test z przesuwającą się granicą strony)
+- [ ] Odświeżenie wykonuje jedno żądanie albo weryfikuje spójność i ponawia raz
+- [ ] Brak regresji z FE-150/FE-135; WP-1…WP-7
+
+**Ryzyka:** (R1) pętla ponowień — ograniczyć do jednego ponowienia.
+**Nie wchodzi w zakres:** zmiany kontraktu API (chyba że konieczne — wtedy ticket BE).
+**Zależności:** `Zależy od` FE-135 ✅, FE-150 (zalecane przed); `Blokuje` brak; powiązane: FE-152.
+
+### FE-154 – Nazwa klienta zwężona do 2 liter na karcie ze znacznikiem przy wąskim viewport (~913 px)
+
+**Typ:** Bug / UX (Frontend, układ kart kontaktów)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** FE-133 ✅ (znaczniki stanu kart), FE-135 ✅ (znacznik UNREAD)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-135/FE-133)
+**Wykonawca:** `angular-frontend-expert` + `impeccable layout`
+
+**Opis:** Przy szerokości ~913 px nazwa klienta na karcie z znacznikiem (UNREAD, a także znaczniki FE-133) jest przycinana do 2 liter; przy 1366 px układ jest poprawny. Należy przeprojektować układ karty (zwężenie/ukrycie tekstu znacznika, pozostawienie ikony z `aria-label`, minimalna szerokość nazwy), nie pogarszając kontrastu ani dostępności.
+
+**Kryteria akceptacji:**
+- [ ] Przy 913 px nazwa klienta ma co najmniej czytelną, ustaloną minimalną szerokość (np. ≥ 8 znaków lub wielokropek po sensownym fragmencie) dla kart z każdym typem znacznika
+- [ ] Znacznik pozostaje dostępny (ikona + `aria-label`), kontrast AA w obu motywach; brak regresji przy 1366 px i 1920 px
+- [ ] Weryfikacja w przeglądarce przy 913/1056/1366 px; WP-1…WP-7
+
+**Ryzyka:** (R1) kolizja z układem 1366×768 (FE-123 ✅) i skalą breakpointów.
+**Nie wchodzi w zakres:** zmiany hierarchii znaczników (FE-133).
+**Zależności:** `Zależy od` FE-133 ✅, FE-135 ✅; `Blokuje` brak; powiązane: FE-123 ✅.
 
 ## Bez epiku
 

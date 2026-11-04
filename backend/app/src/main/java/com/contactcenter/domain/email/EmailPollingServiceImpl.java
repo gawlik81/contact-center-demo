@@ -39,6 +39,7 @@ class EmailPollingServiceImpl implements EmailPollingService {
     private final EmailEncryptionService encryptionService;
     private final EmailAttachmentStorageService attachmentStorageService;
     private final ObjectMapper objectMapper;
+    private final EmailFollowUpJoiner followUpJoiner;
 
     @Value("${email.poll-delay-ms:60000}")
     private long pollDelayMs;
@@ -213,10 +214,22 @@ class EmailPollingServiceImpl implements EmailPollingService {
         // Publikuj event received
         emailEventPublisher.publishReceived(saved);
 
+        // BE-154: follow-up w wątku otwartego, przydzielonego kontaktu dołącza do niego (bez nowego
+        // kontaktu/routingu) i powiadamia agenta zdarzeniem WS. Pierwsza wiadomość wątku -> routing.
+        if (followUpJoiner.tryJoin(saved, tenant.getId(), ownMailbox(tenant))) {
+            return true;
+        }
+
         // Routuj do kolejki
         emailRoutingService.route(saved, tenant.getConfig());
 
         return true;
+    }
+
+    /** Tenant's own mailbox address (email config username) or null when not configured. */
+    private static String ownMailbox(Tenant tenant) {
+        EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());
+        return config != null ? config.getUsername() : null;
     }
 
     /**

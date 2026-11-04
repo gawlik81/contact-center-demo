@@ -56,13 +56,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 4 | 0 | 6 | 0 | 10 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 10 | 0 | 18 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **147** | **0** | **16** | **3** | **166** | |
+| **RAZEM** | | **151** | **0** | **20** | **3** | **174** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -96,14 +96,22 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 
 | ID | Nazwa | Status |
 |----|-------|--------|
-| BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ⬜ Do zrobienia — blokuje FE-130 |
-| BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social | ⬜ Do zrobienia — blokuje FE-135 |
+| BE-153 | `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu | ✅ Ukończone (2026-11-04, tura 66; po DB-089 ✅/V144; CR 4,5/5) — odblokował FE-130 (✅) |
+| BE-154 | Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social (+ nowa ścieżka follow-up e-mail przez `In-Reply-To`) | ✅ Ukończone (2026-11-04, tura 66; CR 4,5/5) — odblokował FE-135 (✅) |
 | BE-156 | Routing egzekwuje `queue.max_concurrent_contacts_per_agent` i uwzględnia obciążenie agenta (e-mail/social) | ⬜ Do zrobienia |
 | BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ✅ Ukończone (2026-10-31, `fcb8fe5a`) — odblokował FE-136 (✅) |
 | BE-159 | Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela; powiązany z BE-156) | ⬜ Do zrobienia — propozycja |
 | BE-160 | `POST /api/contacts/{id}/release` — zwrot kontaktu async do kolejki (koniec FIFO), `ReleaseExclusionStore` (wycinek BE-156), poprawki CR (`acceptIfAssigned`, guard AGENT) | ✅ Ukończone (2026-10-29) — blokuje FE-132 (✅) |
-| BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ⬜ Do zrobienia |
-| BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ⬜ Do zrobienia |
+| BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65; z odstępstwem: także 405 `problem+json`; CR 4/5) |
+| BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65) |
+| BE-163 | Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (415/406/400/413/503 zamiast 500; wynik CR BE-161; tura 65) | ⬜ Do zrobienia |
+| BE-164 | EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner` (omija `EmailContactCreator`; wynik BE-154; tura 66) | ⬜ Do zrobienia |
+| BE-165 | Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS — FE nie zna nowego statusu/`statusSince` do `GET /users/me` (wynik BE-153; tura 66) | ⬜ Do zrobienia |
+| BE-166 | Wyciszenie `agent.status.changed` przy zapisie tego samego statusu (wynik BE-153; tura 66) | ⬜ Do zrobienia |
+| BE-167 | Join follow-upu e-mail: `In-Reply-To` z wieloma ID i nagłówek `References` (wynik BE-154; tura 66) | ⬜ Do zrobienia |
+| BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ⬜ Do zrobienia |
+| BE-169 | Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses` (tura 66) | ⬜ Do zrobienia |
+| BE-170 | [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail (ryzyko zaakceptowane przez właściciela; wynik BE-154; tura 66) | ⬜ Do zrobienia — opcjonalny |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8417,17 +8425,17 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 4/10** · ✅ 4 · 🔧 0 · ⬜ 6 · 🚫 0
+**Ukończone 8/18** · ✅ 8 · 🔧 0 · ⬜ 10 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Następne wolne numery: BE-163, FE-150, DB-089.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Następne wolne numery: BE-171, FE-155, DB-090.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
 **Typ:** Feature (Backend, API)
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** brak twardych (kontekst: FE-120 ✅ — licznik przerwy liczony dziś po stronie klienta, bo API nie zwraca czasu zmiany statusu)
-**Status:** ⬜ Do zrobienia
+**Zależy od:** DB-089 ✅ (kolumna `app_user.status_changed_at`, migracja V144, 2026-11-04 — migracja wydzielona do osobnego ticketu w trakcie realizacji, zgodnie z zakresem); kontekst: FE-120 ✅ — licznik przerwy liczony dotąd po stronie klienta, bo API nie zwracało czasu zmiany statusu
+**Status:** ✅ Ukończone (2026-11-04, tura 66; `backend-dev-expert`; gałąź `feature/status-since-message-events` (od `fix/social-contact-accept`), niezacommitowane; `CR-BACKEND.md` „Review: BE-153 + BE-154 (+ DB-089)” 2 rundy, APPROVE 4,5/5; `mvn verify` 2918 testów, 0 F, 0 E, 1 pominięty)
 **Blokuje:** FE-130
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `backend-dev-expert`
@@ -8440,23 +8448,28 @@ backend/app/src/test/java/com/contactcenter/
 - Tenant isolation; brak wycieku `statusSince` innych agentów przez endpointy bez uprawnień; OpenAPI zaktualizowane.
 
 **Kryteria akceptacji:**
-- [ ] `GET /users/me` zwraca `statusSince` zgodny z ostatnią zmianą statusu (test integracyjny)
-- [ ] Zdarzenie WS zmiany statusu zawiera `statusSince` (test)
-- [ ] Zmiana statusu przez `AgentBreakActivator` aktualizuje `statusSince`
-- [ ] Pole opcjonalne (zgodność wsteczna z FE bez FE-130); OpenAPI/dokumentacja zaktualizowane
-- [ ] `mvn verify -pl app` zielone
+- [x] `GET /users/me` zwraca `statusSince` zgodny z ostatnią zmianą statusu (test integracyjny `UserStatusSinceIntegrationTest`)
+- [x] Zdarzenie WS zmiany statusu zawiera `statusSince` (`RabbitToWebSocketRelayStatusSinceTest`)
+- [x] Zmiana statusu przez `AgentBreakActivator` aktualizuje `statusSince` (`AgentBreakStatusSinceIntegrationTest`); także natywny UPDATE dialera `AFTER_CONTACT` ustawia kolumnę (`DialerAfterContactStatusSinceIntegrationTest`) — ale BEZ publikacji zdarzenia (→ BE-165)
+- [x] Pole opcjonalne (`NULL` = nieznane → `statusSince = null`, zgodność wsteczna z FE bez FE-130); OpenAPI/dokumentacja zaktualizowane
+- [x] `mvn verify -pl app` zielone (2918 testów; z DB-089: migracja V144 zastosowana w Testcontainers)
 
 **Ryzyka:** (R1) brak trwałego źródła czasu zmiany statusu może wymagać migracji DB; (R2) zmiana kontraktu WS — zachować kompatybilność wsteczną.
 **Nie wchodzi w zakres:** historia statusów, raportowanie czasu w statusach, zmiany FE (FE-130).
-**Zależności (tura 50):** `Zależy od` brak; `Blokuje` FE-130.
+**Notatka wykonania (2026-11-04, tura 66; `backend-dev-expert`):**
+- Źródło czasu: kolumna `app_user.status_changed_at` (DB-089 ✅, V144) — ustawiana przez `AppUser.changeStatus` przy każdej zmianie statusu; wartość `NULL` oznacza „nieznane”.
+- `UserResponse.statusSince` (`GET /users/me`), `AgentStatusPayload.statusSince` w WS (`WebSocketEvent`) oraz `AgentStatusChangedEvent.statusSince` (RabbitMQ `agent.status.changed`); `RabbitToWebSocketRelay` przenosi pole do payloadu WS; natywny UPDATE dialera (`DialerCallbackHandlerImpl`, `AFTER_CONTACT`) ustawia kolumnę.
+- Testy: `UserStatusSinceIntegrationTest`, `AgentBreakStatusSinceIntegrationTest`, `DialerAfterContactStatusSinceIntegrationTest`, `RabbitToWebSocketRelayStatusSinceTest`.
+- **Poza zakresem / nowe tickety:** dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS → **BE-165**; zdarzenie publikowane także przy zapisie tego samego statusu → **BE-166**.
+**Zależności (zaktualizowane w turze 66):** `Zależy od` DB-089 ✅; `Blokuje` FE-130 (✅ ukończony w tej samej turze); następniki (backlog): BE-165 (publikacja przy `AFTER_CONTACT`), BE-166 (wyciszenie duplikatów).
 
 ### BE-154 – Zdarzenie WS o nowej wiadomości w otwartym kontakcie e-mail/social
 
 **Typ:** Feature (Backend, WebSocket)
 **Priorytet:** Should Have
 **Złożoność:** S/M
-**Zależy od:** brak
-**Status:** ⬜ Do zrobienia
+**Zależy od:** brak twardych (kontekst: BE-155 ✅ — kanał social trafia do agenta)
+**Status:** ✅ Ukończone (2026-11-04, tura 66; `backend-dev-expert`; gałąź `feature/status-since-message-events`, niezacommitowane; `CR-BACKEND.md` „Review: BE-153 + BE-154 (+ DB-089)” 2 rundy, APPROVE 4,5/5; `mvn verify` 2918 testów, 0 F, 0 E, 1 pominięty; weryfikacja na żywo: e-mail z tenantowego Gmaila „Re: test1” dołączył do istniejącego kontaktu, bez nowego kontaktu)
 **Blokuje:** FE-135
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta
 **Wykonawca:** `backend-dev-expert`
@@ -8469,14 +8482,19 @@ backend/app/src/test/java/com/contactcenter/
 - Kontrakt WS udokumentowany (OpenAPI/dokumentacja zdarzeń); zgodność wsteczna — nieznany typ jest ignorowany przez starszy front.
 
 **Kryteria akceptacji:**
-- [ ] Kolejna wiadomość w kontakcie z przydzielonym agentem publikuje zdarzenie tylko do TEGO agenta i tenanta (test integracyjny, w tym izolacja tenantów)
-- [ ] Payload nie zawiera treści wiadomości; zawiera `contactId`, `channel`, `messageId`, `receivedAt`
-- [ ] Pierwsza wiadomość nowego kontaktu nie publikuje tego zdarzenia (ścieżka routingu bez zmian)
-- [ ] Nazwa zdarzenia uzgodniona z FE i spójna z `ws-event.model.ts`; `mvn verify -pl app` zielone
+- [x] Kolejna wiadomość w kontakcie z przydzielonym agentem publikuje zdarzenie tylko do TEGO agenta i tenanta (testy integracyjne `EmailFollowUpEventIntegrationTest` (20), `SocialFollowUpEventIntegrationTest`, `SocialContactQueueIntegrationTest`; `ContactMessageReceivedPublisherTest`)
+- [x] Payload nie zawiera treści wiadomości; zawiera `contactId`, `channel`, `messageId`, `receivedAt`
+- [x] Pierwsza wiadomość nowego kontaktu nie publikuje tego zdarzenia (ścieżka routingu bez zmian)
+- [x] Nazwa zdarzenia `CONTACT_MESSAGE_RECEIVED` uzgodniona z FE i spójna z `ws-event.model.ts` (martwy `SOCIAL_MESSAGE_RECEIVED` usunięty po stronie FE w FE-135); `mvn verify -pl app` zielone (2918 testów)
 
 **Ryzyka:** (R1) zależność od BE-155 — dopóki social nie trafia do agenta, zdarzenie dla social jest niewidoczne w praktyce (e-mail działa niezależnie); (R2) zmiana kontraktu WS — zachować zgodność wsteczną.
 **Nie wchodzi w zakres:** powiadomienia push/e-mail do agenta, licznik nieprzeczytanych po stronie serwera, zmiany FE (FE-135).
-**Zależności (tura 51):** `Zależy od` brak; `Blokuje` FE-135.
+**Notatka wykonania (2026-11-04, tura 66; `backend-dev-expert`):**
+- Zdarzenie WS `CONTACT_MESSAGE_RECEIVED` `{contactId, channel, messageId, receivedAt}` (bez treści), publikowane przez `ContactMessageReceivedPublisher` w `afterCommit` do przydzielonego agenta (tenant-aware). Social: `findActiveSocialContact` rozszerzone o `ASSIGNED`/`ON_HOLD`.
+- **ZAKRES ROZSZERZONY (zatwierdzone przez właściciela produktu):** e-mail nie miał ścieżki follow-upu — odpowiedź klienta tworzyła NOWY kontakt. Dodano `EmailFollowUpJoiner`: dołączenie przez `In-Reply-To` do aktywnego kontaktu przy warunkach: jeden nadawca; nadawca jest stroną kontaktu (`remoteAddress`/`fromAddress`/e-mail klienta/adresy strony klienta w wątku); nie jest to własna skrzynka; atomowy warunkowy UPDATE z `FOR SHARE`, ustawiający `agent_id` i `started_at`; w przeciwnym razie zwykły routing.
+- **Ryzyko świadomie zaakceptowane przez właściciela:** brak SPF/DKIM — podszycie się pod `From` znanego klienta + znany `Message-ID` pozwala dopisać treść do kontaktu (odpowiedź agenta nadal trafia na prawdziwy adres klienta) → opcjonalny **BE-170**.
+- **Nowe tickety (backlog):** BE-164 (EML/archiwum dla dołączonych follow-upów), BE-167 (`In-Reply-To` z wieloma ID, `References`), BE-168 (social: warunkowy zapis), BE-169 (dług testowy: realne `FOR SHARE`, wątek > 200), BE-170 (SPF/DKIM/DMARC, opcjonalny).
+**Zależności (zaktualizowane w turze 66):** `Zależy od` brak twardych (kontekst BE-155 ✅); `Blokuje` FE-135 (✅ ukończony w tej samej turze); następniki (backlog): BE-164, BE-167, BE-168, BE-169, BE-170; powiązany FE-151 (UNREAD poza `/agent/desktop`), FE-152 (resync po reconnect WS).
 
 ### BE-155 – [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'` we froncie, `isReadOnly` porównuje z nieistniejącym `COMPLETED`
 
@@ -8770,8 +8788,8 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (kontekst: FE-136 ✅ — fallback frontu na `assigned-contact` obsługuje dziś także 500; BE-157 ✅ — endpoint, przy którym to wykryto)
-**Status:** ⬜ Do zrobienia
-**Blokuje:** brak (po wdrożeniu fallback FE-136 można zawęzić do samego 404 — notatka, bez twardej zależności)
+**Status:** ✅ Ukończone (2026-11-04, tura 65; `backend-dev-expert`; gałąź `fix/social-contact-accept`, niezacommitowane; `CR-BACKEND.md` „Review: BE-161 + BE-162” 4/5, poprawki rundy 2 zrobione; `mvn clean verify` 2875 testów, 0 F, 0 E, 1 pominięty)
+**Blokuje:** brak (fallback FE-136 zawężony do 404 w turze 65 — notatka, bez twardej zależności)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z FE-136, backlog)
 **Wykonawca:** `backend-dev-expert`
 
@@ -8786,15 +8804,22 @@ backend/app/src/test/java/com/contactcenter/
 - Notatka dla FE: po wdrożeniu fallback w `agent-recovery.service` (FE-136) można zawęzić z „404 lub 500” do 404 (osobna, drobna zmiana FE bez numeru lub w ramach FE-148).
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/agent/me/does-not-exist` (z poprawnym JWT) zwraca 404 `application/problem+json`, nie 500
-- [ ] Istniejąca ścieżka z niewłaściwą metodą HTTP nadal zwraca 405 (test)
-- [ ] Brak ścieżki bez JWT nadal obsługiwany przez łańcuch filtrów (401 dla ścieżek chronionych) — bez regresji
-- [ ] Log nieznanej ścieżki na poziomie niższym niż ERROR (brak fałszywych alarmów)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] `GET /api/agent/me/does-not-exist` (z poprawnym JWT) zwraca 404 `application/problem+json`, nie 500
+- [x] Istniejąca ścieżka z niewłaściwą metodą HTTP zwraca 405 (test) — ODSTĘPSTWO: stan wyjściowy dawał 500, więc kryterium „nadal 405” było niespełnialne; dodano handler 405 `problem+json` z nagłówkiem `Allow` (zaakceptowane w CR)
+- [x] Brak ścieżki bez JWT nadal obsługiwany przez łańcuch filtrów (401 dla ścieżek chronionych) — bez regresji
+- [x] Log nieznanej ścieżki na poziomie niższym niż ERROR (brak fałszywych alarmów)
+- [x] `mvn verify -pl app` zielone (JDK 21)
+
+**Notatka wykonania (2026-11-04, tura 65; `backend-dev-expert`):**
+- `GlobalExceptionHandler`: handler `NoResourceFoundException` → 404 `application/problem+json` (type `resource-not-found`, title „Zasób nie istnieje”, detail bez ścieżki; `instance` = ścieżka żądania wg RFC 7807, jak w innych handlerach; log poniżej ERROR).
+- **Odstępstwo zaakceptowane w CR:** również `HttpRequestMethodNotSupportedException` → 405 `problem+json` z `Allow` (stan wyjściowy dawał 500). Bez tokenu nadal 401 (łańcuch filtrów).
+- Dotyczy też ścieżek spoza `/api` (np. `/plugin-assets/**`, nieistniejące `/actuator/xyz`) — wcześniej 500 ze stack trace, teraz 404.
+- Testy: `AgentSelfControllerTest` (sekcja `UnknownPath`). Zweryfikowane na żywo w local-demo po przebudowie backendu: 404 `problem+json`, 405 z `Allow: GET`, 401 bez tokenu.
+- Zostaje poza zakresem (→ BE-163): pozostałe wyjątki Spring MVC trafiające do catch-all (415/406/400/413/503).
 
 **Ryzyka:** (R1) zmiana kodu statusu dla nieznanych ścieżek może zmienić zachowanie klientów, którzy dziś (przypadkiem) polegają na 500 — jedynym znanym jest fallback FE-136 (obsługuje oba kody).
-**Nie wchodzi w zakres:** zmiana fallbacku FE-136, przegląd pozostałych handlerów wyjątków Spring MVC.
-**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: FE-136 ✅ (fallback na 404/500), BE-157 ✅.
+**Nie wchodzi w zakres:** zmiana fallbacku FE-136 (zrobiona w FE-148/turze 65), przegląd pozostałych handlerów wyjątków Spring MVC (→ BE-163; 405 dodano jako odstępstwo).
+**Zależności (zaktualizowane w turze 65):** `Zależy od` brak; `Blokuje` brak; następnik: BE-163 (pozostałe wyjątki Spring MVC); powiązane: FE-136 ✅ (fallback zawężony do 404 w turze 65), BE-157 ✅.
 
 ### BE-162 – Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI (następca: `active-contacts`)
 
@@ -8802,7 +8827,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Could Have
 **Złożoność:** XS
 **Zależy od:** BE-157 ✅ (następca `active-contacts`), FE-136 ✅ (front nie woła `assigned-contact` jako ścieżki głównej)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-04, tura 65; `backend-dev-expert`; niezacommitowane; `CR-BACKEND.md` „Review: BE-161 + BE-162” 4/5; `mvn clean verify` 2875 testów)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (przeniesione kryterium z BE-157, backlog)
 **Wykonawca:** `backend-dev-expert`
@@ -8817,13 +8842,214 @@ backend/app/src/test/java/com/contactcenter/
 - Usunięcie endpointu i fallbacku FE-136 — osobny, późniejszy ticket po potwierdzeniu w logach, że nikt go nie woła (okres obserwacji do uzgodnienia z właścicielem; ticket usunięcia NIE założony).
 
 **Kryteria akceptacji:**
-- [ ] `/v3/api-docs` zawiera `deprecated: true` dla `GET /api/agent/me/assigned-contact` z odwołaniem do `active-contacts` w opisie
-- [ ] Zachowanie endpointu bez zmian (istniejące testy `AgentSelfControllerTest` zielone)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] `@Operation(deprecated = true)` + Java `@Deprecated` dla `GET /api/agent/me/assigned-contact` z odwołaniem do `active-contacts` w opisie (test refleksyjny adnotacji); `/api-docs` NIE zweryfikowane na żywo — local-demo działa na profilu `prod`, gdzie springdoc jest wyłączony
+- [x] Zachowanie endpointu bez zmian (istniejące testy `AgentSelfControllerTest` zielone)
+- [x] `mvn verify -pl app` zielone (JDK 21)
+
+**Notatka wykonania (2026-11-04, tura 65):** `@Operation(deprecated = true)` + `@Deprecated` na `AgentSelfController.getAssignedContact()`, opis wskazuje następcę `GET /api/agent/me/active-contacts`; zachowanie runtime bez zmian; test refleksyjny adnotacji. Dług: wpis `deprecated: true` w `/api-docs` niezweryfikowany na żywo (profil `prod` wyłącza springdoc).
 
 **Ryzyka:** (R1) generatory klientów OpenAPI mogą wygenerować ostrzeżenia o deprecation — frontend nie korzysta z generatora (ręczne serwisy).
 **Nie wchodzi w zakres:** usunięcie endpointu, usunięcie fallbacku FE-136.
-**Zależności:** `Zależy od` BE-157 ✅, FE-136 ✅; `Blokuje` brak; następnik (niezałożony): usunięcie `assigned-contact` i fallbacku FE po obserwacji logów.
+**Zależności (zaktualizowane w turze 65):** `Zależy od` BE-157 ✅, FE-136 ✅; `Blokuje` brak; następnik (niezałożony): usunięcie `assigned-contact` i fallbacku FE po obserwacji logów.
+
+### BE-163 – Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (dziś 500 z catch-all)
+
+**Typ:** Bug / Hardening (Backend, obsługa błędów)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-161 ✅ (handlery `NoResourceFoundException` i `HttpRequestMethodNotSupportedException` oraz format `problem+json` już wprowadzone)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z code review BE-161, backlog; ewentualnie właściwy epik porządkowy BE — decyzja przy realizacji)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`.
+
+**Opis:** Po BE-161 część wyjątków Spring MVC ma poprawne statusy, ale pozostałe nadal trafiają do catch-all `Exception` w `GlobalExceptionHandler` i zwracają 500 (fałszywe 5xx w monitoringu, błędny sygnał dla klientów). Należy objąć je wspólną obsługą — jeden handler dla interfejsu `ErrorResponse` (Spring 6) albo dziedziczenie po `ResponseEntityExceptionHandler` — z zachowaniem formatu `problem+json` projektu (bez wycieku szczegółów wewnętrznych).
+
+**Zakres (lista z CR BE-161):**
+- 415 / 406: `HttpMediaTypeNotSupportedException`, `HttpMediaTypeNotAcceptableException`.
+- 400: `MissingServletRequestParameterException`, `MissingRequestHeaderException`, `MissingServletRequestPartException`, `ServletRequestBindingException`, `HttpMessageNotReadableException` (dziś tylko lokalnie w `CampaignArchiveSettingController` jako 422 — świadomie NIE zmieniać), `HandlerMethodValidationException`.
+- 413: `MaxUploadSizeExceededException`.
+- 503: `AsyncRequestTimeoutException`.
+- Testy MockMvc dla każdego wyjątku: właściwy status + `application/problem+json` bez ujawniania szczegółów wewnętrznych; log poniżej ERROR dla błędów klienta.
+- Przy okazji (drobna notka porządkowa, bez osobnego ticketu): Javadoc `ContactAssignmentMonitor` i opisy endpointu accept mówią „EMAIL/CHAT”, a monitor dotyczy każdego kanału; kanał CHAT nie istnieje w `contact.channel` (CHECK `chk_contact_channel`) — poprawić opisy.
+
+**Kryteria akceptacji:**
+- [ ] Każdy z wymienionych wyjątków zwraca właściwy status (415, 406, 400, 413, 503) w formacie `application/problem+json`, bez wycieku szczegółów wewnętrznych
+- [ ] Istniejące mapowania bez zmian (w tym 404/405 z BE-161 i 422 w `CampaignArchiveSettingController`)
+- [ ] Testy MockMvc dla każdego wyjątku z listy
+- [ ] Poprawione opisy „EMAIL/CHAT” (Javadoc `ContactAssignmentMonitor`, opisy accept)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zmiana statusów 500 → 4xx może zmienić zachowanie klientów polegających na 500 — nieznani; (R2) dziedziczenie po `ResponseEntityExceptionHandler` zmienia kolejność/priorytety istniejących handlerów — wymaga testów regresji.
+**Nie wchodzi w zakres:** zmiana mapowania 422 w `CampaignArchiveSettingController`, zmiany FE.
+**Zależności:** `Zależy od` BE-161 ✅; `Blokuje` brak; powiązane: BE-162 ✅ (ten sam kontroler/handler, tura 65).
+
+### BE-164 – EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner`
+
+**Typ:** Bug / Feature (Backend, kanał e-mail)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-154 ✅ (`EmailFollowUpJoiner`, 2026-11-04)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-154)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Follow-up e-mail dołączany do istniejącego kontaktu przez `EmailFollowUpJoiner` (BE-154) omija `EmailContactCreator`, który przy tworzeniu kontaktu zapisuje surową wiadomość (EML) i metadane archiwum. Dla dołączonych wiadomości EML/archiwum nie powstaje, więc wątek jest niepełny w archiwum i w eksporcie (RODO/retencja).
+
+**Zakres:** ustalić, które kroki `EmailContactCreator` (zapis EML do magazynu, wiersz archiwum, powiązanie z kontaktem) muszą wykonać także wiadomości dołączane; wydzielić wspólny fragment (bez duplikowania) i wywołać go z joinera; zachować tenant isolation i transakcyjność (zapis EML po commit lub kompensacja przy błędzie).
+
+**Kryteria akceptacji:**
+- [ ] Wiadomość dołączona przez `EmailFollowUpJoiner` ma EML i wpis archiwum jak wiadomość z nowego kontaktu (test integracyjny)
+- [ ] Błąd zapisu EML nie gubi wiadomości w wątku (spójne zachowanie jak w `EmailContactCreator`)
+- [ ] Istniejące testy `EmailFollowUpEventIntegrationTest` i ingestii zielone; `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) wspólny kod z `EmailContactCreator` — regresja ścieżki nowego kontaktu; (R2) retencja/partycje `email_message` (EPIC-30) — zachować klucze i `tenant_id`.
+**Nie wchodzi w zakres:** zmiany FE, nowe reguły dołączania (BE-167).
+**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167, BE-169 (ta sama ścieżka join).
+
+### BE-165 – Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS
+
+**Typ:** Bug (Backend, zdarzenia statusu agenta)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-153 ✅ (kolumna `status_changed_at` ustawiana już w natywnym UPDATE dialera)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-153)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `DialerCallbackHandlerImpl` ustawia status agenta `AFTER_CONTACT` natywnym UPDATE-em (omija `UserServiceImpl`), więc nie publikuje `agent.status.changed` (RabbitMQ) ani zdarzenia WS. Frontend (FE-130 ✅) dowiaduje się o nowym statusie i `statusSince` dopiero z `GET /users/me`.
+
+**Zakres:** po UPDATE (afterCommit) opublikować to samo zdarzenie, co zmiana statusu przez serwis (z `statusSince`); rozważyć przeniesienie do wspólnej metody serwisu, bez zmiany semantyki UPDATE (warunki, `status_changed_at`).
+
+**Kryteria akceptacji:**
+- [ ] Przejście agenta w `AFTER_CONTACT` przez dialer publikuje `agent.status.changed` z poprawnym `statusSince` i dociera do WS agenta (test integracyjny)
+- [ ] Brak publikacji, gdy UPDATE nie zmienił wiersza (status już `AFTER_CONTACT`) — spójne z BE-166
+- [ ] `DialerAfterContactStatusSinceIntegrationTest` i istniejące testy dialera zielone; `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) podwójna publikacja, jeśli ścieżka jest też obsługiwana gdzie indziej; (R2) wątki/tenant context w callbacku dialera (`TenantContext.snapshot()/restore()`).
+**Nie wchodzi w zakres:** zmiany FE, historia statusów.
+**Zależności:** `Zależy od` BE-153 ✅; `Blokuje` brak; zalecana kolejność: wraz z lub po BE-166 (wspólna ścieżka publikacji); powiązane: FE-130 ✅.
+
+### BE-166 – Wyciszenie `agent.status.changed` przy zapisie tego samego statusu
+
+**Typ:** Bug (Backend, zdarzenia statusu agenta)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-153 ✅ (`AppUser.changeStatus`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-153)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Zapis statusu równego bieżącemu (np. ponowne `AVAILABLE`) publikuje `agent.status.changed` i może przesuwać `statusSince` albo wywoływać fałszywy reset licznika w UI. Zdarzenie ma być publikowane tylko przy faktycznej zmianie wartości.
+
+**Zakres:** w serwisie i w `AppUser.changeStatus` rozstrzygnąć „bez zmiany” (return bez publikacji i bez ruszania `status_changed_at`); ustalić zachowanie dla odświeżenia TTL statusu w Redis (TTL nadal odświeżany).
+
+**Kryteria akceptacji:**
+- [ ] Zapis tego samego statusu nie publikuje zdarzenia i nie zmienia `statusSince` (testy jednostkowe + integracyjny)
+- [ ] Zmiana statusu publikuje zdarzenie jak dotąd; TTL w Redis odświeżany także bez zmiany
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) konsumenci polegający na zdarzeniu jako „heartbeat” statusu — sprawdzić odbiorców `agent.status.changed`.
+**Nie wchodzi w zakres:** zmiany FE, historia statusów.
+**Zależności:** `Zależy od` BE-153 ✅; `Blokuje` brak; powiązane: BE-165 (wspólna ścieżka publikacji).
+
+### BE-167 – Join follow-upu e-mail: `In-Reply-To` z wieloma ID i nagłówek `References`
+
+**Typ:** Feature / Hardening (Backend, kanał e-mail)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-154 ✅ (`EmailFollowUpJoiner`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-154)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `EmailFollowUpJoiner` dopasowuje kontakt po pojedynczym `In-Reply-To`. Klienty pocztowe mogą wysłać `In-Reply-To` z wieloma identyfikatorami, a łańcuch wątku jest pełniej opisany w `References`; dziś takie odpowiedzi nie dołączają się do kontaktu i tworzą nowy.
+
+**Zakres:** parsowanie wielu `Message-ID` z `In-Reply-To` (nawiasy `<>`, białe znaki) i z `References` (kolejność od najnowszego); wybór kontaktu przy trafieniu w więcej niż jeden — jednoznaczna reguła (np. najnowsza wiadomość wątku, kontakt aktywny); zachowanie wszystkich warunków bezpieczeństwa z BE-154 (jeden nadawca, strona kontaktu, nie własna skrzynka, atomowy warunkowy UPDATE `FOR SHARE`).
+
+**Kryteria akceptacji:**
+- [ ] `In-Reply-To` z wieloma ID dołącza do kontaktu (test)
+- [ ] `References` bez `In-Reply-To` dołącza do kontaktu (test); wiele kontaktów w jednym łańcuchu → deterministyczny wybór lub routing (test)
+- [ ] Warunki bezpieczeństwa BE-154 bez zmian (testy negatywne: obcy nadawca, własna skrzynka)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) poszerzenie powierzchni podszycia (więcej nagłówków do sfałszowania) — zob. BE-170; (R2) niejednoznaczny łańcuch przy przekazywaniu wątków.
+**Nie wchodzi w zakres:** SPF/DKIM (BE-170), EML/archiwum (BE-164), zmiany FE.
+**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-164, BE-169, BE-170.
+
+### BE-168 – Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy)
+
+**Typ:** Bug / Hardening (Backend, kanał social, współbieżność)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-154 ✅ (wzorzec warunkowego UPDATE z `FOR SHARE` w ścieżce e-mail)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-154)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `SocialMessageServiceImpl` najpierw odczytuje aktywny kontakt (`findActiveSocialContact`, po BE-154 także `ASSIGNED`/`ON_HOLD`), a następnie zapisuje wiadomość — bez warunku w zapisie. Wiadomość może trafić do kontaktu zamkniętego tuż po odczycie. Ścieżka e-mail (BE-154) robi to atomowo (warunkowy UPDATE z `FOR SHARE`).
+
+**Zakres:** analogiczne zabezpieczenie dla social (zapis warunkowy/blokada współdzielona na wierszu kontaktu, w jednej transakcji z zapisem wiadomości); w razie przegranego wyścigu — ścieżka routingu (nowy kontakt) zamiast wiadomości w kontakcie zamkniętym.
+
+**Kryteria akceptacji:**
+- [ ] Wiadomość nie jest zapisywana do kontaktu, który zmienił status na końcowy między odczytem a zapisem (test współbieżności lub deterministyczny z blokadą)
+- [ ] Przegrany wyścig → routing/nowy kontakt; brak utraty wiadomości
+- [ ] `SocialContactQueueIntegrationTest`, `SocialFollowUpEventIntegrationTest` zielone; `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana blokad na gorącej tabeli `contact` — ryzyko deadlocków; (R2) współdzielone pliki z BE-164/BE-169.
+**Nie wchodzi w zakres:** zmiany FE, limity równoległych kontaktów (BE-156).
+**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-155 ✅, BE-159 (warunkowy przydział), BE-169 (testy współbieżności).
+
+### BE-169 – Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses`
+
+**Typ:** Testing
+**Priorytet:** Could Have
+**Złożoność:** S/M
+**Zależy od:** BE-154 ✅; zalecana kolejność po BE-167 (testy na docelowym kształcie joinera)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; dług z CR BE-154)
+**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert` przy zmianach kodu)
+
+**Opis:** Testy BE-154 sprawdzają logikę join, ale nie prawdziwą współbieżność (dwa równoległe wątki: join vs zamknięcie kontaktu pod `FOR SHARE`) ani wątek e-mail dłuższy niż limit zapytania (200 wiadomości) w `findThreadCustomerSideAddresses`.
+
+**Kryteria akceptacji:**
+- [ ] Test integracyjny z dwiema transakcjami (Testcontainers PostgreSQL): join konkuruje z zamknięciem kontaktu — wynik deterministyczny (brak wiadomości w kontakcie zamkniętym lub kontakt nadal aktywny)
+- [ ] Test wątku > 200 wiadomości: zachowanie `findThreadCustomerSideAddresses` zgodne z założeniem (limit udokumentowany; adres strony klienta spoza okna nie powoduje błędnego odrzucenia lub jest to świadomie opisane)
+- [ ] Brak flaky (pętla uruchomień lokalnie); `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) testy współbieżności bywają niestabilne — użyć zatrzasków (latch), nie `sleep`.
+**Nie wchodzi w zakres:** zmiany logiki produkcyjnej (chyba że test ujawni błąd — wtedy osobny ticket).
+**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167, BE-168.
+
+### BE-170 – [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail
+
+**Typ:** Security (Backend, kanał e-mail) — opcjonalny
+**Priorytet:** Could Have
+**Złożoność:** M
+**Zależy od:** BE-154 ✅; decyzja właściciela produktu (ryzyko dziś świadomie zaakceptowane)
+**Status:** ⬜ Do zrobienia — opcjonalny
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-154)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Join follow-upu e-mail (BE-154) ufa nagłówkowi `From`. Bez SPF/DKIM atakujący znający adres klienta i `Message-ID` może dopisać treść do kontaktu (odpowiedź agenta nadal trafia na prawdziwy adres klienta). Ticket obejmuje opcjonalne uzależnienie join od wyniku uwierzytelnienia nadawcy (`Authentication-Results`/własna weryfikacja SPF/DKIM/DMARC) — jako flaga per tenant, z fallbackiem do routingu.
+
+**Kryteria akceptacji:**
+- [ ] Po decyzji właściciela: flaga konfiguracji (per tenant) włączająca wymóg pozytywnego SPF/DKIM/DMARC dla join; wynik negatywny → zwykły routing (nowy kontakt)
+- [ ] Testy dla wyniku pass/fail/brak nagłówka; domyślnie zachowanie bez zmian
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) skrzynki bez nagłówków `Authentication-Results` (IMAP) — fałszywe odrzucenia; (R2) koszt utrzymania weryfikacji po stronie aplikacji.
+**Nie wchodzi w zakres:** zmiany FE; wdrożenie do czasu decyzji właściciela.
+**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167 (poszerzenie nagłówków dopasowania).
 
 ## Bez epiku
 

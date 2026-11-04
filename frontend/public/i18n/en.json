@@ -214,7 +214,6 @@
       "afterContact": "After contact work",
       "offline": "Offline",
       "breakDuration": "Break duration",
-      "breakDurationHint": "Time since the status changed in this session",
       "errorLoad": "Failed to load agent status.",
       "errorChange": "Failed to change status. Please try again.",
       "changedAnnouncement": "Status changed to: {{status}}"
@@ -288,15 +287,18 @@
         "ACW": "ACW",
         "HOLD": "On hold",
         "CALL": "In call",
+        "UNREAD": "New message",
         "DRAFT": "Draft"
       },
       "tabMarkerSr": {
         "ACW": "after-call work (ACW)",
         "HOLD": "call on hold",
         "CALL": "call in progress",
+        "UNREAD": "new customer message",
         "DRAFT": "unsent draft"
       },
       "newContactAnnouncement": "New contact: {{who}} ({{type}})",
+      "unreadAnnouncement": "New customer message: {{who}} ({{type}})",
       "tabClose": {
         "closePhone": "Hang up and close contact {{name}}",
         "closeAsync": "Return to queue and close contact {{name}}",

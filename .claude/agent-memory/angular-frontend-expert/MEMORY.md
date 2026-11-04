@@ -96,3 +96,4 @@
 - [FE-122 ACW inline (2026-10-29)](./project_fe122_acw_inline.md) – panel jako treść karty PHONE, DispositionSaveService, cc-acw-banner, focus request w ContactTabStore
 - [FE-123 layout 1366x768 (2026-10-29)](./project_fe123_layout_1366.md) – skala breakpointow (_breakpoints.scss), tokeny wysokosci chrome, rezerwa dla bannera ACW, rail sidenavu agenta
 - [FE-136 odtwarzanie kart (2026-10-31)](./project_fe136_recovery.md) – active-contacts, planowanie slotow, overflow notice, callNotRestored dla PHONE IN_PROGRESS, re-login przez reset() w shellu
+- [FE-148 unified async accept (2026-11-04)](./project_fe148_async_accept.md) – AsyncContactAcceptService, jedyny nadawca POST accept dla EMAIL/SOCIAL (live, mount karty, recovery)

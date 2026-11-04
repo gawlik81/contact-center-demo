@@ -16,6 +16,8 @@ interface UserResponse {
   lastName: string;
   role: string;
   status: string;
+  /** ISO-8601 UTC start of the current status; null/absent = unknown (old backend). */
+  statusSince?: string | null;
 }
 
 const ACTIVE_STATUSES: ReadonlySet<AgentStatus> = new Set<AgentStatus>([
@@ -36,12 +38,31 @@ export class AgentStatusService {
   readonly isChanging = signal(false);
 
   /**
-   * Epoch ms of when the current status began, as observed by THIS client. The API
-   * (`GET /users/me`, `AGENT_STATUS_CHANGED`) carries no status start time, so the timestamp is
-   * taken locally when a status change is applied; after a page reload mid-break the elapsed time
-   * restarts from the reload. Replace with the server value once the backend exposes it.
+   * Epoch ms of when the current status began. Source of truth is the server value
+   * (`GET /users/me`, `AGENT_STATUS_CHANGED`), so the elapsed time survives a page reload. When the
+   * server sends null/nothing (rolling deploy: new FE, old BE) the client clock at the moment the
+   * change was applied is used instead.
    */
   readonly statusSince = signal<number | null>(null);
+
+  /**
+   * Counter that moves exactly when a NEW status episode starts: a different status, or the same
+   * status with a different server `statusSince` (e.g. BREAK -> AVAILABLE -> BREAK in another tab).
+   * It does not move on a re-sync that returns the same values, nor when a server timestamp merely
+   * refines a client-side fallback of the same episode. Use it (not `statusSince`) as an
+   * "episode changed" marker.
+   */
+  readonly statusEpisode = signal(0);
+
+  /** True when `statusSince` came from the server rather than the client clock fallback. */
+  private sinceFromServer = false;
+
+  /**
+   * Moves on every status change the client learns about from a newer source than a GET in flight
+   * (our own PATCH, a WS event). A `/users/me` answer whose request predates the latest move is
+   * stale and ignored, also while the origin is still a client-clock fallback.
+   */
+  private statusSeq = 0;
 
   private currentUserId: string | null = null;
   private initialized = false;
@@ -71,7 +92,8 @@ export class AgentStatusService {
         .subscribe((e) => {
           const payload = e.payload as AgentStatusChangedPayload;
           if (payload.agentId === this.currentUserId) {
-            this.applyStatus(payload.status);
+            this.statusSeq++;
+            this.applyStatus(payload.status, payload.statusSince);
           }
         }),
     );
@@ -90,24 +112,53 @@ export class AgentStatusService {
     this.currentUserId = null;
     this.initialized = false;
     this.isChanging.set(false);
+    // Root singleton: the next login in this tab must not inherit the previous agent's status.
+    this.currentStatus.set('OFFLINE');
+    this.statusSince.set(null);
+    this.statusEpisode.set(0);
+    this.sinceFromServer = false;
+    this.statusSeq = 0;
   }
 
-  /** Sets the status and restarts the elapsed-time origin only when the status really changes. */
-  private applyStatus(status: AgentStatus): void {
-    if (status === this.currentStatus() && this.statusSince() !== null) return;
-    this.currentStatus.set(status);
-    this.statusSince.set(Date.now());
+  /**
+   * Applies a status and its start. A different status starts a new episode (origin = server
+   * value, else client clock). For the same status only a different server value matters: if the
+   * current origin was a client fallback it is refined silently (same episode, e.g. the WS echo of
+   * our own change); if it was already a server value, the server says a new episode began.
+   */
+  private applyStatus(status: AgentStatus, serverSince?: string | null): void {
+    const parsed = parseServerInstant(serverSince);
+    const current = this.statusSince();
+    // A late answer (e.g. /users/me sent before a newer WS event) must not roll the status or the
+    // clock back: with two server timestamps the older one is simply stale.
+    if (this.sinceFromServer && parsed !== null && current !== null && parsed < current) return;
+    if (status !== this.currentStatus() || current === null) {
+      this.currentStatus.set(status);
+      this.statusSince.set(parsed ?? Date.now());
+      this.sinceFromServer = parsed !== null;
+      this.statusEpisode.update((n) => n + 1);
+      return;
+    }
+    if (parsed === null || parsed === current) return;
+    this.statusSince.set(parsed);
+    if (this.sinceFromServer) {
+      this.statusEpisode.update((n) => n + 1);
+    }
+    this.sinceFromServer = true;
   }
 
   private fetchAndSyncStatus(): void {
+    const requestSeq = this.statusSeq;
     const sub = this.http
       .get<UserResponse>(`${environment.apiUrl}/users/me`)
       .pipe(
         switchMap((user) => {
           this.currentUserId = user.id;
+          // A newer local change or WS event overtook this request: its answer is stale.
+          if (requestSeq !== this.statusSeq) return EMPTY;
           const status = user?.status as AgentStatus | undefined;
           if (status && ACTIVE_STATUSES.has(status)) {
-            this.applyStatus(status);
+            this.applyStatus(status, user.statusSince);
             return EMPTY;
           }
           return this.changeStatus('AVAILABLE');
@@ -141,6 +192,7 @@ export class AgentStatusService {
       )
       .pipe(
         tap(() => {
+          this.statusSeq++;
           this.applyStatus(status);
           // Notify backend via WebSocket so supervisors get real-time update
           this.ws.publish('/app/agent/status', { status });
@@ -156,4 +208,11 @@ export class AgentStatusService {
         }),
       );
   }
+}
+
+/** Epoch ms of an ISO-8601 instant, or null for absent/unparseable input. */
+function parseServerInstant(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
 }

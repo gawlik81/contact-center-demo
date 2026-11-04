@@ -25,6 +25,8 @@ import java.util.UUID;
  *   <li>{@code AGENT_STATUS_CHANGED} – zmiana statusu agenta (→ supervisorom)</li>
  *   <li>{@code CONTACT_ASSIGNED} – kontakt przydzielony agentowi (→ agentowi)</li>
  *   <li>{@code QUEUE_UPDATE} – aktualizacja stanu kolejki (→ supervisorom)</li>
+ *   <li>{@code CONTACT_MESSAGE_RECEIVED} – kolejna wiadomość klienta w już przydzielonym kontakcie
+ *       e-mail/social (→ wyłącznie przydzielonemu agentowi; payload bez treści, BE-154)</li>
  * </ul>
  *
  * @param eventType typ eventu (jedna ze stałych powyżej)
@@ -56,6 +58,7 @@ public record WebSocketEvent(
     public static final String TYPE_AGENT_STATUS_CHANGED    = "AGENT_STATUS_CHANGED";
     public static final String TYPE_CONTACT_ASSIGNED        = "CONTACT_ASSIGNED";
     public static final String TYPE_QUEUE_UPDATE            = "QUEUE_UPDATE";
+    public static final String TYPE_CONTACT_MESSAGE_RECEIVED = "CONTACT_MESSAGE_RECEIVED";
     public static final String TYPE_PONG                    = "PONG";
     public static final String TYPE_RECORDING_READY         = "RECORDING_READY";
 
@@ -189,10 +192,20 @@ public record WebSocketEvent(
      * @param newStatus nowy status (np. AVAILABLE, BUSY, OFFLINE)
      */
     public static WebSocketEvent agentStatusChanged(UUID tenantId, UUID agentId, String newStatus) {
+        return agentStatusChanged(tenantId, agentId, newStatus, null);
+    }
+
+    /**
+     * Tworzy event zmiany statusu agenta wraz z {@code statusSince} (BE-153).
+     *
+     * @param statusSince początek bieżącego statusu (wartość zapisana w DB); null = nieznany
+     */
+    public static WebSocketEvent agentStatusChanged(UUID tenantId, UUID agentId, String newStatus,
+                                                     Instant statusSince) {
         return new WebSocketEvent(
                 TYPE_AGENT_STATUS_CHANGED,
                 tenantId,
-                new AgentStatusPayload(agentId.toString(), newStatus),
+                new AgentStatusPayload(agentId.toString(), newStatus, statusSince),
                 Instant.now()
         );
     }
@@ -219,6 +232,29 @@ public record WebSocketEvent(
                 new ContactAssignedPayload(agentId.toString(), contactId.toString(),
                         ContactChannels.toAgentDesktopType(channel),
                         customerName, customerIdentifier, queueName, customerId),
+                Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event {@code CONTACT_MESSAGE_RECEIVED} (BE-154): kolejna wiadomość klienta w otwartym
+     * kontakcie. Payload celowo bez treści/tematu/nadawcy (RODO – minimalizacja); front po
+     * zdarzeniu sam dociąga wiadomość po {@code contactId}.
+     *
+     * @param tenantId   UUID tenanta
+     * @param contactId  UUID kontaktu
+     * @param channel    kanał kontaktu (SOCIAL_* zwijane do {@code SOCIAL}; poza tym EMAIL)
+     * @param messageId  UUID zapisanej wiadomości
+     * @param receivedAt czas odebrania wiadomości (UTC)
+     */
+    public static WebSocketEvent contactMessageReceived(UUID tenantId, UUID contactId, String channel,
+                                                        UUID messageId, Instant receivedAt) {
+        return new WebSocketEvent(
+                TYPE_CONTACT_MESSAGE_RECEIVED,
+                tenantId,
+                new ContactMessageReceivedPayload(contactId.toString(),
+                        ContactChannels.toAgentDesktopType(channel),
+                        messageId.toString(), receivedAt),
                 Instant.now()
         );
     }
@@ -391,7 +427,23 @@ public record WebSocketEvent(
      */
     public record AgentStatusPayload(
             String agentId,
-            String status
+            String status,
+            Instant statusSince
+    ) {}
+
+    /**
+     * Payload zdarzenia {@code CONTACT_MESSAGE_RECEIVED}. Brak treści wiadomości (RODO).
+     *
+     * @param contactId  UUID kontaktu
+     * @param channel    {@code EMAIL} lub {@code SOCIAL}
+     * @param messageId  UUID wiadomości
+     * @param receivedAt czas odebrania (ISO-8601 UTC)
+     */
+    public record ContactMessageReceivedPayload(
+            String contactId,
+            String channel,
+            String messageId,
+            Instant receivedAt
     ) {}
 
     /**

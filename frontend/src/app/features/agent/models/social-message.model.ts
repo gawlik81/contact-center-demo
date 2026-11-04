@@ -21,8 +21,3 @@ export interface SendSocialMessageRequest {
   content: string;
   attachmentUrls: string[];
 }
-
-export interface SocialMessageReceivedPayload {
-  contactId: string;
-  message: SocialMessage;
-}

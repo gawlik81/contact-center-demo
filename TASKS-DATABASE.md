@@ -45,11 +45,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
-| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 0 | 0 | 1 | 0 | 1 | ⬜ Backlog (DB-088, bramkowany wolumenem) |
+| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 1 | 0 | 1 | 0 | 2 | 🔧 W toku (DB-089 ✅; DB-088 ⬜ backlog, bramkowany wolumenem) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
-| **RAZEM** | | **82** | **0** | **3** | **3** | **88** | |
+| **RAZEM** | | **83** | **0** | **3** | **3** | **89** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma jeden ticket DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem; numer DB-088 użyty, następny wolny: DB-089). BE-155 (tura 2026-10-28) zakończony BEZ migracji.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -4347,7 +4347,39 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 0/1** (⬜ nie rozpoczęte: 1) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu jedyny ticket DB, ⬜ backlog)
+**Ukończone 1/2** (⬜ nie rozpoczęte: 1) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu dwa tickety DB: DB-089 ✅, DB-088 ⬜ backlog)
+
+### DB-089 – Kolumna `app_user.status_changed_at`: trwałe źródło czasu rozpoczęcia bieżącego statusu agenta (`statusSince`, BE-153)
+
+**Typ:** Schema (migracja DDL, dodanie kolumny)
+**Priorytet:** Should Have
+**Złożoność:** S (jedna kolumna nullable, bez backfillu i bez indeksu)
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-11-04, migracja `V144__app_user_status_changed_at.sql`)
+**Blokuje:** BE-153 (`statusSince` w `GET /users/me` i w zdarzeniu WS `AGENT_STATUS_CHANGED`) → FE-130
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** BE-153 wymaga trwałego czasu rozpoczęcia bieżącego statusu agenta, aby licznik przerwy w UI przeżywał przeładowanie strony. Tabela użytkowników to `app_user` (V003; encja `AppUser`; tabela o nazwie `users` nie istnieje), kolumna `status` `VARCHAR(50) NOT NULL`. Brak znacznika zmiany statusu; `updated_at` jest bezużyteczny, bo `trg_app_user_updated_at` aktualizuje go przy KAŻDYM UPDATE (dane osobowe, `last_login_at`, umiejętności itd.). Status w Redis ma TTL 8 h, a historii statusów nie ma — to zamknęło wariant „tylko Redis”.
+
+**Zrealizowano:**
+- `ALTER TABLE app_user ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ NULL` + `COMMENT ON COLUMN`; `SET LOCAL lock_timeout = '5s'`; migracja idempotentna.
+- **Semantyka:** `status_changed_at` = moment rozpoczęcia AKTUALNEJ wartości `status`, ustawiany przez aplikację (BE-153) przy każdej zmianie statusu, także przez `AgentBreakActivator`. `NULL` = „nieznane” → API zwraca `statusSince = null`, frontend wraca do czasu klienta.
+- **Bez backfillu (świadomie):** brak wiarygodnego źródła historycznego; skopiowanie `updated_at` publikowałoby fałszywe „od kiedy”, co jest gorsze niż jawne „nieznane”. Istniejące wiersze pozostają `NULL` do najbliższej zmiany statusu.
+- **Bez `DEFAULT`:** `DEFAULT NOW()` oznaczałby sztuczną wartość (czas wdrożenia) dla wszystkich istniejących wierszy; bez DEFAULT `ADD COLUMN` jest operacją na samych metadanych.
+- **Bez indeksu:** wartość jest czytana razem z wierszem po `user_id` / z już załadowanego principala; żadne zapytanie nie filtruje ani nie sortuje po tej kolumnie, a indeks tylko podnosiłby koszt zapisu przy każdej zmianie statusu.
+- **RLS / triggery:** bez zmian — polityki `pol_app_user_*` są niezależne od kolumn (warunek na `tenant_id`), FORCE RLS pozostaje; jedyny trigger (`trg_app_user_updated_at`) dotyka tylko `updated_at`; `app_user` nie jest partycjonowana; `ADD COLUMN` zachowuje właściciela i ACL.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `app_user.status_changed_at TIMESTAMPTZ NULL`, bez DEFAULT, z komentarzem
+- [x] Brak backfillu, brak indeksu — uzasadnienie w nagłówku migracji
+- [x] Składnia zwalidowana na lokalnym PostgreSQL w `BEGIN … ROLLBACK` (baza lokalna bez zmian)
+- [x] `mvn verify -pl app` zielone (migracja V144 stosowana w Testcontainers) — potwierdzone w turze 66 przy BE-153: 2918 testów, 0 F, 0 E, 1 pominięty; `CR-BACKEND.md` „Review: BE-153 + BE-154 (+ DB-089)” APPROVE 4,5/5
+
+**Nie wchodzi w zakres:** logika ustawiania kolumny i DTO (BE-153), historia statusów, raportowanie czasu w statusach, zmiany RLS.
+**Zależności (zaktualizowane w turze 66):** `Zależy od` brak; `Blokuje` BE-153 (✅ ukończony 2026-11-04, tura 66; kolumna ustawiana przez `AppUser.changeStatus` i natywny UPDATE dialera) → FE-130 (✅); następniki w backlogu: BE-165, BE-166 (publikacja zdarzeń statusu).
+
+---
 
 ### DB-088 – Indeks częściowy pod `findActiveContactsForAgent` (BE-157): brak pruningu partycji `contact` w `GET /api/agent/me/active-contacts`
 

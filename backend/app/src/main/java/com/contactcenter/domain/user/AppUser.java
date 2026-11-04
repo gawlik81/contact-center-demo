@@ -97,6 +97,14 @@ public class AppUser {
     @Column(name = "status", nullable = false, length = 50)
     private UserStatus status;
 
+    /**
+     * Moment the CURRENT value of {@link #status} started (UTC, microsecond precision), column
+     * {@code status_changed_at} (V144, BE-153 {@code statusSince}). NULL = unknown. Move it only through
+     * {@link #changeStatus(UserStatus, Instant)} so a same-status write never shifts the timestamp.
+     */
+    @Column(name = "status_changed_at")
+    private Instant statusChangedAt;
+
     @Column(name = "first_name", length = 100)
     private String firstName;
 
@@ -156,6 +164,22 @@ public class AppUser {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    /**
+     * Sets the status and, only on a real transition (old != new), stamps {@link #statusChangedAt}.
+     *
+     * @param newStatus new status
+     * @param now       transition time (truncated to micros to match what PostgreSQL stores)
+     * @return true when the status actually changed
+     */
+    public boolean changeStatus(UserStatus newStatus, Instant now) {
+        if (newStatus == status) {
+            return false;
+        }
+        this.status = newStatus;
+        this.statusChangedAt = now.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        return true;
     }
 
     /** Wyliczona rola Spring Security – alias dla pola role. */

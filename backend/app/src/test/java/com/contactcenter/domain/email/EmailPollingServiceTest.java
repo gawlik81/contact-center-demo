@@ -66,7 +66,8 @@ class EmailPollingServiceTest {
                 emailEventPublisher,
                 encryptionService,
                 attachmentStorageService,
-                new ObjectMapper()
+                new ObjectMapper(),
+                org.mockito.Mockito.mock(EmailFollowUpJoiner.class)
         );
     }
 

@@ -214,7 +214,6 @@
       "afterContact": "Nachbearbeitungszeit",
       "offline": "Offline",
       "breakDuration": "Dauer der Pause",
-      "breakDurationHint": "Zeit seit der Statusänderung in dieser Sitzung",
       "errorLoad": "Agentenstatus konnte nicht geladen werden.",
       "errorChange": "Status konnte nicht geändert werden. Bitte erneut versuchen.",
       "changedAnnouncement": "Status geändert auf: {{status}}"
@@ -288,15 +287,18 @@
         "ACW": "ACW",
         "HOLD": "Gehalten",
         "CALL": "Im Gespräch",
+        "UNREAD": "Neue Nachricht",
         "DRAFT": "Entwurf"
       },
       "tabMarkerSr": {
         "ACW": "Nachbearbeitung (ACW)",
         "HOLD": "Gespräch gehalten",
         "CALL": "Gespräch läuft",
+        "UNREAD": "neue Kundennachricht",
         "DRAFT": "nicht gesendeter Entwurf"
       },
       "newContactAnnouncement": "Neuer Kontakt: {{who}} ({{type}})",
+      "unreadAnnouncement": "Neue Kundennachricht: {{who}} ({{type}})",
       "tabClose": {
         "closePhone": "Auflegen und Kontakt {{name}} schließen",
         "closeAsync": "In die Warteschlange zurückgeben und Kontakt {{name}} schließen",

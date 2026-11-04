@@ -2610,3 +2610,153 @@ Zakres: weryfikacja poprawek z rundy 2 (`agent-recovery.service.ts`, `agent-stat
 **4/5.** Wszystkie wcześniejsze uwagi domknięte poprawnie (991 testów zielone, brak regresji w sygnaturze `changeStatus`), zostaje jedna luka logiczna: po odrzuceniu karty `callNotRestored` polling gaśnie, więc obiecany powrót jako ACW nie następuje bez przeładowania (MEDIUM-R3-1, kilka linii).
 
 **Blokuje commit:** nic twardego; rekomendowane przed commitem MEDIUM-R3-1, bo bez niego odrzucenie karty może zgubić wymaganą dyspozycję do czasu F5. Do domknięcia WP-3/WP-5: przeglądarka (oba motywy, 1366×768), kontrast hovera przycisków, czytnik ekranu.
+
+---
+
+## Review: FE-148 — 2026-11-04
+
+Zakres: `async-contact-accept.service.ts` (+spec), `incoming-call-alert.service.ts`, `agent-recovery.service.ts`, `email-contact.component.ts`, `social-contact.component.ts` + specy. Czesc FE only (BE-161/162 poza zakresem). Uruchomiono: 4 pliki spec / 83 testy zielone, eslint bez bledow (6 starych warningow `no-console`). Bez przegladarki. Dodatkowo odczytano `ContactServiceImpl.acceptContact` + `ContactRepository.acceptIfAssigned`: UPDATE ma `agent_id = ? AND status = 'ASSIGNED'`, wiec spozniony accept po release/reassign nie wskrzesi starego wlasciciela (potwierdzone, tylko odczyt).
+
+### 🐛 Bugs / Critical Issues
+- **MAJOR-1 `incoming-call-alert.service.ts:365-368` (`exists` early return) + `async-contact-accept.service.ts:11-13` — nieudany accept na zywo nie jest ponawiany, gdy karta nie jest zamontowana.** Doc serwisu obiecuje "failed request reverts the mark and the next caller retries", ale na torze na zywo "nastepnym wywolujacym" jest tylko mount karty. Renderowana jest wylacznie aktywna karta (`agent-desktop.component.html:279`, `activeTab()`), a nowa karta EMAIL/SOCIAL otwiera sie nieaktywna albo agent jest na innej trasie. Redelivery `CONTACT_ASSIGNED` z `ContactAssignmentMonitor` (jedyny sygnal "backend nadal widzi ASSIGNED") trafia w `if (exists) return;` zanim dojdzie do accept. Wynik: jeden blad sieci/5xx -> kontakt nigdy nie przejdzie w ACTIVE, monitor po `MAX_RETRIES` przekolejkuje kontakt, ktory agent ma na ekranie — czyli dokladnie scenariusz z opisu FE-148. Fix (1 linia): w galezi `exists` wywolac `asyncAccept.accept(id)` dla EMAIL/SOCIAL (guard `markAccepted` czyni to bezpiecznym i bezkosztowym; po sukcesie flaga blokuje kolejne). Kolejnosc: po `noteAssignedDuringRelease`, zeby nie accept-owac kontaktu w trakcie zwrotu.
+
+### ⚠️ Security Concerns
+_None identified._ Accept po stronie BE jest przypiety do `agent_id` i `status` (zweryfikowane), spozniony/obcy accept jest odrzucany.
+
+### 🏗️ Architecture / Pattern Violations
+- **MEDIUM-1 `agent-desktop.component.ts:723-730` — sciezka "reassigned podczas release" otwiera karte bez accept.** `removeTabKeepingFocus` -> `closeTab` -> `drafts.clear()` zdejmuje flage `accepted`, a potem `tabStore.openFromContactAssigned(reassigned)` otwiera karte (nieaktywna => niezamontowana) z pominieciem `handleAsyncContactAssigned`. Brak accept az do przelaczenia na karte; przy duzo mniejszym oknie niz MAJOR-1, ale to czwarty punkt wejscia, ktorego nie obejmuje deklaracja "jedno miejsce / dokladnie raz". Fix: po `openFromContactAssigned` (reason === null, EMAIL/SOCIAL) wywolac `asyncAccept.accept()`; albo lepiej przeniesc wywolanie accept do jednego miejsca (np. metoda store/serwisu "openAsyncAndAccept") zamiast powtarzac warunek `type === 'EMAIL' || 'SOCIAL'` w kazdym callerze.
+- **MEDIUM-2 `async-contact-accept.service.ts:20-24, 31-39` — komentarz "no toast / silent" jest nieprawdziwy.** `ContactService.acceptContact` nie ustawia `SKIP_ERROR_TOAST`, wiec `errorHandlerInterceptor` pokazuje toast (status 0/5xx: ogolny blad; 4xx: komunikat serwera, np. polski "Kontakt zmienil stan lub wlasciciela..." niezaleznie od jezyka UI). Przy tym `unmarkAccepted` dla bledu **nietrwalego** (400/404/409: kontakt juz zwrocony/reassign/zamkniety) powoduje ponowny accept przy kazdym montowaniu karty i kolejny toast. Starszy kod (email, recovery) mial to samo, ale FE-148 jawnie utrwala te semantyke w serwisie wspolnym i dokumentuje ja blednie. Fix: `acceptContact(id, { silent })` z `HttpContext(SKIP_ERROR_TOAST)`; unmark tylko dla `status === 0 || >= 500` (retry), przy 4xx zostawic flage (retry nic nie da) i ewentualnie zamknac/oznaczyc karte jak w `returnToQueue` (404/409).
+
+### 🔧 Improvements & Suggestions
+- **Opinia: cichy blad jest akceptowalny tylko z ponawianiem.** Agent widzi kontakt i pracuje, wiec brak toastu przy pierwszym bledzie jest OK (accept to sygnal infrastrukturalny), ale wymaga to realnego retry (MAJOR-1; opcjonalnie 1-2 ponowienia z backoffem dla 0/5xx w serwisie). Bez tego "cichy" = "kontakt moze zniknac bez wiedzy agenta". Jesli retry zostanie, toast przy ostatecznej porazce nie jest potrzebny.
+- **MINOR-1 `agent-recovery.service.ts:429-436` vs `incoming-call-alert.service.ts:372` — CHAT niespojny.** Recovery akceptuje kazdy typ != PHONE (w tym CHAT) i dla IN_PROGRESS stawia `markAccepted` dla CHAT, tor na zywo tylko EMAIL/SOCIAL; doc serwisu mowi "EMAIL, SOCIAL". Skoro CHAT nie istnieje w `contact.channel`, ujednolicic do jednego predykatu (np. `isAsyncAcceptable(type)` eksportowany z serwisu), zeby nie rozjechac przy dodaniu kanalu.
+- **MINOR-2** `AsyncContactAcceptService.accept` zwraca `boolean`, ktorego zaden caller nie uzywa (poza testami) — albo uzyc (np. do decyzji o toascie), albo `void`.
+- **MINOR-3** email-contact/social-contact: wywolanie w `ngOnInit` jest poprawne i bez `takeUntilDestroyed` swiadomie; `HttpClient` konczy sie samo, brak wyciekow. Do rozwazenia: skoro tor na zywo oraz recovery juz akceptuja, wywolanie w mount to tylko siatka bezpieczenstwa (reassign-after-release, bledy) — dopisac to w komentarzu, zeby nikt nie usunal go jako "duplikatu".
+
+### Weryfikacja pytan
+- **Dokladnie raz (live/mount/recovery/in-flight):** poprawne. `markAccepted` jest synchroniczny i ustawiany przed requestem, wiec rownolegle wejscia i in-flight sa deduplikowane; flaga jest zdejmowana tylko na bledzie i w `drafts.clear` (zamkniecie/zwrot). Tor recovery->mount i live->recovery (RINGING) nie dubluja.
+- **FE-136 (limity/closedSince/dismissed):** accept jest po udanym `openTab` w obu torach (live: po `openFromContactAssigned === null`; recovery: w `openCard` po `openTab`), wiec kontakty odrzucone przez limity / overflow nie sa akceptowane (test limitow to potwierdza). `closedSince`/`dismissed` odfiltrowuja przed `openCard`. IN_PROGRESS nadal tylko `markAccepted` — semantyka FE-131 zachowana.
+- **FE-132 (release):** `closeTab` zdejmuje flage po sukcesie release; accept w locie vs release: FE nie blokuje, BE bezpieczny dzieki warunkowemu UPDATE (spozniony accept -> 400 + toast, patrz MEDIUM-2). Luka reassign opisana w MEDIUM-1.
+- **Rollback bledu:** `catchError` -> `unmarkAccepted` poprawny; spozniony blad po `clear()` to no-op (brak wycieku). Problem tylko z klasyfikacja bledow (MEDIUM-2).
+
+### Jakosc testow
+- `incoming-call-alert.service.spec`: "exactly once, also when the event is re-delivered" przechodzi dzieki guardowi `exists`, nie `markAccepted` — nie sprawdza deduplikacji serwisu; "reverts the mark ... so the re-delivery retries" dowodzi tylko, ze `markAccepted` zwraca `true`, a w rzeczywistosci redelivery **nie** ponawia (MAJOR-1) — nazwa testu wprowadza w blad. Po poprawce MAJOR-1 dopisac test: blad accept -> redelivery -> drugi `acceptContact`.
+- Test limitow: asercja `calledTimes(tabs().length)` jest slaba — dodac `expect(opened).toBe(MAX_TOTAL_TABS)` i sprawdzenie, ze ID z wywolan == ID otwartych kart.
+- Brak testow: reassign po release (MEDIUM-1), blad 4xx nie powinien odblokowywac retry (MEDIUM-2), integracja live->recovery bez recznego `markAccepted` (spec recovery udaje serwis reczna flaga).
+- Dobre: spec serwisu pokrywa in-flight (`Subject`), IN_PROGRESS, retry po bledzie; recovery: dwa biegi = 1 POST.
+
+### ✅ Positive Observations
+- Jedno miejsce zamiast trzech kopii `markAccepted/catchError/unmark`; usuniety `acceptOnce` z recovery, ktory mial wlasny `HttpClient` i duplikat logiki.
+- Accept wylacznie po udanym `openTab` — odrzucone przez limity kontakty nie sa akceptowane (zgodne z BE-156/FE-136).
+- Serwis `providedIn: 'root'`, bez zwiazania z cyklem zycia komponentu: szybki przelacznik kart nie anuluje requestu.
+- IN_PROGRESS nadal tylko `markAccepted` (FE-131) — brak zbednego POST po F5.
+
+### WP-1…WP-7
+Brak zmian UI/i18n/a11y w tym tickecie; WP-1…WP-7 nie dotycza (do potwierdzenia przez wlasciciela, skoro kryteria ticketu je wymieniaja).
+
+### Summary
+**3.5/5.** Konsolidacja i exactly-once sa poprawne i dobrze przetestowane na poziomie store, ale "retry przy nastepnym wywolaniu" nie dziala na torze na zywo dla niezamontowanej karty (redelivery gubi sie na `exists`), a sciezka reassign-po-release omija accept; komentarz o "silent" jest nieprawdziwy (globalny toast, retry na bledach nietrwalych).
+
+**Blokuje commit:** MAJOR-1 (1 linia + test) — rekomendowane przed commitem, bo kryterium ticketu "blad accept nie zostawia karty w stanie zaakceptowany" bez retry nie chroni przed przekolejkowaniem. MEDIUM-1/2 moga pojsc do osobnego ticketu, ale MEDIUM-2 co najmniej poprawic w komentarzu.
+
+### Runda 2 — FE-148 — 2026-11-04
+
+Zakres: weryfikacja poprawek MAJOR-1, MEDIUM-1, MEDIUM-2 i MINOR (`async-contact-accept.service.ts`, `contact-tab.store.ts`, `contact.service.ts`, `incoming-call-alert.service.ts`, `agent-recovery.service.ts`). Uruchomiono 3 specy (84 testy zielone); pelny zestaw wg implementatora 1019 zielonych. Bez przegladarki.
+
+#### Status
+- **MAJOR-1: ZAMKNIETE.** Galaz `exists` wola `acceptOpened`; guard `markAccepted` blokuje duplikaty, a po nieudanym accept (flaga cofnieta) redelivery z monitora ponawia.
+- **MEDIUM-1: ZAMKNIETE.** Jeden trigger w `ContactTabStore.openFromContactAssigned`, tylko gdy `openTab` zwroci `null` (odrzucone limitem nie sa akceptowane); pokrywa tor live i re-open po release. Recovery uzywa `tabStore.openTab` (nie `openFromContactAssigned`), wiec IN_PROGRESS nadal robi tylko `markAccepted`, a RINGING przechodzi przez `acceptOpened` — zgodnie z FE-131/FE-136.
+- **MEDIUM-2: ZAMKNIETE.** `SKIP_ERROR_TOAST` przez `silent`, 0/5xx ponawiane 2x (1 s/2 s) i dopiero wtedy `unmark`, 4xx zachowuje flage + `console.warn` (dozwolone przez eslint). Komentarze poprawione, zbedny `boolean` usuniety.
+- **MINOR (CHAT / jeden predykat): ZAMKNIETE.** `isAsyncAcceptable` wspolny dla store i recovery.
+
+#### Weryfikacja pytan
+- **Lazy `Injector`:** brak cyklu — `AsyncContactAcceptService` zalezy tylko od `ContactService` (`HttpClient`) i `ContactDraftStore`, zadne nie wstrzykuje `ContactTabStore`. `injector.get` w root-serwisie uzywa root injectora, wywolywane dopiero przy udanym otwarciu karty async, wiec testy store bez `HttpClient` nie wywroca sie dla PHONE (dla EMAIL/SOCIAL/CHAT wymagaja providera `ContactService` — to kosztem ukrytej zaleznosci; akceptowalne, ale warto zostawic komentarz, ktory juz jest).
+- **Trigger store vs recovery IN_PROGRESS:** potwierdzone, patrz MEDIUM-1.
+- **Timery retry vs logout/reset:** NIE sa anulowane (`retry` + `timer` zyje w subskrypcji bez `takeUntil`; `agent-shell` robi `draftStore.clearAll()` i `tabStore.reset()`, ale bez sygnalu do serwisu).
+
+#### Nowe
+- **MINOR-R2-1 (`async-contact-accept.service.ts:60-72`) — retry nie sprawdza, czy kontakt nadal jest "nasz".** Okno to max ok. 3 s. Skutki: (a) po release kontaktu w trakcie backoffu spozniony POST wyjdzie (BE odrzuci 400 przez warunkowy UPDATE `agent_id`+`status`, cicho; brak szkody); (b) po wylogowaniu spozniony POST pojdzie z juz niewazna sesja (401 obsluzy `authInterceptor`, traktowane jako 4xx = final, tylko `console.warn`); (c) koncowy `unmarkAccepted` po transient failure moze zdjac flage nalezaca do nowego przypisania tego samego kontaktu (re-assign po release) — konsekwencja to co najwyzej jeden dodatkowy idempotentny accept. Zadne z tych nie psuje danych (backend chroni), wiec nie blokuje; tanio naprawialne: przed kazdym ponowieniem sprawdzic, czy flaga nadal jest ustawiona (np. `drafts.isAccepted(id)` / `takeWhile`), a `unmark` robic tylko gdy nadal jest. Alternatywnie `takeUntil` na sygnale `reset` z `ContactDraftStore.clearAll`.
+- **NIT:** live path akceptuje teraz tez CHAT (zgodnie z wyjasnieniem: nie istnieje w DB) — dokladnie to, czego chcialem (jeden predykat); komentarz "everything except PHONE" jest prawdziwy.
+- Zmiana BE-161 w `agent-recovery.service.ts` (fallback tylko na 404, 500 => `ok:false`) poza zakresem tego przegladu; testy zielone.
+
+#### Testy
+Zamkniete uwagi z rundy 1: usuniety mylacy test, dodane redelivery-po-bledzie, reopen po release, limity z `MAX_TOTAL_TABS` i zgodnoscia ID, 4xx bez retry, backoff na fake timers, live->recovery bez recznego `markAccepted`, flaga `silent`. Brakuje jedynie testu dla MINOR-R2-1 (retry po release/reset).
+
+#### Summary
+**4.5/5.** Wszystkie uwagi z rundy 1 domkniete poprawnie, z testami i bez cyklu zaleznosci; zostaje drobna, niegrozna luka — ponowienia nie sa anulowane przy zwrocie kontaktu/wylogowaniu (MINOR-R2-1, backend chroni dane).
+
+**Blokuje commit:** nic. MINOR-R2-1 opcjonalnie przed commitem (kilka linii) albo do backlogu.
+
+## Review: FE-130 + FE-135 — 2026-11-04
+
+Zakres: `agent-status.service.ts`, `agent-recovery.service.ts`, `status-elapsed.component.ts`, `contact-tab.store.ts`, nowy `contact-message-listener.service.ts`, `contact-tab-marker.ts`, `agent-desktop.component.{ts,html,scss}`, `social-contact.component.ts`, `email-contact.component.ts`, `ws-event.model.ts`, i18n pl/en/de/uk + specy. Kontrakt BE (`statusSince`, `CONTACT_MESSAGE_RECEIVED`) jeszcze poza drzewem — oceniane wg opisu. Uruchomiono 26 plikow specow z `features/agent` (services, models, status-elapsed, agent-desktop): 383/383 zielone. Sprawdzono dodatkowo kolejnosc sortowania w backendzie (`EmailMessageRepository.findByThreadRootMessageId`, `SocialMessageRepository.findByContactId`).
+
+### 🐛 Bugs / Critical Issues
+- **MEDIUM-1 (`email-contact.component.ts:~265-280`, `social-contact.component.ts:~143-160`) — odswiezenie "najnowszej strony" opiera sie na niezweryfikowanym kontrakcie sortowania.** E-mail: backend zwraca watek `ORDER BY createdAt ASC` (strona 0 = NAJSTARSZE 20), wiec dla watku > 20 wiadomosci `getThread(..., 0, 20)` nigdy nie zawiera nowej wiadomosci i znacznik/odswiezenie nie zadziala (to samo dotyczy pierwszego ladowania — dlug istniejacy, ale FE-135 go dziedziczy i komentarz "newest thread page" jest nieprawdziwy). SOCIAL: backend zwraca `sent_at DESC` (strona 0 = najnowsze), a UI renderuje kolejnosc z API bez sortowania; `fresh` jest doklejane NA KONIEC i w kolejnosci malejacej (przy > 1 nowej wiadomosci odwrocona), `scrollToBottom` zaklada rosnace. Naprawa: przy odswiezeniu sortowac `fresh` po `sentAt`/`createdAt` rosnaco i wstawiac wg tego klucza (albo scalac i sortowac cala liste); dla e-maila ustalic, ktora strona jest "najnowsza" (ostatnia strona wg `totalPages`, albo sortowanie DESC w API). Zweryfikowac w przegladarce na watku > 20 wiadomosci.
+- **MEDIUM-2 (`social-contact.component.ts:~147-153` vs `loadMoreMessages`) — duplikaty po "Zaladuj starsze".** Odswiezenie dokleja k nowych wiadomosci, ale `currentPage` zostaje; backend paginuje listy DESC offsetem, wiec strona `currentPage+1` zawiera teraz k ostatnich wiadomosci strony poprzedniej -> `loadMoreMessages` (`[...response.content, ...current]`, bez dedupe) pokaze duplikaty na styku. Naprawa: dedupe po `messageId` w galezi `!initial` (oraz w e-mailu dla symetrii).
+- **MEDIUM-3 (oba komponenty, `if (this.loading()) return;`) — zdarzenie podczas pierwszego ladowania moze zostac zgubione.** Komentarz zaklada, ze "initial load already covers" wiadomosc, ale zapytanie mogło wystartowac PRZED commitem wiadomosci, a odpowiedz wrocic bez niej; zdarzenie jest wtedy odrzucone i wiadomosc pojawi sie dopiero przy kolejnym zdarzeniu. Okno jest krotkie, ale to dokladnie wyscig, ktory ticket ma domknac. Naprawa: zamiast ignorowac, ustawic flage `refreshPending` i po zakonczeniu ladowania wykonac jedno odswiezenie (dedupe po id i tak chroni przed dublem).
+- **MEDIUM-4 (`agent-status.service.ts:115-131`, `fetchAndSyncStatus`) — spoznione `/users/me` po nowszym zdarzeniu WS cofa status i zegar.** Re-sync na reconnect (lub pierwszy fetch) moze dojsc po `AGENT_STATUS_CHANGED`; `applyStatus` nie porownuje wersji: inny status -> nadpisuje nowszy starszym (+ `statusEpisode`++), ten sam status ze starszym `statusSince` -> cofa licznik i bumpuje epizod (recovery uzna to za zmiane agenta). Teraz, gdy payload niesie znacznik czasu, mozna to tanio odrzucic: gdy `sinceFromServer && parsed !== null && parsed < current` -> ignoruj caly payload (zarowno dla innego, jak i tego samego statusu). Wymaga testu "stale response after newer WS event".
+
+### ⚠️ Security Concerns
+_None identified._ Zdarzenie nie niesie tresci (RODO), stan "nieprzeczytane" tylko w pamieci, `payload.contactId` jest porownywany z otwartymi kartami (brak wycieku miedzy agentami — backend adresuje do agenta).
+
+### 🏗️ Architecture / Pattern Violations
+- **MINOR-1 (`agent-status.service.ts:99-107`) — `stopStatus()` nie zeruje `currentStatus`, `statusSince`, `statusEpisode`, `sinceFromServer`.** Przy ponownym logowaniu w tej samej karcie `initStatus` -> `applyStatus('OFFLINE')` jest no-opem, jesli poprzedni status tez byl `OFFLINE` (zostaje stary `statusSince` i flaga `sinceFromServer=true` poprzedniego agenta), a `statusEpisode` nie startuje od 0. Skutek praktyczny maly (nastepny fetch nadpisze), ale komentarz "starts clean" jest nieprecyzyjny. Naprawa: reset czterech pol w `stopStatus()`.
+- **MINOR-2 (`contact-message-listener.service.ts:22`) — `takeUntilDestroyed(inject(DestroyRef))` w serwisie `root` nigdy sie nie wyzwoli** (DestroyRef injectora root). To akceptowalne (singleton, jedna subskrypcja, `reset()` czysci stan przy wylogowaniu, brak podwojnej subskrypcji), ale komentarz "lives for the whole agent session (instantiated by the agent shell)" jest mylacy — zyje do zamkniecia aplikacji, a `inject()` w shellu tylko go tworzy. Dopisac w komentarzu.
+- **MINOR-3 (`agent-desktop.component.ts` `unreadEffect` + `newContactEffect`) — dwa `announce()` w jednym przebiegu efektow nadpisuja sie** (`announce` czyści i ustawia ostatni tekst). Gdy nowy kontakt i wiadomosc w innej karcie przyjda w tej samej klatce, pierwsze ogloszenie zginie. Rzadkie; ewentualnie kolejka/laczenie tekstow w `announce`.
+
+### 🔧 Improvements & Suggestions
+- **MINOR-4 (oba komponenty, `refresh*`)** — brak serializacji zadan: seria zdarzen to N rownoleglych GET-ow, a odpowiedzi moga wrocic w odwrotnej kolejnosci. Uzyc `Subject` + `exhaustMap`/`switchMap` (z flaga pending z MEDIUM-3) zamiast wolnego `subscribe`.
+- **MINOR-5 (`contact-tab.store.ts:~68-75`) — aktywna karta nie dostaje znacznika, gdy agent jest "poza" nia inaczej niz przez kalendarz** (np. ukryta karta przegladarki, inna trasa powloki). Komentarz listenera obiecuje oznaczanie "while the agent is on another route", co dla aktywnej karty nie jest prawda. Doprecyzowac komentarz albo uwzglednic `document.hidden`/trase.
+- **MINOR-6 — brak resyncu po reconnect WS**: otwarte karty nie odswiezaja watku po ponownym polaczeniu, wiec wiadomosci z okresu rozlaczenia nie pojawia sie ani jako znacznik, ani w watku (zdarzenie to "hint"). Rozwazyc odswiezenie otwartych kart przy `ws.onConnect`.
+- **MINOR-7 (`status-elapsed.component.ts` + `agent-status.service.ts` fallback->server)** — gdy zegar przegladarki spieszy sie/spoznia, licznik stoi na 0:00 przez czas rownowazny przesuniecie (clamp) lub ma staly offset; udokumentowane i zgodne z R1 ticketu. Dodatkowo "refine" fallbacku do wartosci serwera moze skokowo zmienic licznik o skew — akceptowalne.
+- **NIT (`agent-recovery.service.ts:~156`, `leaveAvailableForAcw(statusMark: number | null)`)** — `statusEpisode()` jest zawsze `number`; typ `| null` zbedny. Komentarz w liniach ~371-375 przekracza 100 znakow.
+
+### ✅ Positive Observations
+- `statusEpisode` poprawnie rozdziela "nowy epizod" od rafinacji fallbacku: echo WS wlasnej zmiany (zarowno PATCH->WS, jak i WS->PATCH — drugi `applyStatus` bez `since` wraca na `parsed === null`) nie bumpuje epizodu; re-sync z tymi samymi/`null` wartosciami tez nie. Recovery zachowuje semantyke FE-136 (nie cofa statusu zmienionego w trakcie) — zweryfikowane przegladem logiki i testem.
+- `parseServerInstant` odrzuca `NaN`; `elapsedMs` w `status-elapsed` ma `Number.isFinite` + `Math.max(0, …)` — brak `NaN`/ujemnych wartosci w DOM; usunieto adnotacje "w tej sesji".
+- `breakDurationHint` usuniety z pl/en/de/uk i nigdzie nie wystepuje (grep `src`+`public`: 0 trafien); klucze `UNREAD`/`unreadAnnouncement` obecne w 4 jezykach; martwy `SOCIAL_MESSAGE_RECEIVED`/`SocialMessageReceivedPayload` usuniety w calosci.
+- `calendarReturnEffect` w store: efekt pola w `root` service (kontekst wstrzykiwania OK), odczyty sygnalow sledzone, zapis przez `untracked(syncUnread)` — brak petli; jawne wywolania `syncUnread` w sciezkach store zapewniaja natychmiastowe czyszczenie bez czekania na flush efektu.
+- Stan "nieprzeczytane" tylko w pamieci, jedno zrodlo prawdy (marker + ogloszenie z jednego sygnalu), brak dodatkowego regionu live — jedno ogloszenie polite; `aria-label` karty (`tabAriaLabel`) dostaje tekst `tabMarkerSr.UNREAD`; priorytet ACW > Hold > Call > Unread > Draft przetestowany.
+- Fallback starego backendu: brak zdarzenia = brak znacznika i bledow; odswiezenia ciche przy bledzie.
+
+### Testy
+- Dobre: 9 przypadkow `statusSince` (null/brak, `NaN`, WS, re-sync, nowy epizod, echo), 9 przypadkow store (aktywna/PHONE/kanal, zamkniecie, kalendarz z `TestBed.tick()`), marker, listener, specy refresh e-mail/social (dedupe, inny kontakt/kanal, blad).
+- Luki: (1) brak testu spoznionej odpowiedzi `/users/me` po zdarzeniu WS (MEDIUM-4) oraz kolejnosci WS-przed-PATCH; (2) brak testu `stopStatus()`/ponowne logowanie; (3) specy refresh nie pokrywaja: zdarzenia w trakcie `loading` (MEDIUM-3), `loadMore` po odswiezeniu (MEDIUM-2), kilku nowych wiadomosci naraz i kolejnosci (MEDIUM-1), watku > 20; (4) spec listenera nie sprawdza niezgodnego kanalu ani braku podwojnej subskrypcji po ponownym `inject`.
+
+### Summary
+**3.5/5.** Logika epizodu statusu i stan "nieprzeczytane" w store sa poprawne i dobrze zaprojektowane (bez petli, bez podwojnych ogloszen), ale warstwa odswiezania watkow w komponentach e-mail/social opiera sie na niezweryfikowanej kolejnosci stron (dla e-maila > 20 wiadomosci nie zadziala), moze dublowac wiadomosci po "Zaladuj starsze" i gubi zdarzenie przy trwajacym ladowaniu.
+
+**Verdykt: changes required (male).** Przed commitem: MEDIUM-1, MEDIUM-2, MEDIUM-3 (wspolna poprawka: sortowanie + dedupe + `refreshPending`), MEDIUM-4 (guard `parsed < current`, ~3 linie + test). MINOR-y do backlogu lub opcjonalnie.
+
+## Review: FE-130 + FE-135 — runda 2 — 2026-11-04
+
+Zakres: poprawki po rundzie 1 (`agent-status.service.ts`, `agent-recovery.service.ts`, `contact-message-listener.service.ts`, `agent-desktop.component.ts`, `social-contact.component.ts`, `email-contact.component.ts` + specy). Uruchomiono 6 plikow specow (status, listener, recovery, agent-desktop.tabs, social-contact, email refresh): 153/153 zielone.
+
+### Status ustalen z rundy 1
+- MEDIUM-1: social — zamkniete co do kolejnosci (`mergeChronological`, test wielu nowych wiadomosci), ale patrz R2-1 (regresja przewijania). E-mail — refresh czyta ostatnia strone (probe `getThread(root,0,1)` -> `totalElements`), czyli samo odswiezenie jest poprawne; patrz R2-2 (pogorszenie przy watku > 20 przez dlug w pierwszym ladowaniu).
+- MEDIUM-2 (duplikaty po "Zaladuj starsze"): zamkniete — dedupe po `messageId` (social) i `id` (e-mail) + test "load older after a refresh".
+- MEDIUM-3 (zdarzenie w trakcie ladowania): zamkniete — `refreshPending` + flush po initial load, test w obu komponentach.
+- MEDIUM-4 (spozniony `/users/me`): zamkniete czesciowo — guard `sinceFromServer && parsed < current` dziala dla poczatku pochodzacego z serwera, patrz R2-3.
+- MINOR-1 (`stopStatus` reset): zamkniete + test. MINOR-2: zamkniete (komentarz). MINOR-3 (laczenie ogloszen): zamkniete; lacznik ". " bezpieczny — wszystkie stringi `newContactAnnouncement`/`unreadAnnouncement` koncza sie ")" (pl/en/de/uk), `tabClose.wrapping` bez kropki, wiec brak "..". MINOR-4 (serializacja): zamkniete flagami `refreshInFlight`/`refreshPending` (zamiast exhaustMap — akceptowalne, testy "serializes refreshes"). MINOR-5: udokumentowane jako dlug. MINOR-6 (resync po reconnect WS): NADAL OTWARTE (nie zglaszane jako naprawione) — do ticketu. NIT (`number | null`): zamkniete.
+
+### 🐛 Nowe ustalenia
+- **R2-1 MEDIUM (`social-contact.component.ts:100-115`, `loadMessages`) — po przejsciu na kolejnosc chronologiczna pierwsze ladowanie nie przewija na dol.** Wczesniej API zwracalo DESC (najnowsze na gorze) i `scrollTop=0` pokazywal najnowsze; teraz lista jest rosnaca, a `scrollToBottom()` jest wolane tylko po wysylce i w refreshu (`HEAD` mial je tylko w WS i send). Agent otwierajacy karte z > ~1 ekranem wiadomosci zobaczy NAJSTARSZE z 20 na gorze, a najnowsze poza widokiem. Naprawa: `if (initial) this.scrollToBottom()` po `messages.update`. Przy "Zaladuj starsze" prepend nad `scrollTop≈0` nie ma kotwiczenia (Chrome wylacza scroll anchoring przy offsecie 0) — zapamietac `scrollHeight` przed i skorygowac `scrollTop += nowy - stary` po renderze. Test: initial load wola scroll na dol.
+- **R2-2 MEDIUM (`email-contact.component.ts` `requestRefresh` + znany dlug `loadThread` initial) — refresh pogarsza dlug "pierwsza strona = najstarsze" dla watkow > 20.** Pierwsze ladowanie pokazuje wiadomosci 1-20 (`hasMore` odwrocone = false, wiec brak przycisku). Refresh dokleja OSTATNIA strone na koniec: dla watku 25 wynik jest ciagly (1-20 + 21-25, przypadkiem), ale dla > 40 powstaje niewidoczna luka (np. 1-20 + 41-45) bez zadnego sygnalu, a nowa wiadomosc wyglada, jakby nastepowala bezposrednio po 20. Bez refreshu bylo "nic sie nie pojawia"; teraz "pojawia sie z luka" — mylace dla agenta. Do ticketu osobnego (naprawa pierwszego ladowania: ostatnia strona + poprawne `hasMore = page > 0`); do tego czasu ewentualnie ograniczyc doklejanie do przypadku `lastPage <= currentPage + 1`. Znacznik nieprzeczytanych (store) dziala niezaleznie.
+- **R2-3 LOW (`agent-status.service.ts:~123`, guard) — guard stale nie dziala, gdy obecny poczatek jest fallbackiem klienta (`sinceFromServer=false`).** Okno: PATCH sukces (fallback `Date.now()`), potem spozniony `/users/me` wyslany przed PATCH (starszy status + starszy `statusSince`) wchodzi, bo guard wymaga `sinceFromServer`; cofa status do czasu echa WS. Waskie okno (echo WS zwykle w ms), ale M4 nie jest domkniete w 100%. Opcja: dla payloadu z serwerem porownywac `parsed < current` takze przy fallbacku, ale tylko dla ROZNEGO statusu i z tolerancja skew; albo ignorowac `fetchAndSyncStatus` odpowiedz, jesli w trakcie zawolano `changeStatus` (znacznik zadania). Przypadek odwrotny — guard blednie odrzucajacy poprawna korekte serwera — nie znaleziony: przy `sinceFromServer=true` starszy znacznik serwera jest z definicji nieaktualny; jedyne ryzyko to skew zegarow miedzy instancjami BE (zmiany statusu w obrebie ms), pomijalne.
+- **R2-4 LOW (oba komponenty, `finalize` -> `flushPendingRefresh`/`requestRefresh`) — flagi nie sa resetowane przy destroy.** `takeUntilDestroyed` konczy strumien przy zniszczeniu, `finalize` odpala sie i, gdy `refreshPending`, probuje zaczac nowy refresh na zniszczonym `DestroyRef` (kolejne `takeUntilDestroyed` — w Angularze rzuca NG0911/albo pelna subskrypcja; blad polyka `error: () => undefined`, ale to zbedna praca/ryzyko wycieku). Naprawa: flaga `destroyed` ustawiana w `destroyRef.onDestroy` i guard na poczatku `requestRefresh`. Przy zmianie kontaktu flagi sa per instancja komponentu (karta = instancja), wiec problem dotyczy tylko destroy. Zweryfikowac testem (unmount z `refreshPending=true`).
+- **R2-5 LOW (`email-contact.component.ts` `requestRefresh`) — probe + odczyt = 2 GET-y na zdarzenie i wyscig granicy strony:** gdy miedzy probe a odczytem dojdzie wiadomosc przekraczajaca wielokrotnosc 20, `lastPage` jest za male i najnowsza nie jest odczytana do nastepnego zdarzenia. Mozna odczytywac `lastPage` i `lastPage+1` albo `totalPages` z odpowiedzi i ponowic przy rozbieznosci. Niskie.
+- **NIT (`social-contact.component.ts` `mergeChronological`)** — remisy `sentAt` zachowuja kolejnosc DESC z API (odwrocona w obrebie remisu); dodac drugorzedny klucz (np. kolejnosc wstawienia odwrocona dla wiadomosci z jednej strony) lub `messageId`. Nieparsowalny `sentAt` -> 0 -> na samej gorze.
+
+### ⚠️ Security Concerns
+_None identified._
+
+### ✅ Pozytywy
+- Dedupe + `refreshPending`/`refreshInFlight` poprawnie resetowane w `finalize` (takze po bledzie); test serializacji i zdarzenia w trakcie ladowania.
+- `statusEpisode` rozdzielone od `statusSince`; recovery uzywa epizodu; test "stale /users/me after WS", "WS echo before PATCH", `stopStatus` reset — pokrywaja luki z rundy 1.
+- Laczenie ogloszen bezpieczne dla i18n; kolejka czyszczona w callbacku przed guardem `destroyed`.
+
+### Summary
+**4/5.** Wszystkie MEDIUM z rundy 1 domkniete lub zlagodzone, testy zielone; zostaje regresja UX w social (brak scroll-to-bottom przy pierwszym ladowaniu — R2-1) i swiadomie niedomkniety dlug e-mail > 20 (R2-2), plus drobne luki R2-3/R2-4.
+
+**Verdykt: approve z poprawkami.** Przed commitem: R2-1 (1-2 linie + test). Do ticketu: R2-2 (z naprawa pierwszego ladowania), MINOR-6, R2-3, R2-4, R2-5.

@@ -214,7 +214,6 @@
       "afterContact": "Po kontakcie",
       "offline": "Offline",
       "breakDuration": "Czas trwania przerwy",
-      "breakDurationHint": "Czas od zmiany statusu w tej sesji",
       "errorLoad": "Nie udało się pobrać statusu agenta.",
       "errorChange": "Nie udało się zmienić statusu. Spróbuj ponownie.",
       "changedAnnouncement": "Status zmieniony na: {{status}}"
@@ -288,15 +287,18 @@
         "ACW": "ACW",
         "HOLD": "Wstrzymana",
         "CALL": "Rozmowa",
+        "UNREAD": "Nowa wiadomość",
         "DRAFT": "Szkic"
       },
       "tabMarkerSr": {
         "ACW": "dyspozycja po rozmowie (ACW)",
         "HOLD": "rozmowa wstrzymana",
         "CALL": "trwa rozmowa",
+        "UNREAD": "nowa wiadomość od klienta",
         "DRAFT": "niewysłany szkic"
       },
       "newContactAnnouncement": "Nowy kontakt: {{who}} ({{type}})",
+      "unreadAnnouncement": "Nowa wiadomość od klienta: {{who}} ({{type}})",
       "tabClose": {
         "closePhone": "Rozłącz i zamknij kontakt {{name}}",
         "closeAsync": "Zwróć do kolejki i zamknij kontakt {{name}}",

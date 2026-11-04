@@ -135,7 +135,8 @@ class SocialContactToAgentFlowTest {
         Constructor<?> ctor = implClass.getDeclaredConstructors()[0];
         ctor.setAccessible(true);
         socialService = (SocialMessageService) ctor.newInstance(integrationRepository, messageRepository,
-                contactService, mock(SocialAdapterRegistry.class), rabbitTemplate, resolver);
+                contactService, mock(SocialAdapterRegistry.class), rabbitTemplate, resolver,
+                mock(com.contactcenter.domain.websocket.ContactMessageReceivedPublisher.class));
     }
 
     @AfterEach
@@ -210,7 +211,7 @@ class SocialContactToAgentFlowTest {
         when(contactService.updateQueueId(legacy.getContactId(), TENANT_ID, QUEUE_ID)).thenReturn(1);
 
         routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
-                AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+                AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null));
 
         verify(contactService).updateQueueId(legacy.getContactId(), TENANT_ID, QUEUE_ID);
         assertThat(legacy.getStatus()).isEqualTo("ASSIGNED");

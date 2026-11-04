@@ -83,10 +83,11 @@ export class ContactService {
    * Transitions the contact from ASSIGNED → ACTIVE on the backend, which stops
    * ContactAssignmentMonitor from re-queuing it.
    */
-  acceptContact(contactId: string): Observable<ContactResponse> {
+  acceptContact(contactId: string, options?: { silent?: boolean }): Observable<ContactResponse> {
     return this.http.post<ContactResponse>(
       `${environment.apiUrl}/contacts/${contactId}/accept`,
       {},
+      options?.silent ? { context: new HttpContext().set(SKIP_ERROR_TOAST, true) } : undefined,
     );
   }
 

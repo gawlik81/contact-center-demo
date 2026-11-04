@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { NEVER } from 'rxjs';
 
 import { WebSocketService } from '../../core/services/websocket.service';
 import { AgentShellComponent } from './agent-shell.component';
@@ -32,6 +33,7 @@ describe('AgentShellComponent logout cleanup', () => {
             connect: vi.fn(),
             disconnect: vi.fn(),
             onConnect: vi.fn(() => () => undefined),
+            events$: NEVER,
           },
         },
         {

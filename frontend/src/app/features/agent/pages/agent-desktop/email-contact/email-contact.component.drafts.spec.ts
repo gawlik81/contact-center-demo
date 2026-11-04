@@ -5,6 +5,7 @@ import { Subject, of } from 'rxjs';
 import { EmailContactComponent } from './email-contact.component';
 import { EmailService, EmailMessage } from '../../../services/email.service';
 import { ContactService } from '../../../services/contact.service';
+import { ACCEPT_RETRY_BASE_MS } from '../../../services/async-contact-accept.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 import { ContactTabStore } from '../../../services/contact-tab.store';
 import { NotificationService } from '../../../../../core/services/notification.service';
@@ -125,13 +126,19 @@ describe('EmailContactComponent drafts', () => {
     expect(contactService.acceptContact).toHaveBeenCalledTimes(1);
   });
 
-  it('retries acceptContact on the next mount after a failure', async () => {
-    contactService.acceptContact.mockReturnValueOnce(
-      new (await import('rxjs')).Observable((s) => s.error(new Error('500'))),
-    );
-    mount().destroy();
-    mount();
-    expect(contactService.acceptContact).toHaveBeenCalledTimes(2);
+  it('retries acceptContact on the next mount after a failure that exhausted the retries', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'] });
+    try {
+      contactService.acceptContact.mockReturnValueOnce(
+        new (await import('rxjs')).Observable((s) => s.error({ status: 500 })),
+      );
+      mount().destroy();
+      await vi.advanceTimersByTimeAsync(ACCEPT_RETRY_BASE_MS * 3);
+      mount();
+      expect(contactService.acceptContact).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('removes the draft after a successful send and does not resurrect it', async () => {

@@ -360,7 +360,7 @@ class UserServiceImpl implements UserService {
         AppUser user = findUserOrThrow(userId, tenantId);
         UserStatus oldStatus = user.getStatus();
 
-        user.setStatus(request.status());
+        user.changeStatus(request.status(), Instant.now());
         AppUser saved = appUserRepository.save(user);
 
         // Zapis statusu w Redis jako structured Map (wymagane przez AdminMetricsService
@@ -398,7 +398,7 @@ class UserServiceImpl implements UserService {
         }
 
         // Publikacja eventu RabbitMQ
-        publishStatusChangedEvent(userId, tenantId, oldStatus, request.status());
+        publishStatusChangedEvent(userId, tenantId, oldStatus, request.status(), saved.getStatusChangedAt());
 
         log.info("[UserService] Status agenta zmieniony: userId={}, {} -> {}",
                 userId, oldStatus, request.status());
@@ -445,8 +445,8 @@ class UserServiceImpl implements UserService {
         AppUser agent = findUserOrThrow(agentId, tenantId);
         UserStatus oldStatus = agent.getStatus();
 
-        agent.setStatus(UserStatus.AVAILABLE);
-        appUserRepository.save(agent);
+        agent.changeStatus(UserStatus.AVAILABLE, Instant.now());
+        AppUser savedAgent = appUserRepository.save(agent);
 
         // Aktualizuj Redis żeby AdminMetricsService widział poprawny stan agenta
         String redisKey = String.format(REDIS_AGENT_STATUS_KEY, agentId);
@@ -463,7 +463,8 @@ class UserServiceImpl implements UserService {
         }
 
         // Propaguj zmianę statusu przez RabbitMQ → WebSocket (agentStatusChanged do agenta i supervisorów)
-        publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE);
+        publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE,
+                savedAgent.getStatusChangedAt());
     }
 
     // =========================================================================
@@ -629,8 +630,10 @@ class UserServiceImpl implements UserService {
     }
 
     private void publishStatusChangedEvent(UUID userId, UUID tenantId,
-                                            UserStatus oldStatus, UserStatus newStatus) {
-        AgentStatusChangedEvent event = AgentStatusChangedEvent.of(userId, tenantId, oldStatus, newStatus);
+                                            UserStatus oldStatus, UserStatus newStatus,
+                                            Instant statusSince) {
+        AgentStatusChangedEvent event =
+                AgentStatusChangedEvent.of(userId, tenantId, oldStatus, newStatus, statusSince);
         try {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE_EVENTS,

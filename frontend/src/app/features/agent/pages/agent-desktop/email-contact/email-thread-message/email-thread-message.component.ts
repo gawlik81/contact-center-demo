@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { buildEmailSrcdoc } from '../../../../../../shared/utils/email-srcdoc.util';
 import { EmailAttachment, EmailMessage, EmailService } from '../../../../services/email.service';
 
 @Component({
@@ -46,20 +47,7 @@ export class EmailThreadMessageComponent {
 
   protected getSrcdoc(html: string | null | undefined, text?: string | null): string {
     const noContentLabel = this.transloco.translate('agent.emailThread.noContent');
-    const content =
-      html ||
-      (text
-        ? `<pre style="white-space:pre-wrap;word-break:break-word">${text.replace(/</g, '&lt;')}</pre>`
-        : `<p style="color:#64748b;font-style:italic">${noContentLabel}</p>`);
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 8px 12px; font-family: sans-serif; font-size: 14px; line-height: 1.5; color: #1e293b; word-break: break-word; }
-  img { max-width: 100%; height: auto; }
-  a { color: #1a56db; }
-  blockquote { border-left: 3px solid #cbd5e1; margin: 0; padding-left: 1em; color: #64748b; }
-</style>
-</head><body>${content}</body></html>`;
+    return buildEmailSrcdoc(html, text, noContentLabel);
   }
 
   protected downloadAttachment(attachment: EmailAttachment): void {

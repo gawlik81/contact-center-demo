@@ -62,16 +62,30 @@ export interface RecordingUrlResponse {
   contentType?: string; // 'audio/mpeg' | 'message/rfc822'
 }
 
-export interface EmailPreviewResponse {
+export interface EmailPreviewMessage {
+  messageId: string;
   from: string;
   to: string;
   cc: string | null;
   subject: string | null;
   bodyHtml: string | null;
   bodyText: string | null;
-  receivedAt: string;
+  /** ISO timestamp; null for OUTBOUND messages. */
+  receivedAt: string | null;
+  /** ISO timestamp, always present; chronological sort key. */
+  messageAt: string;
   direction: 'INBOUND' | 'OUTBOUND';
   attachments: EmailAttachmentInfo[];
+  /** True when an EML archive exists for this message. */
+  emlAvailable: boolean;
+}
+
+export interface EmailPreviewResponse {
+  /** Chronological ASC (oldest first). */
+  messages: EmailPreviewMessage[];
+  totalMessages: number;
+  /** True when more messages exist than the returned cap. */
+  truncated: boolean;
 }
 
 export interface EmailAttachmentInfo {

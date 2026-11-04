@@ -335,32 +335,75 @@
               }
             </section>
 
-            <!-- Nagranie rozmowy -->
+            <!-- Konwersacja e-mail (wszystkie wiadomości kontaktu, chronologicznie) -->
+            @if (isEmailChannel()) {
+              <section class="cd-section" aria-labelledby="contact-section-email">
+                <div class="cd-section__head">
+                  <h2 class="cd-section__label cd-section__label--heading" id="contact-section-email">
+                    {{ 'contactDetailModal.sectionEmailConversation' | transloco }}
+                  </h2>
+                </div>
+
+                <!-- Live region stays mounted; only its text changes so the notice is announced. -->
+                <p class="email-thread-notice" role="status">{{ truncatedNotice() }}</p>
+
+                @if (emailPreviewState() === 'idle' || emailPreviewState() === 'loading') {
+                  <div
+                    class="recording-loading"
+                    role="status"
+                    aria-busy="true"
+                    [attr.aria-label]="'contactDetailModal.loadingPreview' | transloco"
+                  >
+                    <div class="skeleton-block skeleton-block--player"></div>
+                  </div>
+                }
+
+                @if (emailPreviewState() === 'error') {
+                  <div class="inline-error" role="alert">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                      />
+                    </svg>
+                    <span>{{ 'contactDetailModal.errorPreviewText' | transloco }}</span>
+                    @if (emailPreviewRetryable()) {
+                      <button class="btn-link" type="button" (click)="loadEmailPreview()">
+                        {{ 'contactDetailModal.retry' | transloco }}
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (emailPreviewState() === 'loaded') {
+                  @if (emailMessages().length === 0) {
+                    <p class="email-empty">{{ 'contactDetailModal.emailNoMessages' | transloco }}</p>
+                  } @else {
+                    <app-email-thread
+                      [messages]="emailMessages()"
+                      [emlStates]="emlStates()"
+                      (downloadEml)="downloadMessageEml($event)"
+                      (downloadAttachment)="downloadEmailAttachment($event)"
+                    />
+                  }
+                }
+              </section>
+            }
+
+            <!-- Nagranie rozmowy (PHONE) -->
             @if (hasRecording()) {
               <section class="cd-section" aria-labelledby="contact-section-recording">
                 <div class="cd-section__head">
                   <span class="cd-section__label" id="contact-section-recording">
-                    {{
-                      isEmailRecording()
-                        ? ('contactDetailModal.sectionEmail' | transloco)
-                        : ('contactDetailModal.sectionRecording' | transloco)
-                    }}
+                    {{ 'contactDetailModal.sectionRecording' | transloco }}
                   </span>
                 </div>
 
                 @if (recordingState() === 'idle') {
                   <button class="btn btn-load-recording" type="button" (click)="loadRecording()">
-                    @if (isEmailRecording()) {
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                      </svg>
-                      {{ 'contactDetailModal.downloadEml' | transloco }}
-                    } @else {
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                      {{ 'contactDetailModal.loadRecording' | transloco }}
-                    }
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    {{ 'contactDetailModal.loadRecording' | transloco }}
                   </button>
                 }
 
@@ -368,11 +411,7 @@
                   <div
                     class="recording-loading"
                     aria-busy="true"
-                    [attr.aria-label]="
-                      isEmailRecording()
-                        ? ('contactDetailModal.loadingEml' | transloco)
-                        : ('contactDetailModal.loadingRecording' | transloco)
-                    "
+                    [attr.aria-label]="'contactDetailModal.loadingRecording' | transloco"
                   >
                     <div class="skeleton-block skeleton-block--player"></div>
                   </div>
@@ -387,11 +426,7 @@
                     </svg>
                     <span>
                       {{ 'contactDetailModal.errorFetchPrefix' | transloco }}
-                      {{
-                        isEmailRecording()
-                          ? ('contactDetailModal.errorEmlSubject' | transloco)
-                          : ('contactDetailModal.errorRecordingSubject' | transloco)
-                      }}.
+                      {{ 'contactDetailModal.errorRecordingSubject' | transloco }}.
                     </span>
                     <button class="btn-link" type="button" (click)="loadRecording()">
                       {{ 'contactDetailModal.retry' | transloco }}
@@ -408,118 +443,7 @@
                         {{ rec.expiresAt | date: 'dd.MM.yyyy HH:mm' }}
                       </span>
                     </p>
-                    @if (isEmailRecording()) {
-                      <div class="email-actions">
-                        <a
-                          class="btn btn-load-recording"
-                          [href]="rec.presignedUrl"
-                          download
-                          target="_blank"
-                          rel="noopener"
-                        >
-                          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                          </svg>
-                          {{ 'contactDetailModal.downloadEmlBtn' | transloco }}
-                        </a>
-                        @if (emailPreviewState() === 'idle') {
-                          <button class="btn btn-secondary" type="button" (click)="loadEmailPreview()">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                              <path
-                                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
-                              />
-                            </svg>
-                            {{ 'contactDetailModal.previewHtml' | transloco }}
-                          </button>
-                        }
-                      </div>
-                      @if (emailPreviewState() === 'loading') {
-                        <div
-                          class="recording-loading"
-                          aria-busy="true"
-                          [attr.aria-label]="'contactDetailModal.loadingPreview' | transloco"
-                        >
-                          <div class="skeleton-block skeleton-block--player"></div>
-                        </div>
-                      }
-                      @if (emailPreviewState() === 'error') {
-                        <div class="inline-error" role="alert" style="margin-top: 8px">
-                          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                            <path
-                              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                            />
-                          </svg>
-                          <span>{{ 'contactDetailModal.errorPreviewText' | transloco }}</span>
-                          <button class="btn-link" type="button" (click)="loadEmailPreview()">
-                            {{ 'contactDetailModal.retry' | transloco }}
-                          </button>
-                        </div>
-                      }
-                      @if (emailPreviewState() === 'loaded' && emailPreview(); as ep) {
-                        <div class="email-preview">
-                          <div class="email-preview__header">
-                            <div>
-                              <strong>{{ 'contactDetailModal.emailFrom' | transloco }}</strong>
-                              {{ ep.from }}
-                            </div>
-                            <div>
-                              <strong>{{ 'contactDetailModal.emailTo' | transloco }}</strong>
-                              {{ ep.to }}
-                            </div>
-                            @if (ep.cc) {
-                              <div>
-                                <strong>{{ 'contactDetailModal.emailCc' | transloco }}</strong>
-                                {{ ep.cc }}
-                              </div>
-                            }
-                            @if (ep.subject) {
-                              <div>
-                                <strong>{{ 'contactDetailModal.emailSubject' | transloco }}</strong>
-                                {{ ep.subject }}
-                              </div>
-                            }
-                            <div>
-                              <strong>{{ 'contactDetailModal.emailDate' | transloco }}</strong>
-                              {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}
-                            </div>
-                          </div>
-                          @if (safeEmailHtml()) {
-                            <div class="email-preview__body" [innerHTML]="safeEmailHtml()"></div>
-                          } @else if (ep.bodyText) {
-                            <pre class="email-preview__text">{{ ep.bodyText }}</pre>
-                          } @else {
-                            <p class="email-preview__empty">
-                              {{ 'contactDetailModal.emailEmpty' | transloco }}
-                            </p>
-                          }
-                          @if (ep.attachments && ep.attachments.length > 0) {
-                            <div class="email-preview__attachments">
-                              <strong class="email-preview__attachments-label"
-                                >Załączniki ({{ ep.attachments.length }}):</strong
-                              >
-                              <ul class="email-preview__attachments-list">
-                                @for (att of ep.attachments; track att.s3Key) {
-                                  <li class="email-preview__attachment-item">
-                                    <button
-                                      type="button"
-                                      class="email-preview__attachment-link"
-                                      (click)="downloadEmailAttachment(att.s3Key)"
-                                    >
-                                      {{ att.filename
-                                      }}<span class="email-preview__attachment-size"
-                                        >({{ formatAttachmentSize(att.sizeBytes) }})</span
-                                      >
-                                    </button>
-                                  </li>
-                                }
-                              </ul>
-                            </div>
-                          }
-                        </div>
-                      }
-                    } @else {
-                      <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
-                    }
+                    <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
                   </div>
                 }
               </section>

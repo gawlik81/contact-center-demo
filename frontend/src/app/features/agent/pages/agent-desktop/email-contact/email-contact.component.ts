@@ -27,6 +27,7 @@ import {
   PendingAttachment,
   SendReplyRequest,
 } from '../../../services/email.service';
+import { AsyncContactAcceptService } from '../../../services/async-contact-accept.service';
 import { ContactService } from '../../../services/contact.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 import { EmailReplyService } from '../../../services/email-reply.service';
@@ -67,6 +68,7 @@ export class EmailContactComponent implements OnInit {
 
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
+  private readonly asyncAccept = inject(AsyncContactAcceptService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
   private readonly drafts = inject(ContactDraftStore);
@@ -166,24 +168,10 @@ export class EmailContactComponent implements OnInit {
     this.loadMessage();
     this.loadTemplates();
 
-    // Notify backend that the agent opened this contact (ASSIGNED → ACTIVE).
-    // This stops ContactAssignmentMonitor from re-queueing the contact.
-    // Fire-and-forget — idempotent, failure is non-critical.
-    // Only the first mount per contact sends it: returning to the tab remounts this component.
-    // No takeUntilDestroyed: a quick tab switch must not cancel an in-flight request that the
-    // store already counts as sent. On failure the flag is reverted so the next mount retries.
-    const acceptedContactId = this.contactId();
-    if (this.drafts.markAccepted(acceptedContactId)) {
-      this.contactService
-        .acceptContact(acceptedContactId)
-        .pipe(
-          catchError(() => {
-            this.drafts.unmarkAccepted(acceptedContactId);
-            return of(null);
-          }),
-        )
-        .subscribe();
-    }
+    // Tell the backend the agent opened this contact (ASSIGNED -> ACTIVE, stops re-queueing).
+    // Safety net, not a duplicate: normally the tab-open path has accepted already and this is a
+    // no-op (guard); it matters for a tab opened by a path that did not.
+    this.asyncAccept.accept(this.contactId());
 
     this.templateSearchControl.valueChanges
       .pipe(startWith(''), debounceTime(150), takeUntilDestroyed(this.destroyRef))

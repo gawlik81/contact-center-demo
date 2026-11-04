@@ -25,6 +25,7 @@ import {
 } from '../../../models/social-message.model';
 import { WsEvent } from '../../../models/ws-event.model';
 import { ContactTabStatus } from '../../../models/contact-tab.model';
+import { AsyncContactAcceptService } from '../../../services/async-contact-accept.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 
 @Component({
@@ -45,6 +46,7 @@ export class SocialContactComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
   private readonly drafts = inject(ContactDraftStore);
+  private readonly asyncAccept = inject(AsyncContactAcceptService);
 
   protected readonly loading = signal(true);
   protected readonly loadingMore = signal(false);
@@ -79,6 +81,10 @@ export class SocialContactComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // The agent has the contact: ASSIGNED -> ACTIVE so ContactAssignmentMonitor stops re-queueing
+    // it. Safety net, not a duplicate: normally the tab-open path has accepted already and this
+    // is a no-op (guard); it matters for a tab opened by a path that did not.
+    this.asyncAccept.accept(this.contactId());
     this.replyText.set(this.drafts.socialReply(this.contactId()));
     this.draftRestored = true;
     this.loadMessages(0, true);

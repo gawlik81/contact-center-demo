@@ -1,4 +1,5 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, Injector, signal } from '@angular/core';
+import { AsyncContactAcceptService } from './async-contact-accept.service';
 import { ContactDraftStore } from './contact-draft.store';
 import {
   CallDirection,
@@ -32,6 +33,7 @@ export function tabLimitReason(counts: TabCounts, type: ContactType): TabLimitRe
 @Injectable({ providedIn: 'root' })
 export class ContactTabStore {
   private readonly drafts = inject(ContactDraftStore);
+  private readonly injector = inject(Injector);
 
   readonly tabs = signal<ContactTab[]>([]);
 
@@ -80,8 +82,13 @@ export class ContactTabStore {
     });
   }
 
+  /**
+   * Opens the tab of a CONTACT_ASSIGNED contact (live event or re-open after a release) and, once
+   * it really opened, confirms an async contact to the backend. The one place for that, so a new
+   * entry point cannot forget it; limit-rejected contacts are never accepted.
+   */
   openFromContactAssigned(payload: ContactAssignedPayload): TabLimitReason {
-    return this.openTab({
+    const reason = this.openTab({
       id: crypto.randomUUID(),
       type: payload.type,
       contactId: payload.contactId,
@@ -94,6 +101,11 @@ export class ContactTabStore {
       direction: payload.type === 'PHONE' ? ('INBOUND' as CallDirection) : undefined,
       customerId: payload.customerId,
     });
+    if (reason === null) {
+      // Lazy: the accept service needs HttpClient, which tab-store users do not otherwise touch.
+      this.injector.get(AsyncContactAcceptService).acceptOpened(payload.type, payload.contactId);
+    }
+    return reason;
   }
 
   /**

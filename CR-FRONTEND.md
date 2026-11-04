@@ -2610,3 +2610,79 @@ Zakres: weryfikacja poprawek z rundy 2 (`agent-recovery.service.ts`, `agent-stat
 **4/5.** Wszystkie wcześniejsze uwagi domknięte poprawnie (991 testów zielone, brak regresji w sygnaturze `changeStatus`), zostaje jedna luka logiczna: po odrzuceniu karty `callNotRestored` polling gaśnie, więc obiecany powrót jako ACW nie następuje bez przeładowania (MEDIUM-R3-1, kilka linii).
 
 **Blokuje commit:** nic twardego; rekomendowane przed commitem MEDIUM-R3-1, bo bez niego odrzucenie karty może zgubić wymaganą dyspozycję do czasu F5. Do domknięcia WP-3/WP-5: przeglądarka (oba motywy, 1366×768), kontrast hovera przycisków, czytnik ekranu.
+
+---
+
+## Review: FE-148 — 2026-11-04
+
+Zakres: `async-contact-accept.service.ts` (+spec), `incoming-call-alert.service.ts`, `agent-recovery.service.ts`, `email-contact.component.ts`, `social-contact.component.ts` + specy. Czesc FE only (BE-161/162 poza zakresem). Uruchomiono: 4 pliki spec / 83 testy zielone, eslint bez bledow (6 starych warningow `no-console`). Bez przegladarki. Dodatkowo odczytano `ContactServiceImpl.acceptContact` + `ContactRepository.acceptIfAssigned`: UPDATE ma `agent_id = ? AND status = 'ASSIGNED'`, wiec spozniony accept po release/reassign nie wskrzesi starego wlasciciela (potwierdzone, tylko odczyt).
+
+### 🐛 Bugs / Critical Issues
+- **MAJOR-1 `incoming-call-alert.service.ts:365-368` (`exists` early return) + `async-contact-accept.service.ts:11-13` — nieudany accept na zywo nie jest ponawiany, gdy karta nie jest zamontowana.** Doc serwisu obiecuje "failed request reverts the mark and the next caller retries", ale na torze na zywo "nastepnym wywolujacym" jest tylko mount karty. Renderowana jest wylacznie aktywna karta (`agent-desktop.component.html:279`, `activeTab()`), a nowa karta EMAIL/SOCIAL otwiera sie nieaktywna albo agent jest na innej trasie. Redelivery `CONTACT_ASSIGNED` z `ContactAssignmentMonitor` (jedyny sygnal "backend nadal widzi ASSIGNED") trafia w `if (exists) return;` zanim dojdzie do accept. Wynik: jeden blad sieci/5xx -> kontakt nigdy nie przejdzie w ACTIVE, monitor po `MAX_RETRIES` przekolejkuje kontakt, ktory agent ma na ekranie — czyli dokladnie scenariusz z opisu FE-148. Fix (1 linia): w galezi `exists` wywolac `asyncAccept.accept(id)` dla EMAIL/SOCIAL (guard `markAccepted` czyni to bezpiecznym i bezkosztowym; po sukcesie flaga blokuje kolejne). Kolejnosc: po `noteAssignedDuringRelease`, zeby nie accept-owac kontaktu w trakcie zwrotu.
+
+### ⚠️ Security Concerns
+_None identified._ Accept po stronie BE jest przypiety do `agent_id` i `status` (zweryfikowane), spozniony/obcy accept jest odrzucany.
+
+### 🏗️ Architecture / Pattern Violations
+- **MEDIUM-1 `agent-desktop.component.ts:723-730` — sciezka "reassigned podczas release" otwiera karte bez accept.** `removeTabKeepingFocus` -> `closeTab` -> `drafts.clear()` zdejmuje flage `accepted`, a potem `tabStore.openFromContactAssigned(reassigned)` otwiera karte (nieaktywna => niezamontowana) z pominieciem `handleAsyncContactAssigned`. Brak accept az do przelaczenia na karte; przy duzo mniejszym oknie niz MAJOR-1, ale to czwarty punkt wejscia, ktorego nie obejmuje deklaracja "jedno miejsce / dokladnie raz". Fix: po `openFromContactAssigned` (reason === null, EMAIL/SOCIAL) wywolac `asyncAccept.accept()`; albo lepiej przeniesc wywolanie accept do jednego miejsca (np. metoda store/serwisu "openAsyncAndAccept") zamiast powtarzac warunek `type === 'EMAIL' || 'SOCIAL'` w kazdym callerze.
+- **MEDIUM-2 `async-contact-accept.service.ts:20-24, 31-39` — komentarz "no toast / silent" jest nieprawdziwy.** `ContactService.acceptContact` nie ustawia `SKIP_ERROR_TOAST`, wiec `errorHandlerInterceptor` pokazuje toast (status 0/5xx: ogolny blad; 4xx: komunikat serwera, np. polski "Kontakt zmienil stan lub wlasciciela..." niezaleznie od jezyka UI). Przy tym `unmarkAccepted` dla bledu **nietrwalego** (400/404/409: kontakt juz zwrocony/reassign/zamkniety) powoduje ponowny accept przy kazdym montowaniu karty i kolejny toast. Starszy kod (email, recovery) mial to samo, ale FE-148 jawnie utrwala te semantyke w serwisie wspolnym i dokumentuje ja blednie. Fix: `acceptContact(id, { silent })` z `HttpContext(SKIP_ERROR_TOAST)`; unmark tylko dla `status === 0 || >= 500` (retry), przy 4xx zostawic flage (retry nic nie da) i ewentualnie zamknac/oznaczyc karte jak w `returnToQueue` (404/409).
+
+### 🔧 Improvements & Suggestions
+- **Opinia: cichy blad jest akceptowalny tylko z ponawianiem.** Agent widzi kontakt i pracuje, wiec brak toastu przy pierwszym bledzie jest OK (accept to sygnal infrastrukturalny), ale wymaga to realnego retry (MAJOR-1; opcjonalnie 1-2 ponowienia z backoffem dla 0/5xx w serwisie). Bez tego "cichy" = "kontakt moze zniknac bez wiedzy agenta". Jesli retry zostanie, toast przy ostatecznej porazce nie jest potrzebny.
+- **MINOR-1 `agent-recovery.service.ts:429-436` vs `incoming-call-alert.service.ts:372` — CHAT niespojny.** Recovery akceptuje kazdy typ != PHONE (w tym CHAT) i dla IN_PROGRESS stawia `markAccepted` dla CHAT, tor na zywo tylko EMAIL/SOCIAL; doc serwisu mowi "EMAIL, SOCIAL". Skoro CHAT nie istnieje w `contact.channel`, ujednolicic do jednego predykatu (np. `isAsyncAcceptable(type)` eksportowany z serwisu), zeby nie rozjechac przy dodaniu kanalu.
+- **MINOR-2** `AsyncContactAcceptService.accept` zwraca `boolean`, ktorego zaden caller nie uzywa (poza testami) — albo uzyc (np. do decyzji o toascie), albo `void`.
+- **MINOR-3** email-contact/social-contact: wywolanie w `ngOnInit` jest poprawne i bez `takeUntilDestroyed` swiadomie; `HttpClient` konczy sie samo, brak wyciekow. Do rozwazenia: skoro tor na zywo oraz recovery juz akceptuja, wywolanie w mount to tylko siatka bezpieczenstwa (reassign-after-release, bledy) — dopisac to w komentarzu, zeby nikt nie usunal go jako "duplikatu".
+
+### Weryfikacja pytan
+- **Dokladnie raz (live/mount/recovery/in-flight):** poprawne. `markAccepted` jest synchroniczny i ustawiany przed requestem, wiec rownolegle wejscia i in-flight sa deduplikowane; flaga jest zdejmowana tylko na bledzie i w `drafts.clear` (zamkniecie/zwrot). Tor recovery->mount i live->recovery (RINGING) nie dubluja.
+- **FE-136 (limity/closedSince/dismissed):** accept jest po udanym `openTab` w obu torach (live: po `openFromContactAssigned === null`; recovery: w `openCard` po `openTab`), wiec kontakty odrzucone przez limity / overflow nie sa akceptowane (test limitow to potwierdza). `closedSince`/`dismissed` odfiltrowuja przed `openCard`. IN_PROGRESS nadal tylko `markAccepted` — semantyka FE-131 zachowana.
+- **FE-132 (release):** `closeTab` zdejmuje flage po sukcesie release; accept w locie vs release: FE nie blokuje, BE bezpieczny dzieki warunkowemu UPDATE (spozniony accept -> 400 + toast, patrz MEDIUM-2). Luka reassign opisana w MEDIUM-1.
+- **Rollback bledu:** `catchError` -> `unmarkAccepted` poprawny; spozniony blad po `clear()` to no-op (brak wycieku). Problem tylko z klasyfikacja bledow (MEDIUM-2).
+
+### Jakosc testow
+- `incoming-call-alert.service.spec`: "exactly once, also when the event is re-delivered" przechodzi dzieki guardowi `exists`, nie `markAccepted` — nie sprawdza deduplikacji serwisu; "reverts the mark ... so the re-delivery retries" dowodzi tylko, ze `markAccepted` zwraca `true`, a w rzeczywistosci redelivery **nie** ponawia (MAJOR-1) — nazwa testu wprowadza w blad. Po poprawce MAJOR-1 dopisac test: blad accept -> redelivery -> drugi `acceptContact`.
+- Test limitow: asercja `calledTimes(tabs().length)` jest slaba — dodac `expect(opened).toBe(MAX_TOTAL_TABS)` i sprawdzenie, ze ID z wywolan == ID otwartych kart.
+- Brak testow: reassign po release (MEDIUM-1), blad 4xx nie powinien odblokowywac retry (MEDIUM-2), integracja live->recovery bez recznego `markAccepted` (spec recovery udaje serwis reczna flaga).
+- Dobre: spec serwisu pokrywa in-flight (`Subject`), IN_PROGRESS, retry po bledzie; recovery: dwa biegi = 1 POST.
+
+### ✅ Positive Observations
+- Jedno miejsce zamiast trzech kopii `markAccepted/catchError/unmark`; usuniety `acceptOnce` z recovery, ktory mial wlasny `HttpClient` i duplikat logiki.
+- Accept wylacznie po udanym `openTab` — odrzucone przez limity kontakty nie sa akceptowane (zgodne z BE-156/FE-136).
+- Serwis `providedIn: 'root'`, bez zwiazania z cyklem zycia komponentu: szybki przelacznik kart nie anuluje requestu.
+- IN_PROGRESS nadal tylko `markAccepted` (FE-131) — brak zbednego POST po F5.
+
+### WP-1…WP-7
+Brak zmian UI/i18n/a11y w tym tickecie; WP-1…WP-7 nie dotycza (do potwierdzenia przez wlasciciela, skoro kryteria ticketu je wymieniaja).
+
+### Summary
+**3.5/5.** Konsolidacja i exactly-once sa poprawne i dobrze przetestowane na poziomie store, ale "retry przy nastepnym wywolaniu" nie dziala na torze na zywo dla niezamontowanej karty (redelivery gubi sie na `exists`), a sciezka reassign-po-release omija accept; komentarz o "silent" jest nieprawdziwy (globalny toast, retry na bledach nietrwalych).
+
+**Blokuje commit:** MAJOR-1 (1 linia + test) — rekomendowane przed commitem, bo kryterium ticketu "blad accept nie zostawia karty w stanie zaakceptowany" bez retry nie chroni przed przekolejkowaniem. MEDIUM-1/2 moga pojsc do osobnego ticketu, ale MEDIUM-2 co najmniej poprawic w komentarzu.
+
+### Runda 2 — FE-148 — 2026-11-04
+
+Zakres: weryfikacja poprawek MAJOR-1, MEDIUM-1, MEDIUM-2 i MINOR (`async-contact-accept.service.ts`, `contact-tab.store.ts`, `contact.service.ts`, `incoming-call-alert.service.ts`, `agent-recovery.service.ts`). Uruchomiono 3 specy (84 testy zielone); pelny zestaw wg implementatora 1019 zielonych. Bez przegladarki.
+
+#### Status
+- **MAJOR-1: ZAMKNIETE.** Galaz `exists` wola `acceptOpened`; guard `markAccepted` blokuje duplikaty, a po nieudanym accept (flaga cofnieta) redelivery z monitora ponawia.
+- **MEDIUM-1: ZAMKNIETE.** Jeden trigger w `ContactTabStore.openFromContactAssigned`, tylko gdy `openTab` zwroci `null` (odrzucone limitem nie sa akceptowane); pokrywa tor live i re-open po release. Recovery uzywa `tabStore.openTab` (nie `openFromContactAssigned`), wiec IN_PROGRESS nadal robi tylko `markAccepted`, a RINGING przechodzi przez `acceptOpened` — zgodnie z FE-131/FE-136.
+- **MEDIUM-2: ZAMKNIETE.** `SKIP_ERROR_TOAST` przez `silent`, 0/5xx ponawiane 2x (1 s/2 s) i dopiero wtedy `unmark`, 4xx zachowuje flage + `console.warn` (dozwolone przez eslint). Komentarze poprawione, zbedny `boolean` usuniety.
+- **MINOR (CHAT / jeden predykat): ZAMKNIETE.** `isAsyncAcceptable` wspolny dla store i recovery.
+
+#### Weryfikacja pytan
+- **Lazy `Injector`:** brak cyklu — `AsyncContactAcceptService` zalezy tylko od `ContactService` (`HttpClient`) i `ContactDraftStore`, zadne nie wstrzykuje `ContactTabStore`. `injector.get` w root-serwisie uzywa root injectora, wywolywane dopiero przy udanym otwarciu karty async, wiec testy store bez `HttpClient` nie wywroca sie dla PHONE (dla EMAIL/SOCIAL/CHAT wymagaja providera `ContactService` — to kosztem ukrytej zaleznosci; akceptowalne, ale warto zostawic komentarz, ktory juz jest).
+- **Trigger store vs recovery IN_PROGRESS:** potwierdzone, patrz MEDIUM-1.
+- **Timery retry vs logout/reset:** NIE sa anulowane (`retry` + `timer` zyje w subskrypcji bez `takeUntil`; `agent-shell` robi `draftStore.clearAll()` i `tabStore.reset()`, ale bez sygnalu do serwisu).
+
+#### Nowe
+- **MINOR-R2-1 (`async-contact-accept.service.ts:60-72`) — retry nie sprawdza, czy kontakt nadal jest "nasz".** Okno to max ok. 3 s. Skutki: (a) po release kontaktu w trakcie backoffu spozniony POST wyjdzie (BE odrzuci 400 przez warunkowy UPDATE `agent_id`+`status`, cicho; brak szkody); (b) po wylogowaniu spozniony POST pojdzie z juz niewazna sesja (401 obsluzy `authInterceptor`, traktowane jako 4xx = final, tylko `console.warn`); (c) koncowy `unmarkAccepted` po transient failure moze zdjac flage nalezaca do nowego przypisania tego samego kontaktu (re-assign po release) — konsekwencja to co najwyzej jeden dodatkowy idempotentny accept. Zadne z tych nie psuje danych (backend chroni), wiec nie blokuje; tanio naprawialne: przed kazdym ponowieniem sprawdzic, czy flaga nadal jest ustawiona (np. `drafts.isAccepted(id)` / `takeWhile`), a `unmark` robic tylko gdy nadal jest. Alternatywnie `takeUntil` na sygnale `reset` z `ContactDraftStore.clearAll`.
+- **NIT:** live path akceptuje teraz tez CHAT (zgodnie z wyjasnieniem: nie istnieje w DB) — dokladnie to, czego chcialem (jeden predykat); komentarz "everything except PHONE" jest prawdziwy.
+- Zmiana BE-161 w `agent-recovery.service.ts` (fallback tylko na 404, 500 => `ok:false`) poza zakresem tego przegladu; testy zielone.
+
+#### Testy
+Zamkniete uwagi z rundy 1: usuniety mylacy test, dodane redelivery-po-bledzie, reopen po release, limity z `MAX_TOTAL_TABS` i zgodnoscia ID, 4xx bez retry, backoff na fake timers, live->recovery bez recznego `markAccepted`, flaga `silent`. Brakuje jedynie testu dla MINOR-R2-1 (retry po release/reset).
+
+#### Summary
+**4.5/5.** Wszystkie uwagi z rundy 1 domkniete poprawnie, z testami i bez cyklu zaleznosci; zostaje drobna, niegrozna luka — ponowienia nie sa anulowane przy zwrocie kontaktu/wylogowaniu (MINOR-R2-1, backend chroni dane).
+
+**Blokuje commit:** nic. MINOR-R2-1 opcjonalnie przed commitem (kilka linii) albo do backlogu.

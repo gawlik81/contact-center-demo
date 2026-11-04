@@ -48,6 +48,7 @@ export class ContactDraftStore {
   private readonly dispositionDrafts = signal<Readonly<Record<string, DispositionDraft>>>({});
   private readonly dispositionOptions = signal<Readonly<Record<string, DispositionOption[]>>>({});
   private readonly acceptedIds = signal<ReadonlySet<string>>(new Set());
+  private readonly acceptEpochs = new Map<string, number>();
   private readonly sendingIds = signal<ReadonlySet<string>>(new Set());
   private readonly sendFailedIds = signal<ReadonlySet<string>>(new Set());
 
@@ -142,12 +143,32 @@ export class ContactDraftStore {
    */
   markAccepted(contactId: string): boolean {
     if (this.acceptedIds().has(contactId)) return false;
+    this.bumpAcceptEpoch(contactId);
     this.acceptedIds.update((cur) => new Set(cur).add(contactId));
     return true;
   }
 
+  /**
+   * Identifies "this very mark" of a contact: it changes whenever the mark is set, reverted or
+   * dropped (clear, rekey, clearAll). A delayed accept retry compares it with the value it saw
+   * when it started and gives up if it differs, so a retry can never act for a contact that was
+   * released, logged out, or assigned again (a newer mark belongs to a newer assignment).
+   */
+  acceptEpoch(contactId: string): number {
+    return this.acceptEpochs.get(contactId) ?? 0;
+  }
+
+  isAccepted(contactId: string): boolean {
+    return this.acceptedIds().has(contactId);
+  }
+
+  private bumpAcceptEpoch(contactId: string): void {
+    this.acceptEpochs.set(contactId, this.acceptEpoch(contactId) + 1);
+  }
+
   /** Reverts markAccepted after a failed request so the next mount retries. */
   unmarkAccepted(contactId: string): void {
+    this.bumpAcceptEpoch(contactId);
     this.acceptedIds.update((cur) => {
       const next = new Set(cur);
       next.delete(contactId);
@@ -234,6 +255,8 @@ export class ContactDraftStore {
     this.phoneNotes.set({});
     this.dispositionDrafts.set({});
     this.dispositionOptions.set({});
+    // Every pending accept retry must see a changed epoch (new session, nothing may be sent).
+    for (const id of this.acceptedIds()) this.bumpAcceptEpoch(id);
     this.acceptedIds.set(new Set());
     this.sendingIds.set(new Set());
     this.sendFailedIds.set(new Set());

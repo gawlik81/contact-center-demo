@@ -75,6 +75,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
   let drafts: ContactDraftStore;
   let softphone: SoftphoneService;
   let releaseContact: ReturnType<typeof vi.fn>;
+  let acceptContact: ReturnType<typeof vi.fn>;
   let abandonContact: ReturnType<typeof vi.fn>;
   let notifications: {
     info: ReturnType<typeof vi.fn>;
@@ -142,6 +143,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
     };
     releaseContact = vi.fn().mockReturnValue(of({} as ContactResponse));
     abandonContact = vi.fn().mockReturnValue(of({}));
+    acceptContact = vi.fn().mockReturnValue(of({}));
     notifications = { info: vi.fn(), error: vi.fn(), success: vi.fn() };
     TestBed.configureTestingModule({
       imports: [
@@ -173,7 +175,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
         },
         { provide: QueueStateService, useValue: { queueItems: signal([]) } },
         { provide: PluginAdminService, useValue: { listAgentInstallations: () => of([]) } },
-        { provide: ContactService, useValue: { releaseContact, abandonContact } },
+        { provide: ContactService, useValue: { releaseContact, abandonContact, acceptContact } },
         { provide: HttpClient, useValue: { post: vi.fn().mockReturnValue(of(null)) } },
         {
           provide: AgentHotkeysService,
@@ -666,6 +668,9 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
       expect(store.tabs().map((t) => t.contactId)).toEqual(['c-b', 'c-a']);
       expect(store.activeTab()?.contactId).toBe('c-b');
       expect(live()).toContain('Nowy kontakt: Klient a');
+      // the re-opened card is confirmed to the backend exactly once (FE-148)
+      expect(acceptContact).toHaveBeenCalledTimes(1);
+      expect(acceptContact).toHaveBeenCalledWith('c-a', { silent: true });
       expect(notifications.success).not.toHaveBeenCalled();
       // the release is over: a later assignment is a plain one again
       expect(store.noteAssignedDuringRelease(assigned('c-a'))).toBe(false);

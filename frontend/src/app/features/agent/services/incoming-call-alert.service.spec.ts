@@ -2,10 +2,13 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { TranslocoService } from '@jsverse/transloco';
-import { Subject } from 'rxjs';
+import { Subject, defer, of, throwError } from 'rxjs';
 import { IncomingCallAlert, IncomingCallAlertService } from './incoming-call-alert.service';
 import { SoftphoneService } from './softphone.service';
-import { ContactTabStore } from './contact-tab.store';
+import { ContactTabStore, MAX_TOTAL_TABS } from './contact-tab.store';
+import { ACCEPT_RETRY_BASE_MS, ACCEPT_RETRY_COUNT } from './async-contact-accept.service';
+import { ContactDraftStore } from './contact-draft.store';
+import { ContactService } from './contact.service';
 import { CustomerLookupService } from './customer-lookup.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -21,6 +24,17 @@ beforeAll(() => {
 @Component({ template: '' })
 class BlankComponent {}
 
+/** Cold request: every (re)subscription is one HTTP attempt, answered from `answers` in order. */
+function attempts(answers: ({ status: number } | null)[]) {
+  const counter = { n: 0 };
+  const request = defer(() => {
+    const answer = answers[Math.min(counter.n, answers.length - 1)];
+    counter.n++;
+    return answer ? throwError(() => answer) : of(null);
+  });
+  return { counter, request };
+}
+
 describe('IncomingCallAlertService', () => {
   let service: IncomingCallAlertService;
   let store: ContactTabStore;
@@ -29,6 +43,7 @@ describe('IncomingCallAlertService', () => {
   const session = signal<CallSession | null>(null);
   const softphone = { session, incomingCall: vi.fn(), updateCustomerName: vi.fn() };
   const notifications = { warning: vi.fn(), info: vi.fn() };
+  const contactApi = { acceptContact: vi.fn() };
 
   const ringing = (contactId: string): CallSession => ({
     contactId,
@@ -56,6 +71,7 @@ describe('IncomingCallAlertService', () => {
   const setup = async (url: string) => {
     vi.clearAllMocks();
     session.set(null);
+    contactApi.acceptContact.mockReturnValue(of(null));
     events$ = new Subject<WsEvent>();
     TestBed.configureTestingModule({
       providers: [
@@ -67,6 +83,7 @@ describe('IncomingCallAlertService', () => {
         { provide: NotificationService, useValue: notifications },
         { provide: TranslocoService, useValue: { translate: (k: string) => k } },
         { provide: SoftphoneService, useValue: softphone },
+        { provide: ContactService, useValue: contactApi },
         { provide: CustomerLookupService, useValue: { evict: vi.fn(), lookupByPhone: vi.fn() } },
       ],
     });
@@ -158,6 +175,82 @@ describe('IncomingCallAlertService', () => {
       emitAssigned('EMAIL', 'c-mail');
       emitAssigned('EMAIL', 'c-mail');
       expect(notifications.info).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('accept of async contacts on the live path (FE-148)', () => {
+    beforeEach(() => setup('/agent/customers'));
+
+    it('accepts a new SOCIAL contact exactly once, also when the event is re-delivered', () => {
+      emitAssigned('SOCIAL', 'c-soc');
+      emitAssigned('SOCIAL', 'c-soc');
+      expect(contactApi.acceptContact).toHaveBeenCalledTimes(1);
+      expect(contactApi.acceptContact).toHaveBeenCalledWith('c-soc', { silent: true });
+    });
+
+    it('accepts a new EMAIL contact exactly once and the card mount does not repeat it', () => {
+      emitAssigned('EMAIL', 'c-mail');
+      expect(contactApi.acceptContact).toHaveBeenCalledTimes(1);
+      expect(TestBed.inject(ContactDraftStore).markAccepted('c-mail')).toBe(false);
+    });
+
+    it('accepts only the contacts whose card really opened (tab limits)', () => {
+      for (let i = 0; i < MAX_TOTAL_TABS + 3; i++) emitAssigned('SOCIAL', 'c-' + i);
+      const opened = store.tabs().map((t) => t.contactId);
+      expect(opened).toHaveLength(MAX_TOTAL_TABS);
+      const accepted = contactApi.acceptContact.mock.calls.map((c) => c[0]);
+      expect(accepted).toEqual(opened);
+    });
+
+    it('never accepts a PHONE contact here', () => {
+      vi.mocked(TestBed.inject(CustomerLookupService).lookupByPhone).mockReturnValue(of(null));
+      emitAssigned('PHONE', 'c-phone');
+      expect(contactApi.acceptContact).not.toHaveBeenCalled();
+    });
+
+    it('retries a transient failure inside the service and keeps one mark', async () => {
+      vi.useFakeTimers();
+      try {
+        const { counter, request } = attempts([{ status: 503 }, null]);
+        contactApi.acceptContact.mockReturnValue(request);
+        emitAssigned('SOCIAL', 'c-soc');
+        await vi.advanceTimersByTimeAsync(ACCEPT_RETRY_BASE_MS);
+        expect(counter.n).toBe(2);
+        expect(TestBed.inject(ContactDraftStore).markAccepted('c-soc')).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a re-delivery with the card not mounted retries an accept that failed for good', async () => {
+      vi.useFakeTimers();
+      try {
+        const failing = attempts([{ status: 0 }]);
+        contactApi.acceptContact.mockReturnValue(failing.request);
+        emitAssigned('SOCIAL', 'c-soc');
+        await vi.advanceTimersByTimeAsync(ACCEPT_RETRY_BASE_MS * 3);
+        expect(failing.counter.n).toBe(1 + ACCEPT_RETRY_COUNT);
+
+        const ok = attempts([null]);
+        contactApi.acceptContact.mockReturnValue(ok.request);
+        emitAssigned('SOCIAL', 'c-soc'); // ContactAssignmentMonitor re-sends CONTACT_ASSIGNED
+        expect(store.tabs().filter((t) => t.contactId === 'c-soc')).toHaveLength(1);
+        expect(ok.counter.n).toBe(1);
+        emitAssigned('SOCIAL', 'c-soc');
+        expect(ok.counter.n).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a 4xx answer keeps the mark: the re-delivery does not loop', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      contactApi.acceptContact.mockReturnValue(throwError(() => ({ status: 409 })));
+      emitAssigned('SOCIAL', 'c-soc');
+      emitAssigned('SOCIAL', 'c-soc');
+      expect(contactApi.acceptContact).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
     });
   });
 

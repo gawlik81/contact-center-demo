@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
 import { ContactTab } from '../models/contact-tab.model';
 import { ContactDraftStore } from './contact-draft.store';
 import {
@@ -26,7 +27,9 @@ describe('ContactTabStore (FE-133: a new contact does not take the active tab)',
   let store: ContactTabStore;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: { post: () => of(null) } }],
+    });
     store = TestBed.inject(ContactTabStore);
     store.reset();
   });
@@ -124,7 +127,9 @@ describe('ContactTabStore (FE-133: a new contact does not take the active tab)',
 describe('ContactTabStore contact names and release tracking', () => {
   let store: ContactTabStore;
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: { post: () => of(null) } }],
+    });
     store = TestBed.inject(ContactTabStore);
     store.reset();
   });
@@ -159,7 +164,9 @@ describe('ContactTabStore contact names and release tracking', () => {
 
 describe('ContactTabStore close log (FE-136)', () => {
   it('reset() forgets what the previous agent closed', () => {
-    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: { post: () => of(null) } }],
+    });
     const store = TestBed.inject(ContactTabStore);
     store.reset();
     const mark = store.closeMark();
@@ -176,7 +183,9 @@ describe('ContactTabStore ACW state (FE-122)', () => {
   let store: ContactTabStore;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: {} }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: { post: () => of(null) } }],
+    });
     store = TestBed.inject(ContactTabStore);
     store.reset();
   });

@@ -56,13 +56,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 4 | 0 | 6 | 0 | 10 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 6 | 0 | 5 | 0 | 11 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **147** | **0** | **16** | **3** | **166** | |
+| **RAZEM** | | **149** | **0** | **15** | **3** | **167** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -102,8 +102,9 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-157 | Lista aktywnych kontaktów agenta `GET /api/agent/me/active-contacts` (odtwarzanie kart i ACW po przeładowaniu) | ✅ Ukończone (2026-10-31, `fcb8fe5a`) — odblokował FE-136 (✅) |
 | BE-159 | Routing: warunkowy przydział kontaktu, bez podwójnego przydziału przy równoległych przebiegach (PROPOZYCJA, do oceny właściciela; powiązany z BE-156) | ⬜ Do zrobienia — propozycja |
 | BE-160 | `POST /api/contacts/{id}/release` — zwrot kontaktu async do kolejki (koniec FIFO), `ReleaseExclusionStore` (wycinek BE-156), poprawki CR (`acceptIfAssigned`, guard AGENT) | ✅ Ukończone (2026-10-29) — blokuje FE-132 (✅) |
-| BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ⬜ Do zrobienia |
-| BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ⬜ Do zrobienia |
+| BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65; z odstępstwem: także 405 `problem+json`; CR 4/5) |
+| BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65) |
+| BE-163 | Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (415/406/400/413/503 zamiast 500; wynik CR BE-161; tura 65) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8417,9 +8418,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 4/10** · ✅ 4 · 🔧 0 · ⬜ 6 · 🚫 0
+**Ukończone 6/11** · ✅ 6 · 🔧 0 · ⬜ 5 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Następne wolne numery: BE-163, FE-150, DB-089.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Następne wolne numery: BE-164, FE-150, DB-089.
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8770,8 +8771,8 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** brak (kontekst: FE-136 ✅ — fallback frontu na `assigned-contact` obsługuje dziś także 500; BE-157 ✅ — endpoint, przy którym to wykryto)
-**Status:** ⬜ Do zrobienia
-**Blokuje:** brak (po wdrożeniu fallback FE-136 można zawęzić do samego 404 — notatka, bez twardej zależności)
+**Status:** ✅ Ukończone (2026-11-04, tura 65; `backend-dev-expert`; gałąź `fix/social-contact-accept`, niezacommitowane; `CR-BACKEND.md` „Review: BE-161 + BE-162” 4/5, poprawki rundy 2 zrobione; `mvn clean verify` 2875 testów, 0 F, 0 E, 1 pominięty)
+**Blokuje:** brak (fallback FE-136 zawężony do 404 w turze 65 — notatka, bez twardej zależności)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z FE-136, backlog)
 **Wykonawca:** `backend-dev-expert`
 
@@ -8786,15 +8787,22 @@ backend/app/src/test/java/com/contactcenter/
 - Notatka dla FE: po wdrożeniu fallback w `agent-recovery.service` (FE-136) można zawęzić z „404 lub 500” do 404 (osobna, drobna zmiana FE bez numeru lub w ramach FE-148).
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/agent/me/does-not-exist` (z poprawnym JWT) zwraca 404 `application/problem+json`, nie 500
-- [ ] Istniejąca ścieżka z niewłaściwą metodą HTTP nadal zwraca 405 (test)
-- [ ] Brak ścieżki bez JWT nadal obsługiwany przez łańcuch filtrów (401 dla ścieżek chronionych) — bez regresji
-- [ ] Log nieznanej ścieżki na poziomie niższym niż ERROR (brak fałszywych alarmów)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] `GET /api/agent/me/does-not-exist` (z poprawnym JWT) zwraca 404 `application/problem+json`, nie 500
+- [x] Istniejąca ścieżka z niewłaściwą metodą HTTP zwraca 405 (test) — ODSTĘPSTWO: stan wyjściowy dawał 500, więc kryterium „nadal 405” było niespełnialne; dodano handler 405 `problem+json` z nagłówkiem `Allow` (zaakceptowane w CR)
+- [x] Brak ścieżki bez JWT nadal obsługiwany przez łańcuch filtrów (401 dla ścieżek chronionych) — bez regresji
+- [x] Log nieznanej ścieżki na poziomie niższym niż ERROR (brak fałszywych alarmów)
+- [x] `mvn verify -pl app` zielone (JDK 21)
+
+**Notatka wykonania (2026-11-04, tura 65; `backend-dev-expert`):**
+- `GlobalExceptionHandler`: handler `NoResourceFoundException` → 404 `application/problem+json` (type `resource-not-found`, title „Zasób nie istnieje”, detail bez ścieżki; `instance` = ścieżka żądania wg RFC 7807, jak w innych handlerach; log poniżej ERROR).
+- **Odstępstwo zaakceptowane w CR:** również `HttpRequestMethodNotSupportedException` → 405 `problem+json` z `Allow` (stan wyjściowy dawał 500). Bez tokenu nadal 401 (łańcuch filtrów).
+- Dotyczy też ścieżek spoza `/api` (np. `/plugin-assets/**`, nieistniejące `/actuator/xyz`) — wcześniej 500 ze stack trace, teraz 404.
+- Testy: `AgentSelfControllerTest` (sekcja `UnknownPath`). Zweryfikowane na żywo w local-demo po przebudowie backendu: 404 `problem+json`, 405 z `Allow: GET`, 401 bez tokenu.
+- Zostaje poza zakresem (→ BE-163): pozostałe wyjątki Spring MVC trafiające do catch-all (415/406/400/413/503).
 
 **Ryzyka:** (R1) zmiana kodu statusu dla nieznanych ścieżek może zmienić zachowanie klientów, którzy dziś (przypadkiem) polegają na 500 — jedynym znanym jest fallback FE-136 (obsługuje oba kody).
-**Nie wchodzi w zakres:** zmiana fallbacku FE-136, przegląd pozostałych handlerów wyjątków Spring MVC.
-**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: FE-136 ✅ (fallback na 404/500), BE-157 ✅.
+**Nie wchodzi w zakres:** zmiana fallbacku FE-136 (zrobiona w FE-148/turze 65), przegląd pozostałych handlerów wyjątków Spring MVC (→ BE-163; 405 dodano jako odstępstwo).
+**Zależności (zaktualizowane w turze 65):** `Zależy od` brak; `Blokuje` brak; następnik: BE-163 (pozostałe wyjątki Spring MVC); powiązane: FE-136 ✅ (fallback zawężony do 404 w turze 65), BE-157 ✅.
 
 ### BE-162 – Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI (następca: `active-contacts`)
 
@@ -8802,7 +8810,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Could Have
 **Złożoność:** XS
 **Zależy od:** BE-157 ✅ (następca `active-contacts`), FE-136 ✅ (front nie woła `assigned-contact` jako ścieżki głównej)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-04, tura 65; `backend-dev-expert`; niezacommitowane; `CR-BACKEND.md` „Review: BE-161 + BE-162” 4/5; `mvn clean verify` 2875 testów)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (przeniesione kryterium z BE-157, backlog)
 **Wykonawca:** `backend-dev-expert`
@@ -8817,13 +8825,49 @@ backend/app/src/test/java/com/contactcenter/
 - Usunięcie endpointu i fallbacku FE-136 — osobny, późniejszy ticket po potwierdzeniu w logach, że nikt go nie woła (okres obserwacji do uzgodnienia z właścicielem; ticket usunięcia NIE założony).
 
 **Kryteria akceptacji:**
-- [ ] `/v3/api-docs` zawiera `deprecated: true` dla `GET /api/agent/me/assigned-contact` z odwołaniem do `active-contacts` w opisie
-- [ ] Zachowanie endpointu bez zmian (istniejące testy `AgentSelfControllerTest` zielone)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] `@Operation(deprecated = true)` + Java `@Deprecated` dla `GET /api/agent/me/assigned-contact` z odwołaniem do `active-contacts` w opisie (test refleksyjny adnotacji); `/api-docs` NIE zweryfikowane na żywo — local-demo działa na profilu `prod`, gdzie springdoc jest wyłączony
+- [x] Zachowanie endpointu bez zmian (istniejące testy `AgentSelfControllerTest` zielone)
+- [x] `mvn verify -pl app` zielone (JDK 21)
+
+**Notatka wykonania (2026-11-04, tura 65):** `@Operation(deprecated = true)` + `@Deprecated` na `AgentSelfController.getAssignedContact()`, opis wskazuje następcę `GET /api/agent/me/active-contacts`; zachowanie runtime bez zmian; test refleksyjny adnotacji. Dług: wpis `deprecated: true` w `/api-docs` niezweryfikowany na żywo (profil `prod` wyłącza springdoc).
 
 **Ryzyka:** (R1) generatory klientów OpenAPI mogą wygenerować ostrzeżenia o deprecation — frontend nie korzysta z generatora (ręczne serwisy).
 **Nie wchodzi w zakres:** usunięcie endpointu, usunięcie fallbacku FE-136.
-**Zależności:** `Zależy od` BE-157 ✅, FE-136 ✅; `Blokuje` brak; następnik (niezałożony): usunięcie `assigned-contact` i fallbacku FE po obserwacji logów.
+**Zależności (zaktualizowane w turze 65):** `Zależy od` BE-157 ✅, FE-136 ✅; `Blokuje` brak; następnik (niezałożony): usunięcie `assigned-contact` i fallbacku FE po obserwacji logów.
+
+### BE-163 – Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (dziś 500 z catch-all)
+
+**Typ:** Bug / Hardening (Backend, obsługa błędów)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-161 ✅ (handlery `NoResourceFoundException` i `HttpRequestMethodNotSupportedException` oraz format `problem+json` już wprowadzone)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (odkrycie z code review BE-161, backlog; ewentualnie właściwy epik porządkowy BE — decyzja przy realizacji)
+**Wykonawca:** `backend-dev-expert`
+
+**Uwaga środowiskowa:** `mvn` backendu uruchamiać z `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`.
+
+**Opis:** Po BE-161 część wyjątków Spring MVC ma poprawne statusy, ale pozostałe nadal trafiają do catch-all `Exception` w `GlobalExceptionHandler` i zwracają 500 (fałszywe 5xx w monitoringu, błędny sygnał dla klientów). Należy objąć je wspólną obsługą — jeden handler dla interfejsu `ErrorResponse` (Spring 6) albo dziedziczenie po `ResponseEntityExceptionHandler` — z zachowaniem formatu `problem+json` projektu (bez wycieku szczegółów wewnętrznych).
+
+**Zakres (lista z CR BE-161):**
+- 415 / 406: `HttpMediaTypeNotSupportedException`, `HttpMediaTypeNotAcceptableException`.
+- 400: `MissingServletRequestParameterException`, `MissingRequestHeaderException`, `MissingServletRequestPartException`, `ServletRequestBindingException`, `HttpMessageNotReadableException` (dziś tylko lokalnie w `CampaignArchiveSettingController` jako 422 — świadomie NIE zmieniać), `HandlerMethodValidationException`.
+- 413: `MaxUploadSizeExceededException`.
+- 503: `AsyncRequestTimeoutException`.
+- Testy MockMvc dla każdego wyjątku: właściwy status + `application/problem+json` bez ujawniania szczegółów wewnętrznych; log poniżej ERROR dla błędów klienta.
+- Przy okazji (drobna notka porządkowa, bez osobnego ticketu): Javadoc `ContactAssignmentMonitor` i opisy endpointu accept mówią „EMAIL/CHAT”, a monitor dotyczy każdego kanału; kanał CHAT nie istnieje w `contact.channel` (CHECK `chk_contact_channel`) — poprawić opisy.
+
+**Kryteria akceptacji:**
+- [ ] Każdy z wymienionych wyjątków zwraca właściwy status (415, 406, 400, 413, 503) w formacie `application/problem+json`, bez wycieku szczegółów wewnętrznych
+- [ ] Istniejące mapowania bez zmian (w tym 404/405 z BE-161 i 422 w `CampaignArchiveSettingController`)
+- [ ] Testy MockMvc dla każdego wyjątku z listy
+- [ ] Poprawione opisy „EMAIL/CHAT” (Javadoc `ContactAssignmentMonitor`, opisy accept)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zmiana statusów 500 → 4xx może zmienić zachowanie klientów polegających na 500 — nieznani; (R2) dziedziczenie po `ResponseEntityExceptionHandler` zmienia kolejność/priorytety istniejących handlerów — wymaga testów regresji.
+**Nie wchodzi w zakres:** zmiana mapowania 422 w `CampaignArchiveSettingController`, zmiany FE.
+**Zależności:** `Zależy od` BE-161 ✅; `Blokuje` brak; powiązane: BE-162 ✅ (ten sam kontroler/handler, tura 65).
 
 ## Bez epiku
 

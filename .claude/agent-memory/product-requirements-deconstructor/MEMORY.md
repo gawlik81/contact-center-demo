@@ -27,3 +27,4 @@
 - [Tura 51: shape FE-121/122](project_tura51_shape.md) — FE-121 parasol FE-131..134, FE-135/136, BE-154..156, 345/387
 - [Tura 54: EPIC-32 FE-131/134, BE-155/158](project_tura54_epic32.md) — 349/390, BE-159 jako ⬜, wolne BE-160/FE-137/DB-088
 - [Tura 60: FE-129 ✅, FE-143](project_tura60_fe129.md) — 358/398, EPIC-32 18/30, blokują tylko FE-127/FE-128
+- [Tura 66: EPIC-32 statusSince/CONTACT_MESSAGE_RECEIVED](project_tura66_epic32.md) — 374/421, FE-150..154, BE-164..170, wolne FE-155/BE-171/DB-090

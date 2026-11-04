@@ -363,7 +363,7 @@ class RoutingServiceTest {
             when(contactService.updateContactEntity(any())).thenReturn(1);
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BUSY, UserStatus.AVAILABLE);
+                    AGENT_ID, TENANT_ID, UserStatus.BUSY, UserStatus.AVAILABLE, null);
 
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
@@ -376,7 +376,7 @@ class RoutingServiceTest {
         @DisplayName("powinien ignorować zmianę statusu na inny niż AVAILABLE")
         void shouldIgnoreNonAvailableStatusChange() {
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.AVAILABLE, UserStatus.BUSY);
+                    AGENT_ID, TENANT_ID, UserStatus.AVAILABLE, UserStatus.BUSY, null);
 
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
@@ -391,7 +391,7 @@ class RoutingServiceTest {
             when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of());
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null);
 
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
@@ -415,7 +415,7 @@ class RoutingServiceTest {
             when(contactService.updateContactEntity(any())).thenReturn(1);
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null);
 
             routingService.onAgentStatusChanged(event);
 
@@ -440,7 +440,7 @@ class RoutingServiceTest {
             when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(contactWithoutQueue));
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null);
 
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
@@ -473,7 +473,7 @@ class RoutingServiceTest {
             when(contactService.updateContactEntity(any())).thenReturn(1);
 
             routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null));
 
             verify(contactService).updateQueueId(CONTACT_ID, TENANT_ID, QUEUE_ID);
             verify(routingEngine).findBestAgent(any());
@@ -489,7 +489,7 @@ class RoutingServiceTest {
             when(socialDefaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.empty());
 
             routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null));
 
             assertThat(social.getStatus()).isEqualTo("QUEUED");
             assertThat(social.getEndedAt()).isNull();
@@ -507,7 +507,7 @@ class RoutingServiceTest {
             when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(voice));
 
             routingService.onAgentStatusChanged(AgentStatusChangedEvent.of(
-                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE));
+                    AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE, null));
 
             assertThat(voice.getStatus()).isEqualTo("ERROR");
             verify(socialDefaultQueueResolver, never()).resolve(any());

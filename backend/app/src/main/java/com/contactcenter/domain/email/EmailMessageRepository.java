@@ -238,6 +238,84 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     /**
+     * Atomically attaches an inbound message to an existing contact (BE-154 follow-up join).
+     *
+     * <p>A single conditional UPDATE: the row is changed only while the contact is still an EMAIL contact of
+     * the same tenant in {@code ASSIGNED/ACTIVE/ON_HOLD} still assigned to the agent that was read
+     * ({@code agent_id = :agentId}, so the WS event goes to the right agent; {@code started_at} prunes the
+     * partitioned {@code contact} table). The contact row is locked
+     * ({@code FOR SHARE}) for the duration of the statement, so a concurrent close (COMPLETED after the agent's
+     * reply) either commits first (0 rows, caller routes the message as new) or waits for this transaction.
+     * Only messages not yet linked to any contact ({@code contact_id IS NULL}) are touched.
+     *
+     * @return true when exactly one row was attached; false = condition not met (route as a new contact)
+     */
+    public boolean attachToOpenAssignedContact(UUID messageId, Instant messageAt, UUID contactId, UUID tenantId,
+                                               UUID agentId, Instant contactStartedAt) {
+        assertSameTenant(tenantId, messageId);
+        setTenantContextInDb();
+        requireStorableMessageAt(messageAt);
+        int updated = em.createNativeQuery("""
+                UPDATE email_message m
+                   SET contact_id = CAST(:contactId AS uuid)
+                 WHERE m.tenant_id  = CAST(:tenantId AS uuid)
+                   AND m.message_id = CAST(:messageId AS uuid)
+                   AND m.message_at = CAST(:messageAt AS timestamptz)
+                   AND m.contact_id IS NULL
+                   AND EXISTS (SELECT 1 FROM contact c
+                                WHERE c.contact_id = CAST(:contactId AS uuid)
+                                  AND c.tenant_id  = CAST(:tenantId AS uuid)
+                                  AND c.channel    = 'EMAIL'
+                                  AND c.status IN ('ASSIGNED', 'ACTIVE', 'ON_HOLD')
+                                  AND c.agent_id   = CAST(:agentId AS uuid)
+                                  AND c.started_at = CAST(:startedAt AS timestamptz)
+                                FOR SHARE)
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("messageId", messageId.toString())
+                .setParameter("messageAt", messageAt)
+                .setParameter("contactId", contactId.toString())
+                .setParameter("agentId", agentId.toString())
+                .setParameter("startedAt", contactStartedAt)
+                .executeUpdate();
+        return updated == 1;
+    }
+
+    /**
+     * Customer-side addresses already seen in a contact's thread: the sender of INBOUND messages and the
+     * recipients (to/cc) of OUTBOUND ones.
+     * Distinct combinations, newest first (deterministic under the cap). Our own mailbox (inbound {@code to}, outbound {@code from}) is
+     * deliberately excluded. Raw header values (may be comma-separated lists), capped.
+     */
+    @Transactional(readOnly = true)
+    public List<String> findThreadCustomerSideAddresses(UUID contactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT direction, from_address, to_address, cc_address
+                  FROM email_message
+                 WHERE tenant_id = CAST(:tenantId AS uuid)
+                   AND contact_id = CAST(:contactId AS uuid)
+                 GROUP BY direction, from_address, to_address, cc_address
+                 ORDER BY max(message_at) DESC
+                 LIMIT 200
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("contactId", contactId.toString())
+                .getResultList();
+        List<String> addresses = new java.util.ArrayList<>();
+        for (Object[] r : rows) {
+            if ("INBOUND".equals(r[0])) {
+                addresses.add((String) r[1]);
+            } else {
+                addresses.add((String) r[2]);
+                addresses.add((String) r[3]);
+            }
+        }
+        return addresses;
+    }
+
+    /**
      * Wymusza kontrakt {@link #save}: {@code messageAt} ustawione i o precyzji mikrosekund.
      *
      * <p>PostgreSQL przechowuje {@code timestamptz} z dokładnością do mikrosekund. Wartość z

@@ -2103,7 +2103,8 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Szuka aktywnego kontaktu social media dla danego nadawcy.
    *
-   * <p>Aktywny kontakt social to kontakt ze statusem QUEUED lub ACTIVE,
+   * <p>Aktywny kontakt social to kontakt ze statusem QUEUED, ASSIGNED, ACTIVE lub ON_HOLD
+   * (BE-154: spójnie z e-mail - follow-up w trakcie ASSIGNED/ON_HOLD dołącza zamiast tworzyć duplikat),
    * z kanałem odpowiadającym platformie (SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP)
    * i remote_address równym zewnętrznemu ID nadawcy.
    *
@@ -2129,7 +2130,7 @@ class ContactRepository extends TenantAwareRepository {
                 WHERE tenant_id     = CAST(:tenantId AS uuid)
                   AND channel       = CAST(:channel AS VARCHAR)
                   AND remote_address = :senderExternalId
-                  AND status        IN ('QUEUED', 'ACTIVE')
+                  AND status        IN ('QUEUED', 'ASSIGNED', 'ACTIVE', 'ON_HOLD')
                 LIMIT 1
                 """,
             Contact.class)

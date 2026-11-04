@@ -594,7 +594,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
             // zanim agent zapisze dyspozycję i ręcznie wróci do AVAILABLE.
             // Zmiana tylko z AVAILABLE/BUSY – nie nadpisuje BREAK/OFFLINE/INACTIVE.
             int updated = jdbcTemplate.update(
-                "UPDATE app_user SET status = 'AFTER_CONTACT', updated_at = NOW() " +
+                "UPDATE app_user SET status = 'AFTER_CONTACT', status_changed_at = NOW(), updated_at = NOW() " +
                 "WHERE user_id = ?::uuid AND status IN ('AVAILABLE', 'BUSY')",
                 agentId.toString()
             );

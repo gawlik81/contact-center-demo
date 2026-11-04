@@ -114,4 +114,31 @@ class SocialContactQueueIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT status FROM contact WHERE contact_id = ?", String.class,
                 legacy.getContactId())).isEqualTo("QUEUED");
     }
+
+    @Test
+    @DisplayName("findActiveSocialContact (BE-154): QUEUED/ASSIGNED/ACTIVE/ON_HOLD znajdowane, COMPLETED nie, inny tenant nie")
+    void findActiveSocialContactCoversAssignedAndOnHold() {
+        UUID agentId = UUID.randomUUID();
+        jdbc.update("INSERT INTO app_user (user_id, tenant_id, role, email, password_hash, status) "
+                        + "VALUES (?, ?, 'AGENT', ?, ?, 'AVAILABLE')",
+                agentId, tenantId, "a-" + agentId + "@test.local", "h".repeat(60));
+        UUID otherTenant = PostgresTestDatabase.insertTenant(jdbc, "Other BE-154 " + UUID.randomUUID());
+
+        for (String status : List.of("QUEUED", "ASSIGNED", "ACTIVE", "ON_HOLD")) {
+            String sender = "sender-" + status;
+            jdbc.update("INSERT INTO contact (contact_id, tenant_id, agent_id, channel, direction, status, "
+                            + "remote_address, created_at, updated_at) VALUES (?, ?, ?, 'SOCIAL_WHATSAPP', "
+                            + "'INBOUND', ?, ?, now(), now())",
+                    UUID.randomUUID(), tenantId, agentId, status, sender);
+            assertThat(repository.findActiveSocialContact(tenantId, sender, "SOCIAL_WHATSAPP"))
+                    .as(status).isPresent();
+            assertThat(repository.findActiveSocialContact(otherTenant, sender, "SOCIAL_WHATSAPP"))
+                    .as(status + " other tenant").isEmpty();
+        }
+        jdbc.update("INSERT INTO contact (contact_id, tenant_id, agent_id, channel, direction, status, "
+                        + "remote_address, created_at, updated_at) VALUES (?, ?, ?, 'SOCIAL_WHATSAPP', "
+                        + "'INBOUND', 'COMPLETED', 'sender-done', now(), now())",
+                UUID.randomUUID(), tenantId, agentId);
+        assertThat(repository.findActiveSocialContact(tenantId, "sender-done", "SOCIAL_WHATSAPP")).isEmpty();
+    }
 }

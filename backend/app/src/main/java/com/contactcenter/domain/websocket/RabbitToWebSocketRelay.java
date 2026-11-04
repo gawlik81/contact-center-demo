@@ -152,7 +152,8 @@ class RabbitToWebSocketRelay {
             UUID tenantId = UUID.fromString(tenantIdStr);
             UUID agentId  = UUID.fromString(agentIdStr);
 
-            WebSocketEvent event = WebSocketEvent.agentStatusChanged(tenantId, agentId, status);
+            WebSocketEvent event = WebSocketEvent.agentStatusChanged(
+                    tenantId, agentId, status, parseInstantOrNull(payload.get("statusSince")));
 
             // Zmiana statusu agenta → unicast do samego agenta + broadcast do supervisorów tenanta
             broadcaster.sendToUser(agentId, event);
@@ -162,6 +163,19 @@ class RabbitToWebSocketRelay {
             log.error("[WS-Relay] Błąd parsowania UUID w AgentStatus event: {}", e.getMessage(), e);
         } catch (Exception e) {
             log.error("[WS-Relay] Błąd przetwarzania AgentStatus event: {}", e.getMessage(), e);
+        }
+    }
+
+    /** Lenient ISO-8601 parse of the optional {@code statusSince}; null/blank/invalid -> null (unknown). */
+    private static java.time.Instant parseInstantOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.Instant.parse(value);
+        } catch (java.time.format.DateTimeParseException e) {
+            log.debug("[WS-Relay] Nieprawidłowy statusSince '{}' - traktuję jako nieznany", value);
+            return null;
         }
     }
 

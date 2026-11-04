@@ -13,6 +13,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.Mockito.mock;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -38,7 +39,7 @@ class SocialMessageServicePurgeTest {
     void setUp() {
         service = new SocialMessageServiceImpl(
                 socialIntegrationRepository, socialMessageRepository, contactService, adapterRegistry, rabbitTemplate,
-                defaultQueueResolver);
+                defaultQueueResolver, mock(com.contactcenter.domain.websocket.ContactMessageReceivedPublisher.class));
     }
 
     @Test

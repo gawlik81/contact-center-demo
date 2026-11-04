@@ -4,6 +4,8 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +30,10 @@ public record UserResponse(
         List<String> skills,
         Instant lastLoginAt,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        @Schema(description = "Start of the current agent status (ISO-8601 UTC). Null = unknown "
+                + "(never changed since the feature was introduced).", nullable = true)
+        Instant statusSince
 ) {
 
     /**
@@ -53,7 +58,8 @@ public record UserResponse(
                 user.getSkills() != null ? user.getSkills() : List.of(),
                 user.getLastLoginAt(),
                 user.getCreatedAt(),
-                user.getUpdatedAt()
+                user.getUpdatedAt(),
+                user.getStatusChangedAt()
         );
     }
 }

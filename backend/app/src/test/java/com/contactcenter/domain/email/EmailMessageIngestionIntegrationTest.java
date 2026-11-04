@@ -164,7 +164,8 @@ class EmailMessageIngestionIntegrationTest {
         when(emlService.generateAndUpload(any(), any(), any())).thenReturn("eml/be134.eml");
 
         poller = new EmailPollingServiceImpl(tenantService, repository, routing, publisher,
-                encryption, storage, new ObjectMapper());
+                encryption, storage, new ObjectMapper(),
+                mock(EmailFollowUpJoiner.class));
         creator = new EmailContactCreator(contactService, customerService, repository, rabbit, emlService);
         sender = new EmailSendServiceImpl(repository, publisher, tenantService, encryption,
                 mock(EmailTemplateService.class), mock(TemplateVariableResolver.class), storage, new ObjectMapper());

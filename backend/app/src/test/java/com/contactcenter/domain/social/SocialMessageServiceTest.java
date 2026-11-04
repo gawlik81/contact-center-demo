@@ -69,7 +69,8 @@ class SocialMessageServiceTest {
                 contactService,
                 adapterRegistry,
                 rabbitTemplate,
-                defaultQueueResolver
+                defaultQueueResolver,
+                mock(com.contactcenter.domain.websocket.ContactMessageReceivedPublisher.class)
         );
         when(defaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.of(QUEUE_ID));
     }

@@ -140,6 +140,7 @@ public class UserController {
         summary = "Dane zalogowanego użytkownika",
         description = "Zwraca pełne dane użytkownika wynikające z JWT (userId z TenantContext). " +
                       "Używane do inicjalizacji stanu aplikacji po zalogowaniu (np. status agenta). " +
+                      "Pole statusSince (ISO-8601 UTC, nullable) = początek bieżącego statusu agenta; null gdy nieznany. " +
                       "Pola wrażliwe (passwordHash, mfaSecret) nie są uwzględniane w odpowiedzi.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Dane zalogowanego użytkownika"),

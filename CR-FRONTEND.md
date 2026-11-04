@@ -2760,3 +2760,101 @@ _None identified._
 **4/5.** Wszystkie MEDIUM z rundy 1 domkniete lub zlagodzone, testy zielone; zostaje regresja UX w social (brak scroll-to-bottom przy pierwszym ladowaniu — R2-1) i swiadomie niedomkniety dlug e-mail > 20 (R2-2), plus drobne luki R2-3/R2-4.
 
 **Verdykt: approve z poprawkami.** Przed commitem: R2-1 (1-2 linie + test). Do ticketu: R2-2 (z naprawa pierwszego ladowania), MINOR-6, R2-3, R2-4, R2-5.
+
+---
+
+## Review: FE — podgląd całego wątku e-mail + EML per wiadomość (BE-164) — 2026-11-04
+
+Scope: contact-detail-modal (ts/html/scss/spec), contact.model.ts, contact.service.ts (+spec), i18n pl/en/de/uk. Verdict: 3.5/5, approve with fixes.
+
+### Bugs / Critical Issues
+- **[MAJOR] contact-detail-modal.component.ts (getEmailPreview / getEmailMessageEmlUrl; contact.service.ts:71-76 and the preview method)** Neither new call passes `SKIP_ERROR_TOAST`, while the component's `catchError` also calls `notifications.error(...)`. `error-handler.interceptor` already toasts on 404/403/5xx/other 4xx. Result: double toast on every failure (known recurring anti-pattern, 2nd+ occurrence). It gets more visible now that the backend returns real 404/400/503 and the agent gets 409 for a foreign contact: the user sees the interceptor warning plus the component error. Fix: add `{ context: new HttpContext().set(SKIP_ERROR_TOAST, true) }` to both service methods, as `getContact` does. Add a test that the context token is set.
+- **[MAJOR] emailTruncated wording is inaccurate for the backend contract (pl/en/de/uk.json)** Backend returns the NEWEST 100 in ASC order, so what is hidden is specifically the OLDER messages. EN says "The remaining messages are not displayed" (ambiguous), PL says "Starsze lub pozostałe" (hedged), DE/UK the same as EN. Suggested: "Showing the latest {{shown}} of {{total}} messages. Older messages are not displayed." and translate that in all four languages. Also consider putting the notice at the top (it is) and making clear the thread starts mid-conversation.
+- **[MINOR] Stale guard is by contactId only** (`loadEmailPreview`, `downloadMessageEml`). Closing and reopening the same contact lets a late response from the first open pass the guard (same id). For EML this could trigger a download the user did not just click. Use a per-request token or `takeUntil(reset$)` / `switchMap` on a subject, which also cancels the HTTP request. Unsubscribing would also remove the need for the guard.
+- **[MINOR] `triggerDownload`** creates an `<a target=_blank>` and clicks it after an async gap. Presigned S3 URLs are cross-origin, so `download` is ignored and the browser navigates a new tab; popup blockers may block it, and `message/rfc822` may render or be ignored. Make sure the backend presigned URL sets `ResponseContentDisposition=attachment; filename=...`. Same pre-existing popup-blocker risk in `downloadEmailAttachment` (`window.open` after async). Appending the anchor to the DOM is the safer pattern for older Firefox.
+- **[MINOR] Dead i18n keys** `sectionEmail`, `downloadEmlBtn`, `previewHtml`, `emailFrom`, `emailDate`, `errorEmlSubject` have 0 references in src after this change but remain in the JSON files. Remove them (or confirm they are used elsewhere) to avoid translation drift.
+
+### Security Concerns
+- **[HIGH, pre-existing, not weakened] Stored XSS via inbound e-mail HTML** — `contact-detail-modal.component.ts` `safeEmailHtmlById`: `bypassSecurityTrustHtml(m.bodyHtml)` on raw inbound HTML. I searched backend: no sanitizer (jsoup/Safelist/OWASP) anywhere in the e-mail ingest or `ContactServiceImpl` preview path (`m.getBodyHtml()` is returned verbatim). Compared with develop: the same bypass existed for the single message, so nothing is weakened, but the blast radius grew (up to 100 untrusted bodies auto-loaded on open — previously the agent had to click "preview"; now any agent/supervisor opening an EMAIL contact renders attacker HTML immediately, so the click-to-opt-in mitigation is gone). `<img onerror>`, `<svg onload>`, `<a href="javascript:">` all execute in the app origin (JWT access). Also `<style>` inside the bypassed HTML is not encapsulated and can restyle the whole app (overlay/phishing). The JSDoc "Sanitised HTML bodies ... same bypass path as before" is misleading: nothing sanitizes. Fix options (pick one, ideally both): (a) sanitize server-side with an allowlist (jsoup Safelist, drop script/style/iframe/form/on*/javascript:, rewrite or strip remote images) before storing or in the preview mapper; (b) render in `<iframe sandbox="" srcdoc=...>` (no allow-scripts, no allow-same-origin) with a CSP meta. Minimum for this PR: stop using the bypass and let Angular's built-in sanitizer handle `[innerHTML]` with a plain string, or DOMPurify before bypass. Open as a separate blocker ticket if not fixed here. Remote images also leak tracking pixels (agent IP/open event) — block by default.
+- **[LOW]** `a.rel = 'noopener noreferrer'` on the download anchor and `noopener` in the template are fine; `fileName` comes from the backend and is only used as `download` hint (safe).
+
+### Architecture / Pattern Violations
+- **[MINOR] SCSS budget (anyComponentStyle 15.58 kB vs 12 kB warning, 24 kB error)** The new block is about 92 lines (~2 kB); the file was already near or over the limit before. Not a blocker (warning only, error at 24 kB), but this modal is a god-component (ts + 600-line html). Recommend extracting the e-mail thread into a standalone `app-email-thread` component (inputs: messages, truncated, totalMessages; outputs: downloadEml, downloadAttachment) with its own scss and spec. That also fixes the budget, removes `emlStates`/`safeEmailHtmlById` from the modal, and shortens the template. Do not raise the budget.
+- **[MINOR]** Comment in `emailMessages` ("backend order is re-asserted defensively") plus client sort of up to 100 items is fine, but `[...messages].sort` runs on each preview change only (computed) — OK.
+- Model: `receivedAt: string | null` is no longer displayed anywhere (UI uses `messageAt`); fine, but then unused in the model — keep for contract parity.
+
+### Improvements & Suggestions
+- **a11y / headings**: `<h3>` per message sits under a section whose label is a `<span>` (not a heading), so the heading level jumps from the modal title straight to h3. Make the section label an `h2` (or use `role=heading aria-level=2`) or demote to avoid skipped levels. The `<h3>` content (direction + sender + time) is a decent accessible name for the `<article aria-labelledby>`.
+- **a11y / EML button**: `aria-label` overrides the visible text, so the state changes (loading text, "Retry") are never announced, and the visible label "Retry"/"Loading..." is not contained in the accessible name (WCAG 2.5.3 Label in Name). Compose the label from state: loading -> "Downloading EML ..."; error -> "Retry download EML ...". Also `aria-busy` together with `disabled` loses focus context on the button; consider `aria-disabled` and keeping focus.
+- **a11y / live regions**: `role="status"` on `.email-thread__notice` inserted together with its content is often not announced; render the container always and update text, or keep as static text (it is static info anyway, plain `<p>` is fine). Per-message `role="alert"` inline errors are OK, but together with the toast announce twice.
+- **Direction** is conveyed by text label plus color: good (not color-only).
+- **Performance with 100 messages**: `bypassSecurityTrustHtml` x100 in one `computed` is cheap; the real cost is 100 full innerHTML bodies, each typically containing the quoted history (quadratic text growth in long threads) rendered at once in an `overflow: hidden` dialog. Recommend: collapse all but the latest 1-3 messages by default (expand on click, render body lazily), or at least `content-visibility: auto; contain-intrinsic-size` on `.email-preview`. OnPush is on and `track msg.messageId` is correct. `emlStates` spreads a Record per update: fine. Inside `@for`, `emlState(msg.messageId)` is called 3x and the date pipe twice per row: negligible.
+- `track att.s3Key`: duplicates possible if the same key appears twice in one message (Angular warns); use `track $index` or `s3Key + filename`.
+- Date format `'dd.MM.yyyy HH:mm'` is hardcoded and ignores the active language (pre-existing pattern; en/de/uk users get PL format). Use `date: 'short'` or Transloco locale.
+- `emailMessages().length === 0` shows `emailEmpty` which is the same key as the "no body" fallback; use a dedicated "no messages" string.
+- Error handling for the new backend statuses: preview shows a generic error + retry for every status; retry is pointless for 404/409 (foreign contact). Consider hiding retry for 4xx and showing a specific message for 409/403.
+
+### Positive Observations
+- Per-message EML state keyed by `messageId` with disabled + `aria-busy` guard against double-click; isolation between messages is tested ("one failing EML download does not break the others").
+- Semantic `<ol>/<li>/<article>/<h3>` structure, `aria-labelledby` on each article, `downloadEmlFor` label names sender and date in all 4 languages.
+- Stale-response guard added, state reset on contact change and on close (`emlStates`), OnPush kept, previously hardcoded Polish strings ("Załączniki", attachment error) now moved to i18n with all 4 languages (8 keys each, parity verified: same 8 keys in pl/en/de/uk, placeholders `{{shown}} {{total}} {{count}} {{sender}} {{date}}` consistent).
+- PHONE path unchanged and covered by a regression test; EMAIL no longer shows the contact-level recording section.
+- Service spec verifies URL + method for both endpoints.
+
+### Tests
+- No test for the stale-response guard (stated as a deliberate decision, yet untested): add a Subject-based test (open c1, switch to c2, emit c1 response, assert not rendered / no download).
+- Truncated-notice test only checks that textContent contains '1' and '150' (weak; would pass on any text containing those digits). Use the exact expected pl string and assert it says older messages are omitted.
+- `clickSpy` count only; assert the created anchor's `href`, `download`, `target`, `rel` (spy on `click` with `this`, or capture via `document.createElement` spy).
+- Missing: XSS regression test (bodyHtml with `<img onerror>`/`<script>` must not produce live handlers — currently it would FAIL, which is the point), 409/404/503 error behaviour, sorting with equal `messageAt`, `emlAvailable: false` already covered, retry after EML error, attachment download.
+- Service spec does not assert `SKIP_ERROR_TOAST` (will be needed after the fix above).
+- Only `pl` loaded in TranslocoTestingModule; no key-parity test across 4 languages (parity checked manually here).
+
+### Summary
+3.5/5 — solid structure, per-message state isolation and i18n parity are good, but the double error toast, the inaccurate truncation wording and (pre-existing, now more exposed because preview auto-loads) unsanitized inbound HTML via `bypassSecurityTrustHtml` need action; SCSS budget overage is acceptable as a warning but argues for extracting an `app-email-thread` component.
+
+
+### Runda 2 — 2026-11-04 (weryfikacja poprawek FE po review BE-164)
+
+Scope: `shared/components/email-thread/*`, `shared/utils/email-srcdoc.util.ts`, `contact-detail-modal` (ts/html/scss/spec), `contact.service.ts` (+spec), `email-thread-message.component.ts`, i18n x4. Ran `ng test` for the modal and service specs: 20/20 green. Verdict: **APPROVE with minor follow-ups, 4.5/5**. All original MAJOR/HIGH findings are fixed.
+
+Status of round-1 findings
+- Stored XSS (HIGH): FIXED. Body is sanitized (Angular `SecurityContext.HTML`), rendered in `<iframe sandbox="allow-same-origin">` without allow-scripts, with CSP `default-src 'none'; img-src data:; style-src 'unsafe-inline'`. The host DOM never receives message HTML. A regression test exists (modal spec ~l.242-262).
+- Double toast: FIXED (`SKIP_ERROR_TOAST` on both calls, asserted in the service spec).
+- Truncation wording: FIXED in pl/en/de/uk ("newest N of total; older not displayed").
+- Stale guard: FIXED with `contactChange$` + `takeUntil` (cancels the HTTP call), re-open test added.
+- Dead i18n keys: FIXED. grep over src and public has 0 hits for sectionEmail, downloadEmlBtn, previewHtml, emailFrom, emailDate, errorEmlSubject. Shared keys (`retry`, `errorEml`, ...) are still referenced.
+- h2 section, persistent role=status, EML aria-disabled/aria-busy with state-following name, aria-expanded/aria-controls, default collapse, track $index, 4xx no-retry, empty state: verified in code.
+- Extraction of app-email-thread: done. SCSS budget is now a warning only (12.82 kB); acceptable.
+
+### Findings (severity-ranked)
+
+**MEDIUM — `email-thread.component.ts` `srcdocs` computed reloads every iframe on each toggle.** The computed reads `isExpanded()` -> `toggled()`. Expanding or collapsing any message rebuilds `SafeHtml` for all expanded messages. Angular compares the new wrapper objects by reference, so every open iframe gets `srcdoc` re-set, reloads, flickers, and loses its scroll position. Fix: memoise per messageId (a `Map<messageId, {html, SafeHtml}>` cache keyed by the source body), or build the srcdoc from a per-message computed or pure pipe that depends only on that message.
+
+**MEDIUM — links inside the frame (UX/phishing, not script execution).** Sanitized `<a href>` survives. With sandbox lacking allow-popups and no `<base target>`, a click navigates the iframe itself to the remote URL. That page then renders inside the modal (script-less), which is a phishing surface that looks like the application's own content. The iframe's `load` handler will also hit a cross-origin document (caught). Fix options: strip `href` or rewrite it to plain text, or add `<base target="_blank" rel="noopener">` in the doc with `sandbox="allow-same-origin allow-popups"` (popups inherit the sandbox; do NOT add `allow-popups-to-escape-sandbox`). Document the decision either way.
+
+**LOW — `buildEmailSrcdoc` text path escapes only `<`, not `&`.** There is no XSS (`<` is escaped, and the text lands in a `<pre>` text context), but a plain-text body that contains `&lt;b&gt;` or `&amp;` renders decoded (fidelity bug). Escape `& < >` in that order. The unchanged text branch also lives in the agent-desktop path (shared change, same output as before, so not a regression).
+
+**LOW — `noContentLabel` is interpolated unescaped.** It comes from transloco (trusted i18n), so it is safe today. Because the util is generic and its output is later passed to `bypassSecurityTrustHtml`, escape it anyway (defence in depth, trivial). Nothing else is interpolated into the template: subject, from and to are rendered through Angular bindings outside the frame, and the util only receives `bodyHtml`, `bodyText` and the label. No injection route from sender or subject into the doc.
+
+**LOW — sandbox analysis.** `allow-same-origin` without `allow-scripts` is safe: no script can run (including via srcdoc inheriting the origin). The parent needs same-origin only to read `scrollHeight`. Risk is only future drift: adding `allow-scripts` alongside `allow-same-origin` would let the frame remove its own sandbox. Recommend a unit assertion (already present for "no allow-scripts") plus a code comment, which exists. Forms are absent from Angular's allow-list, `<meta refresh>` and `<base>` are stripped by the sanitizer, and CSP `default-src 'none'` blocks remote loads. `form-action`/`base-uri` are not needed given the sanitizer, but add `base-uri 'none'; form-action 'none'` to the CSP for belt and braces (cheap).
+
+**LOW — fidelity trade-off, worth knowing.** Angular's sanitizer removes `<style>` and `style` attributes, so rich e-mails (layout tables, colours) render plain, and `style-src 'unsafe-inline'` only serves the util's own template CSS. Remote images are silently dropped with no "load images" affordance. Acceptable for a read-only agent preview; mention in the PR notes. The dev console will log "sanitizing HTML stripped some content" per message (noise only).
+
+**LOW — `onFrameLoad` height.** `documentElement.scrollHeight` is never less than the viewport (initial 160 px), so short messages get roughly 168 px and there is no shrink. It is a one-time measurement, so there is no loop. Optionally measure `body.scrollHeight`/`offsetHeight` instead.
+
+**LOW — tests.** `app-email-thread` has no own spec (the modal spec covers it indirectly: collapse, XSS, EML states). Add a small spec for toggle/aria-expanded, default expansion (newest only), `emlAriaLabel` per state, and the srcdoc cache (once the MEDIUM above is fixed, assert the srcdoc reference is stable across a toggle of another message). Still no key-parity test across 4 languages (parity checked manually: the keys above exist in all four).
+
+**INFO — syncDialogState double-fetch guard.** Correct. `reset()` (called when `contactId` becomes null/closed) sets `currentContactId` to null, so re-opening the same id passes the guard and refetches; in-modal navigation to a related contact updates `currentContactId` and `fetchContact` calls `contactChange$.next()` first. Refresh edge case: if the parent re-passes an identical id without first nulling it, nothing happens (as it did before, since `ngOnChanges` does not fire). Residual risk: a parent that sets the input from A to B directly while the user navigated internally to B skips the refetch (harmless). `takeUntil` before `takeUntilDestroyed` ordering is fine. A cancelled preview does not leave state stuck, because `fetchContact`/`reset` reset it to idle.
+
+**INFO — agent-desktop `EmailThreadMessageComponent.getSrcdoc`.** Delegation to the util with default options is output-identical to the removed inline template (no CSP when `blockRemoteResources` is off; same style block, `<pre>` and fallback `<p>`). No behaviour change. Note that this path still passes raw `bodyHtml` with `sandbox="allow-same-origin"` and no CSP/sanitizer (pre-existing, outside this PR). Its remote images and tracking pixels still load, and its links navigate the frame. Consider enabling `blockRemoteResources` and sanitizing there too, as a follow-up ticket.
+
+**INFO — `emailPreview` error flow.** Toast plus inline retry now is intentional (SKIP_ERROR_TOAST means only the component toast fires); no double toast.
+
+### Positive observations
+- Clean separation: untrusted HTML never touches the host DOM; defence in depth (sanitize + sandbox without scripts + CSP) with comments explaining why the bypass is acceptable.
+- Lazy iframe creation for collapsed messages, 480 px cap, persistent live region, label-in-name EML button that keeps focus (aria-disabled instead of disabled), i18n parity in 4 languages with the corrected truncation text.
+- Request cancellation via `contactChange$` removes the late-response/download race instead of just guarding it.
+- Specs for service (URL, method, SKIP_ERROR_TOAST) and modal (XSS, re-open, EML isolation) pass.
+
+### Summary
+4.5/5 — every earlier blocker (XSS, double toast, wording, stale responses, dead keys, a11y) is resolved with a solid sandbox+sanitizer+CSP design; remaining items are the iframe reload on toggle (srcdoc not memoised), link navigation inside the frame, minor escaping hardening and a missing own spec for `app-email-thread`.

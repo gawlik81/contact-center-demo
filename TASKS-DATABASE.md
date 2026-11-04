@@ -73,6 +73,11 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
 
+**Poprawki (bugfix)**
+
+- DB-094 – Kolumna `email_message.eml_s3_key`: klucz S3 archiwum EML per wiadomość (follow-upy e-mail) – ⬜
+- DB-095 – Funkcje RODO `anonymize_customer` / `export_customer_data` obejmują `email_message.eml_s3_key` (art. 17 / art. 15) – ⬜
+
 ---
 
 ## EPIC-11 – Routing numerów telefonicznych
@@ -4386,6 +4391,59 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 **Nie wchodzi w zakres:** logika ustawiania kolumny i DTO (BE-153), historia statusów, raportowanie czasu w statusach, zmiany RLS.
 **Zależności (zaktualizowane w turze 66):** `Zależy od` brak; `Blokuje` BE-153 (✅ ukończony 2026-11-04, tura 66; kolumna ustawiana przez `AppUser.changeStatus` i natywny UPDATE dialera) → FE-130 (✅); następniki w backlogu: BE-165, BE-166 (publikacja zdarzeń statusu).
+
+---
+
+### DB-094 – Kolumna `email_message.eml_s3_key`: klucz S3 archiwum EML per wiadomość (follow-upy w wątku e-mail)
+
+**Typ:** Schema (migracja DDL, dodanie kolumny do tabeli partycjonowanej)
+**Priorytet:** Must Have (bugfix)
+**Złożoność:** S (jedna kolumna nullable, bez backfillu i bez indeksu)
+**Zależy od:** brak
+**Status:** ⬜ Nie rozpoczęte (migracja `V145__email_message_eml_s3_key.sql` przygotowana, niezastosowana)
+**Blokuje:** poprawka BE (EML per wiadomość w `EmailFollowUpJoiner` / generatorze archiwum EML)
+**Epic:** bez epiku (bugfix `fix/email-thread-preview-eml`)
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** kontakt EMAIL może mieć wiele wierszy `email_message` (odpowiedzi dołączane przez `EmailFollowUpJoiner` po `In-Reply-To`), a plik EML powstawał tylko dla pierwszej wiadomości (klucz w `contact.recording_url`). Decyzja produktowa: każda wiadomość ma własny EML; `contact.recording_url` nadal wskazuje EML pierwszej wiadomości.
+
+**Zakres:** `ALTER TABLE email_message ADD COLUMN IF NOT EXISTS eml_s3_key TEXT NULL` + `COMMENT ON COLUMN`; `SET LOCAL lock_timeout`. Typ `TEXT` jak `contact.recording_url`. Operacja tylko na metadanych (bez DEFAULT, bez przepisania tabeli), propaguje się na wszystkie partycje, w tym `email_message_default`, i na przyszłe (`create_email_message_partition` używa `PARTITION OF`).
+**Bez backfillu (świadomie):** stary `NULL` na najwcześniejszej wiadomości kontaktu = fallback do `contact.recording_url` po stronie backendu. **Bez indeksu:** odczyt po PK. RLS, trigger `message_at`, widoki i funkcje RODO bez zmian; brak tabel archiwalnych odwzorowujących `email_message`.
+
+**Kryteria akceptacji:**
+- [ ] Kolumna `email_message.eml_s3_key TEXT NULL` bez DEFAULT, z komentarzem, widoczna na wszystkich partycjach
+- [ ] Składnia zwalidowana w `BEGIN … ROLLBACK` na lokalnym PostgreSQL (zrobione 2026-11-04, baza bez zmian)
+- [ ] `mvn verify -pl app` zielone (migracja V145 w Testcontainers)
+
+**Ryzyko:** purge wiersza `email_message` powinien usuwać także obiekt S3 wskazany przez `eml_s3_key` (do uwzględnienia w poprawce BE / retencji).
+
+---
+
+### DB-095 – Funkcje RODO (`anonymize_customer`, `export_customer_data`) obejmują `email_message.eml_s3_key`
+
+**Typ:** Schema (migracja funkcji PL/pgSQL, `CREATE OR REPLACE` bez zmiany sygnatur)
+**Priorytet:** Must Have (bugfix RODO — EML zawiera PII: adresy, temat, treść, załączniki)
+**Złożoność:** S (trzy małe hunki w każdej z dwóch funkcji, reszta skopiowana 1:1)
+**Zależy od:** DB-094 (kolumna z V145), BE-164 (EML per wiadomość — źródło wartości `eml_s3_key`)
+**Status:** ⬜ Nie rozpoczęte (migracja `V146__gdpr_functions_include_email_message_eml_s3_key.sql` przygotowana przez backend, zrecenzowana przez `db-schema-architect` 2026-11-04, niezastosowana)
+**Blokuje:** brak
+**Epic:** bez epiku (bugfix `fix/email-thread-preview-eml`)
+**Wykonawca:** `db-schema-architect` (review), `backend-dev-expert` (autor SQL)
+
+**Kontekst:** po V145 plik EML istnieje dla każdej wiadomości, a `anonymize_customer` (V098) zbierał do czyszczenia S3 tylko `contact.recording_url` i `attachments[*].s3_key`, więc EML-e osoby anonimizowanej przetrwałyby art. 17; `export_customer_data` (V095) nie wykazywał ich w manifeście `s3_keys` (art. 15).
+
+**Zakres:**
+- `anonymize_customer`: `eml_s3_key` w zbiorze `s3_keys` (zbierane PRZED mutacją), `UPDATE email_message` ustawia `eml_s3_key = NULL`, predykat „jeszcze do zanonimizowania” (dry-run i UPDATE) obejmuje `eml_s3_key IS NOT NULL` (idempotencja, dry-run == real).
+- `export_customer_data`: `eml_s3_key` w `s3_keys`.
+- Sygnatury, typ zwracany, `LANGUAGE`, `STABLE` (export), brak `SECURITY DEFINER`, właściciel, brak jawnych GRANT — bez zmian (zweryfikowane vs katalog).
+
+**Kryteria akceptacji:**
+- [ ] Ciała V146 różnią się od aktualnych definicji (V098/V095 = stan żywej bazy) wyłącznie zamierzonymi hunkami
+- [ ] Dry-run `BEGIN … ROLLBACK` V145+V146 na lokalnej bazie OK; `anonymize_customer(dry_run=true/false)` i `export_customer_data` na realnym kliencie: klucze EML w `s3_keys`, po anonimizacji `eml_s3_key` = NULL, drugie wywołanie = liczniki 0 (zrobione 2026-11-04)
+- [ ] Test integracyjny (Testcontainers): wiadomość z `eml_s3_key` → klucz w `s3_keys` eksportu i anonimizacji, po anonimizacji NULL, idempotencja
+- [ ] `mvn verify -pl app` zielone; istniejące testy `AnonymizeCustomerExtensionTest` / eksportu bez regresji
+
+**Ryzyko:** sprzątanie S3 po stronie Javy (`GdprServiceImpl#cleanupS3Objects`) musi akceptować klucze `eml_s3_key` (schemat `{tenantId}/...` — wg autora pokryty allow-listą); purge wiersza `email_message` (retencja) nadal wymaga osobnego usuwania obiektu S3.
 
 ---
 

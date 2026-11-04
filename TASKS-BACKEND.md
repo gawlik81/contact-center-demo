@@ -56,14 +56,14 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 8 | 0 | 10 | 0 | 18 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 9 | 0 | 13 | 0 | 22 | 🔧 W toku |
 | EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 25 | 0 | 25 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **151** | **0** | **45** | **3** | **199** | |
+| **RAZEM** | | **152** | **0** | **48** | **3** | **203** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -106,13 +106,17 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-161 | [BUG] Nieznana ścieżka API zwraca 500 zamiast 404 — brak handlera `NoResourceFoundException` w `GlobalExceptionHandler` (wynik FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65; z odstępstwem: także 405 `problem+json`; CR 4/5) |
 | BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65) |
 | BE-163 | Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (415/406/400/413/503 zamiast 500; wynik CR BE-161; tura 65) | ⬜ Do zrobienia |
-| BE-164 | EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner` (omija `EmailContactCreator`; wynik BE-154; tura 66) | ⬜ Do zrobienia |
+| BE-164 | EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner` — zakres rozszerzony: podgląd całego wątku i osobny EML dla każdej wiadomości (wynik BE-154; tura 66) | ✅ Ukończone (2026-11-04, tura 68; po DB-094 ✅/V145 i z DB-095 ✅/V146; CR 4/5, poprawki naniesione) — odblokował FE-156 (✅) |
 | BE-165 | Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS — FE nie zna nowego statusu/`statusSince` do `GET /users/me` (wynik BE-153; tura 66) | ⬜ Do zrobienia |
 | BE-166 | Wyciszenie `agent.status.changed` przy zapisie tego samego statusu (wynik BE-153; tura 66) | ⬜ Do zrobienia |
 | BE-167 | Join follow-upu e-mail: `In-Reply-To` z wieloma ID i nagłówek `References` (wynik BE-154; tura 66) | ⬜ Do zrobienia |
 | BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ⬜ Do zrobienia |
 | BE-169 | Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses` (tura 66) | ⬜ Do zrobienia |
 | BE-170 | [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail (ryzyko zaakceptowane przez właściciela; wynik BE-154; tura 66) | ⬜ Do zrobienia — opcjonalny |
+| BE-196 | `RecordingRetentionJob` wybiera kontakty po `recording_url IS NOT NULL` — EML odpowiedzi z wątku nie są sprzątane, gdy EML pierwszej wiadomości nie powstał (wynik BE-164; tura 68) | ⬜ Do zrobienia |
+| BE-197 | Podgląd wątku e-mail: limit rozmiaru treści (100 pełnych body), zapytania bez `message_at` (skan partycji), brak indeksu `(tenant_id, contact_id, message_at)`, brak testu EXPLAIN dla `findThreadTail` (wynik CR BE-164; tura 68) | ⬜ Do zrobienia |
+| BE-198 | Spójny klucz S3 EML: pierwsza wiadomość z `receivedAt`, follow-upy z `messageAt` (wynik BE-164; tura 68) | ⬜ Do zrobienia |
+| BE-199 | `@Audited` dla pobrania EML pojedynczej wiadomości `GET /api/contacts/{id}/email-messages/{messageId}/eml` — wymaga decyzji właściciela (wynik BE-164; tura 68) | ⬜ Do zrobienia — decyzja |
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -8456,9 +8460,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 8/18** · ✅ 8 · 🔧 0 · ⬜ 10 · 🚫 0
+**Ukończone 9/22** · ✅ 9 · 🔧 0 · ⬜ 13 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Następne wolne numery: BE-171, FE-155, DB-090.
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Następne wolne numery: BE-200, FE-161, DB-096 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8922,9 +8926,9 @@ backend/app/src/test/java/com/contactcenter/
 **Typ:** Bug / Feature (Backend, kanał e-mail)
 **Priorytet:** Should Have
 **Złożoność:** S/M
-**Zależy od:** BE-154 ✅ (`EmailFollowUpJoiner`, 2026-11-04)
-**Status:** ⬜ Do zrobienia
-**Blokuje:** brak
+**Zależy od:** BE-154 ✅ (`EmailFollowUpJoiner`, 2026-11-04), DB-094 ✅ (kolumna `email_message.eml_s3_key`, V145)
+**Status:** ✅ Ukończone (2026-11-04, tura 68; zakres rozszerzony — osobny EML dla każdej wiadomości)
+**Blokuje:** FE-156 ✅ (podgląd wątku w modalu szczegółów kontaktu), DB-095 ✅ (funkcje RODO — źródło wartości `eml_s3_key`); następniki: BE-196, BE-197, BE-198, BE-199
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-154)
 **Wykonawca:** `backend-dev-expert`
 
@@ -8933,13 +8937,23 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** ustalić, które kroki `EmailContactCreator` (zapis EML do magazynu, wiersz archiwum, powiązanie z kontaktem) muszą wykonać także wiadomości dołączane; wydzielić wspólny fragment (bez duplikowania) i wywołać go z joinera; zachować tenant isolation i transakcyjność (zapis EML po commit lub kompensacja przy błędzie).
 
 **Kryteria akceptacji:**
-- [ ] Wiadomość dołączona przez `EmailFollowUpJoiner` ma EML i wpis archiwum jak wiadomość z nowego kontaktu (test integracyjny)
-- [ ] Błąd zapisu EML nie gubi wiadomości w wątku (spójne zachowanie jak w `EmailContactCreator`)
-- [ ] Istniejące testy `EmailFollowUpEventIntegrationTest` i ingestii zielone; `mvn verify -pl app` zielone (JDK 21)
+- [x] Wiadomość dołączona przez `EmailFollowUpJoiner` ma EML i wpis archiwum jak wiadomość z nowego kontaktu (test integracyjny)
+- [x] Błąd zapisu EML nie gubi wiadomości w wątku (spójne zachowanie jak w `EmailContactCreator`)
+- [x] Istniejące testy `EmailFollowUpEventIntegrationTest` i ingestii zielone; `mvn verify -pl app` zielone (JDK 21)
 
 **Ryzyka:** (R1) wspólny kod z `EmailContactCreator` — regresja ścieżki nowego kontaktu; (R2) retencja/partycje `email_message` (EPIC-30) — zachować klucze i `tenant_id`.
 **Nie wchodzi w zakres:** zmiany FE, nowe reguły dołączania (BE-167).
-**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167, BE-169 (ta sama ścieżka join).
+**Notatka wykonania (2026-11-04, tura 68; `backend-dev-expert`, commit `ec2aa0a6`, CR + DB-094/DB-095 w `1fdf90b2`):**
+- **Błąd zgłoszony przez użytkownika:** po dołączeniu odpowiedzi przez `In-Reply-To` podgląd nagrania kontaktu pokazywał tylko najnowszą wiadomość, a plik EML zawierał tylko pierwszą. **Decyzja właściciela produktu:** podgląd całego wątku, osobny EML dla każdej wiadomości; `contact.recording_url` nadal równe EML pierwszej wiadomości. **Zakres szerszy niż w tytule ticketu** (pierwotnie tylko EML dla dołączonych follow-upów).
+- `GET /api/contacts/{id}/email-preview` zwraca cały wątek `{messages[], totalMessages, truncated}`: najwyżej 100 NAJNOWSZYCH wiadomości, w kolejności rosnącej, każda z `emlAvailable`; legacy fallback do `recording_url` dotyczy wyłącznie najstarszej wiadomości.
+- Nowy `GET /api/contacts/{id}/email-messages/{messageId}/eml`; własność agenta jak w `/recording` (kontakt innego agenta → 409).
+- `EmailFollowUpJoiner` generuje EML PO publikacji zdarzenia WS i usuwa osierocony obiekt, gdy zapis klucza się nie powiedzie; `EmailContactCreator` zapisuje `eml_s3_key`; `purgeRows` i `RecordingRetentionJob` usuwają pliki EML per wiadomość.
+- `GlobalExceptionHandler` mapuje `ResponseStatusException` na właściwy status i dodaje pole `message` (wcześniej 500); `SocialOAuthController` nie odbija już parametrów żądania.
+- Testy nowe: `EmailMessageEmlIntegrationTest`, `GdprEmlKeyFunctionsTest`, `ContactControllerEmailPreviewMvcTest`, `EmailEmlServiceTest`, `EmailFollowUpJoinerArchiveTest`; rozszerzone: `ContactServiceTest`, `GlobalExceptionHandlerTest`, `RecordingRetentionJobTest`, `EmailFollowUpEventIntegrationTest`, `EmailMessageIngestionIntegrationTest`. `mvn verify`: 2969 testów, 0 F, 1 pominięty. CR backendu 4/5 APPROVE WITH FIXES (poprawki naniesione).
+- Weryfikacja lokalna: kontakt `7bbb58d5` pokazuje 3 wiadomości chronologicznie; endpoint EML: 200 dla pierwszej (fallback legacy), 404 dla wiadomości sprzed poprawki.
+- **Uwaga (bez backfillu, świadomie):** Odpowiedzi dołączone przez `In-Reply-To` PRZED poprawką (do 2026-11-04) nie mają własnego EML (`eml_s3_key = NULL`). Backfillu nie będzie — decyzja świadoma; endpoint EML zwraca dla nich 404, a podgląd wątku `emlAvailable = false`. Wyjątek: najstarsza wiadomość kontaktu korzysta z fallbacku do `contact.recording_url`.
+- **Nowe tickety (backlog):** BE-196 (retencja nagrań a EML odpowiedzi), BE-197 (wydajność i limity podglądu wątku), BE-198 (spójny klucz S3), BE-199 (`@Audited` pobrania EML — decyzja); FE-157…FE-160 w `TASKS-FRONTEND.md`.
+**Zależności (zaktualizowane w turze 68):** `Zależy od` BE-154 ✅, DB-094 ✅; `Blokuje` FE-156 ✅, DB-095 ✅, BE-196…BE-199; powiązane: BE-167, BE-169 (ta sama ścieżka join), BE-163 (pozostałe wyjątki Spring MVC w `GlobalExceptionHandler`).
 
 ### BE-165 – Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS
 
@@ -9081,6 +9095,102 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) skrzynki bez nagłówków `Authentication-Results` (IMAP) — fałszywe odrzucenia; (R2) koszt utrzymania weryfikacji po stronie aplikacji.
 **Nie wchodzi w zakres:** zmiany FE; wdrożenie do czasu decyzji właściciela.
 **Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167 (poszerzenie nagłówków dopasowania).
+
+### BE-196 – `RecordingRetentionJob`: sprzątanie EML odpowiedzi także wtedy, gdy EML pierwszej wiadomości nie powstał
+
+**Typ:** Bug (Backend, retencja)
+**Priorytet:** Should Have
+**Złożoność:** S/M
+**Zależy od:** BE-164 ✅ (EML per wiadomość, `email_message.eml_s3_key`), DB-094 ✅
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-164)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `RecordingRetentionJob` wybiera kontakty po `contact.recording_url IS NOT NULL`. Gdy EML pierwszej wiadomości nie został wygenerowany (`recording_url = NULL`), a odpowiedzi z wątku mają własne `eml_s3_key`, retencja nagrań NIE usuwa plików EML odpowiedzi — sprząta je dopiero purge `CONTACT_INTERACTIONS`. Wynik: pliki EML (PII) żyją dłużej niż okres retencji nagrań.
+
+**Zakres:** rozszerzyć wybór kandydatów o kontakty z wiadomościami mającymi `eml_s3_key IS NOT NULL` (bez pełnego skanu partycji — z granicą `message_at`/`ended_at`), zachować semantykę retencji i idempotencję (po usunięciu obiektu `eml_s3_key = NULL`).
+
+**Kryteria akceptacji:**
+- [ ] Kontakt z `recording_url = NULL` i odpowiedziami z `eml_s3_key` po upływie retencji nagrań: obiekty S3 usunięte, `eml_s3_key = NULL` (test w `RecordingRetentionJobTest` i integracyjny)
+- [ ] Kontakt z `recording_url` i EML odpowiedzi — zachowanie bez zmian; drugi przebieg joba nic nie robi (idempotencja)
+- [ ] Zapytanie wyboru kandydatów ma plan z przycinaniem partycji (test EXPLAIN lub uzasadnienie w teście)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) koszt zapytania na `email_message` (partycje; zob. BE-197); (R2) wyścig z purge `CONTACT_INTERACTIONS` — usuwanie obiektu musi być idempotentne (brak obiektu = sukces).
+**Nie wchodzi w zakres:** backfill EML dla odpowiedzi sprzed poprawki (świadomie brak), zmiany FE.
+**Zależności:** `Zależy od` BE-164 ✅, DB-094 ✅; `Blokuje` brak; powiązane: BE-198 (klucze S3), DB-095 ✅ (RODO).
+
+### BE-197 – Podgląd wątku e-mail: limit rozmiaru treści, przycinanie partycji w zapytaniach i indeks `(tenant_id, contact_id, message_at)`
+
+**Typ:** Perf / Hardening (Backend, kanał e-mail)
+**Priorytet:** Should Have
+**Złożoność:** M
+**Zależy od:** BE-164 ✅ (`GET /api/contacts/{id}/email-preview`, `findThreadTail`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-164)
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect` dla indeksu)
+
+**Opis:** Wynik CR BE-164 — cztery powiązane usterki wydajnościowe podglądu wątku: (1) brak limitu rozmiaru treści — odpowiedź może zawierać 100 pełnych body; (2) `findByIdAndContactId` i `findEarliestMessageId` działają bez `message_at`, więc sprawdzają każdą partycję `email_message`; (3) brak indeksu `(tenant_id, contact_id, message_at)`; (4) brak testu EXPLAIN dla `findThreadTail`.
+
+**Zakres:** limit rozmiaru pojedynczego body i/lub sumaryczny (z flagą `truncated` per wiadomość lub globalnie — do ustalenia przy realizacji); przekazywanie `message_at` (z listy lub z kontaktu) do obu zapytań; indeks na tabeli partycjonowanej (kolejny wolny numer DB: DB-096 — ticket DB założyć przy realizacji; zasady jak w DB-094: `lock_timeout`, propagacja na partycje); test planu z przycinaniem partycji dla `findThreadTail`.
+
+**Kryteria akceptacji:**
+- [ ] Odpowiedź podglądu ma górną granicę rozmiaru (test z 100 wiadomościami o dużych body); przycięcie jest sygnalizowane w kontrakcie i obsłużone przez FE-156 (bez regresji)
+- [ ] `findByIdAndContactId` i `findEarliestMessageId` przekazują `message_at`; test EXPLAIN: brak skanu wszystkich partycji
+- [ ] Indeks `(tenant_id, contact_id, message_at)` obecny na wszystkich partycjach (po decyzji o wdrożeniu); test EXPLAIN dla `findThreadTail` używa go
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zmiana kontraktu `email-preview` (limit) — zachować zgodność z FE-156; (R2) indeks na gorącej tabeli — koszt zapisu, powiązane DB-091 (audyt indeksów, EPIC-33).
+**Nie wchodzi w zakres:** zmiana formatu wątku, stronicowanie podglądu (osobna decyzja).
+**Zależności:** `Zależy od` BE-164 ✅; `Blokuje` brak; powiązane: BE-196, FE-156 ✅, DB-091, DB-094 ✅.
+
+### BE-198 – Spójny klucz S3 pliku EML: `receivedAt` (pierwsza wiadomość) vs `messageAt` (follow-upy)
+
+**Typ:** Refactor / Bug (Backend, kanał e-mail)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-164 ✅
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-164)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Klucz S3 EML pierwszej wiadomości jest budowany z `receivedAt`, a kluczy follow-upów z `messageAt`. Różne źródła daty dają niespójny układ kluczy (np. inna data w ścieżce przy wiadomościach z opóźnieniem/zegarem nadawcy) i utrudniają przewidywalne sprzątanie.
+
+**Zakres:** ustalić jedno źródło daty (rekomendacja: `messageAt` jako kolumna partycjonująca `email_message`) i zastosować w obu ścieżkach (`EmailContactCreator`, `EmailFollowUpJoiner`) przez wspólną metodę budowy klucza. Istniejące klucze nie są zmieniane (przechowywane w `eml_s3_key`/`recording_url`).
+
+**Kryteria akceptacji:**
+- [ ] Jedna metoda budująca klucz EML używana przez obie ścieżki; test jednostkowy formatu klucza
+- [ ] Brak zmiany kluczy już zapisanych; testy `EmailEmlServiceTest` i ingestii zielone
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) zmiana formatu może rozjechać allow-listę sprzątania S3 (`{tenantId}/...`) — zachować prefiks.
+**Nie wchodzi w zakres:** migracja istniejących kluczy.
+**Zależności:** `Zależy od` BE-164 ✅; `Blokuje` brak; powiązane: BE-196.
+
+### BE-199 – [DECYZJA] `@Audited` dla pobrania EML pojedynczej wiadomości
+
+**Typ:** Security / Audit (Backend, kanał e-mail) — wymaga decyzji właściciela
+**Priorytet:** Could Have
+**Złożoność:** XS/S
+**Zależy od:** BE-164 ✅ (endpoint `GET /api/contacts/{id}/email-messages/{messageId}/eml`); decyzja właściciela produktu
+**Status:** ⬜ Do zrobienia — decyzja
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-164)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Nowy endpoint pobrania EML pojedynczej wiadomości nie ma adnotacji `@Audited`. EML zawiera PII (adresy, temat, treść, załączniki). Do rozstrzygnięcia: czy pobranie ma wchodzić do dziennika audytu (spójnie z innymi pobraniami danych kontaktu) i z jaką akcją/szczegółami (`contactId`, `messageId`).
+
+**Kryteria akceptacji:**
+- [ ] Decyzja właściciela zapisana w tickecie (tak/nie, nazwa akcji audytu)
+- [ ] Po decyzji „tak”: pobranie generuje wpis audytu z `contactId` i `messageId`, bez treści EML (test)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) wolumen wpisów audytu przy częstym otwieraniu wątku — audytować tylko pobranie pliku, nie podgląd.
+**Nie wchodzi w zakres:** audyt podglądu `email-preview`.
+**Zależności:** `Zależy od` BE-164 ✅; `Blokuje` brak; powiązane: BE-196.
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 

@@ -54,10 +54,10 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 28 | 0 | 13 | 0 | 41 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| EPIC-32 | UX i dostępność stanowiska agenta | 29 | 0 | 17 | 0 | 46 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
 | EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **140** | **0** | **18** | **1** | **159** |
+| **Razem** | | **141** | **0** | **22** | **1** | **164** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -101,6 +101,11 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS (wiadomości z okresu rozłączenia) — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
 - FE-153 – Odświeżenie wątku e-mail wykonuje 2 GET (próba + ostatnia strona): wiadomość na granicy strony między nimi jest pomijana do następnego zdarzenia — ⬜ (Do zrobienia; wynik FE-135; po FE-150; backlog, nie blokuje epiku; Could Have, S)
 - FE-154 – Nazwa klienta zwężona do 2 liter na karcie ze znacznikiem przy wąskim viewport (~913 px); dotyczy też znaczników FE-133 — ⬜ (Do zrobienia; wynik FE-135/FE-133; backlog, nie blokuje epiku; Could Have, S)
+- FE-156 – Modal szczegółów kontaktu pokazuje cały wątek e-mail (`app-email-thread`): zwinięte starsze wiadomości, osobny EML i stan pobierania per wiadomość; usunięty przycisk EML na poziomie kontaktu; poprawka XSS (sandbox + CSP) — ✅ (2026-11-04, tura 68; po BE-164 ✅; CR 3,5 → 4,5/5; `npm test` 80 plików / 1105 testów)
+- FE-157 – Stanowisko agenta (`email-thread-message`) renderuje `bodyHtml` bez sanityzacji i CSP — zdalne obrazy (piksele śledzące) się ładują; włączyć `blockRemoteResources` i sanityzację jak w `app-email-thread` — ⬜ (Do zrobienia; wynik CR FE-156; backlog, nie blokuje epiku; Should Have, S)
+- FE-158 – SCSS modalu szczegółów kontaktu 12,82 kB przekracza budżet 12 kB (ostrzeżenie `anyComponentStyle`) — wydzielić dalsze fragmenty — ⬜ (Do zrobienia; wynik FE-156; backlog, nie blokuje epiku; Could Have, S)
+- FE-159 – Interceptor błędów czyta `body.message`/`body.error`, a pozostałe handlery ProblemDetail wysyłają tylko `detail` — dodać `detail` jako fallback — ⬜ (Do zrobienia; wynik FE-156/BE-164; backlog, nie blokuje epiku; Should Have, S)
+- FE-160 – Brak testu parytetu kluczy i18n między językami (pl/en/de/uk) — dodać test — ⬜ (Do zrobienia; wynik CR FE-156; backlog, nie blokuje epiku; Could Have, S)
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -5918,11 +5923,11 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 28/41** (✅ 28 · 🔧 0 · ⬜ 13 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149…FE-154 oraz BE-156, BE-159, BE-163…BE-170 (BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+**Ukończone 29/46** (✅ 29 · 🔧 0 · ⬜ 17 · 🚫 0) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149…FE-154, FE-157…FE-160 oraz BE-156, BE-159, BE-163, BE-165…BE-170, BE-196…BE-199 (BE-164 ✅ i FE-156 ✅ zamknięte w turze 68; BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
-> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-148 i FE-149 dołożone w turze 64 (2026-10-31) z wyników FE-136 (akceptacja kontaktu SOCIAL na ścieżce na żywo; zwrot do kolejki z komunikatu „poza limitem kart”; oba backlog, nie blokują epiku; powiązane BE-161, BE-162 w `TASKS-BACKEND.md`); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE). Tura 65 (2026-11-04): FE-148 ✅ (backlog się kurczy); BE-161 ✅ i BE-162 ✅ w `TASKS-BACKEND.md`; nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC → właściwe statusy). Tura 66 (2026-11-04): FE-130 ✅ (po BE-153 ✅) i FE-135 ✅ (po BE-154 ✅); nowe FE-150…FE-154 ⬜ (wyniki CR i weryfikacji w przeglądarce FE-135) oraz BE-164…BE-170 ⬜ w `TASKS-BACKEND.md`; DB-089 ✅ w `TASKS-DATABASE.md`. Następne wolne numery (stan po turze 66): FE-155, BE-171, DB-090.
+> **Numeracja:** FE-114…FE-125 (poprzedni najwyższy: FE-113); FE-156…FE-160 dołożone w turze 68 (2026-11-04) z błędu podglądu wątku e-mail (BE-164: cały wątek + EML per wiadomość; FE-156 ✅ zamknięty od razu, FE-157…FE-160 z CR FE-156; numer FE-155 zajął EPIC-33 w turze 67); FE-148 i FE-149 dołożone w turze 64 (2026-10-31) z wyników FE-136 (akceptacja kontaktu SOCIAL na ścieżce na żywo; zwrot do kolejki z komunikatu „poza limitem kart”; oba backlog, nie blokują epiku; powiązane BE-161, BE-162 w `TASKS-BACKEND.md`); FE-146 i FE-147 dołożone w turze 62 (2026-10-30) z wyników FE-143 (reaktywność i18n poza `queue-panel`/`top-navbar`) i CR FE-145 (niestabilny test `social-integrations`; backlog); FE-141, FE-143 i FE-145 zamknięte w turze 62 (backlog się kurczy); FE-144 i FE-145 dołożone w turze 61 (2026-10-30) z wyników FE-128/CR FE-127+FE-128 (i18n pozostałych ekranów; błąd telefonii niewidoczny dla agenta; backlog); FE-143 dołożony w turze 60 (2026-10-30) z code review FE-129 (ta sama usterka reaktywności w `queue-panel`, backlog); FE-139…FE-142 dołożone w turze 59 (2026-10-30) z wyników FE-125 (propozycje P2/P3: gradienty, fallbacki hex, tokeny `disposition-sets`, drobne P3); FE-126 dołożony w turze 49 (2026-10-23) z wyniku FE-116; FE-127…FE-130 (+ BE-153) dołożone w turze 50 (2026-10-23) z wyników FE-119/FE-120/FE-126. FE-137 dołożony w turze 57 (2026-10-29) z wyniku FE-123 (migracja `px` w `@media` poza agentem/powłoką). FE-138 dołożony w turze 58 (2026-10-30) z wyniku FE-124 (budżety stylów i bundla poza pulpitem agenta). FE-131…FE-136 (+ BE-154, BE-155, BE-156) dołożone w turze 51 (2026-10-23) po `/impeccable shape` dla FE-121/FE-122: FE-131…FE-134 to pakiety WP-A…WP-D parasola FE-121 (FE-121 zostaje ticketem-parasolem, jak BE-148), FE-135/FE-136/BE-154…BE-156 to odkrycia poza zakresem briefu. EPIC-32 był wolny (ostatni epik: EPIC-31, bez ticketów FE). Tura 65 (2026-11-04): FE-148 ✅ (backlog się kurczy); BE-161 ✅ i BE-162 ✅ w `TASKS-BACKEND.md`; nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC → właściwe statusy). Tura 66 (2026-11-04): FE-130 ✅ (po BE-153 ✅) i FE-135 ✅ (po BE-154 ✅); nowe FE-150…FE-154 ⬜ (wyniki CR i weryfikacji w przeglądarce FE-135) oraz BE-164…BE-170 ⬜ w `TASKS-BACKEND.md`; DB-089 ✅ w `TASKS-DATABASE.md`. Następne wolne numery (stan po turze 66): FE-155, BE-171, DB-090.
 > **Fazy:** (1) fundament tokenów — FE-115…FE-118 (`/impeccable polish` + `harden`); (2) treść i drobne domknięcia — FE-119 ✅, FE-120 ✅, FE-126 ✅ (tura 50; `clarify` + `harden`) oraz wynikowe FE-127…FE-129 (FE-129 ✅ tura 60; FE-127 ✅ i FE-128 ✅ tura 61) i FE-130 (po BE-153); (3) praca na wielu kontaktach — FE-121, FE-122 (`/impeccable shape`, potem implementacja; największe ryzyko); (4) układ i wydajność — FE-123, FE-124 (`layout` + `optimize`); (5) zamknięcie — FE-125 (ponowny audyt i krytyka). FE-114 to faza 0 (już wykonana).
 >
 > **Wspólne kryteria (WP) dla każdego ticketu EPIC-32:**
@@ -7345,11 +7350,134 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Nie wchodzi w zakres:** zmiany hierarchii znaczników (FE-133).
 **Zależności:** `Zależy od` FE-133 ✅, FE-135 ✅; `Blokuje` brak; powiązane: FE-123 ✅.
 
+### FE-156 – Modal szczegółów kontaktu pokazuje cały wątek e-mail (`app-email-thread`); EML per wiadomość
+
+**Typ:** Bug / Frontend implementation (kanał e-mail)
+**Priorytet:** Must Have (bugfix zgłoszony przez użytkownika)
+**Złożoność:** M
+**Zależy od:** BE-164 ✅ (`email-preview` zwraca cały wątek `{messages[], totalMessages, truncated}`; `GET /api/contacts/{id}/email-messages/{messageId}/eml`)
+**Status:** ✅ Ukończone (2026-11-04, tura 68; commit `a17f42cb`, CR w `1fdf90b2`)
+**Czeka na BE:** brak (BE-164 ✅)
+**Blokuje:** brak; następniki: FE-157 (wspólny `email-srcdoc.util.ts`), FE-158, FE-159, FE-160
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; błąd poza briefem epiku)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden` + `impeccable polish`
+
+**Opis:** Po dołączeniu odpowiedzi przez `In-Reply-To` podgląd nagrania w modalu szczegółów kontaktu pokazywał tylko najnowszą wiadomość, a EML zawierał tylko pierwszą. Decyzja właściciela: podgląd całego wątku, osobny EML dla każdej wiadomości.
+
+**Zrealizowano:**
+- Nowy komponent `app-email-thread`: wątek w kolejności chronologicznej, starsze wiadomości zwinięte, każda wiadomość z własnym przyciskiem pobrania EML i własnym stanem (ładowanie/błąd); przycisk EML na poziomie kontaktu dla kontaktów EMAIL usunięty.
+- **Poprawka XSS:** sanityzacja Angulara, `iframe` z `sandbox="allow-same-origin allow-popups"` (bez `allow-scripts`), CSP blokujące zasoby zdalne, `base target="_blank"`. Wspólny builder `srcdoc` w `email-srcdoc.util.ts` (używany także przez stanowisko agenta; teraz escapuje `&`).
+- `SKIP_ERROR_TOAST` (błędy obsługiwane lokalnie), anulowanie spóźnionych odpowiedzi, i18n w 4 językach (pl/en/de/uk), usunięte martwe klucze.
+- Wyniki: `npm test` 80 plików / 1105 testów, lint 0 błędów (10 ostrzeżeń), format OK; CR frontendu 3,5/5 (runda 1) → 4,5/5 (runda 2), poprawki naniesione. Weryfikacja w przeglądarce: modal szczegółów kontaktu `7bbb58d5` (3 wiadomości) OK.
+
+**Kryteria akceptacji:**
+- [x] Modal pokazuje cały wątek e-mail (do 100 najnowszych, `truncated` sygnalizowane), starsze zwinięte
+- [x] Każda wiadomość ma własny EML i własny stan pobierania; wiadomości sprzed poprawki (`emlAvailable = false`) bez aktywnego przycisku
+- [x] Przycisk EML na poziomie kontaktu EMAIL usunięty
+- [x] Treść HTML renderowana bezpiecznie (sandbox bez skryptów, CSP bez zasobów zdalnych, sanityzacja)
+- [x] Testy jednostkowe, lint i format zielone; klucze i18n w pl/en/de/uk
+
+**Notatka:** odpowiedzi dołączone przed poprawką nie mają EML i nie będzie backfillu (decyzja świadoma; zob. BE-164).
+**Nie wchodzi w zakres:** stanowisko agenta (→ FE-157), budżet SCSS (→ FE-158), fallback `detail` w interceptorze (→ FE-159), test parytetu i18n (→ FE-160).
+**Zależności:** `Zależy od` BE-164 ✅; `Blokuje` brak; powiązane: FE-157, FE-158, FE-159, FE-160, BE-197 (limit rozmiaru treści podglądu).
+
+### FE-157 – Stanowisko agenta: `email-thread-message` renderuje `bodyHtml` bez sanityzacji i CSP (piksele śledzące)
+
+**Typ:** Security / Frontend implementation (kanał e-mail)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-156 ✅ (wspólny `email-srcdoc.util.ts`, wzorzec `blockRemoteResources` i sanityzacji z `app-email-thread`)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR FE-156)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** `email-thread-message` (stanowisko agenta) renderuje `bodyHtml` bez sanityzacji i bez CSP, więc zdalne obrazy (piksele śledzące) się ładują i ujawniają aktywność agenta nadawcy. Należy włączyć `blockRemoteResources` oraz sanityzację tak jak w `app-email-thread` (FE-156).
+
+**Kryteria akceptacji:**
+- [ ] `bodyHtml` przechodzi przez sanityzację i wspólny builder `srcdoc` z CSP blokującym zasoby zdalne (test: wiadomość ze zdalnym obrazem nie wykonuje żądania)
+- [ ] Brak regresji wyglądu wątku i dostępności listy (WP-1…WP-7)
+- [ ] Testy jednostkowe, lint i format zielone
+
+**Ryzyka:** (R1) agent może chcieć zobaczyć zdalne obrazy — rozważyć jawną akcję „pokaż obrazy” (osobna decyzja).
+**Nie wchodzi w zakres:** zmiany BE.
+**Zależności:** `Zależy od` FE-156 ✅; `Blokuje` brak; powiązane: FE-150, FE-153 (ta sama powierzchnia wątku).
+
+### FE-158 – SCSS modalu szczegółów kontaktu 12,82 kB przekracza budżet 12 kB
+
+**Typ:** Refactor (Frontend, styl)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** FE-156 ✅ (ostrzeżenie wprowadzone przez zmianę modalu)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-156)
+**Wykonawca:** `angular-frontend-expert` + `impeccable optimize`
+
+**Opis:** Po FE-156 styl komponentu modalu szczegółów kontaktu ma 12,82 kB (pomiar z ostrzeżenia `anyComponentStyle`, jak w FE-124) wobec budżetu 12 kB. Wydzielić dalsze fragmenty (podkomponenty, partiale) bez zmiany wyglądu.
+
+**Kryteria akceptacji:**
+- [ ] `ng build` bez ostrzeżenia `anyComponentStyle` dla tego komponentu (≤ 12 kB)
+- [ ] Brak zmian wizualnych (przegląd w przeglądarce, oba motywy)
+- [ ] Testy, lint i format zielone
+
+**Ryzyka:** (R1) regresje specyficzności selektorów po wydzieleniu.
+**Nie wchodzi w zakres:** pozostałe komponenty ponad budżetem (→ FE-138).
+**Zależności:** `Zależy od` FE-156 ✅; `Blokuje` brak; powiązane: FE-138 (budżety stylów i bundla).
+
+### FE-159 – Interceptor błędów: odczyt `detail` z ProblemDetail jako fallback
+
+**Typ:** Bug (Frontend, obsługa błędów)
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** brak twardych (kontekst: BE-164 ✅ dodał pole `message` w `GlobalExceptionHandler`; FE-156 ✅)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik FE-156/BE-164)
+**Wykonawca:** `angular-frontend-expert`
+
+**Opis:** Interceptor błędów odczytuje `body.message` lub `body.error`, ale pozostałe handlery ProblemDetail (np. BE-161/BE-163) wysyłają tylko `detail`. Komunikat błędu jest wtedy pomijany. Dodać `detail` jako fallback.
+
+**Kryteria akceptacji:**
+- [ ] Kolejność odczytu: `message` → `error` → `detail` → komunikat domyślny (test dla każdego wariantu)
+- [ ] Brak regresji `SKIP_ERROR_TOAST` i istniejących testów interceptora
+- [ ] Testy, lint i format zielone
+
+**Ryzyka:** (R1) ujawnienie technicznego `detail` użytkownikowi — wyświetlać tylko dla znanych statusów lub po przeglądzie treści.
+**Nie wchodzi w zakres:** zmiany BE (BE-163).
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-163, BE-164 ✅, FE-156 ✅.
+
+### FE-160 – Test parytetu kluczy i18n między językami (pl/en/de/uk)
+
+**Typ:** Testing (Frontend, i18n)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** brak twardych (kontekst: FE-156 ✅ dodał klucze w 4 językach i usunął martwe)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR FE-156)
+**Wykonawca:** `test-suite-expert`
+
+**Opis:** Nie ma testu, który wykrywa rozjazd zestawów kluczy między plikami tłumaczeń. Dodać test Vitest porównujący zestaw kluczy (zagnieżdżonych, z odmianami `_one/_few/_many/_other`) w pl/en/de/uk.
+
+**Kryteria akceptacji:**
+- [ ] Test pada, gdy klucz występuje w jednym języku i brak go w pozostałych (test negatywny)
+- [ ] Istniejące rozjazdy naprawione lub jawnie wylistowane jako wyjątki z uzasadnieniem
+- [ ] Testy, lint i format zielone
+
+**Ryzyka:** (R1) odmiany liczby różne w językach (pl/uk mają więcej form) — porównywać rdzeń klucza.
+**Nie wchodzi w zakres:** przegląd jakości tłumaczeń de/uk (dług z FE-113).
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: FE-144, FE-146 (i18n).
+
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
 **Ukończone 0/1** (✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0) — status epiku: ⬜ Nie rozpoczęty (epik w przeważającej części backendowy/infrastrukturalny; tu jedyny ticket FE wynikający ze skalowania poziomego: FE-155; tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
 
-> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-156.
+> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-161 (FE-156…FE-160 zajął EPIC-32 w turze 68).
 
 ### FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń
 

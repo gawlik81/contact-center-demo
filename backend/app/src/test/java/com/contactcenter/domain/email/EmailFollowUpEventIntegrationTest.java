@@ -85,6 +85,7 @@ class EmailFollowUpEventIntegrationTest {
     private WebSocketEventBroadcaster broadcaster;
     private EmailPollingServiceImpl poller;
     private EmailFollowUpJoiner joiner;
+    private EmailEmlService emlService;
     private Instant contactStartedAt;
     private String parentHeader;
 
@@ -117,8 +118,9 @@ class EmailFollowUpEventIntegrationTest {
         contactService = mock(ContactService.class);
         customerService = mock(CustomerService.class);
         broadcaster = mock(WebSocketEventBroadcaster.class);
+        emlService = mock(EmailEmlService.class);
         joiner = new EmailFollowUpJoiner(repository, contactService, customerService,
-                new ContactMessageReceivedPublisher(broadcaster));
+                new ContactMessageReceivedPublisher(broadcaster), emlService);
         poller = new EmailPollingServiceImpl(mock(TenantService.class), repository, routing,
                 mock(EmailEventPublisher.class), new EmailEncryptionServiceImpl(TEST_KEY),
                 mock(EmailAttachmentStorageService.class), new ObjectMapper(), joiner);
@@ -193,6 +195,47 @@ class EmailFollowUpEventIntegrationTest {
                 .doesNotContain("Temat follow-up").doesNotContain("Tresc follow-up").doesNotContain("klient@");
         assertThat(new ObjectMapper().readTree(json).fieldNames())
                 .toIterable().containsExactlyInAnyOrder("contactId", "channel", "messageId", "receivedAt");
+    }
+
+    @Test
+    @DisplayName("follow-up: generuje EML per wiadomosc, zapisuje klucz w email_message.eml_s3_key, nie rusza kontaktu")
+    void followUpGeneratesPerMessageEmlAndStoresKey() throws Exception {
+        when(contactService.findContactEntity(contactId, tenantId)).thenReturn(Optional.of(contact("ACTIVE", agentId)));
+        String emlKey = tenantId + "/2026/09/" + contactId + "/key.eml";
+        when(emlService.generateAndUploadForMessage(any(), eq(contactId), eq(tenantId))).thenReturn(emlKey);
+        String header = "<follow-eml-" + UUID.randomUUID() + "@ext.example>";
+
+        pollOnce(tenant, mime(header, parentHeader));
+
+        ArgumentCaptor<EmailMessage> generated = ArgumentCaptor.forClass(EmailMessage.class);
+        verify(emlService).generateAndUploadForMessage(generated.capture(), eq(contactId), eq(tenantId));
+        assertThat(generated.getValue().getContactId()).as("EML generowany po dolaczeniu do kontaktu").isEqualTo(contactId);
+        assertThat(jdbc.queryForObject("SELECT eml_s3_key FROM email_message WHERE message_id_header = ?",
+                String.class, header)).isEqualTo(emlKey);
+        // pierwsza wiadomosc (rodzic) nie jest ruszana
+        assertThat(jdbc.queryForObject("SELECT eml_s3_key FROM email_message WHERE message_id_header = ?",
+                String.class, parentHeader)).isNull();
+        // contact.recording_url (EML pierwszej wiadomosci) nie jest nadpisywany
+        verify(contactService, never()).updateRecordingUrl(any(), any(), any());
+        verify(broadcaster, times(1)).sendToUser(eq(agentId), any());
+    }
+
+    @Test
+    @DisplayName("blad generowania EML NIE psuje dolaczenia: wiadomosc w kontakcie, zdarzenie WS wyslane, eml_s3_key = NULL, bez routingu")
+    void emlFailureDoesNotBreakJoin() throws Exception {
+        when(contactService.findContactEntity(contactId, tenantId)).thenReturn(Optional.of(contact("ACTIVE", agentId)));
+        when(emlService.generateAndUploadForMessage(any(), any(), any()))
+                .thenThrow(new EmailEmlService.EmailEmlException("s3 down", new RuntimeException()));
+        String header = "<follow-emlfail-" + UUID.randomUUID() + "@ext.example>";
+
+        pollOnce(tenant, mime(header, parentHeader));
+
+        assertThat(jdbc.queryForObject("SELECT contact_id FROM email_message WHERE message_id_header = ?",
+                UUID.class, header)).isEqualTo(contactId);
+        assertThat(jdbc.queryForObject("SELECT eml_s3_key FROM email_message WHERE message_id_header = ?",
+                String.class, header)).isNull();
+        verify(routing, never()).route(any(), any());
+        verify(broadcaster, times(1)).sendToUser(eq(agentId), any());
     }
 
     @Test

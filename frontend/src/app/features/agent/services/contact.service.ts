@@ -65,6 +65,14 @@ export class ContactService {
   getEmailPreview(contactId: string): Observable<EmailPreviewResponse> {
     return this.http.get<EmailPreviewResponse>(
       `${environment.apiUrl}/contacts/${contactId}/email-preview`,
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
+    );
+  }
+
+  getEmailMessageEmlUrl(contactId: string, messageId: string): Observable<RecordingUrlResponse> {
+    return this.http.get<RecordingUrlResponse>(
+      `${environment.apiUrl}/contacts/${contactId}/email-messages/${messageId}/eml`,
+      { context: new HttpContext().set(SKIP_ERROR_TOAST, true) },
     );
   }
 

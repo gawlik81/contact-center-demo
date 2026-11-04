@@ -1,0 +1,224 @@
+.email-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  &__item {
+    min-width: 0;
+  }
+}
+
+.email-preview {
+  min-width: 0;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  &--outbound &__header {
+    background: var(--accent-soft);
+  }
+
+  &__header {
+    padding: 0.75rem 1rem;
+    background: var(--bg-subtle);
+    font-size: 0.8125rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
+
+    strong {
+      color: var(--text-1);
+    }
+  }
+
+  &:not(&--collapsed) &__header {
+    border-bottom: 1px solid var(--border-1);
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &__title {
+    margin: 0;
+    flex: 1 1 14rem;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--text-1);
+  }
+
+  &__toggle {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.5rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+    min-width: 0;
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+
+    &[aria-expanded='true'] .email-preview__chevron {
+      transform: rotate(90deg);
+    }
+  }
+
+  &__chevron {
+    align-self: center;
+    flex: 0 0 auto;
+    color: var(--text-2);
+    transition: transform var(--duration-fast, 120ms);
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  &__direction {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-2);
+
+    &--outbound {
+      color: var(--accent-text);
+    }
+  }
+
+  &__sender {
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__time {
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__eml {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: var(--bg-surface);
+    color: var(--accent-text);
+    border: 1.5px solid var(--accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--accent-soft);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    &[aria-disabled='true'] {
+      opacity: 0.6;
+      cursor: progress;
+    }
+  }
+
+  &__error {
+    margin: 0;
+    color: var(--danger-text, var(--text-1));
+    font-weight: 600;
+  }
+
+  &__frame {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: #fff;
+  }
+
+  &__attachments {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-1);
+    background: var(--bg-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &__attachments-label {
+    font-size: 0.75rem;
+    color: var(--text-2);
+    font-weight: 600;
+  }
+
+  &__attachments-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  &__attachment-item {
+    display: flex;
+    align-items: center;
+  }
+
+  &__attachment-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    color: var(--accent-text);
+    cursor: pointer;
+    text-align: start;
+    word-break: break-all;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+  }
+
+  &__attachment-size {
+    color: var(--text-3);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+}

@@ -147,3 +147,4 @@
 - [DB-082 CronFailureLogRepository (Java)](project_db082_cron_failure_log_java.md) — REQUIRES_NEW ślad ERROR, wpięcie w 3 miejscach, purge tylko wokół purgeCampaignData
 - [BE-157 GET /api/agent/me/active-contacts](project_be157_active_contacts.md) — ACW pochodne, bulk nazwy, EXPLAIN bez prunningu partycji (DB-088), harness z rola RLS
 - [BE-161/162 404/405 handlery + deprecated assigned-contact](project_be161_be162_404_405_deprecation.md) — wyjatki MVC wpadaja w catch-all 500; 405 przez ex.getHeaders()
+- [BE-164 EML per wiadomosc + podglad rozmowy](project_be164_email_thread_eml_per_message.md) — eml_s3_key, V146 GDPR, sprzatanie S3, pulapka ResponseStatusException->500

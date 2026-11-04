@@ -282,6 +282,81 @@ class EmailMessageRepository extends TenantAwareRepository {
     }
 
     /**
+     * Stores the S3 key of the EML archive generated for ONE message ({@code email_message.eml_s3_key}, V145).
+     *
+     * <p>Native UPDATE by the FULL key {@code (message_id, message_at)} (partition pruning) plus
+     * {@code tenant_id}. Touches only {@code eml_s3_key}; never {@code contact.recording_url}.
+     *
+     * @return true when exactly one row was updated
+     */
+    public boolean updateEmlS3Key(UUID messageId, Instant messageAt, UUID tenantId, String emlS3Key) {
+        assertSameTenant(tenantId, messageId);
+        setTenantContextInDb();
+        requireStorableMessageAt(messageAt);
+        int updated = em.createNativeQuery("""
+                UPDATE email_message
+                   SET eml_s3_key = CAST(:emlS3Key AS text)
+                 WHERE tenant_id  = CAST(:tenantId AS uuid)
+                   AND message_id = CAST(:messageId AS uuid)
+                   AND message_at = CAST(:messageAt AS timestamptz)
+                """)
+                .setParameter("emlS3Key", emlS3Key)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("messageId", messageId.toString())
+                .setParameter("messageAt", messageAt)
+                .executeUpdate();
+        if (updated != 1) {
+            log.warn("[EmailMessageRepo] eml_s3_key: UPDATE dotknął {} wierszy (oczekiwano 1): messageId={}, messageAt={}",
+                    updated, messageId, messageAt);
+        }
+        return updated == 1;
+    }
+
+    /** Distinct non-null EML keys of the contact's messages (retention cleanup). */
+    @Transactional(readOnly = true)
+    public List<String> findEmlKeysByContactId(UUID tenantId, UUID contactId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+        @SuppressWarnings("unchecked")
+        List<String> keys = em.createNativeQuery("""
+                SELECT DISTINCT eml_s3_key
+                  FROM email_message
+                 WHERE tenant_id  = CAST(:tenantId AS uuid)
+                   AND contact_id = CAST(:contactId AS uuid)
+                   AND eml_s3_key IS NOT NULL
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("contactId", contactId.toString())
+                .getResultList();
+        return keys;
+    }
+
+    /** NULLs {@code eml_s3_key} of the contact's messages whose object was just deleted from S3. */
+    public int clearEmlS3Keys(UUID tenantId, UUID contactId, Collection<String> deletedKeys) {
+        if (deletedKeys == null || deletedKeys.isEmpty()) {
+            return 0;
+        }
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+        List<String> all = List.copyOf(deletedKeys);
+        int updated = 0;
+        for (int from = 0; from < all.size(); from += IN_LIST_CHUNK_SIZE) {
+            updated += em.createNativeQuery("""
+                    UPDATE email_message
+                       SET eml_s3_key = NULL
+                     WHERE tenant_id  = CAST(:tenantId AS uuid)
+                       AND contact_id = CAST(:contactId AS uuid)
+                       AND eml_s3_key IN (:keys)
+                    """)
+                    .setParameter("tenantId", tenantId.toString())
+                    .setParameter("contactId", contactId.toString())
+                    .setParameter("keys", all.subList(from, Math.min(from + IN_LIST_CHUNK_SIZE, all.size())))
+                    .executeUpdate();
+        }
+        return updated;
+    }
+
+    /**
      * Customer-side addresses already seen in a contact's thread: the sender of INBOUND messages and the
      * recipients (to/cc) of OUTBOUND ones.
      * Distinct combinations, newest first (deterministic under the cap). Our own mailbox (inbound {@code to}, outbound {@code from}) is
@@ -393,7 +468,7 @@ class EmailMessageRepository extends TenantAwareRepository {
      * Projekcja zawiera {@code message_at} (BE-134): faza 3 usuwa wiersze pełnym kluczem złożonym.
      */
     static final String FIND_ATTACHMENTS_SQL = """
-            SELECT message_id, message_at, contact_id, CAST(attachments AS text)
+            SELECT message_id, message_at, contact_id, CAST(attachments AS text), eml_s3_key
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IN (:contactIds)
@@ -427,7 +502,13 @@ class EmailMessageRepository extends TenantAwareRepository {
      * {@link #deleteByIds} identyfikuje wiersze pełnym kluczem (wzorzec
      * {@code ContactRepository#deleteBatchOlderThan}).
      */
-    record AttachmentsRow(UUID messageId, Instant messageAt, UUID contactId, String attachmentsJson) {
+    record AttachmentsRow(UUID messageId, Instant messageAt, UUID contactId, String attachmentsJson,
+                          String emlS3Key) {
+
+        /** Wiersz bez klucza EML (wiersze sprzed V145 / wywołania nieznające kolumny {@code eml_s3_key}). */
+        AttachmentsRow(UUID messageId, Instant messageAt, UUID contactId, String attachmentsJson) {
+            this(messageId, messageAt, contactId, attachmentsJson, null);
+        }
 
         /** Pełny klucz wiadomości — do mapy „zlecone do usunięcia" i porównania z potwierdzeniem RETURNING. */
         EmailMessageId key() {
@@ -561,7 +642,8 @@ class EmailMessageRepository extends TenantAwareRepository {
      * {@code null}. Package-private, żeby test jednostkowy pokrył ścieżkę {@code NULL} bez bazy.
      */
     static AttachmentsRow toAttachmentsRow(Object[] row) {
-        return new AttachmentsRow(toUuid(row[0]), toInstant(row[1]), toUuid(row[2]), (String) row[3]);
+        return new AttachmentsRow(toUuid(row[0]), toInstant(row[1]), toUuid(row[2]), (String) row[3],
+                row.length > 4 ? (String) row[4] : null);
     }
 
     /** Konwersja wartości kolumny {@code uuid} z natywnego zapytania; {@code null} (kolumna NULL) → {@code null}. */
@@ -637,7 +719,7 @@ class EmailMessageRepository extends TenantAwareRepository {
 
     /** SQL pierwszej strony sweepu sierot (brak kursora) — package-private dla testu EXPLAIN. */
     static final String FIND_ORPHANS_FIRST_PAGE_SQL = """
-            SELECT message_id, message_at, CAST(attachments AS text)
+            SELECT message_id, message_at, CAST(attachments AS text), eml_s3_key
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IS NULL
@@ -649,7 +731,7 @@ class EmailMessageRepository extends TenantAwareRepository {
 
     /** SQL kolejnych stron sweepu sierot (kursor keyset) — package-private dla testu EXPLAIN. */
     static final String FIND_ORPHANS_NEXT_PAGE_SQL = """
-            SELECT message_id, message_at, CAST(attachments AS text)
+            SELECT message_id, message_at, CAST(attachments AS text), eml_s3_key
             FROM email_message
             WHERE tenant_id = CAST(:tenantId AS uuid)
               AND contact_id IS NULL
@@ -666,11 +748,16 @@ class EmailMessageRepository extends TenantAwareRepository {
      * {@code contactId} jest zawsze {@code null} z definicji sierot. {@code messageAt} służy też do
      * zbudowania {@link EmailOrphanCursor} kolejnej strony.
      */
-    record OrphanCandidate(UUID messageId, Instant messageAt, String attachmentsJson) {
+    record OrphanCandidate(UUID messageId, Instant messageAt, String attachmentsJson, String emlS3Key) {
+
+        /** Kandydat bez klucza EML (wiersze sprzed V145). */
+        OrphanCandidate(UUID messageId, Instant messageAt, String attachmentsJson) {
+            this(messageId, messageAt, attachmentsJson, null);
+        }
 
         /** Konwersja do {@link AttachmentsRow} — wejście {@link EmailMessageServiceImpl#purgeRows}. */
         AttachmentsRow toAttachmentsRow() {
-            return new AttachmentsRow(messageId, messageAt, null, attachmentsJson);
+            return new AttachmentsRow(messageId, messageAt, null, attachmentsJson, emlS3Key);
         }
     }
 
@@ -749,7 +836,7 @@ class EmailMessageRepository extends TenantAwareRepository {
         List<Object[]> rows = query.getResultList();
 
         List<OrphanCandidate> candidates = rows.stream()
-                .map(row -> new OrphanCandidate(toUuid(row[0]), toInstant(row[1]), (String) row[2]))
+                .map(row -> new OrphanCandidate(toUuid(row[0]), toInstant(row[1]), (String) row[2], (String) row[3]))
                 .toList();
 
         log.debug("[EmailMessageRepo] Strona sierot do purge: tenant={}, cutoff={}, cursor={}, zwrócono={}",
@@ -1004,6 +1091,74 @@ class EmailMessageRepository extends TenantAwareRepository {
                 .getSingleResult();
 
         return new PageImpl<>(content, pageable, total);
+    }
+
+    /**
+     * The NEWEST {@code limit} messages of a contact, returned in chronological order
+     * ({@code message_at ASC, created_at ASC, message_id ASC}) - whole-conversation preview.
+     */
+    @Transactional(readOnly = true)
+    public List<EmailMessage> findThreadTail(UUID contactId, UUID tenantId, int limit) {
+        setTenantContextInDb(tenantId);
+        List<EmailMessage> newestFirst = em.createQuery(
+                        "SELECT m FROM EmailMessage m " +
+                        "WHERE m.contactId = :contactId AND m.tenantId = :tenantId " +
+                        "ORDER BY m.messageAt DESC, m.createdAt DESC, m.id DESC",
+                        EmailMessage.class)
+                .setParameter("contactId", contactId)
+                .setParameter("tenantId", tenantId)
+                .setMaxResults(limit)
+                .getResultList();
+        List<EmailMessage> chronological = new ArrayList<>(newestFirst);
+        java.util.Collections.reverse(chronological);
+        return chronological;
+    }
+
+    /** Number of messages linked to the contact. */
+    @Transactional(readOnly = true)
+    public long countByContactId(UUID contactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        return em.createQuery(
+                        "SELECT COUNT(m) FROM EmailMessage m WHERE m.contactId = :contactId AND m.tenantId = :tenantId",
+                        Long.class)
+                .setParameter("contactId", contactId)
+                .setParameter("tenantId", tenantId)
+                .getSingleResult();
+    }
+
+    /**
+     * A message of the given contact and tenant by {@code message_id} (no partition key known by the caller:
+     * per-partition PK index probe, bounded by the number of partitions, same as {@link #findById(UUID)}).
+     */
+    @Transactional(readOnly = true)
+    public Optional<EmailMessage> findByIdAndContactId(UUID messageId, UUID contactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        List<EmailMessage> results = em.createQuery(
+                        "SELECT m FROM EmailMessage m " +
+                        "WHERE m.id = :id AND m.contactId = :contactId AND m.tenantId = :tenantId",
+                        EmailMessage.class)
+                .setParameter("id", messageId)
+                .setParameter("contactId", contactId)
+                .setParameter("tenantId", tenantId)
+                .setMaxResults(1)
+                .getResultList();
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /** Id of the contact's EARLIEST message (same ordering as {@link #findThreadTail}). */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findEarliestMessageId(UUID contactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        List<UUID> ids = em.createQuery(
+                        "SELECT m.id FROM EmailMessage m " +
+                        "WHERE m.contactId = :contactId AND m.tenantId = :tenantId " +
+                        "ORDER BY m.messageAt ASC, m.createdAt ASC, m.id ASC",
+                        UUID.class)
+                .setParameter("contactId", contactId)
+                .setParameter("tenantId", tenantId)
+                .setMaxResults(1)
+                .getResultList();
+        return ids.isEmpty() ? Optional.empty() : Optional.of(ids.get(0));
     }
 
     /**

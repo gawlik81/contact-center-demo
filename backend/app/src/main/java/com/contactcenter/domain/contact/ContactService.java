@@ -266,18 +266,33 @@ public interface ContactService {
                                                  UUID userId, boolean isAgent);
 
     /**
-     * Pobiera podgląd wiadomości email powiązanej z kontaktem.
+     * Pobiera podgląd CAŁEJ rozmowy e-mail kontaktu: wiadomości chronologicznie (najstarsza pierwsza, limit 100
+     * najnowszych), licznik i flaga ucięcia.
      *
-     * <p>Kontakt musi być kanałem EMAIL. Pobiera pierwszą wiadomość posortowaną
-     * malejąco po {@code received_at} z tabeli {@code email_message}.
+     * <p>Kontakt musi być kanałem EMAIL. AGENT może przeglądać tylko własne kontakty (jak {@link #getRecordingUrl});
+     * brak {@code agentId} na kontakcie (w kolejce) jest dozwolony.
      *
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta z TenantContext
-     * @return DTO z nagłówkami i treścią wiadomości
-     * @throws ResponseStatusException HTTP 400 gdy kontakt nie jest kanałem EMAIL;
-     *                                 HTTP 404 gdy kontakt nie istnieje lub brak wiadomości email
+     * @param userId    UUID zalogowanego użytkownika (weryfikacja dla AGENT)
+     * @param isAgent   true gdy zalogowany użytkownik jest AGENT
+     * @return DTO z listą wiadomości
+     * @throws ResponseStatusException   HTTP 400 gdy kontakt nie jest kanałem EMAIL;
+     *                                   HTTP 404 gdy kontakt nie istnieje lub brak wiadomości email
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje podejrzeć cudzy kontakt
      */
-    EmailPreviewResponse getEmailPreview(UUID contactId, UUID tenantId);
+    EmailPreviewResponse getEmailPreview(UUID contactId, UUID tenantId, UUID userId, boolean isAgent);
+
+    /**
+     * Presigned URL do archiwum EML JEDNEJ wiadomości kontaktu (TTL jak {@link #getRecordingUrl}).
+     *
+     * @throws ResponseStatusException   HTTP 400 gdy kontakt nie jest kanałem EMAIL;
+     *                                   HTTP 404 gdy wiadomość nie należy do kontaktu/tenanta albo nie ma EML;
+     *                                   HTTP 503 gdy S3 jest niedostępny
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje pobrać EML cudzego kontaktu
+     */
+    ContactRecordingUrlResponse getEmailMessageEmlUrl(UUID contactId, UUID messageId, UUID tenantId,
+                                                       UUID userId, boolean isAgent);
 
     /**
      * Pobiera historię etapów kontaktu posortowaną chronologicznie.

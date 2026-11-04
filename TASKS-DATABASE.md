@@ -47,10 +47,10 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
 | EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 1 | 0 | 1 | 0 | 2 | 🔧 W toku (DB-089 ✅; DB-088 ⬜ backlog, bramkowany wolumenem) |
 | EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty (DB-090 P0, DB-091 P1, DB-092/DB-093 P2) |
-| Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 21 | 0 | 0 | 0 | 21 | ✅ Zakończony |
-| **RAZEM** | | **83** | **0** | **7** | **3** | **93** | |
+| Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
+| **RAZEM** | | **85** | **0** | **7** | **3** | **95** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); następny wolny: DB-094.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -72,6 +72,11 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 - DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
+
+**Poprawki (bugfix)**
+
+- DB-094 – Kolumna `email_message.eml_s3_key`: klucz S3 archiwum EML per wiadomość (follow-upy e-mail) – ✅ (2026-11-04, tura 68; V145)
+- DB-095 – Funkcje RODO `anonymize_customer` / `export_customer_data` obejmują `email_message.eml_s3_key` (art. 17 / art. 15) – ✅ (2026-11-04, tura 68; V146)
 
 ---
 
@@ -4386,6 +4391,62 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 **Nie wchodzi w zakres:** logika ustawiania kolumny i DTO (BE-153), historia statusów, raportowanie czasu w statusach, zmiany RLS.
 **Zależności (zaktualizowane w turze 66):** `Zależy od` brak; `Blokuje` BE-153 (✅ ukończony 2026-11-04, tura 66; kolumna ustawiana przez `AppUser.changeStatus` i natywny UPDATE dialera) → FE-130 (✅); następniki w backlogu: BE-165, BE-166 (publikacja zdarzeń statusu).
+
+---
+
+### DB-094 – Kolumna `email_message.eml_s3_key`: klucz S3 archiwum EML per wiadomość (follow-upy w wątku e-mail)
+
+**Typ:** Schema (migracja DDL, dodanie kolumny do tabeli partycjonowanej)
+**Priorytet:** Must Have (bugfix)
+**Złożoność:** S (jedna kolumna nullable, bez backfillu i bez indeksu)
+**Zależy od:** brak
+**Status:** ✅ Ukończone (2026-11-04, tura 68; migracja `V145__email_message_eml_s3_key.sql`, `mvn verify` 2969 testów, 0 F, 1 pominięty)
+**Blokuje:** BE-164 ✅ (EML per wiadomość w `EmailFollowUpJoiner` / `EmailContactCreator`), DB-095 ✅ (funkcje RODO czytają kolumnę); następnik: BE-196 (retencja EML odpowiedzi)
+**Epic:** bez epiku (bugfix `fix/email-thread-preview-eml`)
+**Wykonawca:** `db-schema-architect`
+
+**Kontekst:** kontakt EMAIL może mieć wiele wierszy `email_message` (odpowiedzi dołączane przez `EmailFollowUpJoiner` po `In-Reply-To`), a plik EML powstawał tylko dla pierwszej wiadomości (klucz w `contact.recording_url`). Decyzja produktowa: każda wiadomość ma własny EML; `contact.recording_url` nadal wskazuje EML pierwszej wiadomości.
+
+**Zakres:** `ALTER TABLE email_message ADD COLUMN IF NOT EXISTS eml_s3_key TEXT NULL` + `COMMENT ON COLUMN`; `SET LOCAL lock_timeout`. Typ `TEXT` jak `contact.recording_url`. Operacja tylko na metadanych (bez DEFAULT, bez przepisania tabeli), propaguje się na wszystkie partycje, w tym `email_message_default`, i na przyszłe (`create_email_message_partition` używa `PARTITION OF`).
+**Bez backfillu (świadomie):** stary `NULL` na najwcześniejszej wiadomości kontaktu = fallback do `contact.recording_url` po stronie backendu. **Bez indeksu:** odczyt po PK. RLS, trigger `message_at`, widoki i funkcje RODO bez zmian; brak tabel archiwalnych odwzorowujących `email_message`.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `email_message.eml_s3_key TEXT NULL` bez DEFAULT, z komentarzem, widoczna na wszystkich partycjach
+- [x] Składnia zwalidowana w `BEGIN … ROLLBACK` na lokalnym PostgreSQL (zrobione 2026-11-04, baza bez zmian)
+- [x] `mvn verify -pl app` zielone (migracja V145 w Testcontainers)
+
+**Ryzyko (zaadresowane w BE-164 ✅):** purge wiersza `email_message` usuwa także obiekt S3 wskazany przez `eml_s3_key` (`purgeRows`, `RecordingRetentionJob`); luka retencji nagrań → BE-196.
+**Notatka wykonania (2026-11-04, tura 68):** Odpowiedzi dołączone przez `In-Reply-To` PRZED poprawką (do 2026-11-04) nie mają własnego EML (`eml_s3_key = NULL`). Backfillu nie będzie — decyzja świadoma; endpoint EML zwraca dla nich 404, a podgląd wątku `emlAvailable = false`. Wyjątek: najstarsza wiadomość kontaktu korzysta z fallbacku do `contact.recording_url`.
+**Zależności:** `Zależy od` brak; `Blokuje` BE-164 ✅, DB-095 ✅; powiązane: BE-196, BE-197 (ewentualny indeks `(tenant_id, contact_id, message_at)` — osobny ticket DB do założenia przy realizacji BE-197, kolejny wolny: DB-096).
+
+---
+
+### DB-095 – Funkcje RODO (`anonymize_customer`, `export_customer_data`) obejmują `email_message.eml_s3_key`
+
+**Typ:** Schema (migracja funkcji PL/pgSQL, `CREATE OR REPLACE` bez zmiany sygnatur)
+**Priorytet:** Must Have (bugfix RODO — EML zawiera PII: adresy, temat, treść, załączniki)
+**Złożoność:** S (trzy małe hunki w każdej z dwóch funkcji, reszta skopiowana 1:1)
+**Zależy od:** DB-094 ✅ (kolumna z V145), BE-164 ✅ (EML per wiadomość — źródło wartości `eml_s3_key`)
+**Status:** ✅ Ukończone (2026-11-04, tura 68; migracja `V146__gdpr_functions_include_email_message_eml_s3_key.sql`, review `db-schema-architect` OK; test `GdprEmlKeyFunctionsTest`; `mvn verify` 2969 testów, 0 F, 1 pominięty)
+**Blokuje:** brak
+**Epic:** bez epiku (bugfix `fix/email-thread-preview-eml`)
+**Wykonawca:** `db-schema-architect` (review), `backend-dev-expert` (autor SQL)
+
+**Kontekst:** po V145 plik EML istnieje dla każdej wiadomości, a `anonymize_customer` (V098) zbierał do czyszczenia S3 tylko `contact.recording_url` i `attachments[*].s3_key`, więc EML-e osoby anonimizowanej przetrwałyby art. 17; `export_customer_data` (V095) nie wykazywał ich w manifeście `s3_keys` (art. 15).
+
+**Zakres:**
+- `anonymize_customer`: `eml_s3_key` w zbiorze `s3_keys` (zbierane PRZED mutacją), `UPDATE email_message` ustawia `eml_s3_key = NULL`, predykat „jeszcze do zanonimizowania” (dry-run i UPDATE) obejmuje `eml_s3_key IS NOT NULL` (idempotencja, dry-run == real).
+- `export_customer_data`: `eml_s3_key` w `s3_keys`.
+- Sygnatury, typ zwracany, `LANGUAGE`, `STABLE` (export), brak `SECURITY DEFINER`, właściciel, brak jawnych GRANT — bez zmian (zweryfikowane vs katalog).
+
+**Kryteria akceptacji:**
+- [x] Ciała V146 różnią się od aktualnych definicji (V098/V095 = stan żywej bazy) wyłącznie zamierzonymi hunkami
+- [x] Dry-run `BEGIN … ROLLBACK` V145+V146 na lokalnej bazie OK; `anonymize_customer(dry_run=true/false)` i `export_customer_data` na realnym kliencie: klucze EML w `s3_keys`, po anonimizacji `eml_s3_key` = NULL, drugie wywołanie = liczniki 0 (zrobione 2026-11-04)
+- [x] Test integracyjny (Testcontainers): wiadomość z `eml_s3_key` → klucz w `s3_keys` eksportu i anonimizacji, po anonimizacji NULL, idempotencja
+- [x] `mvn verify -pl app` zielone; istniejące testy `AnonymizeCustomerExtensionTest` / eksportu bez regresji
+
+**Ryzyko:** sprzątanie S3 po stronie Javy (`GdprServiceImpl#cleanupS3Objects`) musi akceptować klucze `eml_s3_key` (schemat `{tenantId}/...` — wg autora pokryty allow-listą); purge wiersza `email_message` (retencja) usuwa obiekt S3 po stronie Javy od BE-164 ✅; luka retencji nagrań → BE-196.
+**Zależności (tura 68):** `Zależy od` DB-094 ✅, BE-164 ✅; `Blokuje` brak; powiązane: BE-196.
 
 ---
 

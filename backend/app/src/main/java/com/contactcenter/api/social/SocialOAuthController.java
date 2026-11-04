@@ -162,7 +162,7 @@ public class SocialOAuthController {
         if (error != null) {
             log.warn("[SocialOAuth] Użytkownik odmówił dostępu: platform={}, error={}", socialPlatform, error);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Autoryzacja OAuth odrzucona przez użytkownika: " + error);
+                    "Autoryzacja OAuth odrzucona przez użytkownika");
         }
 
         if (code == null || code.isBlank()) {
@@ -328,7 +328,7 @@ public class SocialOAuthController {
             return SocialPlatform.valueOf(platform.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Nieznana platforma: " + platform + ". Dozwolone: FACEBOOK, INSTAGRAM, WHATSAPP");
+                    "Nieznana platforma. Dozwolone: FACEBOOK, INSTAGRAM, WHATSAPP");
         }
     }
 

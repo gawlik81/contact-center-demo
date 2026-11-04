@@ -791,7 +791,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
       announce('Pierwsze');
       announce('Drugie');
       await settle();
-      expect(live()).toBe('Drugie');
+      expect(live()).toBe('Pierwsze. Drugie');
       expect(vi.getTimerCount()).toBe(base + 1);
 
       vi.advanceTimersByTime(7500);
@@ -812,6 +812,72 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
 
       fixture.destroy();
       expect(vi.getTimerCount()).toBeLessThan(base + 1);
+    });
+  });
+
+  describe('unread marker (FE-135)', () => {
+    const received = (contactId: string, channel: 'EMAIL' | 'SOCIAL' = 'EMAIL') =>
+      store.noteMessageReceived({ contactId, channel, messageId: 'm1', receivedAt: 'x' });
+
+    it('marks an inactive e-mail tab with icon, text, SR label and one polite announcement', async () => {
+      open('a', 'EMAIL');
+      open('b', 'EMAIL');
+      await settle();
+      received('c-b');
+      await settle();
+
+      expect(markers('tab-b')).toEqual([pl.agent.desktop.tabMarker.UNREAD]);
+      expect(tabEl('tab-b').querySelector('.contact-tab__marker svg')).not.toBeNull();
+      expect(tabEl('tab-b').getAttribute('aria-label')).toContain(
+        pl.agent.desktop.tabMarkerSr.UNREAD,
+      );
+      expect(live()).toBe('Nowa wiadomość od klienta: Klient b (Email)');
+      expect(
+        root.ownerDocument.querySelectorAll('[aria-live="polite"][role="status"]').length,
+      ).toBe(1);
+      expect(markers('tab-a')).toEqual([]);
+    });
+
+    it('beats Draft, loses to Call, and disappears when the tab is activated', async () => {
+      open('a', 'EMAIL');
+      open('b', 'SOCIAL');
+      drafts.setSocialReply('c-b', 'x');
+      await settle();
+      expect(markers('tab-b')).toEqual([pl.agent.desktop.tabMarker.DRAFT]);
+      received('c-b', 'SOCIAL');
+      await settle();
+      expect(markers('tab-b')).toEqual([pl.agent.desktop.tabMarker.UNREAD]);
+
+      tabEl('tab-b').click();
+      await settle();
+      expect(markers('tab-b')).toEqual([pl.agent.desktop.tabMarker.DRAFT]);
+    });
+
+    it('speaks a new contact and an unread message of the same moment together', async () => {
+      open('a', 'EMAIL');
+      open('b', 'EMAIL');
+      await settle();
+      store.openFromContactAssigned({
+        contactId: 'c-new',
+        type: 'EMAIL',
+        customerName: 'Nowy',
+        customerIdentifier: 'n@example.test',
+      } as never);
+      received('c-b');
+      await settle();
+
+      expect(live()).toContain('Nowy kontakt: Nowy (Email)');
+      expect(live()).toContain('Nowa wiadomość od klienta: Klient b (Email)');
+    });
+
+    it('shows nothing for the active tab or an unknown contact', async () => {
+      open('a', 'EMAIL');
+      await settle();
+      received('c-a');
+      received('c-unknown');
+      await settle();
+      expect(markers('tab-a')).toEqual([]);
+      expect(live()).toBe('');
     });
   });
 

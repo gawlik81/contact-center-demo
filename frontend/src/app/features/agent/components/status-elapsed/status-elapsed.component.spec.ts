@@ -47,14 +47,38 @@ describe('StatusElapsedComponent', () => {
     expect(fixture.nativeElement.querySelector('[role="timer"]')).toBeNull();
   });
 
-  it('exposes datetime and an honest session-based hint', () => {
+  it('exposes datetime and a title without any session annotation', () => {
     statusSince.set(Date.now() - 65_000);
     const fixture = TestBed.createComponent(StatusElapsedComponent);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('time').getAttribute('datetime')).toBe('PT1M5S');
     expect(fixture.nativeElement.querySelector('[role="timer"]').getAttribute('title')).toBe(
-      pl.agent.status.breakDurationHint,
+      pl.agent.status.breakDuration,
     );
+    expect(JSON.stringify(pl.agent.status)).not.toContain('sesji');
+  });
+
+  it('shows a continuous value from a server origin older than the page load', () => {
+    statusSince.set(Date.now() - 12 * 60_000 - 5_000);
+    const fixture = TestBed.createComponent(StatusElapsedComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('time').textContent.trim()).toBe('12:05');
+  });
+
+  it('clamps to 0:00 when the origin is in the future (client clock behind server)', () => {
+    statusSince.set(Date.now() + 30_000);
+    const fixture = TestBed.createComponent(StatusElapsedComponent);
+    fixture.detectChanges();
+    const time = fixture.nativeElement.querySelector('time');
+    expect(time.textContent.trim()).toBe('0:00');
+    expect(time.getAttribute('datetime')).toBe('PT0S');
+  });
+
+  it('renders nothing for a non-finite origin', () => {
+    statusSince.set(Number.NaN);
+    const fixture = TestBed.createComponent(StatusElapsedComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="timer"]')).toBeNull();
   });
 
   it('counts up every second without any live region', async () => {

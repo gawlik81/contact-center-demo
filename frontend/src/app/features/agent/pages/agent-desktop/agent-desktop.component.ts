@@ -164,11 +164,17 @@ export class AgentDesktopComponent implements OnInit {
    */
   protected readonly tabMarkers = computed(() => {
     const session = this.softphoneService.session();
+    const unread = this.tabStore.unreadContactIds();
     const markers = new Map<string, TabMarker | null>();
     for (const tab of this.tabs()) {
       markers.set(
         tab.id,
-        resolveTabMarker(tab, session, this.drafts.hasUnsentDraft(tab.contactId)),
+        resolveTabMarker(
+          tab,
+          session,
+          this.drafts.hasUnsentDraft(tab.contactId),
+          unread.has(tab.contactId),
+        ),
       );
     }
     return markers;
@@ -192,6 +198,7 @@ export class AgentDesktopComponent implements OnInit {
    */
   protected readonly politeAnnouncement = signal('');
   private announcementTimer: ReturnType<typeof setTimeout> | undefined;
+  private queuedAnnouncements: string[] = [];
 
   /** Tab being closed: a confirmation dialog is open for it. */
   protected readonly pendingClose = signal<PendingTabClose | null>(null);
@@ -387,6 +394,34 @@ export class AgentDesktopComponent implements OnInit {
     });
   });
 
+  /** Unread flags already announced; a flag is announced once, when it appears (FE-135). */
+  private announcedUnread = new Set(this.tabStore.unreadContactIds());
+
+  /**
+   * A customer message in an inactive card is announced through the same polite region as a new
+   * contact (no second live region). Marker + announcement come from one source, the store.
+   */
+  private readonly unreadEffect = effect(() => {
+    const unread = this.tabStore.unreadContactIds();
+    untracked(() => {
+      const fresh = this.tabs().filter(
+        (t) => unread.has(t.contactId) && !this.announcedUnread.has(t.contactId),
+      );
+      this.announcedUnread = new Set(unread);
+      if (fresh.length === 0) return;
+      this.announce(
+        fresh
+          .map((t) =>
+            this.transloco.translate('agent.desktop.unreadAnnouncement', {
+              who: t.customerName,
+              type: this.getTabTypeLabel(t),
+            }),
+          )
+          .join('. '),
+      );
+    });
+  });
+
   /**
    * A pending close confirmation must not outlive its premise: when the tab vanishes, enters ACW,
    * or the call state it was asked about changes, the dialog is dismissed.
@@ -409,10 +444,16 @@ export class AgentDesktopComponent implements OnInit {
   private announce(text: string): void {
     clearTimeout(this.announcementTimer);
     this.politeAnnouncement.set('');
+    // Several announcements in one pass (e.g. a new contact and an unread message) are spoken
+    // together instead of the last one replacing the others.
+    this.queuedAnnouncements.push(text);
+    if (this.queuedAnnouncements.length > 1) return;
     afterNextRender(
       () => {
+        const joined = this.queuedAnnouncements.join('. ');
+        this.queuedAnnouncements = [];
         if (this.destroyed) return;
-        this.politeAnnouncement.set(text);
+        this.politeAnnouncement.set(joined);
         clearTimeout(this.announcementTimer);
         this.announcementTimer = setTimeout(
           () => this.politeAnnouncement.set(''),

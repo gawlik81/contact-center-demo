@@ -27,6 +27,19 @@ const session = (state: CallState, contactId = 'c1'): CallSession => ({
   transferTarget: null,
 });
 
+describe('resolveTabMarker unread (FE-135: above Draft, below In call)', () => {
+  it('shows Unread above Draft', () => {
+    expect(resolveTabMarker(tab('EMAIL'), null, true, true)).toBe('UNREAD');
+    expect(resolveTabMarker(tab('SOCIAL'), null, false, true)).toBe('UNREAD');
+  });
+
+  it('In call, Hold and ACW beat Unread', () => {
+    expect(resolveTabMarker(tab('PHONE'), session('ACTIVE'), false, true)).toBe('CALL');
+    expect(resolveTabMarker(tab('PHONE'), session('ON_HOLD'), false, true)).toBe('HOLD');
+    expect(resolveTabMarker(tab('PHONE', 'WRAPPING'), null, false, true)).toBe('ACW');
+  });
+});
+
 describe('resolveTabMarker (FE-133 priority ACW > Hold > In call > Draft)', () => {
   it('shows no marker when nothing applies', () => {
     expect(resolveTabMarker(tab('EMAIL'), null, false)).toBeNull();

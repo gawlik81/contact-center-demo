@@ -17,6 +17,7 @@ import { ContactDraftStore } from './services/contact-draft.store';
 import { ContactTabStore } from './services/contact-tab.store';
 import { AgentRecoveryService } from './services/agent-recovery.service';
 import { AgentHotkeysService } from './services/agent-hotkeys.service';
+import { ContactMessageListenerService } from './services/contact-message-listener.service';
 import { CallLifecycleService } from './services/call-lifecycle.service';
 import { AcwBannerComponent } from './components/acw-banner/acw-banner.component';
 import { AgentShortcutsCheatSheetComponent } from './components/agent-shortcuts-cheat-sheet/agent-shortcuts-cheat-sheet.component';
@@ -96,6 +97,8 @@ export class AgentShellComponent implements OnInit, OnDestroy {
     inject(AgentHotkeysService);
     // Root service owning call side effects (BUSY / ACW / WS call events) on every agent route.
     inject(CallLifecycleService);
+    // Marks inactive e-mail / social cards when a customer message arrives (FE-135).
+    inject(ContactMessageListenerService);
   }
 
   ngOnInit(): void {

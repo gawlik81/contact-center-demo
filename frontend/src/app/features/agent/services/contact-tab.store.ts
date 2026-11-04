@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, Injector, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, Injector, signal, untracked } from '@angular/core';
 import { AsyncContactAcceptService } from './async-contact-accept.service';
 import { ContactDraftStore } from './contact-draft.store';
 import {
@@ -7,7 +7,11 @@ import {
   ContactTabStatus,
   ContactType,
 } from '../models/contact-tab.model';
-import { ContactAssignedPayload, CallIncomingPayload } from '../models/ws-event.model';
+import {
+  ContactAssignedPayload,
+  CallIncomingPayload,
+  ContactMessageReceivedPayload,
+} from '../models/ws-event.model';
 import { normalizeContactName } from '../models/contact-name';
 
 export const MAX_PHONE_TABS = 1;
@@ -46,6 +50,59 @@ export class ContactTabStore {
     const active = this.activeTab();
     return active?.status === 'WRAPPING' ? active : null;
   });
+
+  // ── Unread (a customer message waits in an inactive card, FE-135) ────────────
+  // In memory only, never persisted: after a reload the card is re-opened by recovery and the
+  // agent sees the whole thread anyway. Keyed by contactId; only ever holds ids of open,
+  // inactive EMAIL/SOCIAL tabs (see syncUnread).
+
+  private readonly unreadIds = signal<ReadonlySet<string>>(new Set());
+
+  /** contactIds of inactive tabs with a waiting customer message. */
+  readonly unreadContactIds = this.unreadIds.asReadonly();
+
+  /**
+   * Records a follow-up customer message (CONTACT_MESSAGE_RECEIVED). Ignored for unknown or closed
+   * contacts, PHONE tabs, a mismatching channel and the active tab, unless the calendar view
+   * covers the contact tabs (then the agent is not looking at it, so it counts as inactive).
+   */
+  noteMessageReceived(payload: ContactMessageReceivedPayload): void {
+    const tab = this.tabs().find((t) => t.contactId === payload.contactId);
+    if (
+      !tab ||
+      (tab.isActive && !this.calendarOpen()) ||
+      (tab.type !== 'EMAIL' && tab.type !== 'SOCIAL')
+    )
+      return;
+    if (tab.type !== payload.channel) return;
+    if (this.unreadIds().has(tab.contactId)) return;
+    this.unreadIds.update((ids) => new Set(ids).add(tab.contactId));
+  }
+
+  /**
+   * Returning from the calendar puts the active tab back in front: that is an "activation", so
+   * its flag goes (the other clearing paths are explicit in the tab methods).
+   */
+  private readonly calendarReturnEffect = effect(() => {
+    this.calendarOpen();
+    this.tabs();
+    untracked(() => this.syncUnread());
+  });
+
+  /**
+   * Drops unread flags of tabs that are in front of the agent (active, calendar closed) or gone:
+   * the one place that clears them.
+   */
+  private syncUnread(): void {
+    const ids = this.unreadIds();
+    if (ids.size === 0) return;
+    const keep = new Set(
+      this.tabs()
+        .filter((t) => (!t.isActive || this.calendarOpen()) && ids.has(t.contactId))
+        .map((t) => t.contactId),
+    );
+    if (keep.size !== ids.size) this.unreadIds.set(keep);
+  }
 
   readonly phoneTabCount = computed(() => this.tabs().filter((t) => t.type === 'PHONE').length);
   readonly asyncTabCount = computed(
@@ -127,6 +184,7 @@ export class ContactTabStore {
         ? [...current.map((t) => ({ ...t, isActive: false })), { ...named, isActive: true }]
         : [...current, { ...named, isActive: false }],
     );
+    this.syncUnread();
     return null;
   }
 
@@ -178,6 +236,7 @@ export class ContactTabStore {
       }
       return filtered;
     });
+    this.syncUnread();
   }
 
   // ── Release (return to queue) in flight ────────────────────────────────────
@@ -214,6 +273,7 @@ export class ContactTabStore {
   /** Drops every tab, e.g. when the agent session ends. Drafts are cleared separately. */
   reset(): void {
     this.tabs.set([]);
+    this.unreadIds.set(new Set());
     // Nothing of the previous agent may linger in this root singleton.
     this.closedLog.clear();
     this.closeSeq = 0;
@@ -223,6 +283,7 @@ export class ContactTabStore {
 
   setActiveTab(id: string): void {
     this.tabs.update((current) => current.map((t) => ({ ...t, isActive: t.id === id })));
+    this.syncUnread();
   }
 
   /** `since` (epoch ms) overrides the ACW start stamp, e.g. with the backend's wrapUpStartedAt. */

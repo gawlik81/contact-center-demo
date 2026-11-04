@@ -49,7 +49,7 @@ describe('AgentRecoveryService (FE-136)', () => {
   let post: ReturnType<typeof vi.fn>;
   let agentStatus: ReturnType<typeof signal<string>>;
   let changeStatus: ReturnType<typeof vi.fn>;
-  let statusSince: ReturnType<typeof signal<number | null>>;
+  let statusEpisode: ReturnType<typeof signal<number>>;
 
   const respond = (list: ActiveContactResponse[]) => get.mockReturnValue(of(list));
 
@@ -58,13 +58,13 @@ describe('AgentRecoveryService (FE-136)', () => {
     post = vi.fn().mockReturnValue(of(null));
     agentStatus = signal('OFFLINE');
     changeStatus = vi.fn().mockReturnValue(of(undefined));
-    statusSince = signal<number | null>(null);
+    statusEpisode = signal(0);
     TestBed.configureTestingModule({
       providers: [
         { provide: HttpClient, useValue: { get, post } },
         {
           provide: AgentStatusService,
-          useValue: { currentStatus: agentStatus, statusSince, changeStatus },
+          useValue: { currentStatus: agentStatus, statusEpisode, changeStatus },
         },
       ],
     });
@@ -830,7 +830,7 @@ describe('AgentRecoveryService (FE-136)', () => {
       const answer = new Subject<ActiveContactResponse[]>();
       get.mockReturnValue(answer);
       const pending = service.recoverAfterReconnect();
-      statusSince.set(Date.now()); // the agent pressed AVAILABLE meanwhile
+      statusEpisode.update((n) => n + 1); // the agent pressed AVAILABLE meanwhile
       answer.next([wrap()]);
       answer.complete();
       await pending;

@@ -264,3 +264,98 @@ describe('ContactTabStore ACW state (FE-122)', () => {
     expect(store.calendarOpen()).toBe(false);
   });
 });
+
+describe('ContactTabStore unread state (FE-135)', () => {
+  let store: ContactTabStore;
+  const msg = (contactId: string, channel: 'EMAIL' | 'SOCIAL' = 'EMAIL') => ({
+    contactId,
+    channel,
+    messageId: 'm',
+    receivedAt: '2026-11-04T09:00:00Z',
+  });
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: { post: () => of(null) } }],
+    });
+    store = TestBed.inject(ContactTabStore);
+    store.reset();
+    store.openTab(tabInput('a', 'EMAIL'));
+    store.openTab(tabInput('b', 'EMAIL'));
+    store.openTab(tabInput('s', 'SOCIAL'));
+    store.openTab(tabInput('p', 'PHONE'));
+  });
+
+  it('flags an inactive e-mail / social tab', () => {
+    store.noteMessageReceived(msg('c-b'));
+    store.noteMessageReceived(msg('c-s', 'SOCIAL'));
+    expect([...store.unreadContactIds()].sort()).toEqual(['c-b', 'c-s']);
+  });
+
+  it('ignores the active tab, unknown contacts, PHONE tabs and a mismatching channel', () => {
+    store.noteMessageReceived(msg('c-a'));
+    store.noteMessageReceived(msg('c-zzz'));
+    store.noteMessageReceived(msg('c-p'));
+    store.noteMessageReceived(msg('c-s', 'EMAIL'));
+    expect(store.unreadContactIds().size).toBe(0);
+  });
+
+  it('clears the flag when the tab is activated', () => {
+    store.noteMessageReceived(msg('c-b'));
+    store.setActiveTab('b');
+    expect(store.unreadContactIds().size).toBe(0);
+    // a later message in the (now active) tab is not flagged either
+    store.noteMessageReceived(msg('c-b'));
+    expect(store.unreadContactIds().size).toBe(0);
+    // ...but after switching away it can be flagged again
+    store.setActiveTab('a');
+    store.noteMessageReceived(msg('c-b'));
+    expect(store.unreadContactIds().has('c-b')).toBe(true);
+  });
+
+  it('clears the flag when the tab closes', () => {
+    store.noteMessageReceived(msg('c-b'));
+    store.closeTab('b');
+    expect(store.unreadContactIds().size).toBe(0);
+  });
+
+  it('closing the active tab activates its neighbour, which clears that neighbour flag only', () => {
+    store.noteMessageReceived(msg('c-b'));
+    store.noteMessageReceived(msg('c-s', 'SOCIAL'));
+    store.closeTab('a'); // 'b' becomes active
+    expect([...store.unreadContactIds()]).toEqual(['c-s']);
+  });
+
+  it('closing an unrelated inactive tab keeps the flag', () => {
+    store.noteMessageReceived(msg('c-s', 'SOCIAL'));
+    store.closeTab('p');
+    expect(store.unreadContactIds().has('c-s')).toBe(true);
+  });
+
+  it('is dropped by reset()', () => {
+    store.noteMessageReceived(msg('c-b'));
+    store.reset();
+    expect(store.unreadContactIds().size).toBe(0);
+  });
+
+  it('flags the active tab while the calendar covers it and clears it on return', () => {
+    store.calendarOpen.set(true);
+    store.noteMessageReceived(msg('c-a')); // 'a' is the active tab
+    expect(store.unreadContactIds().has('c-a')).toBe(true);
+
+    TestBed.tick();
+    expect(store.unreadContactIds().has('c-a')).toBe(true); // still hidden: stays flagged
+
+    store.calendarOpen.set(false);
+    TestBed.tick();
+    expect(store.unreadContactIds().size).toBe(0);
+  });
+
+  it('keeps an inactive tab flag when the calendar closes', () => {
+    store.calendarOpen.set(true);
+    store.noteMessageReceived(msg('c-b'));
+    store.calendarOpen.set(false);
+    TestBed.tick();
+    expect(store.unreadContactIds().has('c-b')).toBe(true);
+  });
+});

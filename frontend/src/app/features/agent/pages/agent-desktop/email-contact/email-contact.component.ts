@@ -18,7 +18,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
-import { catchError, debounceTime, of, startWith } from 'rxjs';
+import { catchError, debounceTime, filter, finalize, of, startWith, switchMap } from 'rxjs';
 
 import {
   EmailService,
@@ -27,12 +27,16 @@ import {
   PendingAttachment,
   SendReplyRequest,
 } from '../../../services/email.service';
+import { WebSocketService } from '../../../../../core/services/websocket.service';
+import { ContactMessageReceivedPayload, WsEvent } from '../../../models/ws-event.model';
 import { AsyncContactAcceptService } from '../../../services/async-contact-accept.service';
 import { ContactService } from '../../../services/contact.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 import { EmailReplyService } from '../../../services/email-reply.service';
 import { EmailThreadMessageComponent } from './email-thread-message/email-thread-message.component';
 import { AiSummaryPanelComponent } from '../../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
+
+const THREAD_PAGE_SIZE = 20;
 
 @Component({
   selector: 'cc-email-contact',
@@ -69,6 +73,7 @@ export class EmailContactComponent implements OnInit {
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
   private readonly asyncAccept = inject(AsyncContactAcceptService);
+  private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
   private readonly drafts = inject(ContactDraftStore);
@@ -164,6 +169,7 @@ export class EmailContactComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => (this.destroyed = true));
     this.restoreDraft();
     this.loadMessage();
     this.loadTemplates();
@@ -172,6 +178,7 @@ export class EmailContactComponent implements OnInit {
     // Safety net, not a duplicate: normally the tab-open path has accepted already and this is a
     // no-op (guard); it matters for a tab opened by a path that did not.
     this.asyncAccept.accept(this.contactId());
+    this.subscribeToWsEvents();
 
     this.templateSearchControl.valueChanges
       .pipe(startWith(''), debounceTime(150), takeUntilDestroyed(this.destroyRef))
@@ -214,7 +221,7 @@ export class EmailContactComponent implements OnInit {
     }
 
     this.emailService
-      .getThread(threadRootMessageId, page, 20)
+      .getThread(threadRootMessageId, page, THREAD_PAGE_SIZE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -225,18 +232,87 @@ export class EmailContactComponent implements OnInit {
                 : ([this.rootMessage()].filter(Boolean) as EmailMessage[]),
             );
           } else {
-            this.thread.update((current) => [...response.content, ...current]);
+            // Deduplicated: a refresh may have shifted what the page offsets point at.
+            this.thread.update((current) => {
+              const known = new Set(current.map((m) => m.id));
+              return [...response.content.filter((m) => !known.has(m.id)), ...current];
+            });
           }
           this.hasMore.set(!response.first);
           this.currentPage.set(page);
           this.loading.set(false);
           this.loadingMore.set(false);
+          if (initial && this.refreshPending) this.requestRefresh();
         },
         error: () => {
           this.error.set(this.transloco.translate('agent.emailContact.errorThread'));
           this.loading.set(false);
           this.loadingMore.set(false);
         },
+      });
+  }
+
+  /**
+   * CONTACT_MESSAGE_RECEIVED carries no content: the thread is re-read and only messages not yet
+   * shown (by `id`) are appended. An event during the initial load or another refresh is not
+   * dropped: it sets `refreshPending` and one refresh runs afterwards.
+   */
+  private subscribeToWsEvents(): void {
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CONTACT_MESSAGE_RECEIVED'),
+      )
+      .subscribe((e) => {
+        const payload = e.payload as ContactMessageReceivedPayload;
+        if (payload.contactId === this.contactId() && payload.channel === 'EMAIL') {
+          this.requestRefresh();
+        }
+      });
+  }
+
+  private destroyed = false;
+  private refreshInFlight = false;
+  private refreshPending = false;
+
+  private requestRefresh(): void {
+    if (this.destroyed) return;
+    const root = this.rootMessage();
+    if (this.loading() || this.refreshInFlight || !root) {
+      this.refreshPending = true;
+      return;
+    }
+    this.refreshPending = false;
+    this.refreshInFlight = true;
+    const rootId = root.threadRootMessageId ?? root.messageIdHeader ?? root.id;
+    let lastPage = 0;
+    // The thread API is chronological (oldest first), so the newest messages are on the LAST page:
+    // a one-element probe gives the total, then the page that holds the newest ones is read.
+    this.emailService
+      .getThread(rootId, 0, 1)
+      .pipe(
+        switchMap((probe) => {
+          lastPage = Math.max(0, Math.ceil(probe.totalElements / THREAD_PAGE_SIZE) - 1);
+          return this.emailService.getThread(rootId, lastPage, THREAD_PAGE_SIZE);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.refreshInFlight = false;
+          if (this.refreshPending) this.requestRefresh();
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          // The initial load shows page 0 (oldest first), so appending the last page of a long
+          // thread would hide a gap between them: append only when it is contiguous with what is
+          // shown (a ticket covers loading the last page first). The unread marker is unaffected.
+          if (lastPage * THREAD_PAGE_SIZE > this.thread().length) return;
+          const known = new Set(this.thread().map((m) => m.id));
+          const fresh = response.content.filter((m) => !known.has(m.id));
+          if (fresh.length > 0) this.thread.update((current) => [...current, ...fresh]);
+        },
+        // Silent: the event is a hint, the agent keeps the thread they already have.
+        error: () => undefined,
       });
   }
 

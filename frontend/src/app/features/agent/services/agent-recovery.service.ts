@@ -155,7 +155,7 @@ export class AgentRecoveryService {
     // Local actions taken while the request is in flight (reject, disposition, release, close)
     // make its answer stale for those contacts: they must not come back.
     const closeMark = this.tabStore.closeMark();
-    const statusMark = this.status.statusSince();
+    const statusMark = this.status.statusEpisode();
     let fetched: Fetched | null;
     try {
       fetched = await this.fetchActiveContacts();
@@ -249,7 +249,7 @@ export class AgentRecoveryService {
   private apply(
     fetched: Fetched,
     closedSince: ReadonlySet<string>,
-    statusMark: number | null,
+    statusMark: number,
   ): { opened: number; remaining: number; callNotRestored: number } {
     const live = this.softphoneService.session();
     const candidates: (Item & { type: ContactType })[] = [];
@@ -371,14 +371,14 @@ export class AgentRecoveryService {
    * when the call ends; here only an AVAILABLE agent is moved (a deliberate BREAK or the
    * backend's own AFTER_CONTACT stay), otherwise a new call would arrive on a phone slot that
    * the ACW card occupies. Not when the agent changed the status themselves since the run
-   * started (`statusSince` moved): an automatic run (polling, list refresh) must never undo a
-   * choice made meanwhile. Focus is not moved: it only follows an explicit agent action.
+   * started (a new status episode began): an automatic run (polling, list refresh) must never
+   * undo a choice made meanwhile. Focus is not moved: it only follows an explicit agent action.
    * If the status has not been loaded yet (page reload race), the backend's status stands.
    * The call is silent on failure (no global toast): the agent did not ask for it.
    */
-  private leaveAvailableForAcw(statusMark: number | null): void {
+  private leaveAvailableForAcw(statusMark: number): void {
     if (this.status.currentStatus() !== 'AVAILABLE') return;
-    if (this.status.statusSince() !== statusMark) return;
+    if (this.status.statusEpisode() !== statusMark) return;
     this.status
       .changeStatus('AFTER_CONTACT', { silent: true })
       .subscribe({ error: () => undefined });

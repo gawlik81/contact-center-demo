@@ -14,7 +14,7 @@ export type WsEventType =
   | 'CONTACT_ASSIGNED'
   | 'QUEUE_UPDATE'
   | 'SUPERVISOR_METRICS'
-  | 'SOCIAL_MESSAGE_RECEIVED'
+  | 'CONTACT_MESSAGE_RECEIVED'
   | 'RECORDING_READY'
   | 'PONG';
 
@@ -143,6 +143,8 @@ export interface ContactAssignedPayload {
 export interface AgentStatusChangedPayload {
   agentId: string;
   status: AgentStatus;
+  /** ISO-8601 UTC start of the status; null/absent from an old backend. */
+  statusSince?: string | null;
 }
 
 export interface QueueUpdatePayload {
@@ -151,4 +153,15 @@ export interface QueueUpdatePayload {
 
 export interface RecordingReadyPayload {
   contactId: string;
+}
+
+/**
+ * Payload dla eventu CONTACT_MESSAGE_RECEIVED – kolejna wiadomość klienta w już przypisanym
+ * kontakcie EMAIL/SOCIAL. Bez treści wiadomości: widok pobiera ją z API.
+ */
+export interface ContactMessageReceivedPayload {
+  contactId: string;
+  channel: 'EMAIL' | 'SOCIAL';
+  messageId: string;
+  receivedAt: string;
 }

@@ -2,6 +2,7 @@ package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactRecordingEntry;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.retention.RetentionDataCategory;
 import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.security.TenantContext;
@@ -62,6 +63,7 @@ class RecordingRetentionJob {
     private final RecordingService recordingService;
     private final ContactService contactService;
     private final RetentionPolicyService retentionPolicyService;
+    private final EmailMessageService emailMessageService;
 
     // =========================================================================
     // Scheduled job
@@ -203,6 +205,15 @@ class RecordingRetentionJob {
         try {
             // Krok 1: usuń plik z S3
             recordingService.deleteFromS3(entry.recordingUrl());
+
+            // Kontakt EMAIL (recording_url = EML pierwszej wiadomości): usuń tez EML-e pozostałych wiadomości
+            // kontaktu (email_message.eml_s3_key, V145) i wyzeruj te kolumny - inaczej follow-upy przeżyłyby
+            // retencję, a kolumna pierwszej wiadomości wskazywałaby na usunięty obiekt. Rzuca przy porażce S3
+            // => recording_url zostaje i job ponowi całość przy następnym przebiegu (idempotentne).
+            if (entry.recordingUrl() != null
+                    && entry.recordingUrl().toLowerCase(java.util.Locale.ROOT).endsWith(".eml")) {
+                emailMessageService.deleteEmlObjectsByContact(tenantId, entry.contactId());
+            }
 
             // Krok 2: wyczyść recording_url w DB (dopiero po pomyślnym usunięciu z S3)
             contactService.clearRecordingUrl(entry.contactId(), tenantId);

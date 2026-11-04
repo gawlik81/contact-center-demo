@@ -411,4 +411,47 @@ class GlobalExceptionHandlerTest {
             assertThat(problem.getProperties()).containsKey("timestamp");
         }
     }
+
+    @Nested
+    @DisplayName("ResponseStatusException – zwraca własny status (nie 500)")
+    class ResponseStatusExceptionTests {
+
+        @Test
+        @DisplayName("4xx: status, detail i message z reason, timestamp")
+        void clientError() {
+            ResponseEntity<ProblemDetail> response = handler.handleResponseStatusException(
+                    new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Brak EML"),
+                    webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            ProblemDetail p = response.getBody();
+            assertThat(p).isNotNull();
+            assertThat(p.getStatus()).isEqualTo(404);
+            assertThat(p.getDetail()).isEqualTo("Brak EML");
+            assertThat(p.getProperties()).containsEntry("message", "Brak EML").containsKey("timestamp");
+        }
+
+        @Test
+        @DisplayName("5xx: zachowuje status 503 i komunikat")
+        void serverError() {
+            ResponseEntity<ProblemDetail> response = handler.handleResponseStatusException(
+                    new org.springframework.web.server.ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                            "S3 niedostepny", new RuntimeException("cause")),
+                    webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(response.getBody().getProperties()).containsEntry("message", "S3 niedostepny");
+        }
+
+        @Test
+        @DisplayName("null reason: detail i message = reason phrase statusu")
+        void nullReason() {
+            ResponseEntity<ProblemDetail> response = handler.handleResponseStatusException(
+                    new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST), webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(response.getBody().getDetail()).isEqualTo("Bad Request");
+            assertThat(response.getBody().getProperties()).containsEntry("message", "Bad Request");
+        }
+    }
 }

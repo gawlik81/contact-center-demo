@@ -128,6 +128,15 @@ public class ContactController {
         }
     }
 
+    private UUID parseMessageId(String messageId) {
+        try {
+            return UUID.fromString(messageId);
+        } catch (IllegalArgumentException e) {
+            throw new jakarta.persistence.EntityNotFoundException(
+                    "Wiadomość nie istnieje: podany identyfikator nie jest poprawnym UUID.");
+        }
+    }
+
     // =========================================================================
     // Lista kontaktów z paginacją i filtrami
     // =========================================================================
@@ -464,10 +473,13 @@ public class ContactController {
     @GetMapping("/{id}/email-preview")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(
-        summary = "Podgląd treści wiadomości email",
-        description = "Zwraca nagłówki i treść (HTML/text) pierwszej wiadomości email powiązanej z kontaktem. " +
-                      "Kontakt musi być kanałem EMAIL, w przeciwnym razie zwracany jest HTTP 400. " +
-                      "Dostępny dla wszystkich ról (ADMIN, SUPERVISOR, AGENT).",
+        summary = "Podgląd całej rozmowy e-mail kontaktu",
+        description = "Zwraca WSZYSTKIE wiadomości e-mail kontaktu (nagłówki, treść HTML/text, załączniki) " +
+                      "w kolejności chronologicznej (najstarsza pierwsza), max 100 najnowszych (pole truncated). " +
+                      "Każda wiadomość ma flagę emlAvailable - własne archiwum EML pobierane przez " +
+                      "GET /api/contacts/{id}/email-messages/{messageId}/eml. " +
+                      "Kontakt musi być kanałem EMAIL, w przeciwnym razie HTTP 400. " +
+                      "AGENT może przeglądać tylko własne kontakty (jak /recording); SUPERVISOR i ADMIN - wszystkie.",
         parameters = {
             @Parameter(
                 name = "id",
@@ -477,11 +489,12 @@ public class ContactController {
             )
         },
         responses = {
-            @ApiResponse(responseCode = "200", description = "Podgląd wiadomości email"),
+            @ApiResponse(responseCode = "200", description = "Podgląd rozmowy e-mail"),
             @ApiResponse(responseCode = "400", description = "Kontakt nie jest kanałem EMAIL"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
-            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje lub brak wiadomości email")
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje lub brak wiadomości email"),
+            @ApiResponse(responseCode = "409", description = "AGENT próbuje podejrzeć cudzy kontakt")
         }
     )
     public ResponseEntity<EmailPreviewResponse> getEmailPreview(
@@ -490,11 +503,55 @@ public class ContactController {
     ) {
         UUID contactId = parseContactId(id);
         UUID tenantId = TenantContext.getTenantId();
+        UUID userId = TenantContext.getUserId();
+        boolean isAgent = currentUserIsAgent();
 
-        log.debug("[ContactController] Podgląd email: contactId={}, tenant={}", contactId, tenantId);
+        log.debug("[ContactController] Podgląd email: contactId={}, tenant={}, isAgent={}",
+                contactId, tenantId, isAgent);
 
-        EmailPreviewResponse response = contactService.getEmailPreview(contactId, tenantId);
+        EmailPreviewResponse response = contactService.getEmailPreview(contactId, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Presigned URL do archiwum EML jednej wiadomości kontaktu
+    // =========================================================================
+
+    @GetMapping("/{id}/email-messages/{messageId}/eml")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Pobierz presigned URL archiwum EML jednej wiadomości",
+        description = "Generuje presigned URL (ważny 15 minut) do pliku EML (message/rfc822) wskazanej wiadomości " +
+                      "kontaktu EMAIL. Wiadomość musi należeć do kontaktu i tenanta. " +
+                      "AGENT może pobierać EML tylko własnych kontaktów.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Presigned URL wygenerowany pomyślnie"),
+            @ApiResponse(responseCode = "400", description = "Kontakt nie jest kanałem EMAIL"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404",
+                         description = "Kontakt nie istnieje, wiadomość nie istnieje/nie należy do kontaktu albo nie ma EML"),
+            @ApiResponse(responseCode = "409", description = "AGENT próbuje pobrać EML cudzego kontaktu"),
+            @ApiResponse(responseCode = "503", description = "Usługa MinIO/S3 jest niedostępna")
+        }
+    )
+    public ResponseEntity<ContactRecordingUrlResponse> getEmailMessageEml(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id,
+            @Parameter(description = "UUID wiadomości e-mail", required = true)
+            @PathVariable String messageId
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID parsedMessageId = parseMessageId(messageId);
+        UUID tenantId = TenantContext.getTenantId();
+        UUID userId = TenantContext.getUserId();
+        boolean isAgent = currentUserIsAgent();
+
+        log.debug("[ContactController] EML wiadomości: contactId={}, messageId={}, tenant={}, isAgent={}",
+                contactId, parsedMessageId, tenantId, isAgent);
+
+        return ResponseEntity.ok(contactService.getEmailMessageEmlUrl(
+                contactId, parsedMessageId, tenantId, userId, isAgent));
     }
 
     // =========================================================================

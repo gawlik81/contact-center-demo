@@ -215,6 +215,8 @@ class EmailMessageIngestionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT contact_id FROM email_message WHERE message_id = ?",
                 UUID.class, messageId)).isEqualTo(contactId);
         verify(contactService).updateRecordingUrl(eq(contactId), eq(tenantId), eq("eml/be134.eml"));
+        assertThat(row(messageId).get("eml_s3_key")).as("V145: ten sam klucz zapisany per wiadomosc")
+                .isEqualTo("eml/be134.eml");
         assertThat(instant(row(messageId), "message_at")).as("UPDATE powiązania nie zmienia klucza partycji")
                 .isEqualTo(INTERNAL_DATE);
     }
@@ -310,6 +312,24 @@ class EmailMessageIngestionIntegrationTest {
             assertThat(row.get("direction")).isEqualTo("OUTBOUND");
             assertThat(instant(row, "message_at")).isEqualTo(sent.getMessageAt());
             assertThat(instant(row, "sent_at")).isEqualTo(sent.getMessageAt());
+        }
+
+        @Test
+        @DisplayName("ad hoc OUTBOUND (email.sent bez contactId): kontakt + EML, klucz zapisany w eml_s3_key (V145)")
+        void adHocOutbound_setsEmlS3KeyAndRecordingUrl() throws Exception {
+            when(tenantService.findTenantEntity(tenantId)).thenReturn(Optional.of(tenant));
+            EmailSendServiceImpl spied = spy(sender);
+            doNothing().when(spied).sendSmtp(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            EmailMessage sent = spied.sendNew(tenantId, "klient@example.com", "Temat", "<p>x</p>",
+                    UUID.fromString(AGENT_ID_TEXT), List.of());
+
+            creator.onEmailEvent(events(EmailEventPublisher.EventType.SENT).get(0));
+
+            ArgumentCaptor<Contact> contact = ArgumentCaptor.forClass(Contact.class);
+            verify(contactService).insertContact(contact.capture());
+            verify(contactService).updateRecordingUrl(eq(contact.getValue().getContactId()), eq(tenantId),
+                    eq("eml/be134.eml"));
+            assertThat(row(sent.getId()).get("eml_s3_key")).isEqualTo("eml/be134.eml");
         }
 
         @Test
@@ -604,7 +624,7 @@ class EmailMessageIngestionIntegrationTest {
 
     private Map<String, Object> row(UUID messageId) {
         return jdbc.queryForMap(
-                "SELECT message_id, message_at, received_at, sent_at, contact_id, direction "
+                "SELECT message_id, message_at, received_at, sent_at, contact_id, direction, eml_s3_key "
                         + "FROM email_message WHERE message_id = ?", messageId);
     }
 

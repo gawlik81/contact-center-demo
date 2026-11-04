@@ -205,4 +205,31 @@ public interface EmailMessageService {
      * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
      */
     Set<String> findReferencedPendingS3Keys(UUID tenantId);
+
+    // =========================================================================
+    // Per-message EML (V145): podglad calej rozmowy kontaktu
+    // =========================================================================
+
+    /**
+     * Najnowsze {@code limit} wiadomosci kontaktu w kolejnosci chronologicznej (ASC po {@code message_at},
+     * {@code created_at}) wraz z lacznym licznikiem wiadomosci kontaktu.
+     */
+    EmailThread findThreadByContactId(UUID contactId, UUID tenantId, int limit);
+
+    /** Wiadomosc nalezaca do wskazanego kontaktu i tenanta (po samym {@code message_id}). */
+    Optional<EmailMessage> findByIdAndContactId(UUID messageId, UUID contactId, UUID tenantId);
+
+    /** Id NAJWCZESNIEJSZEJ wiadomosci kontaktu (ta sama kolejnosc co {@link #findThreadByContactId}). */
+    Optional<UUID> findEarliestMessageId(UUID contactId, UUID tenantId);
+
+    /**
+     * Usuwa z S3 pliki EML wskazane przez {@code email_message.eml_s3_key} wiadomosci kontaktu i zeruje te
+     * kolumny (retencja nagran/EML: {@code RecordingRetentionJob}). Idempotentne; klucze spoza allow-listy
+     * tenanta nie sa kasowane w S3 (tylko zerowane w bazie).
+     *
+     * @return liczba usunietych obiektow S3
+     * @throws EmailAttachmentException gdy usuniecie ktoregokolwiek obiektu sie nie powiodlo (klucze usuniete
+     *                                  wczesniej sa juz wyzerowane; pozostale zostaja do ponowienia)
+     */
+    int deleteEmlObjectsByContact(UUID tenantId, UUID contactId);
 }

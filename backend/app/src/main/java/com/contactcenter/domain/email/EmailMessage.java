@@ -142,6 +142,16 @@ public class EmailMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /**
+     * Klucz S3 pliku EML wygenerowanego dla TEJ wiadomości (V145; po jednym EML na wiadomość).
+     * {@code NULL} = nie wygenerowany / błąd generowania / wiersz sprzed V145 (dla najwcześniejszej
+     * wiadomości kontaktu odczyt wraca wtedy do {@code contact.recording_url}). Kolumna jest zapisywana
+     * WYŁĄCZNIE natywnym UPDATE ({@link EmailMessageRepository#updateEmlS3Key}) — encja jej nie
+     * persystuje ({@code insertable/updatable = false}), więc nigdy nie zostanie nadpisana przez ścieżkę JPA.
+     */
+    @Column(name = "eml_s3_key", columnDefinition = "TEXT", insertable = false, updatable = false)
+    private String emlS3Key;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

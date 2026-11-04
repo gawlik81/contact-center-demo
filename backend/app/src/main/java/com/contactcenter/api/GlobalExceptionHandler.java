@@ -36,6 +36,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -712,6 +713,37 @@ public class GlobalExceptionHandler {
         log.debug("[API] Niewłaściwa metoda HTTP: {}", ex.getMethod());
         // getHeaders() builds the Allow header from the supported methods (empty when none known)
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).headers(ex.getHeaders()).body(problem);
+    }
+
+    /**
+     * {@link ResponseStatusException} rzucany przez serwisy domenowe (400/404/503...) - zwraca JEGO status,
+     * a nie 500 z catch-all {@link #handleGenericException}. Bez tego handlera catch-all przechwytuje
+     * wyjatek przed {@code ResponseStatusExceptionResolver} i np. 404 "brak nagrania/EML" konczylo sie 500.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetail> handleResponseStatusException(
+            ResponseStatusException ex, WebRequest request) {
+
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        HttpStatus effective = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+
+        ProblemDetail problem = ProblemDetail.forStatus(effective);
+        problem.setType(URI.create(ERROR_BASE_URI + "response-status"));
+        problem.setTitle(effective.getReasonPhrase());
+        String reason = ex.getReason() != null ? ex.getReason() : effective.getReasonPhrase();
+        problem.setDetail(reason);
+        // "message" mirrors "detail": the frontend error interceptor reads body.message / body.error.
+        problem.setProperty("message", reason);
+        problem.setProperty("timestamp", Instant.now());
+
+        if (effective.is5xxServerError()) {
+            log.error("[API] ResponseStatusException {}: {}", effective.value(), ex.getReason(), ex);
+        } else {
+            log.debug("[API] ResponseStatusException {}: {}", effective.value(), ex.getReason());
+        }
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(effective);
+        ex.getHeaders().forEach((name, values) -> builder.header(name, values.toArray(String[]::new)));
+        return builder.body(problem);
     }
 
     /**

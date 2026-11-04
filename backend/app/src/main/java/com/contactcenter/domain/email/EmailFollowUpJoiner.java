@@ -41,6 +41,7 @@ class EmailFollowUpJoiner {
     private final ContactService contactService;
     private final CustomerService customerService;
     private final ContactMessageReceivedPublisher messageReceivedPublisher;
+    private final EmailEmlService emailEmlService;
 
     /**
      * @param ownMailbox the tenant's own mailbox address (email config username); never a customer party
@@ -74,7 +75,46 @@ class EmailFollowUpJoiner {
             log.warn("[EmailFollowUp] Błąd powiadomienia po dołączeniu: messageId={}, error={}",
                     saved.getId(), e.getMessage());
         }
+        // The agent notification goes out FIRST: the EML archive does S3 I/O (attachment downloads + upload) on the
+        // poller thread and must never delay it. It stays synchronous (same thread = TenantContext in place, no
+        // thread hop) and best-effort: archiveEmlAfterJoin never throws.
+        archiveEmlAfterJoin(saved, joined.getContactId(), tenantId);
         return true;
+    }
+
+    /**
+     * Generates the per-message EML for a joined follow-up and stores its key in {@code email_message.eml_s3_key}
+     * (never touches {@code contact.recording_url}, which keeps pointing at the first message's EML).
+     *
+     * <p>Best-effort: any failure is only logged - the join is already committed and must stay valid. S3 I/O
+     * happens after the join committed: the attach UPDATE runs in its own repository transaction, which has
+     * ended when {@link #attach} returns ({@code tryJoin} must NOT be called inside an enclosing transaction -
+     * its "row committed" contract already requires this; the only caller is the non-transactional IMAP
+     * poller). Same thread, so the poller's {@code TenantContext} is still in place - no thread hop.
+     */
+    private void archiveEmlAfterJoin(EmailMessage saved, UUID contactId, UUID tenantId) {
+        String key = null;
+        try {
+            key = emailEmlService.generateAndUploadForMessage(saved, contactId, tenantId);
+            if (emailMessageRepository.updateEmlS3Key(saved.getId(), saved.getMessageAt(), tenantId, key)) {
+                saved.setEmlS3Key(key);
+                return;
+            }
+            log.error("[EmailFollowUp] Klucz EML nie został zapisany (0 wierszy) - usuwam wgrany obiekt: "
+                    + "contactId={}, messageId={}", contactId, saved.getId());
+        } catch (Exception e) {
+            log.error("[EmailFollowUp] Nie udało się zarchiwizować EML follow-upu (join pozostaje ważny): "
+                    + "contactId={}, messageId={}, error={}", contactId, saved.getId(), e.getMessage(), e);
+        }
+        if (key != null) {
+            // Object uploaded but not referenced from the row: best-effort removal so no orphan stays in S3.
+            try {
+                emailEmlService.deleteQuietly(key);
+            } catch (Exception e) {
+                log.error("[EmailFollowUp] Nie udało się usunąć osieroconego EML: messageId={}, error={}",
+                        saved.getId(), e.getMessage());
+            }
+        }
     }
 
     /** @return the contact the message was atomically attached to, or null when it must be routed as new */

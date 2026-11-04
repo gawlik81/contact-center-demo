@@ -15,6 +15,7 @@ import com.contactcenter.api.telephony.dto.TransferCallRequest;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
+import com.contactcenter.domain.email.EmailAttachmentKeys;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.recording.RecordingException;
 import com.contactcenter.domain.recording.RecordingService;
@@ -25,6 +26,7 @@ import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.EmailThread;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.ReleaseExclusionStore;
@@ -94,6 +96,9 @@ class ContactServiceImpl implements ContactService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int RECORDING_URL_TTL_MINUTES = 15;
+
+    /** Limit wiadomości zwracanych przez podgląd rozmowy e-mail (najnowsze; reszta => truncated). */
+    private static final int EMAIL_PREVIEW_MAX_MESSAGES = 100;
 
     private final ContactRepository contactRepository;
     private final ContactAiSummaryRepository contactAiSummaryRepository;
@@ -953,60 +958,166 @@ class ContactServiceImpl implements ContactService {
 
     @Transactional(readOnly = true)
     @Override
-    public EmailPreviewResponse getEmailPreview(UUID contactId, UUID tenantId) {
+    public EmailPreviewResponse getEmailPreview(UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
         Contact contact = findContactOrThrow(contactId, tenantId);
+        requireEmailChannel(contact);
 
-        if (!"EMAIL".equals(contact.getChannel())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Kontakt nie jest kanałem EMAIL");
+        // AGENT widzi tylko własne kontakty (jak /recording); brak agentId (kontakt w kolejce) jest dozwolony.
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może przeglądać wiadomości email tylko własnych kontaktów: " + contactId);
         }
 
-        // Próba 1: szukaj po contact_id (działa dla INBOUND – EmailMessage ma contact_id ustawione)
-        Page<EmailMessage> page = emailMessageService.findByContactId(
-                contactId, tenantId, Pageable.ofSize(1));
+        // Cała rozmowa: najnowsze EMAIL_PREVIEW_MAX_MESSAGES wiadomości kontaktu, chronologicznie (ASC).
+        EmailThread thread = emailMessageService.findThreadByContactId(
+                contactId, tenantId, EMAIL_PREVIEW_MAX_MESSAGES);
+        List<EmailMessage> messages = thread.messages();
+        long total = thread.total();
+        boolean truncated = thread.truncated();
 
-        EmailMessage message = page.getContent().stream().findFirst().orElse(null);
-
-        // Próba 2: dla OUTBOUND – EmailMessage.contact_id nie jest aktualizowane;
-        // zamiast tego kontakt ma w channelMetadata klucz "emailMessageId" z UUID wiadomości.
-        if (message == null) {
-            Object emailMsgIdObj = contact.getChannelMetadata() != null
-                    ? contact.getChannelMetadata().get("emailMessageId")
-                    : null;
-            if (emailMsgIdObj instanceof String emailMsgIdStr && !emailMsgIdStr.isBlank()) {
-                try {
-                    UUID emailMsgId = UUID.fromString(emailMsgIdStr);
-                    // BE-134: channelMetadata niesie tylko message_id (bez message_at) — lookup po samym id;
-                    // koszt: indeks PK każdej partycji email_message, dla podglądu jednego wiersza akceptowalny
-                    message = emailMessageService.findById(emailMsgId).orElse(null);
-                } catch (IllegalArgumentException e) {
-                    log.warn("[ContactService] Nieprawidłowy UUID w channelMetadata.emailMessageId: " +
-                            "contactId={}, wartość={}", contactId, emailMsgIdObj);
-                }
+        // Fallback dla OUTBOUND – EmailMessage.contact_id nie wskazuje tego kontaktu; kontakt ma w
+        // channelMetadata klucz "emailMessageId" z UUID wiadomości. Wynik: jednoelementowa lista.
+        if (messages.isEmpty()) {
+            EmailMessage fallback = findOutboundMessageFromMetadata(contact, tenantId).orElse(null);
+            if (fallback == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Brak wiadomości email dla kontaktu: " + contactId);
             }
+            messages = List.of(fallback);
+            total = 1;
+            truncated = false;
         }
 
+        // Tylko NAJWCZEŚNIEJSZA wiadomość kontaktu może użyć fallbacku do contact.recording_url (legacy sprzed
+        // V145). Gdy lista jest ucięta, najwcześniejsza wiadomość nie jest w niej zawarta - fallback nie dotyczy nikogo.
+        UUID earliestId = truncated ? null : messages.get(0).getId();
+
+        log.debug("[ContactService] Podgląd email: contactId={}, messages={}, total={}, truncated={}",
+                contactId, messages.size(), total, truncated);
+
+        List<EmailPreviewResponse.MessageDto> dtos = messages.stream()
+                .map(m -> new EmailPreviewResponse.MessageDto(
+                        m.getId(),
+                        m.getFromAddress(),
+                        m.getToAddress(),
+                        m.getCcAddress(),
+                        m.getSubject(),
+                        m.getBodyHtml(),
+                        m.getBodyText(),
+                        m.getReceivedAt(),
+                        m.getMessageAt(),
+                        m.getDirection(),
+                        parseAttachmentDtos(m.getAttachments()),
+                        resolveEmlKey(m, contact, earliestId) != null))
+                .toList();
+
+        return new EmailPreviewResponse(dtos, total, truncated);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ContactRecordingUrlResponse getEmailMessageEmlUrl(UUID contactId, UUID messageId, UUID tenantId,
+                                                              UUID userId, boolean isAgent) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+        requireEmailChannel(contact);
+
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może pobierać EML tylko własnych kontaktów: " + contactId);
+        }
+
+        // Wiadomość MUSI należeć do tego kontaktu i tenanta; OUTBOUND bez wiązania contact_id: jedyna wiadomość
+        // wskazana w channelMetadata kontaktu (spójnie z podglądem).
+        EmailMessage message = emailMessageService.findByIdAndContactId(messageId, contactId, tenantId).orElse(null);
+        UUID earliestId = null;
+        if (message == null) {
+            if (emailMessageService.findEarliestMessageId(contactId, tenantId).isEmpty()) {
+                message = findOutboundMessageFromMetadata(contact, tenantId)
+                        .filter(m -> m.getId().equals(messageId))
+                        .orElse(null);
+                earliestId = message != null ? message.getId() : null;
+            }
+        } else if (isBlank(message.getEmlS3Key())) {
+            earliestId = emailMessageService.findEarliestMessageId(contactId, tenantId).orElse(null);
+        }
         if (message == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-                    "Brak wiadomości email dla kontaktu: " + contactId);
+                    "Wiadomość email nie należy do kontaktu: " + messageId);
         }
 
-        log.debug("[ContactService] Podgląd email: contactId={}, messageId={}, direction={}",
-                contactId, message.getId(), message.getDirection());
+        String s3Key = resolveEmlKey(message, contact, earliestId);
+        if (s3Key == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Brak archiwum EML dla wiadomości: " + messageId);
+        }
+        if (!EmailAttachmentKeys.isRecordingKeyOwnedByTenant(tenantId, s3Key)) {
+            log.error("[ContactService] Klucz EML spoza prefiksu tenanta - odmowa: contactId={}, messageId={}, "
+                    + "tenant={}", contactId, messageId, tenantId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Brak archiwum EML dla wiadomości: " + messageId);
+        }
 
-        List<EmailPreviewResponse.AttachmentDto> attachments = parseAttachmentDtos(message.getAttachments());
+        Duration ttl = Duration.ofMinutes(RECORDING_URL_TTL_MINUTES);
+        String presignedUrl;
+        try {
+            presignedUrl = recordingService.generatePresignedUrlForKey(s3Key, ttl);
+        } catch (RecordingException e) {
+            log.error("[ContactService] Błąd generowania presigned URL EML: contactId={}, messageId={}, error={}",
+                    contactId, messageId, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Usługa nagrań jest chwilowo niedostępna. Spróbuj ponownie za chwilę.");
+        }
 
-        return new EmailPreviewResponse(
-                message.getFromAddress(),
-                message.getToAddress(),
-                message.getCcAddress(),
-                message.getSubject(),
-                message.getBodyHtml(),
-                message.getBodyText(),
-                message.getReceivedAt(),
-                message.getDirection(),
-                attachments
-        );
+        log.info("[ContactService] Wygenerowano presigned URL do EML wiadomości: contactId={}, messageId={}, "
+                + "tenant={}, ttlMinutes={}", contactId, messageId, tenantId, RECORDING_URL_TTL_MINUTES);
+
+        return new ContactRecordingUrlResponse(presignedUrl, Instant.now().plus(ttl), s3Key, null, "message/rfc822");
+    }
+
+    private static void requireEmailChannel(Contact contact) {
+        if (!"EMAIL".equals(contact.getChannel())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kontakt nie jest kanałem EMAIL");
+        }
+    }
+
+    /**
+     * Klucz EML wiadomości: {@code eml_s3_key}; albo (legacy, wiersze sprzed V145) dla NAJWCZEŚNIEJSZEJ wiadomości
+     * kontaktu {@code contact.recording_url} zakończone na {@code .eml}. {@code null} = brak EML.
+     */
+    private static String resolveEmlKey(EmailMessage message, Contact contact, UUID earliestMessageId) {
+        if (!isBlank(message.getEmlS3Key())) {
+            return message.getEmlS3Key();
+        }
+        String recordingUrl = contact.getRecordingUrl();
+        if (earliestMessageId != null && earliestMessageId.equals(message.getId())
+                && !isBlank(recordingUrl) && recordingUrl.toLowerCase(java.util.Locale.ROOT).endsWith(".eml")) {
+            return recordingUrl;
+        }
+        return null;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** Wiadomość wskazana przez {@code channelMetadata.emailMessageId} (OUTBOUND), ograniczona do tenanta. */
+    private Optional<EmailMessage> findOutboundMessageFromMetadata(Contact contact, UUID tenantId) {
+        Object emailMsgIdObj = contact.getChannelMetadata() != null
+                ? contact.getChannelMetadata().get("emailMessageId")
+                : null;
+        if (emailMsgIdObj instanceof String emailMsgIdStr && !emailMsgIdStr.isBlank()) {
+            try {
+                UUID emailMsgId = UUID.fromString(emailMsgIdStr);
+                // BE-134: channelMetadata niesie tylko message_id (bez message_at) — lookup po samym id
+                // (indeks PK każdej partycji); findById nie filtruje tenanta (tylko RLS) - sprawdzamy jawnie.
+                return emailMessageService.findById(emailMsgId)
+                        .filter(m -> tenantId.equals(m.getTenantId()));
+            } catch (IllegalArgumentException e) {
+                log.warn("[ContactService] Nieprawidłowy UUID w channelMetadata.emailMessageId: " +
+                        "contactId={}, wartość={}", contact.getContactId(), emailMsgIdObj);
+            }
+        }
+        return Optional.empty();
     }
 
     private List<EmailPreviewResponse.AttachmentDto> parseAttachmentDtos(String attachmentsJson) {

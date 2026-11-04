@@ -75,8 +75,36 @@ class EmailEmlService {
      */
     public String generateAndUpload(EmailMessage message, UUID contactId, UUID tenantId) {
         Instant timestamp = message.getReceivedAt() != null ? message.getReceivedAt() : Instant.now();
-        String s3Key = buildEmlS3Key(tenantId, contactId, timestamp);
+        return upload(message, contactId, buildEmlS3Key(tenantId, contactId, timestamp));
+    }
 
+    /**
+     * Generuje plik EML dla JEDNEJ wiadomości kontaktu (follow-up dołączony do istniejącego kontaktu)
+     * pod kluczem unikalnym per wiadomość: {@code {tenantId}/{year}/{month}/{contactId}/{messageId}.eml}.
+     *
+     * <p>Klucz {@code {contactId}.eml} należy do pierwszej wiadomości kontaktu ({@code contact.recording_url});
+     * ta metoda go NIGDY nie nadpisuje.
+     *
+     * @return klucz S3 (do zapisania w {@code email_message.eml_s3_key})
+     * @throws EmailEmlException gdy generowanie EML lub upload do S3 nie powiedzie się
+     */
+    public String generateAndUploadForMessage(EmailMessage message, UUID contactId, UUID tenantId) {
+        Instant timestamp = message.getMessageAt() != null ? message.getMessageAt()
+                : (message.getReceivedAt() != null ? message.getReceivedAt() : Instant.now());
+        return upload(message, contactId, buildMessageEmlS3Key(tenantId, contactId, message.getId(), timestamp));
+    }
+
+    /** Best-effort removal of an EML object that ended up unreferenced (idempotent; S3 errors are logged only). */
+    public void deleteQuietly(String s3Key) {
+        try {
+            s3Client.deleteObject(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                    .bucket(s3Properties.getBucket()).key(s3Key).build());
+        } catch (RuntimeException e) {
+            log.error("[EmailEml] Nie udało się usunąć EML z S3: s3Key={}, error={}", s3Key, e.getMessage());
+        }
+    }
+
+    private String upload(EmailMessage message, UUID contactId, String s3Key) {
         log.debug("[EmailEml] Generowanie EML: messageId={}, contactId={}, s3Key={}",
                 message.getId(), contactId, s3Key);
 
@@ -104,6 +132,16 @@ class EmailEmlService {
                 message.getId(), contactId, s3Key, emlBytes.length);
 
         return s3Key;
+    }
+
+    /**
+     * Buduje klucz S3 EML pojedynczej wiadomości kontaktu:
+     * {@code {tenantId}/{year}/{month}/{contactId}/{messageId}.eml}.
+     */
+    public String buildMessageEmlS3Key(UUID tenantId, UUID contactId, UUID messageId, Instant timestamp) {
+        Instant ts = timestamp != null ? timestamp : Instant.now();
+        return String.format("%s/%s/%s/%s/%s.eml", tenantId, YEAR_FMT.format(ts), MONTH_FMT.format(ts),
+                contactId, messageId);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactRecordingEntry;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.RetentionDataCategory;
 import com.contactcenter.domain.retention.RetentionPolicyService;
@@ -66,6 +67,9 @@ class RecordingRetentionJobTest {
 
     @Mock
     private RetentionPolicyService retentionPolicyService;
+
+    @Mock
+    private EmailMessageService emailMessageService;
 
     @InjectMocks
     private RecordingRetentionJob job;
@@ -187,6 +191,81 @@ class RecordingRetentionJobTest {
             // tenant z poprawną polityką – przetworzony normalnie mimo błędu poprzedniego tenanta
             verify(recordingService).deleteFromS3("recordings/long.mp3");
             verify(contactService).clearRecordingUrl(CONTACT_LONG, TENANT_LONG_RETENTION);
+        }
+    }
+
+    // =========================================================================
+    // EML per wiadomość (V145): kontakt EMAIL traci też EML-e follow-upów
+    // =========================================================================
+
+    @Nested
+    @DisplayName("kontakt EMAIL (recording_url = .eml) – sprzątanie EML wszystkich wiadomości kontaktu")
+    class EmlCleanup {
+
+        private void givenExpired(String recordingUrl) {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(30);
+            when(contactService.findExpiredRecordings(eq(TENANT_SHORT_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(new ContactRecordingEntry(CONTACT_SHORT, recordingUrl)));
+        }
+
+        @Test
+        @DisplayName(".eml: usuwa plik z recording_url, potem EML-e wiadomości, na końcu czyści recording_url")
+        void emlContactDeletesPerMessageEmls() {
+            givenExpired("t/2026/10/c.eml");
+
+            job.runRetentionJob();
+
+            org.mockito.InOrder order = org.mockito.Mockito.inOrder(recordingService, emailMessageService, contactService);
+            order.verify(recordingService).deleteFromS3("t/2026/10/c.eml");
+            order.verify(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, CONTACT_SHORT);
+            order.verify(contactService).clearRecordingUrl(CONTACT_SHORT, TENANT_SHORT_RETENTION);
+        }
+
+        @Test
+        @DisplayName("nagranie audio (.mp3): bez sprzątania EML")
+        void audioRecordingDoesNotTouchEmails() {
+            givenExpired("t/2026/10/c.mp3");
+
+            job.runRetentionJob();
+
+            verify(emailMessageService, never()).deleteEmlObjectsByContact(any(), any());
+            verify(contactService).clearRecordingUrl(CONTACT_SHORT, TENANT_SHORT_RETENTION);
+        }
+
+        @Test
+        @DisplayName("wielu kontaktow: porazka sprzatania jednego nie zatrzymuje pozostalych")
+        void oneFailingContactDoesNotStopOthers() {
+            UUID failing = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(30);
+            when(contactService.findExpiredRecordings(eq(TENANT_SHORT_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(
+                            new ContactRecordingEntry(failing, "t/a.eml"),
+                            new ContactRecordingEntry(CONTACT_SHORT, "t/b.eml"),
+                            new ContactRecordingEntry(CONTACT_LONG, "t/c.mp3")));
+            org.mockito.Mockito.doThrow(new RuntimeException("s3 down"))
+                    .when(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, failing);
+
+            job.runRetentionJob();
+
+            verify(contactService, never()).clearRecordingUrl(failing, TENANT_SHORT_RETENTION);
+            verify(contactService).clearRecordingUrl(CONTACT_SHORT, TENANT_SHORT_RETENTION);
+            verify(contactService).clearRecordingUrl(CONTACT_LONG, TENANT_SHORT_RETENTION);
+        }
+
+        @Test
+        @DisplayName("porazka sprzatania EML: recording_url NIE jest czyszczone (ponowienie przy kolejnym przebiegu)")
+        void emlCleanupFailureKeepsRecordingUrl() {
+            givenExpired("t/2026/10/c.eml");
+            org.mockito.Mockito.doThrow(new RuntimeException("s3 down"))
+                    .when(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, CONTACT_SHORT);
+
+            job.runRetentionJob();
+
+            verify(contactService, never()).clearRecordingUrl(any(), any());
         }
     }
 

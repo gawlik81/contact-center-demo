@@ -206,7 +206,8 @@ class EmailContactCreator {
     }
 
     /**
-     * Generuje plik EML z wiadomości email i zapisuje klucz S3 w kolumnie {@code recording_url} kontaktu.
+     * Generuje plik EML z wiadomości email i zapisuje klucz S3 w kolumnie {@code recording_url} kontaktu
+     * oraz w {@code email_message.eml_s3_key} tej wiadomości (V145).
      *
      * <p>Operacja jest "best-effort" – błąd generowania EML nie blokuje routingu kontaktu.
      * Wyjątki są tylko logowane.
@@ -223,8 +224,11 @@ class EmailContactCreator {
                 log.warn("[EmailContact] Nie znaleziono wiadomości do generowania EML: messageId={}", messageId);
                 return;
             }
-            String s3Key = emailEmlService.generateAndUpload(msgOpt.get(), contactId, tenantId);
+            EmailMessage message = msgOpt.get();
+            String s3Key = emailEmlService.generateAndUpload(message, contactId, tenantId);
             contactService.updateRecordingUrl(contactId, tenantId, s3Key);
+            // V145: ten sam klucz zapisujemy tez per wiadomosc (contact.recording_url bez zmian)
+            emailMessageRepository.updateEmlS3Key(message.getId(), message.getMessageAt(), tenantId, s3Key);
             log.info("[EmailContact] EML zapisany w S3: contactId={}, s3Key={}", contactId, s3Key);
         } catch (Exception e) {
             // EML jest best-effort – nie blokuje routingu kontaktu

@@ -15,6 +15,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.email.EmailThread;
 import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.recording.RecordingException;
@@ -1001,121 +1002,341 @@ class ContactServiceTest {
     }
 
     // =========================================================================
-    // Podgląd treści wiadomości email
+    // Podgląd całej rozmowy e-mail + EML per wiadomość
     // =========================================================================
 
     @Nested
-    @DisplayName("getEmailPreview")
+    @DisplayName("getEmailPreview / getEmailMessageEmlUrl (cała rozmowa, EML per wiadomość)")
     class GetEmailPreviewTests {
 
-        private static final UUID MESSAGE_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-        private static final Instant RECEIVED_AT = Instant.parse("2026-04-17T10:30:00Z");
+        private static final UUID MSG_1 = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1");
+        private static final UUID MSG_2 = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2");
+        private static final UUID MSG_3 = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3");
+        private static final Instant AT_1 = Instant.parse("2026-04-17T10:30:00Z");
+        private static final Instant AT_2 = Instant.parse("2026-04-17T11:30:00Z");
+        private static final Instant AT_3 = Instant.parse("2026-04-17T12:30:00Z");
+        private static final String PRESIGNED_URL = "https://minio.example.com/signed-eml";
+        private static final String LEGACY_EML = TENANT_ID + "/2026/04/" + CONTACT_ID + ".eml";
+        private static final String MSG_EML_KEY = TENANT_ID + "/2026/04/" + CONTACT_ID + "/" + MSG_2 + ".eml";
 
-        @Test
-        @DisplayName("zwraca EmailPreviewResponse gdy kontakt EMAIL ma wiadomość")
-        void getEmailPreview_returnsResponseWhenEmailContactAndMessageExists() {
-            // given
-            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
-            EmailMessage message = buildEmailMessage(MESSAGE_ID, contactId -> contact.getContactId());
+        private void givenThread(Contact contact, List<EmailMessage> messages, long total, boolean truncated) {
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(List.of(message)));
-
-            // when
-            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID);
-
-            // then
-            assertThat(response.from()).isEqualTo("klient@example.com");
-            assertThat(response.to()).isEqualTo("support@firma.pl");
-            assertThat(response.subject()).isEqualTo("Prośba o pomoc");
-            assertThat(response.bodyHtml()).isEqualTo("<p>Treść HTML</p>");
-            assertThat(response.bodyText()).isEqualTo("Treść tekstowa");
-            assertThat(response.receivedAt()).isEqualTo(RECEIVED_AT);
-            assertThat(response.direction()).isEqualTo("INBOUND");
+            when(emailMessageService.findThreadByContactId(CONTACT_ID, TENANT_ID, 100))
+                    .thenReturn(new EmailThread(messages, total, truncated));
         }
 
         @Test
-        @DisplayName("rzuca ResponseStatusException 400 gdy kontakt nie jest kanałem EMAIL")
-        void getEmailPreview_throwsBadRequestWhenNotEmailChannel() {
-            // given
-            Contact contact = buildContact(CONTACT_ID, "COMPLETED"); // kanał PHONE
+        @DisplayName("zwraca całą rozmowę chronologicznie z messageAt, direction i emlAvailable per wiadomość")
+        void returnsWholeConversation() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setRecordingUrl(LEGACY_EML);
+            EmailMessage first = message(MSG_1, AT_1, "INBOUND", null);
+            EmailMessage reply = message(MSG_2, AT_2, "OUTBOUND", MSG_EML_KEY);
+            EmailMessage followUp = message(MSG_3, AT_3, "INBOUND", null);
+            givenThread(contact, List.of(first, reply, followUp), 3, false);
+
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            assertThat(response.totalMessages()).isEqualTo(3);
+            assertThat(response.truncated()).isFalse();
+            assertThat(response.messages()).extracting(EmailPreviewResponse.MessageDto::messageId)
+                    .containsExactly(MSG_1, MSG_2, MSG_3);
+            assertThat(response.messages()).extracting(EmailPreviewResponse.MessageDto::messageAt)
+                    .containsExactly(AT_1, AT_2, AT_3);
+            assertThat(response.messages()).extracting(EmailPreviewResponse.MessageDto::direction)
+                    .containsExactly("INBOUND", "OUTBOUND", "INBOUND");
+            EmailPreviewResponse.MessageDto dto = response.messages().get(0);
+            assertThat(dto.from()).isEqualTo("klient@example.com");
+            assertThat(dto.to()).isEqualTo("support@firma.pl");
+            assertThat(dto.subject()).isEqualTo("Prośba o pomoc");
+            assertThat(dto.bodyHtml()).isEqualTo("<p>Treść HTML</p>");
+            assertThat(dto.bodyText()).isEqualTo("Treść tekstowa");
+            assertThat(dto.receivedAt()).isEqualTo(AT_1);
+        }
+
+        @Test
+        @DisplayName("legacy fallback do recording_url (.eml) dotyczy WYŁĄCZNIE najwcześniejszej wiadomości bez klucza")
+        void legacyFallbackOnlyOnEarliest() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setRecordingUrl(LEGACY_EML);
+            givenThread(contact, List.of(
+                    message(MSG_1, AT_1, "INBOUND", null),       // najwcześniejsza, legacy -> true
+                    message(MSG_2, AT_2, "INBOUND", null),       // późniejsza bez klucza -> false
+                    message(MSG_3, AT_3, "INBOUND", MSG_EML_KEY) // własny klucz -> true
+            ), 3, false);
+
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            assertThat(response.messages()).extracting(EmailPreviewResponse.MessageDto::emlAvailable)
+                    .containsExactly(true, false, true);
+        }
+
+        @Test
+        @DisplayName("recording_url inne niż .eml (np. .mp3) nie daje fallbacku nawet dla najwcześniejszej")
+        void noFallbackWhenRecordingUrlIsNotEml() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setRecordingUrl(TENANT_ID + "/2026/04/" + CONTACT_ID + ".mp3");
+            givenThread(contact, List.of(message(MSG_1, AT_1, "INBOUND", null)), 1, false);
+
+            assertThat(contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true)
+                    .messages().get(0).emlAvailable()).isFalse();
+        }
+
+        @Test
+        @DisplayName("lista ucięta (truncated): przekazuje totalMessages/truncated i NIE stosuje fallbacku (najwcześniejszej nie ma na liście)")
+        void truncatedThreadHasNoLegacyFallback() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setRecordingUrl(LEGACY_EML);
+            givenThread(contact, List.of(
+                    message(MSG_2, AT_2, "INBOUND", null),
+                    message(MSG_3, AT_3, "INBOUND", null)), 150, true);
+
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            assertThat(response.truncated()).isTrue();
+            assertThat(response.totalMessages()).isEqualTo(150);
+            assertThat(response.messages()).extracting(EmailPreviewResponse.MessageDto::emlAvailable)
+                    .containsExactly(false, false);
+        }
+
+        @Test
+        @DisplayName("OUTBOUND: brak wierszy po contact_id -> fallback do channelMetadata.emailMessageId, lista jednoelementowa")
+        void outboundFallbackReturnsSingleMessage() {
+            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
+            contact.setDirection("OUTBOUND");
+            contact.setRecordingUrl(LEGACY_EML);
+            contact.getChannelMetadata().put("emailMessageId", MSG_1.toString());
+            givenThread(contact, List.of(), 0, false);
+            when(emailMessageService.findById(MSG_1)).thenReturn(Optional.of(message(MSG_1, AT_1, "OUTBOUND", null)));
+
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            assertThat(response.messages()).hasSize(1);
+            assertThat(response.totalMessages()).isEqualTo(1);
+            assertThat(response.truncated()).isFalse();
+            assertThat(response.messages().get(0).messageId()).isEqualTo(MSG_1);
+            assertThat(response.messages().get(0).emlAvailable()).as("jedyna = najwcześniejsza -> legacy fallback").isTrue();
+        }
+
+        @Test
+        @DisplayName("fallback OUTBOUND ignoruje wiadomość z innego tenanta (404)")
+        void outboundFallbackRejectsForeignTenantMessage() {
+            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
+            contact.getChannelMetadata().put("emailMessageId", MSG_1.toString());
+            givenThread(contact, List.of(), 0, false);
+            EmailMessage foreign = message(MSG_1, AT_1, "OUTBOUND", null);
+            foreign.setTenantId(UUID.randomUUID());
+            when(emailMessageService.findById(MSG_1)).thenReturn(Optional.of(foreign));
+
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("rzuca 400 gdy kontakt nie jest kanałem EMAIL")
+        void throwsBadRequestWhenNotEmailChannel() {
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED"); // PHONE
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
-            // when / then
-            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
-                    .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(ex -> {
-                        ResponseStatusException rse = (ResponseStatusException) ex;
-                        assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-                        assertThat(rse.getReason()).contains("EMAIL");
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class, e -> {
+                        assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                        assertThat(e.getReason()).contains("EMAIL");
                     });
-
             verifyNoInteractions(emailMessageService);
         }
 
         @Test
-        @DisplayName("rzuca ResponseStatusException 404 gdy kontakt EMAIL nie ma wiadomości")
-        void getEmailPreview_throwsNotFoundWhenNoEmailMessages() {
-            // given
-            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(List.of()));
+        @DisplayName("rzuca 404 gdy kontakt EMAIL nie ma wiadomości ani fallbacku")
+        void throwsNotFoundWhenNoEmailMessages() {
+            givenThread(buildEmailContact(CONTACT_ID, "COMPLETED"), List.of(), 0, false);
 
-            // when / then
-            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
-                    .isInstanceOf(ResponseStatusException.class)
-                    .satisfies(ex -> {
-                        ResponseStatusException rse = (ResponseStatusException) ex;
-                        assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-                        assertThat(rse.getReason()).contains(CONTACT_ID.toString());
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class, e -> {
+                        assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                        assertThat(e.getReason()).contains(CONTACT_ID.toString());
                     });
         }
 
         @Test
         @DisplayName("rzuca EntityNotFoundException gdy kontakt nie istnieje")
-        void getEmailPreview_throwsWhenContactNotFound() {
-            // given
+        void throwsWhenContactNotFound() {
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
 
-            // when / then
-            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(CONTACT_ID.toString());
-
             verifyNoInteractions(emailMessageService);
         }
 
         @Test
-        @DisplayName("zwraca null dla pól cc i bodyHtml gdy są null w encji")
-        void getEmailPreview_returnsNullFieldsWhenAbsentInMessage() {
-            // given
+        @DisplayName("AGENT cudzego kontaktu -> InvalidOperationException (409), bez odczytu wiadomości")
+        void otherAgentIsRejected() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setAgentId(OTHER_AGENT);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(InvalidOperationException.class);
+            verifyNoInteractions(emailMessageService);
+        }
+
+        @Test
+        @DisplayName("kontakt bez agenta (w kolejce) jest dostępny dla AGENT; SUPERVISOR/ADMIN widzi cudzy kontakt")
+        void unassignedContactAndPrivilegedRolesAreAllowed() {
+            Contact queued = buildEmailContact(CONTACT_ID, "QUEUED");
+            queued.setAgentId(null);
+            givenThread(queued, List.of(message(MSG_1, AT_1, "INBOUND", null)), 1, false);
+            assertThat(contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, true).messages()).hasSize(1);
+
+            Contact foreign = buildEmailContact(CONTACT_ID, "ACTIVE");
+            foreign.setAgentId(OTHER_AGENT);
+            givenThread(foreign, List.of(message(MSG_1, AT_1, "INBOUND", null)), 1, false);
+            assertThat(contactService.getEmailPreview(CONTACT_ID, TENANT_ID, AGENT_ID, false).messages()).hasSize(1);
+        }
+
+        // ---- GET /contacts/{id}/email-messages/{messageId}/eml --------------------------------
+
+        @Test
+        @DisplayName("EML: wiadomość z własnym kluczem -> presigned URL, message/rfc822, durationSeconds null")
+        void emlUrlHappyPath() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findByIdAndContactId(MSG_2, CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(message(MSG_2, AT_2, "INBOUND", MSG_EML_KEY)));
+            when(recordingService.generatePresignedUrlForKey(eq(MSG_EML_KEY), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            ContactRecordingUrlResponse response =
+                    contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_2, TENANT_ID, AGENT_ID, true);
+
+            assertThat(response.presignedUrl()).isEqualTo(PRESIGNED_URL);
+            assertThat(response.fileName()).isEqualTo(MSG_EML_KEY);
+            assertThat(response.contentType()).isEqualTo("message/rfc822");
+            assertThat(response.durationSeconds()).isNull();
+            assertThat(response.expiresAt()).isBetween(
+                    Instant.now().plusSeconds(14 * 60), Instant.now().plusSeconds(16 * 60));
+            ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
+            verify(recordingService).generatePresignedUrlForKey(eq(MSG_EML_KEY), ttl.capture());
+            assertThat(ttl.getValue()).isEqualTo(Duration.ofMinutes(15));
+        }
+
+        @Test
+        @DisplayName("EML: najwcześniejsza wiadomość bez klucza używa recording_url (legacy); późniejsza bez klucza -> 404")
+        void emlUrlLegacyFallbackOnlyForEarliest() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            contact.setRecordingUrl(LEGACY_EML);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findEarliestMessageId(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(MSG_1));
+            when(emailMessageService.findByIdAndContactId(MSG_1, CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(message(MSG_1, AT_1, "INBOUND", null)));
+            when(emailMessageService.findByIdAndContactId(MSG_3, CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(message(MSG_3, AT_3, "INBOUND", null)));
+            when(recordingService.generatePresignedUrlForKey(eq(LEGACY_EML), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            assertThat(contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_1, TENANT_ID, AGENT_ID, true).fileName())
+                    .isEqualTo(LEGACY_EML);
+
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_3, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("EML: wiadomość nienależąca do kontaktu/tenanta -> 404 (bez presign)")
+        void emlUrlForeignMessageIs404() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findByIdAndContactId(MSG_3, CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+            when(emailMessageService.findEarliestMessageId(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(MSG_1));
+
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_3, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("EML: klucz spoza prefiksu tenanta -> 404 (obrona w głąb), bez presign")
+        void emlUrlKeyOutsideTenantPrefixIs404() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findByIdAndContactId(MSG_2, CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(message(MSG_2, AT_2, "INBOUND", UUID.randomUUID() + "/2026/04/x.eml")));
+
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_2, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("EML: cudzy AGENT -> InvalidOperationException (409); kanał inny niż EMAIL -> 400")
+        void emlUrlOwnershipAndChannel() {
+            Contact foreign = buildEmailContact(CONTACT_ID, "ACTIVE");
+            foreign.setAgentId(OTHER_AGENT);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(foreign));
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_2, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(InvalidOperationException.class);
+
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildContact(CONTACT_ID, "COMPLETED")));
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_2, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            verifyNoInteractions(emailMessageService);
+        }
+
+        @Test
+        @DisplayName("EML: awaria S3/presign -> 503")
+        void emlUrlPresignFailureIs503() {
+            Contact contact = buildEmailContact(CONTACT_ID, "ACTIVE");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findByIdAndContactId(MSG_2, CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(message(MSG_2, AT_2, "INBOUND", MSG_EML_KEY)));
+            when(recordingService.generatePresignedUrlForKey(any(), any(Duration.class)))
+                    .thenThrow(new RecordingException("s3 down", new RuntimeException()));
+
+            assertThatThrownBy(() -> contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_2, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+        }
+
+        @Test
+        @DisplayName("EML: OUTBOUND bez wierszy po contact_id -> wiadomość z channelMetadata (z legacy fallbackiem)")
+        void emlUrlOutboundFallback() {
             Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
-            EmailMessage message = EmailMessage.builder()
-                    .id(MESSAGE_ID)
+            contact.setRecordingUrl(LEGACY_EML);
+            contact.getChannelMetadata().put("emailMessageId", MSG_1.toString());
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageService.findByIdAndContactId(MSG_1, CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+            when(emailMessageService.findEarliestMessageId(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+            when(emailMessageService.findById(MSG_1)).thenReturn(Optional.of(message(MSG_1, AT_1, "OUTBOUND", null)));
+            when(recordingService.generatePresignedUrlForKey(eq(LEGACY_EML), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            assertThat(contactService.getEmailMessageEmlUrl(CONTACT_ID, MSG_1, TENANT_ID, AGENT_ID, true).fileName())
+                    .isEqualTo(LEGACY_EML);
+        }
+
+        private EmailMessage message(UUID id, Instant at, String direction, String emlKey) {
+            return EmailMessage.builder()
+                    .id(id)
+                    .messageAt(at)
                     .tenantId(TENANT_ID)
                     .contactId(CONTACT_ID)
-                    .direction("INBOUND")
+                    .direction(direction)
                     .fromAddress("klient@example.com")
                     .toAddress("support@firma.pl")
-                    .ccAddress(null)
-                    .subject("Test")
-                    .bodyHtml(null)
-                    .bodyText("Tylko tekst")
-                    .receivedAt(RECEIVED_AT)
-                    .createdAt(Instant.now())
+                    .subject("Prośba o pomoc")
+                    .bodyHtml("<p>Treść HTML</p>")
+                    .bodyText("Treść tekstowa")
+                    .receivedAt(at)
+                    .createdAt(at)
+                    .emlS3Key(emlKey)
                     .build();
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(List.of(message)));
-
-            // when
-            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID);
-
-            // then
-            assertThat(response.cc()).isNull();
-            assertThat(response.bodyHtml()).isNull();
-            assertThat(response.bodyText()).isEqualTo("Tylko tekst");
         }
 
         private Contact buildEmailContact(UUID contactId, String status) {
@@ -1133,24 +1354,6 @@ class ContactServiceTest {
                     .startedAt(now)
                     .channelMetadata(new HashMap<>())
                     .createdAt(now)
-                    .build();
-        }
-
-        private EmailMessage buildEmailMessage(UUID messageId,
-                java.util.function.Function<UUID, UUID> contactIdSupplier) {
-            return EmailMessage.builder()
-                    .id(messageId)
-                    .tenantId(TENANT_ID)
-                    .contactId(contactIdSupplier.apply(messageId))
-                    .direction("INBOUND")
-                    .fromAddress("klient@example.com")
-                    .toAddress("support@firma.pl")
-                    .ccAddress(null)
-                    .subject("Prośba o pomoc")
-                    .bodyHtml("<p>Treść HTML</p>")
-                    .bodyText("Treść tekstowa")
-                    .receivedAt(RECEIVED_AT)
-                    .createdAt(Instant.now())
                     .build();
         }
     }

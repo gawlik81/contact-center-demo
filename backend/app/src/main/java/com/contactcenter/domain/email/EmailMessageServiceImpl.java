@@ -73,6 +73,72 @@ class EmailMessageServiceImpl implements EmailMessageService {
     }
 
     // =========================================================================
+    // Per-message EML (V145)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmailThread findThreadByContactId(UUID contactId, UUID tenantId, int limit) {
+        List<EmailMessage> messages = emailMessageRepository.findThreadTail(contactId, tenantId, limit);
+        long total = messages.size() < limit
+                ? messages.size()
+                : emailMessageRepository.countByContactId(contactId, tenantId);
+        return new EmailThread(messages, total, total > messages.size());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EmailMessage> findByIdAndContactId(UUID messageId, UUID contactId, UUID tenantId) {
+        return emailMessageRepository.findByIdAndContactId(messageId, contactId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findEarliestMessageId(UUID contactId, UUID tenantId) {
+        return emailMessageRepository.findEarliestMessageId(contactId, tenantId);
+    }
+
+    /** Bez {@code @Transactional}: I/O do S3 poza transakcja (jak {@link #purgeByContactIds}). */
+    @Override
+    public int deleteEmlObjectsByContact(UUID tenantId, UUID contactId) {
+        List<String> keys = emailMessageRepository.findEmlKeysByContactId(tenantId, contactId);
+        if (keys.isEmpty()) {
+            return 0;
+        }
+        List<String> clearable = new java.util.ArrayList<>();
+        int deleted = 0;
+        int failed = 0;
+        RuntimeException firstFailure = null;
+        for (String key : keys) {
+            if (!EmailAttachmentKeys.isRecordingKeyOwnedByTenant(tenantId, key)) {
+                // Klucz spoza prefiksu tenanta: nie ruszamy obiektu, zerujemy tylko wskazanie w bazie.
+                log.error("[EmailMessage][EmlCleanup] Klucz EML spoza prefiksu tenanta - pomijam obiekt: tenant={}, "
+                        + "contactId={}, s3Key={}", tenantId, contactId, EmailAttachmentKeys.forLog(key));
+                clearable.add(key);
+                continue;
+            }
+            try {
+                attachmentStorageService.delete(key);
+                clearable.add(key);
+                deleted++;
+            } catch (RuntimeException e) {
+                failed++;
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+                log.error("[EmailMessage][EmlCleanup] Nie udalo sie usunac EML z S3: tenant={}, contactId={}, "
+                        + "s3Key={}, error={}", tenantId, contactId, EmailAttachmentKeys.forLog(key), e.getMessage());
+            }
+        }
+        emailMessageRepository.clearEmlS3Keys(tenantId, contactId, clearable);
+        if (failed > 0) {
+            throw new EmailAttachmentException(
+                    "Nie udalo sie usunac " + failed + " plikow EML kontaktu " + contactId, firstFailure);
+        }
+        return deleted;
+    }
+
+    // =========================================================================
     // BE-125: Retencja – usuwanie wiadomości wraz z obiektami S3 (EPIC-30)
     // =========================================================================
 
@@ -118,6 +184,14 @@ class EmailMessageServiceImpl implements EmailMessageService {
             for (String key : EmailAttachmentKeys.extractS3Keys(row.messageId(), row.attachmentsJson())) {
                 if (!s3.delete(key, row.messageId())) {
                     allObjectsGone = false; // kolejne klucze tej wiadomości też próbujemy — każdy usunięty to postęp
+                }
+            }
+            // Per-message EML (V145): plik EML tej wiadomosci. Allow-lista schematu {tenantId}/... (nagrania/EML),
+            // inna niz allow-lista zalacznikow; klucz spoza prefiksu = pomijamy obiekt, wiersz i tak znika.
+            // Klucz wspoldzielony z contact.recording_url (pierwsza wiadomosc) - delete jest idempotentny.
+            if (row.emlS3Key() != null && !row.emlS3Key().isBlank()) {
+                if (!s3.deleteEml(row.emlS3Key(), row.messageId())) {
+                    allObjectsGone = false;
                 }
             }
             if (allObjectsGone) {
@@ -237,13 +311,23 @@ class EmailMessageServiceImpl implements EmailMessageService {
          * @return {@code true} gdy wiadomość NIE jest blokowana przez ten klucz (obiekt usunięty albo
          *         klucz odrzucony przez allow-listę); {@code false} gdy obiekt nie został usunięty
          */
+        boolean deleteEml(String key, UUID messageId) {
+            return delete(key, messageId, EmailAttachmentKeys.isRecordingKeyOwnedByTenant(tenantId, key),
+                    "{tenantId}/");
+        }
+
         boolean delete(String key, UUID messageId) {
-            if (!EmailAttachmentKeys.isOwnedByTenant(tenantId, key)) {
+            return delete(key, messageId, EmailAttachmentKeys.isOwnedByTenant(tenantId, key),
+                    EmailAttachmentKeys.tenantPrefix(tenantId));
+        }
+
+        private boolean delete(String key, UUID messageId, boolean allowed, String expectedPrefix) {
+            if (!allowed) {
                 // Klucz OUTBOUND to dane od klienta — nie kasujemy cudzego obiektu (inny tenant, nagranie, EML).
                 if (rejectedKeys.add(key)) {
                     log.error("[EmailMessage][Purge] Klucz S3 spoza prefiksu {}: pomijam obiekt, wiadomość zostanie "
                                     + "usunięta: tenant={}, messageId={}, s3Key={}",
-                            EmailAttachmentKeys.tenantPrefix(tenantId), tenantId, messageId,
+                            expectedPrefix, tenantId, messageId,
                             EmailAttachmentKeys.forLog(key));
                 }
                 return true;

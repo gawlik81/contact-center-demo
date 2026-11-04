@@ -550,6 +550,10 @@ dialer:
 # Agent Breaks Activator – automatyczna aktywacja i kończenie przerw agentów
 # =============================================================================
 agent:
+  # BE-157: GET /api/agent/me/active-contacts - how long a COMPLETED PHONE contact without disposition
+  # still counts as after-call work (ACW). Cuts "eternal" ACW after an abandoned disposition. Duration (12h, 30m).
+  active-contacts:
+    wrap-up-window: ${AGENT_ACTIVE_CONTACTS_WRAP_UP_WINDOW:12h}
   breaks:
     activator:
       # Włącza/wyłącza scheduler. Domyślnie true.

@@ -1,7 +1,9 @@
 package com.contactcenter.domain.contact;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.contact.dto.ActiveContactResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
@@ -67,6 +69,7 @@ class ContactServiceTest {
     @Mock private EmailMessageService emailMessageService;
     @Mock private UserService userService;
     @Mock private QueueService queueService;
+    @Mock private CustomerService customerService;
     @Mock private CampaignService campaignService;
     @Mock private CustomDispositionService customDispositionService;
     @Mock private ContactEventService contactEventService;
@@ -1149,6 +1152,162 @@ class ContactServiceTest {
                     .receivedAt(RECEIVED_AT)
                     .createdAt(Instant.now())
                     .build();
+        }
+    }
+
+    // =========================================================================
+    // BE-157: findActiveContactsForAgent / resolveCustomerDisplayName
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findActiveContactsForAgent (BE-157)")
+    class FindActiveContactsForAgent {
+
+        private final UUID queueId = UUID.randomUUID();
+
+        private Contact contact(String status, UUID customerId, UUID qId) {
+            Contact c = buildContact(UUID.randomUUID(), status);
+            c.setCustomerId(customerId);
+            c.setQueueId(qId);
+            return c;
+        }
+
+        @Test
+        @DisplayName("mapuje status na phase: ASSIGNED->RINGING, ACTIVE/ON_HOLD->IN_PROGRESS, COMPLETED->WRAP_UP")
+        void mapsStatusToPhase() {
+            Contact assigned = contact("ASSIGNED", null, null);
+            Contact active = contact("ACTIVE", null, null);
+            Contact onHold = contact("ON_HOLD", null, null);
+            Contact completed = contact("COMPLETED", null, null);
+            Instant ended = Instant.parse("2026-10-30T10:00:00Z");
+            completed.setEndedAt(ended);
+            active.setEndedAt(ended); // endedAt set on non-ACW must NOT leak into wrapUpStartedAt
+            when(contactRepository.findActiveContactsForAgent(eq(AGENT_ID), eq(TENANT_ID), any(), eq(20)))
+                    .thenReturn(List.of(assigned, active, onHold, completed));
+
+            List<ActiveContactResponse> result = contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+
+            assertThat(result).extracting(r -> r.phase().name())
+                    .containsExactly("RINGING", "IN_PROGRESS", "IN_PROGRESS", "WRAP_UP");
+            assertThat(result).extracting(ActiveContactResponse::status)
+                    .containsExactly("ASSIGNED", "ACTIVE", "ON_HOLD", "COMPLETED");
+            assertThat(result).extracting(ActiveContactResponse::wrapUpStartedAt)
+                    .containsExactly(null, null, null, ended);
+        }
+
+        @Test
+        @DisplayName("okno ACW: wrapUpSince = now - 12h domyslnie, a konfiguracja je zmienia")
+        void wrapUpWindowIsConfigurable() {
+            when(contactRepository.findActiveContactsForAgent(any(), any(), any(), anyInt())).thenReturn(List.of());
+            ArgumentCaptor<Instant> since = ArgumentCaptor.forClass(Instant.class);
+
+            Instant before = Instant.now();
+            contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+            verify(contactRepository).findActiveContactsForAgent(eq(AGENT_ID), eq(TENANT_ID), since.capture(), eq(20));
+            assertThat(since.getValue()).isBetween(
+                    before.minus(Duration.ofHours(12)).minusSeconds(1), Instant.now().minus(Duration.ofHours(12)));
+
+            contactService.setActiveContactsWrapUpWindow("30m");
+            contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+            verify(contactRepository, times(2))
+                    .findActiveContactsForAgent(eq(AGENT_ID), eq(TENANT_ID), since.capture(), eq(20));
+            assertThat(since.getValue()).isAfter(Instant.now().minus(Duration.ofMinutes(31)));
+        }
+
+        @Test
+        @DisplayName("fail-fast: okno ACW niepoprawne lub <= 0 jest odrzucane")
+        void invalidWrapUpWindowRejected() {
+            assertThatThrownBy(() -> contactService.setActiveContactsWrapUpWindow("abc"))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> contactService.setActiveContactsWrapUpWindow("0s"))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> contactService.setActiveContactsWrapUpWindow("-5m"))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        @DisplayName("puste wyniki: [] bez zapytan o kolejki i klientow")
+        void emptyResult_noLookups() {
+            when(contactRepository.findActiveContactsForAgent(any(), any(), any(), anyInt())).thenReturn(List.of());
+
+            assertThat(contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID)).isEmpty();
+
+            verifyNoInteractions(queueService, customerService);
+        }
+
+        @Test
+        @DisplayName("nazwy zbiorczo: po jednym wywolaniu na typ niezaleznie od liczby kontaktow")
+        void bulkLookup_oneCallPerType() {
+            UUID customerId = UUID.randomUUID();
+            List<Contact> contacts = List.of(
+                    contact("ASSIGNED", customerId, queueId),
+                    contact("ACTIVE", customerId, queueId),
+                    contact("ON_HOLD", UUID.randomUUID(), queueId));
+            when(contactRepository.findActiveContactsForAgent(any(), any(), any(), anyInt())).thenReturn(contacts);
+            when(queueService.findQueueNamesByIds(eq(TENANT_ID), any())).thenReturn(Map.of(queueId, "Sales PL"));
+            when(customerService.findDisplayNamesByIds(eq(TENANT_ID), any()))
+                    .thenReturn(Map.of(customerId, "Jan Kowalski"));
+
+            List<ActiveContactResponse> result = contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+
+            verify(queueService, times(1)).findQueueNamesByIds(eq(TENANT_ID), any());
+            verify(customerService, times(1)).findDisplayNamesByIds(eq(TENANT_ID), any());
+            verify(queueService, never()).findQueueEntity(any(), any());
+            assertThat(result).extracting(ActiveContactResponse::queueName).containsOnly("Sales PL");
+            assertThat(result).extracting(ActiveContactResponse::customerName)
+                    .containsExactly("Jan Kowalski", "Jan Kowalski", "+48501234567"); // unknown -> identifier
+        }
+
+        @Test
+        @DisplayName("blad rozwiazywania nazw nie psuje odpowiedzi: queueName='', customerName=identyfikator")
+        void lookupFailure_fallsBack() {
+            when(contactRepository.findActiveContactsForAgent(any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(contact("ACTIVE", CUSTOMER_ID, queueId)));
+            when(queueService.findQueueNamesByIds(any(), any())).thenThrow(new RuntimeException("db"));
+            when(customerService.findDisplayNamesByIds(any(), any())).thenThrow(new RuntimeException("db"));
+
+            List<ActiveContactResponse> result = contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).queueName()).isEmpty();
+            assertThat(result.get(0).customerName()).isEqualTo("+48501234567");
+            assertThat(result.get(0).customerIdentifier()).isEqualTo("+48501234567");
+        }
+
+        @Test
+        @DisplayName("subject z channel_metadata (EMAIL), kanal SOCIAL_* zwiniety do SOCIAL, pola identyfikatorow")
+        void subjectChannelAndIds() {
+            Contact email = contact("ACTIVE", null, queueId);
+            email.setChannel("EMAIL");
+            email.setChannelMetadata(new HashMap<>(Map.of("subject", "Reklamacja")));
+            Contact social = contact("ASSIGNED", null, null);
+            social.setChannel("SOCIAL_FACEBOOK");
+            when(contactRepository.findActiveContactsForAgent(any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(email, social));
+
+            List<ActiveContactResponse> result = contactService.findActiveContactsForAgent(AGENT_ID, TENANT_ID);
+
+            assertThat(result.get(0).subject()).isEqualTo("Reklamacja");
+            assertThat(result.get(0).channel()).isEqualTo("EMAIL");
+            assertThat(result.get(0).queueId()).isEqualTo(queueId.toString());
+            assertThat(result.get(1).subject()).isNull();
+            assertThat(result.get(1).channel()).isEqualTo("SOCIAL");
+            assertThat(result.get(1).queueId()).isNull();
+            assertThat(result.get(1).queueName()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("resolveCustomerDisplayName: prawdziwa nazwa, a przy braku/pustej nazwie fallback na remoteAddress")
+        void resolveCustomerDisplayName_fallback() {
+            UUID known = UUID.randomUUID();
+            when(customerService.findDisplayNamesByIds(eq(TENANT_ID), any())).thenReturn(Map.of(known, "Anna Nowak"));
+
+            assertThat(contactService.resolveCustomerDisplayName(contact("ASSIGNED", known, null), TENANT_ID))
+                    .isEqualTo("Anna Nowak");
+            assertThat(contactService.resolveCustomerDisplayName(contact("ASSIGNED", UUID.randomUUID(), null), TENANT_ID))
+                    .isEqualTo("+48501234567");
+            assertThat(contactService.resolveCustomerDisplayName(contact("ASSIGNED", null, null), TENANT_ID))
+                    .isEqualTo("+48501234567");
         }
     }
 

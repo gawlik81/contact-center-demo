@@ -1,0 +1,55 @@
+<!-- The live region stays in the DOM (empty) so that text put into it is announced: the notice
+     itself, the result of "check again", and a call card that could not be restored. -->
+<p class="sr-only" role="status" data-testid="recovery-status">
+  @if (announcement(); as a) {
+    {{ a.key | transloco: a.params }}
+  } @else if (items().length > 0) {
+    {{ title().key | transloco: { count: title().count } }}
+  }
+</p>
+
+@if (items().length > 0) {
+  <section class="recovery-overflow" data-testid="recovery-overflow" aria-labelledby="recovery-overflow-title">
+    <div class="recovery-overflow__head">
+      <h2 class="recovery-overflow__title" id="recovery-overflow-title">
+        {{ title().key | transloco: { count: title().count } }}
+      </h2>
+      <button
+        type="button"
+        class="recovery-overflow__retry"
+        data-testid="recovery-retry"
+        [attr.aria-disabled]="loading()"
+        [attr.aria-busy]="loading()"
+        (click)="retry()"
+      >
+        {{ (loading() ? 'agent.recoveryOverflow.retrying' : 'agent.recoveryOverflow.retry') | transloco }}
+      </button>
+    </div>
+    <p class="recovery-overflow__hint">{{ 'agent.recoveryOverflow.hint' | transloco }}</p>
+    @if (hasRinging()) {
+      <p class="recovery-overflow__hint">{{ 'agent.recoveryOverflow.hintRinging' | transloco }}</p>
+    }
+    @if (announcement(); as a) {
+      <!-- Same text as the status region, for sighted users (hidden from the reader: no double read) -->
+      <p class="recovery-overflow__result" aria-hidden="true" data-testid="recovery-result">
+        {{ a.key | transloco: a.params }}
+      </p>
+    }
+    <ul class="recovery-overflow__list" [attr.aria-label]="'agent.recoveryOverflow.listLabel' | transloco">
+      @for (item of items(); track item.contactId) {
+        <li class="recovery-overflow__item">
+          <span class="recovery-overflow__name" [attr.title]="item.customerName">{{ item.customerName }}</span>
+          <span class="recovery-overflow__meta">
+            {{ 'agent.recoveryOverflow.channel.' + (item.type ?? 'UNKNOWN') | transloco }}
+            <span aria-hidden="true">·</span>
+            {{ 'agent.recoveryOverflow.phase.' + item.phase | transloco }}
+            @if (item.reason === 'OTHER_CALL_ACTIVE' || item.reason === 'UNSUPPORTED_CHANNEL') {
+              <span aria-hidden="true">·</span>
+              {{ 'agent.recoveryOverflow.reason.' + item.reason | transloco }}
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+}

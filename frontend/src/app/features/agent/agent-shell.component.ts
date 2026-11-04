@@ -121,5 +121,7 @@ export class AgentShellComponent implements OnInit, OnDestroy {
     // Tabs are a root singleton too: without this the next agent logging in on the same browser
     // tab would see the previous agent's contacts (names, contactIds).
     this.tabStore.reset();
+    // A recovery answer still on its way belongs to this session: drop it, and the overflow list.
+    this.recoveryService.reset();
   }
 }

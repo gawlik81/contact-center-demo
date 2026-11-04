@@ -3244,3 +3244,94 @@ Zakres: niezacommitowane zmiany backendu BE-160. `/abandon` nietknięty (potwier
 5. [NISKI] `@Lazy` resolvera — **zweryfikowane negatywnie / udokumentowane** (jedyny test pełnego kontekstu `ContactCenterApplicationIT` wyłącza DataSource/JPA, więc nie dowodzi braku cyklu; `@Lazy` zostaje z konkretną ścieżką cyklu w komentarzu). Wydzielenie `ContactQueuedPublisher` — **odroczone**.
 6. [NISKI] no-op idempotentny — **częściowo**: `queued_at` i etap QUEUE z jednego `Instant` (naprawione), `queued_at = now` udokumentowane jako decyzja właściciela; audyt `CONTACT_RELEASED` dla no-op **odroczony** (`AuditAspect` nie ma hooka pominięcia), udokumentowane w komentarzu.
 7. Zakres dodatkowy (decyzja właściciela): wycinek BE-156 anti-ping-pong — **zrobione** (`ReleaseExclusionStore`/`RedisReleaseExclusionStore`, `routing.release-exclusion-ttl` domyślnie 5 min, `RoutingRequest.excludedAgentIds`, filtr w `DefaultRoutingEngine` dla sticky i wszystkich strategii; tylko kanały async).
+
+---
+
+## Review: BE-157 — `GET /api/agent/me/active-contacts` (AgentSelfController, ContactRepository/Service/Impl, Queue*/Customer* bulk lookups, ActiveContactResponse, application.yml) — 2026-10-31
+
+Zakres: niezacommitowane zmiany na `feature/agent-active-contacts-recovery`. Uruchomione (JDK 21): `AgentSelfControllerTest`, `ContactServiceTest`, `ContactRepositoryActiveContactsIntegrationTest`, `CustomerRepositoryDisplayNamesIntegrationTest`, `QueueRepositoryNamesIntegrationTest`, `ContactReleaseIntegrationTest` — wszystkie zielone (m.in. 9 + 7 + 7 + 2 + 2 + 11 testów). Nie uruchamiałem pełnego `mvn verify`.
+
+### 🐛 Bugs / Critical Issues
+
+- **[ŚREDNI] `ContactRepository.findActiveContactsForAgent` (~l. 2207-2240) — limit 20 ucina od najnowszych, nie „od najstarszych w ACW” jak w specyfikacji.** `ORDER BY assigned_at ASC` + `setMaxResults(20)` odrzuca ogon, czyli najnowsze kontakty. Przy agencie z >20 pozycjami (np. wiele przeterminowanych ACW z 12 h okna) świeżo przydzielony, DZWONIĄCY kontakt (`ASSIGNED`, największe `assigned_at`) wypada z listy, a stare ACW zostają. To najgorszy możliwy kierunek ucięcia: FE nie odtworzy dzwonka. Implementer opisał to w Javadoc i teście `limitCutsFromTail` jako świadome, ale to jest sprzeczne z kryterium. Fix: obciąć deterministycznie wg priorytetu — najpierw ucinać ACW od najstarszego `ended_at`, a otwarte (ASSIGNED/ACTIVE/ON_HOLD) zawsze zachować (np. `ORDER BY` z `CASE WHEN status='COMPLETED' THEN 1 ELSE 0 END` do selekcji limitu, a finalną kolejność ustawić w Javie, albo dwa zapytania: otwarte + ACW `ORDER BY ended_at DESC LIMIT n`). Dodać test: 22 ACW + 1 ASSIGNED → ASSIGNED obecny, odpada najstarsze ACW. Jeśli właściciel akceptuje obecne zachowanie, zaktualizować spec/kryterium — dziś kod i spec się rozchodzą.
+
+### ⚠️ Security Concerns
+
+- **[NISKI] Brak.** Agent z `TenantContext.getUserId()`, brak parametru `agentId` (test dowodzi ignorowania query stringa), `@PreAuthorize('AGENT','SUPERVISOR','ADMIN')`, tenant jawnie w JPQL we wszystkich trzech zapytaniach (kontakty, kolejki, klienci) + `setTenantContextInDb`. Zbiorcze lookupy nazw nie mogą wyciec cross-tenant (`tenantId = :tenantId AND id IN :ids`, test integracyjny). Brak PII w logach (tylko id/liczniki).
+- **[NIT] `CustomerRepository.findDisplayNamesByIds`** zwraca imię i nazwisko dla każdego `customer_id` z kontaktu agenta — spójne z intencją, ale warto pamiętać, że `assigned-contact` też ujawnia teraz PII (to zamierzone w specyfikacji, R4).
+
+### 🏗️ Architecture / Pattern Violations
+
+- **[ŚREDNI] `ContactServiceImpl.lookupQueueNames/lookupCustomerNames` (~l. 1675-1700) — try/catch wokół wywołań `@Transactional` beanów = pułapka rollback-only.** Metoda zewnętrzna jest `@Transactional(readOnly = true)`, a `QueueServiceImpl.findQueueNamesByIds` / `CustomerServiceImpl.findDisplayNamesByIds` też są transakcyjne (propagacja REQUIRED). Wyjątek runtime przechodzący przez proxy wewnętrzny oznacza wspólną transakcję jako rollback-only, więc połknięcie go nie ratuje odpowiedzi: przy commicie poleci `UnexpectedRollbackException` → 500 (a przy błędzie SQL transakcja PG i tak jest przerwana). Wymóg specyfikacji „błąd rozwiązania nazwy → pusty string, nie 500” NIE jest więc spełniony w realnym kontekście; test `lookupFailure_fallsBack` używa mocków i tego nie wykrywa. To znany wzorzec z mojej listy (rollback-only trap). Fix: albo usunąć try/catch (nazwy to proste SELECT-y, awaria = realna awaria), albo wywoływać lookup poza transakcją zewnętrzną / w `REQUIRES_NEW` / `@Transactional(noRollbackFor = …)` dla metod lookup; dodać test integracyjny na prawdziwym proxy.
+- **[NISKI] Kolejność importów w `ContactServiceImpl`** — `com.contactcenter.domain.customer.CustomerService` wstawiony między `jakarta.*` a `lombok.*`, `DurationStyle` przed `Value`; `java.util.HashSet` i `java.util.Collection` pisane w pełnej kwalifikacji (`ContactServiceImpl` ~l. 1636, `CustomerServiceImpl` l. ~517). Porządek importów + brak FQN.
+- Zgodność z regułami CLAUDE.md: repozytoria rozszerzają `TenantAwareRepository`, są to tylko odczyty (brak `assertSameTenant` wymagany), brak zmian w SecurityConfig/TenantFilter (poprawnie), brak migracji (poprawnie), brak przeciążonych kolumn.
+
+### 🔧 Improvements & Suggestions
+
+- **[NISKI] Ciche ucinanie przy limicie** — gdy liczba wyników = limit, brak logu ostrzegawczego. Zalecam `log.warn` (agentId, tenantId) po trafieniu w 20, bo to sygnał patologii (porzucone dyspozycje) i jedyny ślad dla supportu.
+- **[NISKI] `ContactServiceImpl` `@Value` na polu typu `String` z inicjalizatorem `"12h"` + `DurationStyle.detectAndParse` przy KAŻDYM wywołaniu** — parsowanie per request jest tanie, ale błędna wartość konfigu (`AGENT_ACTIVE_CONTACTS_WRAP_UP_WINDOW=abc`) wywali dopiero endpoint (500), nie start aplikacji. Lepiej sparsować raz w `@PostConstruct`/setterze (fail-fast) albo użyć `@ConfigurationProperties` z `Duration`. Odchylenie (3) co do typu String jest akceptowalne z powodu testów bez ConversionService, ale fail-fast warto dodać. Dodatkowo okno 0/ujemne nie jest walidowane.
+- **[NISKI] `AgentSelfController.getActiveContacts`** — `contacts == null ? List.of() : contacts` to martwy kod (serwis nigdy nie zwraca null); usunąć albo zostawić dla zgodności z mockami (wtedy komentarz).
+- **[NISKI] `ActiveContactResponse`** — `phase`/stałe jako `String` zamiast `enum`: OpenAPI nie wyliczy dozwolonych wartości dla FE. Rozważyć `enum ContactPhase` (Jackson serializuje do tej samej postaci).
+- **[NIT] Indeks/EXPLAIN (odchylenie 6)** — brak migracji jest zgodny ze specyfikacją; upewnić się, że DB-088 faktycznie zostanie założony w `TASKS-DATABASE.md` (nie sprawdzałem; to wymóg specyfikacji). Zapytanie jest wywoływane przy każdym przeładowaniu strony agenta, więc skan wszystkich partycji (brak pruningu, bo brak predykatu `created_at`) rośnie z wiekiem danych.
+- **[NIT] Kolejność `ORDER BY` jest obsłużona poprawnie dla `uuid`** (test używa porównania leksykograficznego `toString`, co odpowiada bytewise w PG) — dobre rozpoznanie, drobny komentarz już jest.
+
+### Werdykt dla zadeklarowanych odchyleń
+
+1. **`channel` znormalizowany (`SOCIAL_*` → `SOCIAL`), filtr ACW PHONE na surowej kolumnie — AKCEPTUJĘ.** Spójne z `assigned-contact` i z typami kart w FE; filtr na surowej kolumnie jest poprawny. Konsekwencja: spec (kontrakt: „wartość z bazy bez normalizacji”) trzeba zaktualizować, a FE-136 powinien wiedzieć, że podtyp platformy (FACEBOOK/…) jest tracony. Proszę zapisać to w TASKS-BACKEND.
+2. **CHAT niemożliwy w DB — AKCEPTUJĘ** (zgodne z `ContactChannels`; kontrakt należy uściślić; Javadoc rekordu nadal wymienia CHAT, co jest nieszkodliwe).
+3. **Okno jako String + `DurationStyle` — AKCEPTUJĘ warunkowo** (dodać fail-fast, patrz wyżej).
+4. **`CustomerService` wstrzyknięty do `ContactServiceImpl` — AKCEPTUJĘ.** Brak cyklu (`CustomerServiceImpl` zależy tylko od repo i RabbitTemplate); zmiana konstruktora zaktualizowana w `ContactReleaseIntegrationTest`. Nie weryfikowałem startu pełnego kontekstu Springa (`ContactCenterApplicationIT` wyłącza JPA).
+5. **Zanonimizowani klienci (`is_deleted`) → fallback na identyfikator — AKCEPTUJĘ** (anonimizacja ustawia `is_deleted = TRUE`, więc to wręcz wymagane RODO; test integracyjny pokrywa). Dotyczy też klientów usuniętych miękko — akceptowalne.
+6. **EXPLAIN bez pruningu, brak migracji — AKCEPTUJĘ** zgodnie z zapisem specyfikacji; wymaga założenia DB-088.
+
+### Zgodność z kryteriami akceptacji
+
+| Kryterium | Status |
+|---|---|
+| 200 + tablica, `[]` gdy brak | OK (kontroler + test) |
+| Wszystkie pola kontraktu | OK (z odchyleniem `channel`) |
+| Kolejność z remisem | OK (test z pełnym remisem i NULLS LAST) |
+| Wykluczenia (inny agent/tenant, terminalne, disposition, okno, nie-PHONE) | OK, asercje na pełnym zbiorze ID, pod RLS (rola `NOBYPASSRLS`) |
+| `customerName` prawdziwa nazwa + fallback | OK |
+| `assigned-contact` ta sama poprawka + regresja | OK |
+| Liczba zapytań nie rośnie | OK (po 1 zapytaniu na typ; weryfikowane `times(1)` na mockach — przegląd kodu potwierdza) |
+| Limit 20, okno konfigurowalne | CZĘŚCIOWO — limit jest, ale ucina w złą stronę (punkt 🐛) |
+| 401/403 w OpenAPI i Javadoc (`active-contacts`, `assigned-contact`, `kpi`) | OK; `assigned-contact` oznaczony jako do wycofania w opisie (bez `deprecated = true` — zgodnie ze specyfikacją dopiero po FE-136) |
+| `mvn verify` | NIE uruchamiałem (tylko testy ukierunkowane) |
+
+### ✅ Positive Observations
+
+- Integracyjny test na prawdziwym Postgresie pod rolą bez BYPASSRLS, 2 tenanty × 2 agentów, ten sam `agent_id` odpytany z cudzym tenantem, asercje `containsExactlyInAnyOrder` na pełnych zbiorach — wzorcowa jakość; test granicy okna (dokładnie na `wrapUpSince` vs −1 s) i pełny remis kolejności.
+- Jawny predykat tenanta w każdym zapytaniu (nie tylko RLS), `setTenantContextInDb` w każdej nowej metodzie repozytoriów, zbiorcze lookupy `IN :ids` z pustą-kolekcją short-circuit (brak `IN ()`).
+- Kontroler tylko deleguje; `phase` i `wrapUpStartedAt` zdefiniowane jawnie; `subject` odporne na nie-String; czasy jako `Instant` (Jackson `write-dates-as-timestamps: false` → ISO UTC).
+- Testy kontrolera: 401 (brak/zły token), ignorowanie `agentId` z query, ACTIVE po zmianie sesji (scenariusz z FE-123).
+- Poprawki opisów 401/403 w całym kontrolerze wykonane zgodnie z decyzją z tury 53, bez zmiany runtime.
+
+### Summary
+
+**Ocena: 4/5 ⭐** — solidna, dobrze przetestowana implementacja zgodna z kontraktem i regułami multi-tenancy; do poprawy: kierunek ucinania limitu (może zgubić dzwoniący kontakt, sprzeczne ze specyfikacją) oraz fałszywa gwarancja fallbacku nazw (rollback-only trap).
+
+**Priorytety:** (1) logika limitu — zachować otwarte kontakty, ucinać najstarsze ACW + test; (2) try/catch lookupów vs transakcja zewnętrzna; (3) fail-fast konfiguracji okna; (4) uzupełnić spec o odchylenia 1–2 i założyć DB-088; (5) drobne (importy/FQN, warn przy limicie, enum phase).
+
+### Runda 2 — BE-157 (2026-10-31)
+
+Zweryfikowane: kod + ponowne uruchomienie `ContactServiceTest`, `ContactRepositoryActiveContactsIntegrationTest`, `ContactActiveContactsLookupFallbackIntegrationTest`, `AgentSelfControllerTest` (JDK 21, EXIT 0). Pełnego `mvn verify` (2870 testów wg implementera) nie powtarzałem.
+
+**MEDIUM 1 (limit) — NAPRAWIONE.** `ContactRepository.findActiveContactsForAgent` (~l. 2229-2267): zapytanie 1 = otwarte (`ASSIGNED/ACTIVE/ON_HOLD`, `LIMIT limit`), zapytanie 2 = ACW `ORDER BY ended_at DESC, contact_id ASC` tylko na pozostałą pojemność; scalenie i sortowanie końcowe w Javie. Oba zapytania mają jawny `tenantId`. Test "22 ACW + 1 ASSIGNED" dowodzi zachowania `ASSIGNED`, odcięcia 3 najstarszych ACW (po `ended_at`), rozmiaru 20 i końcowej kolejności. Poprawne.
+- Kolejność `contact_id` przez `toString()`: `UUID.toString()` daje małe litery hex w stałej szerokości, więc porządek leksykograficzny = bytewise porównanie `uuid` w PG (to samo, co `ORDER BY contact_id` w zapytaniu 1). Spójne; test remisu to potwierdza. Sort w Javie ma `nullsLast` dla `assignedAt`/`createdAt`, więc jest zgodny z `NULLS LAST`.
+- Uwaga (NIT): przy >= 20 OTWARTYCH kontaktach nadal ucinane są najnowsze otwarte (po `assigned_at`) — scenariusz nierealny (limity równoległych kontaktów, BE-156), a `log.warn` go sygnalizuje; akceptuję.
+
+**MEDIUM 2 (rollback-only) — NAPRAWIONE, i zdjęcie `@Transactional` jest bezpieczne.**
+- `setTenantContextInDb` woła `set_tenant_context` → `set_config('app.current_tenant_id', …, TRUE)` (V023), czyli GUC jest lokalny dla transakcji. Każda metoda repozytorium (`findActiveContactsForAgent`, `findNamesByIds`, `findDisplayNamesByIds`) ma własne `@Transactional(readOnly = true)` i sama ustawia kontekst na początku swojej transakcji, a oba zapytania kontaktów biegną w jednej transakcji tej metody. RLS działa więc dla każdego osobnego zapytania; nic nie polega na kontekście z poprzedniej transakcji.
+- Lazy loading: `open-in-view: false` (application/dev/prod), więc encje są odłączone po repozytorium, ale mapowanie dotyka tylko pól skalarnych i `channelMetadata` (konwerter JSONB, nie relacja LAZY; w `Contact` brak `FetchType.LAZY`). Brak ryzyka `LazyInitializationException`.
+- Kompromis: brak spójnego snapshotu między zapytaniem o kontakty a lookupami nazw (READ COMMITTED w osobnych transakcjach) — dla nazw wyświetlanych w UI nieistotne.
+- `ContactActiveContactsLookupFallbackIntegrationTest` używa prawdziwego proxy z `TransactionInterceptor`/REQUIRED i rzucającymi serwisami; sprawdza `queueName=""` i `customerName=customerIdentifier` bez wyjątku. Nie odtwarzałem wariantu z przywróconym `@Transactional`, deklaracja implementera o `UnexpectedRollbackException` jest zgodna z moją analizą.
+- `resolveCustomerDisplayName` (bez `@Transactional`) — wpływ na `assigned-contact`: tylko pole `customerName`, wywołanie jest po `findAssignedContactForAgent` w osobnej transakcji, awaria lookupu daje fallback na `remoteAddress` (zachowanie poprzednie). Zero zmiany statusów/204/pozostałych pól; testy regresyjne kontrolera zielone.
+
+**MINOR/NIT — naprawione.** Okno ACW parsowane i walidowane w `@PostConstruct` (`IllegalStateException` dla niepoprawnej i ≤ 0 wartości, fail-fast), `log.warn` przy limicie, martwy null-check usunięty, `phase` jako enum `ContactPhase`, importy uporządkowane (`HashSet` bez FQN).
+
+**Ryzyko kontekstu Springa (`CustomerService` w `ContactServiceImpl`) — niskie.** Graf zależności sprawdzony statycznie: `CustomerServiceImpl` ma tylko `CustomerRepository` i `RabbitTemplate` (brak `ContactService`/`QueueService`), `QueueServiceImpl` zależy od repozytoriów i `TenantResourceLimitService` (bez `ContactService`); `ContactServiceImpl` już wcześniej zależał od `QueueService`. Jedyny `ContactService` konsumowany w pobliżu to `WaitTimeEstimationServiceImpl`, nie leży na ścieżce Customer/Queue. Cyklu nie ma. Nadal nie ma dowodu uruchomieniowego (`ContactCenterApplicationIT` wyłącza JPA); zalecam jednorazowy ręczny start aplikacji (`docker compose` + `spring-boot:run -Dspring-boot.run.profiles=dev`) przed merge, ewentualnie smoke `GET /api/agent/me/active-contacts`.
+
+**Pozostałe uwagi (bez wpływu na ocenę):** wciąż do zrobienia po stronie dokumentacji: zapis odchyleń 1-2 (normalizacja `channel`, brak CHAT) w spec oraz założenie DB-088.
+
+**Ocena po rundzie 2: 4.5/5 ⭐** — oba MEDIUM zamknięte poprawnie i z testami dowodzącymi zachowania; odjęta połowa gwiazdki za brak uruchomieniowego dowodu startu kontekstu i niezamkniętą dokumentację odchyleń/DB-088.

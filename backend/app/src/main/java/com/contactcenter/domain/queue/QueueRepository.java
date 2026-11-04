@@ -10,7 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -150,6 +153,30 @@ class QueueRepository extends TenantAwareRepository {
                 .getResultList();
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
+     * Bulk name lookup (one query): queue names for the given ids within the tenant.
+     * Unknown ids are simply absent from the result.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> findNamesByIds(UUID tenantId, Collection<UUID> queueIds) {
+        Map<UUID, String> names = new HashMap<>();
+        if (queueIds == null || queueIds.isEmpty()) {
+            return names;
+        }
+        setTenantContextInDb(tenantId);
+
+        List<Object[]> rows = em.createQuery(
+                        "SELECT q.queueId, q.name FROM Queue q WHERE q.tenantId = :tenantId AND q.queueId IN :ids",
+                        Object[].class)
+                .setParameter("tenantId", tenantId)
+                .setParameter("ids", queueIds)
+                .getResultList();
+        for (Object[] row : rows) {
+            names.put((UUID) row[0], (String) row[1]);
+        }
+        return names;
     }
 
     /**

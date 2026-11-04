@@ -1,6 +1,8 @@
 package com.contactcenter.domain.contact;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.contact.dto.ActiveContactResponse;
+import com.contactcenter.api.contact.dto.ContactPhase;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
 import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
@@ -20,6 +22,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
@@ -39,10 +42,13 @@ import com.contactcenter.pluginsdk.model.DispositionEvent;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.convert.DurationStyle;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,6 +66,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -94,6 +101,7 @@ class ContactServiceImpl implements ContactService {
     private final RecordingService recordingService;
     private final EmailMessageService emailMessageService;
     private final QueueService queueService;
+    private final CustomerService customerService;
     private final CampaignService campaignService;
     private final CustomDispositionService customDispositionService;
     private final ContactEventService contactEventService;
@@ -1612,6 +1620,150 @@ class ContactServiceImpl implements ContactService {
     @Transactional(readOnly = true)
     public Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId) {
         return contactRepository.findAssignedContactForAgent(agentId, tenantId);
+    }
+
+    /** Hard cap of {@code active-contacts} (safety limit, BE-157). */
+    static final int ACTIVE_CONTACTS_LIMIT = 20;
+
+    // Kept as String and parsed with Boot's DurationStyle (12h, 30m, PT12H) so the bean also works in plain
+    // Spring contexts (integration tests) that have no String -> Duration conversion service.
+    // Parsed and validated once (fail-fast) in init(); the field stays settable for tests via setter.
+    @Value("${agent.active-contacts.wrap-up-window:12h}")
+    private String activeContactsWrapUpWindowSetting = "12h";
+
+    /** How long a COMPLETED PHONE contact without disposition still counts as ACW (BE-157). */
+    private Duration activeContactsWrapUpWindow = Duration.ofHours(12);
+
+    @PostConstruct
+    void initActiveContactsWrapUpWindow() {
+        setActiveContactsWrapUpWindow(activeContactsWrapUpWindowSetting);
+    }
+
+    /** Parses and validates the ACW window; rejects unparsable and non-positive values (fail-fast at startup). */
+    void setActiveContactsWrapUpWindow(String setting) {
+        Duration window;
+        try {
+            window = DurationStyle.detectAndParse(setting);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    "Invalid agent.active-contacts.wrap-up-window: '" + setting + "'", e);
+        }
+        if (window.isZero() || window.isNegative()) {
+            throw new IllegalStateException(
+                    "agent.active-contacts.wrap-up-window must be positive, got '" + setting + "'");
+        }
+        this.activeContactsWrapUpWindow = window;
+    }
+
+    /**
+     * Deliberately NOT {@code @Transactional}: every repository/service call below runs in its own
+     * read-only transaction. A failing name lookup (queue/customer) therefore only rolls back ITS OWN
+     * transaction and cannot poison a shared one (a swallowed exception through a transactional proxy would
+     * mark an outer transaction rollback-only -> {@code UnexpectedRollbackException} -> 500; PostgreSQL also
+     * aborts a transaction after a failed statement). The name fallback in the catch blocks is thus real.
+     */
+    @Override
+    public List<ActiveContactResponse> findActiveContactsForAgent(UUID agentId, UUID tenantId) {
+        Instant wrapUpSince = Instant.now().minus(activeContactsWrapUpWindow);
+        List<Contact> contacts = contactRepository.findActiveContactsForAgent(
+                agentId, tenantId, wrapUpSince, ACTIVE_CONTACTS_LIMIT);
+        if (contacts.isEmpty()) {
+            return List.of();
+        }
+        if (contacts.size() >= ACTIVE_CONTACTS_LIMIT) {
+            log.warn("[Contact] active-contacts limit ({}) reached: agentId={}, tenantId={} - oldest wrap-up "
+                    + "contacts may be omitted (abandoned dispositions?)",
+                    ACTIVE_CONTACTS_LIMIT, agentId, tenantId);
+        }
+
+        Set<UUID> queueIds = new HashSet<>();
+        Set<UUID> customerIds = new HashSet<>();
+        for (Contact c : contacts) {
+            if (c.getQueueId() != null) {
+                queueIds.add(c.getQueueId());
+            }
+            if (c.getCustomerId() != null) {
+                customerIds.add(c.getCustomerId());
+            }
+        }
+        Map<UUID, String> queueNames = lookupQueueNames(tenantId, queueIds);
+        Map<UUID, String> customerNames = lookupCustomerNames(tenantId, customerIds);
+
+        List<ActiveContactResponse> result = contacts.stream()
+                .map(c -> toActiveContactResponse(c, queueNames, customerNames))
+                .toList();
+        log.debug("[Contact] findActiveContactsForAgent: agentId={}, tenantId={}, count={}",
+                agentId, tenantId, result.size());
+        return result;
+    }
+
+    /** Not transactional on purpose - see {@link #findActiveContactsForAgent}. */
+    @Override
+    public String resolveCustomerDisplayName(Contact contact, UUID tenantId) {
+        Map<UUID, String> names = contact.getCustomerId() == null
+                ? Map.of()
+                : lookupCustomerNames(tenantId, Set.of(contact.getCustomerId()));
+        return customerDisplayName(contact, names);
+    }
+
+    private static String customerDisplayName(Contact contact, Map<UUID, String> customerNames) {
+        String name = contact.getCustomerId() == null ? null : customerNames.get(contact.getCustomerId());
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+        return contact.getRemoteAddress();
+    }
+
+    private Map<UUID, String> lookupQueueNames(UUID tenantId, Set<UUID> queueIds) {
+        if (queueIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return queueService.findQueueNamesByIds(tenantId, queueIds);
+        } catch (Exception e) {
+            log.warn("[Contact] Queue name resolution failed (tenantId={}): {}", tenantId, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private Map<UUID, String> lookupCustomerNames(UUID tenantId, Set<UUID> customerIds) {
+        if (customerIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return customerService.findDisplayNamesByIds(tenantId, customerIds);
+        } catch (Exception e) {
+            log.warn("[Contact] Customer name resolution failed (tenantId={}): {}", tenantId, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private static ActiveContactResponse toActiveContactResponse(
+            Contact c, Map<UUID, String> queueNames, Map<UUID, String> customerNames) {
+        ContactPhase phase = switch (c.getStatus() == null ? "" : c.getStatus()) {
+            case "ASSIGNED" -> ContactPhase.RINGING;
+            case "COMPLETED" -> ContactPhase.WRAP_UP;
+            default -> ContactPhase.IN_PROGRESS; // ACTIVE, ON_HOLD
+        };
+        boolean wrapUp = phase == ContactPhase.WRAP_UP;
+        String queueName = c.getQueueId() == null ? "" : queueNames.getOrDefault(c.getQueueId(), "");
+        Object subject = c.getChannelMetadata() == null ? null : c.getChannelMetadata().get("subject");
+        return new ActiveContactResponse(
+                c.getContactId().toString(),
+                ContactChannels.toAgentDesktopType(c.getChannel()),
+                c.getDirection(),
+                c.getStatus(),
+                phase,
+                c.getAssignedAt(),
+                c.getStartedAt(),
+                c.getEndedAt(),
+                wrapUp ? c.getEndedAt() : null,
+                c.getCustomerId() == null ? null : c.getCustomerId().toString(),
+                c.getRemoteAddress(),
+                customerDisplayName(c, customerNames),
+                c.getQueueId() == null ? null : c.getQueueId().toString(),
+                queueName,
+                subject instanceof String s && !s.isBlank() ? s : null);
     }
 
     @Override

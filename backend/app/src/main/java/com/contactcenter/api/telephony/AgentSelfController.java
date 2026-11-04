@@ -1,5 +1,6 @@
 package com.contactcenter.api.telephony;
 
+import com.contactcenter.api.contact.dto.ActiveContactResponse;
 import com.contactcenter.api.contact.dto.AssignedContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.domain.contact.Contact;
@@ -24,12 +25,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Endpointy self-service dla zalogowanego agenta.
  *
- * <p>Wszystkie endpointy wymagają ważnego JWT z rolą AGENT (lub SUPERVISOR/ADMIN).
+ * <p>Wszystkie endpointy wymagają ważnego JWT z rolą AGENT (lub SUPERVISOR/ADMIN):
+ * brak lub nieprawidłowy/wygasły JWT daje 401 (TenantFilter), a niewystarczająca rola 403.
  * Używają TenantContext.getUserId() do identyfikacji agenta, więc nie wymagają
  * parametru agentId w URL – są bezpośrednio self-service.
  */
@@ -55,6 +58,9 @@ public class AgentSelfController {
      * oczekującego kontaktu zaraz po ponownym połączeniu i wyświetlić dzwonek/softphone.
      *
      * <p>Zwraca 204 No Content gdy brak kontaktu ASSIGNED (stan normalny).
+     * Brak/nieprawidłowy JWT: 401; niewystarczająca rola: 403.
+     *
+     * <p>Do wycofania po wdrożeniu FE-136 - następca: {@code GET /api/agent/me/active-contacts}.
      *
      * @return kontakt ASSIGNED lub 204 gdy brak
      */
@@ -71,11 +77,15 @@ public class AgentSelfController {
                     które mogło zostać przydzielone gdy WS był rozłączony.
 
                     Zwraca 204 No Content gdy agent nie ma żadnego oczekującego kontaktu (stan normalny).
+
+                    Endpoint zostanie wycofany po wdrożeniu FE-136; następca: GET /api/agent/me/active-contacts
+                    (wszystkie aktywne kontakty agenta, w tym ACTIVE/ON_HOLD i po rozmowie).
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Kontakt ASSIGNED znaleziony – agent powinien wyświetlić dzwonek"),
                     @ApiResponse(responseCode = "204", description = "Brak oczekującego kontaktu ASSIGNED"),
-                    @ApiResponse(responseCode = "403", description = "JWT brakuje lub niewystarczająca rola")
+                    @ApiResponse(responseCode = "401", description = "Brak, nieprawidłowy lub wygasły JWT"),
+                    @ApiResponse(responseCode = "403", description = "Niewystarczająca rola")
             }
     )
     public ResponseEntity<AssignedContactResponse> getAssignedContact() {
@@ -94,7 +104,7 @@ public class AgentSelfController {
                             contact.getContactId().toString(),
                             ContactChannels.toAgentDesktopType(contact.getChannel()),
                             contact.getRemoteAddress(),
-                            contact.getRemoteAddress(), // customerName – fallback na numer/adres
+                            contactService.resolveCustomerDisplayName(contact, tenantId),
                             queueName,
                             customerId
                     );
@@ -112,6 +122,50 @@ public class AgentSelfController {
     }
 
     /**
+     * Zwraca WSZYSTKIE aktywne kontakty zalogowanego agenta: ASSIGNED (dzwoni), ACTIVE/ON_HOLD (w toku)
+     * oraz kontakty po rozmowie bez dyspozycji (ACW, tylko PHONE, w oknie
+     * {@code agent.active-contacts.wrap-up-window}). Stan ACW jest pochodny (COMPLETED + brak dyspozycji).
+     *
+     * <p>Zawsze 200 z tablicą JSON ({@code []} gdy brak), maks. 20 elementów, stabilna kolejność
+     * {@code assigned_at ASC NULLS LAST, created_at, contact_id}. Agent = {@code TenantContext.getUserId()},
+     * bez parametru agentId. Brak/nieprawidłowy JWT: 401; niewystarczająca rola: 403.
+     *
+     * @return lista aktywnych kontaktów agenta
+     */
+    @GetMapping("/active-contacts")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Pobierz wszystkie aktywne kontakty agenta (odtwarzanie kart i ACW po przeładowaniu)",
+            description = """
+                    Zwraca kontakty zalogowanego agenta w statusach ASSIGNED, ACTIVE, ON_HOLD oraz kontakty
+                    po rozmowie bez dyspozycji (ACW: COMPLETED, kanał PHONE, brak disposition_code, zakończone
+                    w oknie agent.active-contacts.wrap-up-window, domyślnie 12 h).
+
+                    Każdy element ma pole phase: RINGING (ASSIGNED), IN_PROGRESS (ACTIVE, ON_HOLD) lub
+                    WRAP_UP (ACW; wrapUpStartedAt = endedAt). customerName to nazwa klienta (fallback:
+                    customerIdentifier), queueName to nazwa kolejki (pusty string gdy nieznana).
+
+                    Zawsze 200 z tablicą JSON (pusta gdy brak kontaktów), maksymalnie 20 elementów, kolejność:
+                    assigned_at rosnąco (NULL na końcu), created_at, contact_id. Agent jest identyfikowany
+                    z JWT - endpoint nie przyjmuje agentId.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Lista aktywnych kontaktów agenta (może być pusta)"),
+                    @ApiResponse(responseCode = "401", description = "Brak, nieprawidłowy lub wygasły JWT"),
+                    @ApiResponse(responseCode = "403", description = "Niewystarczająca rola")
+            }
+    )
+    public ResponseEntity<List<ActiveContactResponse>> getActiveContacts() {
+        UUID agentId = TenantContext.getUserId();
+        UUID tenantId = TenantContext.getTenantId();
+
+        log.debug("[AgentSelf] getActiveContacts: agentId={}, tenantId={}", agentId, tenantId);
+
+        List<ActiveContactResponse> contacts = contactService.findActiveContactsForAgent(agentId, tenantId);
+        return ResponseEntity.ok(contacts);
+    }
+
+    /**
      * Zwraca statystyki KPI zalogowanego agenta za bieżący dzień (UTC).
      *
      * <p>Oblicza zakres dnia jako {@code [dayStart, dayEnd)} w UTC i wykonuje
@@ -124,6 +178,7 @@ public class AgentSelfController {
      * albo logowanie przed zapisem znacznika). Decyzja właściciela 2026-10-28.
      *
      * <p>Dane używane przez frontend do wyświetlania paska KPI w top-navbar.
+     * Brak/nieprawidłowy JWT: 401; niewystarczająca rola: 403.
      *
      * @return {@link AgentKpiResponse} ze statystykami agenta za dziś
      */
@@ -146,7 +201,8 @@ public class AgentSelfController {
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Statystyki KPI agenta za bieżący dzień"),
-                    @ApiResponse(responseCode = "403", description = "JWT brakuje lub niewystarczająca rola")
+                    @ApiResponse(responseCode = "401", description = "Brak, nieprawidłowy lub wygasły JWT"),
+                    @ApiResponse(responseCode = "403", description = "Niewystarczająca rola")
             }
     )
     public ResponseEntity<AgentKpiResponse> getKpi() {

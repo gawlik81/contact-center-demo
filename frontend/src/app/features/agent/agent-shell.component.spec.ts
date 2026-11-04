@@ -19,6 +19,8 @@ describe('AgentShellComponent logout cleanup', () => {
     initializeTwilioDevice: vi.fn(),
   };
 
+  const recovery = { recoverAfterReconnect: vi.fn(), reset: vi.fn() };
+
   beforeEach(async () => {
     vi.clearAllMocks();
     TestBed.configureTestingModule({
@@ -37,7 +39,7 @@ describe('AgentShellComponent logout cleanup', () => {
           useValue: { currentStatus: signal('OFFLINE'), initStatus: vi.fn(), stopStatus: vi.fn() },
         },
         { provide: SoftphoneService, useValue: softphone },
-        { provide: AgentRecoveryService, useValue: { recoverAfterReconnect: vi.fn() } },
+        { provide: AgentRecoveryService, useValue: recovery },
         { provide: CallLifecycleService, useValue: {} },
       ],
     });
@@ -49,6 +51,22 @@ describe('AgentShellComponent logout cleanup', () => {
       },
     });
     await TestBed.compileComponents();
+  });
+
+  it('runs recovery on every WebSocket connect and resets it when the agent area is destroyed', () => {
+    const ws = TestBed.inject(WebSocketService) as unknown as {
+      onConnect: ReturnType<typeof vi.fn>;
+    };
+    const fixture = TestBed.createComponent(AgentShellComponent);
+    fixture.detectChanges();
+
+    // A new shell (also after logout -> login without a page reload) registers recovery afresh.
+    expect(ws.onConnect).toHaveBeenCalledTimes(1);
+    ws.onConnect.mock.calls[0][0]();
+    expect(recovery.recoverAfterReconnect).toHaveBeenCalledTimes(1);
+
+    fixture.destroy();
+    expect(recovery.reset).toHaveBeenCalled();
   });
 
   it('drops drafts, accepted flags and tabs when the agent area is destroyed', () => {

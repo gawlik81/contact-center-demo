@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -511,6 +512,12 @@ class CustomerServiceImpl implements CustomerService {
     @Override
     public Optional<Customer> findByEmail(String emailAddress, UUID tenantId) {
         return customerRepository.findByEmail(emailAddress, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> findDisplayNamesByIds(UUID tenantId, Collection<UUID> customerIds) {
+        return customerRepository.findDisplayNamesByIds(tenantId, customerIds);
     }
 
     /**

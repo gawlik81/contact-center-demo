@@ -7,6 +7,7 @@ import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import jakarta.persistence.EntityNotFoundException;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,6 +118,16 @@ public interface QueueService {
      * @return Optional z encją kolejki lub empty gdy nie istnieje
      */
     Optional<Queue> findQueueEntity(UUID queueId, UUID tenantId);
+
+    /**
+     * Resolves queue names in bulk (one query) within the tenant.
+     * Ids that do not exist in the tenant are absent from the returned map.
+     *
+     * @param tenantId UUID of the tenant
+     * @param queueIds queue ids to resolve (empty allowed)
+     * @return map queueId to name
+     */
+    Map<UUID, String> findQueueNamesByIds(UUID tenantId, Collection<UUID> queueIds);
 
     /**
      * Zwraca wszystkie kolejki tenanta (aktywne i nieaktywne), posortowane

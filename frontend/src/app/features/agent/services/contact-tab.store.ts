@@ -15,6 +15,20 @@ export const MAX_TOTAL_TABS = 4;
 
 export type TabLimitReason = 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL' | null;
 
+export interface TabCounts {
+  total: number;
+  phone: number;
+  async: number;
+}
+
+/** The one place that knows the card limits; also used to plan recovery without opening tabs. */
+export function tabLimitReason(counts: TabCounts, type: ContactType): TabLimitReason {
+  if (counts.total >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
+  if (type === 'PHONE' && counts.phone >= MAX_PHONE_TABS) return 'MAX_PHONE';
+  if ((type === 'CHAT' || type === 'EMAIL') && counts.async >= MAX_ASYNC_TABS) return 'MAX_ASYNC';
+  return null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ContactTabStore {
   private readonly drafts = inject(ContactDraftStore);
@@ -104,11 +118,40 @@ export class ContactTabStore {
     return null;
   }
 
+  // ── Closed-since log ───────────────────────────────────────────────────────
+  // Recovery asks the backend and applies the answer later; whatever the agent closed meanwhile
+  // (reject, disposition saved, returned to the queue, tab closed) must not be reopened by it.
+
+  private closeSeq = 0;
+  private readonly closedLog = new Map<string, number>();
+
+  /** Position in the close log; pass it to closedSince() after the awaited work. */
+  closeMark(): number {
+    return this.closeSeq;
+  }
+
+  /** contactIds of tabs closed after the mark was taken. */
+  closedSince(mark: number): Set<string> {
+    return new Set([...this.closedLog].filter(([, seq]) => seq > mark).map(([id]) => id));
+  }
+
+  private noteClosed(tab: ContactTab): void {
+    const seq = ++this.closeSeq;
+    for (const id of [tab.contactId, tab.originalContactId]) {
+      if (!id) continue;
+      this.closedLog.delete(id);
+      this.closedLog.set(id, seq);
+    }
+    // Bounded: only runs in flight matter, and a run lasts seconds.
+    while (this.closedLog.size > 100) this.closedLog.delete(this.closedLog.keys().next().value!);
+  }
+
   closeTab(id: string): void {
     // Single exit point for every tab (close button, sent reply, disposition saved, call end,
     // contact vanished): drop its drafts and accepted flag so nothing leaks to a later contact.
     const closing = this.tabs().find((t) => t.id === id);
     if (closing) {
+      this.noteClosed(closing);
       this.drafts.clear(closing.contactId);
       if (closing.originalContactId) this.drafts.clear(closing.originalContactId);
     }
@@ -159,6 +202,9 @@ export class ContactTabStore {
   /** Drops every tab, e.g. when the agent session ends. Drafts are cleared separately. */
   reset(): void {
     this.tabs.set([]);
+    // Nothing of the previous agent may linger in this root singleton.
+    this.closedLog.clear();
+    this.closeSeq = 0;
     this.acwFocusTabId.set(null);
     this.calendarOpen.set(false);
   }
@@ -167,7 +213,8 @@ export class ContactTabStore {
     this.tabs.update((current) => current.map((t) => ({ ...t, isActive: t.id === id })));
   }
 
-  updateTabStatus(id: string, status: ContactTabStatus): void {
+  /** `since` (epoch ms) overrides the ACW start stamp, e.g. with the backend's wrapUpStartedAt. */
+  updateTabStatus(id: string, status: ContactTabStatus, since?: number): void {
     this.tabs.update((current) =>
       current.map((t) => {
         if (t.id !== id) return t;
@@ -176,10 +223,15 @@ export class ContactTabStore {
         const wrappingSince =
           status === 'WRAPPING'
             ? t.status === 'WRAPPING'
-              ? (t.wrappingSince ?? Date.now())
-              : Date.now()
+              ? (t.wrappingSince ?? since ?? Date.now())
+              : (since ?? Date.now())
             : undefined;
-        return { ...t, status, wrappingSince };
+        return {
+          ...t,
+          status,
+          wrappingSince,
+          ...(status === 'WRAPPING' ? { callNotRestored: undefined } : {}),
+        };
       }),
     );
   }
@@ -219,8 +271,8 @@ export class ContactTabStore {
    * Puts the tab into WRAPPING state (After Contact Work).
    * The DispositionPanelComponent will be shown for this tab.
    */
-  markAsWrapping(id: string): void {
-    this.updateTabStatus(id, 'WRAPPING');
+  markAsWrapping(id: string, since?: number): void {
+    this.updateTabStatus(id, 'WRAPPING', since);
   }
 
   updateTabCustomerInfo(
@@ -264,11 +316,22 @@ export class ContactTabStore {
   }
 
   private checkLimits(type: ContactType): TabLimitReason {
-    if (this.totalTabCount() >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
-    if (type === 'PHONE' && this.phoneTabCount() >= MAX_PHONE_TABS) return 'MAX_PHONE';
-    if ((type === 'CHAT' || type === 'EMAIL') && this.asyncTabCount() >= MAX_ASYNC_TABS) {
-      return 'MAX_ASYNC';
-    }
-    return null;
+    return tabLimitReason(
+      {
+        total: this.totalTabCount(),
+        phone: this.phoneTabCount(),
+        async: this.asyncTabCount(),
+      },
+      type,
+    );
+  }
+
+  /** Current card counts, for planners that need to simulate opening several tabs. */
+  tabCounts(): TabCounts {
+    return {
+      total: this.totalTabCount(),
+      phone: this.phoneTabCount(),
+      async: this.asyncTabCount(),
+    };
   }
 }

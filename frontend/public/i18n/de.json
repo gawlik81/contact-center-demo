@@ -314,7 +314,8 @@
         "closeWrapping": "Schließen nicht möglich, Disposition für {{name}} speichern",
         "confirmReject": "Anruf von {{name}} abweisen?",
         "confirmRejectAction": "Abweisen",
-        "notYours": "Kontakt {{name}} ist Ihnen nicht mehr zugewiesen. Der Tab wurde geschlossen."
+        "notYours": "Kontakt {{name}} ist Ihnen nicht mehr zugewiesen. Der Tab wurde geschlossen.",
+        "closeNotRestored": "Gesprächskarte für {{name}} ausblenden. Sie kehrt zurück, sobald eine Disposition fällig ist."
       }
     },
     "softphone": {
@@ -393,6 +394,14 @@
         "retry": "Erneut versuchen",
         "retrying": "Wird wiederholt…",
         "stillUnavailable": "Weiterhin nicht verfügbar"
+      },
+      "callNotRestored": {
+        "title": "Das Gespräch wurde nicht wiederhergestellt",
+        "text": "Die Seite wurde während des Gesprächs neu geladen, daher kehrt die Sprachverbindung nicht zu dieser Karte zurück. Nach dem Gesprächsende wechselt die Karte zur Disposition; das wird alle {{seconds}} s geprüft, Sie können auch sofort prüfen.",
+        "check": "Erneut prüfen",
+        "checking": "Prüfung läuft...",
+        "stillOpen": "Das Gespräch ist weiterhin als laufend markiert.",
+        "checkFailed": "Die Prüfung ist fehlgeschlagen. Versuchen Sie es gleich erneut."
       }
     },
     "disposition": {
@@ -997,6 +1006,40 @@
       "cheatSheet": "Kürzel ein- / ausblenden",
       "tabs": "Zwischen Kontakt-Tabs wechseln",
       "statusMenu": "Im Statusmenü navigieren"
+    },
+    "recoveryOverflow": {
+      "title_one": "{{count}} Kontakt außerhalb des Kartenlimits",
+      "title_few": "{{count}} Kontakte außerhalb des Kartenlimits",
+      "title_many": "{{count}} Kontakte außerhalb des Kartenlimits",
+      "title_other": "{{count}} Kontakte außerhalb des Kartenlimits",
+      "hint": "Diese Kontakte passen nicht auf den Desktop. Schließen Sie eine Karte oder geben Sie sie an die Warteschlange zurück; die Liste aktualisiert sich selbst, mit der Schaltfläche prüfen Sie sofort.",
+      "retry": "Erneut prüfen",
+      "retrying": "Prüfung läuft...",
+      "listLabel": "Kontakte außerhalb des Kartenlimits",
+      "channel": {
+        "PHONE": "Telefon",
+        "EMAIL": "E-Mail",
+        "CHAT": "Chat",
+        "SOCIAL": "Social",
+        "UNKNOWN": "Anderer Kanal"
+      },
+      "phase": {
+        "RINGING": "wartet auf Annahme",
+        "IN_PROGRESS": "in Bearbeitung",
+        "WRAP_UP": "Disposition ausstehend"
+      },
+      "hintRinging": "Ein Kontakt, der auf Annahme wartet, geht zurück in die Warteschlange, wenn er nicht angenommen wird.",
+      "reason": {
+        "OTHER_CALL_ACTIVE": "ein anderes Gespräch läuft",
+        "UNSUPPORTED_CHANNEL": "Kanal nicht unterstützt"
+      },
+      "result": {
+        "failed": "Die Prüfung ist fehlgeschlagen. Versuchen Sie es gleich erneut.",
+        "allOpened": "Alle Kontakte haben jetzt eine Karte.",
+        "someOpened": "Geöffnete Karten: {{opened}}. Weiterhin außerhalb des Limits: {{remaining}}.",
+        "noChange": "Nichts hat sich geändert. Geben Sie einen Kartenplatz frei und prüfen Sie erneut.",
+        "callNotRestored": "Eine Gesprächskarte wurde wiederhergestellt, die nach dem Neuladen der Seite nicht fortgesetzt werden kann. Bitte prüfen."
+      }
     }
   },
   "supervisor": {

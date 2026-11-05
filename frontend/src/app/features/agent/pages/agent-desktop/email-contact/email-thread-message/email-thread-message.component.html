@@ -44,10 +44,10 @@
     <iframe
       #iframe
       class="thread-message__iframe"
-      [srcdoc]="getSrcdoc(message().bodyHtml, message().bodyText)"
+      [srcdoc]="srcdoc()"
       [style.height.px]="iframeHeight()"
       [title]="'agent.emailContact.messageContent' | transloco"
-      sandbox="allow-same-origin"
+      sandbox="allow-same-origin allow-popups"
       (load)="onIframeLoad($event)"
       [attr.aria-label]="'agent.emailContact.messageContent' | transloco"
     ></iframe>

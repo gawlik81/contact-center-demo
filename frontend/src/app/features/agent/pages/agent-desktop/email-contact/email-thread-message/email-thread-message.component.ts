@@ -5,13 +5,15 @@ import {
   DestroyRef,
   ElementRef,
   ViewChild,
+  computed,
   inject,
   input,
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { buildEmailSrcdoc } from '../../../../../../shared/utils/email-srcdoc.util';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { buildSafeEmailSrcdoc } from '../../../../../../shared/utils/email-srcdoc.util';
 import { EmailAttachment, EmailMessage, EmailService } from '../../../../services/email.service';
 
 @Component({
@@ -27,6 +29,7 @@ export class EmailThreadMessageComponent {
   private readonly transloco = inject(TranslocoService);
   private readonly emailService = inject(EmailService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   @ViewChild('iframe') iframeRef?: ElementRef<HTMLIFrameElement>;
 
@@ -45,10 +48,17 @@ export class EmailThreadMessageComponent {
     }
   }
 
-  protected getSrcdoc(html: string | null | undefined, text?: string | null): string {
-    const noContentLabel = this.transloco.translate('agent.emailThread.noContent');
-    return buildEmailSrcdoc(html, text, noContentLabel);
-  }
+  /**
+   * Inbound HTML is untrusted: the body goes through Angular's sanitizer first, the document
+   * carries a CSP that blocks every remote resource (tracking pixels) and the iframe is
+   * sandboxed without allow-scripts. Computed on the message input, so the SafeHtml keeps its
+   * identity (no iframe reload) until the content changes.
+   */
+  protected readonly srcdoc = computed((): SafeHtml => {
+    const m = this.message();
+    const label = this.transloco.translate('agent.emailThread.noContent');
+    return buildSafeEmailSrcdoc(this.sanitizer, m.bodyHtml, m.bodyText, label);
+  });
 
   protected downloadAttachment(attachment: EmailAttachment): void {
     this.emailService

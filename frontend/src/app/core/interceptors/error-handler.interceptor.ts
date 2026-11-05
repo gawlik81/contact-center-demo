@@ -78,14 +78,37 @@ function isApiRequest(url: string | null): boolean {
   return url.includes('/api/');
 }
 
+/** Longer texts are most likely stack traces / technical dumps, not user copy. */
+const MAX_SERVER_MESSAGE_LENGTH = 300;
+
+/**
+ * Only reached for 4xx (5xx, 401, 403, 404 and status 0 return earlier), so `detail` is the
+ * client-error description from the backend ProblemDetail handlers (user-oriented Polish copy).
+ *
+ * Order: message -> detail -> error. `detail` goes before `error` on purpose: in problem+json
+ * bodies `error` can be a machine code (e.g. "RESOURCE_LIMIT_EXCEEDED"), while legacy Spring
+ * bodies ({ error: "Bad Request" }) have no `detail`, so they still fall through to `error`.
+ */
 function extractServerMessage(error: HttpErrorResponse): string | null {
   if (!error.error) return null;
-  if (typeof error.error === 'string') return error.error;
+  if (typeof error.error === 'string') return usableServerText(error.error);
   if (typeof error.error === 'object') {
-    // Spring Boot error body: { message: '...' } or { error: '...' }
     const body = error.error as Record<string, unknown>;
-    if (typeof body['message'] === 'string') return body['message'];
-    if (typeof body['error'] === 'string') return body['error'];
+    for (const key of ['message', 'detail', 'error']) {
+      const text = usableServerText(body[key]);
+      if (text !== null) return text;
+    }
   }
   return null;
+}
+
+/**
+ * Trimmed, short, non-HTML text or null. A plain-string body is typically an error page from a
+ * proxy/WAF (HTML), which must never reach a toast.
+ */
+function usableServerText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  if (!text || text.length > MAX_SERVER_MESSAGE_LENGTH || text.startsWith('<')) return null;
+  return text;
 }

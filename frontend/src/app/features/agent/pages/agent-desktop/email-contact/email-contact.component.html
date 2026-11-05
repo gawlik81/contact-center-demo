@@ -84,7 +84,8 @@
                 type="button"
                 class="email-thread__load-btn"
                 [disabled]="loadingMore()"
-                [attr.aria-label]="'agent.emailContact.loadOlder' | transloco"
+                [attr.aria-label]="'agent.emailContact.loadOlderLabel' | transloco"
+                [attr.aria-busy]="loadingMore()"
                 (click)="loadMoreMessages()"
               >
                 @if (loadingMore()) {
@@ -100,7 +101,7 @@
             </div>
           }
 
-          <div class="email-thread__messages">
+          <div class="email-thread__messages" [attr.aria-busy]="loadingMore()">
             @for (msg of thread(); track trackByMessageId($index, msg)) {
               <cc-email-thread-message [message]="msg" />
             }

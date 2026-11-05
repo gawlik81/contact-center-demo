@@ -1,3 +1,6 @@
+import { SecurityContext } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+
 export interface EmailSrcdocOptions {
   /**
    * Adds a Content-Security-Policy meta that blocks every remote resource (images, fonts,
@@ -54,4 +57,42 @@ export function buildEmailSrcdoc(
   blockquote { border-left: 3px solid #cbd5e1; margin: 0; padding-left: 1em; color: #64748b; }
 </style>
 </head><body>${content}</body></html>`;
+}
+
+/**
+ * Builds the srcdoc for UNTRUSTED inbound e-mail HTML, ready to bind to `[srcdoc]` of an iframe
+ * with `sandbox="allow-same-origin allow-popups"` (no allow-scripts):
+ *  1. the body goes through Angular's HTML sanitizer (scripts, on* handlers, javascript: URLs);
+ *  2. every link is forced to `target="_blank"` with `rel="noopener noreferrer nofollow"` (the
+ *     sanitizer keeps `target`, so `_self` would navigate the frame itself) - done on an inert
+ *     DOMParser document, which neither runs scripts nor loads resources;
+ *  3. the document carries a CSP blocking all remote resources (tracking pixels).
+ * The result is trusted only because of those three layers plus the sandbox.
+ *
+ * Sandbox trade-off (decision for the PO): the iframe uses `allow-popups` WITHOUT
+ * `allow-popups-to-escape-sandbox`, so a page opened from a link inherits the sandbox and runs
+ * without scripts (login pages / SPAs may look broken). Adding the escape flag would give those
+ * pages full capabilities, so it is deliberately not set.
+ */
+export function buildSafeEmailSrcdoc(
+  sanitizer: DomSanitizer,
+  html: string | null | undefined,
+  text: string | null | undefined,
+  noContentLabel: string,
+): SafeHtml {
+  let safeBody: string | null = null;
+  if (html) {
+    const sanitized = sanitizer.sanitize(SecurityContext.HTML, html) ?? '';
+    const body = new DOMParser().parseFromString(sanitized, 'text/html').body;
+    body.querySelectorAll('a, area').forEach((el) => {
+      el.setAttribute('target', '_blank');
+      el.setAttribute('rel', 'noopener noreferrer nofollow');
+    });
+    safeBody = body.innerHTML;
+  }
+  const doc = buildEmailSrcdoc(safeBody, text, noContentLabel, {
+    blockRemoteResources: true,
+    linksInNewTab: true,
+  });
+  return sanitizer.bypassSecurityTrustHtml(doc);
 }

@@ -1,6 +1,8 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
+  Injector,
+  afterNextRender,
   Component,
   DestroyRef,
   ElementRef,
@@ -18,7 +20,18 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
-import { catchError, debounceTime, filter, finalize, of, startWith, switchMap } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  debounceTime,
+  filter,
+  finalize,
+  forkJoin,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
 
 import {
   EmailService,
@@ -27,6 +40,7 @@ import {
   PendingAttachment,
   SendReplyRequest,
 } from '../../../services/email.service';
+import { PagedResponse } from '../../../../../core/models/paged-response.model';
 import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { ContactMessageReceivedPayload, WsEvent } from '../../../models/ws-event.model';
 import { AsyncContactAcceptService } from '../../../services/async-contact-accept.service';
@@ -37,6 +51,17 @@ import { EmailThreadMessageComponent } from './email-thread-message/email-thread
 import { AiSummaryPanelComponent } from '../../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 
 const THREAD_PAGE_SIZE = 20;
+
+/** Contiguous run of thread pages starting at page `from`. */
+interface ThreadTail {
+  from: number;
+  responses: PagedResponse<EmailMessage>[];
+  /** The loaded range cannot be extended contiguously: replace the shown list with this tail. */
+  reset?: boolean;
+}
+
+/** At most this many missing pages are read in a follow-up; a longer gap reloads the tail. */
+const MAX_CATCH_UP_PAGES = 2;
 
 @Component({
   selector: 'cc-email-contact',
@@ -79,6 +104,8 @@ export class EmailContactComponent implements OnInit {
   private readonly drafts = inject(ContactDraftStore);
   private readonly emailReply = inject(EmailReplyService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Set once the reply was sent / returned to queue; stops draft write-back. */
   private draftClosed = false;
@@ -93,8 +120,10 @@ export class EmailContactComponent implements OnInit {
 
   protected readonly rootMessage = signal<EmailMessage | null>(null);
   protected readonly thread = signal<EmailMessage[]>([]);
-  protected readonly hasMore = signal(false);
-  protected readonly currentPage = signal(0);
+  /** Lowest / highest thread page loaded; the loaded range is contiguous and ends at the newest. */
+  private readonly oldestPage = signal(0);
+  private readonly newestPage = signal(0);
+  protected readonly hasMore = computed(() => this.oldestPage() > 0);
 
   protected readonly templates = signal<EmailTemplate[]>([]);
   protected readonly selectedTemplate = signal<EmailTemplate | null>(null);
@@ -169,7 +198,10 @@ export class EmailContactComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.destroyRef.onDestroy(() => (this.destroyed = true));
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.stopPinning();
+    });
     this.restoreDraft();
     this.loadMessage();
     this.loadTemplates();
@@ -206,7 +238,7 @@ export class EmailContactComponent implements OnInit {
               msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`,
             );
           }
-          this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id, 0, true);
+          this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id);
         },
         error: () => {
           this.error.set(this.transloco.translate('agent.emailContact.errorLoad'));
@@ -215,47 +247,184 @@ export class EmailContactComponent implements OnInit {
       });
   }
 
-  private loadThread(threadRootMessageId: string, page: number, initial: boolean): void {
-    if (!initial) {
-      this.loadingMore.set(true);
-    }
-
+  private loadThread(rootId: string): void {
+    // The thread API is chronological (oldest first), so the agent must open on the LAST page.
+    // Page 0 doubles as the probe (a short thread is a single request); a longer one needs the
+    // last page, which is derived from `totalPages` of that answer.
     this.emailService
-      .getThread(threadRootMessageId, page, THREAD_PAGE_SIZE)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .getThread(rootId, 0, THREAD_PAGE_SIZE)
+      .pipe(
+        switchMap((first) =>
+          first.totalPages <= 1
+            ? of<ThreadTail>({ from: 0, responses: [first] })
+            : this.readTail(rootId, first.totalPages - 1).pipe(
+                switchMap((tail) => this.fillToFullPage(rootId, first, tail)),
+              ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (response) => {
-          if (initial) {
-            this.thread.set(
-              response.content.length > 0
-                ? response.content
-                : ([this.rootMessage()].filter(Boolean) as EmailMessage[]),
-            );
-          } else {
-            // Deduplicated: a refresh may have shifted what the page offsets point at.
-            this.thread.update((current) => {
-              const known = new Set(current.map((m) => m.id));
-              return [...response.content.filter((m) => !known.has(m.id)), ...current];
-            });
-          }
-          this.hasMore.set(!response.first);
-          this.currentPage.set(page);
+        next: (tail) => {
+          const root = this.rootMessage();
+          const merged = this.mergeMessages([], tail.responses);
+          this.thread.set(merged.length > 0 ? merged : root ? [root] : []);
+          this.oldestPage.set(tail.from);
+          this.newestPage.set(tail.from + tail.responses.length - 1);
           this.loading.set(false);
-          this.loadingMore.set(false);
-          if (initial && this.refreshPending) this.requestRefresh();
+          this.scrollToNewestMessage();
+          if (this.refreshPending) this.requestRefresh();
         },
         error: () => {
+          // Keep the opened message visible: the agent can still read and answer it.
+          const root = this.rootMessage();
+          this.thread.set(root ? [root] : []);
           this.error.set(this.transloco.translate('agent.emailContact.errorThread'));
           this.loading.set(false);
-          this.loadingMore.set(false);
         },
       });
   }
 
   /**
-   * CONTACT_MESSAGE_RECEIVED carries no content: the thread is re-read and only messages not yet
-   * shown (by `id`) are appended. An event during the initial load or another refresh is not
-   * dropped: it sets `refreshPending` and one refresh runs afterwards.
+   * First load only (never for "older"): pin the top of the newest message to the top of the list
+   * and keep it pinned while heights settle (each iframe grows after its content loads, however
+   * late: a background tab can delay that by many seconds) or the list's surroundings change.
+   * It ends at the first user interaction with the list (wheel/touch/key/mouse), on "older" or on
+   * destroy. While active, messages added by a refresh are followed too. Sets the list's own
+   * scrollTop (instant, no ancestor scrolling, no animation); a list that fits stays as is.
+   */
+  private scrollToNewestMessage(): void {
+    this.stopPinning();
+    afterNextRender(
+      () => {
+        const list = this.host.nativeElement.querySelector<HTMLElement>('.email-thread__messages');
+        if (!list || this.destroyed) return;
+        let active = true;
+        const observer =
+          typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => pin());
+        const pin = (): void => {
+          if (!active) return;
+          const items = list.querySelectorAll<HTMLElement>('cc-email-thread-message');
+          const last = items[items.length - 1];
+          if (!last || list.scrollHeight <= list.clientHeight) return;
+          const top =
+            last.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+          list.scrollTop = top;
+        };
+        /** Observes messages not seen yet (a no-op for known ones), then pins. */
+        const sync = (): void => {
+          list.querySelectorAll('cc-email-thread-message').forEach((el) => observer?.observe(el));
+          pin();
+        };
+        observer?.observe(list); // clientHeight changes caused by the surroundings
+        const userEvents = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+        const stop = (): void => {
+          active = false;
+          observer?.disconnect();
+          userEvents.forEach((e) => list.removeEventListener(e, stop));
+          if (this.stopPin === stop) {
+            this.stopPin = null;
+            this.syncPin = null;
+          }
+        };
+        userEvents.forEach((e) => list.addEventListener(e, stop, { passive: true }));
+        this.stopPin = stop;
+        this.syncPin = sync;
+        sync();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** Ends the pin-to-newest behaviour (user interaction, "older", timeout, destroy). */
+  private stopPinning(): void {
+    this.stopPin?.();
+  }
+
+  /**
+   * A short newest page (e.g. 1 message of 21) is a poor opening view: when an earlier page
+   * exists, it is read too so the agent starts on at least one full page of the newest messages.
+   * Page 0 is already in hand from the first request and is not fetched twice.
+   */
+  private fillToFullPage(
+    rootId: string,
+    pageZero: PagedResponse<EmailMessage>,
+    tail: ThreadTail,
+  ): Observable<ThreadTail> {
+    const newest = tail.responses[tail.responses.length - 1];
+    const prev = tail.from - 1;
+    if (newest.content.length >= THREAD_PAGE_SIZE || prev < 0) return of(tail);
+    const prev$ =
+      prev === 0 ? of(pageZero) : this.emailService.getThread(rootId, prev, THREAD_PAGE_SIZE);
+    return prev$.pipe(
+      map((res): ThreadTail => ({ from: prev, responses: [res, ...tail.responses] })),
+    );
+  }
+
+  /**
+   * Reads `page` and verifies it against the total reported by that same answer:
+   * - the thread shrank below `page` (or is empty, `totalPages` 0): the real last page is read
+   *   and flagged `reset` (shown pages may hold removed messages);
+   * - it grew by up to MAX_CATCH_UP_PAGES pages: the missing pages are read, once, contiguously;
+   * - it grew by more (or the caller has no valid range, e.g. after a failed first load): the
+   *   newest MAX_CATCH_UP_PAGES pages are read and flagged `reset`, so the fan-out stays bounded.
+   * A message arriving at a page boundary is thus picked up by the follow-up read, not lost.
+   */
+  private readTail(rootId: string, page: number): Observable<ThreadTail> {
+    const read = (p: number) => this.emailService.getThread(rootId, p, THREAD_PAGE_SIZE);
+    return read(page).pipe(
+      switchMap((res): Observable<ThreadTail> => {
+        const last = Math.max(0, res.totalPages - 1);
+        if (last === page) return of({ from: page, responses: [res] });
+        if (last < page)
+          return read(last).pipe(map((r) => ({ from: last, responses: [r], reset: true })));
+        if (last - page <= MAX_CATCH_UP_PAGES) {
+          const missing = Array.from({ length: last - page }, (_, i) => read(page + 1 + i));
+          return forkJoin(missing).pipe(map((more) => ({ from: page, responses: [res, ...more] })));
+        }
+        return forkJoin([read(last - 1), read(last)]).pipe(
+          map((tail) => ({ from: last - 1, responses: tail, reset: true })),
+        );
+      }),
+    );
+  }
+
+  /** Applies a refresh result: merge into the shown range, or replace it after a `reset`. */
+  private applyTail(tail: ThreadTail): void {
+    const newest = tail.from + tail.responses.length - 1;
+    if (tail.reset) {
+      this.thread.set(this.mergeMessages([], tail.responses));
+      this.oldestPage.set(tail.from);
+    } else {
+      this.thread.update((current) => this.mergeMessages(current, tail.responses));
+    }
+    this.newestPage.set(newest);
+    // Still pinned (the agent has not scrolled): follow the messages that just arrived.
+    if (this.syncPin) afterNextRender(() => this.syncPin?.(), { injector: this.injector });
+  }
+
+  /** Merges pages into the shown list by `id`: known messages are kept, new ones are appended. */
+  private mergeMessages(
+    current: EmailMessage[],
+    responses: PagedResponse<EmailMessage>[],
+  ): EmailMessage[] {
+    const known = new Set(current.map((m) => m.id));
+    const fresh: EmailMessage[] = [];
+    for (const res of responses) {
+      for (const m of res.content) {
+        if (known.has(m.id)) continue;
+        known.add(m.id);
+        fresh.push(m);
+      }
+    }
+    return fresh.length > 0 ? [...current, ...fresh] : current;
+  }
+
+  /**
+   * CONTACT_MESSAGE_RECEIVED carries no content: the newest loaded page is re-read (one request;
+   * a second only when the thread grew a page meanwhile) and merged by `id`. The loaded range
+   * always ends at the newest page, so no continuity check is needed. An event during the
+   * initial load or another refresh is not dropped: it sets `refreshPending` and one refresh
+   * runs afterwards.
    */
   private subscribeToWsEvents(): void {
     this.ws.events$
@@ -272,6 +441,8 @@ export class EmailContactComponent implements OnInit {
   }
 
   private destroyed = false;
+  private stopPin: (() => void) | null = null;
+  private syncPin: (() => void) | null = null;
   private refreshInFlight = false;
   private refreshPending = false;
 
@@ -285,16 +456,8 @@ export class EmailContactComponent implements OnInit {
     this.refreshPending = false;
     this.refreshInFlight = true;
     const rootId = root.threadRootMessageId ?? root.messageIdHeader ?? root.id;
-    let lastPage = 0;
-    // The thread API is chronological (oldest first), so the newest messages are on the LAST page:
-    // a one-element probe gives the total, then the page that holds the newest ones is read.
-    this.emailService
-      .getThread(rootId, 0, 1)
+    this.readTail(rootId, this.newestPage())
       .pipe(
-        switchMap((probe) => {
-          lastPage = Math.max(0, Math.ceil(probe.totalElements / THREAD_PAGE_SIZE) - 1);
-          return this.emailService.getThread(rootId, lastPage, THREAD_PAGE_SIZE);
-        }),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
           this.refreshInFlight = false;
@@ -302,15 +465,7 @@ export class EmailContactComponent implements OnInit {
         }),
       )
       .subscribe({
-        next: (response) => {
-          // The initial load shows page 0 (oldest first), so appending the last page of a long
-          // thread would hide a gap between them: append only when it is contiguous with what is
-          // shown (a ticket covers loading the last page first). The unread marker is unaffected.
-          if (lastPage * THREAD_PAGE_SIZE > this.thread().length) return;
-          const known = new Set(this.thread().map((m) => m.id));
-          const fresh = response.content.filter((m) => !known.has(m.id));
-          if (fresh.length > 0) this.thread.update((current) => [...current, ...fresh]);
-        },
+        next: (tail) => this.applyTail(tail),
         // Silent: the event is a hint, the agent keeps the thread they already have.
         error: () => undefined,
       });
@@ -331,10 +486,34 @@ export class EmailContactComponent implements OnInit {
       });
   }
 
+  /** Loads the page before the oldest one shown and prepends it (pages are read newest-first). */
   protected loadMoreMessages(): void {
     const root = this.rootMessage();
-    if (!root || this.loadingMore()) return;
-    this.loadThread(root.threadRootMessageId, this.currentPage() + 1, false);
+    const page = this.oldestPage() - 1;
+    if (!root || this.loadingMore() || page < 0) return;
+    this.stopPinning();
+    this.loadingMore.set(true);
+    const rootId = root.threadRootMessageId ?? root.messageIdHeader ?? root.id;
+    this.emailService
+      .getThread(rootId, page, THREAD_PAGE_SIZE)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loadingMore.set(false)),
+      )
+      .subscribe({
+        next: (response) => {
+          // A refresh that reloaded the tail meanwhile moved the range: drop the stale page.
+          if (page !== this.oldestPage() - 1) return;
+          // Older messages never move (the list only grows at the end), but a message sitting on
+          // a page boundary can be answered twice: merge by id.
+          this.thread.update((current) => {
+            const known = new Set(current.map((m) => m.id));
+            return [...response.content.filter((m) => !known.has(m.id)), ...current];
+          });
+          this.oldestPage.set(page);
+        },
+        error: () => this.error.set(this.transloco.translate('agent.emailContact.errorThread')),
+      });
   }
 
   protected onTemplateSelected(template: EmailTemplate): void {

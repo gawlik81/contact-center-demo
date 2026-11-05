@@ -30,3 +30,4 @@
 - [Tura 66: EPIC-32 statusSince/CONTACT_MESSAGE_RECEIVED](project_tura66_epic32.md) — 374/421, FE-150..154, BE-164..170, wolne FE-155/BE-171/DB-090
 - [Tura 67: EPIC-33 skalowanie poziome](project_tura67_epic33.md) — 30 ticketów ⬜, 374/451, brak INF-, wolne DB-094/BE-196/FE-156
 - [Tura 68: watek e-mail EML](project_tura68_email_thread.md) — BE-164/FE-156/DB-094/095 ✅, BE-196..199, FE-157..160, 378/462
+- [Tura 69: EPIC-32 FE-150/153/157/159, BE-163](project_tura69_epic32.md) — 383/78/7 z 468, nowe BE-200..203, FE-161/162

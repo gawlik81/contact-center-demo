@@ -26,12 +26,28 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MissingRequestCookieException;
+import org.springframework.web.bind.MissingPathVariableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
+import org.springframework.context.MessageSourceResolvable;
+import org.springframework.validation.FieldError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -688,6 +704,7 @@ public class GlobalExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URI + "resource-not-found"));
         problem.setTitle("Zasób nie istnieje");
         problem.setDetail("Żądana ścieżka nie istnieje.");
+        problem.setProperty("message", "Żądana ścieżka nie istnieje.");
         problem.setProperty("timestamp", Instant.now());
 
         log.debug("[API] Nieznana ścieżka: {}", ex.getResourcePath());
@@ -708,6 +725,7 @@ public class GlobalExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URI + "method-not-allowed"));
         problem.setTitle("Metoda HTTP nieobsługiwana");
         problem.setDetail("Metoda HTTP nie jest obsługiwana dla tej ścieżki.");
+        problem.setProperty("message", "Metoda HTTP nie jest obsługiwana dla tej ścieżki.");
         problem.setProperty("timestamp", Instant.now());
 
         log.debug("[API] Niewłaściwa metoda HTTP: {}", ex.getMethod());
@@ -744,6 +762,174 @@ public class GlobalExceptionHandler {
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(effective);
         ex.getHeaders().forEach((name, values) -> builder.header(name, values.toArray(String[]::new)));
         return builder.body(problem);
+    }
+
+    /**
+     * Pozostale wyjatki Spring MVC implementujace {@link ErrorResponse} (BE-163) - bez tego handlera
+     * trafialy do catch-all i dawaly falszywe 500.
+     *
+     * <ul>
+     *   <li>415 {@link HttpMediaTypeNotSupportedException}, 406 {@link HttpMediaTypeNotAcceptableException}</li>
+     *   <li>400 {@link MissingServletRequestParameterException}, {@link MissingServletRequestPartException},
+     *       {@link ServletRequestBindingException} (w tym {@link MissingRequestHeaderException}),
+     *       {@link HandlerMethodValidationException}</li>
+     *   <li>503 {@link AsyncRequestTimeoutException}</li>
+     * </ul>
+     *
+     * <p>Status i naglowki (np. {@code Accept} dla 415) pochodza z {@link ErrorResponse}. Tresc jest
+     * generyczna - nie ujawnia nazw klas, stack trace'ow ani komunikatow wyjatkow (poza nazwa brakujacego
+     * parametru/naglowka/czesci, ktora klient sam zna). Content-Type jest ustawiony jawnie na
+     * {@code application/problem+json}, wiec 406 nie konczy sie kolejnym 406/500 gdy klient odrzuca
+     * ten format w {@code Accept}.
+     */
+    @ExceptionHandler({
+            HttpMediaTypeNotSupportedException.class,
+            HttpMediaTypeNotAcceptableException.class,
+            MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class,
+            ServletRequestBindingException.class,
+            HandlerMethodValidationException.class,
+            AsyncRequestTimeoutException.class
+    })
+    public ResponseEntity<ProblemDetail> handleSpringMvcErrorResponse(Exception ex, WebRequest request) {
+        // Every type bound above implements ErrorResponse (Spring 6); fall back to 500 defensively.
+        HttpStatus status = ex instanceof ErrorResponse er ? HttpStatus.resolve(er.getStatusCode().value()) : null;
+        HttpStatus effective = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
+
+        // A 5xx coming from Spring MVC (e.g. MissingPathVariableException = server-side mapping bug) is not
+        // the client's fault: answer with the generic 500 body, like the catch-all. Only the async
+        // timeout keeps its own 503 semantics.
+        boolean genericServerError = effective.is5xxServerError() && !(ex instanceof AsyncRequestTimeoutException);
+        if (genericServerError) {
+            effective = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        String slug;
+        String title;
+        String detail;
+        Map<String, String> errors = null;
+        if (genericServerError) {
+            slug = "internal-error";
+            title = "Wewnętrzny błąd serwera";
+            detail = "Wystąpił nieoczekiwany błąd. Spróbuj ponownie lub skontaktuj się z administratorem.";
+        } else if (ex instanceof HttpMediaTypeNotSupportedException) {
+            slug = "unsupported-media-type";
+            title = "Nieobsługiwany typ treści";
+            detail = "Typ treści żądania nie jest obsługiwany.";
+        } else if (ex instanceof HttpMediaTypeNotAcceptableException) {
+            slug = "not-acceptable";
+            title = "Nieobsługiwany format odpowiedzi";
+            detail = "Żądany format odpowiedzi nie jest obsługiwany.";
+        } else if (ex instanceof MissingServletRequestParameterException e) {
+            slug = "missing-parameter";
+            title = "Brak wymaganego parametru";
+            detail = "Brak wymaganego parametru '" + e.getParameterName() + "'.";
+        } else if (ex instanceof MissingServletRequestPartException e) {
+            slug = "missing-request-part";
+            title = "Brak wymaganej części żądania";
+            detail = "Brak wymaganej części żądania '" + e.getRequestPartName() + "'.";
+        } else if (ex instanceof MissingRequestHeaderException e) {
+            slug = "missing-header";
+            title = "Brak wymaganego nagłówka";
+            detail = "Brak wymaganego nagłówka '" + e.getHeaderName() + "'.";
+        } else if (ex instanceof MissingRequestCookieException e) {
+            slug = "missing-cookie";
+            title = "Brak wymaganego ciasteczka";
+            detail = "Brak wymaganego ciasteczka '" + e.getCookieName() + "'.";
+        } else if (ex instanceof HandlerMethodValidationException e) {
+            slug = "validation-error";
+            title = "Nieprawidłowe dane wejściowe";
+            detail = "Parametry żądania nie przeszły walidacji.";
+            errors = extractValidationErrors(e);
+        } else if (ex instanceof AsyncRequestTimeoutException) {
+            slug = "request-timeout";
+            title = "Przekroczono czas przetwarzania";
+            detail = "Przetwarzanie żądania przekroczyło limit czasu. Spróbuj ponownie.";
+        } else {
+            slug = "invalid-request";
+            title = "Nieprawidłowe żądanie";
+            detail = "Żądanie jest nieprawidłowe.";
+        }
+
+        if (effective.is5xxServerError()) {
+            log.error("[API] {} -> {} ({}): {}", ex.getClass().getSimpleName(), effective.value(),
+                    request.getDescription(false), ex.getMessage());
+        } else {
+            log.debug("[API] {} -> {} ({}): {}", ex.getClass().getSimpleName(), effective.value(),
+                    request.getDescription(false), ex.getMessage());
+        }
+
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(effective);
+        if (!genericServerError && ex instanceof ErrorResponse er) {
+            // e.g. Accept for 415, Retry-After if provided
+            builder.headers(er.getHeaders());
+        }
+        ProblemDetail body = problem(effective, slug, title, detail);
+        if (errors != null && !errors.isEmpty()) {
+            body.setProperty("errors", errors);
+        }
+        return builder.contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
+    }
+
+    /**
+     * Safe "parameter -> constraint message" map from a method-validation failure. Contains only the
+     * parameter (or field) name and the developer-authored constraint message - never the rejected value.
+     */
+    private static Map<String, String> extractValidationErrors(HandlerMethodValidationException ex) {
+        Map<String, String> errors = new java.util.LinkedHashMap<>();
+        ex.getAllValidationResults().forEach(result -> {
+            String param = result.getMethodParameter().getParameterName();
+            String paramName = param != null ? param : "parameter" + result.getMethodParameter().getParameterIndex();
+            for (MessageSourceResolvable error : result.getResolvableErrors()) {
+                String key = error instanceof FieldError fe ? fe.getField() : paramName;
+                String message = error.getDefaultMessage() != null ? error.getDefaultMessage() : "invalid";
+                errors.merge(key, message, (existing, newVal) -> existing + "; " + newVal);
+            }
+        });
+        return errors;
+    }
+
+    /**
+     * Nieczytelne cialo zadania (zly JSON, zly typ pola, brak body) - HTTP 400 (BE-163).
+     *
+     * <p>Nie ujawnia komunikatu Jacksona (nazwy klas, sciezki pol, fragmenty payloadu). Lokalny handler w
+     * {@code CampaignArchiveSettingController} (HTTP 422) ma pierwszenstwo i pozostaje bez zmian.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, WebRequest request) {
+
+        log.debug("[API] Nieczytelne ciało żądania: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem(HttpStatus.BAD_REQUEST, "malformed-request-body", "Nieprawidłowa treść żądania",
+                        "Treść żądania jest nieprawidłowa lub nie można jej odczytać."));
+    }
+
+    /**
+     * Przekroczony limit rozmiaru uploadu (multipart) - HTTP 413 (BE-163). Nie podaje limitu ani
+     * konfiguracji serwera.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex, WebRequest request) {
+
+        log.info("[API] Przekroczony maksymalny rozmiar uploadu ({})", request.getDescription(false));
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem(HttpStatus.PAYLOAD_TOO_LARGE, "payload-too-large", "Zbyt duży plik",
+                        "Przesłany plik lub żądanie przekracza dopuszczalny rozmiar."));
+    }
+
+    /** Builds a project-format problem body; "message" mirrors "detail" for the frontend interceptor. */
+    private static ProblemDetail problem(HttpStatus status, String slug, String title, String detail) {
+        ProblemDetail problem = ProblemDetail.forStatus(status);
+        problem.setType(URI.create(ERROR_BASE_URI + slug));
+        problem.setTitle(title);
+        problem.setDetail(detail);
+        problem.setProperty("message", detail);
+        problem.setProperty("timestamp", Instant.now());
+        return problem;
     }
 
     /**

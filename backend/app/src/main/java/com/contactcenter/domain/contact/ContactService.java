@@ -177,7 +177,7 @@ public interface ContactService {
      * Przełącza kontakt ze statusu ASSIGNED na ACTIVE.
      *
      * <p>Wywoływany przez agenta bezpośrednio po otwarciu zakładki z kontaktem
-     * asynchronicznym (EMAIL, CHAT). Informuje {@link ContactAssignmentMonitor},
+     * asynchronicznym (EMAIL, SOCIAL). Informuje {@link ContactAssignmentMonitor},
      * że kontakt został odebrany i nie wymaga ponownego wysyłania CONTACT_ASSIGNED.
      *
      * <p>Operacja jest idempotentna – jeśli kontakt jest już ACTIVE, zwraca go bez
@@ -194,7 +194,7 @@ public interface ContactService {
     ContactResponse acceptContact(UUID contactId, UUID tenantId, UUID agentId);
 
     /**
-     * Porzuca kontakt EMAIL/CHAT przez agenta (bez wysyłania odpowiedzi).
+     * Porzuca kontakt asynchroniczny (EMAIL/SOCIAL) przez agenta (bez wysyłania odpowiedzi).
      *
      * <p>Wywoływany gdy agent klika "Anuluj" w zakładce emaila. Ustawia status
      * kontaktu na ABANDONED i zamyka zakładkę po stronie frontendu.
@@ -212,7 +212,7 @@ public interface ContactService {
     ContactResponse abandonContact(UUID contactId, UUID tenantId, UUID agentId);
 
     /**
-     * Returns an async contact (EMAIL / CHAT / SOCIAL_*) held by the agent back to the queue (BE-160).
+     * Returns an async contact (EMAIL / SOCIAL_*) held by the agent back to the queue (BE-160).
      *
      * <p>Unlike {@link #abandonContact} this is NOT terminal: the contact goes back to {@code QUEUED}
      * with {@code agent_id} cleared, the AGENT stage is closed, a new QUEUE stage is opened and

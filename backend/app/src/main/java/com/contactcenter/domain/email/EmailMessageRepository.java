@@ -1182,7 +1182,7 @@ class EmailMessageRepository extends TenantAwareRepository {
                         "SELECT m FROM EmailMessage m " +
                         "WHERE m.tenantId = :tenantId " +
                         "AND (m.messageIdHeader = :rootId OR m.inReplyTo = :rootId) " +
-                        "ORDER BY m.createdAt ASC",
+                        "ORDER BY m.createdAt ASC, m.id ASC",
                         EmailMessage.class)
                 .setParameter("tenantId", tenantId)
                 .setParameter("rootId", originalMessageIdHeader)

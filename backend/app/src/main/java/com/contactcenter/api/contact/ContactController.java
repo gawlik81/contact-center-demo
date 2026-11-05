@@ -805,7 +805,7 @@ public class ContactController {
     }
 
     // =========================================================================
-    // Przyjęcie kontaktu przez agenta (EMAIL/CHAT – ASSIGNED → ACTIVE)
+    // Przyjęcie kontaktu przez agenta (kanały asynchroniczne – ASSIGNED → ACTIVE)
     // =========================================================================
 
     @PostMapping("/{id}/accept")
@@ -814,7 +814,7 @@ public class ContactController {
         summary = "Potwierdź odebranie kontaktu (ASSIGNED → ACTIVE)",
         description = """
                 Przełącza kontakt ze statusu ASSIGNED na ACTIVE. Wywoływany przez agenta
-                zaraz po otwarciu zakładki z kontaktem EMAIL lub CHAT, aby zatrzymać
+                zaraz po otwarciu zakładki z kontaktem asynchronicznym (EMAIL, SOCIAL), aby zatrzymać
                 ContactAssignmentMonitor przed re-kolejkowaniem kontaktu.
                 Operacja jest idempotentna – wielokrotne wywołanie nie powoduje błędu.
                 """,
@@ -839,13 +839,13 @@ public class ContactController {
     }
 
     // =========================================================================
-    // Porzucenie kontaktu przez agenta (EMAIL/CHAT – anulowanie bez odpowiedzi)
+    // Porzucenie kontaktu przez agenta (kanały asynchroniczne – anulowanie bez odpowiedzi)
     // =========================================================================
 
     @PostMapping("/{id}/abandon")
     @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
     @Operation(
-        summary = "Porzuć kontakt EMAIL/CHAT bez odpowiedzi (→ ABANDONED)",
+        summary = "Porzuć kontakt asynchroniczny bez odpowiedzi (→ ABANDONED)",
         description = """
                 Ustawia status kontaktu na ABANDONED. Wywoływany gdy agent klika "Anuluj"
                 w zakładce emaila – kontakt nie zostanie ponownie zroutowany.
@@ -880,7 +880,7 @@ public class ContactController {
     @Operation(
         summary = "Zwróć kontakt asynchroniczny do kolejki (→ QUEUED)",
         description = """
-                Zwraca kontakt EMAIL/CHAT/SOCIAL przypisany do agenta (ASSIGNED lub ACTIVE) do kolejki:
+                Zwraca kontakt EMAIL/SOCIAL przypisany do agenta (ASSIGNED lub ACTIVE) do kolejki:
                 status QUEUED, agent_id wyczyszczony, a routing może przydzielić go innemu agentowi.
                 W odróżnieniu od /abandon nie jest to stan końcowy. Kanał PHONE oraz stany końcowe
                 są odrzucane (409). Operacja jest idempotentna – kontakt już w kolejce (QUEUED, bez agenta)

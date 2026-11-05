@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  SecurityContext,
   computed,
   inject,
   input,
@@ -12,7 +11,7 @@ import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { EmailPreviewMessage } from '../../../core/models/contact.model';
-import { buildEmailSrcdoc } from '../../utils/email-srcdoc.util';
+import { buildSafeEmailSrcdoc } from '../../utils/email-srcdoc.util';
 
 export type EmlDownloadState = 'idle' | 'loading' | 'error';
 
@@ -81,16 +80,7 @@ export class EmailThreadComponent {
 
   private buildSrcdoc(m: EmailPreviewMessage): SafeHtml {
     const label = this.transloco.translate('contactDetailModal.emailNoContent');
-    let safeBody = m.bodyHtml ? this.sanitizer.sanitize(SecurityContext.HTML, m.bodyHtml) : null;
-    // Links open in a new, sandboxed window (base target) without referrer or opener.
-    safeBody = safeBody?.replace(/<a\s/gi, '<a rel="noopener noreferrer nofollow" ') ?? null;
-    const doc = buildEmailSrcdoc(safeBody, m.bodyText, label, {
-      blockRemoteResources: true,
-      linksInNewTab: true,
-    });
-    // The whole document is trusted only because the body inside was sanitized above, the
-    // iframe is sandboxed without allow-scripts and the CSP meta blocks remote resources.
-    return this.sanitizer.bypassSecurityTrustHtml(doc);
+    return buildSafeEmailSrcdoc(this.sanitizer, m.bodyHtml, m.bodyText, label);
   }
 
   protected isExpanded(message: EmailPreviewMessage): boolean {

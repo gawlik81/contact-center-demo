@@ -56,7 +56,7 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 10 | 0 | 16 | 0 | 26 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 13 | 0 | 16 | 0 | 29 | 🔧 W toku |
 | EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 25 | 0 | 25 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
@@ -107,10 +107,10 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-162 | Oznaczenie `GET /api/agent/me/assigned-contact` jako `deprecated` w OpenAPI z następcą `active-contacts` (wynik BE-157/FE-136; tura 64) | ✅ Ukończone (2026-11-04, tura 65) |
 | BE-163 | Wspólna obsługa pozostałych wyjątków Spring MVC w `GlobalExceptionHandler` (415/406/400/413/503 zamiast 500; wynik CR BE-161; tura 65) | ✅ Ukończone (2026-11-05, tura 69) |
 | BE-164 | EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner` — zakres rozszerzony: podgląd całego wątku i osobny EML dla każdej wiadomości (wynik BE-154; tura 66) | ✅ Ukończone (2026-11-04, tura 68; po DB-094 ✅/V145 i z DB-095 ✅/V146; CR 4/5, poprawki naniesione) — odblokował FE-156 (✅) |
-| BE-165 | Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS — FE nie zna nowego statusu/`statusSince` do `GET /users/me` (wynik BE-153; tura 66) | ⬜ Do zrobienia |
-| BE-166 | Wyciszenie `agent.status.changed` przy zapisie tego samego statusu (wynik BE-153; tura 66) | ⬜ Do zrobienia |
+| BE-165 | Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS — FE nie zna nowego statusu/`statusSince` do `GET /users/me` (wynik BE-153; tura 66) | ✅ Ukończone (2026-11-06, tura 70; CR 4/5, poprawki naniesione) — luki: BE-204, BE-206 |
+| BE-166 | Wyciszenie `agent.status.changed` przy zapisie tego samego statusu (wynik BE-153; tura 66) | ✅ Ukończone (2026-11-06, tura 70; CR 4/5, poprawki naniesione) — luka: BE-205 |
 | BE-167 | Join follow-upu e-mail: `In-Reply-To` z wieloma ID i nagłówek `References` (wynik BE-154; tura 66) | ⬜ Do zrobienia |
-| BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ⬜ Do zrobienia |
+| BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ✅ Ukończone (2026-11-06, tura 70; CR 4/5, poprawki naniesione) |
 | BE-169 | Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses` (tura 66) | ⬜ Do zrobienia |
 | BE-170 | [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail (ryzyko zaakceptowane przez właściciela; wynik BE-154; tura 66) | ⬜ Do zrobienia — opcjonalny |
 | BE-196 | `RecordingRetentionJob` wybiera kontakty po `recording_url IS NOT NULL` — EML odpowiedzi z wątku nie są sprzątane, gdy EML pierwszej wiadomości nie powstał (wynik BE-164; tura 68) | ⬜ Do zrobienia |
@@ -121,6 +121,9 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-201 | Kanał `CHAT` nie istnieje w `contact.channel` (`chk_contact_channel`), a `@Pattern` w `ContactController` i `ReportsController`/`AgentReportParams` nadal go akceptują (wynik BE-163; tura 69) | ⬜ Do zrobienia |
 | BE-202 | Niespójne limity uploadu: nginx `client_max_body_size 50m` vs Spring `max-request-size 55MB` — dla 50–55 MB nginx zwraca 413 HTML zamiast `problem+json` (wynik BE-163; tura 69) | ⬜ Do zrobienia |
 | BE-203 | Test kolejności wątku e-mail przy równych `createdAt` na prawdziwej bazie (Testcontainers) zamiast asercji na tekst JPQL (wynik CR BE-163/FE-150; tura 69) | ⬜ Do zrobienia |
+| BE-204 | Dialer `AFTER_CONTACT` nie odświeża klucza Redis `session:agent:{id}` — Redis (AVAILABLE/BUSY) rozjeżdża się z bazą i zdarzeniem (`AFTER_CONTACT`); czytane przez `AdminMetricsService` (wynik CR BE-165; tura 70) | ⬜ Do zrobienia |
+| BE-205 | [OPCJONALNE] Refaktor `UserService.publishStatusChangedAfterCommit` na `@TransactionalEventListener(AFTER_COMMIT)` zamiast ręcznej synchronizacji transakcji (wynik CR BE-165/BE-166; tura 70) | ⬜ Do zrobienia — Could Have |
+| BE-206 | Test end-to-end dialer → RabbitMQ → `RabbitToWebSocketRelay` → WS dla `AFTER_CONTACT` (dziś zdarzenie pokryte testem kształtu + `RabbitToWebSocketRelayStatusSinceTest`; wynik CR BE-165; tura 70) | ⬜ Do zrobienia |
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -8464,9 +8467,9 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 10/26** · ✅ 10 · 🔧 0 · ⬜ 16 · 🚫 0
+**Ukończone 13/29** · ✅ 13 · 🔧 0 · ⬜ 16 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Następne wolne numery: BE-204, FE-163, DB-096 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Następne wolne numery: BE-207, FE-163, DB-096 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8533,7 +8536,7 @@ backend/app/src/test/java/com/contactcenter/
 - **ZAKRES ROZSZERZONY (zatwierdzone przez właściciela produktu):** e-mail nie miał ścieżki follow-upu — odpowiedź klienta tworzyła NOWY kontakt. Dodano `EmailFollowUpJoiner`: dołączenie przez `In-Reply-To` do aktywnego kontaktu przy warunkach: jeden nadawca; nadawca jest stroną kontaktu (`remoteAddress`/`fromAddress`/e-mail klienta/adresy strony klienta w wątku); nie jest to własna skrzynka; atomowy warunkowy UPDATE z `FOR SHARE`, ustawiający `agent_id` i `started_at`; w przeciwnym razie zwykły routing.
 - **Ryzyko świadomie zaakceptowane przez właściciela:** brak SPF/DKIM — podszycie się pod `From` znanego klienta + znany `Message-ID` pozwala dopisać treść do kontaktu (odpowiedź agenta nadal trafia na prawdziwy adres klienta) → opcjonalny **BE-170**.
 - **Nowe tickety (backlog):** BE-164 (EML/archiwum dla dołączonych follow-upów), BE-167 (`In-Reply-To` z wieloma ID, `References`), BE-168 (social: warunkowy zapis), BE-169 (dług testowy: realne `FOR SHARE`, wątek > 200), BE-170 (SPF/DKIM/DMARC, opcjonalny).
-**Zależności (zaktualizowane w turze 66):** `Zależy od` brak twardych (kontekst BE-155 ✅); `Blokuje` FE-135 (✅ ukończony w tej samej turze); następniki (backlog): BE-164, BE-167, BE-168, BE-169, BE-170; powiązany FE-151 (UNREAD poza `/agent/desktop`), FE-152 (resync po reconnect WS).
+**Zależności (zaktualizowane w turze 66):** `Zależy od` brak twardych (kontekst BE-155 ✅); `Blokuje` FE-135 (✅ ukończony w tej samej turze); następniki: BE-164 ✅, BE-168 ✅ (tura 70), BE-167, BE-169, BE-170 (backlog); powiązany FE-151 (UNREAD poza `/agent/desktop`), FE-152 (resync po reconnect WS).
 
 ### BE-155 – [BUG] Kontakt social prawdopodobnie nigdy nie trafia do agenta: kolejka `null` → `ERROR`, kanał `SOCIAL_*` vs `'SOCIAL'` we froncie, `isReadOnly` porównuje z nieistniejącym `COMPLETED`
 
@@ -8959,7 +8962,7 @@ backend/app/src/test/java/com/contactcenter/
 - Weryfikacja lokalna: kontakt `7bbb58d5` pokazuje 3 wiadomości chronologicznie; endpoint EML: 200 dla pierwszej (fallback legacy), 404 dla wiadomości sprzed poprawki.
 - **Uwaga (bez backfillu, świadomie):** Odpowiedzi dołączone przez `In-Reply-To` PRZED poprawką (do 2026-11-04) nie mają własnego EML (`eml_s3_key = NULL`). Backfillu nie będzie — decyzja świadoma; endpoint EML zwraca dla nich 404, a podgląd wątku `emlAvailable = false`. Wyjątek: najstarsza wiadomość kontaktu korzysta z fallbacku do `contact.recording_url`.
 - **Nowe tickety (backlog):** BE-196 (retencja nagrań a EML odpowiedzi), BE-197 (wydajność i limity podglądu wątku), BE-198 (spójny klucz S3), BE-199 (`@Audited` pobrania EML — decyzja); FE-157…FE-160 w `TASKS-FRONTEND.md`.
-**Zależności (zaktualizowane w turze 68):** `Zależy od` BE-154 ✅, DB-094 ✅; `Blokuje` FE-156 ✅, DB-095 ✅, BE-196…BE-199; powiązane: BE-167, BE-169 (ta sama ścieżka join), BE-163 (pozostałe wyjątki Spring MVC w `GlobalExceptionHandler`).
+**Zależności (zaktualizowane w turze 68):** `Zależy od` BE-154 ✅, DB-094 ✅; `Blokuje` FE-156 ✅, DB-095 ✅, BE-196…BE-199; powiązane: BE-167, BE-168 ✅ (analogiczne zabezpieczenie dla social), BE-169 (ta sama ścieżka join), BE-163 (pozostałe wyjątki Spring MVC w `GlobalExceptionHandler`).
 
 ### BE-165 – Dialer `AFTER_CONTACT` (natywny UPDATE) nie publikuje `agent.status.changed` ani zdarzenia WS
 
@@ -8967,7 +8970,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S
 **Zależy od:** BE-153 ✅ (kolumna `status_changed_at` ustawiana już w natywnym UPDATE dialera)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-06, tura 70)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-153)
 **Wykonawca:** `backend-dev-expert`
@@ -8977,13 +8980,14 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** po UPDATE (afterCommit) opublikować to samo zdarzenie, co zmiana statusu przez serwis (z `statusSince`); rozważyć przeniesienie do wspólnej metody serwisu, bez zmiany semantyki UPDATE (warunki, `status_changed_at`).
 
 **Kryteria akceptacji:**
-- [ ] Przejście agenta w `AFTER_CONTACT` przez dialer publikuje `agent.status.changed` z poprawnym `statusSince` i dociera do WS agenta (test integracyjny)
-- [ ] Brak publikacji, gdy UPDATE nie zmienił wiersza (status już `AFTER_CONTACT`) — spójne z BE-166
-- [ ] `DialerAfterContactStatusSinceIntegrationTest` i istniejące testy dialera zielone; `mvn verify -pl app` zielone
+- [x] Przejście agenta w `AFTER_CONTACT` przez dialer publikuje `agent.status.changed` z poprawnym `statusSince` i dociera do WS agenta (test integracyjny)
+- [x] Brak publikacji, gdy UPDATE nie zmienił wiersza (status już `AFTER_CONTACT`) — spójne z BE-166
+- [x] `DialerAfterContactStatusSinceIntegrationTest` i istniejące testy dialera zielone; `mvn verify -pl app` zielone
 
 **Ryzyka:** (R1) podwójna publikacja, jeśli ścieżka jest też obsługiwana gdzie indziej; (R2) wątki/tenant context w callbacku dialera (`TenantContext.snapshot()/restore()`).
 **Nie wchodzi w zakres:** zmiany FE, historia statusów.
-**Zależności:** `Zależy od` BE-153 ✅; `Blokuje` brak; zalecana kolejność: wraz z lub po BE-166 (wspólna ścieżka publikacji); powiązane: FE-130 ✅.
+**Zależności (zaktualizowane w turze 70):** `Zależy od` BE-153 ✅, BE-166 ✅ (wspólna ścieżka publikacji; zrealizowane razem); `Blokuje` brak; następniki (backlog): BE-204 (Redis `session:agent:*` po dialerze), BE-205 (refaktor na `@TransactionalEventListener`), BE-206 (test e2e dialer → Rabbit → WS); powiązane: FE-130 ✅.
+**Realizacja (2026-11-06, tura 70; `backend-dev-expert`, CR `senior-code-reviewer` 4/5, 7 uwag naniesionych — `CR-BACKEND.md`, sekcja „Review: BE-165 + BE-166 + BE-168 — 2026-11-06”):** `DialerCallbackHandlerImpl.cleanupRedisKeys` — natywny UPDATE zastąpiony CTE `WITH prev … FOR UPDATE` + `UPDATE … RETURNING old_status, tenant_id, status_changed_at` (te same warunki AVAILABLE/BUSY, `status_changed_at = NOW()`); dla każdego zwróconego wiersza wywołanie nowej `UserService.publishStatusChangedAfterCommit` (afterCommit, gdy aktywna synchronizacja transakcji; inaczej od razu; rollback → brak publikacji; wyjątek Rabbita połknięty). 0 wierszy → brak zdarzenia; podwójne wywołanie cleanup w `finally` → jedno zdarzenie. Tenant z wiersza, nie z `TenantContext`. Testy: `DialerAfterContactStatusSinceIntegrationTest`, `DialerCallbackHandlerTest`, `UserStatusSinceIntegrationTest` (w tym prawdziwy rollback). **Znana luka (poza zakresem):** dialer nie aktualizuje Redis `session:agent:*` → BE-204; kryterium „dociera do WS” pokryte testem kształtu zdarzenia + `RabbitToWebSocketRelayStatusSinceTest`, pełny e2e → BE-206; ewentualny refaktor na `@TransactionalEventListener` → BE-205. `mvn verify -pl app`: 3007 testów, 0 F, 0 E, 1 pominięty.
 
 ### BE-166 – Wyciszenie `agent.status.changed` przy zapisie tego samego statusu
 
@@ -8991,7 +8995,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Could Have
 **Złożoność:** S
 **Zależy od:** BE-153 ✅ (`AppUser.changeStatus`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-06, tura 70)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-153)
 **Wykonawca:** `backend-dev-expert`
@@ -9001,13 +9005,14 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** w serwisie i w `AppUser.changeStatus` rozstrzygnąć „bez zmiany” (return bez publikacji i bez ruszania `status_changed_at`); ustalić zachowanie dla odświeżenia TTL statusu w Redis (TTL nadal odświeżany).
 
 **Kryteria akceptacji:**
-- [ ] Zapis tego samego statusu nie publikuje zdarzenia i nie zmienia `statusSince` (testy jednostkowe + integracyjny)
-- [ ] Zmiana statusu publikuje zdarzenie jak dotąd; TTL w Redis odświeżany także bez zmiany
-- [ ] `mvn verify -pl app` zielone
+- [x] Zapis tego samego statusu nie publikuje zdarzenia i nie zmienia `statusSince` (testy jednostkowe + integracyjny)
+- [x] Zmiana statusu publikuje zdarzenie jak dotąd; TTL w Redis odświeżany także bez zmiany
+- [x] `mvn verify -pl app` zielone
 
 **Ryzyka:** (R1) konsumenci polegający na zdarzeniu jako „heartbeat” statusu — sprawdzić odbiorców `agent.status.changed`.
 **Nie wchodzi w zakres:** zmiany FE, historia statusów.
-**Zależności:** `Zależy od` BE-153 ✅; `Blokuje` brak; powiązane: BE-165 (wspólna ścieżka publikacji).
+**Zależności (zaktualizowane w turze 70):** `Zależy od` BE-153 ✅; `Blokuje` brak; powiązane: BE-165 ✅ (wspólna ścieżka publikacji), następnik: BE-205 (refaktor publikacji); wewnętrzne zdarzenie `AgentAvailabilityRefreshedEvent` jest konsumowane przez `RoutingServiceImpl` (kontekst BE-156/BE-159 — te same ścieżki routingu).
+**Realizacja (2026-11-06, tura 70; `backend-dev-expert`, CR 4/5):** `AppUser.changeStatus` zwraca `boolean`; `UserServiceImpl.updateStatus` i `setAgentAvailableAfterConsultCancelled` przy braku zmiany pomijają `save`, `agent.status.changed` i zmianę `status_changed_at`; TTL statusu w Redis nadal odświeżany. **R1 (konsumenci przeanalizowani):** `RoutingServiceImpl` i `ProgressiveDialerServiceImpl` reagują tylko na AVAILABLE, `RabbitToWebSocketRelay` przekazuje do WS, brak konsumentów-heartbeatu. **Po CR:** niezmienione AVAILABLE publikuje wewnętrzne zdarzenie JVM `AgentAvailabilityRefreshedEvent` (nowa klasa w `domain/user`) → `RoutingServiceImpl` `@Async @EventListener` → wspólne `retryQueuedContacts` (TenantContext ustawiany i czyszczony na wątku roboczym), więc ponowna próba routingu kontaktów `QUEUED` zostaje zachowana bez zdarzenia WS; dialer bez zmian (odpytuje). `terminateStaleQueuedContacts` świadomie nadal działa przy niezmienionym AVAILABLE (komentarz w kodzie). Testy: `UserServiceTest`, `UserStatusSinceIntegrationTest`, `RoutingServiceTest`, `AgentBreakStatusSinceIntegrationTest`. Opcjonalny refaktor publikacji → BE-205.
 
 ### BE-167 – Join follow-upu e-mail: `In-Reply-To` z wieloma ID i nagłówek `References`
 
@@ -9040,7 +9045,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** BE-154 ✅ (wzorzec warunkowego UPDATE z `FOR SHARE` w ścieżce e-mail)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-06, tura 70)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-154)
 **Wykonawca:** `backend-dev-expert`
@@ -9050,13 +9055,87 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** analogiczne zabezpieczenie dla social (zapis warunkowy/blokada współdzielona na wierszu kontaktu, w jednej transakcji z zapisem wiadomości); w razie przegranego wyścigu — ścieżka routingu (nowy kontakt) zamiast wiadomości w kontakcie zamkniętym.
 
 **Kryteria akceptacji:**
-- [ ] Wiadomość nie jest zapisywana do kontaktu, który zmienił status na końcowy między odczytem a zapisem (test współbieżności lub deterministyczny z blokadą)
-- [ ] Przegrany wyścig → routing/nowy kontakt; brak utraty wiadomości
-- [ ] `SocialContactQueueIntegrationTest`, `SocialFollowUpEventIntegrationTest` zielone; `mvn verify -pl app` zielone
+- [x] Wiadomość nie jest zapisywana do kontaktu, który zmienił status na końcowy między odczytem a zapisem (test współbieżności lub deterministyczny z blokadą)
+- [x] Przegrany wyścig → routing/nowy kontakt; brak utraty wiadomości
+- [x] `SocialContactQueueIntegrationTest`, `SocialFollowUpEventIntegrationTest` zielone; `mvn verify -pl app` zielone
 
 **Ryzyka:** (R1) zmiana blokad na gorącej tabeli `contact` — ryzyko deadlocków; (R2) współdzielone pliki z BE-164/BE-169.
 **Nie wchodzi w zakres:** zmiany FE, limity równoległych kontaktów (BE-156).
-**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-155 ✅, BE-159 (warunkowy przydział), BE-169 (testy współbieżności).
+**Zależności (zaktualizowane w turze 70):** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-155 ✅, BE-156 (wyścig dwóch pierwszych wiadomości tego samego nadawcy poza zakresem), BE-159 (warunkowy przydział), BE-169 (testy współbieżności — część social pokryta tu: test realnego `FOR SHARE`; zostaje ścieżka e-mail i wątek > 200).
+**Realizacja (2026-11-06, tura 70; `backend-dev-expert`, CR 4/5):** nowe `ContactRepository.lockActiveSocialContactShared` (+ `ContactService…`; `SELECT 1 … FOR SHARE` po `contact_id`, tenant, kanał, `remote_address`, statusy otwarte QUEUED/ASSIGNED/ACTIVE/ON_HOLD + `started_at` dla przycinania partycji; `Propagation.MANDATORY`) wołane w `SocialMessageServiceImpl.processIncomingMessage` (`@Transactional`) zaraz po `findActiveSocialContact`. Przegrany wyścig → jednorazowy ponowny find + lock, potem fallback: nowy kontakt `QUEUED` + routing `contact.queued`; brak utraty wiadomości. Wybrano `FOR SHARE` zamiast warunkowego `INSERT…SELECT`, by zachować rozróżnialną idempotencję `ON CONFLICT`. Bez migracji. Testy: deterministyczny przegrany wyścig (jednostkowy + integracyjny na prawdziwym Postgresie), prawdziwa współbieżność (zamknięcie blokuje się na `FOR SHARE`, potwierdzone `pg_stat_activity.wait_event_type = Lock`), warunki tenant/nadawca/status — częściowo odciąża BE-169 (część social). Nadal poza zakresem: wyścig dwóch pierwszych wiadomości tego samego nadawcy (dwa nowe kontakty) — odnotowany w BE-156/BE-169.
+
+### BE-204 – Dialer `AFTER_CONTACT` nie odświeża klucza Redis `session:agent:{id}`
+
+**Typ:** Bug (Backend, spójność stanu agenta)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-165 ✅ (CTE `UPDATE … RETURNING` zwraca wiersze do zsynchronizowania)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-165 + BE-166 + BE-168, tura 70)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Natywny UPDATE w `DialerCallbackHandlerImpl.cleanupRedisKeys` ustawia `AFTER_CONTACT` w bazie i (od BE-165) publikuje zdarzenie, ale nie zapisuje statusu w Redis `session:agent:{id}`. `AdminMetricsService` czyta ten klucz, więc po dialerze Redis pokazuje AVAILABLE/BUSY, a baza i zdarzenie `AFTER_CONTACT`. Rozbieżność istniała już przed BE-165 (zgłoszona w CR jako nit); metryka „online” obejmuje także `AFTER_CONTACT`, więc skutek jest dziś niewielki.
+
+**Zakres:** dla każdego wiersza zwróconego z UPDATE zaktualizować status w `session:agent:{id}` (z zachowaniem TTL i konwencji kluczy `UserServiceImpl`), najlepiej przez wspólną metodę serwisu zamiast duplikowania logiki w dialerze; błąd Redis nie może psuć transakcji dialera.
+
+**Kryteria akceptacji:**
+- [ ] Po przejściu dialera w `AFTER_CONTACT` status w `session:agent:{id}` = `AFTER_CONTACT` (test integracyjny z Redis)
+- [ ] Brak zapisu do Redis, gdy UPDATE nie zmienił wiersza (0 wierszy)
+- [ ] Awaria Redis nie przerywa transakcji dialera i nie blokuje publikacji zdarzenia (test)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) kolejność zapisu Redis vs commit bazy (rollback po zapisie do Redis — preferować zapis afterCommit, jak publikacja zdarzenia); (R2) cykl zależności dialer ↔ `UserService` (BE-165 już dodał zależność w jedną stronę).
+**Nie wchodzi w zakres:** zmiany FE, historia statusów, refaktor mechanizmu publikacji (BE-205).
+**Zależności:** `Zależy od` BE-165 ✅; `Blokuje` brak; powiązane: BE-205 (wspólna metoda publikacji/synchronizacji po commit), BE-206, FE-130 ✅ (licznik statusu opiera się na `GET /users/me`, nie na Redis).
+
+### BE-205 – [OPCJONALNE] Refaktor `publishStatusChangedAfterCommit` na `@TransactionalEventListener`
+
+**Typ:** Refactor (Backend)
+**Priorytet:** Could Have
+**Złożoność:** S
+**Zależy od:** BE-165 ✅, BE-166 ✅
+**Status:** ⬜ Do zrobienia — opcjonalny
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-165 + BE-166 + BE-168, tura 70)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** `UserService.publishStatusChangedAfterCommit` jest publiczną metodą interfejsu serwisu, ręcznie rejestruje `TransactionSynchronization` i w braku transakcji publikuje natychmiast; nazwa sugeruje gwarancję „po commit”, której fallback nie daje. Idiomatyczne rozwiązanie Springa to zdarzenie aplikacyjne obsługiwane przez `@TransactionalEventListener(phase = AFTER_COMMIT, fallbackExecution = true)`.
+
+**Zakres:** zastąpić ręczną synchronizację zdarzeniem Springa (np. `AgentStatusChangedEvent`) z listenerem publikującym `agent.status.changed`; zachować semantykę: rollback → brak publikacji, brak transakcji → publikacja od razu, wyjątek Rabbita nie psuje transakcji; ograniczyć powierzchnię interfejsu `UserService`. Rozważyć wspólne użycie z `AgentAvailabilityRefreshedEvent` (BE-166).
+
+**Kryteria akceptacji:**
+- [ ] Zachowanie identyczne jak dziś: commit → 1 zdarzenie, rollback → 0, brak transakcji → 1 natychmiast (testy `UserStatusSinceIntegrationTest` bez zmiany asercji)
+- [ ] `publishStatusChangedAfterCommit` usunięta z publicznego interfejsu `UserService` (lub oznaczona jako wewnętrzna)
+- [ ] `DialerAfterContactStatusSinceIntegrationTest`, `UserServiceTest` i `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana kolejności publikacji względem innych listenerów `AFTER_COMMIT`; (R2) `@Async` listenery routingu (BE-166) — nie mieszać faz.
+**Nie wchodzi w zakres:** zmiana kształtu zdarzenia WS/RabbitMQ, zmiany FE.
+**Zależności:** `Zależy od` BE-165 ✅, BE-166 ✅; `Blokuje` brak; powiązane: BE-204 (ta sama ścieżka po commit).
+
+### BE-206 – Test end-to-end dialer `AFTER_CONTACT` → RabbitMQ → `RabbitToWebSocketRelay` → WS
+
+**Typ:** Testing (Backend)
+**Priorytet:** Could Have
+**Złożoność:** S/M
+**Zależy od:** BE-165 ✅
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-165 + BE-166 + BE-168, tura 70)
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Kryterium BE-165 „zdarzenie dociera do WS agenta” jest dziś pokryte pośrednio: `DialerAfterContactStatusSinceIntegrationTest` używa zamockowanego `UserService` (sprawdza kształt zdarzenia), a przekazanie do WS testuje `RabbitToWebSocketRelayStatusSinceTest`. Brak testu, który przechodzi całą ścieżkę z prawdziwym `publishStatusChangedAfterCommit`.
+
+**Zakres:** test integracyjny (Testcontainers PostgreSQL + RabbitMQ lub istniejący harness): wywołanie `cleanupRedisKeys` dla agenta AVAILABLE/BUSY → wiadomość na wymianie `agent.status.changed` → relay → wiadomość WS do właściwego agenta z poprawnym `statusSince`.
+
+**Kryteria akceptacji:**
+- [ ] Test e2e: przejście dialera w `AFTER_CONTACT` kończy się wiadomością WS z `status = AFTER_CONTACT` i `statusSince` równym `status_changed_at` z bazy
+- [ ] Scenariusz negatywny: 0 zmienionych wierszy → brak wiadomości WS
+- [ ] Brak flaky (oczekiwanie na wiadomość z timeoutem/latch, bez `sleep`); `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) koszt/czas uruchomienia brokera w testach — użyć istniejącej infrastruktury testowej, jeśli jest; (R2) niestabilność oczekiwania na asynchroniczny relay.
+**Nie wchodzi w zakres:** zmiany logiki produkcyjnej (jeśli test ujawni błąd — osobny ticket).
+**Zależności:** `Zależy od` BE-165 ✅; `Blokuje` brak; powiązane: BE-204, BE-205, FE-130 ✅.
 
 ### BE-169 – Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses`
 
@@ -9078,7 +9157,7 @@ backend/app/src/test/java/com/contactcenter/
 
 **Ryzyka:** (R1) testy współbieżności bywają niestabilne — użyć zatrzasków (latch), nie `sleep`.
 **Nie wchodzi w zakres:** zmiany logiki produkcyjnej (chyba że test ujawni błąd — wtedy osobny ticket).
-**Zależności:** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167, BE-168.
+**Zależności (zaktualizowane w turze 70):** `Zależy od` BE-154 ✅; `Blokuje` brak; powiązane: BE-167, BE-168 ✅ (test realnej współbieżności `FOR SHARE` dla social już istnieje — zakres BE-169 zawęża się do ścieżki e-mail i wątku > 200).
 
 ### BE-170 – [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail
 

@@ -4390,7 +4390,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 - [x] `mvn verify -pl app` zielone (migracja V144 stosowana w Testcontainers) — potwierdzone w turze 66 przy BE-153: 2918 testów, 0 F, 0 E, 1 pominięty; `CR-BACKEND.md` „Review: BE-153 + BE-154 (+ DB-089)” APPROVE 4,5/5
 
 **Nie wchodzi w zakres:** logika ustawiania kolumny i DTO (BE-153), historia statusów, raportowanie czasu w statusach, zmiany RLS.
-**Zależności (zaktualizowane w turze 66):** `Zależy od` brak; `Blokuje` BE-153 (✅ ukończony 2026-11-04, tura 66; kolumna ustawiana przez `AppUser.changeStatus` i natywny UPDATE dialera) → FE-130 (✅); następniki w backlogu: BE-165, BE-166 (publikacja zdarzeń statusu).
+**Zależności (zaktualizowane w turze 66):** `Zależy od` brak; `Blokuje` BE-153 (✅ ukończony 2026-11-04, tura 66; kolumna ustawiana przez `AppUser.changeStatus` i natywny UPDATE dialera) → FE-130 (✅); następniki: BE-165 ✅, BE-166 ✅ (publikacja zdarzeń statusu; tura 70, 2026-11-06, bez migracji); w backlogu: BE-204 (Redis `session:agent:*` po dialerze).
 
 ---
 

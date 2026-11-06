@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.WhatsAppApiException;
 import com.contactcenter.domain.social.SocialIntegrationDecrypted;
 import com.contactcenter.domain.social.SocialIntegrationService;
@@ -181,33 +182,33 @@ class WhatsAppAdapterTest {
     class ErrorScenarios {
 
         @Test
-        @DisplayName("attachmentUrls niepuste -> IllegalArgumentException (naprawa code review 2026-08-29: " +
+        @DisplayName("attachmentUrls niepuste -> BusinessValidationException (naprawa code review 2026-08-29: " +
                      "wcześniej cicho ignorowane), integracja NIE jest pobierana ani wysyłana")
-        void nonEmptyAttachmentUrls_throwsIllegalArgumentException() {
+        void nonEmptyAttachmentUrls_throwsBusinessValidationException() {
             assertThatThrownBy(() -> adapter.sendMessage(INTEGRATION_ID, RECIPIENT, "Zobacz załącznik",
                     List.of("https://example.com/image.png")))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Załączniki nie są obsługiwane");
 
             verifyNoInteractions(integrationService);
         }
 
         @Test
-        @DisplayName("content=null -> IllegalArgumentException zamiast wysłania {\"text\":{\"body\":null}} " +
+        @DisplayName("content=null -> BusinessValidationException zamiast wysłania {\"text\":{\"body\":null}} " +
                      "do Graph API, integracja NIE jest pobierana")
-        void nullContent_throwsIllegalArgumentException() {
+        void nullContent_throwsBusinessValidationException() {
             assertThatThrownBy(() -> adapter.sendMessage(INTEGRATION_ID, RECIPIENT, null, List.of()))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("nie może być pusta");
 
             verifyNoInteractions(integrationService);
         }
 
         @Test
-        @DisplayName("content pusty/blank (same spacje) -> IllegalArgumentException")
-        void blankContent_throwsIllegalArgumentException() {
+        @DisplayName("content pusty/blank (same spacje) -> BusinessValidationException")
+        void blankContent_throwsBusinessValidationException() {
             assertThatThrownBy(() -> adapter.sendMessage(INTEGRATION_ID, RECIPIENT, "   ", List.of()))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("nie może być pusta");
 
             verifyNoInteractions(integrationService);

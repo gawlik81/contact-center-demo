@@ -37,7 +37,7 @@ public interface CustomerImportService {
      * @param quoteChar         znak cytowania
      * @param columnMappingJson mapowanie kolumn CSV → pole systemu (JSON string) lub null
      * @return UUID joba – do pollingu statusu
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     UUID initiateImport(MultipartFile file, DeduplicationMode deduplicationMode,
                          String columnSeparator, String quoteChar, String columnMappingJson);
@@ -52,7 +52,7 @@ public interface CustomerImportService {
      * @param file              plik JSON (multipart) – tablica obiektów klientów
      * @param deduplicationMode strategia deduplikacji
      * @return UUID joba – do pollingu statusu (ten sam mechanizm co import CSV)
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     UUID initiateJsonImport(MultipartFile file, DeduplicationMode deduplicationMode);
 

@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
  * <p>Walidacja E.164 jest dwupoziomowa:
  * <ol>
  *   <li>Bean Validation {@code @Pattern} – zwraca HTTP 422 przy naruszeniu</li>
- *   <li>Weryfikacja w {@code PhoneNumberService} – rzuca {@code IllegalArgumentException} (HTTP 422)</li>
+ *   <li>Weryfikacja w {@code PhoneNumberService} – rzuca {@code BusinessValidationException} (HTTP 422)</li>
  * </ol>
  */
 public record CreatePhoneNumberRequest(

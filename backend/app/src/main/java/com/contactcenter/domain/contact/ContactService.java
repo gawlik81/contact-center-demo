@@ -331,7 +331,7 @@ public interface ContactService {
      * @param tenantId UUID tenanta z TenantContext
      * @param userId   UUID zalogowanego agenta z TenantContext
      * @return nowa sesja połączenia zwrócona przez adapter
-     * @throws IllegalArgumentException  HTTP 422 gdy kombinacja targetType+transferType jest niedozwolona
+     * @throws BusinessValidationException  HTTP 422 gdy kombinacja targetType+transferType jest niedozwolona
      *                                   lub brakuje wymaganego pola (np. phoneNumber dla PHONE)
      * @throws EntityNotFoundException   HTTP 404 gdy kontakt powiązany z callId nie istnieje lub inny tenant
      * @throws CrossTenantAccessException HTTP 403 gdy kontakt należy do innego tenanta

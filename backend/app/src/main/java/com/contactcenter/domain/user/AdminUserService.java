@@ -47,7 +47,7 @@ public interface AdminUserService {
      *
      * @param request żądanie z tenantId, danymi użytkownika i hasłem
      * @return DTO nowo utworzonego użytkownika
-     * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie
+     * @throws BusinessValidationException HTTP 422 gdy email zajęty w tenancie
      */
     UserResponse createUser(AdminCreateUserRequest request);
 
@@ -61,7 +61,7 @@ public interface AdminUserService {
      * @param request żądanie z polami do aktualizacji
      * @return DTO zaktualizowanego użytkownika
      * @throws EntityNotFoundException HTTP 404 gdy użytkownik nie istnieje lub usunięty
-     * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie
+     * @throws BusinessValidationException HTTP 422 gdy email zajęty w tenancie
      */
     UserResponse updateUser(UUID userId, AdminUpdateUserRequest request);
 

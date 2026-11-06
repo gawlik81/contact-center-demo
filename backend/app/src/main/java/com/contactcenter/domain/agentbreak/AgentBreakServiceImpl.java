@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentbreak;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentbreak.dto.AgentBreakResponse;
 import com.contactcenter.api.agentbreak.dto.CreateAgentBreakRequest;
 import com.contactcenter.api.agentbreak.dto.UpdateAgentBreakRequest;
@@ -129,11 +130,11 @@ class AgentBreakServiceImpl implements AgentBreakService {
     /**
      * Weryfikuje, że endTime jest późniejszy niż startTime.
      *
-     * @throws IllegalArgumentException gdy endTime <= startTime
+     * @throws BusinessValidationException gdy endTime <= startTime
      */
     private void validateTimeRange(Instant startTime, Instant endTime) {
         if (!endTime.isAfter(startTime)) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "endTime musi być późniejszy niż startTime. startTime=" + startTime + ", endTime=" + endTime);
         }
     }
@@ -141,11 +142,11 @@ class AgentBreakServiceImpl implements AgentBreakService {
     /**
      * Weryfikuje, że startTime jest w przyszłości.
      *
-     * @throws IllegalArgumentException gdy startTime <= teraz
+     * @throws BusinessValidationException gdy startTime <= teraz
      */
     private void validateStartTimeInFuture(Instant startTime) {
         if (!startTime.isAfter(Instant.now())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "startTime musi być w przyszłości. Podano: " + startTime);
         }
     }

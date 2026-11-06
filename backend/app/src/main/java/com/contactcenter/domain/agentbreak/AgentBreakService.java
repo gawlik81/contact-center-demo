@@ -51,7 +51,7 @@ public interface AgentBreakService {
      * @param agentId  UUID agenta (z tokenu JWT)
      * @param tenantId UUID tenanta (z tokenu JWT)
      * @return DTO nowo utworzonej przerwy
-     * @throws IllegalArgumentException gdy endTime <= startTime lub startTime jest w przeszłości
+     * @throws BusinessValidationException gdy endTime <= startTime lub startTime jest w przeszłości
      */
     AgentBreakResponse createBreak(CreateAgentBreakRequest request, UUID agentId, UUID tenantId);
 
@@ -69,7 +69,7 @@ public interface AgentBreakService {
      * @throws ResourceNotFoundException   gdy przerwa nie istnieje (HTTP 404)
      * @throws CrossTenantAccessException  gdy agent nie jest właścicielem przerwy (HTTP 403)
      * @throws ConflictException           gdy status przerwy to ACTIVE lub COMPLETED (HTTP 409)
-     * @throws IllegalArgumentException    gdy endTime <= startTime lub startTime w przeszłości (HTTP 400)
+     * @throws BusinessValidationException    gdy endTime <= startTime lub startTime w przeszłości (HTTP 400)
      */
     AgentBreakResponse updateBreak(UUID id, UpdateAgentBreakRequest request, UUID agentId, UUID tenantId);
 

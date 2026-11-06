@@ -34,7 +34,7 @@ public interface TenantService {
      *
      * @param request dane nowego tenanta
      * @return DTO z danymi utworzonego tenanta
-     * @throws IllegalArgumentException gdy nazwa jest już zajęta
+     * @throws BusinessValidationException gdy nazwa jest już zajęta
      */
     TenantResponse createTenant(CreateTenantRequest request);
 
@@ -91,7 +91,7 @@ public interface TenantService {
      * @param request  dane do aktualizacji (pola null = bez zmiany)
      * @return DTO z zaktualizowanymi danymi tenanta
      * @throws EntityNotFoundException  gdy tenant nie istnieje
-     * @throws IllegalArgumentException gdy nowa nazwa jest już zajęta
+     * @throws BusinessValidationException gdy nowa nazwa jest już zajęta
      */
     TenantResponse updateTenant(UUID tenantId, UpdateTenantRequest request);
 

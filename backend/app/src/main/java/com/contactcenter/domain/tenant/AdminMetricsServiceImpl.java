@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.ContactChannelMatrix;
 import com.contactcenter.api.admin.dto.GrowthMetrics;
@@ -332,7 +333,7 @@ class AdminMetricsServiceImpl implements AdminMetricsService {
     @Transactional(readOnly = true)
     public ContactChannelMatrix getContactChannelMatrix(int days) {
         if (!ALLOWED_CHANNEL_MATRIX_DAYS.contains(days)) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Parametr days musi być jedną z wartości 7, 30, 90. Podano: " + days);
         }
 
@@ -392,7 +393,7 @@ class AdminMetricsServiceImpl implements AdminMetricsService {
     @Transactional(readOnly = true)
     public GrowthMetrics getGrowthMetrics(int weeks) {
         if (weeks < 1 || weeks > 52) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Parametr weeks musi być w zakresie 1-52. Podano: " + weeks);
         }
 

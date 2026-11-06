@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
@@ -118,7 +119,7 @@ class TenantServiceImpl implements TenantService {
      *
      * @param request dane nowego tenanta
      * @return DTO z danymi utworzonego tenanta
-     * @throws IllegalArgumentException gdy nazwa jest już zajęta
+     * @throws BusinessValidationException gdy nazwa jest już zajęta
      */
     @Audited(action = "TENANT_CREATED", entityType = "TENANT")
     @Transactional
@@ -127,7 +128,7 @@ class TenantServiceImpl implements TenantService {
         log.info("[TenantService] Tworzenie tenanta: name={}", request.name());
 
         if (tenantRepository.existsByNameIgnoreCase(request.name())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nazwa tenanta jest już zajęta: '" + request.name() + "'");
         }
 
@@ -253,7 +254,7 @@ class TenantServiceImpl implements TenantService {
      * @param request  dane do aktualizacji (pola null = bez zmiany)
      * @return DTO z zaktualizowanymi danymi tenanta
      * @throws EntityNotFoundException  gdy tenant nie istnieje
-     * @throws IllegalArgumentException gdy nowa nazwa jest już zajęta
+     * @throws BusinessValidationException gdy nowa nazwa jest już zajęta
      */
     @Audited(
         action = "TENANT_UPDATED",
@@ -273,7 +274,7 @@ class TenantServiceImpl implements TenantService {
         if (StringUtils.hasText(request.name())
                 && !request.name().trim().equalsIgnoreCase(tenant.getName())) {
             if (tenantRepository.existsByNameIgnoreCaseAndIdNot(request.name(), tenantId)) {
-                throw new IllegalArgumentException(
+                throw new BusinessValidationException(
                         "Nazwa tenanta jest już zajęta: '" + request.name() + "'");
             }
             tenant.setName(request.name().trim());

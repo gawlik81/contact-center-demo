@@ -3,6 +3,7 @@ package com.contactcenter.api;
 import com.contactcenter.domain.email.EmailAttachmentAccessDeniedException;
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
@@ -427,14 +428,15 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Nieprawidłowe argumenty (np. zbyt słabe hasło) – HTTP 422.
+     * Walidacja biznesowa (np. zbyt słabe hasło, zajęty email, nieprawidłowy zakres dat) – HTTP 422.
      *
-     * <p>Obsługuje {@link IllegalArgumentException} rzucany przez walidację siły hasła
-     * w {@code AuthService} i inne walidacje biznesowe.
+     * <p>{@link BusinessValidationException} niesie celowo napisany, bezpieczny komunikat dla
+     * użytkownika, dlatego trafia on do {@code detail} (BE-200). Typ problemu pozostaje
+     * {@code invalid-argument} dla zgodności z klientami (FE).
      */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ProblemDetail> handleIllegalArgumentException(
-            IllegalArgumentException ex, WebRequest request) {
+    @ExceptionHandler(BusinessValidationException.class)
+    public ResponseEntity<ProblemDetail> handleBusinessValidationException(
+            BusinessValidationException ex, WebRequest request) {
 
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
         problem.setType(URI.create(ERROR_BASE_URI + "invalid-argument"));
@@ -442,8 +444,25 @@ public class GlobalExceptionHandler {
         problem.setDetail(ex.getMessage());
         problem.setProperty("timestamp", Instant.now());
 
-        log.debug("[API] Nieprawidłowy argument: {}", ex.getMessage());
+        log.debug("[API] Walidacja biznesowa: {}", ex.getMessage());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * {@link IllegalArgumentException} – HTTP 500 {@code internal-error} (BE-200).
+     *
+     * <p>Wyjątek rzucają też biblioteki i kod techniczny ({@code Enum.valueOf},
+     * {@code UUID.fromString}, Hibernate…), a jego komunikat może zawierać nazwy klas/pól, więc
+     * NIE trafia do odpowiedzi; traktujemy go jako błąd programistyczny. Walidację biznesową
+     * zgłaszaj przez {@link BusinessValidationException}.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ProblemDetail> handleIllegalArgumentException(
+            IllegalArgumentException ex, WebRequest request) {
+
+        log.error("[API] Nieoczekiwany IllegalArgumentException: {}, message={}",
+                request.getDescription(false), ex.getMessage(), ex);
+        return internalErrorResponse();
     }
 
     /**
@@ -942,7 +961,10 @@ public class GlobalExceptionHandler {
             Exception ex, WebRequest request) {
 
         log.error("[API] Nieoczekiwany błąd serwera: {}", ex.getMessage(), ex);
+        return internalErrorResponse();
+    }
 
+    private ResponseEntity<ProblemDetail> internalErrorResponse() {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         problem.setType(URI.create(ERROR_BASE_URI + "internal-error"));
         problem.setTitle("Wewnętrzny błąd serwera");

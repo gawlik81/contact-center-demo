@@ -1,5 +1,6 @@
 package com.contactcenter.api.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.GlobalExceptionHandler;
 import com.contactcenter.domain.retention.CampaignArchiveSettingService;
 import com.contactcenter.domain.retention.dto.CampaignArchivePreviewDto;
@@ -212,12 +213,16 @@ class CampaignArchiveSettingControllerTest {
         @ParameterizedTest
         @ValueSource(ints = {29, 731})
         @WithMockUser(roles = "ADMIN")
-        @DisplayName("IllegalArgumentException z serwisu -> 422 (TYLKO mapowanie wyjatku; "
+        @DisplayName("BusinessValidationException z serwisu -> 422 (TYLKO mapowanie wyjatku; "
                 + "prawdziwa walidacja zakresu: CampaignArchiveSettingControllerValidationTest)")
         void serviceIllegalArgument_mappedTo422(int days) throws Exception {
-            when(service.preview(eq(TENANT_A), eq(days))).thenThrow(new IllegalArgumentException("zakres"));
+            when(service.preview(eq(TENANT_A), eq(days))).thenThrow(new BusinessValidationException("zakres"));
             mockMvc.perform(get(URL_A + "/preview").param("archiveAfterDays", String.valueOf(days)))
-                    .andExpect(status().isUnprocessableEntity());
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                            .jsonPath("$.type").value("https://contactcenter.io/errors/invalid-argument"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                            .jsonPath("$.detail").value("zakres"));
         }
 
         @Test
@@ -225,7 +230,7 @@ class CampaignArchiveSettingControllerTest {
         @DisplayName("brak parametru: kontroler przekazuje null do serwisu; 422 z mapowania wyjatku "
                 + "(prawdziwa walidacja: CampaignArchiveSettingControllerValidationTest)")
         void missingParam_passesNullToService() throws Exception {
-            when(service.preview(eq(TENANT_A), any())).thenThrow(new IllegalArgumentException("wymagany"));
+            when(service.preview(eq(TENANT_A), any())).thenThrow(new BusinessValidationException("wymagany"));
             mockMvc.perform(get(URL_A + "/preview")).andExpect(status().isUnprocessableEntity());
             verify(service).preview(TENANT_A, null);
         }

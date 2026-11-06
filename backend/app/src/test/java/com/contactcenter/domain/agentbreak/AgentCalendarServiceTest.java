@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentbreak;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentbreak.dto.AgentCalendarResponse;
 import com.contactcenter.domain.campaign.Campaign;
 import com.contactcenter.domain.campaign.ScheduledCallback;
@@ -191,24 +192,24 @@ class AgentCalendarServiceTest {
     class RangeValidation {
 
         @Test
-        @DisplayName("from > to → IllegalArgumentException (HTTP 400)")
+        @DisplayName("from > to → BusinessValidationException (HTTP 400)")
         void getCalendar_fromAfterTo_throwsIllegalArgument() {
             Instant from = Instant.now().plus(2, ChronoUnit.DAYS);
             Instant to   = Instant.now().minus(1, ChronoUnit.DAYS);
 
             assertThatThrownBy(() -> agentCalendarService.getCalendar(AGENT_ID, TENANT_ID, from, to))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("from");
         }
 
         @Test
-        @DisplayName("zakres > 90 dni → IllegalArgumentException (HTTP 400)")
+        @DisplayName("zakres > 90 dni → BusinessValidationException (HTTP 400)")
         void getCalendar_rangeOver90Days_throwsIllegalArgument() {
             Instant from = Instant.now();
             Instant to   = from.plus(91, ChronoUnit.DAYS);
 
             assertThatThrownBy(() -> agentCalendarService.getCalendar(AGENT_ID, TENANT_ID, from, to))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("90");
         }
     }

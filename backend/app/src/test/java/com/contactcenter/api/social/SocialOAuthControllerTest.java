@@ -1,5 +1,6 @@
 package com.contactcenter.api.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.social.dto.SocialIntegrationDto;
 import com.contactcenter.api.social.dto.WhatsAppConnectRequest;
 import com.contactcenter.domain.social.SocialIntegrationService;
@@ -226,20 +227,20 @@ class SocialOAuthControllerTest {
         }
 
         @Test
-        @DisplayName("weryfikacja nieudana (błędny token/numer) -> IllegalArgumentException propagowany, " +
+        @DisplayName("weryfikacja nieudana (błędny token/numer) -> BusinessValidationException propagowany, " +
                      "saveIntegration NIGDY nie jest wywołane – integracja nie jest zapisywana")
         void verificationFails_doesNotSaveIntegration() {
             WhatsAppConnectRequest request = new WhatsAppConnectRequest(
                     "1234567890", "invalid-token", "Supermarket Support", null);
 
-            doThrow(new IllegalArgumentException(
+            doThrow(new BusinessValidationException(
                     "Nieprawidłowy token dostępu lub identyfikator numeru telefonu. " +
                     "Sprawdź dane w Meta Business Suite i spróbuj ponownie."))
                     .when(whatsAppGraphApiVerifier)
                     .verifyPhoneNumberAccess("1234567890", "invalid-token");
 
             assertThatThrownBy(() -> controller.connectWhatsApp(request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Nieprawidłowy token dostępu lub identyfikator numeru telefonu");
 
             verify(integrationService, never()).saveIntegration(any(), any(), any(), any(), any(), any());

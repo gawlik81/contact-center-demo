@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginRequest;
 import com.contactcenter.api.auth.dto.LoginResponse;
@@ -637,7 +638,7 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException gdy nowe hasło nie spełnia wymagań siły")
+        @DisplayName("rzuca BusinessValidationException gdy nowe hasło nie spełnia wymagań siły")
         void changePassword_weakNewPassword_throwsIllegalArgument() {
             AppUser user = buildUser(false, false, true);
 
@@ -648,7 +649,7 @@ class AuthServiceTest {
             assertThatThrownBy(() ->
                     authService.changePassword(USER_ID, TENANT_ID,
                             new ChangePasswordRequest(PASSWORD, "weakpassword"), ACCESS_TOKEN))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
     }
 
@@ -769,13 +770,13 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException gdy użytkownik nie istnieje")
+        @DisplayName("rzuca BusinessValidationException gdy użytkownik nie istnieje")
         void forcePasswordReset_unknownUser_throwsIllegalArgument() {
             when(appUserRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() ->
                     authService.forcePasswordReset(USER_ID, TENANT_ID, "ADMIN"))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
     }
 

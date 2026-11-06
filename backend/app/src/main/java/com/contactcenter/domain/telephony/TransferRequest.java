@@ -1,5 +1,6 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -31,7 +32,7 @@ public record TransferRequest(
      * Waliduje spójność pól żądania.
      *
      * @throws NullPointerException     gdy wymagane pole dla danego targetType jest null
-     * @throws IllegalArgumentException gdy kombinacja targetType + transferType jest niedozwolona
+     * @throws BusinessValidationException gdy kombinacja targetType + transferType jest niedozwolona
      */
     public void validate() {
         Objects.requireNonNull(transferType, "transferType is required");
@@ -41,15 +42,15 @@ public record TransferRequest(
             case PHONE -> {
                 Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
                 if (!phoneNumber.matches("^\\+[1-9]\\d{6,14}$")) {
-                    throw new IllegalArgumentException(
-                            "phoneNumber must be in E.164 format (e.g. +48123456789), got: " + phoneNumber);
+                    throw new BusinessValidationException(
+                            "Numer telefonu musi być w formacie E.164 (np. +48123456789), podano: " + phoneNumber);
                 }
             }
             case AGENT -> Objects.requireNonNull(agentId, "agentId required for AGENT transfer");
             case QUEUE -> {
                 Objects.requireNonNull(queueId, "queueId required for QUEUE transfer");
                 if (transferType == TelephonyAdapter.TransferType.ATTENDED) {
-                    throw new IllegalArgumentException("ATTENDED transfer to QUEUE is not supported");
+                    throw new BusinessValidationException("Przekazanie z konsultacją (ATTENDED) do kolejki nie jest obsługiwane");
                 }
             }
         }

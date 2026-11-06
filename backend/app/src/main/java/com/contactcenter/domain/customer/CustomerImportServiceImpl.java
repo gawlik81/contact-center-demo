@@ -1,5 +1,6 @@
 package com.contactcenter.domain.customer;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
 import com.contactcenter.api.customer.DeduplicationMode;
 import com.contactcenter.security.TenantContext;
@@ -129,7 +130,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
      * @param quoteChar         znak cytowania
      * @param columnMappingJson mapowanie kolumn CSV → pole systemu (JSON string) lub null
      * @return UUID joba – do pollingu statusu
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     @Override
     public UUID initiateImport(MultipartFile file, DeduplicationMode deduplicationMode,
@@ -161,7 +162,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
      * @param file              plik JSON (multipart) – tablica obiektów klientów
      * @param deduplicationMode strategia deduplikacji
      * @return UUID joba – do pollingu statusu (ten sam mechanizm co import CSV)
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     @Override
     public UUID initiateJsonImport(MultipartFile file, DeduplicationMode deduplicationMode) {
@@ -1047,21 +1048,21 @@ class CustomerImportServiceImpl implements CustomerImportService {
     /**
      * Waliduje plik CSV: rozszerzenie i rozmiar.
      *
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     public void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Plik CSV jest wymagany i nie może być pusty.");
+            throw new BusinessValidationException("Plik CSV jest wymagany i nie może być pusty.");
         }
 
         String name = file.getOriginalFilename();
         if (name == null || !name.toLowerCase().endsWith(".csv")) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Dozwolone są tylko pliki CSV (.csv). Przesłany plik: " + name);
         }
 
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     String.format("Plik CSV jest za duży: %d MB. Maksymalny dozwolony rozmiar: 50 MB.",
                             file.getSize() / (1024 * 1024)));
         }
@@ -1070,21 +1071,21 @@ class CustomerImportServiceImpl implements CustomerImportService {
     /**
      * Waliduje plik JSON: rozszerzenie i rozmiar (analogicznie do {@link #validateFile}).
      *
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     public void validateJsonFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Plik JSON jest wymagany i nie może być pusty.");
+            throw new BusinessValidationException("Plik JSON jest wymagany i nie może być pusty.");
         }
 
         String name = file.getOriginalFilename();
         if (name == null || !name.toLowerCase().endsWith(".json")) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Dozwolone są tylko pliki JSON (.json). Przesłany plik: " + name);
         }
 
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     String.format("Plik JSON jest za duży: %d MB. Maksymalny dozwolony rozmiar: 50 MB.",
                             file.getSize() / (1024 * 1024)));
         }

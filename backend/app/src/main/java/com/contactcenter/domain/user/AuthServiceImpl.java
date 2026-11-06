@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginRequest;
 import com.contactcenter.api.auth.dto.LoginResponse;
@@ -451,7 +452,7 @@ class AuthServiceImpl implements AuthService {
      * @param oldAccessToken stary access token do blacklisty
      * @return nowa para tokenów
      * @throws BadCredentialsException  gdy aktualne hasło jest nieprawidłowe
-     * @throws IllegalArgumentException gdy nowe hasło nie spełnia wymagań siły
+     * @throws BusinessValidationException gdy nowe hasło nie spełnia wymagań siły
      */
     @Transactional
     @Override
@@ -525,14 +526,14 @@ class AuthServiceImpl implements AuthService {
      * @param targetUserId  UUID użytkownika do zresetowania
      * @param callerTenantId UUID tenanta wywołującego (z JWT, null dla SUPER_ADMIN)
      * @param callerRole    rola wywołującego ("SUPER_ADMIN" lub "ADMIN")
-     * @throws IllegalArgumentException gdy użytkownik nie istnieje
+     * @throws BusinessValidationException gdy użytkownik nie istnieje
      * @throws AccessDeniedException    gdy ADMIN próbuje resetować użytkownika innego tenanta
      */
     @Transactional
     @Override
     public void forcePasswordReset(UUID targetUserId, UUID callerTenantId, String callerRole) {
         AppUser target = appUserRepository.findById(targetUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Użytkownik nie istnieje"));
+                .orElseThrow(() -> new BusinessValidationException("Użytkownik nie istnieje"));
 
         // ADMIN jest tenant-scoped – może resetować tylko użytkowników swojego tenanta.
         // SUPER_ADMIN (callerTenantId == null) omija tę weryfikację.
@@ -631,14 +632,14 @@ class AuthServiceImpl implements AuthService {
      * min 1 cyfra, min 1 wielka litera.
      *
      * @param password hasło w plain text
-     * @throws IllegalArgumentException gdy hasło nie spełnia wymagań
+     * @throws BusinessValidationException gdy hasło nie spełnia wymagań
      */
     private void validatePasswordStrength(String password) {
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
         boolean hasUppercase = password.chars().anyMatch(Character::isUpperCase);
 
         if (!hasDigit || !hasUppercase) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nowe hasło nie spełnia wymagań: musi zawierać min. 1 cyfrę i min. 1 wielką literę"
             );
         }

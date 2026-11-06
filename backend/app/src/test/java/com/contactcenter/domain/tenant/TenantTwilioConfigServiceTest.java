@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
@@ -97,24 +98,24 @@ class TenantTwilioConfigServiceTest {
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException dla niepoprawnego accountSid")
-        void saveConfig_invalidAccountSid_throwsIllegalArgumentException() {
+        @DisplayName("rzuca BusinessValidationException dla niepoprawnego accountSid")
+        void saveConfig_invalidAccountSid_throwsBusinessValidationException() {
             TenantTwilioConfigRequest request = new TenantTwilioConfigRequest(
                     "INVALID-SID", VALID_AUTH_TOKEN, null, null, null, null, null);
 
             assertThatThrownBy(() -> service.saveConfig(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Account SID");
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException dla niepoprawnego phoneNumber")
-        void saveConfig_invalidPhoneNumber_throwsIllegalArgumentException() {
+        @DisplayName("rzuca BusinessValidationException dla niepoprawnego phoneNumber")
+        void saveConfig_invalidPhoneNumber_throwsBusinessValidationException() {
             TenantTwilioConfigRequest request = new TenantTwilioConfigRequest(
                     VALID_ACCOUNT_SID, VALID_AUTH_TOKEN, null, null, null, "not-e164", null);
 
             assertThatThrownBy(() -> service.saveConfig(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("E.164");
         }
 

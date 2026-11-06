@@ -1,5 +1,6 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.retention.dto.CampaignArchivePreviewDto;
@@ -24,7 +25,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -98,10 +99,10 @@ class CampaignArchiveSettingServiceImplTest {
     @ParameterizedTest
     @NullSource
     @ValueSource(ints = {-1, 0, 29, 731, 100000})
-    @DisplayName("update/preview: null i poza zakresem -> IllegalArgumentException, zadnego dostepu do repo")
+    @DisplayName("update/preview: null i poza zakresem -> BusinessValidationException, zadnego dostepu do repo")
     void rejectsInvalid(Integer days) {
-        assertThatIllegalArgumentException().isThrownBy(() -> service.update(TENANT, days, USER));
-        assertThatIllegalArgumentException().isThrownBy(() -> service.preview(TENANT, days));
+        assertThatExceptionOfType(BusinessValidationException.class).isThrownBy(() -> service.update(TENANT, days, USER));
+        assertThatExceptionOfType(BusinessValidationException.class).isThrownBy(() -> service.preview(TENANT, days));
         verifyNoInteractions(repository, auditLogService);
     }
 

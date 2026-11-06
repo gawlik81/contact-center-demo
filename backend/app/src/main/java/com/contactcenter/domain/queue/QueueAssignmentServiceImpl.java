@@ -1,5 +1,6 @@
 package com.contactcenter.domain.queue;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
 import com.contactcenter.api.queue.dto.QueueAssignmentResponse;
@@ -174,7 +175,7 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
     /**
      * Waliduje agenta i zwraca AgentSummary.
      *
-     * @throws IllegalArgumentException (HTTP 400) gdy agent nie istnieje w tenancie
+     * @throws BusinessValidationException (HTTP 400) gdy agent nie istnieje w tenancie
      *                                  lub nie ma roli AGENT
      */
     private AgentSummary validateAndMapAgent(UUID agentId, UUID tenantId) {
@@ -182,14 +183,14 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
                 .orElseThrow(() -> {
                     log.warn("[QueueAssignmentService] Agent nie istnieje w tenancie: agentId={}, tenant={}",
                             agentId, tenantId);
-                    return new IllegalArgumentException(
+                    return new BusinessValidationException(
                             "Agent nie istnieje lub nie należy do tenanta: " + agentId);
                 });
 
         if (agent.getRole() != AppUser.UserRole.AGENT) {
             log.warn("[QueueAssignmentService] Użytkownik nie ma roli AGENT: agentId={}, role={}",
                     agentId, agent.getRole());
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Użytkownik '" + agentId + "' ma rolę " + agent.getRole()
                             + " – do kolejki można przypisać wyłącznie użytkowników z rolą AGENT");
         }
@@ -200,7 +201,7 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
     /**
      * Waliduje grupę i zwraca AgentGroupSummary.
      *
-     * @throws IllegalArgumentException (HTTP 400) gdy grupa nie istnieje w tenancie
+     * @throws BusinessValidationException (HTTP 400) gdy grupa nie istnieje w tenancie
      */
     private AgentGroupSummary validateAndMapGroup(UUID groupId, UUID tenantId) {
         AgentGroupOverview group = agentGroupService
@@ -208,7 +209,7 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
                 .orElseThrow(() -> {
                     log.warn("[QueueAssignmentService] Grupa nie istnieje w tenancie: groupId={}, tenant={}",
                             groupId, tenantId);
-                    return new IllegalArgumentException(
+                    return new BusinessValidationException(
                             "Grupa agentów nie istnieje lub nie należy do tenanta: " + groupId);
                 });
 

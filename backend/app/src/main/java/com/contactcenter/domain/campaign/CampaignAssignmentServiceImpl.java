@@ -1,5 +1,6 @@
 package com.contactcenter.domain.campaign;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.campaign.dto.CampaignAssignmentResponse;
 import com.contactcenter.api.campaign.dto.UpdateCampaignAssignmentRequest;
@@ -92,7 +93,7 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
      * @param tenantId   UUID tenanta
      * @return DTO z nowym stanem przypisania
      * @throws ResourceNotFoundException gdy kampania nie istnieje lub nie należy do tenanta
-     * @throws IllegalArgumentException  gdy directAgentId lub groupId nie należy do tenanta
+     * @throws BusinessValidationException  gdy directAgentId lub groupId nie należy do tenanta
      *                                   lub agent nie ma roli AGENT (HTTP 400)
      */
     @Transactional
@@ -162,14 +163,14 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
                 .orElseThrow(() -> {
                     log.warn("[CampaignAssignmentService] Agent nie istnieje w tenancie: agentId={}, tenant={}",
                             agentId, tenantId);
-                    return new IllegalArgumentException(
+                    return new BusinessValidationException(
                             "Agent nie istnieje lub nie należy do tenanta: " + agentId);
                 });
 
         if (agent.getRole() != AppUser.UserRole.AGENT) {
             log.warn("[CampaignAssignmentService] Użytkownik nie ma roli AGENT: agentId={}, role={}",
                     agentId, agent.getRole());
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Użytkownik '" + agentId + "' ma rolę " + agent.getRole()
                             + " – do kampanii można przypisać wyłącznie użytkowników z rolą AGENT");
         }
@@ -182,7 +183,7 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
                 .orElseThrow(() -> {
                     log.warn("[CampaignAssignmentService] Grupa nie istnieje w tenancie: groupId={}, tenant={}",
                             groupId, tenantId);
-                    return new IllegalArgumentException(
+                    return new BusinessValidationException(
                             "Grupa agentów nie istnieje lub nie należy do tenanta: " + groupId);
                 });
 

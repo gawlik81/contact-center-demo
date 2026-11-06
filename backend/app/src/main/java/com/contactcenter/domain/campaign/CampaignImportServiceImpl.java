@@ -1,5 +1,6 @@
 package com.contactcenter.domain.campaign;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
 import com.contactcenter.security.TenantContext;
@@ -108,7 +109,7 @@ class CampaignImportServiceImpl implements CampaignImportService {
      * @param file           plik CSV (multipart)
      * @param skipDuplicates true = pomiń duplikaty po telefonie (domyślnie true)
      * @return UUID jobu – do pollingu statusu
-     * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
+     * @throws BusinessValidationException  gdy plik jest za duży lub ma złe rozszerzenie
      * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
      */
     @Override
@@ -152,7 +153,7 @@ class CampaignImportServiceImpl implements CampaignImportService {
      * @param file           plik JSON (multipart) – tablica obiektów kontaktów
      * @param skipDuplicates true = pomiń duplikaty po telefonie (domyślnie true)
      * @return UUID jobu – do pollingu statusu (ten sam endpoint co dla CSV)
-     * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
+     * @throws BusinessValidationException  gdy plik jest za duży lub ma złe rozszerzenie
      * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
      */
     @Override
@@ -770,21 +771,21 @@ class CampaignImportServiceImpl implements CampaignImportService {
     /**
      * Waliduje plik CSV: rozszerzenie i rozmiar.
      *
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     public void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Plik CSV jest wymagany i nie może być pusty.");
+            throw new BusinessValidationException("Plik CSV jest wymagany i nie może być pusty.");
         }
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".csv")) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Dozwolone są tylko pliki CSV (.csv). Przesłany plik: " + originalFilename);
         }
 
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     String.format("Plik CSV jest za duży: %d MB. Maksymalny dozwolony rozmiar: 50 MB.",
                             file.getSize() / (1024 * 1024)));
         }
@@ -793,21 +794,21 @@ class CampaignImportServiceImpl implements CampaignImportService {
     /**
      * Waliduje plik JSON: rozszerzenie i rozmiar (analogicznie do {@link #validateFile}).
      *
-     * @throws IllegalArgumentException gdy plik nie spełnia wymagań
+     * @throws BusinessValidationException gdy plik nie spełnia wymagań
      */
     public void validateJsonFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Plik JSON jest wymagany i nie może być pusty.");
+            throw new BusinessValidationException("Plik JSON jest wymagany i nie może być pusty.");
         }
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".json")) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Dozwolone są tylko pliki JSON (.json). Przesłany plik: " + originalFilename);
         }
 
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     String.format("Plik JSON jest za duży: %d MB. Maksymalny dozwolony rozmiar: 50 MB.",
                             file.getSize() / (1024 * 1024)));
         }

@@ -21,7 +21,7 @@ public interface TenantAiConfigService {
      * @param tenantId UUID tenanta
      * @param request  dane konfiguracji AI
      * @return DTO z zapisaną konfiguracją (zamaskowaną)
-     * @throws IllegalArgumentException gdy provider AZURE_OPENAI bez azureEndpoint
+     * @throws BusinessValidationException gdy provider AZURE_OPENAI bez azureEndpoint
      */
     TenantAiConfigResponse saveConfig(UUID tenantId, TenantAiConfigRequest request);
 

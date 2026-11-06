@@ -32,3 +32,4 @@
 - [Tura 68: watek e-mail EML](project_tura68_email_thread.md) — BE-164/FE-156/DB-094/095 ✅, BE-196..199, FE-157..160, 378/462
 - [Tura 69: EPIC-32 FE-150/153/157/159, BE-163](project_tura69_epic32.md) — 383/78/7 z 468, nowe BE-200..203, FE-161/162
 - [Tura 70: BE-165/166/168 ✅, BE-204..206](project_tura70_epic32.md) — 386/78/7 z 471, wolne BE-207/FE-163/DB-096
+- [Tura 71: BE-200 ✅](project_tura71_be200.md) — 387/77/7 z 471, wolne BE-207/FE-163/DB-096

@@ -269,8 +269,8 @@ public class SocialOAuthController {
      * PRZED {@link SocialIntegrationService#saveIntegration}, który jest {@code @Transactional} –
      * blokujące HTTP do zewnętrznego API nie może wykonywać się wewnątrz transakcji (dokładnie ten
      * anti-pattern naprawiony wcześniej w {@code WhatsAppAdapter}/{@code SocialMessageServiceImpl}).
-     * Błędne dane (401/403/404 z Graph API) kończą się {@code IllegalArgumentException} → HTTP 422
-     * (patrz {@code GlobalExceptionHandler.handleIllegalArgumentException}) – integracja NIE jest
+     * Błędne dane (401/403/404 z Graph API) kończą się {@code BusinessValidationException} → HTTP 422
+     * (patrz {@code GlobalExceptionHandler.handleBusinessValidationException}) – integracja NIE jest
      * zapisywana.
      */
     @PostMapping("/api/integrations/WHATSAPP/connect")

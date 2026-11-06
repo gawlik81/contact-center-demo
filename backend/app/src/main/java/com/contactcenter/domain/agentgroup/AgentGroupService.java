@@ -95,7 +95,7 @@ public interface AgentGroupService {
      * @param tenantId  UUID tenanta
      * @return DTO z nową listą członków grupy
      * @throws ResourceNotFoundException gdy grupa nie istnieje (HTTP 404)
-     * @throws IllegalArgumentException  gdy agentId nie należy do tenanta lub ma nieprawidłową rolę (HTTP 422)
+     * @throws BusinessValidationException  gdy agentId nie należy do tenanta lub ma nieprawidłową rolę (HTTP 422)
      */
     AgentGroupMembersResponse replaceMembers(UUID groupId, List<UUID> agentIds, UUID tenantId);
 

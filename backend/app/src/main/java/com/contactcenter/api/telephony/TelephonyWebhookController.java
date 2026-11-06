@@ -1,5 +1,6 @@
 package com.contactcenter.api.telephony;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.telephony.dto.WebhookRequest;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -76,7 +77,7 @@ public class TelephonyWebhookController {
         CallEvent.EventType eventType;
         try {
             eventType = parseEventType(request.eventType());
-        } catch (IllegalArgumentException e) {
+        } catch (BusinessValidationException e) {
             log.warn("[TelephonyWebhook] Nieznany typ zdarzenia: '{}' dla callId={}",
                     request.eventType(), request.callId());
             return ResponseEntity.badRequest().build();
@@ -137,6 +138,6 @@ public class TelephonyWebhookController {
         return Arrays.stream(CallEvent.EventType.values())
                 .filter(e -> e.toRoutingKeySuffix().equalsIgnoreCase(eventType))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Nieznany typ zdarzenia: " + eventType));
+                .orElseThrow(() -> new BusinessValidationException("Nieznany typ zdarzenia: " + eventType));
     }
 }

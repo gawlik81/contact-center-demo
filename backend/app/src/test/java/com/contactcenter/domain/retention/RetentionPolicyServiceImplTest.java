@@ -1,5 +1,6 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.infrastructure.config.S3Properties;
 import org.junit.jupiter.api.DisplayName;
@@ -141,13 +142,13 @@ class RetentionPolicyServiceImplTest {
             verify(repository).upsert(TENANT_ID, RetentionDataCategory.CAMPAIGN_DATA, months, false, USER_ID);
         }
 
-        @ParameterizedTest(name = "retentionMonths={0} rzuca IllegalArgumentException")
+        @ParameterizedTest(name = "retentionMonths={0} rzuca BusinessValidationException")
         @CsvSource({"0", "-1", "121", "500"})
         @DisplayName("odrzuca wartości spoza zakresu [1,120]")
         void shouldRejectOutOfRangeValues(int months) {
             assertThatThrownBy(() -> service.updatePolicy(
                     TENANT_ID, RetentionDataCategory.CAMPAIGN_DATA, months, false, USER_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("[1, 120]");
 
             verify(repository, never()).upsert(any(), any(), anyInt(), anyBoolean(), any());

@@ -20,8 +20,8 @@ import java.util.UUID;
  *   <li>Oba null → bieżący tydzień (poniedziałek 00:00 UTC – niedziela 23:59:59 UTC)</li>
  *   <li>Tylko {@code from} null → poniedziałek tygodnia podanego {@code to}</li>
  *   <li>Tylko {@code to} null → niedziela tygodnia podanego {@code from}</li>
- *   <li>{@code from} po {@code to} → {@link IllegalArgumentException} (HTTP 400)</li>
- *   <li>Zakres > 90 dni → {@link IllegalArgumentException} (HTTP 400)</li>
+ *   <li>{@code from} po {@code to} → {@code BusinessValidationException} (HTTP 400)</li>
+ *   <li>Zakres > 90 dni → {@code BusinessValidationException} (HTTP 400)</li>
  * </ul>
  */
 public interface AgentCalendarService {
@@ -34,7 +34,7 @@ public interface AgentCalendarService {
      * @param from     początek zakresu (opcjonalny)
      * @param to       koniec zakresu (opcjonalny)
      * @return odpowiedź z listami callbacków, kampanii i przerw
-     * @throws IllegalArgumentException gdy from > to lub zakres przekracza 90 dni
+     * @throws BusinessValidationException gdy from > to lub zakres przekracza 90 dni
      */
     AgentCalendarResponse getCalendar(UUID agentId, UUID tenantId, Instant from, Instant to);
 }

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
@@ -194,7 +195,7 @@ class TenantTwilioConfigServiceImpl implements TenantTwilioConfigService {
 
     private void validateAccountSid(String accountSid) {
         if (accountSid == null || !ACCOUNT_SID_PATTERN.matcher(accountSid).matches()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nieprawidłowy format Account SID '" + accountSid
                     + "'. Wymagany format: AC + 32 znaki hex (np. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)");
         }
@@ -202,7 +203,7 @@ class TenantTwilioConfigServiceImpl implements TenantTwilioConfigService {
 
     private void validatePhoneNumber(String phoneNumber) {
         if (!E164_PATTERN.matcher(phoneNumber).matches()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nieprawidłowy format numeru telefonu '" + phoneNumber
                     + "'. Wymagany format E.164, np. +48221234567");
         }

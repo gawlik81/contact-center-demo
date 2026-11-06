@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.user.dto.AdminCreateUserRequest;
 import com.contactcenter.api.user.dto.AdminUpdateUserRequest;
 import com.contactcenter.api.user.dto.UserResponse;
@@ -90,7 +91,7 @@ class AdminUserServiceImpl implements AdminUserService {
      *
      * @param request żądanie z tenantId, danymi użytkownika i hasłem
      * @return DTO nowo utworzonego użytkownika
-     * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie (lub wśród SUPER_ADMIN)
+     * @throws BusinessValidationException HTTP 422 gdy email zajęty w tenancie (lub wśród SUPER_ADMIN)
      */
     @Override
     @Transactional
@@ -112,7 +113,7 @@ class AdminUserServiceImpl implements AdminUserService {
 
         // Walidacja unikalności email w tenancie
         if (appUserRepository.existsByTenantIdAndEmail(tenantId, request.email())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Email '" + request.email() + "' jest już zajęty w tym tenancie");
         }
 
@@ -147,7 +148,7 @@ class AdminUserServiceImpl implements AdminUserService {
      * (np. na wypadek utraty dostępu do jedynego konta).
      *
      * @throws ResponseStatusException  HTTP 400 gdy żądanie zawiera tenantId (SUPER_ADMIN go nie ma)
-     * @throws IllegalArgumentException HTTP 422 gdy email jest już zajęty przez inne konto SUPER_ADMIN
+     * @throws BusinessValidationException HTTP 422 gdy email jest już zajęty przez inne konto SUPER_ADMIN
      */
     private UserResponse createSuperAdminUser(AdminCreateUserRequest request) {
         if (request.tenantId() != null) {
@@ -157,7 +158,7 @@ class AdminUserServiceImpl implements AdminUserService {
 
         String email = request.email().toLowerCase().trim();
         if (appUserRepository.existsActiveSuperAdminByEmail(email)) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Email '" + email + "' jest już zajęty przez inne konto SUPER_ADMIN");
         }
 
@@ -196,7 +197,7 @@ class AdminUserServiceImpl implements AdminUserService {
      * @param request żądanie z polami do aktualizacji
      * @return DTO zaktualizowanego użytkownika
      * @throws EntityNotFoundException HTTP 404 gdy użytkownik nie istnieje lub usunięty
-     * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie
+     * @throws BusinessValidationException HTTP 422 gdy email zajęty w tenancie
      * @throws AccessDeniedException   HTTP 403 gdy SUPER_ADMIN próbuje edytować własne konto
      */
     @Override
@@ -233,7 +234,7 @@ class AdminUserServiceImpl implements AdminUserService {
             String newEmail = request.email().toLowerCase().trim();
             if (!newEmail.equals(user.getEmail())) {
                 if (appUserRepository.existsByTenantIdAndEmail(user.getTenantId(), newEmail)) {
-                    throw new IllegalArgumentException(
+                    throw new BusinessValidationException(
                             "Email '" + newEmail + "' jest już zajęty w tym tenancie");
                 }
                 user.setEmail(newEmail);

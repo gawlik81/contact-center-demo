@@ -1,5 +1,6 @@
 package com.contactcenter.domain.phonenumber;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.phonenumber.dto.CreatePhoneNumberRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneNumberResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneNumberRequest;
@@ -147,11 +148,11 @@ class PhoneNumberServiceImpl implements PhoneNumberService {
      * Waliduje format E.164.
      *
      * @param number numer do walidacji
-     * @throws IllegalArgumentException gdy numer nie pasuje do wzorca E.164 (HTTP 422)
+     * @throws BusinessValidationException gdy numer nie pasuje do wzorca E.164 (HTTP 422)
      */
     private void validateE164Format(String number) {
         if (number == null || !E164_PATTERN.matcher(number).matches()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nieprawidłowy format numeru telefonu '" + number
                     + "'. Wymagany format E.164, np. +48221234567");
         }

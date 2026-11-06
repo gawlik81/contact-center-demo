@@ -358,6 +358,42 @@ class GlobalExceptionHandlerTest {
     // =========================================================================
 
     @Nested
+    @DisplayName("BusinessValidationException / IllegalArgumentException (BE-200)")
+    class BusinessValidationTests {
+
+        @Test
+        @DisplayName("BusinessValidationException -> 422 invalid-argument z komunikatem w detail")
+        void businessValidation_returns422WithMessage() {
+            ResponseEntity<ProblemDetail> response = handler.handleBusinessValidationException(
+                    new com.contactcenter.domain.exception.BusinessValidationException("Email jest zajęty"),
+                    webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            ProblemDetail problem = response.getBody();
+            assertThat(problem).isNotNull();
+            assertThat(problem.getType().toString()).endsWith("invalid-argument");
+            assertThat(problem.getTitle()).isEqualTo("Nieprawidłowe dane");
+            assertThat(problem.getDetail()).isEqualTo("Email jest zajęty");
+            assertThat(problem.getProperties()).containsKey("timestamp");
+        }
+
+        @Test
+        @DisplayName("IllegalArgumentException -> 500 internal-error, komunikat nie trafia do odpowiedzi")
+        void illegalArgument_returns500WithoutMessage() {
+            ResponseEntity<ProblemDetail> response = handler.handleIllegalArgumentException(
+                    new IllegalArgumentException("No enum constant com.contactcenter.Foo.BAR"), webRequest);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+            ProblemDetail problem = response.getBody();
+            assertThat(problem).isNotNull();
+            assertThat(problem.getType().toString()).endsWith("internal-error");
+            assertThat(problem.getDetail()).isEqualTo(
+                    "Wystąpił nieoczekiwany błąd. Spróbuj ponownie lub skontaktuj się z administratorem.");
+            assertThat(problem.getProperties()).containsKey("timestamp");
+        }
+    }
+
+    @Nested
     @DisplayName("Exception (fallback) – HTTP 500")
     class GenericExceptionTests {
 

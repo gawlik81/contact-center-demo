@@ -1,5 +1,6 @@
 package com.contactcenter.api.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.retention.PurgeTriggerType;
@@ -95,7 +96,7 @@ import java.util.UUID;
  *   <li><strong>{@link UpdateRetentionPolicyRequest#dataCategory()} vs {@code {category}} z
  *       path:</strong> DTO ma już pole {@code dataCategory} (z BE-111, {@code @NotNull}).
  *       Zamiast je ignorować (co ukryłoby błąd klienta wysyłającego niespójne dane), {@link
- *       #updatePolicy} weryfikuje zgodność obu wartości i rzuca {@link IllegalArgumentException}
+ *       #updatePolicy} weryfikuje zgodność obu wartości i rzuca {@code BusinessValidationException}
  *       (→ HTTP 422 przez istniejący handler) przy niezgodności — {@code {category}} z path
  *       pozostaje źródłem prawdy (REST semantyka: PUT adresuje zasób przez URL).</li>
  * </ul>
@@ -166,7 +167,7 @@ public class RetentionController {
         // być z nią zgodna, inaczej odrzucamy żądanie zamiast po cichu ignorować pole klienta
         // (patrz Javadoc klasy, sekcja "Decyzje projektowe").
         if (request.dataCategory() != category) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Kategoria w treści żądania (%s) nie zgadza się z kategorią w ścieżce (%s)"
                             .formatted(request.dataCategory(), category));
         }

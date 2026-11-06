@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentbreak;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentbreak.dto.AgentCalendarResponse;
 import com.contactcenter.api.agentbreak.dto.CalendarBreakItem;
 import com.contactcenter.api.agentbreak.dto.CalendarCallbackItem;
@@ -108,15 +109,15 @@ class AgentCalendarServiceImpl implements AgentCalendarService {
     /**
      * Waliduje zakres dat: from <= to oraz zakres nie przekracza 90 dni.
      *
-     * @throws IllegalArgumentException gdy from > to lub zakres > 90 dni
+     * @throws BusinessValidationException gdy from > to lub zakres > 90 dni
      */
     private void validateRange(Instant from, Instant to) {
         if (from.isAfter(to)) {
-            throw new IllegalArgumentException("Parametr 'from' musi być wcześniejszy niż 'to'");
+            throw new BusinessValidationException("Parametr 'from' musi być wcześniejszy niż 'to'");
         }
         long days = ChronoUnit.DAYS.between(from, to);
         if (days > MAX_RANGE_DAYS) {
-            throw new IllegalArgumentException("Maksymalny zakres kalendarza to 90 dni");
+            throw new BusinessValidationException("Maksymalny zakres kalendarza to 90 dni");
         }
     }
 

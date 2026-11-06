@@ -1,5 +1,6 @@
 package com.contactcenter.api.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.PurgeTriggerType;
@@ -81,7 +82,7 @@ import static org.mockito.Mockito.when;
  *       ({@code @Valid}), nieaktywną przy bezpośrednim wywołaniu metody kontrolera bez
  *       {@code MockMvc}.</li>
  *   <li>Niezgodność {@code {category}} ze ścieżki i {@code dataCategory} z body w
- *       {@code updatePolicy} → {@link IllegalArgumentException} (→ 422 przez istniejący
+ *       {@code updatePolicy} → {@link BusinessValidationException} (→ 422 przez istniejący
  *       handler) — decyzja projektowa opisana w Javadoc {@link RetentionController}.</li>
  * </ul>
  */
@@ -203,13 +204,13 @@ class RetentionControllerTest {
         }
 
         @Test
-        @DisplayName("dataCategory w body != {category} ze ścieżki -> IllegalArgumentException (422), brak wywołania serwisu")
-        void mismatchedCategory_throwsIllegalArgumentException() {
+        @DisplayName("dataCategory w body != {category} ze ścieżki -> BusinessValidationException (422), brak wywołania serwisu")
+        void mismatchedCategory_throwsBusinessValidationException() {
             UpdateRetentionPolicyRequest request = new UpdateRetentionPolicyRequest(
                     RetentionDataCategory.CAMPAIGN_DATA, 6, true);
 
             assertThatThrownBy(() -> controller.updatePolicy(TENANT_A, RetentionDataCategory.TRANSCRIPTS, request))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
 
             verifyNoInteractions(retentionPolicyService);
         }

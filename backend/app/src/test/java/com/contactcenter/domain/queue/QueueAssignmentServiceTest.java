@@ -1,5 +1,6 @@
 package com.contactcenter.domain.queue;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
 import com.contactcenter.api.queue.dto.QueueAssignmentResponse;
@@ -37,9 +38,9 @@ import static org.mockito.Mockito.when;
  *   <li>GET – kolejka nie istnieje → ResourceNotFoundException</li>
  *   <li>PUT allAgents=true – ustawia flagę, zwraca puste listy</li>
  *   <li>PUT allAgents=false z listami agentów i grup – zapis + enrichowanie</li>
- *   <li>PUT directAgentId spoza tenanta → IllegalArgumentException (HTTP 422)</li>
- *   <li>PUT directAgentId z rolą != AGENT → IllegalArgumentException</li>
- *   <li>PUT groupId spoza tenanta → IllegalArgumentException</li>
+ *   <li>PUT directAgentId spoza tenanta → BusinessValidationException (HTTP 422)</li>
+ *   <li>PUT directAgentId z rolą != AGENT → BusinessValidationException</li>
+ *   <li>PUT groupId spoza tenanta → BusinessValidationException</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -250,7 +251,7 @@ class QueueAssignmentServiceTest {
     class ValidateDirectAgentIds {
 
         @Test
-        @DisplayName("directAgentId spoza tenanta – rzuca IllegalArgumentException")
+        @DisplayName("directAgentId spoza tenanta – rzuca BusinessValidationException")
         void updateAssignment_agentNotInTenant_throwsIllegalArgument() {
             // given
             UpdateQueueAssignmentRequest request =
@@ -263,14 +264,14 @@ class QueueAssignmentServiceTest {
 
             // when / then
             assertThatThrownBy(() -> service.updateAssignment(QUEUE_ID, request, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining(AGENT_ID.toString());
 
             verify(queueAssignmentRepository, never()).replaceDirectAgents(any(), any(), any());
         }
 
         @Test
-        @DisplayName("directAgentId z rolą SUPERVISOR – rzuca IllegalArgumentException")
+        @DisplayName("directAgentId z rolą SUPERVISOR – rzuca BusinessValidationException")
         void updateAssignment_agentWithSupervisorRole_throwsIllegalArgument() {
             // given
             UpdateQueueAssignmentRequest request =
@@ -284,7 +285,7 @@ class QueueAssignmentServiceTest {
 
             // when / then
             assertThatThrownBy(() -> service.updateAssignment(QUEUE_ID, request, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("SUPERVISOR");
 
             verify(queueAssignmentRepository, never()).replaceDirectAgents(any(), any(), any());
@@ -300,7 +301,7 @@ class QueueAssignmentServiceTest {
     class ValidateGroupIds {
 
         @Test
-        @DisplayName("groupId spoza tenanta – rzuca IllegalArgumentException")
+        @DisplayName("groupId spoza tenanta – rzuca BusinessValidationException")
         void updateAssignment_groupNotInTenant_throwsIllegalArgument() {
             // given
             UpdateQueueAssignmentRequest request =
@@ -313,7 +314,7 @@ class QueueAssignmentServiceTest {
 
             // when / then
             assertThatThrownBy(() -> service.updateAssignment(QUEUE_ID, request, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining(GROUP_ID.toString());
 
             verify(queueAssignmentRepository, never()).replaceGroups(any(), any(), any());

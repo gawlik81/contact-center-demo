@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentgroup;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.agentgroup.dto.AgentGroupMembersResponse;
 import com.contactcenter.api.agentgroup.dto.AgentGroupResponse;
@@ -177,15 +178,15 @@ class AgentGroupServiceImpl implements AgentGroupService {
      * @param agentId  UUID agenta
      * @param tenantId UUID tenanta
      * @return DTO AgentSummary
-     * @throws IllegalArgumentException gdy agent nie istnieje w tenancie lub ma rolę inną niż AGENT
+     * @throws BusinessValidationException gdy agent nie istnieje w tenancie lub ma rolę inną niż AGENT
      */
     private AgentSummary validateAndMapAgent(UUID agentId, UUID tenantId) {
         AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BusinessValidationException(
                         "Agent nie istnieje lub nie należy do tenanta: " + agentId));
 
         if (agent.getRole() != AppUser.UserRole.AGENT) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Użytkownik '" + agentId + "' ma rolę " + agent.getRole()
                             + " – do grupy agentów można dodać wyłącznie użytkowników z rolą AGENT");
         }

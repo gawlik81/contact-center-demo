@@ -117,7 +117,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-197 | Podgląd wątku e-mail: limit rozmiaru treści (100 pełnych body), zapytania bez `message_at` (skan partycji), brak indeksu `(tenant_id, contact_id, message_at)`, brak testu EXPLAIN dla `findThreadTail` (wynik CR BE-164; tura 68) | ⬜ Do zrobienia |
 | BE-198 | Spójny klucz S3 EML: pierwsza wiadomość z `receivedAt`, follow-upy z `messageAt` (wynik BE-164; tura 68) | ⬜ Do zrobienia |
 | BE-199 | `@Audited` dla pobrania EML pojedynczej wiadomości `GET /api/contacts/{id}/email-messages/{messageId}/eml` — wymaga decyzji właściciela (wynik BE-164; tura 68) | ⬜ Do zrobienia — decyzja |
-| BE-200 | `GlobalExceptionHandler`: `IllegalArgumentException` → 422 z `detail = ex.getMessage()` może wyciekać szczegóły techniczne i maskuje błędy programistyczne — dedykowany wyjątek walidacji biznesowej, IAE → 500 (wynik CR BE-163; tura 69) | ⬜ Do zrobienia |
+| BE-200 | `GlobalExceptionHandler`: `IllegalArgumentException` → 422 z `detail = ex.getMessage()` może wyciekać szczegóły techniczne i maskuje błędy programistyczne — dedykowany wyjątek walidacji biznesowej, IAE → 500 (wynik CR BE-163; tura 69) | ✅ Ukończone (2026-11-06) |
 | BE-201 | Kanał `CHAT` nie istnieje w `contact.channel` (`chk_contact_channel`), a `@Pattern` w `ContactController` i `ReportsController`/`AgentReportParams` nadal go akceptują (wynik BE-163; tura 69) | ⬜ Do zrobienia |
 | BE-202 | Niespójne limity uploadu: nginx `client_max_body_size 50m` vs Spring `max-request-size 55MB` — dla 50–55 MB nginx zwraca 413 HTML zamiast `problem+json` (wynik BE-163; tura 69) | ⬜ Do zrobienia |
 | BE-203 | Test kolejności wątku e-mail przy równych `createdAt` na prawdziwej bazie (Testcontainers) zamiast asercji na tekst JPQL (wynik CR BE-163/FE-150; tura 69) | ⬜ Do zrobienia |
@@ -8469,7 +8469,7 @@ backend/app/src/test/java/com/contactcenter/
 
 **Ukończone 13/29** · ✅ 13 · 🔧 0 · ⬜ 16 · 🚫 0
 
-> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Następne wolne numery: BE-207, FE-163, DB-096 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
+> Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200 ✅ (tura 71, 2026-11-06), BE-201…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Następne wolne numery: BE-207, FE-163, DB-096 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
 ### BE-153 – `statusSince`: czas rozpoczęcia bieżącego statusu agenta w `GET /users/me` i w zdarzeniu WS zmiany statusu
 
@@ -8927,8 +8927,8 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) zmiana statusów 500 → 4xx może zmienić zachowanie klientów polegających na 500 — nieznani; (R2) dziedziczenie po `ResponseEntityExceptionHandler` zmienia kolejność/priorytety istniejących handlerów — wymaga testów regresji.
 **Nie wchodzi w zakres:** zmiana mapowania 422 w `CampaignArchiveSettingController`, zmiany FE.
 **Notatka wykonania (2026-11-05, tura 69):** `GlobalExceptionHandler` mapuje wyjątki Spring MVC na `problem+json` (`type` `https://contactcenter.io/errors/<slug>`, `title`, `status`, `detail`, `message` = `detail`, `timestamp`): 415 (+`Accept`), 406, 400 (`missing-parameter`/`header`/`request-part`/`cookie`, `invalid-request`, `validation-error` z mapą `errors` z `HandlerMethodValidationException` bez wartości odrzuconych, `malformed-request-body`), 413 `payload-too-large` (INFO), 503 `request-timeout`; 5xx z `ErrorResponse` (np. `MissingPathVariableException`) → generyczne 500 `internal-error`; jawny `Content-Type: application/problem+json` (406 nie wybucha); 4xx logowane na DEBUG, 5xx na ERROR z URI; `message` dodane też w 404/405 (BE-161); lokalne 422 w `CampaignArchiveSettingController` bez zmian; poprawione opisy EMAIL/CHAT (`ContactAssignmentMonitor`, `ContactController`, `ContactService`). Z CR FE: tie-breaker `ORDER BY createdAt ASC, id ASC` w `EmailMessageRepository.findByThreadRootMessageId`. Testy: `GlobalExceptionHandlerMvcTest` (19), `GlobalExceptionHandlerMultipartRealTest` (prawdziwy Tomcat, 413), `EmailMessageRepositoryThreadOrderTest`. Weryfikacja w przeglądarce: 400 `missing-parameter`, 415, 400 `malformed`, 404 z `message`, bez wycieków.
-**Nowe tickety (backlog):** BE-200 (IAE → 422 z `ex.getMessage()`), BE-201 (kanał CHAT w walidacji `@Pattern`), BE-202 (limity uploadu nginx vs Spring), BE-203 (test kolejności wątku na prawdziwej bazie).
-**Zależności (zaktualizowane w turze 69):** `Zależy od` BE-161 ✅; `Blokuje` brak; następniki (backlog): BE-200, BE-201, BE-202, BE-203; powiązane: BE-162 ✅ (ten sam kontroler/handler, tura 65), FE-159 ✅ (interceptor czyta `detail`).
+**Nowe tickety (backlog):** BE-200 ✅ (2026-11-06; IAE → 422 z `ex.getMessage()`), BE-201 (kanał CHAT w walidacji `@Pattern`), BE-202 (limity uploadu nginx vs Spring), BE-203 (test kolejności wątku na prawdziwej bazie).
+**Zależności (zaktualizowane w turze 69):** `Zależy od` BE-161 ✅; `Blokuje` brak; następniki (backlog): BE-200 ✅ (tura 71, 2026-11-06), BE-201, BE-202, BE-203; powiązane: BE-162 ✅ (ten sam kontroler/handler, tura 65), FE-159 ✅ (interceptor czyta `detail`).
 
 ### BE-164 – EML/archiwum dla follow-upów e-mail dołączanych do kontaktu przez `EmailFollowUpJoiner`
 
@@ -9283,7 +9283,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** BE-163 ✅ (format `problem+json`, `message` = `detail`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-06; gałąź `fix/be-200-business-validation-exception`, commit/PR w toku; CR 4/5 APPROVE WITH FIXES — uwagi wprowadzone)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR BE-163, tura 69)
 **Wykonawca:** `backend-dev-expert`
@@ -9291,15 +9291,60 @@ backend/app/src/test/java/com/contactcenter/
 **Opis:** Handler `IllegalArgumentException` zwraca 422 z `detail = ex.getMessage()`. `IllegalArgumentException` rzucają też biblioteki i kod techniczny (`Enum.valueOf` — „No enum constant com.contactcenter…”, `UUID.fromString`, Hibernate „Could not resolve attribute”, komunikaty o wnętrzu systemu), więc `detail` może ujawniać nazwy klas/pól, a błędy programistyczne są maskowane jako 422 zamiast 500. FE-159 ✅ wyświetla `detail` dla 4xx, co zwiększa ekspozycję. Wprowadzić dedykowany wyjątek walidacji biznesowej (np. `BusinessValidationException`) z bezpiecznym komunikatem, a `IllegalArgumentException` kierować do catch-all 500.
 
 **Kryteria akceptacji:**
-- [ ] Przegląd ok. 145 miejsc `throw new IllegalArgumentException` (i miejsc, gdzie IAE pochodzi z bibliotek) — lista z decyzją: migracja do nowego wyjątku / pozostawienie jako 500
-- [ ] Nowy wyjątek mapowany na 422 `problem+json` z bezpiecznym `detail`; `IllegalArgumentException` → generyczne 500 `internal-error` (log ERROR z URI)
-- [ ] Opcjonalnie przejściowo: allow-lista klas/komunikatów IAE nadal mapowanych na 422 (do czasu zakończenia migracji), z testem
-- [ ] Testy: `Enum.valueOf`/`UUID.fromString` z błędnym wejściem nie ujawniają nazw klas w odpowiedzi; istniejące testy kontrolerów oczekujące 422 zaktualizowane
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Przegląd ok. 145 miejsc `throw new IllegalArgumentException` (i miejsc, gdzie IAE pochodzi z bibliotek) — lista z decyzją: migracja do nowego wyjątku / pozostawienie jako 500
+- [x] Nowy wyjątek mapowany na 422 `problem+json` z bezpiecznym `detail`; `IllegalArgumentException` → generyczne 500 `internal-error` (log ERROR z URI)
+- [x] (nie było potrzebne — zamiast allow-listy wykonano pełną migrację 63 miejsc + test strażnik `IllegalArgumentContractTest`) Opcjonalnie przejściowo: allow-lista klas/komunikatów IAE nadal mapowanych na 422 (do czasu zakończenia migracji), z testem
+- [x] Testy: `Enum.valueOf`/`UUID.fromString` z błędnym wejściem nie ujawniają nazw klas w odpowiedzi; istniejące testy kontrolerów oczekujące 422 zaktualizowane
+- [x] `mvn verify -pl app` zielone (JDK 21)
+  - Zweryfikowano 2026-11-06: `mvn clean verify -pl app` (JDK 21) — 847 klas, 3017 testów, 0 F, 0 E, 1 pominięty; FE: lint 0 błędów / 10 znanych ostrzeżeń, `format:check` OK, Vitest 83 plików / 1142 testy.
 
 **Ryzyka:** (R1) zmiana 422 → 500 w ścieżkach, które dziś celowo używają IAE jako walidacji — klienci (FE) mogą polegać na 422 i `detail`; (R2) duża liczba miejsc — migrować etapami (wzorzec: allow-lista).
 **Nie wchodzi w zakres:** zmiany FE; mapowanie wyjątków Spring MVC (BE-163 ✅).
 **Zależności:** `Zależy od` BE-163 ✅; `Blokuje` brak; powiązane: FE-159 ✅.
+
+**Notatka z wykonania (2026-11-06):** wprowadzono `domain.exception.BusinessValidationException` (422 `problem+json`, type `invalid-argument`, `detail` = bezpieczny komunikat); `IllegalArgumentException` -> generyczne 500 `internal-error` (log ERROR z URI, bez komunikatu w odpowiedzi). Przegląd 104 wystąpień `new IllegalArgumentException(` w `src/main` (nie 145): **63 zmigrowane**, **41 pozostawionych jako IAE**. Pozostałe `valueOf`/`UUID.fromString` na wejściu użytkownika mają lokalny catch lub typowane parametry (400 z BE-163) - brak ścieżek 422->500. Strażnik kontraktu: `IllegalArgumentContractTest` (skan źródeł, allow-lista).
+
+Zmigrowane (komunikaty bez zmian):
+
+| Plik | Miejsc | Powód |
+|---|---|---|
+| `AgentGroupServiceImpl` | 2 | agent spoza tenanta / zła rola (REST 422) |
+| `TenantTwilioConfigServiceImpl` | 2 | format Account SID / numeru |
+| `AdminMetricsServiceImpl` | 2 | parametry `days`/`weeks` |
+| `TenantServiceImpl` | 2 | nazwa tenanta zajęta |
+| `CampaignAssignmentServiceImpl` | 3 | agent/grupa spoza tenanta, rola |
+| `UserServiceImpl` | 3 | email zajęty, usunięcie siebie, status |
+| `ReportsServiceImpl` | 2 | zakres dat |
+| `CampaignImportServiceImpl`, `CustomerImportServiceImpl` | 6+6 | walidacja pliku CSV/JSON |
+| `AdminUserServiceImpl` | 3 | email zajęty |
+| `AuthServiceImpl` | 2 | siła hasła, użytkownik nie istnieje |
+| `TransferRequest` | 2 | kombinacja transferu (komunikaty po polsku) |
+| `PhoneRoutingRuleServiceImpl` | 6 | reguły routingu cross-field |
+| `PhoneNumberServiceImpl` | 1 | format E.164 |
+| `RetentionPolicyServiceImpl`, `CampaignArchiveSettingServiceImpl`, `RetentionController` | 1+2+1 | zakresy retencji, niezgodność kategorii |
+| `AgentCalendarServiceImpl`, `AgentBreakServiceImpl` | 2+2 | zakresy czasu |
+| `AgentBreakController`, `AgentCalendarController` | 1+1 | format ISO-8601 parametru |
+| `QueueAssignmentServiceImpl` | 3 | agent/grupa spoza tenanta |
+| `TenantAiConfigServiceImpl` | 1 | wymagany `azureEndpoint` |
+| `WhatsAppGraphApiVerifier` | 1 | błędny token/numer (422 w connect) |
+| `MockCallController` | 1 | wymagany `callId` |
+| `SocialMessageServiceImpl`, `WhatsAppAdapter` | 2+2 | walidacja wysyłki; `SocialContactController` łapie `BusinessValidationException` -> 400 (bez zmiany statusu dla FE), IAE z bibliotek -> 500 |
+| `TelephonyWebhookController` | 1 | nieznany `eventType`; lokalny catch -> 400 bez zmian |
+
+Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
+
+| Plik | Miejsc | Powód |
+|---|---|---|
+| `JsonMapConverter`, `EncryptedStringConverter` | 2+2 | konwertery/konfiguracja startowa |
+| `TenantContext` | 3 | niezmiennik (null) |
+| `TenantAwareRepository`, `CampaignContactRepository` | 1+1 | niezmiennik |
+| `EmailMessageRepository` | 3 | niezmiennik klucza partycji |
+| `PartitionMaintenanceRepository`, `PartitionScannerImpl` | 1+1 | bezpieczny identyfikator SQL |
+| `EmailAttachmentStorageServiceImpl` | 1 | niezmiennik (pusty klucz S3) |
+| `EmailEncryptionServiceImpl`, `SocialTokenEncryptionService` | 3+3 | konfiguracja/kryptografia |
+| `CampaignArchiveRetentionRepository`, `PlatformRetentionProperties` | 2+1 | konfiguracja startowa |
+| `*Repository` "Cannot convert to Instant/LocalDate" | 9 | niezmiennik mapowania natywnych wierszy |
+| `PluginClassLoader`, `PluginHttpEgressClientImpl`, `PluginRegistrationServiceImpl`, `PluginStorageServiceImpl`, `TenantPluginInstallationRepository` | 1+1+1+1+2 | ścieżki runtime/pluginów |
 
 ### BE-201 – Kanał `CHAT` w walidacji kontrolerów mimo braku w `contact.channel`
 

@@ -5,11 +5,13 @@ import com.contactcenter.api.user.dto.UpdateStatusRequest;
 import com.contactcenter.api.user.dto.UpdateUserRequest;
 import com.contactcenter.api.user.dto.UserResponse;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.infrastructure.aspect.Audited;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -134,6 +136,17 @@ public interface UserService {
      * @throws EntityNotFoundException  HTTP 422 gdy użytkownik nie istnieje
      */
     UserResponse updateStatus(UUID userId, UpdateStatusRequest request, UUID tenantId);
+
+    /**
+     * Publishes {@code agent.status.changed} (RabbitMQ; the WS relay forwards it to the agent and
+     * supervisors) for a status change done outside {@link #updateStatus} (e.g. native dialer UPDATE).
+     * Publishes after commit when a transaction is active, otherwise immediately. Failures are logged,
+     * never thrown. Callers must invoke it only after a real transition (BE-165/BE-166).
+     *
+     * @param statusSince persisted {@code app_user.status_changed_at} of the new status (nullable)
+     */
+    void publishStatusChangedAfterCommit(UUID userId, UUID tenantId, UserStatus oldStatus,
+                                         UserStatus newStatus, Instant statusSince);
 
     /**
      * Ustawia status agenta na AVAILABLE po anulowaniu konsultacji (attended transfer bez bridge).

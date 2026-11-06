@@ -17,10 +17,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -67,6 +70,7 @@ class UserServiceImpl implements UserService {
     private final RabbitTemplate rabbitTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ContactService contactService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // =========================================================================
     // Tworzenie użytkownika
@@ -360,8 +364,9 @@ class UserServiceImpl implements UserService {
         AppUser user = findUserOrThrow(userId, tenantId);
         UserStatus oldStatus = user.getStatus();
 
-        user.changeStatus(request.status(), Instant.now());
-        AppUser saved = appUserRepository.save(user);
+        // BE-166: true only on a real transition; same-status write keeps status_changed_at untouched
+        boolean changed = user.changeStatus(request.status(), Instant.now());
+        AppUser saved = changed ? appUserRepository.save(user) : user;
 
         // Zapis statusu w Redis jako structured Map (wymagane przez AdminMetricsService
         // do zliczania agentów online per tenant – musi zawierać tenantId).
@@ -397,14 +402,22 @@ class UserServiceImpl implements UserService {
                     redisKey, e.getMessage());
         }
 
-        // Publikacja eventu RabbitMQ
-        publishStatusChangedEvent(userId, tenantId, oldStatus, request.status(), saved.getStatusChangedAt());
-
-        log.info("[UserService] Status agenta zmieniony: userId={}, {} -> {}",
-                userId, oldStatus, request.status());
+        // Publikacja eventu RabbitMQ – tylko przy faktycznej zmianie (BE-166). Odświeżenie TTL w Redis
+        // powyżej zostaje także bez zmiany.
+        if (changed) {
+            publishStatusChangedEvent(userId, tenantId, oldStatus, request.status(), saved.getStatusChangedAt());
+            log.info("[UserService] Status agenta zmieniony: userId={}, {} -> {}",
+                    userId, oldStatus, request.status());
+        } else {
+            log.debug("[UserService] Status agenta bez zmiany ({}): userId={} – pomijam event, odświeżono TTL Redis",
+                    oldStatus, userId);
+            requestRoutingRetryIfAvailable(userId, tenantId, request.status());
+        }
 
         // Przy przejściu na AVAILABLE: oczyść błędne/przeterminowane kontakty w kolejce,
         // żeby agent nie dostał do obsługi martwych kontaktów.
+        // Celowo także przy niezmienionym AVAILABLE (BE-166 review): to idempotentny cleanup, a ponowny zapis
+        // AVAILABLE jest też "heartbeatem" retry routingu (patrz requestRoutingRetryIfAvailable).
         if (request.status() == UserStatus.AVAILABLE) {
             try {
                 contactService.terminateStaleQueuedContacts(tenantId);
@@ -445,8 +458,8 @@ class UserServiceImpl implements UserService {
         AppUser agent = findUserOrThrow(agentId, tenantId);
         UserStatus oldStatus = agent.getStatus();
 
-        agent.changeStatus(UserStatus.AVAILABLE, Instant.now());
-        AppUser savedAgent = appUserRepository.save(agent);
+        boolean changed = agent.changeStatus(UserStatus.AVAILABLE, Instant.now());
+        AppUser savedAgent = changed ? appUserRepository.save(agent) : agent;
 
         // Aktualizuj Redis żeby AdminMetricsService widział poprawny stan agenta
         String redisKey = String.format(REDIS_AGENT_STATUS_KEY, agentId);
@@ -463,8 +476,47 @@ class UserServiceImpl implements UserService {
         }
 
         // Propaguj zmianę statusu przez RabbitMQ → WebSocket (agentStatusChanged do agenta i supervisorów)
-        publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE,
-                savedAgent.getStatusChangedAt());
+        if (changed) {
+            publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE,
+                    savedAgent.getStatusChangedAt());
+        } else {
+            requestRoutingRetryIfAvailable(agentId, tenantId, UserStatus.AVAILABLE);
+        }
+    }
+
+    /**
+     * BE-166: unchanged AVAILABLE no longer publishes {@code agent.status.changed}, yet it must keep
+     * triggering the routing retry of QUEUED contacts (RoutingService is the only retry path for
+     * inbound/social/e-mail). An in-JVM event avoids both the user-facing WS event and a user -> routing
+     * bean dependency (RoutingServiceImpl already depends on UserService). The dialer is deliberately not
+     * notified - it polls available agents. Failures never break the status write.
+     */
+    private void requestRoutingRetryIfAvailable(UUID userId, UUID tenantId, UserStatus status) {
+        if (status != UserStatus.AVAILABLE) {
+            return;
+        }
+        try {
+            eventPublisher.publishEvent(new AgentAvailabilityRefreshedEvent(userId, tenantId));
+        } catch (Exception e) {
+            log.warn("[UserService] Błąd publikacji AgentAvailabilityRefreshedEvent: userId={}, error={}",
+                    userId, e.getMessage());
+        }
+    }
+
+    @Override
+    public void publishStatusChangedAfterCommit(UUID userId, UUID tenantId,
+                                                UserStatus oldStatus, UserStatus newStatus,
+                                                Instant statusSince) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince);
+                }
+            });
+        } else {
+            publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince);
+        }
     }
 
     // =========================================================================

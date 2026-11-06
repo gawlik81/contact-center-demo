@@ -1,6 +1,8 @@
 package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.telephony.CallEvent;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
@@ -41,6 +43,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
     private final StringRedisTemplate redisTemplate;
     private final JdbcTemplate jdbcTemplate;
     private final TelephonyAdapter telephonyAdapter;
+    private final UserService userService;
 
     // =========================================================================
     // RabbitMQ listener – zakończenie połączenia kampanijnego (call.hangup)
@@ -593,16 +596,30 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
             // Ustaw AFTER_CONTACT – zapobiega ponownemu wydzwonieniu przez pollAvailableAgents()
             // zanim agent zapisze dyspozycję i ręcznie wróci do AVAILABLE.
             // Zmiana tylko z AVAILABLE/BUSY – nie nadpisuje BREAK/OFFLINE/INACTIVE.
-            int updated = jdbcTemplate.update(
-                "UPDATE app_user SET status = 'AFTER_CONTACT', status_changed_at = NOW(), updated_at = NOW() " +
-                "WHERE user_id = ?::uuid AND status IN ('AVAILABLE', 'BUSY')",
+            // CTE zachowuje semantykę UPDATE (warunek status IN AVAILABLE/BUSY, status_changed_at = NOW()),
+            // a zwraca poprzedni status, tenant i zapisany status_changed_at potrzebne do eventu (BE-165).
+            List<AfterContactTransition> transitions = jdbcTemplate.query(
+                "WITH prev AS (SELECT user_id, status FROM app_user " +
+                "              WHERE user_id = ?::uuid AND status IN ('AVAILABLE', 'BUSY') FOR UPDATE) " +
+                "UPDATE app_user u SET status = 'AFTER_CONTACT', status_changed_at = NOW(), updated_at = NOW() " +
+                "FROM prev WHERE u.user_id = prev.user_id " +
+                "RETURNING prev.status AS old_status, u.tenant_id AS tenant_id, u.status_changed_at AS since",
+                (rs, i) -> new AfterContactTransition(
+                        AppUser.UserStatus.valueOf(rs.getString("old_status")),
+                        rs.getObject("tenant_id", UUID.class),
+                        rs.getTimestamp("since").toInstant()),
                 agentId.toString()
             );
-            if (updated > 0) {
+            // 0 wierszy (już AFTER_CONTACT / BREAK / OFFLINE) → brak zmiany, brak eventu (BE-165/BE-166)
+            for (AfterContactTransition t : transitions) {
                 log.debug("[DialerHandler] Agent {} → AFTER_CONTACT (ACW po połączeniu kampanijnym)", agentId);
+                userService.publishStatusChangedAfterCommit(agentId, t.tenantId(), t.oldStatus(),
+                        AppUser.UserStatus.AFTER_CONTACT, t.since());
             }
         }
     }
+
+    private record AfterContactTransition(AppUser.UserStatus oldStatus, UUID tenantId, Instant since) { }
 
     /**
      * Maskuje numer telefonu dla logów.

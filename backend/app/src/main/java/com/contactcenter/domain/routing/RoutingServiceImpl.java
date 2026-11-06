@@ -1,6 +1,7 @@
 package com.contactcenter.domain.routing;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
+import com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.contact.Contact;
@@ -24,6 +25,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -196,29 +199,47 @@ class RoutingServiceImpl implements RoutingService {
             return;
         }
 
-        log.info("[RoutingService] Agent stał się AVAILABLE, próbuję routować oczekujące kontakty: " +
-                "agentId={}, tenantId={}", event.userId(), event.tenantId());
+        retryQueuedContacts(event.tenantId(), event.userId());
+    }
+
+    /**
+     * BE-166: ponowny zapis AVAILABLE przez agenta, który już jest AVAILABLE, nie publikuje
+     * {@code agent.status.changed} (brak eventu WS ani ruszania {@code status_changed_at}), ale nadal
+     * ma uruchomić retry routingu kontaktów QUEUED (jedyny mechanizm retry dla inbound/social/e-mail).
+     * Dlatego {@code UserService} publikuje wewnętrzny {@link AgentAvailabilityRefreshedEvent}
+     * (bez zależności beana user → routing, która tworzyłaby cykl). {@code @Async} - nie blokuje żądania HTTP;
+     * kontekst tenanta ustawiany i czyszczony na wątku roboczym.
+     */
+    @Async
+    @EventListener
+    public void onAgentAvailabilityRefreshed(AgentAvailabilityRefreshedEvent event) {
+        retryQueuedContacts(event.tenantId(), event.userId());
+    }
+
+    private void retryQueuedContacts(UUID tenantId, UUID availableAgentId) {
+        log.info("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: " +
+                "agentId={}, tenantId={}", availableAgentId, tenantId);
 
         TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
-                event.tenantId(), event.userId(), null, "SYSTEM");
+                tenantId, availableAgentId, null, "SYSTEM");
         TenantContext.restore(snapshot);
         try {
-            List<Contact> queuedContacts = contactService.findQueuedContacts(event.tenantId());
+            List<Contact> queuedContacts = contactService.findQueuedContacts(tenantId);
 
             if (queuedContacts.isEmpty()) {
-                log.debug("[RoutingService] Brak oczekujących kontaktów dla tenanta: {}", event.tenantId());
+                log.debug("[RoutingService] Brak oczekujących kontaktów dla tenanta: {}", tenantId);
                 return;
             }
 
             log.info("[RoutingService] Znaleziono {} oczekujących kontaktów dla tenanta: {}",
-                    queuedContacts.size(), event.tenantId());
+                    queuedContacts.size(), tenantId);
 
             // BE-155: the default social queue is resolved at most ONCE per pass (2 queries + one WARN),
             // and only when some social contact actually lacks a queue.
             boolean needsSocialQueue = queuedContacts.stream()
                     .anyMatch(c -> c.getQueueId() == null && ContactChannels.isSocial(c.getChannel()));
             Optional<UUID> socialQueueId = needsSocialQueue
-                    ? socialDefaultQueueResolver.resolve(event.tenantId())
+                    ? socialDefaultQueueResolver.resolve(tenantId)
                     : Optional.empty();
 
             for (Contact contact : queuedContacts) {
@@ -237,7 +258,7 @@ class RoutingServiceImpl implements RoutingService {
                     // BE-155: social contact without a queue (created before the default social queue
                     // existed, or the tenant had no queue at that time) - resolve the tenant default
                     // instead of ending the contact with ERROR.
-                    if (!assignDefaultSocialQueue(contact, event.tenantId(), socialQueueId)) {
+                    if (!assignDefaultSocialQueue(contact, tenantId, socialQueueId)) {
                         continue; // stays QUEUED, retried on the next pass; WARN logged by the resolver
                     }
                 }
@@ -260,7 +281,7 @@ class RoutingServiceImpl implements RoutingService {
                     Optional<UUID> agentId = routeContact(
                             contact.getContactId(),
                             contact.getQueueId(),
-                            event.tenantId()
+                            tenantId
                     );
 
                     if (agentId.isPresent()) {
@@ -278,10 +299,10 @@ class RoutingServiceImpl implements RoutingService {
             }
         } catch (Exception e) {
             log.error("[RoutingService] Błąd pobierania oczekujących kontaktów dla tenanta={}: error={}",
-                    event.tenantId(), e.getMessage(), e);
-            throw new RuntimeException("Błąd retry routingu dla tenanta " + event.tenantId(), e);
+                    tenantId, e.getMessage(), e);
+            throw new RuntimeException("Błąd retry routingu dla tenanta " + tenantId, e);
         } finally {
-            broadcastQueueStateToAgents(event.tenantId());
+            broadcastQueueStateToAgents(tenantId);
             TenantContext.clear();
         }
     }

@@ -40,6 +40,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -55,6 +57,9 @@ class UserStatusSinceIntegrationTest {
     private static AnnotationConfigApplicationContext ctx;
     private static UserService userService;
     private static final List<AgentStatusChangedEvent> published = new ArrayList<>();
+    private static final List<Object> internalEvents = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    private static final ValueOperations<String, Object> redisValueOps = mock(ValueOperations.class);
 
     @org.springframework.context.annotation.Configuration
     static class NoOpConfig {
@@ -76,8 +81,10 @@ class UserStatusSinceIntegrationTest {
             }
             return null;
         }).when(rabbit).convertAndSend(anyString(), anyString(), any(Object.class));
+        org.springframework.context.ApplicationEventPublisher eventPublisher =
+                inv -> internalEvents.add(inv);
         RedisTemplate<String, Object> redis = mock(RedisTemplate.class);
-        when(redis.opsForValue()).thenReturn(mock(ValueOperations.class));
+        when(redis.opsForValue()).thenReturn(redisValueOps);
 
         ctx = JpaTestContext.create(
                 pool,
@@ -93,7 +100,7 @@ class UserStatusSinceIntegrationTest {
                     c.registerBean("userService", UserServiceImpl.class, () -> new UserServiceImpl(
                             users, mock(PasswordEncoder.class),
                             mock(com.contactcenter.domain.tenant.TenantResourceLimitService.class),
-                            rabbit, redis, mock(ContactService.class)));
+                            rabbit, redis, mock(ContactService.class), eventPublisher));
                 });
         userService = ctx.getBean(UserService.class);
     }
@@ -107,6 +114,8 @@ class UserStatusSinceIntegrationTest {
     @BeforeEach
     void setUp() {
         published.clear();
+        internalEvents.clear();
+        org.mockito.Mockito.clearInvocations(redisValueOps);
         tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-153 " + UUID.randomUUID());
         userId = UUID.randomUUID();
         jdbc.update("INSERT INTO app_user (user_id, tenant_id, role, email, password_hash, status) "
@@ -159,8 +168,10 @@ class UserStatusSinceIntegrationTest {
 
         assertThat(dbStatusChangedAt()).isEqualTo(first);
         assertThat(userService.getUser(userId, tenantId).statusSince()).isEqualTo(first);
-        assertThat(published).hasSize(2);
-        assertThat(published.get(1).statusSince()).isEqualTo(first);
+        // BE-166: same-status write publishes nothing
+        assertThat(published).hasSize(1);
+        assertThat(published.get(0).statusSince()).isEqualTo(first);
+        verify(redisValueOps, times(2)).set(anyString(), any(), any(java.time.Duration.class));
 
         userService.updateStatus(userId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
         assertThat(dbStatusChangedAt()).isAfter(first);
@@ -217,5 +228,92 @@ class UserStatusSinceIntegrationTest {
         ObjectMapper om = new ObjectMapper().registerModule(new JavaTimeModule())
                 .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         assertThat(om.writeValueAsString(ws.payload())).contains("\"statusSince\":\"");
+    }
+
+    @Test
+    @DisplayName("BE-166: ponowny zapis AVAILABLE nie publikuje eventu, nie rusza statusSince, odswieza TTL Redis")
+    void sameStatusSilentButRefreshesTtl() throws Exception {
+        userService.updateStatus(userId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
+        Instant first = dbStatusChangedAt();
+        published.clear();
+        Thread.sleep(20);
+
+        UserResponse again = userService.updateStatus(userId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
+
+        assertThat(published).isEmpty();
+        // routing retry is requested through the internal event (BE-166), never through agent.status.changed
+        assertThat(internalEvents).containsExactly(new AgentAvailabilityRefreshedEvent(userId, tenantId));
+        assertThat(dbStatusChangedAt()).isEqualTo(first);
+        assertThat(again.statusSince()).isEqualTo(first);
+        verify(redisValueOps, times(2)).set(anyString(), any(), any(java.time.Duration.class));
+    }
+
+    @Test
+    @DisplayName("BE-165: publishStatusChangedAfterCommit poza transakcja publikuje od razu ze statusSince")
+    void publishAfterCommitWithoutTransactionPublishesImmediately() {
+        Instant since = Instant.now();
+        userService.publishStatusChangedAfterCommit(userId, tenantId, UserStatus.BUSY, UserStatus.AFTER_CONTACT, since);
+
+        assertThat(published).hasSize(1);
+        assertThat(published.get(0).newStatus()).isEqualTo(UserStatus.AFTER_CONTACT);
+        assertThat(published.get(0).statusSince()).isEqualTo(since);
+    }
+
+    @Test
+    @DisplayName("BE-165: w transakcji event wychodzi dopiero po commit, nie po rollback")
+    void publishAfterCommitDefersToCommit() {
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            userService.publishStatusChangedAfterCommit(userId, tenantId, UserStatus.BUSY, UserStatus.AFTER_CONTACT,
+                    Instant.now());
+            assertThat(published).isEmpty();
+            org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+            assertThat(published).hasSize(1);
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("BE-165: prawdziwy rollback transakcji - event NIE wychodzi, po commit wychodzi")
+    void publishAfterCommitSkippedOnRealRollback() {
+        org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(
+                        ctx.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+        Instant since = Instant.now();
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> tx.executeWithoutResult(st -> {
+            userService.publishStatusChangedAfterCommit(userId, tenantId, UserStatus.BUSY,
+                    UserStatus.AFTER_CONTACT, since);
+            assertThat(published).isEmpty();
+            throw new IllegalStateException("force rollback");
+        }));
+        assertThat(published).isEmpty();
+
+        tx.executeWithoutResult(st -> {
+            userService.publishStatusChangedAfterCommit(userId, tenantId, UserStatus.BUSY,
+                    UserStatus.AFTER_CONTACT, since);
+            assertThat(published).isEmpty();
+        });
+        assertThat(published).hasSize(1);
+        assertThat(published.get(0).statusSince()).isEqualTo(since);
+    }
+
+    @Test
+    @DisplayName("BE-166: setAgentAvailableAfterConsultCancelled przy niezmienionym AVAILABLE - bez eventu WS, Redis odswiezony")
+    void consultCancelledUnchangedStatusIsSilent() {
+        userService.updateStatus(userId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
+        Instant first = dbStatusChangedAt();
+        published.clear();
+        internalEvents.clear();
+        org.mockito.Mockito.clearInvocations(redisValueOps);
+
+        userService.setAgentAvailableAfterConsultCancelled(userId, tenantId);
+
+        assertThat(published).isEmpty();
+        assertThat(dbStatusChangedAt()).isEqualTo(first);
+        verify(redisValueOps, times(1)).set(anyString(), any(), any(java.time.Duration.class));
+        assertThat(internalEvents).containsExactly(new AgentAvailabilityRefreshedEvent(userId, tenantId));
     }
 }

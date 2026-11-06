@@ -373,6 +373,29 @@ class RoutingServiceTest {
         }
 
         @Test
+        @DisplayName("BE-166: niezmienione AVAILABLE (AgentAvailabilityRefreshedEvent) – retry routingu bez eventu agent.status.changed")
+        void shouldRetryRoutingOnAvailabilityRefreshedWithoutStatusEvent() {
+            Contact queuedContact = buildContact();
+            Queue queue = buildQueue("FIRST_AVAILABLE", List.of());
+
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(queuedContact));
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(queuedContact));
+            when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
+            when(contactService.updateContactEntity(any())).thenReturn(1);
+
+            routingService.onAgentAvailabilityRefreshed(
+                    new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID));
+
+            verify(contactService).findQueuedContacts(TENANT_ID);
+            verify(routingEngine, atLeastOnce()).findBestAgent(any());
+            // the retry publishes no user-facing status event (only contact.assigned)
+            verify(rabbitTemplate, never()).convertAndSend(anyString(), eq("agent.status.changed"), any(Object.class));
+            // tenant context cleaned on the worker thread
+            assertThat(com.contactcenter.security.TenantContext.getTenantIdOrNull()).isNull();
+        }
+
+        @Test
         @DisplayName("powinien ignorować zmianę statusu na inny niż AVAILABLE")
         void shouldIgnoreNonAvailableStatusChange() {
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(

@@ -13,10 +13,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,7 +46,7 @@ class SocialContactQueueIntegrationTest {
 
     @BeforeAll
     static void startContext() {
-        pool = PostgresTestDatabase.superuserPool(2);
+        pool = PostgresTestDatabase.superuserPool(5);
         jdbc = new JdbcTemplate(pool);
         ctx = JpaTestContext.create(
                 pool,
@@ -140,5 +147,86 @@ class SocialContactQueueIntegrationTest {
                         + "'INBOUND', 'COMPLETED', 'sender-done', now(), now())",
                 UUID.randomUUID(), tenantId, agentId);
         assertThat(repository.findActiveSocialContact(tenantId, "sender-done", "SOCIAL_WHATSAPP")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BE-168: lockActiveSocialContactShared - true dla otwartego, false dla terminalnego / obcego nadawcy / innego tenanta")
+    void lockActiveSocialContactSharedChecksStatusSenderAndTenant() {
+        TransactionTemplate tx = new TransactionTemplate(ctx.getBean(PlatformTransactionManager.class));
+        Contact open = socialContact("SOCIAL_WHATSAPP", queueId);
+        repository.insert(open);
+        UUID otherTenant = PostgresTestDatabase.insertTenant(jdbc, "Other BE-168 " + UUID.randomUUID());
+
+        assertThat(Boolean.TRUE.equals(tx.execute(st -> repository.lockActiveSocialContactShared(tenantId, open.getContactId(),
+                "SOCIAL_WHATSAPP", "sender-1", open.getStartedAt())))).isTrue();
+        assertThat(Boolean.TRUE.equals(tx.execute(st -> repository.lockActiveSocialContactShared(tenantId, open.getContactId(),
+                "SOCIAL_WHATSAPP", "other-sender", open.getStartedAt())))).isFalse();
+        assertThat(Boolean.TRUE.equals(tx.execute(st -> repository.lockActiveSocialContactShared(otherTenant, open.getContactId(),
+                "SOCIAL_WHATSAPP", "sender-1", open.getStartedAt())))).isFalse();
+
+        for (String terminal : List.of("COMPLETED", "ABANDONED")) {
+            jdbc.update("UPDATE contact SET status = ? WHERE contact_id = ?", terminal, open.getContactId());
+            assertThat(Boolean.TRUE.equals(tx.execute(st -> repository.lockActiveSocialContactShared(tenantId, open.getContactId(),
+                    "SOCIAL_WHATSAPP", "sender-1", open.getStartedAt())))).as(terminal).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("BE-168 (wspolbieznosc): zamkniecie kontaktu czeka na transakcje trzymajaca FOR SHARE; potem lock = false")
+    void concurrentCloseWaitsForSharedLockHolder() throws Exception {
+        TransactionTemplate tx = new TransactionTemplate(ctx.getBean(PlatformTransactionManager.class));
+        Contact open = socialContact("SOCIAL_WHATSAPP", queueId);
+        repository.insert(open);
+
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch commit = new CountDownLatch(1);
+        ExecutorService pool2 = Executors.newFixedThreadPool(2);
+        try {
+            // message transaction: locks the contact and keeps the transaction open (like the message INSERT would)
+            Future<Boolean> holder = pool2.submit(() -> tx.execute(st -> {
+                boolean ok = repository.lockActiveSocialContactShared(tenantId, open.getContactId(),
+                        "SOCIAL_WHATSAPP", "sender-1", open.getStartedAt());
+                locked.countDown();
+                try {
+                    commit.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return ok;
+            }));
+            assertThat(locked.await(30, TimeUnit.SECONDS)).isTrue();
+
+            // concurrent close (UPDATE needs a row lock conflicting with FOR SHARE) must block
+            Future<Integer> closer = pool2.submit(() -> jdbc.update(
+                    "UPDATE contact SET status = 'COMPLETED' WHERE contact_id = ?", open.getContactId()));
+            // positive proof that the closer is blocked: a backend waiting on a heavyweight lock
+            // (pg_stat_activity.wait_event_type = 'Lock') running the UPDATE; polled with a timeout
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+            boolean waiting = false;
+            while (!waiting && System.nanoTime() < deadline) {
+                Integer n = jdbc.queryForObject(
+                        "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' "
+                                + "AND query LIKE 'UPDATE contact SET status = ''COMPLETED''%'", Integer.class);
+                waiting = n != null && n > 0;
+                if (!waiting) {
+                    Thread.sleep(25);
+                }
+            }
+            assertThat(waiting).as("closer backend must wait on a Lock held by the message transaction").isTrue();
+            assertThat(closer.isDone()).as("close must wait for the shared-lock holder").isFalse();
+            assertThat(jdbc.queryForObject("SELECT status FROM contact WHERE contact_id = ?", String.class,
+                    open.getContactId())).isEqualTo("QUEUED");
+
+            commit.countDown();
+            assertThat(holder.get(30, TimeUnit.SECONDS)).isTrue();
+            assertThat(closer.get(30, TimeUnit.SECONDS)).isEqualTo(1);
+
+            // after the close committed the next message must lose the race (-> routed as a new contact)
+            assertThat(Boolean.TRUE.equals(tx.execute(st -> repository.lockActiveSocialContactShared(tenantId, open.getContactId(),
+                    "SOCIAL_WHATSAPP", "sender-1", open.getStartedAt())))).isFalse();
+        } finally {
+            commit.countDown();
+            pool2.shutdownNow();
+        }
     }
 }

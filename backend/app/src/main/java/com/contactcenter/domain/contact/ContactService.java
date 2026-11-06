@@ -695,6 +695,16 @@ public interface ContactService {
     Optional<Contact> findActiveSocialContact(UUID tenantId, String senderExternalId, String channel);
 
     /**
+     * BE-168: takes a shared row lock ({@code FOR SHARE}) on a social contact previously returned by
+     * {@link #findActiveSocialContact} and confirms it is still QUEUED/ASSIGNED/ACTIVE/ON_HOLD. The lock is
+     * held until the CALLER's transaction ends, so a message saved in that same transaction cannot land in a
+     * contact closed in between. Must be called inside a transaction.
+     *
+     * @return true = contact still open and locked; false = it became terminal (caller routes as new contact)
+     */
+    boolean lockActiveSocialContactShared(UUID tenantId, Contact contact);
+
+    /**
      * Zwraca kontakt aktualnie przypisany (status ASSIGNED) do danego agenta.
      *
      * @param agentId  UUID agenta

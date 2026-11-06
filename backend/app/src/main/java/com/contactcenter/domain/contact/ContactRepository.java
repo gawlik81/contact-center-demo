@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -2143,6 +2144,53 @@ class ContactRepository extends TenantAwareRepository {
         senderExternalId, results.isEmpty() ? "nie znaleziono" : results.get(0).getContactId());
 
     return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+  }
+
+  /**
+   * BE-168: re-checks, under a shared row lock, that the social contact read earlier by
+   * {@link #findActiveSocialContact} is still open, so an inbound message can be attached to it
+   * atomically (the lock lives until the surrounding transaction ends - the caller saves the message
+   * in the same transaction).
+   *
+   * <p>{@code FOR SHARE} on the single contact row (PK lookup, {@code started_at} prunes the partitioned
+   * table): a concurrent close (UPDATE to a terminal status) either commits first - under READ COMMITTED the
+   * WHERE is re-evaluated after the wait, the row no longer matches and this returns {@code false} - or it
+   * waits until the message transaction commits. Only this ONE row is locked and nothing else on {@code contact}
+   * is written afterwards, so no lock ordering problem arises (the e-mail join, BE-154, takes the same lock
+   * type on the same single row).
+   *
+   * <p>{@code started_at = :startedAt} (the partition key, never NULL - {@code requireNonNull}) is a plain
+   * equality on a bound parameter, so the partitioned table is pruned to a single partition.
+   *
+   * <p>Must be called inside a transaction ({@code Propagation.MANDATORY} - it throws instead of silently
+   * releasing the lock at once and protecting nothing).
+   *
+   * @return true = contact still QUEUED/ASSIGNED/ACTIVE/ON_HOLD and locked; false = lost race (route as new)
+   */
+  @Transactional(propagation = Propagation.MANDATORY)
+  public boolean lockActiveSocialContactShared(UUID tenantId, UUID contactId, String channel,
+                                               String senderExternalId, Instant startedAt) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    setTenantContextInDb(tenantId);
+
+    List<?> rows = em.createNativeQuery(
+            """
+                SELECT 1 FROM contact
+                WHERE contact_id     = CAST(:contactId AS uuid)
+                  AND tenant_id      = CAST(:tenantId AS uuid)
+                  AND channel        = CAST(:channel AS VARCHAR)
+                  AND remote_address = :senderExternalId
+                  AND status         IN ('QUEUED', 'ASSIGNED', 'ACTIVE', 'ON_HOLD')
+                  AND started_at     = :startedAt
+                FOR SHARE
+                """)
+        .setParameter("contactId", contactId.toString())
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("channel", channel)
+        .setParameter("senderExternalId", senderExternalId)
+        .setParameter("startedAt", startedAt)
+        .getResultList();
+    return !rows.isEmpty();
   }
 
   // =========================================================================

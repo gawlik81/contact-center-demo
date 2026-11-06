@@ -73,6 +73,7 @@ class SocialMessageServiceTest {
                 mock(com.contactcenter.domain.websocket.ContactMessageReceivedPublisher.class)
         );
         when(defaultQueueResolver.resolve(TENANT_ID)).thenReturn(Optional.of(QUEUE_ID));
+        when(contactService.lockActiveSocialContactShared(eq(TENANT_ID), any())).thenReturn(true);
     }
 
     @AfterEach
@@ -234,6 +235,93 @@ class SocialMessageServiceTest {
 
         // ContactQueuedMessage NIE powinien być publikowany (kontakt już w kolejce/aktywny)
         verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("BE-168: przegrany wyścig (kontakt terminalny po odczycie) → nowy kontakt + contact.queued, wiadomość nie ginie")
+    void processIncomingMessage_lostRace_routesAsNewContact() {
+        Contact closedMeanwhile = Contact.builder()
+                .contactId(CONTACT_ID).tenantId(TENANT_ID).channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE").remoteAddress(SENDER_ID).startedAt(Instant.now()).build();
+        when(socialIntegrationRepository.findByPlatformAndPageId(SocialPlatform.FACEBOOK, PAGE_ID))
+                .thenReturn(Optional.of(buildIntegration()));
+        when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
+                .thenReturn(Optional.empty());
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+                .thenReturn(Optional.of(closedMeanwhile));
+        when(contactService.lockActiveSocialContactShared(TENANT_ID, closedMeanwhile)).thenReturn(false);
+        when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
+
+        service.processIncomingMessage(buildIncomingMessage());
+
+        ArgumentCaptor<Contact> created = ArgumentCaptor.forClass(Contact.class);
+        verify(contactService).insertContact(created.capture());
+        ArgumentCaptor<SocialMessage> msg = ArgumentCaptor.forClass(SocialMessage.class);
+        verify(socialMessageRepository).save(msg.capture());
+        assertThat(msg.getValue().getContactId())
+                .isEqualTo(created.getValue().getContactId())
+                .isNotEqualTo(CONTACT_ID);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"),
+                any(Object.class));
+    }
+
+    @Test
+    @DisplayName("BE-168: przegrany wyścig, ale nadawca ma drugi otwarty kontakt → re-find + lock, dołącza bez nowego kontaktu")
+    void processIncomingMessage_lostRace_rejoinsOtherOpenContact() {
+        UUID otherContactId = UUID.randomUUID();
+        Contact closedMeanwhile = Contact.builder()
+                .contactId(CONTACT_ID).tenantId(TENANT_ID).channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE").remoteAddress(SENDER_ID).startedAt(Instant.now()).build();
+        Contact otherOpen = Contact.builder()
+                .contactId(otherContactId).tenantId(TENANT_ID).channel("SOCIAL_FACEBOOK")
+                .status("QUEUED").remoteAddress(SENDER_ID).startedAt(Instant.now()).build();
+        when(socialIntegrationRepository.findByPlatformAndPageId(SocialPlatform.FACEBOOK, PAGE_ID))
+                .thenReturn(Optional.of(buildIntegration()));
+        when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
+                .thenReturn(Optional.empty());
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+                .thenReturn(Optional.of(closedMeanwhile), Optional.of(otherOpen));
+        when(contactService.lockActiveSocialContactShared(TENANT_ID, closedMeanwhile)).thenReturn(false);
+        when(contactService.lockActiveSocialContactShared(TENANT_ID, otherOpen)).thenReturn(true);
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
+
+        service.processIncomingMessage(buildIncomingMessage());
+
+        verify(contactService, org.mockito.Mockito.times(2))
+                .findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK");
+        verify(contactService, org.mockito.Mockito.never()).insertContact(any());
+        ArgumentCaptor<SocialMessage> msg = ArgumentCaptor.forClass(SocialMessage.class);
+        verify(socialMessageRepository).save(msg.capture());
+        assertThat(msg.getValue().getContactId()).isEqualTo(otherContactId);
+        verify(rabbitTemplate, org.mockito.Mockito.never()).convertAndSend(
+                eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("BE-168: przegrany wyścig dwa razy (re-find też terminalny) → ograniczone do jednego ponowienia, nowy kontakt")
+    void processIncomingMessage_lostRaceTwice_boundedRetryThenNewContact() {
+        Contact c1 = Contact.builder().contactId(CONTACT_ID).tenantId(TENANT_ID).channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE").remoteAddress(SENDER_ID).startedAt(Instant.now()).build();
+        Contact c2 = Contact.builder().contactId(UUID.randomUUID()).tenantId(TENANT_ID).channel("SOCIAL_FACEBOOK")
+                .status("ACTIVE").remoteAddress(SENDER_ID).startedAt(Instant.now()).build();
+        when(socialIntegrationRepository.findByPlatformAndPageId(SocialPlatform.FACEBOOK, PAGE_ID))
+                .thenReturn(Optional.of(buildIntegration()));
+        when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
+                .thenReturn(Optional.empty());
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+                .thenReturn(Optional.of(c1), Optional.of(c2), Optional.of(c2));
+        when(contactService.lockActiveSocialContactShared(eq(TENANT_ID), any())).thenReturn(false);
+        when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(socialMessageRepository.save(any())).thenAnswer(inv -> Optional.of(inv.getArgument(0)));
+
+        service.processIncomingMessage(buildIncomingMessage());
+
+        verify(contactService, org.mockito.Mockito.times(2))
+                .findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK");
+        verify(contactService).insertContact(any());
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"),
+                any(Object.class));
     }
 
     // =========================================================================

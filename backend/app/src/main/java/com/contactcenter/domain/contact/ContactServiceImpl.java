@@ -1728,6 +1728,13 @@ class ContactServiceImpl implements ContactService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean lockActiveSocialContactShared(UUID tenantId, Contact contact) {
+        return contactRepository.lockActiveSocialContactShared(tenantId, contact.getContactId(),
+                contact.getChannel(), contact.getRemoteAddress(), contact.getStartedAt());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId) {
         return contactRepository.findAssignedContactForAgent(agentId, tenantId);

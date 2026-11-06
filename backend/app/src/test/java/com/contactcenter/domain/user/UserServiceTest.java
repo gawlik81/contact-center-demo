@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -55,6 +57,7 @@ class UserServiceTest {
     @Mock private RabbitTemplate rabbitTemplate;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private ValueOperations<String, Object> valueOperations;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -482,6 +485,56 @@ class UserServiceTest {
                     }),
                     any()
             );
+        }
+
+        @Test
+        @DisplayName("BE-166: ten sam status – bez zapisu encji i bez eventu, TTL w Redis odświeżony")
+        void shouldNotPublishWhenStatusUnchanged() {
+            AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
+                    UserRole.AGENT, UserStatus.AVAILABLE, List.of());
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+            Instant before = user.getStatusChangedAt();
+
+            userService.updateStatus(USER_ID, new UpdateStatusRequest(UserStatus.AVAILABLE), TENANT_ID);
+
+            verify(rabbitTemplate, org.mockito.Mockito.never()).convertAndSend(
+                    anyString(), anyString(), any(AgentStatusChangedEvent.class));
+            verify(appUserRepository, org.mockito.Mockito.never()).save(any(AppUser.class));
+            assertThat(user.getStatusChangedAt()).isEqualTo(before);
+            verify(valueOperations).set(eq("session:agent:" + USER_ID), any(), any());
+            // unchanged AVAILABLE still triggers the routing retry - via an internal event, not agent.status.changed
+            verify(eventPublisher).publishEvent(
+                    new AgentAvailabilityRefreshedEvent(USER_ID, TENANT_ID));
+        }
+
+        @Test
+        @DisplayName("BE-166: ten sam status inny niz AVAILABLE – ani event WS, ani retry routingu")
+        void shouldNotRequestRoutingRetryForUnchangedNonAvailable() {
+            AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
+                    UserRole.AGENT, UserStatus.BREAK, List.of());
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+
+            userService.updateStatus(USER_ID, new UpdateStatusRequest(UserStatus.BREAK), TENANT_ID);
+
+            verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("BE-166: realna zmiana na AVAILABLE – event RabbitMQ (retry przez konsumenta), bez eventu wewnetrznego")
+        void shouldNotPublishInternalEventOnRealTransition() {
+            AppUser user = buildUser(USER_ID, TENANT_ID, "agent@example.com",
+                    UserRole.AGENT, UserStatus.BREAK, List.of());
+            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(USER_ID, TENANT_ID))
+                    .thenReturn(Optional.of(user));
+            when(appUserRepository.save(any(AppUser.class))).thenReturn(user);
+
+            userService.updateStatus(USER_ID, new UpdateStatusRequest(UserStatus.AVAILABLE), TENANT_ID);
+
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS),
+                    eq("agent.status.changed"), any(AgentStatusChangedEvent.class));
+            verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any(Object.class));
         }
 
         @Test

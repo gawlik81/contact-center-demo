@@ -62,6 +62,7 @@ class DialerCallbackHandlerTest {
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private TelephonyAdapter telephonyAdapter;
+    @Mock private com.contactcenter.domain.user.UserService userService;
     @Mock private ValueOperations<String, String> valueOps;
 
     private DialerCallbackHandlerImpl handler;
@@ -74,7 +75,8 @@ class DialerCallbackHandlerTest {
                 campaignRepository,
                 redisTemplate,
                 jdbcTemplate,
-                telephonyAdapter
+                telephonyAdapter,
+                userService
         );
 
         // Redis – klucz dialer:call:{callSid} zawsze zwraca stan połączenia dialera

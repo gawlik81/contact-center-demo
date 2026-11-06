@@ -100,6 +100,8 @@ class SocialFollowUpEventIntegrationTest {
         when(integrations.findByPlatformAndPageId(SocialPlatform.WHATSAPP, "page-1"))
                 .thenReturn(Optional.of(integration));
         when(queueResolver.resolve(tenantId)).thenReturn(Optional.empty());
+        // BE-168: the contact stays open under the shared lock (the lost-race path has its own tests)
+        when(contactService.lockActiveSocialContactShared(eq(tenantId), any())).thenReturn(true);
     }
 
     private Contact existing(UUID agent) {
@@ -168,6 +170,30 @@ class SocialFollowUpEventIntegrationTest {
 
         service.processIncomingMessage(incoming("wamid-" + UUID.randomUUID(), Instant.parse("2026-10-15T10:00:00Z")));
 
+        verifyNoInteractions(broadcaster);
+    }
+
+    @Test
+    @DisplayName("BE-168: kontakt zamkniety miedzy odczytem a zapisem -> wiadomosc w NOWYM kontakcie, nie w zamknietym")
+    void lostRaceRoutesMessageToNewContactNotClosedOne() {
+        when(contactService.findActiveSocialContact(tenantId, SENDER, "SOCIAL_WHATSAPP"))
+                .thenReturn(Optional.of(existing(agentId)));
+        when(contactService.lockActiveSocialContactShared(eq(tenantId), any())).thenReturn(false);
+        when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
+        String externalId = "wamid-" + UUID.randomUUID();
+
+        service.processIncomingMessage(incoming(externalId, Instant.parse("2026-10-15T10:00:00Z")));
+
+        org.mockito.ArgumentCaptor<Contact> created = org.mockito.ArgumentCaptor.forClass(Contact.class);
+        verify(contactService).insertContact(created.capture());
+        UUID newContactId = created.getValue().getContactId();
+        assertThat(newContactId).isNotEqualTo(contactId);
+        assertThat(created.getValue().getStatus()).isEqualTo("QUEUED");
+        // message not lost, stored under the new contact; never under the closed one
+        assertThat(jdbc.queryForObject("SELECT contact_id FROM social_message WHERE external_message_id = ?",
+                UUID.class, externalId)).isEqualTo(newContactId);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM social_message WHERE contact_id = ?",
+                Integer.class, contactId)).isZero();
         verifyNoInteractions(broadcaster);
     }
 

@@ -89,6 +89,19 @@ class SocialMessageServiceImpl implements SocialMessageService {
         Optional<Contact> activeContact = contactService
                 .findActiveSocialContact(tenantId, incoming.senderExternalId(), channel);
 
+        // BE-168: read-then-write is not atomic - take a shared lock on the contact row (held until this
+        // transaction commits, i.e. past the message INSERT below). Lost race (contact became terminal after
+        // the read): re-find ONCE (the sender may have another open contact; findActiveSocialContact has no
+        // ORDER BY) and lock that one. Still nothing/lost again -> new contact + routing, message never lost.
+        if (activeContact.isPresent()
+                && !contactService.lockActiveSocialContactShared(tenantId, activeContact.get())) {
+            log.info("[SocialMessage] Kontakt {} zamknięty między odczytem a zapisem – ponawiam wyszukiwanie",
+                    activeContact.get().getContactId());
+            activeContact = contactService
+                    .findActiveSocialContact(tenantId, incoming.senderExternalId(), channel)
+                    .filter(c -> contactService.lockActiveSocialContactShared(tenantId, c));
+        }
+
         boolean isNewContact = activeContact.isEmpty();
         UUID contactId;
 

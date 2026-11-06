@@ -52,7 +52,7 @@ public interface CampaignAssignmentService {
      * @param tenantId   UUID tenanta
      * @return DTO z nowym stanem przypisania
      * @throws ResourceNotFoundException gdy kampania nie istnieje lub nie należy do tenanta
-     * @throws IllegalArgumentException  gdy directAgentId lub groupId nie należy do tenanta
+     * @throws BusinessValidationException  gdy directAgentId lub groupId nie należy do tenanta
      *                                   lub agent nie ma roli AGENT (HTTP 400)
      */
     CampaignAssignmentResponse updateAssignment(UUID campaignId, UpdateCampaignAssignmentRequest request,

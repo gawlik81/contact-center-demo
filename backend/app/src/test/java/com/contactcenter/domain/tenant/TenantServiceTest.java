@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
@@ -186,7 +187,7 @@ class TenantServiceTest {
         }
 
         @Test
-        @DisplayName("powinien rzucić IllegalArgumentException gdy nazwa jest już zajęta")
+        @DisplayName("powinien rzucić BusinessValidationException gdy nazwa jest już zajęta")
         void shouldThrowExceptionWhenNameAlreadyExists() {
             // given
             CreateTenantRequest request = new CreateTenantRequest("Existing Tenant", null);
@@ -194,7 +195,7 @@ class TenantServiceTest {
 
             // when / then
             assertThatThrownBy(() -> tenantService.createTenant(request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Existing Tenant");
 
             verify(tenantRepository, never()).save(any());
@@ -421,7 +422,7 @@ class TenantServiceTest {
         }
 
         @Test
-        @DisplayName("powinien rzucić IllegalArgumentException gdy nowa nazwa jest zajęta")
+        @DisplayName("powinien rzucić BusinessValidationException gdy nowa nazwa jest zajęta")
         void shouldThrowExceptionWhenNewNameAlreadyTaken() {
             // given
             UpdateTenantRequest request = new UpdateTenantRequest("Existing Name", null, null);
@@ -430,7 +431,7 @@ class TenantServiceTest {
 
             // when / then
             assertThatThrownBy(() -> tenantService.updateTenant(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Existing Name");
         }
 

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigRequest;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
@@ -81,13 +82,13 @@ class TenantAiConfigServiceTest {
         }
 
         @Test
-        @DisplayName("dla AZURE_OPENAI bez azureEndpoint rzuca IllegalArgumentException")
-        void saveConfig_azureOpenAi_withoutEndpoint_throwsIllegalArgumentException() {
+        @DisplayName("dla AZURE_OPENAI bez azureEndpoint rzuca BusinessValidationException")
+        void saveConfig_azureOpenAi_withoutEndpoint_throwsBusinessValidationException() {
             TenantAiConfigRequest request = new TenantAiConfigRequest(
                     AiProvider.AZURE_OPENAI, VALID_API_KEY, VALID_MODEL, null, null, null);
 
             assertThatThrownBy(() -> service.saveConfig(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("azureEndpoint");
         }
 

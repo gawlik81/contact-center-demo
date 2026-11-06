@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.WhatsAppApiException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,9 +78,9 @@ class WhatsAppGraphApiVerifierTest {
     }
 
     @Test
-    @DisplayName("Graph API zwraca 401 -> IllegalArgumentException z czytelnym komunikatem PL, " +
+    @DisplayName("Graph API zwraca 401 -> BusinessValidationException z czytelnym komunikatem PL, " +
                  "token NIE pojawia się w komunikacie wyjątku")
-    void graphApiReturns401_throwsIllegalArgumentExceptionWithoutLeakingToken() {
+    void graphApiReturns401_throwsBusinessValidationExceptionWithoutLeakingToken() {
         httpServer.createContext("/" + PHONE_NUMBER_ID, exchange -> {
             byte[] errorBody = "{\"error\":{\"message\":\"Invalid OAuth access token\"}}"
                     .getBytes(StandardCharsets.UTF_8);
@@ -91,14 +92,14 @@ class WhatsAppGraphApiVerifierTest {
         httpServer.start();
 
         assertThatThrownBy(() -> verifier.verifyPhoneNumberAccess(PHONE_NUMBER_ID, ACCESS_TOKEN))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(BusinessValidationException.class)
                 .hasMessageContaining("Nieprawidłowy token dostępu lub identyfikator numeru telefonu")
                 .satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(ACCESS_TOKEN));
     }
 
     @Test
-    @DisplayName("Graph API zwraca 404 (nieprawidłowy phoneNumberId) -> IllegalArgumentException")
-    void graphApiReturns404_throwsIllegalArgumentException() {
+    @DisplayName("Graph API zwraca 404 (nieprawidłowy phoneNumberId) -> BusinessValidationException")
+    void graphApiReturns404_throwsBusinessValidationException() {
         httpServer.createContext("/" + PHONE_NUMBER_ID, exchange -> {
             exchange.sendResponseHeaders(404, -1);
             exchange.close();
@@ -106,7 +107,7 @@ class WhatsAppGraphApiVerifierTest {
         httpServer.start();
 
         assertThatThrownBy(() -> verifier.verifyPhoneNumberAccess(PHONE_NUMBER_ID, ACCESS_TOKEN))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessValidationException.class);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.contactcenter.api.telephony;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.telephony.dto.SimulateCallRequest;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.MockTelephonyAdapter;
@@ -196,7 +197,7 @@ public class MockCallController {
 
     private void requireCallId(SimulateCallRequest request) {
         if (request.callId() == null || request.callId().isBlank()) {
-            throw new IllegalArgumentException("callId jest wymagany dla akcji: " + request.action());
+            throw new BusinessValidationException("callId jest wymagany dla akcji: " + request.action());
         }
     }
 

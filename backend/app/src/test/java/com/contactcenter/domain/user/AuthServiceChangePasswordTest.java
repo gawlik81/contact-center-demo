@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginResponse;
 import com.contactcenter.domain.tenant.Tenant;
@@ -33,8 +34,8 @@ import static org.mockito.Mockito.*;
  * <ul>
  *   <li>Poprawna zmiana hasła – zwraca nowe tokeny, czyści flagę passwordResetRequired</li>
  *   <li>Błędne aktualne hasło – BadCredentialsException</li>
- *   <li>Nowe hasło bez cyfry – IllegalArgumentException</li>
- *   <li>Nowe hasło bez wielkiej litery – IllegalArgumentException</li>
+ *   <li>Nowe hasło bez cyfry – BusinessValidationException</li>
+ *   <li>Nowe hasło bez wielkiej litery – BusinessValidationException</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -187,7 +188,7 @@ class AuthServiceChangePasswordTest {
     class WeakNewPassword {
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException gdy nowe hasło nie zawiera cyfry")
+        @DisplayName("rzuca BusinessValidationException gdy nowe hasło nie zawiera cyfry")
         void changePassword_noDigitInNewPassword_throwsIllegalArgument() {
             // given
             AppUser user = buildUser("$2a$12$hash");
@@ -199,12 +200,12 @@ class AuthServiceChangePasswordTest {
 
             // when / then
             assertThatThrownBy(() -> authService.changePassword(USER_ID, TENANT_ID, request, "token"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("cyfr");
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException gdy nowe hasło nie zawiera wielkiej litery")
+        @DisplayName("rzuca BusinessValidationException gdy nowe hasło nie zawiera wielkiej litery")
         void changePassword_noUppercaseInNewPassword_throwsIllegalArgument() {
             // given
             AppUser user = buildUser("$2a$12$hash");
@@ -216,12 +217,12 @@ class AuthServiceChangePasswordTest {
 
             // when / then
             assertThatThrownBy(() -> authService.changePassword(USER_ID, TENANT_ID, request, "token"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("wielk");
         }
 
         @Test
-        @DisplayName("rzuca IllegalArgumentException gdy nowe hasło same cyfry")
+        @DisplayName("rzuca BusinessValidationException gdy nowe hasło same cyfry")
         void changePassword_onlyDigitsInNewPassword_throwsIllegalArgument() {
             // given
             AppUser user = buildUser("$2a$12$hash");
@@ -232,7 +233,7 @@ class AuthServiceChangePasswordTest {
 
             // when / then
             assertThatThrownBy(() -> authService.changePassword(USER_ID, TENANT_ID, request, "token"))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
     }
 }

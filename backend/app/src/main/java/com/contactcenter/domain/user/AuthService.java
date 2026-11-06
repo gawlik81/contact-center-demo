@@ -136,7 +136,7 @@ public interface AuthService {
      * @param oldAccessToken stary access token do blacklisty
      * @return nowa para tokenów
      * @throws BadCredentialsException  gdy aktualne hasło jest nieprawidłowe
-     * @throws IllegalArgumentException gdy nowe hasło nie spełnia wymagań siły
+     * @throws BusinessValidationException gdy nowe hasło nie spełnia wymagań siły
      */
     LoginResponse changePassword(UUID userId, UUID tenantId, ChangePasswordRequest request, String oldAccessToken);
 
@@ -155,7 +155,7 @@ public interface AuthService {
      * @param targetUserId   UUID użytkownika do zresetowania
      * @param callerTenantId UUID tenanta wywołującego (z JWT)
      * @param callerRole     rola wywołującego ("ADMIN" lub "SUPERVISOR")
-     * @throws IllegalArgumentException gdy użytkownik nie istnieje
+     * @throws BusinessValidationException gdy użytkownik nie istnieje
      * @throws AccessDeniedException    gdy SUPERVISOR próbuje resetować użytkownika innego tenanta
      */
     void forcePasswordReset(UUID targetUserId, UUID callerTenantId, String callerRole);

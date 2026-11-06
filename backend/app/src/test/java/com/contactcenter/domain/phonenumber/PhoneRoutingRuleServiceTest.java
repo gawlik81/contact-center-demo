@@ -1,5 +1,6 @@
 package com.contactcenter.domain.phonenumber;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.phonenumber.dto.CreatePhoneRoutingRuleRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneRoutingRuleResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneRoutingRuleRequest;
@@ -311,7 +312,7 @@ class PhoneRoutingRuleServiceTest {
     class CrossFieldValidation {
 
         @Test
-        @DisplayName("timeEnd <= timeStart → rzuca IllegalArgumentException")
+        @DisplayName("timeEnd <= timeStart → rzuca BusinessValidationException")
         void createRule_timeEndBeforeStart_throwsIllegalArgument() {
             // given
             CreatePhoneRoutingRuleRequest request = new CreatePhoneRoutingRuleRequest(
@@ -325,12 +326,12 @@ class PhoneRoutingRuleServiceTest {
             // when / then
             assertThatThrownBy(() ->
                     phoneRoutingRuleService.createRule(TENANT_ID, PHONE_NUMBER_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("timeEnd");
         }
 
         @Test
-        @DisplayName("oba targetId podane → rzuca IllegalArgumentException")
+        @DisplayName("oba targetId podane → rzuca BusinessValidationException")
         void createRule_bothTargetsSet_throwsIllegalArgument() {
             // given – zarówno ivrTreeId jak i queueId podane
             CreatePhoneRoutingRuleRequest request = new CreatePhoneRoutingRuleRequest(
@@ -345,12 +346,12 @@ class PhoneRoutingRuleServiceTest {
             // when / then
             assertThatThrownBy(() ->
                     phoneRoutingRuleService.createRule(TENANT_ID, PHONE_NUMBER_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("ivrTreeId");
         }
 
         @Test
-        @DisplayName("żaden targetId nie podany → rzuca IllegalArgumentException")
+        @DisplayName("żaden targetId nie podany → rzuca BusinessValidationException")
         void createRule_noTargetSet_throwsIllegalArgument() {
             // given – ani ivrTreeId ani queueId
             CreatePhoneRoutingRuleRequest request = new CreatePhoneRoutingRuleRequest(
@@ -365,7 +366,7 @@ class PhoneRoutingRuleServiceTest {
             // when / then
             assertThatThrownBy(() ->
                     phoneRoutingRuleService.createRule(TENANT_ID, PHONE_NUMBER_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("ivrTreeId");
         }
     }

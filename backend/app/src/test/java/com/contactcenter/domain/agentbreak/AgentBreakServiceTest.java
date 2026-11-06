@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentbreak;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentbreak.dto.AgentBreakResponse;
 import com.contactcenter.api.agentbreak.dto.CreateAgentBreakRequest;
 import com.contactcenter.api.agentbreak.dto.UpdateAgentBreakRequest;
@@ -154,7 +155,7 @@ class AgentBreakServiceTest {
         }
 
         @Test
-        @DisplayName("endTime <= startTime – rzuca IllegalArgumentException (HTTP 400)")
+        @DisplayName("endTime <= startTime – rzuca BusinessValidationException (HTTP 400)")
         void createBreak_endNotAfterStart_throwsIllegalArgument() {
             // given
             Instant start = Instant.now().plus(1, ChronoUnit.HOURS);
@@ -165,14 +166,14 @@ class AgentBreakServiceTest {
 
             // when / then
             assertThatThrownBy(() -> agentBreakService.createBreak(request, AGENT_ID, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("endTime");
 
             verify(agentBreakRepository, never()).insert(any());
         }
 
         @Test
-        @DisplayName("endTime przed startTime – rzuca IllegalArgumentException (HTTP 400)")
+        @DisplayName("endTime przed startTime – rzuca BusinessValidationException (HTTP 400)")
         void createBreak_endBeforeStart_throwsIllegalArgument() {
             // given
             Instant start = Instant.now().plus(2, ChronoUnit.HOURS);
@@ -183,14 +184,14 @@ class AgentBreakServiceTest {
 
             // when / then
             assertThatThrownBy(() -> agentBreakService.createBreak(request, AGENT_ID, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("endTime");
 
             verify(agentBreakRepository, never()).insert(any());
         }
 
         @Test
-        @DisplayName("startTime w przeszłości – rzuca IllegalArgumentException (HTTP 400)")
+        @DisplayName("startTime w przeszłości – rzuca BusinessValidationException (HTTP 400)")
         void createBreak_startTimeInPast_throwsIllegalArgument() {
             // given
             Instant start = Instant.now().minus(1, ChronoUnit.HOURS);
@@ -201,7 +202,7 @@ class AgentBreakServiceTest {
 
             // when / then
             assertThatThrownBy(() -> agentBreakService.createBreak(request, AGENT_ID, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("startTime");
 
             verify(agentBreakRepository, never()).insert(any());

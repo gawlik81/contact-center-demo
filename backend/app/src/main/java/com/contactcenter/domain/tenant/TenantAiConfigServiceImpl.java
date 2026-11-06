@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigRequest;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
@@ -29,7 +30,7 @@ class TenantAiConfigServiceImpl implements TenantAiConfigService {
         // Walidacja: AZURE_OPENAI wymaga azureEndpoint
         if (request.provider() == AiProvider.AZURE_OPENAI
                 && !StringUtils.hasText(request.azureEndpoint())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "azureEndpoint jest wymagany dla dostawcy AZURE_OPENAI");
         }
 

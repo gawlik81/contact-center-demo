@@ -1,5 +1,6 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.retention.dto.CampaignArchivePreviewDto;
@@ -115,10 +116,10 @@ class CampaignArchiveSettingServiceImpl implements CampaignArchiveSettingService
     /** Obrona w głąb: ten sam zakres co Bean Validation i CHECK w bazie (V136). */
     private static int validate(Integer days) {
         if (days == null) {
-            throw new IllegalArgumentException("Okres archiwizacji (dni) jest wymagany");
+            throw new BusinessValidationException("Okres archiwizacji (dni) jest wymagany");
         }
         if (days < MIN_ARCHIVE_AFTER_DAYS || days > MAX_ARCHIVE_AFTER_DAYS) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Okres archiwizacji musi mieścić się w zakresie %d-%d dni (podano: %d)"
                             .formatted(MIN_ARCHIVE_AFTER_DAYS, MAX_ARCHIVE_AFTER_DAYS, days));
         }

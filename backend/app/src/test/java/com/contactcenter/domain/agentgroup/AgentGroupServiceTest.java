@@ -1,5 +1,6 @@
 package com.contactcenter.domain.agentgroup;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.agentgroup.dto.AgentGroupMembersResponse;
 import com.contactcenter.api.agentgroup.dto.AgentGroupResponse;
@@ -245,7 +246,7 @@ class AgentGroupServiceTest {
     class ReplaceMembers {
 
         @Test
-        @DisplayName("agentId spoza tenanta – rzuca IllegalArgumentException (HTTP 422)")
+        @DisplayName("agentId spoza tenanta – rzuca BusinessValidationException (HTTP 422)")
         void replaceMembers_agentNotInTenant_throwsIllegalArgument() {
             // given
             AgentGroup group = buildGroup(GROUP_ID, TENANT_ID, "Testowa");
@@ -256,14 +257,14 @@ class AgentGroupServiceTest {
 
             // when / then
             assertThatThrownBy(() -> agentGroupService.replaceMembers(GROUP_ID, List.of(AGENT_ID), TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining(AGENT_ID.toString());
 
             verify(agentGroupRepository, never()).replaceMembers(any(), any(), any());
         }
 
         @Test
-        @DisplayName("agent z rolą SUPERVISOR – rzuca IllegalArgumentException (HTTP 422)")
+        @DisplayName("agent z rolą SUPERVISOR – rzuca BusinessValidationException (HTTP 422)")
         void replaceMembers_agentNotAgentRole_throwsIllegalArgument() {
             // given
             AgentGroup group = buildGroup(GROUP_ID, TENANT_ID, "Testowa");
@@ -276,7 +277,7 @@ class AgentGroupServiceTest {
 
             // when / then
             assertThatThrownBy(() -> agentGroupService.replaceMembers(GROUP_ID, List.of(AGENT_ID), TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("SUPERVISOR");
 
             verify(agentGroupRepository, never()).replaceMembers(any(), any(), any());

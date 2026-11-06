@@ -28,7 +28,7 @@ public interface PhoneNumberService {
      * @param tenantId UUID tenanta
      * @param request  dane nowego numeru
      * @return DTO nowo utworzonego numeru
-     * @throws IllegalArgumentException gdy numer nie jest w formacie E.164 (HTTP 422)
+     * @throws BusinessValidationException gdy numer nie jest w formacie E.164 (HTTP 422)
      * @throws ConflictException        gdy numer już istnieje w obrębie tenanta (HTTP 409)
      */
     PhoneNumberResponse createPhoneNumber(UUID tenantId, CreatePhoneNumberRequest request);

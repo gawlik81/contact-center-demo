@@ -1,5 +1,6 @@
 package com.contactcenter.domain.phonenumber;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.phonenumber.dto.CreatePhoneRoutingRuleRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneRoutingRuleResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneRoutingRuleRequest;
@@ -53,7 +54,7 @@ class PhoneRoutingRuleServiceImpl implements PhoneRoutingRuleService {
 
         if (request.ivrTreeId() != null
                 && !ivrService.existsActiveIvrTree(tenantId, request.ivrTreeId())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Drzewo IVR jest nieaktywne i nie może zostać dodane do reguły routingu. "
                     + "Aktywuj drzewo IVR przed dodaniem do reguły.");
         }
@@ -130,13 +131,13 @@ class PhoneRoutingRuleServiceImpl implements PhoneRoutingRuleService {
 
         // Cross-field walidacja na wynikowym stanie
         if (!timeEnd.isAfter(timeStart)) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "timeEnd musi być późniejszy niż timeStart (timeStart=" + timeStart + ", timeEnd=" + timeEnd + ")");
         }
 
         if (request.ivrTreeId() != null
                 && !ivrService.existsActiveIvrTree(tenantId, request.ivrTreeId())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Drzewo IVR jest nieaktywne i nie może zostać dodane do reguły routingu. "
                     + "Aktywuj drzewo IVR przed dodaniem do reguły.");
         }
@@ -213,12 +214,12 @@ class PhoneRoutingRuleServiceImpl implements PhoneRoutingRuleService {
      */
     private void validateCreateRequest(CreatePhoneRoutingRuleRequest request) {
         if (!request.isTimeRangeValid()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "timeEnd musi być późniejszy niż timeStart (timeStart="
                     + request.timeStart() + ", timeEnd=" + request.timeEnd() + ")");
         }
         if (!request.isExactlyOneTargetSet()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Dokładnie jeden z ivrTreeId / queueId musi być podany (nie oba, nie żaden)");
         }
     }
@@ -236,7 +237,7 @@ class PhoneRoutingRuleServiceImpl implements PhoneRoutingRuleService {
             boolean ivrSet   = newIvr   != null;
             boolean queueSet = newQueue != null;
             if (ivrSet == queueSet) {
-                throw new IllegalArgumentException(
+                throw new BusinessValidationException(
                         "Dokładnie jeden z ivrTreeId / queueId musi być podany (nie oba, nie żaden)");
             }
         }

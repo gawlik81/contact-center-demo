@@ -36,7 +36,7 @@ public interface RetentionPolicyService {
      * @param autoPurgeEnabled czy włączyć automatyczne usuwanie po upływie retencji
      * @param updatedByUserId UUID użytkownika wykonującego zmianę (nullable — np. zadania systemowe)
      * @return zapisana/zaktualizowana polityka
-     * @throws IllegalArgumentException gdy {@code retentionMonths} spoza zakresu [1,120]
+     * @throws BusinessValidationException gdy {@code retentionMonths} spoza zakresu [1,120]
      */
     TenantRetentionPolicy updatePolicy(UUID tenantId, RetentionDataCategory category,
                                         int retentionMonths, boolean autoPurgeEnabled,

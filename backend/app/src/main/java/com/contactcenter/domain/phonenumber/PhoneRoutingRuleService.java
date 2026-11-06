@@ -33,7 +33,7 @@ public interface PhoneRoutingRuleService {
      * @param request       dane nowej reguły
      * @return DTO nowo utworzonej reguły
      * @throws ResourceNotFoundException    gdy numer telefonu nie istnieje (HTTP 404)
-     * @throws IllegalArgumentException     gdy walidacja cross-field się nie powiedzie (HTTP 422)
+     * @throws BusinessValidationException     gdy walidacja cross-field się nie powiedzie (HTTP 422)
      * @throws RoutingRuleConflictException gdy reguła koliduje z istniejącymi (HTTP 409)
      */
     PhoneRoutingRuleResponse createRule(UUID tenantId, UUID phoneNumberId, CreatePhoneRoutingRuleRequest request);
@@ -60,7 +60,7 @@ public interface PhoneRoutingRuleService {
      * @param request       pola do aktualizacji
      * @return DTO zaktualizowanej reguły
      * @throws ResourceNotFoundException    gdy reguła lub numer nie istnieje (HTTP 404)
-     * @throws IllegalArgumentException     gdy walidacja cross-field się nie powiedzie (HTTP 422)
+     * @throws BusinessValidationException     gdy walidacja cross-field się nie powiedzie (HTTP 422)
      * @throws RoutingRuleConflictException gdy reguła koliduje z innymi (HTTP 409)
      */
     PhoneRoutingRuleResponse updateRule(UUID tenantId, UUID phoneNumberId, UUID ruleId,

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.tenant;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.ContactChannelMatrix;
 import com.contactcenter.api.admin.dto.GrowthMetrics;
@@ -611,18 +612,18 @@ class AdminMetricsServiceImplTest {
         }
 
         @Test
-        @DisplayName("powinien rzucić IllegalArgumentException gdy days poza dozwolonym zbiorem {7, 30, 90}")
+        @DisplayName("powinien rzucić BusinessValidationException gdy days poza dozwolonym zbiorem {7, 30, 90}")
         void shouldThrowWhenDaysNotAllowed() {
             assertThatThrownBy(() -> adminMetricsService.getContactChannelMatrix(0))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
             assertThatThrownBy(() -> adminMetricsService.getContactChannelMatrix(1))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
             assertThatThrownBy(() -> adminMetricsService.getContactChannelMatrix(5))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
             assertThatThrownBy(() -> adminMetricsService.getContactChannelMatrix(14))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
             assertThatThrownBy(() -> adminMetricsService.getContactChannelMatrix(-7))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
 
         @Test
@@ -789,12 +790,12 @@ class AdminMetricsServiceImplTest {
     class GetGrowthMetrics {
 
         @Test
-        @DisplayName("powinien rzucić IllegalArgumentException gdy weeks poza zakresem 1-52")
+        @DisplayName("powinien rzucić BusinessValidationException gdy weeks poza zakresem 1-52")
         void shouldThrowWhenWeeksOutOfRange() {
             assertThatThrownBy(() -> adminMetricsService.getGrowthMetrics(0))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
             assertThatThrownBy(() -> adminMetricsService.getGrowthMetrics(53))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
 
         @Test

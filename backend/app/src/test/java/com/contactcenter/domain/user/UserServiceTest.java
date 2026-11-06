@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.user.dto.*;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.user.AppUser.UserRole;
@@ -158,7 +159,7 @@ class UserServiceTest {
                     .thenReturn(true);
 
             assertThatThrownBy(() -> userService.createUser(request, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("zajęty");
 
             verify(appUserRepository, never()).save(any());
@@ -394,7 +395,7 @@ class UserServiceTest {
         @DisplayName("powinien rzucić wyjątek gdy próbuje usunąć siebie")
         void shouldThrowWhenDeletingSelf() {
             assertThatThrownBy(() -> userService.deleteUser(USER_ID, TENANT_ID, USER_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("własnego konta");
 
             verify(appUserRepository, never()).findByIdAndTenantIdAndDeletedFalse(any(), any());
@@ -543,7 +544,7 @@ class UserServiceTest {
             UpdateStatusRequest request = new UpdateStatusRequest(UserStatus.ACTIVE);
 
             assertThatThrownBy(() -> userService.updateStatus(USER_ID, request, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Niedozwolony status");
         }
 

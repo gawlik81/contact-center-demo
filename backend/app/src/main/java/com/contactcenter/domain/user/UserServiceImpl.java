@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.user.dto.*;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.user.AppUser.UserRole;
@@ -91,7 +92,7 @@ class UserServiceImpl implements UserService {
      * @param tenantId UUID tenanta z TenantContext
      * @return DTO nowo utworzonego użytkownika
      * @throws com.contactcenter.domain.exception.ResourceLimitExceededException HTTP 422 gdy limit agentów przekroczony
-     * @throws IllegalArgumentException HTTP 422 gdy email już zajęty w tenancie
+     * @throws BusinessValidationException HTTP 422 gdy email już zajęty w tenancie
      */
     @Transactional
     @Audited(action = "USER_CREATED", entityType = "USER", entityIdResultAccessor = "id")
@@ -114,7 +115,7 @@ class UserServiceImpl implements UserService {
 
         // Walidacja unikalności email w tenancie
         if (appUserRepository.existsByTenantIdAndEmail(tenantId, request.email())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Email '" + request.email() + "' jest już zajęty w tym tenancie");
         }
 
@@ -269,7 +270,7 @@ class UserServiceImpl implements UserService {
      * @param requestingUserId UUID użytkownika wykonującego żądanie
      * @throws ConflictException       HTTP 409 gdy agent ma aktywne kontakty
      * @throws EntityNotFoundException HTTP 422 gdy użytkownik nie istnieje
-     * @throws IllegalArgumentException HTTP 422 gdy próbuje usunąć siebie
+     * @throws BusinessValidationException HTTP 422 gdy próbuje usunąć siebie
      */
     @Transactional
     @Audited(action = "USER_DELETED", entityType = "USER", captureOldValue = true,
@@ -278,7 +279,7 @@ class UserServiceImpl implements UserService {
     public void deleteUser(UUID userId, UUID tenantId, UUID requestingUserId) {
         // Nie można usunąć siebie
         if (userId.equals(requestingUserId)) {
-            throw new IllegalArgumentException("Nie można usunąć własnego konta");
+            throw new BusinessValidationException("Nie można usunąć własnego konta");
         }
 
         // Sprawdź czy użytkownik istnieje
@@ -341,7 +342,7 @@ class UserServiceImpl implements UserService {
      * @param request  nowy status
      * @param tenantId UUID tenanta
      * @return DTO zaktualizowanego użytkownika
-     * @throws IllegalArgumentException HTTP 422 gdy status jest niedozwolony (ACTIVE/INACTIVE)
+     * @throws BusinessValidationException HTTP 422 gdy status jest niedozwolony (ACTIVE/INACTIVE)
      * @throws EntityNotFoundException  HTTP 422 gdy użytkownik nie istnieje
      */
     @Transactional
@@ -349,7 +350,7 @@ class UserServiceImpl implements UserService {
     public UserResponse updateStatus(UUID userId, UpdateStatusRequest request, UUID tenantId) {
         // Walidacja dozwolonych statusów
         if (!ALLOWED_AGENT_STATUSES.contains(request.status())) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Niedozwolony status: " + request.status() +
                     ". Dozwolone: AVAILABLE, BUSY, BREAK, AFTER_CONTACT");
         }

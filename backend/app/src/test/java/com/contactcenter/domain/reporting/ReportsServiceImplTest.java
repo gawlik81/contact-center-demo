@@ -1,5 +1,6 @@
 package com.contactcenter.domain.reporting;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
@@ -90,7 +91,7 @@ class ReportsServiceImplTest {
             AgentReportParams params = new AgentReportParams(from, to, null, null, null, 0, 20);
 
             assertThatThrownBy(() -> reportsService.getAgentReport(params, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("90");
         }
 
@@ -103,7 +104,7 @@ class ReportsServiceImplTest {
             AgentReportParams params = new AgentReportParams(from, to, null, null, null, 0, 20);
 
             assertThatThrownBy(() -> reportsService.getAgentReport(params, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("dateTo");
         }
 
@@ -272,7 +273,7 @@ class ReportsServiceImplTest {
             AgentReportParams params = new AgentReportParams(from, to, null, null, null, 0, 100);
 
             assertThatThrownBy(() -> reportsService.exportAgentReportCsv(params, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
 
         @Test
@@ -326,7 +327,7 @@ class ReportsServiceImplTest {
             AgentReportParams params = new AgentReportParams(from, to, null, null, null, 0, 100);
 
             assertThatThrownBy(() -> reportsService.exportAgentReportXlsx(params, TENANT_ID))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
     }
 

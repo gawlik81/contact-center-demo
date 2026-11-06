@@ -30,7 +30,7 @@ public interface ReportsService {
      * @param params   parametry filtrowania i paginacji
      * @param tenantId UUID tenanta z TenantContext (wymuszany przez kontroler)
      * @return paginowana lista wierszy raportu
-     * @throws IllegalArgumentException gdy zakres dat przekracza 90 dni
+     * @throws BusinessValidationException gdy zakres dat przekracza 90 dni
      */
     PagedResponse<AgentReportRow> getAgentReport(AgentReportParams params, UUID tenantId);
 
@@ -44,7 +44,7 @@ public interface ReportsService {
      * @param params   parametry filtrowania (bez paginacji – size/page ignorowane)
      * @param tenantId UUID tenanta
      * @return bajty pliku CSV zakodowanego w UTF-8
-     * @throws IllegalArgumentException gdy zakres dat przekracza 90 dni
+     * @throws BusinessValidationException gdy zakres dat przekracza 90 dni
      */
     byte[] exportAgentReportCsv(AgentReportParams params, UUID tenantId);
 
@@ -58,7 +58,7 @@ public interface ReportsService {
      * @param params   parametry filtrowania
      * @param tenantId UUID tenanta
      * @return bajty pliku XLSX
-     * @throws IllegalArgumentException gdy zakres dat przekracza 90 dni
+     * @throws BusinessValidationException gdy zakres dat przekracza 90 dni
      * @throws ReportExportException    gdy nie można zapisać pliku XLSX
      */
     byte[] exportAgentReportXlsx(AgentReportParams params, UUID tenantId);

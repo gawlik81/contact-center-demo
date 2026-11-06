@@ -1,5 +1,6 @@
 package com.contactcenter.api.agentbreak;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.agentbreak.dto.AgentCalendarResponse;
 import com.contactcenter.domain.agentbreak.AgentCalendarService;
 import com.contactcenter.security.TenantContext;
@@ -111,7 +112,7 @@ public class AgentCalendarController {
      * @param value     wartość do sparsowania (może być null)
      * @param paramName nazwa parametru – używana w komunikacie błędu
      * @return Instant lub null
-     * @throws IllegalArgumentException gdy wartość jest niepusta, ale nieprawidłowo sformatowana
+     * @throws BusinessValidationException gdy wartość jest niepusta, ale nieprawidłowo sformatowana
      */
     private Instant parseInstantOrThrow(String value, String paramName) {
         if (value == null) {
@@ -120,7 +121,7 @@ public class AgentCalendarController {
         try {
             return Instant.parse(value);
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Nieprawidłowy format parametru '" + paramName + "': '" + value
                     + "'. Oczekiwany format ISO-8601, np. 2026-04-21T00:00:00Z");
         }

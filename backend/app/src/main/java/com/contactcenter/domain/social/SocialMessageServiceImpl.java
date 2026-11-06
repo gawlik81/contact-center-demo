@@ -1,5 +1,6 @@
 package com.contactcenter.domain.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -246,13 +247,13 @@ class SocialMessageServiceImpl implements SocialMessageService {
      */
     protected SendContext loadSendContext(UUID contactId, UUID tenantId) {
         Contact contact = contactService.findContactEntity(contactId, tenantId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BusinessValidationException(
                         "Kontakt nie istnieje: contactId=" + contactId));
 
         String channel = contact.getChannel();
         SocialPlatform platform = channelToPlatform(channel);
         if (platform == null) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Kontakt nie jest kanałem social media: channel=" + channel);
         }
 

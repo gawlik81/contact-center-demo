@@ -1,5 +1,6 @@
 package com.contactcenter.domain.retention;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.infrastructure.config.S3Properties;
 import lombok.RequiredArgsConstructor;
@@ -166,12 +167,12 @@ class RetentionPolicyServiceImpl implements RetentionPolicyService {
      * ({@code retention_months BETWEEN 1 AND 120}), ale z czytelnym komunikatem dla API
      * zamiast surowego {@code DataIntegrityViolationException} przy naruszeniu constraintu.
      *
-     * @throws IllegalArgumentException gdy wartość spoza zakresu [1,120] (mapowane na HTTP 422
+     * @throws BusinessValidationException gdy wartość spoza zakresu [1,120] (mapowane na HTTP 422
      *         przez {@code GlobalExceptionHandler})
      */
     private void validateRetentionMonths(int retentionMonths) {
         if (retentionMonths < MIN_RETENTION_MONTHS || retentionMonths > MAX_RETENTION_MONTHS) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Retencja musi mieścić się w zakresie [%d, %d] miesięcy, otrzymano: %d"
                             .formatted(MIN_RETENTION_MONTHS, MAX_RETENTION_MONTHS, retentionMonths));
         }

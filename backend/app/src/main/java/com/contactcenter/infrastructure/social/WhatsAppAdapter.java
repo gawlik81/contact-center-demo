@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.WhatsAppApiException;
 import com.contactcenter.domain.social.SocialIntegrationDecrypted;
 import com.contactcenter.domain.social.SocialIntegrationService;
@@ -93,7 +94,7 @@ public class WhatsAppAdapter implements SocialMediaAdapter {
         // implementacji (tylko wiadomości tekstowe).
         // TODO: obsługa typów image/document/audio przez odrębne body zgodne z Cloud API.
         if (attachmentUrls != null && !attachmentUrls.isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Załączniki nie są obsługiwane w integracji WhatsApp — wyślij wiadomość tekstową.");
         }
 
@@ -101,7 +102,7 @@ public class WhatsAppAdapter implements SocialMediaAdapter {
         // które Graph API odrzuci z HTTP 400 – dla agenta objawiłoby się to niejasnym 502
         // zamiast czytelnego błędu walidacji w momencie próby wysyłki.
         if (content == null || content.isBlank()) {
-            throw new IllegalArgumentException("Treść wiadomości WhatsApp nie może być pusta.");
+            throw new BusinessValidationException("Treść wiadomości WhatsApp nie może być pusta.");
         }
 
         SocialIntegrationDecrypted integration = integrationService.getDecryptedIntegration(integrationId);

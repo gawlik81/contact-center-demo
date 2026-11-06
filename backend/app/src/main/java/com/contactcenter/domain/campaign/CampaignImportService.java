@@ -42,7 +42,7 @@ public interface CampaignImportService {
      * @param file           plik CSV (multipart)
      * @param skipDuplicates true = pomiń duplikaty po telefonie (domyślnie true)
      * @return UUID jobu – do pollingu statusu
-     * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
+     * @throws BusinessValidationException  gdy plik jest za duży lub ma złe rozszerzenie
      * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
      */
     UUID initiateImport(UUID campaignId, MultipartFile file, boolean skipDuplicates,
@@ -60,7 +60,7 @@ public interface CampaignImportService {
      * @param file           plik JSON (multipart) – tablica obiektów kontaktów
      * @param skipDuplicates true = pomiń duplikaty po telefonie (domyślnie true)
      * @return UUID jobu – do pollingu statusu (ten sam endpoint co dla CSV)
-     * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
+     * @throws BusinessValidationException  gdy plik jest za duży lub ma złe rozszerzenie
      * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
      */
     UUID initiateJsonImport(UUID campaignId, MultipartFile file, boolean skipDuplicates);

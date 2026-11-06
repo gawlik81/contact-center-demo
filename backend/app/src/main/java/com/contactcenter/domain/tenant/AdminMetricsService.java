@@ -106,7 +106,7 @@ public interface AdminMetricsService {
      * @param days liczba dni wstecz do uwzględnienia (dozwolone WYŁĄCZNIE: 7, 30, 90 –
      *             zgodnie z selektorem zakresu na froncie)
      * @return macierz liczby kontaktów w zakresie per tenant i kanał
-     * @throws IllegalArgumentException gdy {@code days} nie jest jedną z wartości 7, 30, 90
+     * @throws BusinessValidationException gdy {@code days} nie jest jedną z wartości 7, 30, 90
      */
     ContactChannelMatrix getContactChannelMatrix(int days);
 
@@ -122,7 +122,7 @@ public interface AdminMetricsService {
      *
      * @param weeks liczba ostatnich tygodni do uwzględnienia (1-52)
      * @return odpowiedź z trendami wzrostu platformy
-     * @throws IllegalArgumentException gdy {@code weeks} jest poza zakresem 1-52
+     * @throws BusinessValidationException gdy {@code weeks} jest poza zakresem 1-52
      */
     GrowthMetrics getGrowthMetrics(int weeks);
 

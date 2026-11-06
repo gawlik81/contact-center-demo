@@ -1,5 +1,6 @@
 package com.contactcenter.api.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.social.dto.PagedSocialMessagesResponse;
 import com.contactcenter.api.social.dto.SendSocialMessageRequest;
 import com.contactcenter.api.social.dto.SocialMessageResponse;
@@ -56,7 +57,7 @@ public class SocialContactController {
             );
             return ResponseEntity.ok().build();
 
-        } catch (IllegalArgumentException e) {
+        } catch (BusinessValidationException e) {
             log.warn("[SocialContactCtrl] Błąd walidacji: contactId={}, error={}", contactId, e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (IllegalStateException e) {

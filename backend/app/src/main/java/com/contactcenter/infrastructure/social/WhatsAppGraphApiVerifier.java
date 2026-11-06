@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.social;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.WhatsAppApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,7 +77,7 @@ public class WhatsAppGraphApiVerifier {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 log.warn("[WhatsAppGraphApiVerifier] Weryfikacja integracji nieudana: phoneNumberId={}, status={}",
                         phoneNumberId, response.statusCode());
-                throw new IllegalArgumentException(
+                throw new BusinessValidationException(
                         "Nieprawidłowy token dostępu lub identyfikator numeru telefonu. " +
                         "Sprawdź dane w Meta Business Suite i spróbuj ponownie.");
             }

@@ -47,7 +47,7 @@ public interface UserService {
      * @param tenantId UUID tenanta z TenantContext
      * @return DTO nowo utworzonego użytkownika
      * @throws com.contactcenter.domain.exception.ResourceLimitExceededException HTTP 422 gdy limit agentów przekroczony
-     * @throws IllegalArgumentException HTTP 422 gdy email już zajęty w tenancie
+     * @throws BusinessValidationException HTTP 422 gdy email już zajęty w tenancie
      */
     UserResponse createUser(CreateUserRequest request, UUID tenantId);
 
@@ -102,7 +102,7 @@ public interface UserService {
      * @param requestingUserId UUID użytkownika wykonującego żądanie
      * @throws ConflictException       HTTP 409 gdy agent ma aktywne kontakty
      * @throws EntityNotFoundException HTTP 422 gdy użytkownik nie istnieje
-     * @throws IllegalArgumentException HTTP 422 gdy próbuje usunąć siebie
+     * @throws BusinessValidationException HTTP 422 gdy próbuje usunąć siebie
      */
     void deleteUser(UUID userId, UUID tenantId, UUID requestingUserId);
 
@@ -132,7 +132,7 @@ public interface UserService {
      * @param request  nowy status
      * @param tenantId UUID tenanta
      * @return DTO zaktualizowanego użytkownika
-     * @throws IllegalArgumentException HTTP 422 gdy status jest niedozwolony (ACTIVE/INACTIVE)
+     * @throws BusinessValidationException HTTP 422 gdy status jest niedozwolony (ACTIVE/INACTIVE)
      * @throws EntityNotFoundException  HTTP 422 gdy użytkownik nie istnieje
      */
     UserResponse updateStatus(UUID userId, UpdateStatusRequest request, UUID tenantId);

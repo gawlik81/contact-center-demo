@@ -1,5 +1,6 @@
 package com.contactcenter.domain.reporting;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
@@ -286,16 +287,16 @@ class ReportsServiceImpl implements ReportsService {
     /**
      * Waliduje zakres dat – max 90 dni.
      *
-     * @throws IllegalArgumentException gdy zakres przekracza 90 dni lub dateTo < dateFrom
+     * @throws BusinessValidationException gdy zakres przekracza 90 dni lub dateTo < dateFrom
      */
     private void validateDateRange(LocalDate dateFrom, LocalDate dateTo) {
         if (dateTo.isBefore(dateFrom)) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "dateTo (" + dateTo + ") nie może być wcześniejsza niż dateFrom (" + dateFrom + ")");
         }
         long days = java.time.temporal.ChronoUnit.DAYS.between(dateFrom, dateTo);
         if (days > MAX_DATE_RANGE_DAYS) {
-            throw new IllegalArgumentException(
+            throw new BusinessValidationException(
                     "Zakres dat nie może przekraczać " + MAX_DATE_RANGE_DAYS + " dni. " +
                     "Podano: " + days + " dni (" + dateFrom + " – " + dateTo + ")");
         }

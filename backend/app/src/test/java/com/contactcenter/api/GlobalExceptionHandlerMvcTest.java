@@ -68,6 +68,9 @@ class GlobalExceptionHandlerMvcTest {
     static class MinimalBootConfig {
     }
 
+    private static final String GENERIC_DETAIL =
+            "Wystąpił nieoczekiwany błąd. Spróbuj ponownie lub skontaktuj się z administratorem.";
+
     record Body(@NotBlank String name) {
     }
 
@@ -133,6 +136,31 @@ class GlobalExceptionHandlerMvcTest {
         @GetMapping("/rse")
         String rse() {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Brak nagrania");
+        }
+
+        @GetMapping("/business")
+        String business() {
+            throw new com.contactcenter.domain.exception.BusinessValidationException("Email jest już zajęty");
+        }
+
+        @GetMapping("/iae")
+        String iae() {
+            throw new IllegalArgumentException("Could not resolve attribute 'secretField' of com.contactcenter.Foo");
+        }
+
+        @GetMapping("/enum-valueof")
+        String enumValueOf(@RequestParam String v) {
+            return Thread.State.valueOf(v).name();
+        }
+
+        @GetMapping("/enum-valueof-app")
+        String enumValueOfApp(@RequestParam String v) {
+            return Enum.valueOf(com.contactcenter.domain.retention.RetentionDataCategory.class, v).name();
+        }
+
+        @GetMapping("/uuid-fromstring")
+        String uuidFromString(@RequestParam String v) {
+            return UUID.fromString(v).toString();
         }
 
         @GetMapping("/boom")
@@ -346,5 +374,42 @@ class GlobalExceptionHandlerMvcTest {
                         .contentType(MediaType.APPLICATION_JSON).content("not-json"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    @DisplayName("BE-200: BusinessValidationException -> 422 problem+json z jej komunikatem w detail")
+    void businessValidation422() throws Exception {
+        mockMvc.perform(get("/probe/business"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/invalid-argument"))
+                .andExpect(jsonPath("$.title").value("Nieprawidłowe dane"))
+                .andExpect(jsonPath("$.detail").value("Email jest już zajęty"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("BE-200: zwykly IllegalArgumentException -> 500 internal-error bez jego komunikatu")
+    void illegalArgument500WithoutMessage() throws Exception {
+        mockMvc.perform(get("/probe/iae"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/internal-error"))
+                .andExpect(jsonPath("$.detail").value(GENERIC_DETAIL))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secretField"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("com.contactcenter"))));
+    }
+
+    @Test
+    @DisplayName("BE-200: Enum.valueOf / UUID.fromString z blednym wejsciem -> bez nazw klas w odpowiedzi")
+    void libraryIllegalArgumentDoesNotLeakClassNames() throws Exception {
+        for (String path : new String[] {"/probe/enum-valueof", "/probe/enum-valueof-app", "/probe/uuid-fromstring"}) {
+            mockMvc.perform(get(path).param("v", "not-valid"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.type").value("https://contactcenter.io/errors/internal-error"))
+                    .andExpect(jsonPath("$.detail").value(GENERIC_DETAIL))
+                    .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("com.contactcenter"))))
+                    .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("No enum constant"))));
+        }
     }
 }

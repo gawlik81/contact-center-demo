@@ -30,14 +30,14 @@ public interface CampaignArchiveSettingService {
      * Zapisuje okres. Zwraca stan po zapisie. Audyt ({@code audit_log}) powstaje tylko, gdy
      * wartość EFEKTYWNA się zmienia (patrz implementacja).
      *
-     * @throws IllegalArgumentException gdy {@code archiveAfterDays} jest null lub poza [30,730] (HTTP 422)
+     * @throws BusinessValidationException gdy {@code archiveAfterDays} jest null lub poza [30,730] (HTTP 422)
      */
     CampaignArchiveSettingDto update(UUID tenantId, Integer archiveAfterDays, UUID updatedByUserId);
 
     /**
      * Podgląd skutku zmiany okresu na {@code newDays} (tylko odczyt, bez efektów ubocznych).
      *
-     * @throws IllegalArgumentException gdy {@code newDays} jest null lub poza [30,730] (HTTP 422)
+     * @throws BusinessValidationException gdy {@code newDays} jest null lub poza [30,730] (HTTP 422)
      */
     CampaignArchivePreviewDto preview(UUID tenantId, Integer newDays);
 }

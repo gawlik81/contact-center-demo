@@ -1,5 +1,6 @@
 package com.contactcenter.domain.customer;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
 import com.contactcenter.api.customer.DeduplicationMode;
 import com.contactcenter.security.TenantContext;
@@ -94,35 +95,35 @@ class CustomerImportServiceTest {
     class ValidateFile {
 
         @Test
-        @DisplayName("Plik null – wyjątek IllegalArgumentException")
+        @DisplayName("Plik null – wyjątek BusinessValidationException")
         void nullFile_throwsIllegalArgument() {
             assertThatThrownBy(() -> service.validateFile(null))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Plik CSV jest wymagany");
         }
 
         @Test
-        @DisplayName("Pusty plik – wyjątek IllegalArgumentException")
+        @DisplayName("Pusty plik – wyjątek BusinessValidationException")
         void emptyFile_throwsIllegalArgument() {
             MultipartFile emptyFile = new MockMultipartFile("file", "test.csv",
                     "text/csv", new byte[0]);
             assertThatThrownBy(() -> service.validateFile(emptyFile))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Plik CSV jest wymagany");
         }
 
         @Test
-        @DisplayName("Plik bez rozszerzenia .csv – wyjątek IllegalArgumentException")
+        @DisplayName("Plik bez rozszerzenia .csv – wyjątek BusinessValidationException")
         void wrongExtension_throwsIllegalArgument() {
             MultipartFile file = new MockMultipartFile("file", "customers.xlsx",
                     "application/vnd.ms-excel", "data".getBytes());
             assertThatThrownBy(() -> service.validateFile(file))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Dozwolone są tylko pliki CSV");
         }
 
         @Test
-        @DisplayName("Plik za duży (> 50 MB) – wyjątek IllegalArgumentException")
+        @DisplayName("Plik za duży (> 50 MB) – wyjątek BusinessValidationException")
         void tooLargeFile_throwsIllegalArgument() {
             MultipartFile bigFile = mock(MultipartFile.class);
             when(bigFile.isEmpty()).thenReturn(false);
@@ -130,7 +131,7 @@ class CustomerImportServiceTest {
             when(bigFile.getSize()).thenReturn(51L * 1024 * 1024);
 
             assertThatThrownBy(() -> service.validateFile(bigFile))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("za duży");
         }
 
@@ -193,13 +194,13 @@ class CustomerImportServiceTest {
     class InitiateImport {
 
         @Test
-        @DisplayName("Plik z błędnym rozszerzeniem – IllegalArgumentException przed zapisem do Redis")
+        @DisplayName("Plik z błędnym rozszerzeniem – BusinessValidationException przed zapisem do Redis")
         void wrongExtension_throwsBeforeRedis() {
             MultipartFile badFile = new MockMultipartFile("file", "data.xlsx",
                     "application/vnd.ms-excel", "data".getBytes());
 
             assertThatThrownBy(() -> service.initiateImport(badFile, DeduplicationMode.SKIP, ",", "\"", null))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Dozwolone są tylko pliki CSV");
 
             verifyNoInteractions(customerRepository);
@@ -1478,26 +1479,26 @@ class CustomerImportServiceTest {
         }
 
         @Test
-        @DisplayName("validateJsonFile – zła ekstensja – IllegalArgumentException")
+        @DisplayName("validateJsonFile – zła ekstensja – BusinessValidationException")
         void validateJsonFile_wrongExtension_throws() {
             MultipartFile file = new MockMultipartFile("file", "customers.csv", "text/csv", "data".getBytes());
             assertThatThrownBy(() -> service.validateJsonFile(file))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Dozwolone są tylko pliki JSON");
         }
 
         @Test
-        @DisplayName("validateJsonFile – pusty plik – IllegalArgumentException")
+        @DisplayName("validateJsonFile – pusty plik – BusinessValidationException")
         void validateJsonFile_emptyFile_throws() {
             MultipartFile file = new MockMultipartFile("file", "customers.json",
                     "application/json", new byte[0]);
             assertThatThrownBy(() -> service.validateJsonFile(file))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("Plik JSON jest wymagany");
         }
 
         @Test
-        @DisplayName("validateJsonFile – plik za duży (> 50 MB) – IllegalArgumentException")
+        @DisplayName("validateJsonFile – plik za duży (> 50 MB) – BusinessValidationException")
         void validateJsonFile_tooLarge_throws() {
             MultipartFile bigFile = mock(MultipartFile.class);
             when(bigFile.isEmpty()).thenReturn(false);
@@ -1505,7 +1506,7 @@ class CustomerImportServiceTest {
             when(bigFile.getSize()).thenReturn(51L * 1024 * 1024);
 
             assertThatThrownBy(() -> service.validateJsonFile(bigFile))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("za duży");
         }
     }

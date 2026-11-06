@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.user.dto.AdminCreateUserRequest;
 import com.contactcenter.api.user.dto.AdminUpdateUserRequest;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
@@ -120,7 +121,7 @@ class AdminUserServiceImplTest {
                     .thenReturn(true);
 
             assertThatThrownBy(() -> adminUserService.createUser(request))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
 
             verify(appUserRepository, never()).save(any());
         }

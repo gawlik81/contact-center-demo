@@ -24,7 +24,7 @@ public interface TenantTwilioConfigService {
      * @param tenantId UUID tenanta
      * @param request  dane konfiguracji Twilio
      * @return DTO z zapisaną konfiguracją (zamaskowaną)
-     * @throws IllegalArgumentException gdy format accountSid lub phoneNumber jest nieprawidłowy
+     * @throws BusinessValidationException gdy format accountSid lub phoneNumber jest nieprawidłowy
      */
     TenantTwilioConfigResponse saveConfig(UUID tenantId, TenantTwilioConfigRequest request);
 

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.phonenumber;
 
+import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.api.phonenumber.dto.CreatePhoneNumberRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneNumberResponse;
 import com.contactcenter.domain.exception.ConflictException;
@@ -123,7 +124,7 @@ class PhoneNumberServiceTest {
     class E164Validation {
 
         @Test
-        @DisplayName("numer bez + – rzuca IllegalArgumentException")
+        @DisplayName("numer bez + – rzuca BusinessValidationException")
         void createPhoneNumber_missingPlus_throwsException() {
             // given
             CreatePhoneNumberRequest request = new CreatePhoneNumberRequest(
@@ -131,14 +132,14 @@ class PhoneNumberServiceTest {
 
             // when / then
             assertThatThrownBy(() -> phoneNumberService.createPhoneNumber(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("E.164");
 
             verifyNoInteractions(phoneNumberRepository);
         }
 
         @Test
-        @DisplayName("numer za krótki – rzuca IllegalArgumentException")
+        @DisplayName("numer za krótki – rzuca BusinessValidationException")
         void createPhoneNumber_tooShort_throwsException() {
             // given – tylko 5 cyfr po +1 = za krótkie (min 7)
             CreatePhoneNumberRequest request = new CreatePhoneNumberRequest(
@@ -146,12 +147,12 @@ class PhoneNumberServiceTest {
 
             // when / then
             assertThatThrownBy(() -> phoneNumberService.createPhoneNumber(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(BusinessValidationException.class)
                     .hasMessageContaining("E.164");
         }
 
         @Test
-        @DisplayName("numer null – rzuca IllegalArgumentException")
+        @DisplayName("numer null – rzuca BusinessValidationException")
         void createPhoneNumber_null_throwsException() {
             // given
             CreatePhoneNumberRequest request = new CreatePhoneNumberRequest(
@@ -159,18 +160,18 @@ class PhoneNumberServiceTest {
 
             // when / then
             assertThatThrownBy(() -> phoneNumberService.createPhoneNumber(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
 
         @Test
-        @DisplayName("numer z 0 na drugiej pozycji – rzuca IllegalArgumentException")
+        @DisplayName("numer z 0 na drugiej pozycji – rzuca BusinessValidationException")
         void createPhoneNumber_leadingZeroAfterPlus_throwsException() {
             // E.164: po + następuje cyfra 1-9 (nie 0)
             CreatePhoneNumberRequest request = new CreatePhoneNumberRequest(
                     "+0123456789", "Test", true);
 
             assertThatThrownBy(() -> phoneNumberService.createPhoneNumber(TENANT_ID, request))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(BusinessValidationException.class);
         }
     }
 

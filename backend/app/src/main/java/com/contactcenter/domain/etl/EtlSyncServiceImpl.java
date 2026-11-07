@@ -3,6 +3,7 @@ package com.contactcenter.domain.etl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,8 +31,16 @@ class EtlSyncServiceImpl implements EtlSyncService {
     /** Rozmiar batcha upsert do DW. */
     private static final int BATCH_SIZE = 500;
 
+    /** Max length of errorMessage in JOB_ERROR alert payload. */
+    static final int ALERT_ERROR_MESSAGE_MAX = 200;
+
     private static final String EXCHANGE_EVENTS = "cc.events";
     private static final String ROUTING_KEY_ETL_LAG = "etl.lag.alert";
+
+    // BE-212: payload field "alertType" of etl.lag.alert
+    static final String ALERT_TYPE_DATA_LAG = "DATA_LAG";
+    static final String ALERT_TYPE_JOB_STALE = "JOB_STALE";
+    static final String ALERT_TYPE_JOB_ERROR = "JOB_ERROR";
 
     // SQL: pobierz stan sync dla danej tabeli
     private static final String SELECT_SYNC_STATE = """
@@ -46,6 +55,18 @@ class EtlSyncServiceImpl implements EtlSyncService {
             UPDATE etl_sync_state
             SET status = 'RUNNING', last_run_at = NOW(), updated_at = NOW()
             WHERE table_name = ?
+            """;
+
+    // SQL: heartbeat postepu (BE-212) - odswieza tylko updated_at; liveness liczy od max(last_run_at, updated_at)
+    private static final String UPDATE_HEARTBEAT = """
+            UPDATE etl_sync_state SET updated_at = NOW() WHERE table_name = ?
+            """;
+
+    // SQL: stan do sprawdzenia zywotnosci
+    private static final String SELECT_LIVENESS = """
+            SELECT table_name, last_run_at, updated_at, status, error_message
+            FROM etl_sync_state
+            ORDER BY table_name
             """;
 
     // SQL: aktualizacja po zakończeniu cyklu
@@ -68,6 +89,27 @@ class EtlSyncServiceImpl implements EtlSyncService {
             WHERE table_name = ?
             """;
 
+    // Wspolny fragment FROM+WHERE (BE-212): uzywany ZARAZ przez fetch CDC i zapytanie lagu, wiec nie moga sie
+    // rozjechac. Rekord, ktorego fetch nigdy nie zwroci (np. QUEUED), nie moze wywolywac falszywego alarmu lagu.
+    // Pomijamy kontakty w statusach roboczych i powiazane z zanonimizowanymi klientami (RODO). Jeden parametr: znacznik CDC.
+    static final String CONTACT_CDC_SOURCE = """
+            FROM contact c
+            WHERE COALESCE(c.updated_at, c.created_at) > ?
+              AND c.status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+              AND NOT EXISTS (
+                  SELECT 1 FROM customer cu
+                  WHERE cu.customer_id = c.customer_id
+                    AND UPPER(cu.first_name) = 'ANONYMIZED'
+              )
+            """;
+
+    // Wspolny fragment FROM+WHERE dla campaign_contact (INNER JOIN campaign), fetch CDC i lag.
+    static final String CAMPAIGN_CONTACT_CDC_SOURCE = """
+            FROM campaign_contact cc
+            JOIN campaign c ON c.campaign_id = cc.campaign_id
+            WHERE COALESCE(cc.updated_at, cc.created_at) > ?
+            """;
+
     // SQL: pobierz zmodyfikowane kontakty od last_synced_at
     // Brak RLS – zapytanie systemowe, filtrujemy po tenant_id explicite w DW output
     // Pomijamy rekordy powiązane z zanonimizowanymi klientami (RODO)
@@ -86,14 +128,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                    c.ended_at,
                    c.queued_at,
                    COALESCE(c.updated_at, c.created_at) AS effective_updated_at
-            FROM contact c
-            WHERE COALESCE(c.updated_at, c.created_at) > ?
-              AND c.status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
-              AND NOT EXISTS (
-                  SELECT 1 FROM customer cu
-                  WHERE cu.customer_id = c.customer_id
-                    AND UPPER(cu.first_name) = 'ANONYMIZED'
-              )
+            """ + CONTACT_CDC_SOURCE + """
             ORDER BY COALESCE(c.updated_at, c.created_at) ASC
             LIMIT ?
             """;
@@ -104,12 +139,17 @@ class EtlSyncServiceImpl implements EtlSyncService {
                    cc.status, cc.disposition_code, cc.attempt_count, cc.last_attempt_at,
                    c.type AS campaign_type, c.dialer_type,
                    COALESCE(cc.updated_at, cc.created_at) AS effective_updated_at
-            FROM campaign_contact cc
-            JOIN campaign c ON c.campaign_id = cc.campaign_id
-            WHERE COALESCE(cc.updated_at, cc.created_at) > ?
+            """ + CAMPAIGN_CONTACT_CDC_SOURCE + """
             ORDER BY COALESCE(cc.updated_at, cc.created_at) ASC
             LIMIT ?
             """;
+
+    // SQL: wiek najstarszej NIEZSYNCHRONIZOWANEJ zmiany (BE-212) - te same warunki co fetch (wspolne fragmenty)
+    private static final String SELECT_OLDEST_UNSYNCED_CONTACT =
+            "SELECT MIN(COALESCE(c.updated_at, c.created_at)) " + CONTACT_CDC_SOURCE;
+
+    private static final String SELECT_OLDEST_UNSYNCED_CAMPAIGN_CONTACT =
+            "SELECT MIN(COALESCE(cc.updated_at, cc.created_at)) " + CAMPAIGN_CONTACT_CDC_SOURCE;
 
     // SQL: pobierz agentów do snapshot dim (pełny refresh – bez CDC)
     private static final String SELECT_AGENTS_FOR_DIM = """
@@ -142,6 +182,16 @@ class EtlSyncServiceImpl implements EtlSyncService {
     private final JdbcTemplate jdbcTemplate;
     private final DataWarehouseWriter dwWriter;
     private final RabbitTemplate rabbitTemplate;
+
+    /**
+     * BE-212: a CDC job with no activity for longer than this is considered stuck/dead. Activity = the newest of
+     * {@code last_run_at} (cycle start) and {@code updated_at} (heartbeat after every written batch, plus
+     * DONE/ERROR), so a long but progressing cycle (e.g. backfill) does not trigger a false JOB_STALE. The threshold
+     * must still exceed the longest SINGLE batch write (not the whole cycle) and the fixed delay between cycles;
+     * default 5 min, rule of thumb: at least 3x {@code etl.sync.fixed-delay-ms}.
+     */
+    @Value("${etl.sync.liveness-threshold-ms:300000}")
+    private long livenessThresholdMs = 300_000L;
 
     // =========================================================================
     // Zadanie cykliczne
@@ -201,6 +251,25 @@ class EtlSyncServiceImpl implements EtlSyncService {
         syncQueueDim();
     }
 
+    /**
+     * BE-212: lightweight liveness check, independent of the table jobs themselves (so it also fires when a
+     * table job is stuck inside {@code syncTable}). Reads only {@code etl_sync_state}.
+     */
+    @Scheduled(fixedDelayString = "${etl.sync.liveness-check-interval-ms:60000}")
+    public void checkJobLiveness() {
+        try {
+            for (LivenessRow row : readLivenessRows()) {
+                if (!isCdcTable(row.tableName())) {
+                    continue;
+                }
+                checkLivenessAndAlert(row.tableName(), row.lastActivityAt(), row.status(), row.errorMessage());
+            }
+        } catch (Exception ex) {
+            // Monitoring must never break the scheduler thread
+            log.warn("[ETL] Sprawdzenie żywotności jobów nie powiodło się: {}", ex.getMessage());
+        }
+    }
+
     // =========================================================================
     // Logika synchronizacji
     // =========================================================================
@@ -250,10 +319,8 @@ class EtlSyncServiceImpl implements EtlSyncService {
         checkLagAndAlert(tableName, maxEffectiveUpdatedAt);
 
         Duration elapsed = Duration.between(syncStartedAt, Instant.now());
-        log.info("[ETL] Zakończono cykl '{}': rows={}, lag={}min, elapsed={}ms",
-                tableName, totalRows,
-                Duration.between(maxEffectiveUpdatedAt, Instant.now()).toMinutes(),
-                elapsed.toMillis());
+        log.info("[ETL] Zakończono cykl '{}': rows={}, elapsed={}ms",
+                tableName, totalRows, elapsed.toMillis());
     }
 
     // =========================================================================
@@ -313,6 +380,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
         for (int i = 0; i < total; i += BATCH_SIZE) {
             List<ContactDwRow> batch = rows.subList(i, Math.min(i + BATCH_SIZE, total));
             dwWriter.upsert(batch);
+            heartbeat(TABLE_CONTACT);
             log.debug("[ETL] Zapisano batch {}/{}", Math.min(i + BATCH_SIZE, total), total);
         }
         return total;
@@ -338,6 +406,15 @@ class EtlSyncServiceImpl implements EtlSyncService {
         return maxTs != null ? maxTs.toInstant() : lastSyncedAt;
     }
 
+    /** BE-212: progress marker for the liveness check; a failure here must never break the cycle. */
+    private void heartbeat(String tableName) {
+        try {
+            jdbcTemplate.update(UPDATE_HEARTBEAT, tableName);
+        } catch (Exception ex) {
+            log.warn("[ETL] Heartbeat dla '{}' nie powiódł się: {}", tableName, ex.getMessage());
+        }
+    }
+
     @Transactional
     void markDone(String tableName, Instant newSyncedAt, long rowCount) {
         jdbcTemplate.update(UPDATE_DONE,
@@ -360,36 +437,119 @@ class EtlSyncServiceImpl implements EtlSyncService {
     }
 
     /**
-     * Sprawdza lag i emituje alert gdy przekracza próg.
+     * Sprawdza lag danych i emituje alert gdy przekracza próg.
+     *
+     * <p>BE-212: lag to wiek najstarszej NIEZSYNCHRONIZOWANEJ zmiany w źródle (brak zaległych zmian = lag 0),
+     * a nie {@code now - last_synced_at} - znacznik CDC stoi w miejscu, gdy źródło się nie zmienia.
      *
      * <p>Alert jest zawsze logowany jako WARN. Dodatkowo publikowany jest event
-     * do RabbitMQ (exchange {@code cc.events}, routingKey {@code etl.lag.alert})
+     * do RabbitMQ (exchange {@code cc.events}, routingKey {@code etl.lag.alert}, {@code alertType=DATA_LAG})
      * dla systemów zewnętrznych (monitoring, alerty).
      *
      * @param tableName   nazwa tabeli
      * @param lastSyncedAt aktualna pozycja CDC
      */
     void checkLagAndAlert(String tableName, Instant lastSyncedAt) {
-        long lagMinutes = Duration.between(lastSyncedAt, Instant.now()).toMinutes();
+        long lagMinutes;
+        try {
+            lagMinutes = computeDataLagMinutes(tableName, lastSyncedAt);
+        } catch (Exception ex) {
+            // Monitoring must never break the ETL cycle (runs after markDone) nor reach the scheduler error handler
+            log.warn("[ETL] Nie udało się obliczyć lagu dla '{}' - pomijam alert: {}", tableName, ex.getMessage());
+            return;
+        }
 
         if (lagMinutes >= LAG_ALERT_THRESHOLD_MINUTES) {
-            log.warn("[ETL][ALERT] Lag {} dla tabeli '{}' wynosi {} minut (próg: {} min)",
-                    tableName, tableName, lagMinutes, LAG_ALERT_THRESHOLD_MINUTES);
+            log.warn("[ETL][ALERT] Lag danych dla tabeli '{}' wynosi {} minut (próg: {} min)",
+                    tableName, lagMinutes, LAG_ALERT_THRESHOLD_MINUTES);
 
-            try {
-                Map<String, Object> alertPayload = Map.of(
-                        "tableName", tableName,
-                        "lagMinutes", lagMinutes,
-                        "lastSyncedAt", lastSyncedAt.toString(),
-                        "alertedAt", Instant.now().toString()
-                );
-                rabbitTemplate.convertAndSend(EXCHANGE_EVENTS, ROUTING_KEY_ETL_LAG, alertPayload);
-                log.debug("[ETL] Alert lag wysłany do RabbitMQ: exchange={}, key={}", EXCHANGE_EVENTS, ROUTING_KEY_ETL_LAG);
-            } catch (Exception ex) {
-                // Alert RabbitMQ jest non-critical – błąd nie może zablokować ETL
-                log.warn("[ETL] Nie udało się wysłać alertu lag do RabbitMQ: {}", ex.getMessage());
-            }
+            publishAlert(Map.of(
+                    "alertType", ALERT_TYPE_DATA_LAG,
+                    "tableName", tableName,
+                    "lagMinutes", lagMinutes,
+                    "lastSyncedAt", lastSyncedAt.toString(),
+                    "alertedAt", Instant.now().toString()
+            ));
         }
+    }
+
+    /**
+     * BE-212: job liveness alert - status ERROR or {@code last_run_at} older than the liveness threshold
+     * (job stuck/dead). A never-run job ({@code lastRunAt == null}) is not alerted (fresh install).
+     */
+    void checkLivenessAndAlert(String tableName, Instant lastRunAt, String status, String errorMessage) {
+        if ("ERROR".equals(status)) {
+            log.warn("[ETL][ALERT] Job tabeli '{}' w stanie ERROR: {}", tableName, errorMessage);
+            publishAlert(Map.of(
+                    "alertType", ALERT_TYPE_JOB_ERROR,
+                    "tableName", tableName,
+                    "status", status,
+                    "errorMessage", truncateForAlert(errorMessage),
+                    "lastRunAt", lastRunAt != null ? lastRunAt.toString() : "",
+                    "alertedAt", Instant.now().toString()
+            ));
+            return;
+        }
+        if (lastRunAt == null) {
+            return;
+        }
+        long staleMs = Duration.between(lastRunAt, Instant.now()).toMillis();
+        if (staleMs >= livenessThresholdMs) {
+            long staleMinutes = staleMs / 60_000;
+            log.warn("[ETL][ALERT] Brak przebiegu joba tabeli '{}' od {} minut (próg: {} ms, status: {})",
+                    tableName, staleMinutes, livenessThresholdMs, status);
+            publishAlert(Map.of(
+                    "alertType", ALERT_TYPE_JOB_STALE,
+                    "tableName", tableName,
+                    "status", status != null ? status : "",
+                    "staleMinutes", staleMinutes,
+                    "lastRunAt", lastRunAt.toString(),
+                    "alertedAt", Instant.now().toString()
+            ));
+        }
+    }
+
+    /** Broker payload must not carry long driver messages (SQL fragments, hosts); full text stays in DB/log. */
+    private static String truncateForAlert(String message) {
+        if (message == null) {
+            return "";
+        }
+        return message.length() > ALERT_ERROR_MESSAGE_MAX ? message.substring(0, ALERT_ERROR_MESSAGE_MAX) : message;
+    }
+
+    private void publishAlert(Map<String, Object> alertPayload) {
+        try {
+            rabbitTemplate.convertAndSend(EXCHANGE_EVENTS, ROUTING_KEY_ETL_LAG, (Object) alertPayload);
+            log.debug("[ETL] Alert wysłany do RabbitMQ: exchange={}, key={}, type={}",
+                    EXCHANGE_EVENTS, ROUTING_KEY_ETL_LAG, alertPayload.get("alertType"));
+        } catch (Exception ex) {
+            // Alert RabbitMQ jest non-critical – błąd nie może zablokować ETL
+            log.warn("[ETL] Nie udało się wysłać alertu do RabbitMQ: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Data lag in minutes = age of the oldest unsynchronised source change (0 when there is none). Tables without
+     * a CDC definition yield 0.
+     */
+    long computeDataLagMinutes(String tableName, Instant lastSyncedAt) {
+        String sql = switch (tableName) {
+            case TABLE_CONTACT -> SELECT_OLDEST_UNSYNCED_CONTACT;
+            case TABLE_CAMPAIGN_CONTACT -> SELECT_OLDEST_UNSYNCED_CAMPAIGN_CONTACT;
+            default -> null;
+        };
+        if (sql == null) {
+            return 0;
+        }
+        Timestamp oldest = jdbcTemplate.queryForObject(sql, Timestamp.class, Timestamp.from(lastSyncedAt));
+        if (oldest == null) {
+            return 0;
+        }
+        return Math.max(0, Duration.between(oldest.toInstant(), Instant.now()).toMinutes());
+    }
+
+    private static boolean isCdcTable(String tableName) {
+        return TABLE_CONTACT.equals(tableName) || TABLE_CAMPAIGN_CONTACT.equals(tableName);
     }
 
     // =========================================================================
@@ -398,20 +558,58 @@ class EtlSyncServiceImpl implements EtlSyncService {
 
     @Override
     public List<EtlTableStatus> getStatus() {
+        // Lag queries run after the state result set is closed (no nested queries on a second connection)
+        return readSyncStates().stream()
+                .map(st -> new EtlTableStatus(st.tableName(), st.lastSyncedAt(), st.lastRunAt(),
+                        st.lastRowCount(), st.status(), safeDataLag(st), st.errorMessage()))
+                .toList();
+    }
+
+    private Long safeDataLag(EtlTableStatus st) {
+        if (!isCdcTable(st.tableName())) {
+            return null;
+        }
+        try {
+            return computeDataLagMinutes(st.tableName(), st.lastSyncedAt());
+        } catch (Exception ex) {
+            log.warn("[ETL] Nie udało się obliczyć lagu dla '{}': {}", st.tableName(), ex.getMessage());
+            return null;
+        }
+    }
+
+    /** Liveness input: last activity = newest of last_run_at and updated_at (heartbeat); null if never run. */
+    record LivenessRow(String tableName, Instant lastActivityAt, String status, String errorMessage) {}
+
+    private List<LivenessRow> readLivenessRows() {
+        return jdbcTemplate.query(SELECT_LIVENESS, (rs, rowNum) -> {
+            Timestamp lastRun = rs.getTimestamp("last_run_at");
+            Timestamp updated = rs.getTimestamp("updated_at");
+            // never-run job (fresh install) has last_run_at NULL -> not alerted, whatever updated_at says
+            Instant activity = null;
+            if (lastRun != null) {
+                activity = lastRun.toInstant();
+                if (updated != null && updated.toInstant().isAfter(activity)) {
+                    activity = updated.toInstant();
+                }
+            }
+            return new LivenessRow(rs.getString("table_name"), activity, rs.getString("status"),
+                    rs.getString("error_message"));
+        });
+    }
+
+    /** Raw rows of etl_sync_state; {@code lagMinutes} is left null here. */
+    private List<EtlTableStatus> readSyncStates() {
         return jdbcTemplate.query(SELECT_STATUS, (rs, rowNum) -> {
-            String table = rs.getString("table_name");
             Timestamp lastSyncedTs = rs.getTimestamp("last_synced_at");
             Timestamp lastRunTs = rs.getTimestamp("last_run_at");
-            long rowCount = rs.getLong("last_row_count");
-            String status = rs.getString("status");
-            String error = rs.getString("error_message");
-
-            Instant lastSyncedAt = lastSyncedTs != null ? lastSyncedTs.toInstant() : Instant.EPOCH;
-            Instant lastRunAt = lastRunTs != null ? lastRunTs.toInstant() : null;
-
-            long lagMinutes = Duration.between(lastSyncedAt, Instant.now()).toMinutes();
-
-            return new EtlTableStatus(table, lastSyncedAt, lastRunAt, rowCount, status, lagMinutes, error);
+            return new EtlTableStatus(
+                    rs.getString("table_name"),
+                    lastSyncedTs != null ? lastSyncedTs.toInstant() : Instant.EPOCH,
+                    lastRunTs != null ? lastRunTs.toInstant() : null,
+                    rs.getLong("last_row_count"),
+                    rs.getString("status"),
+                    null,
+                    rs.getString("error_message"));
         });
     }
 
@@ -450,6 +648,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                 for (int i = 0; i < batch.size(); i += BATCH_SIZE) {
                     List<CampaignDwRow> slice = batch.subList(i, Math.min(i + BATCH_SIZE, batch.size()));
                     dwWriter.upsertCampaigns(slice);
+                    heartbeat(TABLE_CAMPAIGN_CONTACT);
                     log.debug("[ETL] campaign_contact: zapisano batch {}/{}", Math.min(i + BATCH_SIZE, batch.size()), batch.size());
                 }
                 totalRows = batch.size();

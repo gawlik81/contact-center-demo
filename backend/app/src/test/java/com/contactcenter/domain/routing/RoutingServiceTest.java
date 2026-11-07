@@ -789,6 +789,96 @@ class RoutingServiceTest {
         }
 
         @Test
+        @DisplayName("BE-211: przebieg z pollu przy pustej kolejce nie loguje INFO")
+        void pollWithEmptyQueueDoesNotLogInfo() {
+            when(userService.findAvailableAgents()).thenReturn(List.of(
+                    com.contactcenter.domain.user.AppUser.builder().id(AGENT_ID).tenantId(TENANT_ID).build()));
+            when(contactService.findQueuedContacts(any())).thenReturn(List.of());
+
+            List<ch.qos.logback.classic.spi.ILoggingEvent> events = captureRoutingLogs(
+                    () -> routingService.pollAvailableAgents());
+
+            assertThat(events).noneMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.INFO);
+            assertThat(events).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.DEBUG
+                    && e.getFormattedMessage().contains("próbuję routować"));
+        }
+
+        @Test
+        @DisplayName("BE-211: przebieg wyzwolony zdarzeniem loguje INFO 'próbuję routować'")
+        void eventDrivenPassLogsInfo() {
+            when(contactService.findQueuedContacts(any())).thenReturn(List.of());
+
+            List<ch.qos.logback.classic.spi.ILoggingEvent> events = captureRoutingLogs(
+                    () -> routingService.onAgentAvailabilityRefreshed(
+                            new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID)));
+
+            assertThat(events).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.INFO
+                    && e.getFormattedMessage().contains("próbuję routować"));
+        }
+
+        @Test
+        @DisplayName("BE-211: 'Znaleziono N oczekujących' z pollu zostaje na INFO")
+        void pollWithQueuedContactsStillLogsFoundAtInfo() {
+            when(userService.findAvailableAgents()).thenReturn(List.of(
+                    com.contactcenter.domain.user.AppUser.builder().id(AGENT_ID).tenantId(TENANT_ID).build()));
+            Contact queued = new Contact();
+            queued.setContactId(UUID.randomUUID());
+            queued.setTenantId(TENANT_ID);
+            queued.setStatus("QUEUED");
+            // OUTBOUND with an assigned agent is skipped by the pass, so it ends normally without further stubs
+            queued.setDirection("OUTBOUND");
+            queued.setAgentId(AGENT_ID);
+            when(contactService.findQueuedContacts(any())).thenReturn(List.of(queued));
+
+            List<ch.qos.logback.classic.spi.ILoggingEvent> events = captureRoutingLogs(
+                    () -> routingService.pollAvailableAgents());
+
+            assertThat(events).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.INFO
+                    && e.getFormattedMessage().contains("Znaleziono 1 oczekujących"));
+        }
+
+        @Test
+        @DisplayName("BE-211: kontynuacja koalescencji (przebieg 'dirty') loguje 'próbuję routować' na DEBUG")
+        void coalescedContinuationAnnouncesAtDebug() {
+            java.util.concurrent.atomic.AtomicInteger passes = new java.util.concurrent.atomic.AtomicInteger();
+            when(contactService.findQueuedContacts(TENANT_ID)).thenAnswer(inv -> {
+                if (passes.incrementAndGet() == 1) {
+                    routingService.onAgentAvailabilityRefreshed(
+                            new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID));
+                }
+                return List.<Contact>of();
+            });
+
+            List<ch.qos.logback.classic.spi.ILoggingEvent> events = captureRoutingLogs(
+                    () -> routingService.onAgentAvailabilityRefreshed(
+                            new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID)));
+
+            assertThat(passes.get()).isEqualTo(2);
+            assertThat(events.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.INFO
+                    && e.getFormattedMessage().contains("próbuję routować"))).hasSize(1);
+            assertThat(events.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.DEBUG
+                    && e.getFormattedMessage().contains("próbuję routować"))).hasSize(1);
+        }
+
+        private List<ch.qos.logback.classic.spi.ILoggingEvent> captureRoutingLogs(Runnable action) {
+            ch.qos.logback.classic.Logger logger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(RoutingServiceImpl.class);
+            ch.qos.logback.classic.Level previous = logger.getLevel();
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            logger.addAppender(appender);
+            logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+            try {
+                action.run();
+            } finally {
+                logger.detachAppender(appender);
+                logger.setLevel(previous);
+            }
+            return List.copyOf(appender.list);
+        }
+
+        @Test
         @DisplayName("koalescencja: zlecenia w trakcie przebiegu daja dokladnie jeden kolejny przebieg")
         void requestsDuringAPassCoalesceIntoOneFollowUp() {
             java.util.concurrent.atomic.AtomicInteger passes = new java.util.concurrent.atomic.AtomicInteger();

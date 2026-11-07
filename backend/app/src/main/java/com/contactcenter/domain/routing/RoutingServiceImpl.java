@@ -24,6 +24,7 @@ import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.event.Level;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.event.EventListener;
@@ -230,7 +231,7 @@ class RoutingServiceImpl implements RoutingService {
             return;
         }
 
-        retryQueuedContacts(event.tenantId(), event.userId());
+        retryQueuedContacts(event.tenantId(), event.userId(), false);
     }
 
     /**
@@ -244,7 +245,7 @@ class RoutingServiceImpl implements RoutingService {
     @Async
     @EventListener
     public void onAgentAvailabilityRefreshed(AgentAvailabilityRefreshedEvent event) {
-        retryQueuedContacts(event.tenantId(), event.userId());
+        retryQueuedContacts(event.tenantId(), event.userId(), false);
     }
 
     /**
@@ -260,8 +261,12 @@ class RoutingServiceImpl implements RoutingService {
      * running only marks the tenant "dirty" and returns; the running thread then runs ONE more pass. This bounds
      * the load when many contacts close at once (each close asks for a pass) or when the 30 s poll overlaps
      * with event-driven passes. Exceptions propagate to the caller of the pass that threw (cleanup in finally).
+     *
+     * <p>BE-211: {@code fromPoll} passes (periodic safety net) announce themselves at DEBUG so an idle tenant does not
+     * flood the INFO log every poll interval; event-driven passes announce at INFO. Follow-up passes triggered by the
+     * "dirty" flag are continuations and always announce at DEBUG. Coalescing behaviour is unchanged.
      */
-    private void retryQueuedContacts(UUID tenantId, UUID availableAgentId) {
+    private void retryQueuedContacts(UUID tenantId, UUID availableAgentId, boolean fromPoll) {
         while (true) {
             if (!passesRunning.add(tenantId)) {
                 passesDirty.add(tenantId);
@@ -269,9 +274,11 @@ class RoutingServiceImpl implements RoutingService {
                 return;
             }
             try {
+                boolean announceAtInfo = !fromPoll;
                 do {
                     passesDirty.remove(tenantId);
-                    runRetryPass(tenantId, availableAgentId);
+                    runRetryPass(tenantId, availableAgentId, announceAtInfo);
+                    announceAtInfo = false;
                 } while (passesDirty.contains(tenantId));
             } finally {
                 passesRunning.remove(tenantId);
@@ -283,9 +290,10 @@ class RoutingServiceImpl implements RoutingService {
         }
     }
 
-    private void runRetryPass(UUID tenantId, UUID availableAgentId) {
-        log.info("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: " +
-                "agentId={}, tenantId={}", availableAgentId, tenantId);
+    private void runRetryPass(UUID tenantId, UUID availableAgentId, boolean announceAtInfo) {
+        log.atLevel(announceAtInfo ? Level.INFO : Level.DEBUG)
+                .log("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: "
+                        + "agentId={}, tenantId={}", availableAgentId, tenantId);
 
         TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
                 tenantId, availableAgentId, null, "SYSTEM");
@@ -541,7 +549,7 @@ class RoutingServiceImpl implements RoutingService {
         }
         triggerAgentByTenant.forEach((tenantId, agentId) -> {
             try {
-                retryQueuedContacts(tenantId, agentId);
+                retryQueuedContacts(tenantId, agentId, true);
             } catch (Exception e) {
                 log.warn("[RoutingService] pollAvailableAgents: błąd dla tenanta {}: {}", tenantId, e.getMessage());
             }

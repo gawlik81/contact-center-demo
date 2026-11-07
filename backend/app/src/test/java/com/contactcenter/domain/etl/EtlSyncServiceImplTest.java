@@ -182,15 +182,34 @@ class EtlSyncServiceImplTest {
     // =========================================================================
 
     @Nested
-    @DisplayName("checkLagAndAlert – alert monitoringowy")
+    @DisplayName("checkLagAndAlert – alert monitoringowy (BE-212: lag = wiek najstarszej zaleglej zmiany)")
     class LagAlertTest {
 
-        @Test
-        @DisplayName("Publikuje alert do RabbitMQ gdy lag > 30 minut")
-        void publishesAlertWhenLagExceedsThreshold() {
-            Instant oldSyncedAt = Instant.now().minus(45, ChronoUnit.MINUTES);
+        private void stubOldestUnsynced(String sqlFragment, Instant oldest) {
+            when(jdbcTemplate.queryForObject(contains(sqlFragment), eq(Timestamp.class), any()))
+                    .thenReturn(oldest != null ? Timestamp.from(oldest) : null);
+        }
 
-            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, oldSyncedAt);
+        @Test
+        @DisplayName("Brak zmian w zrodle: brak alertu mimo bardzo starego last_synced_at")
+        void noAlertWhenSourceHasNoChanges() {
+            Instant ancientSyncedAt = Instant.now().minus(10_000, ChronoUnit.MINUTES);
+            stubOldestUnsynced("FROM contact c", null);
+            stubOldestUnsynced("FROM campaign_contact cc", null);
+
+            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, ancientSyncedAt);
+            service.checkLagAndAlert(EtlSyncService.TABLE_CAMPAIGN_CONTACT, ancientSyncedAt);
+
+            assertThat(service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, ancientSyncedAt)).isZero();
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
+        @DisplayName("Zalegla zmiana starsza niz prog: alert DATA_LAG z lagMinutes liczonym od tej zmiany")
+        void alertWhenPendingChangeOlderThanThreshold() {
+            stubOldestUnsynced("FROM contact c", Instant.now().minus(45, ChronoUnit.MINUTES));
+
+            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, Instant.now().minus(500, ChronoUnit.MINUTES));
 
             verify(rabbitTemplate).convertAndSend(
                     eq("cc.events"),
@@ -198,45 +217,188 @@ class EtlSyncServiceImplTest {
                     (Object) argThat(payload -> {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> map = (Map<String, Object>) payload;
+                        long lag = (Long) map.get("lagMinutes");
                         return "contact".equals(map.get("tableName"))
-                               && (Long) map.get("lagMinutes") >= 30;
+                               && "DATA_LAG".equals(map.get("alertType"))
+                               && map.containsKey("lastSyncedAt")
+                               && lag >= 44 && lag <= 46;
                     })
             );
         }
 
         @Test
-        @DisplayName("Nie publikuje alertu gdy lag < 30 minut")
-        void doesNotPublishAlertWhenLagBelowThreshold() {
-            Instant recentSyncedAt = Instant.now().minus(10, ChronoUnit.MINUTES);
+        @DisplayName("campaign_contact: alert gdy zalegla zmiana starsza niz prog")
+        void alertForCampaignContact() {
+            stubOldestUnsynced("FROM campaign_contact cc", Instant.now().minus(120, ChronoUnit.MINUTES));
 
-            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, recentSyncedAt);
+            service.checkLagAndAlert(EtlSyncService.TABLE_CAMPAIGN_CONTACT, Instant.now().minus(5, ChronoUnit.DAYS));
+
+            verify(rabbitTemplate).convertAndSend(eq("cc.events"), eq("etl.lag.alert"), (Object) any());
+        }
+
+        @Test
+        @DisplayName("Swieza zalegla zmiana (< 30 min): brak alertu")
+        void noAlertWhenPendingChangeIsFresh() {
+            stubOldestUnsynced("FROM contact c", Instant.now().minus(10, ChronoUnit.MINUTES));
+
+            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, Instant.now().minus(10, ChronoUnit.MINUTES));
 
             verifyNoInteractions(rabbitTemplate);
         }
 
         @Test
-        @DisplayName("Błąd RabbitMQ nie propaguje się – ETL kontynuuje")
+        @DisplayName("Zapytanie lagu i fetch CDC buduja sie z tych samych wspolnych fragmentow WHERE")
+        void lagQueryAndFetchShareCdcSource() {
+            service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, Instant.EPOCH);
+            service.computeDataLagMinutes(EtlSyncService.TABLE_CAMPAIGN_CONTACT, Instant.EPOCH);
+            service.fetchContactsForEtl(Instant.EPOCH, 1);
+            service.fetchCampaignContactsForEtl(Instant.EPOCH, 1);
+
+            ArgumentCaptor<String> lagSql = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, org.mockito.Mockito.times(2))
+                    .queryForObject(lagSql.capture(), eq(Timestamp.class), any());
+            ArgumentCaptor<String> fetchSql = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(fetchSql.capture(), any(RowMapper.class), any(), any());
+
+            assertThat(lagSql.getAllValues().get(0)).contains(EtlSyncServiceImpl.CONTACT_CDC_SOURCE);
+            assertThat(fetchSql.getAllValues().get(0)).contains(EtlSyncServiceImpl.CONTACT_CDC_SOURCE);
+            assertThat(lagSql.getAllValues().get(1)).contains(EtlSyncServiceImpl.CAMPAIGN_CONTACT_CDC_SOURCE);
+            assertThat(fetchSql.getAllValues().get(1)).contains(EtlSyncServiceImpl.CAMPAIGN_CONTACT_CDC_SOURCE);
+        }
+
+        @Test
+        @DisplayName("Wyjatek zapytania lagu nie wylatuje z checkLagAndAlert (brak alertu, brak wyjatku)")
+        void lagQueryFailureDoesNotPropagate() {
+            when(jdbcTemplate.queryForObject(anyString(), eq(Timestamp.class), any()))
+                    .thenThrow(new org.springframework.dao.QueryTimeoutException("timeout"));
+
+            assertThatNoException().isThrownBy(
+                    () -> service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, Instant.EPOCH));
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
+        @DisplayName("Blad RabbitMQ nie propaguje sie - ETL kontynuuje")
         void rabbitMqErrorDoesNotPropagateToEtl() {
+            stubOldestUnsynced("FROM contact c", Instant.now().minus(60, ChronoUnit.MINUTES));
             doThrow(new RuntimeException("RabbitMQ unavailable"))
                     .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
 
-            Instant oldSyncedAt = Instant.now().minus(60, ChronoUnit.MINUTES);
-
             assertThatNoException().isThrownBy(
-                    () -> service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, oldSyncedAt)
+                    () -> service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, Instant.EPOCH)
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("checkLivenessAndAlert – zywotnosc joba (BE-212)")
+    class LivenessAlertTest {
+
+        @Test
+        @DisplayName("Swiezy przebieg (status DONE): brak alertu")
+        void noAlertForFreshRun() {
+            service.checkLivenessAndAlert("contact", Instant.now().minusSeconds(30), "DONE", null);
+
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
+        @DisplayName("Nigdy nie uruchomiony (last_run_at null): brak alertu")
+        void noAlertWhenNeverRun() {
+            service.checkLivenessAndAlert("contact", null, "IDLE", null);
+
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
+        @DisplayName("Stary last_run_at: alert JOB_STALE")
+        void alertWhenLastRunTooOld() {
+            service.checkLivenessAndAlert("contact", Instant.now().minus(20, ChronoUnit.MINUTES), "RUNNING", null);
+
+            verify(rabbitTemplate).convertAndSend(
+                    eq("cc.events"),
+                    eq("etl.lag.alert"),
+                    (Object) argThat(payload -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) payload;
+                        return "JOB_STALE".equals(map.get("alertType"))
+                               && "contact".equals(map.get("tableName"))
+                               && (Long) map.get("staleMinutes") >= 19;
+                    })
             );
         }
 
         @Test
-        @DisplayName("Próg alertu to dokładnie 30 minut – alert przy lag == 30")
-        void alertAtExactThreshold() {
-            Instant syncedAt = Instant.now().minus(EtlSyncService.LAG_ALERT_THRESHOLD_MINUTES + 1,
-                    ChronoUnit.MINUTES);
+        @DisplayName("JOB_ERROR: errorMessage w payloadzie obciety do 200 znakow")
+        void errorMessageTruncatedInAlert() {
+            service.checkLivenessAndAlert("contact", Instant.now(), "ERROR", "x".repeat(1000));
 
-            service.checkLagAndAlert(EtlSyncService.TABLE_CONTACT, syncedAt);
+            verify(rabbitTemplate).convertAndSend(
+                    eq("cc.events"),
+                    eq("etl.lag.alert"),
+                    (Object) argThat(payload -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) payload;
+                        return ((String) map.get("errorMessage")).length() == EtlSyncServiceImpl.ALERT_ERROR_MESSAGE_MAX;
+                    })
+            );
+        }
 
-            verify(rabbitTemplate, atLeastOnce())
-                    .convertAndSend(anyString(), anyString(), (Object) any());
+        @Test
+        @DisplayName("Mapper liveness: aktywnosc = nowszy z last_run_at i updated_at (heartbeat); brak last_run_at = null")
+        void livenessActivityIsNewestOfRunAndHeartbeat() throws SQLException {
+            Instant oldRun = Instant.now().minus(30, ChronoUnit.MINUTES);
+            Instant heartbeat = Instant.now().minusSeconds(20);
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class))).thenAnswer(inv -> {
+                RowMapper<?> mapper = inv.getArgument(1);
+                ResultSet withRun = mock(ResultSet.class);
+                when(withRun.getString("table_name")).thenReturn("contact");
+                when(withRun.getTimestamp("last_run_at")).thenReturn(Timestamp.from(oldRun));
+                when(withRun.getTimestamp("updated_at")).thenReturn(Timestamp.from(heartbeat));
+                ResultSet neverRun = mock(ResultSet.class);
+                when(neverRun.getString("table_name")).thenReturn("campaign_contact");
+                when(neverRun.getTimestamp("last_run_at")).thenReturn(null);
+                when(neverRun.getTimestamp("updated_at")).thenReturn(Timestamp.from(oldRun));
+                return List.of(mapper.mapRow(withRun, 0), mapper.mapRow(neverRun, 1));
+            });
+
+            // 30 min old run start, but fresh heartbeat -> alive; never-run job is never alerted
+            service.checkJobLiveness();
+
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
+        @DisplayName("Status ERROR: alert JOB_ERROR z komunikatem, nawet przy swiezym przebiegu")
+        void alertWhenStatusError() {
+            service.checkLivenessAndAlert("campaign_contact", Instant.now(), "ERROR", "boom");
+
+            verify(rabbitTemplate).convertAndSend(
+                    eq("cc.events"),
+                    eq("etl.lag.alert"),
+                    (Object) argThat(payload -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) payload;
+                        return "JOB_ERROR".equals(map.get("alertType"))
+                               && "boom".equals(map.get("errorMessage"));
+                    })
+            );
+        }
+
+        @Test
+        @DisplayName("checkJobLiveness czyta etl_sync_state i alarmuje tylko dla tabel CDC")
+        void scheduledCheckAlertsOnlyForCdcTables() throws SQLException {
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+                    .thenReturn(List.of(
+                            new EtlSyncServiceImpl.LivenessRow("contact",
+                                    Instant.now().minus(1, ChronoUnit.HOURS), "DONE", null),
+                            new EtlSyncServiceImpl.LivenessRow("other_table",
+                                    Instant.now().minus(1, ChronoUnit.HOURS), "DONE", null)));
+
+            service.checkJobLiveness();
+
+            verify(rabbitTemplate, org.mockito.Mockito.times(1))
+                    .convertAndSend(eq("cc.events"), eq("etl.lag.alert"), (Object) any());
         }
     }
 
@@ -291,6 +453,8 @@ class EtlSyncServiceImplTest {
             service.syncTable(EtlSyncService.TABLE_CONTACT);
 
             verify(dwWriter).upsert(List.of(row));
+            // BE-212: progress heartbeat after the written batch
+            verify(jdbcTemplate).update(contains("SET updated_at = NOW()"), eq(EtlSyncService.TABLE_CONTACT));
         }
 
         @Test
@@ -342,7 +506,23 @@ class EtlSyncServiceImplTest {
             assertThat(status.tableName()).isEqualTo("contact");
             assertThat(status.status()).isEqualTo("DONE");
             assertThat(status.lastRowCount()).isEqualTo(10L);
-            assertThat(status.lagMinutes()).isGreaterThanOrEqualTo(14L);
+            // no unsynced source change (queryForObject stubbed to null in setUp) -> lag 0 despite old last_synced_at
+            assertThat(status.lagMinutes()).isZero();
+        }
+
+        @Test
+        @DisplayName("lagMinutes = wiek najstarszej zaleglej zmiany")
+        void lagMinutesFromOldestPendingChange() {
+            Instant lastSynced = Instant.now().minus(500, ChronoUnit.MINUTES);
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+                    .thenAnswer(inv -> {
+                        RowMapper<EtlTableStatus> mapper = inv.getArgument(1);
+                        return List.of(mapper.mapRow(mockResultSet(lastSynced, 1L, "DONE", null), 0));
+                    });
+            when(jdbcTemplate.queryForObject(anyString(), eq(Timestamp.class), any()))
+                    .thenReturn(Timestamp.from(Instant.now().minus(7, ChronoUnit.MINUTES)));
+
+            assertThat(service.getStatus().get(0).lagMinutes()).isBetween(6L, 8L);
         }
 
         @Test

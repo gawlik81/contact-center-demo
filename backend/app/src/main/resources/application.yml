@@ -352,6 +352,9 @@ etl:
     # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
     # fixedDelay: 60000 = 60 sekund. W prod możesz wydłużyć do 300000 (5 min).
     fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:60000}
+    # BE-212: job considered stuck when etl_sync_state.last_run_at is older than this (ms). Keep >= 3x fixed-delay-ms.
+    liveness-threshold-ms: ${ETL_SYNC_LIVENESS_THRESHOLD_MS:300000}
+    liveness-check-interval-ms: ${ETL_SYNC_LIVENESS_CHECK_INTERVAL_MS:60000}
 
 # =============================================================================
 # Retencja danych – silnik usuwania (EPIC-29, BE-113) + job liczący dane do usunięcia (BE-112)

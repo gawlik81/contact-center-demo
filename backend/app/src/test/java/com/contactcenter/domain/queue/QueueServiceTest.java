@@ -105,7 +105,7 @@ class QueueServiceTest {
                 Queue q = inv.getArgument(0);
                 // weryfikujemy wartości domyślne
                 assertThat(q.getStickyAgentTimeoutSeconds()).isEqualTo(60);
-                assertThat(q.getMaxConcurrentContactsPerAgent()).isEqualTo(1);
+                assertThat(q.getMaxConcurrentContactsPerAgent()).isEqualTo(3);
                 assertThat(q.isActive()).isTrue();
                 assertThat(q.getRequiredSkills()).isEmpty();
                 return savedQueue;

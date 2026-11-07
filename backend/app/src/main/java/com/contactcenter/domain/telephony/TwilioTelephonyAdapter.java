@@ -1283,7 +1283,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .tenantId(tenantId)
           .channel("PHONE")
           .direction(contactDirection)
-          .status("QUEUED")
+          // BE-159 review: inserted already ASSIGNED to the target agent - a QUEUED row would be visible to
+          // routing passes (retryQueuedContacts) until the direct-assignment message is consumed, which could
+          // hand the customer's contact to a different agent.
+          .status("ASSIGNED")
+          .agentId(targetAgentId)
+          .assignedAt(now)
           .queueId(finalQueueId)
           .remoteAddress(customerAddress)
           .transferredFromContactId(originalContactId)

@@ -28,7 +28,12 @@ public final class ContactChannels {
         return channel != null && (SOCIAL_TYPE.equals(channel) || channel.startsWith(SOCIAL_PREFIX));
     }
 
-    /** True for the channels handled asynchronously by agents (no live audio): EMAIL, CHAT and SOCIAL_*. */
+    /**
+     * True for the channels handled asynchronously by agents (no live audio): EMAIL, CHAT and SOCIAL_*.
+     * Note: {@code CHAT} is NOT a persisted channel today ({@code chk_contact_channel} allows PHONE, EMAIL,
+     * SOCIAL_*); it is kept so a future chat channel is automatically treated as async (limit, release, cleanup
+     * decisions must be revisited when it is added).
+     */
     public static boolean isAsync(String channel) {
         return "EMAIL".equals(channel) || "CHAT".equals(channel) || isSocial(channel);
     }

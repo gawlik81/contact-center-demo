@@ -1,5 +1,6 @@
 package com.contactcenter.domain.routing;
 
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,9 @@ class DefaultRoutingEngineTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private ContactService contactService;
+
     /**
      * Spy na silniku – pozwala nadpisać scanAvailableAgents.
      *
@@ -58,7 +62,7 @@ class DefaultRoutingEngineTest {
 
     @BeforeEach
     void setUp() {
-        DefaultRoutingEngine realEngine = new DefaultRoutingEngine(redisTemplate, userService);
+        DefaultRoutingEngine realEngine = new DefaultRoutingEngine(redisTemplate, userService, contactService);
         engine = spy(realEngine);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
@@ -456,6 +460,101 @@ class DefaultRoutingEngineTest {
                 .tenantId(TENANT_ID)
                 .skills(new ArrayList<>(skills))
                 .build();
+    }
+
+    // =========================================================================
+    // BE-156: limit otwartych kontaktow async agenta w kolejce
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Limit kontaktow async na agenta - BE-156")
+    class AsyncLimit {
+
+        private RoutingRequest limited(String strategy, String channel, UUID preferred, Integer limit) {
+            return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, List.of(), preferred, channel, null,
+                    Set.of(), limit);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("agent na limicie nie dostaje kontaktu - wybierany jest agent ponizej limitu")
+        void agentAtLimitIsSkippedInEveryStrategy(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            lenient().when(userService.countActiveContactsByAgentIds(eq(TENANT_ID), anyList())).thenReturn(List.of());
+            when(contactService.countOpenAsyncContactsByAgents(eq(TENANT_ID), eq(QUEUE_ID), anyList()))
+                    .thenReturn(Map.of(AGENT_A, 2L, AGENT_B, 1L));
+
+            Optional<RoutingResult> result = engine.findBestAgent(limited(strategy, "EMAIL", null, 2));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("wszyscy agenci na limicie -> brak agenta (kontakt zostaje QUEUED)")
+        void allAgentsAtLimitYieldsEmpty(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            when(contactService.countOpenAsyncContactsByAgents(eq(TENANT_ID), eq(QUEUE_ID), anyList()))
+                    .thenReturn(Map.of(AGENT_A, 3L, AGENT_B, 5L));
+
+            assertThat(engine.findBestAgent(limited(strategy, "CHAT", null, 3))).isEmpty();
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("telefon (brak limitu w zadaniu): obciazenie async nie jest w ogole sprawdzane")
+        void phoneIsNeverLimited(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A));
+            lenient().when(userService.countActiveContactsByAgentIds(eq(TENANT_ID), anyList())).thenReturn(List.of());
+
+            Optional<RoutingResult> result = engine.findBestAgent(limited(strategy, "PHONE", null, null));
+
+            assertThat(result).isPresent();
+            verifyNoInteractions(contactService);
+        }
+
+        @Test
+        @DisplayName("sticky agent na limicie jest pomijany, fallback na strategie")
+        void stickyAgentAtLimitIsSkipped() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            when(valueOps.get(DefaultRoutingEngine.AGENT_SESSION_KEY_PREFIX + AGENT_A))
+                    .thenReturn(Map.of("tenantId", TENANT_ID.toString(), "userId", AGENT_A.toString(),
+                            "status", "AVAILABLE"));
+            when(contactService.countOpenAsyncContactsByAgents(eq(TENANT_ID), eq(QUEUE_ID), anyList()))
+                    .thenReturn(Map.of(AGENT_A, 1L));
+
+            Optional<RoutingResult> result =
+                    engine.findBestAgent(limited("FIRST_AVAILABLE", "EMAIL", AGENT_A, 1));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+            assertThat(result.get().isSticky()).isFalse();
+        }
+
+        @Test
+        @DisplayName("ROUND_ROBIN: ponowne pytanie w tym samym przebiegu (retryRound) nie przesuwa licznika rotacji")
+        void roundRobinRetryRoundDoesNotAdvanceCounter() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            String counterKey = DefaultRoutingEngine.ROUND_ROBIN_COUNTER_PREFIX + QUEUE_ID;
+            when(valueOps.get(counterKey)).thenReturn(5L);
+            RoutingRequest retry = new RoutingRequest(TENANT_ID, QUEUE_ID, "ROUND_ROBIN", List.of(), null, "EMAIL",
+                    null, Set.of(), null, true);
+
+            assertThat(engine.findBestAgent(retry)).isPresent();
+
+            verify(valueOps, never()).increment(anyString());
+        }
+
+        @Test
+        @DisplayName("blad zapytania o obciazenie: fail-open (atomowy zapis jest straznikiem)")
+        void countFailureFailsOpen() {
+            stubScan(TENANT_ID, List.of(AGENT_A));
+            when(contactService.countOpenAsyncContactsByAgents(any(), any(), anyList()))
+                    .thenThrow(new RuntimeException("db down"));
+
+            assertThat(engine.findBestAgent(limited("FIRST_AVAILABLE", "EMAIL", null, 1))).isPresent();
+        }
     }
 
     private RoutingRequest buildRequest(String strategy, List<String> skills, UUID preferredAgentId) {

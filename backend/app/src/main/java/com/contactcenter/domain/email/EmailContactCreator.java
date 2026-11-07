@@ -291,12 +291,13 @@ class EmailContactCreator {
         try {
             contactService.findContactEntity(contactId, tenantId).ifPresent(contact -> {
                 if (!"COMPLETED".equals(contact.getStatus()) && !"ABANDONED".equals(contact.getStatus())) {
-                    Instant now = Instant.now();
-                    contact.setStatus("COMPLETED");
-                    contact.setEndedAt(now);
-                    contact.setUpdatedAt(now);
-                    contactService.updateContactEntity(contact);
-                    log.info("[EmailContact] Kontakt EMAIL zakończony po wysłaniu odpowiedzi: contactId={}", contactId);
+                    // BE-159: targeted conditional write (not COMPLETED/ABANDONED yet) instead of a
+                    // full-entity overwrite from a possibly stale snapshot
+                    if (contactService.completeContactIfOpen(contact, Instant.now())) {
+                        log.info("[EmailContact] Kontakt EMAIL zakończony po wysłaniu odpowiedzi: contactId={}", contactId);
+                    } else {
+                        log.info("[EmailContact] Kontakt EMAIL już zakończony w międzyczasie – pomijam: contactId={}", contactId);
+                    }
                 }
             });
 

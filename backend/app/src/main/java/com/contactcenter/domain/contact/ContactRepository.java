@@ -793,11 +793,18 @@ class ContactRepository extends TenantAwareRepository {
    *
    * <p>Sets {@code agent_id}, {@code assigned_at} and {@code status = 'ACTIVE'}.
    *
+   * <p>BE-159: the WHERE clause also requires {@code agent_id IS NULL OR agent_id = :agentId}, so an
+   * answer racing with another assignment can never silently overwrite a different owner (idempotent
+   * for the same agent). BE-156: {@code ASSIGNED} is accepted too - routing leaves phone contacts ASSIGNED, so the
+   * owning agent answering such a contact (e.g. mock adapter, or the ASSIGNED -> ACTIVE step after dialing
+   * the agent failed) must move it to ACTIVE instead of getting "not found"; the ownership clause above
+   * keeps other agents out.
+   *
    * @param contactId  UUID of the contact to update
    * @param tenantId   UUID of the tenant (cross-tenant safety)
    * @param agentId    UUID of the agent who answered the call
    * @param assignedAt timestamp when the agent answered
-   * @return number of updated rows (0 = contact not found or wrong tenant)
+   * @return number of updated rows (0 = contact not found, wrong tenant, wrong status or owned by another agent)
    */
   @Transactional
   public int assignAgent(UUID contactId, UUID tenantId, UUID agentId, Instant assignedAt) {
@@ -814,12 +821,14 @@ class ContactRepository extends TenantAwareRepository {
                 status      = 'ACTIVE'
             WHERE contact_id = ?::uuid
               AND tenant_id  = ?::uuid
-              AND status IN ('QUEUED', 'ACTIVE')
+              AND status IN ('QUEUED', 'ASSIGNED', 'ACTIVE')
+              AND (agent_id IS NULL OR agent_id = ?::uuid)
             """,
         agentId.toString(),
         java.sql.Timestamp.from(assignedAt),
         contactId.toString(),
-        tenantId.toString()
+        tenantId.toString(),
+        agentId.toString()
     );
 
     // Clear Hibernate L1 cache – native UPDATE via JdbcTemplate bypasses EntityManager
@@ -912,6 +921,225 @@ class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // BE-159: conditional (compare-and-set) writes for every assign / un-assign path
+  // =========================================================================
+
+  /** Statuses in which an async contact occupies one of the agent's slots (same set as BE-157 active-contacts). */
+  static final String OPEN_ASYNC_COUNT_SQL = """
+      SELECT agent_id, COUNT(*)
+        FROM contact
+       WHERE tenant_id = CAST(:tenantId AS uuid)
+         AND queue_id  = CAST(:queueId AS uuid)
+         AND agent_id IN (:agentIds)
+         AND status IN ('ASSIGNED', 'ACTIVE', 'ON_HOLD')
+         AND (channel IN ('EMAIL', 'CHAT') OR channel LIKE 'SOCIAL%')
+       GROUP BY agent_id
+      """;
+
+  /**
+   * Open ASYNC contacts (EMAIL/CHAT/SOCIAL*; statuses ASSIGNED/ACTIVE/ON_HOLD) per agent in ONE queue (BE-156).
+   * Phone contacts are never counted. Agents without open contacts are absent from the map.
+   */
+  @Transactional(readOnly = true)
+  public Map<UUID, Long> countOpenAsyncContactsByAgents(UUID tenantId, UUID queueId, List<UUID> agentIds) {
+    Map<UUID, Long> counts = new HashMap<>();
+    if (agentIds == null || agentIds.isEmpty()) {
+      return counts;
+    }
+    setTenantContextInDb(tenantId);
+    List<?> rows = em.createNativeQuery(OPEN_ASYNC_COUNT_SQL)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("queueId", queueId.toString())
+        .setParameter("agentIds", agentIds)
+        .getResultList();
+    for (Object row : rows) {
+      Object[] cols = (Object[]) row;
+      counts.put(toPurgeUuid(cols[0]), ((Number) cols[1]).longValue());
+    }
+    return counts;
+  }
+
+  /**
+   * Atomically assigns a still-unclaimed QUEUED contact to an agent (BE-159), optionally under the agent's
+   * async load limit (BE-156).
+   *
+   * <p>{@code WHERE status = 'QUEUED' AND agent_id IS NULL}: of several concurrent routing passes
+   * exactly one gets the contact; the others are told {@link AssignmentResult#CONTACT_UNAVAILABLE} and must
+   * skip it without side effects. Under READ COMMITTED the loser's WHERE is re-evaluated after the winner
+   * commits and no longer matches.
+   *
+   * <p><strong>Limit (BE-156):</strong> when {@code maxAsyncPerAgent != null}, the check "agent holds fewer than N
+   * open async contacts in this queue" and the UPDATE must be one atomic step, otherwise two different
+   * contacts could both pass the count and exceed the limit. It is serialized per (tenant, agent) with
+   * {@code pg_advisory_xact_lock}: transaction-scoped (released on commit/rollback, so PgBouncer transaction
+   * pooling is safe - unlike session-level advisory locks), takes no row lock on {@code app_user} (which agent
+   * status updates, logins and FK checks on {@code contact.agent_id} contend for) and needs no UPDATE policy.
+   * Under READ COMMITTED every statement sees a fresh snapshot, so the count that follows the lock includes
+   * everything the previous lock holder committed. The lock lives until the surrounding transaction ends.
+   *
+   * <p>{@code started_at} (the partition key from the entity the caller read) prunes the partitioned table.
+   *
+   * <p><strong>Transaction contract:</strong> this method MUST run in its own SHORT transaction (the service
+   * method {@code assignQueuedContact} is the transaction boundary). The advisory lock is held until that
+   * transaction ends; if a caller ever wrapped a whole retry loop (several agents) in one transaction,
+   * two passes taking agent locks in different orders (A then B vs B then A) could deadlock.
+   *
+   * @param maxAsyncPerAgent open-async-contacts limit of the queue, or {@code null} (phone) = no limit check
+   * @param queueId          queue the limit applies to, passed EXPLICITLY by routing (the queue the pass is
+   *                         routing for), never read from the contact row; {@code null} with a limit set
+   *                         means "cannot evaluate" and yields {@code CONTACT_UNAVAILABLE}
+   */
+  @Transactional
+  public AssignmentResult assignIfQueued(UUID contactId, UUID tenantId, Instant startedAt, UUID agentId,
+                                         UUID queueId, Integer maxAsyncPerAgent) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    if (maxAsyncPerAgent != null) {
+      if (queueId == null) {
+        // Never throw here (a thrown exception would end in the RabbitMQ DLQ): without a queue the limit
+        // cannot be evaluated, so the contact is not assigned and stays QUEUED for a later pass.
+        log.warn("[ContactRepo] assignIfQueued: limit ustawiony, ale brak queueId - pomijam: contactId={}", contactId);
+        return AssignmentResult.CONTACT_UNAVAILABLE;
+      }
+      jdbcTemplate.queryForRowSet("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+          tenantId + ":" + agentId);
+      long open = countOpenAsyncContactsByAgents(tenantId, queueId, List.of(agentId))
+          .getOrDefault(agentId, 0L);
+      if (open >= maxAsyncPerAgent) {
+        log.debug("[ContactRepo] assignIfQueued: agent {} na limicie ({}/{}) w kolejce {}",
+            agentId, open, maxAsyncPerAgent, queueId);
+        return AssignmentResult.AGENT_AT_LIMIT;
+      }
+    }
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET agent_id    = ?::uuid,
+                   status      = 'ASSIGNED',
+                   assigned_at = NOW(),
+                   updated_at  = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status     = 'QUEUED'
+               AND agent_id IS NULL
+            """,
+        agentId.toString(), contactId.toString(), tenantId.toString(),
+        java.sql.Timestamp.from(startedAt));
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] assignIfQueued: contactId={}, agentId={}, rows={}", contactId, agentId, updated);
+    return updated > 0 ? AssignmentResult.ASSIGNED : AssignmentResult.CONTACT_UNAVAILABLE;
+  }
+
+  /**
+   * Atomically ends a QUEUED, queue-less, unassigned contact with {@code ERROR} (BE-159) - the routing
+   * pass found no queue for it. A concurrent assignment or a queue resolved in the meantime wins (0 rows).
+   *
+   * @return updated rows (0 = contact no longer QUEUED / got a queue or an agent / not found)
+   */
+  @Transactional
+  public int markErrorIfQueuedWithoutQueue(UUID contactId, UUID tenantId, Instant startedAt, Instant endedAt) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'ERROR',
+                   ended_at   = ?,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status     = 'QUEUED'
+               AND queue_id IS NULL
+               AND agent_id IS NULL
+            """,
+        java.sql.Timestamp.from(endedAt), contactId.toString(), tenantId.toString(),
+        java.sql.Timestamp.from(startedAt));
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] markErrorIfQueuedWithoutQueue: contactId={}, rows={}", contactId, updated);
+    return updated;
+  }
+
+  /**
+   * Atomically takes back an unanswered assignment (BE-159, {@code ContactAssignmentMonitor}): resets the
+   * contact to QUEUED only while it is still {@code ASSIGNED} to {@code expectedAgentId}. If the agent
+   * accepted ({@code ACTIVE}), released it or routing already moved it to someone else, nothing is written.
+   *
+   * @return updated rows (0 = no longer ASSIGNED to that agent / not found)
+   */
+  @Transactional
+  public int resetAssignmentIfAssigned(UUID contactId, UUID tenantId, Instant startedAt, UUID expectedAgentId) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status      = 'QUEUED',
+                   agent_id    = NULL,
+                   assigned_at = NULL,
+                   updated_at  = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status     = 'ASSIGNED'
+               AND agent_id   = ?::uuid
+            """,
+        contactId.toString(), tenantId.toString(), java.sql.Timestamp.from(startedAt),
+        expectedAgentId.toString());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] resetAssignmentIfAssigned: contactId={}, expectedAgentId={}, rows={}",
+        contactId, expectedAgentId, updated);
+    return updated;
+  }
+
+  /**
+   * Completes a contact that is not yet in {@code COMPLETED}/{@code ABANDONED} (BE-159, e-mail reply sent).
+   * Targeted write (status + ended_at only) instead of the full-entity {@link #update(Contact)}, so a
+   * stale snapshot cannot overwrite an agent / status changed concurrently.
+   *
+   * @return updated rows (0 = already COMPLETED/ABANDONED or not found)
+   */
+  @Transactional
+  public int completeIfOpen(UUID contactId, UUID tenantId, Instant startedAt, Instant endedAt) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'COMPLETED',
+                   ended_at   = ?,
+                   updated_at = ?
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status NOT IN ('COMPLETED', 'ABANDONED')
+            """,
+        java.sql.Timestamp.from(endedAt), java.sql.Timestamp.from(endedAt),
+        contactId.toString(), tenantId.toString(), java.sql.Timestamp.from(startedAt));
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] completeIfOpen: contactId={}, rows={}", contactId, updated);
+    return updated;
+  }
+
+  // =========================================================================
   // Aktualizacja agent_id (attended transfer – przepisanie kontaktu na Agent2)
   // =========================================================================
 
@@ -921,26 +1149,33 @@ class ContactRepository extends TenantAwareRepository {
    * <p>Używane przy attended transfer gdy Agent2 przejmuje kontakt po bridge.
    * W przeciwieństwie do {@link #assignAgent}, nie zmienia statusu kontaktu.
    *
+   * <p>BE-159: zapis warunkowy - tylko kontakt nadal w toku ({@code ASSIGNED}/{@code ACTIVE}/{@code ON_HOLD}).
+   * Kontakt zakończony/porzucony/zwrócony do kolejki nie dostaje "wskrzeszonego" właściciela.
+   *
    * @param contactId  UUID kontaktu
    * @param tenantId   UUID tenanta
    * @param newAgentId UUID nowego agenta
+   * @return liczba zmienionych wierszy (0 = kontakt nie istnieje lub nie jest już w toku)
    */
-  public void updateAgentId(UUID contactId, UUID tenantId, UUID newAgentId) {
+  @Transactional
+  public int updateAgentId(UUID contactId, UUID tenantId, UUID newAgentId) {
     assertSameTenant(tenantId);
     setTenantContextInDb(tenantId);
 
-    jdbcTemplate.update("""
+    int updated = jdbcTemplate.update("""
             UPDATE contact
             SET agent_id = ?::uuid
             WHERE contact_id = ?::uuid
               AND tenant_id  = ?::uuid
+              AND status IN ('ASSIGNED', 'ACTIVE', 'ON_HOLD')
             """,
         newAgentId.toString(), contactId.toString(), tenantId.toString());
 
     em.flush();
     em.clear();
 
-    log.debug("[ContactRepo] updateAgentId: contactId={}, newAgentId={}", contactId, newAgentId);
+    log.debug("[ContactRepo] updateAgentId: contactId={}, newAgentId={}, rows={}", contactId, newAgentId, updated);
+    return updated;
   }
 
   // =========================================================================
@@ -1304,6 +1539,11 @@ class ContactRepository extends TenantAwareRepository {
    *   <li>Flaga błędu: {@code channel_metadata->>'error'} rzutowane na boolean = true.</li>
    * </ul>
    *
+   * <p>BE-156: kontakty EMAIL i SOCIAL_* są POMIJANE (mogą czekać na agenta bez limitu czasu - agent może być
+   * zajęty/pełny dłużej niż 30 min); sprzątanie dotyczy tylko telefonu (CHAT nie jest dziś
+   * persystowanym kanałem - {@code chk_contact_channel}; gdyby został dodany, trzeba zdecydować świadomie, czy
+   * ma być tu porzucany).
+   *
    * <p>Brak limitu wynikowego – caller ({@link com.contactcenter.domain.contact.ContactService})
    * przetwarza cały batch w jednej transakcji.
    *
@@ -1324,6 +1564,8 @@ class ContactRepository extends TenantAwareRepository {
                 SELECT * FROM contact
                 WHERE tenant_id = CAST(:tenantId AS uuid)
                   AND status    = 'QUEUED'
+                  AND COALESCE(channel, 'PHONE') <> 'EMAIL'
+                  AND COALESCE(channel, 'PHONE') NOT LIKE 'SOCIAL%'
                   AND (
                       queued_at < :olderThan
                       OR channel_metadata->>'callStatus' IN ('failed', 'busy', 'no-answer', 'canceled')

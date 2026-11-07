@@ -78,6 +78,8 @@ class ContactReleaseIntegrationTest {
     private static ContactEventService contactEventService;
 
     private static final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+    private static final List<com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent> refreshedEvents =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
     private static final QueueService queueService = mock(QueueService.class);
 
     /** In-memory stand-in for the Redis store (same contract; the Redis impl has its own unit test). */
@@ -125,6 +127,12 @@ class ContactReleaseIntegrationTest {
         contactService = ctx.getBean(ContactService.class);
         contactRepository = ctx.getBean(ContactRepository.class);
         contactEventService = ctx.getBean(ContactEventService.class);
+        ctx.addApplicationListener((org.springframework.context.ApplicationListener<
+                org.springframework.context.PayloadApplicationEvent<?>>) e -> {
+            if (e.getPayload() instanceof com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent refreshed) {
+                refreshedEvents.add(refreshed);
+            }
+        });
     }
 
     @AfterAll
@@ -136,6 +144,7 @@ class ContactReleaseIntegrationTest {
     @BeforeEach
     void setUp() {
         reset(rabbitTemplate, queueService);
+        refreshedEvents.clear();
         tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-160 " + UUID.randomUUID());
         queueId = UUID.randomUUID();
         jdbc.update("INSERT INTO queue (queue_id, tenant_id, name, routing_strategy) "
@@ -458,5 +467,149 @@ class ContactReleaseIntegrationTest {
             verify(rabbitTemplate, org.mockito.Mockito.times(1)).convertAndSend(
                     eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(ContactQueuedMessage.class));
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // BE-156: async limit through the real routing + real services + real database
+    // ---------------------------------------------------------------------
+
+    private UUID insertQueuedEmail() {
+        UUID contactId = UUID.randomUUID();
+        Instant now = Instant.now();
+        contactRepository.insert(Contact.builder().contactId(contactId).tenantId(tenantId).queueId(queueId)
+                .channel("EMAIL").direction("INBOUND").status("QUEUED").remoteAddress("nowy@example.com")
+                .queuedAt(now).startedAt(now).createdAt(now).updatedAt(now).build());
+        return contactId;
+    }
+
+    private void queueLimit(int limit) {
+        when(queueService.findQueueEntity(queueId, tenantId)).thenReturn(Optional.of(
+                Queue.builder().queueId(queueId).tenantId(tenantId).name("Email BE-160")
+                        .routingStrategy("FIRST_AVAILABLE").active(true).maxConcurrentContactsPerAgent(limit).build()));
+    }
+
+    @Test
+    @DisplayName("BE-156: agent pelny (limit 1) nie dostaje kontaktu - zapis atomowo odrzuca, routing przydziela kolejnemu agentowi")
+    void contactSkipsFullAgentAndGoesToNextAvailable() throws Exception {
+        queueLimit(1);
+        insertHeldContact("EMAIL", "ACTIVE"); // agent A already holds 1 open async contact in this queue
+        UUID contactId = insertQueuedEmail();
+        List<RoutingRequest> requests = new ArrayList<>();
+
+        // the stub engine ignores load and offers A first - the atomic write-time check must reject it
+        deliver(routingWith(List.of(agentA, agentB), requests), new ContactQueuedMessage(contactId, queueId, tenantId));
+
+        assertThat(requests).hasSize(2);
+        assertThat(requests.get(0).maxConcurrentAsyncPerAgent()).isEqualTo(1);
+        assertThat(requests.get(1).excludedAgentIds()).containsExactly(agentA);
+        Map<String, Object> row = row(contactId);
+        assertThat(row.get("status")).isEqualTo("ASSIGNED");
+        assertThat(row.get("agent_id")).isEqualTo(agentB);
+        ArgumentCaptor<Object> assigned = ArgumentCaptor.forClass(Object.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.assigned"),
+                assigned.capture());
+        assertThat(((ContactAssignedEvent) assigned.getValue()).agentId()).isEqualTo(agentB);
+    }
+
+    @Test
+    @DisplayName("BE-156: wszyscy dostepni agenci pelni -> kontakt zostaje QUEUED bez contact.assigned i bez petli; po zwolnieniu slotu trafia do agenta")
+    void contactStaysQueuedWhenEveryAvailableAgentIsFull() throws Exception {
+        queueLimit(1);
+        UUID held = insertHeldContact("EMAIL", "ACTIVE");
+        UUID contactId = insertQueuedEmail();
+        ContactQueuedMessage message = new ContactQueuedMessage(contactId, queueId, tenantId);
+        List<RoutingRequest> requests = new ArrayList<>();
+        Object routing = routingWith(List.of(agentA), requests);
+
+        deliver(routing, message);
+
+        assertThat(row(contactId).get("status")).isEqualTo("QUEUED");
+        assertThat(row(contactId).get("agent_id")).isNull();
+        verify(rabbitTemplate, org.mockito.Mockito.never()).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS),
+                eq("contact.assigned"), any(Object.class));
+        assertThat(requests).as("bounded: one engine call, one exclusion round").hasSizeLessThanOrEqualTo(2);
+
+        // agent closes the held contact -> next pass assigns the waiting one
+        jdbc.update("UPDATE contact SET status = 'COMPLETED', ended_at = NOW() WHERE contact_id = ?", held);
+        deliver(routing, message);
+
+        assertThat(row(contactId).get("status")).isEqualTo("ASSIGNED");
+        assertThat(row(contactId).get("agent_id")).isEqualTo(agentA);
+    }
+
+    @Test
+    @DisplayName("BE-156: zwolnienie slotu async (release / abandon) zleca przebieg routingu po commicie")
+    void freedAsyncSlotRequestsRoutingPass() {
+        UUID released = insertHeldContact("EMAIL", "ACTIVE");
+        contactService.releaseContact(released, tenantId, agentA);
+        assertThat(refreshedEvents).extracting(e -> e.userId()).containsExactly(agentA);
+        assertThat(refreshedEvents.get(0).tenantId()).isEqualTo(tenantId);
+
+        refreshedEvents.clear();
+        UUID abandoned = insertHeldContact("EMAIL", "ACTIVE");
+        contactService.abandonContact(abandoned, tenantId, agentA);
+        assertThat(refreshedEvents).hasSize(1);
+    }
+
+    // ---------------------------------------------------------------------
+    // BE-159 review: direct transfer vs a routing pass (race at the source)
+    // ---------------------------------------------------------------------
+
+    private UUID insertTransferredContact(String status, UUID agent) {
+        UUID contactId = UUID.randomUUID();
+        Instant now = Instant.now();
+        contactRepository.insert(Contact.builder().contactId(contactId).tenantId(tenantId).queueId(queueId)
+                .agentId(agent).channel("PHONE").direction("INBOUND").status(status).remoteAddress("+48123456789")
+                .queuedAt(now).assignedAt(agent != null ? now : null).startedAt(now).createdAt(now).updatedAt(now)
+                .build());
+        return contactId;
+    }
+
+    private void deliverDirect(Object routing, UUID contactId, UUID targetAgent) throws Exception {
+        Method listener = routing.getClass().getMethod("onDirectAgentAssignment",
+                com.contactcenter.domain.routing.DirectAgentAssignmentMessage.class);
+        listener.setAccessible(true);
+        listener.invoke(routing, new com.contactcenter.domain.routing.DirectAgentAssignmentMessage(
+                contactId, targetAgent, tenantId, "Agent B", queueId, "Q"));
+        TenantContext.setTenantId(tenantId);
+    }
+
+    private void routingPass(Object routing) throws Exception {
+        Method listener = routing.getClass().getMethod("onAgentStatusChanged",
+                com.contactcenter.api.user.dto.AgentStatusChangedEvent.class);
+        listener.setAccessible(true);
+        listener.invoke(routing, com.contactcenter.api.user.dto.AgentStatusChangedEvent.of(
+                agentA, tenantId, com.contactcenter.domain.user.AppUser.UserStatus.BREAK,
+                com.contactcenter.domain.user.AppUser.UserStatus.AVAILABLE, null));
+        TenantContext.setTenantId(tenantId);
+    }
+
+    @Test
+    @DisplayName("transfer bezposredni: kontakt wstawiony jako ASSIGNED do agenta docelowego nie jest widoczny dla przebiegu routingu - zostaje u agenta B")
+    void transferredContactInsertedAssignedIsNotStolenByRoutingPass() throws Exception {
+        UUID contactId = insertTransferredContact("ASSIGNED", agentB);
+        Object routing = routingWith(List.of(agentA), new ArrayList<>());
+
+        routingPass(routing);          // agent A AVAILABLE, a pass runs BEFORE the direct message is consumed
+        deliverDirect(routing, contactId, agentB);
+
+        assertThat(row(contactId).get("status")).isEqualTo("ASSIGNED");
+        assertThat(row(contactId).get("agent_id")).isEqualTo(agentB);
+        ArgumentCaptor<Object> assigned = ArgumentCaptor.forClass(Object.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.assigned"),
+                assigned.capture());
+        assertThat(((ContactAssignedEvent) assigned.getValue()).agentId()).isEqualTo(agentB);
+    }
+
+    @Test
+    @DisplayName("transfer bezposredni (fallback, wiadomosc starego adaptera): kontakt QUEUED zostaje przypisany warunkowo do agenta docelowego")
+    void legacyQueuedTransferredContactIsAssignedConditionally() throws Exception {
+        UUID contactId = insertTransferredContact("QUEUED", null);
+        Object routing = routingWith(List.of(agentA), new ArrayList<>());
+
+        deliverDirect(routing, contactId, agentB);
+
+        assertThat(row(contactId).get("status")).isEqualTo("ASSIGNED");
+        assertThat(row(contactId).get("agent_id")).isEqualTo(agentB);
     }
 }

@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -481,6 +482,42 @@ public interface ContactService {
      * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje)
      */
     int updateContactEntity(Contact contact);
+
+    /**
+     * BE-159/BE-156: atomically assigns a still-QUEUED, unclaimed contact to {@code agentId}
+     * ({@code WHERE status='QUEUED' AND agent_id IS NULL}), optionally under the agent's async load limit.
+     * On success the in-memory entity is updated too.
+     *
+     * @param contact           entity read from the DB (contactId, tenantId and startedAt required)
+     * @param queueId           queue the routing pass is for (explicit, NOT read from the entity); the limit is
+     *                          counted in this queue
+     * @param maxAsyncPerAgent  limit of open async contacts of the agent in {@code queueId}
+     *                          ({@code queue.max_concurrent_contacts_per_agent}); {@code null} = no limit (phone)
+     * @return {@code ASSIGNED} = this caller won the contact; {@code CONTACT_UNAVAILABLE} = already assigned / no
+     *         longer QUEUED; {@code AGENT_AT_LIMIT} = agent is full (contact stays QUEUED, try another agent).
+     *         Anything but ASSIGNED: publish nothing, keep the agent free.
+     */
+    AssignmentResult assignQueuedContact(Contact contact, UUID agentId, UUID queueId, Integer maxAsyncPerAgent);
+
+    /**
+     * BE-156: number of open ASYNC contacts (EMAIL/CHAT/SOCIAL*; ASSIGNED/ACTIVE/ON_HOLD) per agent in one queue.
+     * Agents with none are absent from the result.
+     */
+    Map<UUID, Long> countOpenAsyncContactsByAgents(UUID tenantId, UUID queueId, List<UUID> agentIds);
+
+    /**
+     * BE-159: atomically ends a QUEUED, queue-less, unassigned contact with {@code ERROR}.
+     *
+     * @return true = marked; false = the contact changed in the meantime (nothing written)
+     */
+    boolean markQueuedContactWithoutQueueAsError(Contact contact, Instant endedAt);
+
+    /**
+     * BE-159: atomically completes a contact that is not yet COMPLETED/ABANDONED (targeted write).
+     *
+     * @return true = completed now; false = already terminal / not found
+     */
+    boolean completeContactIfOpen(Contact contact, Instant endedAt);
 
     /**
      * Ustawia {@code campaign_contact_record_id} na kontakcie wychodzącym dialera.

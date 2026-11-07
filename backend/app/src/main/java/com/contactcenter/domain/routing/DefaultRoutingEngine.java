@@ -1,5 +1,6 @@
 package com.contactcenter.domain.routing;
 
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,11 @@ class DefaultRoutingEngine implements RoutingEngine {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserService userService;
+    private final ContactService contactService;
+
+    private static final long COUNT_FAILURE_WARN_INTERVAL_MS = 60_000;
+    private final java.util.concurrent.atomic.AtomicLong lastCountFailureWarnAt =
+            new java.util.concurrent.atomic.AtomicLong(0);
 
     // =========================================================================
     // RoutingEngine
@@ -118,6 +124,11 @@ class DefaultRoutingEngine implements RoutingEngine {
                     availableAgents.size(), totalAvailable, request.queueId());
         }
 
+        // 3b. BE-156: agenci na limicie otwartych kontaktów async w tej kolejce - wszystkie strategie
+        if (request.hasAsyncLimit() && !availableAgents.isEmpty()) {
+            availableAgents = filterAgentsUnderAsyncLimit(request, availableAgents);
+        }
+
         if (availableAgents.isEmpty()) {
             log.debug("[RoutingEngine] Brak dostępnych agentów dla tenant={}", request.tenantId());
             return Optional.empty();
@@ -183,12 +194,59 @@ class DefaultRoutingEngine implements RoutingEngine {
                 return Optional.empty();
             }
 
+            // BE-156: sticky agent at the async limit is skipped (fallback to the strategy)
+            if (request.hasAsyncLimit()
+                    && filterAgentsUnderAsyncLimit(request, List.of(session)).isEmpty()) {
+                log.debug("[RoutingEngine] Sticky agent na limicie kontaktów async: agentId={}", preferredAgentId);
+                return Optional.empty();
+            }
+
             return Optional.of(RoutingResult.sticky(preferredAgentId));
 
         } catch (Exception e) {
             log.warn("[RoutingEngine] Błąd weryfikacji sticky agent {}: {}", preferredAgentId, e.getMessage());
             return Optional.empty();
         }
+    }
+
+    // =========================================================================
+    // BE-156: limit otwartych kontaktów async agenta w kolejce
+    // =========================================================================
+
+    /**
+     * Drops agents that already hold {@code maxConcurrentAsyncPerAgent} open async contacts
+     * (ASSIGNED/ACTIVE/ON_HOLD) in the request's queue. One batch query for all candidates.
+     *
+     * <p>Fail-open on a query error: the atomic check at write time
+     * ({@code ContactRepository#assignIfQueued}) is the authoritative guard, this filter only avoids
+     * pointless attempts and picks sensible candidates.
+     */
+    private List<AgentSessionData> filterAgentsUnderAsyncLimit(RoutingRequest request,
+                                                               List<AgentSessionData> agents) {
+        int limit = request.maxConcurrentAsyncPerAgent();
+        Map<UUID, Long> open;
+        try {
+            open = contactService.countOpenAsyncContactsByAgents(request.tenantId(), request.queueId(),
+                    agents.stream().map(AgentSessionData::agentId).toList());
+        } catch (Exception e) {
+            // Rate-limited WARN: a DB outage would otherwise log once per routing attempt
+            long now = System.currentTimeMillis();
+            long last = lastCountFailureWarnAt.get();
+            if (now - last >= COUNT_FAILURE_WARN_INTERVAL_MS && lastCountFailureWarnAt.compareAndSet(last, now)) {
+                log.warn("[RoutingEngine] Błąd liczenia kontaktów async agentów (queue={}): {} - pomijam filtr limitu " +
+                        "(kolejne błędy w ciągu {} s tylko na DEBUG)", request.queueId(), e.getMessage(),
+                        COUNT_FAILURE_WARN_INTERVAL_MS / 1000);
+            } else {
+                log.debug("[RoutingEngine] Błąd liczenia kontaktów async (queue={}): {}", request.queueId(), e.getMessage());
+            }
+            return agents;
+        }
+        List<AgentSessionData> underLimit = agents.stream()
+                .filter(a -> open.getOrDefault(a.agentId(), 0L) < limit)
+                .toList();
+        log.debug("[RoutingEngine] Po filtrze limitu async ({}): {}/{} agentów, queue={}",
+                limit, underLimit.size(), agents.size(), request.queueId());
+        return underLimit;
     }
 
     // =========================================================================
@@ -262,7 +320,14 @@ class DefaultRoutingEngine implements RoutingEngine {
         String counterKey = ROUND_ROBIN_COUNTER_PREFIX + request.queueId();
 
         try {
-            Long counter = redisTemplate.opsForValue().increment(counterKey);
+            Long counter;
+            if (request.retryRound()) {
+                // Re-ask within one pass (chosen agent was full at write time): do not advance the rotation again
+                Object current = redisTemplate.opsForValue().get(counterKey);
+                counter = current != null ? Long.parseLong(current.toString()) : 1L;
+            } else {
+                counter = redisTemplate.opsForValue().increment(counterKey);
+            }
             if (counter == null) {
                 counter = 0L;
             }

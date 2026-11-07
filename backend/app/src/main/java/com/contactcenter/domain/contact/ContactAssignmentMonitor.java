@@ -214,18 +214,26 @@ class ContactAssignmentMonitor {
         log.warn("[AssignmentMonitor] Wyczerpano {} prób dla contactId={}, tenantId={} – " +
                  "reset do QUEUED i re-kolejkowanie", MAX_RETRIES, contactId, tenantId);
 
-        // Reset statusu do QUEUED w DB
+        // Reset statusu do QUEUED w DB - BE-159: conditional, only while the contact is STILL ASSIGNED to the
+        // agent the monitor saw (an accept / release / re-assignment in the meantime must not be undone).
         try {
             TenantContext.setTenantId(tenantId);
+            UUID expectedAgentId = contact.getAgentId();
+            if (expectedAgentId == null) {
+                log.warn("[AssignmentMonitor] Kontakt ASSIGNED bez agentId – pomijam reset: contactId={}",
+                        contactId);
+                return;
+            }
+            int updated = contactRepository.resetAssignmentIfAssigned(
+                    contactId, tenantId, contact.getStartedAt(), expectedAgentId);
+            if (updated == 0) {
+                log.info("[AssignmentMonitor] Kontakt nie jest już ASSIGNED do agenta {} – pomijam reset " +
+                         "i re-kolejkowanie: contactId={}", expectedAgentId, contactId);
+                return;
+            }
             contact.setStatus("QUEUED");
             contact.setAgentId(null);
             contact.setAssignedAt(null);
-            int updated = contactRepository.update(contact);
-            if (updated == 0) {
-                log.warn("[AssignmentMonitor] Update kontaktu zwrócił 0 wierszy: contactId={}. " +
-                         "Kontakt mógł zmienić status w międzyczasie.", contactId);
-                return;
-            }
         } catch (Exception e) {
             log.error("[AssignmentMonitor] Błąd resetu kontaktu do QUEUED: contactId={}, error={}",
                     contactId, e.getMessage(), e);

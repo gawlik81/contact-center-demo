@@ -39,6 +39,9 @@ import java.util.UUID;
 @Builder
 public class Queue {
 
+    /** Default limit of open async contacts per agent (V147 column default, MAX_ASYNC_TABS on the frontend). */
+    public static final int DEFAULT_MAX_CONCURRENT_CONTACTS_PER_AGENT = 3;
+
     @Id
     @Column(name = "queue_id")
     private UUID queueId;
@@ -74,11 +77,12 @@ public class Queue {
     private Integer stickyAgentTimeoutSeconds = 60;
 
     /**
-     * Limit jednoczesnych kontaktów per agent dla tej kolejki.
+     * Limit otwartych kontaktów ASYNC (e-mail/czat/social) per agent w tej kolejce (egzekwowany od
+     * BE-156); telefon steruje status BUSY. Domyślnie 3 (spójnie z V147 i MAX_ASYNC_TABS).
      */
     @Column(name = "max_concurrent_contacts_per_agent", nullable = false)
     @Builder.Default
-    private Integer maxConcurrentContactsPerAgent = 1;
+    private Integer maxConcurrentContactsPerAgent = DEFAULT_MAX_CONCURRENT_CONTACTS_PER_AGENT;
 
     /**
      * Konfiguracja przepływu oczekiwania (JSONB).

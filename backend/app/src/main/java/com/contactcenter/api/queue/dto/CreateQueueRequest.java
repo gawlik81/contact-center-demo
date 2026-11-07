@@ -18,7 +18,7 @@ import java.util.List;
  * @param routingStrategy               strategia routingu: ROUND_ROBIN, FIRST_AVAILABLE, SKILL_BASED
  * @param requiredSkills                lista wymaganych umiejętności agenta (opcjonalna)
  * @param stickyAgentTimeoutSeconds     czas oczekiwania na sticky agenta w sekundach (>=0, domyślnie 60)
- * @param maxConcurrentContactsPerAgent max jednoczesnych kontaktów per agent (>=1, domyślnie 1)
+ * @param maxConcurrentContactsPerAgent max jednoczesnych kontaktów per agent (>=1, domyślnie 3; limit otwartych kontaktów async, telefon steruje status BUSY)
  * @param waitConfig                    konfiguracja komunikatów oczekiwania (JSON string, opcjonalne)
  * @param active                        czy kolejka jest aktywna (domyślnie true)
  */

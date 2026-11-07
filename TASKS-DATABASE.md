@@ -45,12 +45,12 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
-| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 3 | 0 | 1 | 0 | 4 | 🔧 W toku (DB-089, DB-096, DB-097 ✅; DB-088 ⬜ backlog, bramkowany wolumenem, częściowo pokryty przez V148) |
+| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 3 | 0 | 2 | 0 | 5 | 🔧 W toku (DB-089, DB-096, DB-097 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
 | EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty (DB-090 P0, DB-091 P1, DB-092/DB-093 P2) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
-| **RAZEM** | | **87** | **0** | **7** | **3** | **97** | |
+| **RAZEM** | | **87** | **0** | **8** | **3** | **98** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -67,6 +67,7 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 - DB-088 – [BRAMKOWANY WOLUMENEM] Indeks częściowy pod `findActiveContactsForAgent` (BE-157): brak pruningu partycji `contact` – ⬜ (częściowo zrealizowany przez V148/DB-097: zapytanie o otwarte kontakty pokryte; zostaje ACW i wariant C)
 - DB-096 – Domyślny limit `queue.max_concurrent_contacts_per_agent` = 3 i podniesienie istniejących 1→3 (BE-156) – ✅ (2026-11-07, tura 72; V147)
 - DB-097 – Indeks częściowy `idx_contact_open_async_count (tenant_id, agent_id, queue_id) WHERE status IN (ASSIGNED, ACTIVE, ON_HOLD)` (BE-156/BE-159, CR should-fix #1) – ✅ (2026-11-07, tura 72; V148)
+- DB-098 – [BRAMKOWANY WOLUMENEM] Indeksy wyrażeniowe `COALESCE(updated_at, created_at)` dla `contact` i `campaign_contact` pod zapytania CDC i lag ETL (BE-212; CR 2026-11-07) – ⬜ (tura 73)
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -4362,7 +4363,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 3/4** (⬜ nie rozpoczęte: 1) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu cztery tickety DB: DB-089 ✅, DB-096 ✅ (V147), DB-097 ✅ (V148), DB-088 ⬜ backlog; numery DB-096/DB-097 dołożone w turze 72, 2026-11-07, i wchodzą od razu jako ✅)
+**Ukończone 3/5** (⬜ nie rozpoczęte: 2) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu pięć ticketów DB: DB-089 ✅, DB-096 ✅ (V147), DB-097 ✅ (V148), DB-088 ⬜ backlog, DB-098 ⬜ backlog (tura 73); numery DB-096/DB-097 dołożone w turze 72, 2026-11-07, i wchodzą od razu jako ✅)
 
 **Uwaga z tury 72 (2026-11-07, z CR BE-159/BE-156 — POZA ZAKRESEM V147; do uwzględnienia w tym tickecie, EPIC-31):** migracja V147 (DB-096 ✅) wykonuje `UPDATE queue ... WHERE max_concurrent_contacts_per_agent = 1`, a `queue` ma FORCE RLS. Przy Flyway uruchamianym rolą bez BYPASSRLS (po przejściu na rolę `cc_app`, BE-148) takie migracje DANYCH dotkną 0 wierszy BEZ błędu (brak `app.current_tenant_id`). Wymóg dla DB-083/BE-148: (a) rola migracyjna z BYPASSRLS (spójnie z korektą z tury 34) albo (b) guard `DO $$` w migracjach aktualizujących dane pod FORCE RLS (`RAISE EXCEPTION`, gdy `NOT rolbypassrls` i nie superuser, lub kontrola liczby zaktualizowanych wierszy). Inwentarz takich migracji zacząć od V147.
 
@@ -4558,6 +4559,38 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Relacja z DB-088:** ten sam predykat i wiodące kolumny co wariant B(1) z DB-088 — **DB-088 CZĘŚCIOWO zrealizowany** (zapytanie o otwarte kontakty z BE-157 pokryte); zostaje ACW i wariant C (zob. „Notatka z tury 72” w DB-088).
 **Nie wchodzi w zakres:** ACW (DB-088), zmiany `idx_contact_tenant_status`.
 **Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-156 ✅, BE-159 ✅, DB-088 (częściowo), DB-096 ✅.
+
+### DB-098 – [BRAMKOWANY WOLUMENEM] Indeksy wyrażeniowe `COALESCE(updated_at, created_at)` dla `contact` i `campaign_contact` pod zapytania CDC i lag ETL (BE-212)
+
+**Typ:** Perf (migracja indeksów, w tym na tabeli partycjonowanej `contact`) — ticket profilaktyczny, bramkowany wolumenem
+**Priorytet:** Could Have (przy obecnym wolumenie bez problemu; podnieść do Should Have po wyzwalaczu)
+**Złożoność:** M (indeks na tabeli partycjonowanej, `CREATE INDEX CONCURRENTLY` per partycja, pomiar `EXPLAIN` na scratch)
+**Zależy od:** BE-212 ✅ (nowe zapytania lagu `MIN(COALESCE(updated_at, created_at))` + `EXISTS` na `customer`; wspólne stałe `CONTACT_CDC_SOURCE`/`CAMPAIGN_CONTACT_CDC_SOURCE`)
+**Status:** ⬜ Nie rozpoczęte (założony 2026-11-07, tura 73; wyzwalacz wolumenowy poniżej)
+**Blokuje:** brak; powiązane: BE-213 (poprawka znacznika CDC — korzysta z tego samego wyrażenia w `ORDER BY`/`WHERE`), BE-212 ✅, DB-088 (inny indeks na `contact`, bramkowany wolumenem), BE-172
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; domena ETL/DW z EPIC-10 — epik pozostaje ✅ 5/5; spójnie z BE-212/BE-213; mianownik tabeli DB: wiersz EPIC-32 = 3/0/2)
+**Wykonawca:** `db-schema-architect` (+ `backend-dev-expert` przy cache w `getStatus`)
+
+**Wyzwalacz realizacji (nie robić wcześniej):** czas zapytania lagu lub fetch CDC (`EXPLAIN (ANALYZE, BUFFERS)`) powyżej kilkudziesięciu ms na wolumenie produkcyjnym albo zauważalny koszt `GET /api/admin/etl/status` w panelu admina.
+
+**Kontekst (CR BE-212, 2026-11-07):** grep migracji — brak jakiegokolwiek indeksu po `updated_at` dla `contact` (partycjonowana) i `campaign_contact`. Nowe zapytania lagu to pełny skan (MIN po wyrażeniu + EXISTS na `customer`), wołane co cykl (60 s) × 2 tabele × instancja oraz 2 skany przy KAŻDYM `GET` statusu ETL (`getStatus()` → `safeDataLag`); dla `lastSyncedAt = EPOCH` skan całości. Pre-existing fetch (`ORDER BY` po wyrażeniu) ma ten sam problem. `COALESCE(timestamptz, timestamptz)` jest IMMUTABLE, więc `CREATE INDEX … ON contact ((COALESCE(updated_at, created_at)))` jest dozwolony.
+
+**Zakres:**
+1. Indeks wyrażeniowy `((COALESCE(updated_at, created_at)))` dla `campaign_contact` oraz dla `contact` (tabela partycjonowana: indeks na tabeli nadrzędnej / `CONCURRENTLY` per partycja zgodnie z maszynerią partycji; pamiętać o partycjach tworzonych w przyszłości).
+2. Weryfikacja, że zapytania lagu i fetch faktycznie używają indeksu (wyrażenie w SQL identyczne z wyrażeniem indeksu — wspólne stałe z BE-212).
+3. Opcjonalnie (strona Java, jeśli pomiar wykaże potrzebę): cache wyniku lagu w `getStatus()` (30–60 s) albo pominięcie zapytania dla `lastSyncedAt == EPOCH`.
+
+**Kryteria akceptacji:**
+- [ ] Pomiar `EXPLAIN (ANALYZE, BUFFERS)` zapytań lagu i fetch przed/po na realistycznym wolumenie (scratch) — zapisany w tickecie
+- [ ] Migracja Flyway (nowy plik, bez edycji zastosowanych), `IF NOT EXISTS`, bez blokady zapisu na tabelach produkcyjnych (decyzja `CONCURRENTLY` udokumentowana)
+- [ ] Plan zapytań lagu używa nowego indeksu (test planu lub ręczny `EXPLAIN` dołączony do ticketu)
+- [ ] Brak regresji zapisu (narzut indeksu na `contact`/`campaign_contact` zmierzony lub uzasadniony)
+- [ ] `mvn verify -pl app` zielone (migracja przechodzi na świeżej bazie)
+
+**Ryzyka:** (R1) narzut zapisu na gorącej tabeli `contact`; (R2) indeks na partycjonowanej tabeli — czas budowy i blokady; (R3) numer migracji: ostatni znany plik V148 (sprawdzić przed utworzeniem).
+**Nie wchodzi w zakres:** zmiana modelu CDC (BE-213), logika alertów (BE-214).
+**Zależności:** `Zależy od` BE-212 ✅; `Blokuje` brak; powiązane: BE-213, DB-088.
+
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 

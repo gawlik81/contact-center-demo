@@ -165,6 +165,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
             initStatus: vi.fn(),
             currentStatus: signal('AVAILABLE'),
             isChanging: signal(false),
+            autoOffline: signal(false),
             changeStatus: () => of(null),
           },
         },
@@ -995,7 +996,6 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
     it('does not announce tabs that were already open when the desktop is mounted again', async () => {
       open('a', 'EMAIL');
       open('b', 'SOCIAL');
-      open('c', 'EMAIL');
       fixture.destroy();
 
       fixture = TestBed.createComponent(AgentDesktopComponent);
@@ -1003,7 +1003,7 @@ describe('AgentDesktopComponent contact tabs (real template)', () => {
       await settle();
       expect(live()).toBe('');
 
-      open('d', 'SOCIAL'); // limit reached (4 total) is fine: only 3 async + this social
+      open('d', 'SOCIAL');
       await settle();
       expect(live()).toContain('Klient d');
     });

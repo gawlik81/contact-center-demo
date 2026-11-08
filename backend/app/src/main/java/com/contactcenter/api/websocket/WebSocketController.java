@@ -1,5 +1,6 @@
 package com.contactcenter.api.websocket;
 
+import com.contactcenter.domain.presence.AgentPresenceRegistry;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.security.StompPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WebSocketController {
 
+    private final AgentPresenceRegistry presenceRegistry;
+
     // =========================================================================
     // Heartbeat
     // =========================================================================
@@ -48,13 +51,18 @@ public class WebSocketController {
      * <p>Mechanizm ping/pong pozwala klientowi wykryć zerwanie połączenia
      * zanim timeout TCP to wykryje (ważne dla reconnect z backoffem).
      *
+     * <p>BE-210: ping jest także sygnałem obecności agenta (odświeża sesję w
+     * {@link AgentPresenceRegistry}); frontend wysyła go po połączeniu i co 30 s.
+     *
      * @param principal zalogowany użytkownik (ustawiony przez WebSocketAuthInterceptor)
+     * @param headerAccessor nagłówki ramki (identyfikator sesji STOMP)
      * @return event PONG wysyłany z powrotem do tego samego użytkownika
      */
     @MessageMapping("/ping")
     @SendToUser("/events")
-    public WebSocketEvent handlePing(Principal principal) {
+    public WebSocketEvent handlePing(Principal principal, SimpMessageHeaderAccessor headerAccessor) {
         if (principal instanceof StompPrincipal stompPrincipal) {
+            presenceRegistry.touch(stompPrincipal, headerAccessor != null ? headerAccessor.getSessionId() : null);
             log.trace("[WS-Controller] PING od userId={}", stompPrincipal.getName());
             return WebSocketEvent.pong(stompPrincipal.getTenantId());
         }

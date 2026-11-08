@@ -1,9 +1,14 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { catchError, firstValueFrom, map, of, throwError, timeout } from 'rxjs';
+import { TranslocoService } from '@jsverse/transloco';
 import { environment } from '../../../../environments/environment';
 import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
+import { AuthService } from '../../../core/services/auth.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { ContactService } from './contact.service';
 import { SoftphoneService } from './softphone.service';
+import { ContactResponse } from '../../../core/models/contact.model';
 import { ContactTabStore, TabLimitReason, tabLimitReason } from './contact-tab.store';
 import { ContactDraftStore } from './contact-draft.store';
 import { AsyncContactAcceptService, isAsyncAcceptable } from './async-contact-accept.service';
@@ -62,6 +67,10 @@ export class AgentRecoveryService {
   private readonly drafts = inject(ContactDraftStore);
   private readonly status = inject(AgentStatusService);
   private readonly asyncAccept = inject(AsyncContactAcceptService);
+  private readonly contacts = inject(ContactService);
+  private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
+  private readonly auth = inject(AuthService);
 
   /** Contacts of this agent that have no card because of the tab limits (until the next run). */
   readonly overflow = signal<OverflowContact[]>([]);
@@ -75,8 +84,27 @@ export class AgentRecoveryService {
   private inFlight: Promise<void> | null = null;
   private runId = 0;
   private manualSource: RecoverySummary['source'] | null = null;
+  /** Position in the park log: a run keeps what was parked after it started (see apply()). */
+  private parkSeq = 0;
+  private readonly parkedAtSeq = new Map<string, number>();
+  /** Parked contacts whose state is being checked before they get a card. */
+  private readonly promoting = new Set<string>();
+
+  /** Overflow contacts being returned to the queue right now (drives the row buttons). */
+  readonly returningIds = signal<ReadonlySet<string>>(new Set());
 
   constructor() {
+    // A slot freed (card closed, returned, disposition saved): the first parked async contacts
+    // that fit get their card, in the backend's order. Reads both signals, so it also runs when
+    // an entry is parked; then nothing fits and nothing happens.
+    // `returningIds` is tracked too: a failed release frees the row, and with a free slot it must
+    // get its card now, not at the next unrelated change of the tabs or the list.
+    effect(() => {
+      this.tabStore.tabs();
+      this.overflow();
+      this.returningIds();
+      untracked(() => this.promoteFromOverflow());
+    });
     // A PHONE card whose call cannot be restored has no event that would end it: ask the backend
     // now and then, only while such a card exists. The effect reads only the boolean below, so
     // other tab changes never restart the 20 s timer; it is torn down with the card (closed, ACW,
@@ -126,6 +154,293 @@ export class AgentRecoveryService {
     this.lastRun.set(null);
     this.dismissed.clear();
     this.dismissedCount.set(0);
+    this.returningIds.set(new Set());
+    this.parkedAtSeq.clear();
+    this.promoting.clear();
+  }
+
+  // ── Overflow: contacts the backend assigned that do not fit the card strip ─────────────────
+  // The backend decides who gets a contact (BE-156); the desktop never refuses one. A contact
+  // without a free slot is parked here and CONFIRMED to the backend like any card (accept), so
+  // ContactAssignmentMonitor does not re-send and finally re-queue it. It gets its card when a
+  // slot frees up (promoteFromOverflow) or goes back to the queue by the agent's choice.
+
+  isParked(contactId: string): boolean {
+    return this.overflow().some((o) => o.contactId === contactId);
+  }
+
+  /**
+   * Parks a contact from a live CONTACT_ASSIGNED event whose card was refused by the layout
+   * capacity, and confirms it. Idempotent: a re-delivery only retries a failed accept.
+   */
+  parkAssigned(payload: ContactAssignedPayload, reason: Exclude<TabLimitReason, null>): void {
+    if (!this.isParked(payload.contactId)) {
+      this.parkedAtSeq.set(payload.contactId, ++this.parkSeq);
+      this.overflow.update((list) => [
+        ...list,
+        {
+          contactId: payload.contactId,
+          type: payload.type,
+          customerName: payload.customerName || payload.customerIdentifier,
+          phase: 'RINGING',
+          reason,
+          customerIdentifier: payload.customerIdentifier,
+          customerId: payload.customerId,
+          queueName: payload.queueName,
+          queueId: payload.queueId,
+          assignedAt: toDate(payload.assignedAt)?.getTime() ?? Date.now(),
+        },
+      ]);
+    }
+    this.asyncAccept.acceptOpened(payload.type, payload.contactId);
+  }
+
+  /**
+   * "Return to queue" for a parked contact: `POST /contacts/{id}/release`. The entry leaves the
+   * list only after the backend confirmed (or said it is no longer this agent's: 404/409, which
+   * retrying cannot fix). Any other error keeps it and says so.
+   */
+  async returnToQueue(contactId: string): Promise<void> {
+    const item = this.overflow().find((o) => o.contactId === contactId);
+    if (!item || item.type === null || this.returningIds().has(contactId)) return;
+    const generation = this.generation;
+    this.returningIds.update((ids) => new Set(ids).add(contactId));
+    // While the request is pending the backend may hand the same contact back (see the store).
+    this.tabStore.beginRelease(contactId);
+    let gone = false;
+    let failed = false;
+    try {
+      await firstValueFrom(this.contacts.releaseContact(contactId));
+    } catch (err) {
+      const status = (err as { status?: number } | null)?.status;
+      if (status === 404 || status === 409) gone = true;
+      else failed = true;
+    }
+    const reassigned = this.tabStore.endRelease(contactId);
+    if (generation !== this.generation) return; // the session ended meanwhile
+    this.returningIds.update((ids) => {
+      const next = new Set(ids);
+      next.delete(contactId);
+      return next;
+    });
+    const name = item.customerName;
+    if (failed) {
+      if (!reassigned) {
+        this.notifications.error(
+          this.transloco.translate('agent.recoveryOverflow.returnError', { name }),
+        );
+      }
+      return; // still the agent's: stays in the list
+    }
+    this.overflow.update((list) => list.filter((o) => o.contactId !== contactId));
+    this.drafts.clear(contactId);
+    this.tabStore.markContactClosed(contactId);
+    if (reassigned) {
+      // Handed back before the answer arrived: it is a new assignment, never lose it.
+      if (this.tabStore.openFromContactAssigned(reassigned) !== null) {
+        this.parkAssigned(reassigned, 'MAX_TOTAL');
+      }
+      return;
+    }
+    this.notifications.success(
+      this.transloco.translate(
+        gone ? 'agent.desktop.tabClose.notYours' : 'agent.desktop.tabClose.returned',
+        { name },
+      ),
+    );
+  }
+
+  /**
+   * Opens a card for the parked async contacts that fit now, in list order (the backend's
+   * assignedAt order). Never steals the active tab (openTab adds inactive unless it is the first).
+   * PHONE entries are left to "check again": they need the softphone session logic.
+   *
+   * A parked entry is only a local note: the contact may have been closed or taken over meanwhile
+   * without any event. So each candidate is checked against the backend first (`GET /contacts/{id}`);
+   * a dead one leaves the list with one short notice instead of becoming a dead card. When the
+   * check itself fails the card is opened anyway: the backend stays the judge of later actions.
+   */
+  private promoteFromOverflow(): void {
+    if (this.overflow().length === 0) return;
+    const counts = this.tabStore.tabCounts();
+    const candidates: OverflowContact[] = [];
+    for (const item of this.overflow()) {
+      if (item.type === null || item.type === 'PHONE') continue;
+      if (this.returningIds().has(item.contactId)) continue;
+      if (this.promoting.has(item.contactId)) continue;
+      if (this.tabStore.tabs().some((t) => t.contactId === item.contactId)) continue;
+      if (tabLimitReason(counts, item.type) !== null) continue;
+      counts.total++;
+      candidates.push(item);
+    }
+    if (candidates.length === 0) return;
+    const generation = this.generation;
+    for (const c of candidates) this.promoting.add(c.contactId);
+    void Promise.all(candidates.map((c) => this.promoteOne(c, generation))).then((outcomes) => {
+      if (generation !== this.generation) return;
+      this.announce(
+        'promoted',
+        outcomes.flatMap((o, i) => (o === 'opened' ? [candidates[i].customerName] : [])),
+      );
+      this.announce(
+        'vanished',
+        outcomes.flatMap((o, i) => (o === 'gone' ? [candidates[i].customerName] : [])),
+      );
+    });
+  }
+
+  private async promoteOne(
+    item: OverflowContact,
+    generation: number,
+  ): Promise<'opened' | 'gone' | 'kept'> {
+    const type = item.type as ContactType;
+    const verdict = await this.fetchVerdict(item.contactId, type);
+    this.promoting.delete(item.contactId);
+    // Session ended, row returned or removed while the check ran: nothing to do.
+    if (generation !== this.generation || !this.isParked(item.contactId)) return 'kept';
+    if (this.returningIds().has(item.contactId)) return 'kept';
+    if (verdict === 'gone') {
+      this.removeFromOverflow(item.contactId);
+      this.drafts.clear(item.contactId);
+      this.tabStore.markContactClosed(item.contactId);
+      return 'gone';
+    }
+    const refused = this.tabStore.openTab({
+      id: crypto.randomUUID(),
+      type,
+      contactId: item.contactId,
+      customerName: item.customerName,
+      customerIdentifier: item.customerIdentifier ?? item.customerName,
+      status: 'ACTIVE',
+      startedAt: new Date(item.assignedAt ?? Date.now()),
+      customerId: item.customerId,
+    });
+    if (refused !== null) return 'kept'; // another card took the slot; stays listed
+    if (item.phase === 'RINGING') {
+      // Guarded: sends nothing when the accept went out at parking time.
+      this.asyncAccept.acceptOpened(type, item.contactId);
+    } else {
+      this.drafts.markAccepted(item.contactId);
+    }
+    this.removeFromOverflow(item.contactId);
+    return 'opened';
+  }
+
+  private removeFromOverflow(contactId: string): void {
+    this.parkedAtSeq.delete(contactId);
+    this.overflow.update((list) => list.filter((o) => o.contactId !== contactId));
+  }
+
+  /** One toast per batch: a series of promotions or dead entries must not stack toasts. */
+  private announce(kind: 'promoted' | 'vanished', names: string[]): void {
+    if (names.length === 0) return;
+    const key =
+      names.length === 1 ? `agent.recoveryOverflow.${kind}` : `agent.recoveryOverflow.${kind}Many`;
+    this.notifications.info(this.transloco.translate(key, { name: names[0], count: names.length }));
+  }
+
+  // ── Checking one contact against the backend ───────────────────────────────────────────────
+
+  /** Backend's answer about one contact for this agent: still theirs, gone, or could not tell. */
+  private async fetchVerdict(contactId: string, type: ContactType): Promise<ContactVerdict> {
+    return (await this.inspect(contactId, type)).verdict;
+  }
+
+  private async inspect(
+    contactId: string,
+    type: ContactType,
+  ): Promise<{ verdict: ContactVerdict; contact: ContactResponse | null }> {
+    try {
+      const body = await firstValueFrom(
+        this.contacts.getContact(contactId, { silent: true }).pipe(timeout(RECOVERY_TIMEOUT_MS)),
+      );
+      const contact = body && typeof body === 'object' ? body : null;
+      return { verdict: this.verdictOf(contact, type), contact };
+    } catch (err) {
+      const gone = (err as { status?: number } | null)?.status === 404;
+      return { verdict: gone ? 'gone' : 'unknown', contact: null };
+    }
+  }
+
+  private verdictOf(body: unknown, type: ContactType): ContactVerdict {
+    const c = body as Partial<ContactResponse> | null;
+    if (!c || typeof c !== 'object' || typeof c.status !== 'string') return 'unknown';
+    const me = this.auth.currentUserId();
+    if (c.agentId && me && c.agentId !== me) return 'gone';
+    switch (c.status) {
+      case 'QUEUED':
+      case 'IVR':
+      case 'ABANDONED':
+      case 'FAILED':
+      case 'TRANSFERRED':
+        return 'gone';
+      case 'COMPLETED':
+        // A finished call still waits for its disposition; any other finished contact is done.
+        return type === 'PHONE' && !c.dispositionCode ? 'mine' : 'gone';
+      default:
+        return 'mine';
+    }
+  }
+
+  /**
+   * HTTP 409 on a contact action: the contact changed in the backend. Reads its real state and
+   * brings the desktop in line: a contact that is no longer this agent's loses its card (its
+   * notes go to the clipboard first, since the draft is dropped with the card); one that still is
+   * has its card updated (a finished call enters ACW). Returns what was found, for the message.
+   * Never rejects.
+   */
+  async reconcileContact(contactId: string): Promise<ReconcileOutcome> {
+    const generation = this.generation;
+    const tab = this.tabStore.tabs().find((t) => t.contactId === contactId);
+    const type: ContactType | null =
+      tab?.type ?? this.overflow().find((o) => o.contactId === contactId)?.type ?? null;
+    if (type === null) return { verdict: 'unknown', closed: false, notesCopied: false };
+    // A live call owns the line: its end is signalled by the softphone, not guessed from here.
+    if (this.softphoneService.session()?.contactId === contactId) {
+      return { verdict: 'mine', closed: false, notesCopied: false };
+    }
+    const { verdict, contact } = await this.inspect(contactId, type);
+    if (generation !== this.generation)
+      return { verdict: 'unknown', closed: false, notesCopied: false };
+    const current = this.tabStore.tabs().find((t) => t.contactId === contactId);
+    if (verdict === 'gone') {
+      const notesCopied = await this.copyNotes(contactId);
+      this.removeFromOverflow(contactId);
+      this.dismissed.delete(contactId);
+      this.dismissedCount.set(this.dismissed.size);
+      if (current) this.tabStore.closeByContactId(contactId);
+      else this.tabStore.markContactClosed(contactId);
+      return { verdict, closed: current !== undefined, notesCopied };
+    }
+    if (
+      verdict === 'mine' &&
+      current?.type === 'PHONE' &&
+      current.status !== 'WRAPPING' &&
+      contact?.status === 'COMPLETED'
+    ) {
+      // The call ended while the card still shows it: it is in ACW now.
+      this.tabStore.markAsWrapping(current.id, toDate(contact.endedAt)?.getTime());
+    }
+    return { verdict, closed: false, notesCopied: false };
+  }
+
+  /** Plain text of whatever the agent typed for the contact, to the clipboard (best effort). */
+  private async copyNotes(contactId: string): Promise<boolean> {
+    const parts = [
+      this.drafts.dispositionDraft(contactId)?.notes ?? '',
+      this.drafts.phoneNote(contactId),
+      this.drafts.socialReply(contactId),
+      htmlToText(this.drafts.emailDraft(contactId)?.bodyHtml ?? ''),
+    ]
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+    if (parts.length === 0) return false;
+    try {
+      await navigator.clipboard.writeText(parts.join('\n\n'));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -155,6 +470,7 @@ export class AgentRecoveryService {
     // Local actions taken while the request is in flight (reject, disposition, release, close)
     // make its answer stale for those contacts: they must not come back.
     const closeMark = this.tabStore.closeMark();
+    const parkMark = this.parkSeq;
     const statusMark = this.status.statusEpisode();
     let fetched: Fetched | null;
     try {
@@ -178,7 +494,7 @@ export class AgentRecoveryService {
       });
       return;
     }
-    const outcome = this.apply(fetched, this.tabStore.closedSince(closeMark), statusMark);
+    const outcome = this.apply(fetched, this.tabStore.closedSince(closeMark), statusMark, parkMark);
     this.lastRun.set({ id, ok: true, degraded: !fetched.complete, ...outcome, source });
   }
 
@@ -250,6 +566,7 @@ export class AgentRecoveryService {
     fetched: Fetched,
     closedSince: ReadonlySet<string>,
     statusMark: number,
+    parkMark: number,
   ): { opened: number; remaining: number; callNotRestored: number } {
     const live = this.softphoneService.session();
     const candidates: (Item & { type: ContactType })[] = [];
@@ -257,15 +574,25 @@ export class AgentRecoveryService {
     let opened = 0;
     let acwRestored = false;
 
-    const park = (item: Item, reason: OverflowContact['reason']) =>
+    const park = (item: Item, reason: OverflowContact['reason']): void => {
       overflow.push({
         contactId: item.contact.contactId,
         type: item.type,
         customerName: displayName(item.contact),
         phase: item.contact.phase,
         reason,
+        customerIdentifier: item.contact.customerIdentifier,
+        customerId: item.contact.customerId ?? undefined,
+        queueName: item.contact.queueName ?? undefined,
+        queueId: item.contact.queueId ?? undefined,
+        assignedAt: toDate(item.contact.assignedAt ?? item.contact.startedAt)?.getTime(),
         index: item.index,
       });
+      // Parked, but the backend still waits for the agent to confirm an async contact.
+      if (item.type !== null && item.contact.phase === 'RINGING') {
+        this.asyncAccept.acceptOpened(item.type, item.contact.contactId);
+      }
+    };
 
     fetched.contacts.forEach((contact, index) => {
       const item: Item = { contact, type: toContactType(contact.channel), index };
@@ -330,7 +657,6 @@ export class AgentRecoveryService {
       admitted.add(item.contact.contactId);
       counts.total++;
       if (item.type === 'PHONE') counts.phone++;
-      if (item.type === 'CHAT' || item.type === 'EMAIL') counts.async++;
     }
     for (const item of candidates) {
       if (!admitted.has(item.contact.contactId)) continue;
@@ -345,9 +671,21 @@ export class AgentRecoveryService {
 
     overflow.sort((a, b) => a.index - b.index);
     const parked = overflow.map(({ index: _index, ...rest }) => rest);
+    // The answer is a snapshot from before it arrived. Entries parked live after the request
+    // left (and rows being returned right now) are newer than it, so a complete answer must not
+    // erase them: that would leave an accepted contact with neither a card nor a row.
+    const answered = new Set(parked.map((p) => p.contactId));
+    const newerThanRun = this.overflow().filter(
+      (o) =>
+        !answered.has(o.contactId) &&
+        !closedSince.has(o.contactId) &&
+        !this.tabStore.tabs().some((t) => t.contactId === o.contactId) &&
+        ((this.parkedAtSeq.get(o.contactId) ?? 0) > parkMark ||
+          this.returningIds().has(o.contactId)),
+    );
     // An answer from the old endpoint is incomplete: it must not erase what the last full run found.
     const next = fetched.complete
-      ? parked
+      ? [...parked, ...newerThanRun]
       : [
           ...this.overflow().filter(
             (o) =>
@@ -439,6 +777,17 @@ export class AgentRecoveryService {
   }
 }
 
+type ContactVerdict = 'mine' | 'gone' | 'unknown';
+
+/** What reconcileContact found and did, so the caller can word its message truthfully. */
+export interface ReconcileOutcome {
+  verdict: ContactVerdict;
+  /** The card of a contact that is no longer the agent's was closed. */
+  closed: boolean;
+  /** The agent's unsent text was put on the clipboard before the card was closed. */
+  notesCopied: boolean;
+}
+
 interface Item {
   contact: ActiveContactResponse;
   type: ContactType | null;
@@ -455,6 +804,11 @@ function toContactType(channel: string): ContactType | null {
   if (channel === 'PHONE' || channel === 'EMAIL' || channel === 'CHAT') return channel;
   if (channel === 'SOCIAL' || channel.startsWith('SOCIAL_')) return 'SOCIAL';
   return null;
+}
+
+function htmlToText(html: string): string {
+  if (!html) return '';
+  return new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';
 }
 
 function toDirection(direction: string | null | undefined): CallDirection {
@@ -478,6 +832,8 @@ function toPayload(contact: ActiveContactResponse, type: ContactType): ContactAs
     customerName: displayName(contact),
     customerIdentifier: contact.customerIdentifier,
     queueName: contact.queueName ?? undefined,
+    queueId: contact.queueId ?? undefined,
     customerId: contact.customerId ?? undefined,
+    assignedAt: contact.assignedAt ?? null,
   };
 }

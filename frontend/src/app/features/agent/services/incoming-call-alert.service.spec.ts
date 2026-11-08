@@ -1,14 +1,21 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { TranslocoService } from '@jsverse/transloco';
 import { Subject, defer, of, throwError } from 'rxjs';
-import { IncomingCallAlert, IncomingCallAlertService } from './incoming-call-alert.service';
+import {
+  IncomingCallAlert,
+  IncomingCallAlertService,
+  PARK_TOAST_WINDOW_MS,
+} from './incoming-call-alert.service';
 import { SoftphoneService } from './softphone.service';
 import { ContactTabStore, MAX_TOTAL_TABS } from './contact-tab.store';
 import { ACCEPT_RETRY_BASE_MS, ACCEPT_RETRY_COUNT } from './async-contact-accept.service';
 import { ContactDraftStore } from './contact-draft.store';
 import { ContactService } from './contact.service';
+import { AgentRecoveryService } from './agent-recovery.service';
+import { AgentStatusService } from './agent-status.service';
 import { CustomerLookupService } from './customer-lookup.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -84,6 +91,11 @@ describe('IncomingCallAlertService', () => {
         { provide: TranslocoService, useValue: { translate: (k: string) => k } },
         { provide: SoftphoneService, useValue: softphone },
         { provide: ContactService, useValue: contactApi },
+        { provide: HttpClient, useValue: { get: vi.fn(), post: vi.fn() } },
+        {
+          provide: AgentStatusService,
+          useValue: { currentStatus: signal('AVAILABLE'), statusEpisode: signal(0) },
+        },
         { provide: CustomerLookupService, useValue: { evict: vi.fn(), lookupByPhone: vi.fn() } },
       ],
     });
@@ -194,12 +206,52 @@ describe('IncomingCallAlertService', () => {
       expect(TestBed.inject(ContactDraftStore).markAccepted('c-mail')).toBe(false);
     });
 
-    it('accepts only the contacts whose card really opened (tab limits)', () => {
-      for (let i = 0; i < MAX_TOTAL_TABS + 3; i++) emitAssigned('SOCIAL', 'c-' + i);
+    it('never rejects a contact for the card layout: the surplus is parked and accepted', () => {
+      const total = MAX_TOTAL_TABS + 3;
+      for (let i = 0; i < total; i++) emitAssigned('SOCIAL', 'c-' + i);
       const opened = store.tabs().map((t) => t.contactId);
-      expect(opened).toHaveLength(MAX_TOTAL_TABS);
-      const accepted = contactApi.acceptContact.mock.calls.map((c) => c[0]);
-      expect(accepted).toEqual(opened);
+      const parked = TestBed.inject(AgentRecoveryService)
+        .overflow()
+        .map((o) => o.contactId);
+      // 3 async cards (one slot is kept for a call), the rest waits in the overflow list
+      expect(opened).toHaveLength(MAX_TOTAL_TABS - 1);
+      expect(parked).toHaveLength(total - opened.length);
+      expect([...opened, ...parked].sort()).toEqual(
+        Array.from({ length: total }, (_, i) => 'c-' + i).sort(),
+      );
+      // every assigned contact is confirmed to the backend exactly once, none is left for the
+      // ContactAssignmentMonitor to re-send and finally re-queue
+      const accepted = contactApi.acceptContact.mock.calls.map((c) => c[0]).sort();
+      expect(accepted).toEqual(Array.from({ length: total }, (_, i) => 'c-' + i).sort());
+      expect(notifications.warning).toHaveBeenCalledWith('agent.incomingCall.parkedOverflow');
+    });
+
+    it('a series of parked contacts gives one named toast and one summary, not one each', () => {
+      vi.useFakeTimers();
+      try {
+        for (let i = 0; i < MAX_TOTAL_TABS - 1 + 4; i++) emitAssigned('SOCIAL', 'c-' + i);
+        // 4 contacts are parked: only the first one is announced right away
+        expect(notifications.warning).toHaveBeenCalledTimes(1);
+        expect(notifications.warning).toHaveBeenCalledWith('agent.incomingCall.parkedOverflow');
+
+        vi.advanceTimersByTime(PARK_TOAST_WINDOW_MS);
+        expect(notifications.warning).toHaveBeenCalledTimes(2);
+        expect(notifications.warning).toHaveBeenLastCalledWith(
+          'agent.incomingCall.parkedOverflowMore',
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a re-delivery of a parked contact opens no card and sends no second accept', () => {
+      for (let i = 0; i < MAX_TOTAL_TABS; i++) emitAssigned('EMAIL', 'c-' + i);
+      const parkedId = 'c-' + (MAX_TOTAL_TABS - 1);
+      expect(store.tabs().some((t) => t.contactId === parkedId)).toBe(false);
+      const calls = contactApi.acceptContact.mock.calls.length;
+      emitAssigned('EMAIL', parkedId);
+      expect(store.tabs().some((t) => t.contactId === parkedId)).toBe(false);
+      expect(contactApi.acceptContact.mock.calls.length).toBe(calls);
     });
 
     it('never accepts a PHONE contact here', () => {

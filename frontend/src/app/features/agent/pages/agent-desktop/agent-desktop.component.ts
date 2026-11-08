@@ -39,6 +39,7 @@ import { DispositionSaveService } from '../../services/disposition-save.service'
 import { CallState } from '../../models/call-session.model';
 import { AcwBannerComponent } from '../../components/acw-banner/acw-banner.component';
 import { TelephonyErrorComponent } from '../../components/telephony-error/telephony-error.component';
+import { PresenceOfflineNoticeComponent } from '../../components/presence-offline-notice/presence-offline-notice.component';
 import { RecoveryOverflowNoticeComponent } from '../../components/recovery-overflow-notice/recovery-overflow-notice.component';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
@@ -111,6 +112,7 @@ interface ToolbarManualAction {
     AcwBannerComponent,
     TelephonyErrorComponent,
     RecoveryOverflowNoticeComponent,
+    PresenceOfflineNoticeComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -767,7 +769,9 @@ export class AgentDesktopComponent implements OnInit {
         if (reassigned) {
           // The backend handed the same contact back before the response arrived: re-open it
           // (inactive, announced as a new contact) instead of leaving it assigned without a tab.
-          this.tabStore.openFromContactAssigned(reassigned);
+          if (this.tabStore.openFromContactAssigned(reassigned) !== null) {
+            this.recovery.parkAssigned(reassigned, 'MAX_TOTAL');
+          }
         } else {
           this.notifications.success(
             this.transloco.translate('agent.desktop.tabClose.returned', {

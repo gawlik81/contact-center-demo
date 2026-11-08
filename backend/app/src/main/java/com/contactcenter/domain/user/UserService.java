@@ -290,6 +290,29 @@ public interface UserService {
     List<AppUser> findAvailableAgents();
 
     /**
+     * BE-210: agents whose status requires a live presence (AVAILABLE, AFTER_CONTACT, BREAK, BUSY),
+     * cross-tenant, for the presence sweeper, as a light projection (no credentials/PII columns). The caller
+     * sets {@code TenantContext} per agent.
+     */
+    List<AgentPresenceCandidate> findPresenceTrackedAgents();
+
+    /**
+     * BE-210: moves an agent to OFFLINE because of lost presence - compare-and-set on
+     * {@code expectedStatus}, so a manual change made after the sweeper read the row is never overwritten
+     * and a second instance running the same transition is a silent no-op.
+     *
+     * <p>Goes through the same side effects as {@link #updateStatus}: {@code status_changed_at}, Redis
+     * {@code session:agent:{id}} entry, and {@code agent.status.changed} (with {@code reason=PRESENCE_TIMEOUT})
+     * published after commit.
+     *
+     * <p>Requires {@code TenantContext} of {@code tenantId} (defense in depth, like {@code assertSameTenant}):
+     * a mismatch throws {@code CrossTenantAccessException}.
+     *
+     * @return true when the transition was applied, false when the status was no longer {@code expectedStatus}
+     */
+    boolean markOfflineOnPresenceTimeout(UUID userId, UUID tenantId, UserStatus expectedStatus);
+
+    /**
      * Zwraca aktywne tenanty, w których istnieje aktywny, nieusunięty użytkownik z danym emailem.
      *
      * <p>Używane przez publiczny endpoint email-first login flow.

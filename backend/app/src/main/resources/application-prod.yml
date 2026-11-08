@@ -95,7 +95,7 @@ spring:
       ssl:
         enabled: ${REDIS_SSL_ENABLED:false}
       connect-timeout: 3000
-      timeout: 3000
+      timeout: ${REDIS_TIMEOUT:3000}
       lettuce:
         pool:
           max-active: ${REDIS_POOL_MAX_ACTIVE:16}

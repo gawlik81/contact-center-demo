@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -17,6 +18,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -28,7 +32,7 @@ import static org.mockito.Mockito.mock;
  * <p>W przeciwieństwie do {@link EtlSyncServiceImplTest} (czysto mockowy, weryfikuje orkiestrację:
  * {@code readAndLockSyncState}/{@code markDone}/{@code checkLagAndAlert}), ten test uruchamia
  * PRAWDZIWE {@code SELECT_CONTACTS_FOR_ETL} (przez pakietowo widoczną
- * {@link EtlSyncServiceImpl#fetchContactsForEtl}) na rzeczywistym wierszu {@code contact} i
+ * {@link EtlSyncServiceImpl#fetchContactRows}) na rzeczywistym wierszu {@code contact} i
  * PRAWDZIWY {@link PostgresDwWriter#upsert}, dowodząc end-to-end, że:
  * <ol>
  *   <li>SQL zapytania nie odwołuje się już do {@code remote_address} (usunięte kolumna z SELECT –
@@ -40,7 +44,7 @@ import static org.mockito.Mockito.mock;
  *
  * <p>Nie korzysta z globalnego {@code etl_sync_state} (dzielonego między klasami testowymi na
  * współdzielonym kontenerze) – zamiast pełnego {@code syncTable}, wywołuje bezpośrednio
- * {@code fetchContactsForEtl} z punktem odcięcia ustawionym tuż przed seedem, więc wynik nie jest
+ * {@code fetchContactRows} z punktem odcięcia ustawionym tuż przed seedem, więc wynik nie jest
  * zanieczyszczony danymi innych testów integracyjnych w tej samej JVM. Metoda jest pakietowo
  * widoczna celowo dla testów (Javadoc {@code EtlSyncServiceImpl}: „widoczne package dla testów").
  */
@@ -60,6 +64,14 @@ class EtlSyncServiceImplIntegrationTest {
         jdbc = new JdbcTemplate(pool);
         dwWriter = new PostgresDwWriter(jdbc);
         service = new EtlSyncServiceImpl(jdbc, dwWriter, mock(RabbitTemplate.class));
+        // BE-213: existing tests insert and fetch immediately - disable the safety window for them
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+    }
+
+    /** All rows after the cut-off (no cursor), as the first CDC batch would see them. */
+    private static List<ContactDwRow> fetchContacts(Instant cutoff) {
+        return service.fetchContactRows(cutoff, cutoff, EtlSyncServiceImpl.MIN_UUID, 50_000).stream()
+                .map(EtlSyncServiceImpl.CdcRow::row).toList();
     }
 
     @AfterAll
@@ -76,7 +88,7 @@ class EtlSyncServiceImplIntegrationTest {
     }
 
     @Test
-    @DisplayName("kontakt w pełni wypełniony: fetchContactsForEtl + upsert zapisują poprawne wartości, remote_address nie trafia do DW")
+    @DisplayName("kontakt w pełni wypełniony: fetchContactRows + upsert zapisują poprawne wartości, remote_address nie trafia do DW")
     void fullyPopulatedContact_etlRoundTrip_remoteAddressNeverReachesDw() {
         UUID contactId = UUID.randomUUID();
         UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-141 ETL " + UUID.randomUUID());
@@ -101,7 +113,7 @@ class EtlSyncServiceImplIntegrationTest {
                 "EMAIL", "OUTBOUND", "COMPLETED", "CALLBACK", 245,
                 queuedAt, startedAt, endedAt, "klient-pii@example.com");
 
-        List<ContactDwRow> fetched = service.fetchContactsForEtl(cutoff, 50_000);
+        List<ContactDwRow> fetched = fetchContacts(cutoff);
         ContactDwRow row = fetched.stream()
                 .filter(r -> contactId.equals(r.contactId()))
                 .findFirst()
@@ -152,7 +164,7 @@ class EtlSyncServiceImplIntegrationTest {
                 "PHONE", "INBOUND", "ABANDONED", null, null,
                 queuedAt, startedAt, null, "+48500600700");
 
-        List<ContactDwRow> fetched = service.fetchContactsForEtl(cutoff, 50_000);
+        List<ContactDwRow> fetched = fetchContacts(cutoff);
         ContactDwRow row = fetched.stream()
                 .filter(r -> contactId.equals(r.contactId()))
                 .findFirst()
@@ -280,6 +292,281 @@ class EtlSyncServiceImplIntegrationTest {
             jdbc.update("DELETE FROM campaign_contact WHERE record_id = ?", recordId);
             jdbc.update("DELETE FROM campaign WHERE campaign_id = ?", campaignId);
         }
+    }
+
+    // =========================================================================
+    // BE-213: CDC loop on a real database
+    // =========================================================================
+
+    /*
+     * Isolation on the shared DB: etl_sync_state is global, so the tests below save/restore it and seed their rows
+     * with updated_at in 2001 (older than anything else -> fetched first, in a deterministic order). contact is
+     * partitioned by queued_at, hence queued_at stays "now"; the trigger trg_contact_on_update (V007) only fires on
+     * UPDATE, so updated_at set on INSERT is preserved.
+     */
+    private static final Instant OLD_BASE = Instant.parse("2001-01-01T00:00:00Z");
+
+    private Timestamp savedContactMarker;
+    private Timestamp savedCampaignMarker;
+    private UUID cdcTenant;
+    private UUID cdcCampaign;
+
+    private void saveMarkers() {
+        savedContactMarker = jdbc.queryForObject(
+                "SELECT last_synced_at FROM etl_sync_state WHERE table_name = 'contact'", Timestamp.class);
+        savedCampaignMarker = jdbc.queryForObject(
+                "SELECT last_synced_at FROM etl_sync_state WHERE table_name = 'campaign_contact'", Timestamp.class);
+        cdcTenant = UUID.randomUUID();
+    }
+
+    private void setMarker(String table, Instant marker) {
+        jdbc.update("UPDATE etl_sync_state SET last_synced_at = ?, status = 'DONE' WHERE table_name = ?",
+                Timestamp.from(marker), table);
+    }
+
+    private Instant marker(String table) {
+        return jdbc.queryForObject("SELECT last_synced_at FROM etl_sync_state WHERE table_name = ?",
+                Timestamp.class, table).toInstant();
+    }
+
+    @AfterEach
+    void restoreCdcState() {
+        if (cdcTenant == null) {
+            return;
+        }
+        jdbc.update("DELETE FROM contact WHERE tenant_id = ?", cdcTenant);
+        jdbc.update("DELETE FROM contacts_dw WHERE tenant_id = ?", cdcTenant);
+        if (cdcCampaign != null) {
+            jdbc.update("DELETE FROM campaign_contact WHERE campaign_id = ?", cdcCampaign);
+            jdbc.update("DELETE FROM campaign WHERE campaign_id = ?", cdcCampaign);
+        }
+        jdbc.update("UPDATE etl_sync_state SET last_synced_at = ?, status = 'DONE' WHERE table_name = 'contact'",
+                savedContactMarker);
+        jdbc.update("UPDATE etl_sync_state SET last_synced_at = ?, status = 'DONE' WHERE table_name = 'campaign_contact'",
+                savedCampaignMarker);
+        ReflectionTestUtils.setField(service, "fetchLimit", 5000);
+        ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 20);
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        cdcTenant = null;
+        cdcCampaign = null;
+    }
+
+    /** n COMPLETED contacts; row i has updated_at = OLD_BASE + (tieGroupSeconds ? 0 : i) seconds. */
+    private void seedContacts(int n, boolean sameTimestamp) {
+        jdbc.update("""
+                INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at, updated_at)
+                SELECT gen_random_uuid(), ?, 'PHONE', 'INBOUND', 'COMPLETED', NOW(),
+                       CAST(? AS TIMESTAMPTZ) + (CASE WHEN ? THEN 0 ELSE i END) * INTERVAL '1 second'
+                FROM generate_series(1, ?) AS i
+                """, cdcTenant, Timestamp.from(OLD_BASE), sameTimestamp, n);
+    }
+
+    private int dwCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM contacts_dw WHERE tenant_id = ?", Integer.class, cdcTenant);
+    }
+
+    @Test
+    @DisplayName("BE-213: backlog > limit - petla w cyklu zapisuje WSZYSTKIE wiersze, znacznik >= najnowszy zapisany")
+    void backlogLargerThanLimit_allRowsReachDw() {
+        saveMarkers();
+        setMarker("contact", OLD_BASE.minusSeconds(10));
+        ReflectionTestUtils.setField(service, "fetchLimit", 100);
+        seedContacts(350, false);
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).isEqualTo(350);
+        assertThat(marker("contact")).isAfterOrEqualTo(OLD_BASE.plusSeconds(350));
+    }
+
+    @Test
+    @DisplayName("BE-213: limit batchy w cyklu - znacznik = ostatni kompletny timestamp, reszta schodzi w kolejnym cyklu")
+    void batchBudget_markerAtLastCompleteTimestamp_restInNextCycle() {
+        saveMarkers();
+        setMarker("contact", OLD_BASE.minusSeconds(10));
+        ReflectionTestUtils.setField(service, "fetchLimit", 100);
+        ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 2);
+        seedContacts(350, false);
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).isEqualTo(200);
+        // row 200 closes a full batch -> marker = ts of row 199
+        assertThat(marker("contact")).isEqualTo(OLD_BASE.plusSeconds(199));
+
+        ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 100);
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).isEqualTo(350);
+    }
+
+    @Test
+    @DisplayName("BE-213: remis znacznika wiekszy niz limit (jedna transakcja) - brak pominiec i brak nieskonczonej petli")
+    void tieGroupLargerThanLimit_noLossNoInfiniteLoop() {
+        saveMarkers();
+        setMarker("contact", OLD_BASE.minusSeconds(10));
+        ReflectionTestUtils.setField(service, "fetchLimit", 100);
+        ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 1);
+        seedContacts(250, true);
+
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(60),
+                () -> service.syncTable(EtlSyncService.TABLE_CONTACT));
+
+        assertThat(dwCount()).isEqualTo(250);
+        // the budget did not stop the loop inside the tie group; marker moved past it
+        assertThat(marker("contact")).isAfterOrEqualTo(OLD_BASE);
+    }
+
+    @Test
+    @DisplayName("BE-213: okno bezpieczenstwa - wiersze w oknie i 'spozniony commit' (starszy timestamp) trafiaja do DW, gdy okno minie")
+    void rowInSafetyWindowAndLateCommit_syncedInNextCycle() {
+        saveMarkers();
+        Instant start = Instant.now().minusSeconds(3600);
+        setMarker("contact", start);
+        // large window and rows with timestamps in the past (no sleeping, no dependence on wall-clock pauses)
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 600_000L);
+
+        UUID rowA = UUID.randomUUID();
+        UUID rowB = UUID.randomUUID();
+        Instant tsA = Instant.now().minusSeconds(60).truncatedTo(ChronoUnit.MICROS);
+        insertContactWithUpdatedAt(rowA, cdcTenant, "COMPLETED", Instant.now(), Timestamp.from(tsA));
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).as("row inside the safety window is not fetched yet").isZero();
+        assertThat(marker("contact")).as("marker must not pass the window").isEqualTo(start.truncatedTo(ChronoUnit.MICROS));
+
+        // late commit: a transaction that started BEFORE row A (older updated_at) commits only now
+        insertContactWithUpdatedAt(rowB, cdcTenant, "COMPLETED", Instant.now(),
+                Timestamp.from(tsA.minusSeconds(30)));
+        // the window elapses (simulated by shrinking it instead of sleeping)
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 1000L);
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).as("both A and the late-committed B reach the DW").isEqualTo(2);
+        assertThat(marker("contact")).isAfterOrEqualTo(tsA);
+    }
+
+    @Test
+    @DisplayName("BE-213: wyjatek DW w 3. batchu - znacznik zostaje na ostatnim udanym przesunieciu, status ERROR, kolejny cykl nie powtarza batchy 1-2")
+    void failureAfterTwoBatches_markerKept_nextCycleContinuesFromIt() {
+        saveMarkers();
+        setMarker("contact", OLD_BASE.minusSeconds(10));
+        seedContacts(5, false); // ts = OLD_BASE + 1..5 s
+
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        DataWarehouseWriter failing = new DataWarehouseWriter() {
+            public void upsert(List<ContactDwRow> rows) {
+                if (calls.incrementAndGet() == 3) {
+                    throw new DataWarehouseException("DW down at batch 3");
+                }
+                dwWriter.upsert(rows);
+            }
+            public void upsertCampaigns(List<CampaignDwRow> rows) { }
+            public void upsertAgentDim(List<AgentDimRow> rows) { }
+            public void upsertQueueDim(List<QueueDimRow> rows) { }
+        };
+        EtlSyncServiceImpl failingService = new EtlSyncServiceImpl(jdbc, failing, mock(RabbitTemplate.class));
+        ReflectionTestUtils.setField(failingService, "fetchLimit", 2);
+        ReflectionTestUtils.setField(failingService, "safetyWindowMs", 0L);
+
+        failingService.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).as("batches 1 and 2 were written").isEqualTo(4);
+        // batch 1 [1,2] -> marker ts1; batch 2 [3,4] -> marker ts3; batch 3 [5] failed
+        assertThat(marker("contact")).isEqualTo(OLD_BASE.plusSeconds(3));
+        assertThat(jdbc.queryForObject("SELECT status FROM etl_sync_state WHERE table_name = 'contact'", String.class))
+                .isEqualTo("ERROR");
+
+        List<Long> secondCycleSizes = new CopyOnWriteArrayList<>();
+        DataWarehouseWriter counting = new DataWarehouseWriter() {
+            public void upsert(List<ContactDwRow> rows) { secondCycleSizes.add((long) rows.size()); dwWriter.upsert(rows); }
+            public void upsertCampaigns(List<CampaignDwRow> rows) { }
+            public void upsertAgentDim(List<AgentDimRow> rows) { }
+            public void upsertQueueDim(List<QueueDimRow> rows) { }
+        };
+        EtlSyncServiceImpl next = new EtlSyncServiceImpl(jdbc, counting, mock(RabbitTemplate.class));
+        ReflectionTestUtils.setField(next, "fetchLimit", 2);
+        ReflectionTestUtils.setField(next, "safetyWindowMs", 0L);
+
+        next.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        // continues after ts3: rows 4 and 5 only (2 rows), not 1..5
+        assertThat(secondCycleSizes.stream().mapToLong(Long::longValue).sum()).isEqualTo(2);
+        assertThat(dwCount()).isEqualTo(5);
+        assertThat(marker("contact")).isEqualTo(OLD_BASE.plusSeconds(5));
+    }
+
+    @Test
+    @DisplayName("BE-213: kontakt QUEUED -> COMPLETED (trigger V007 ustawia updated_at = NOW()) jest pobierany po zakonczeniu")
+    void queuedContactBecomingCompleted_isSyncedAfterCompletion() {
+        saveMarkers();
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        UUID contactId = UUID.randomUUID();
+        insertContactWithUpdatedAt(contactId, cdcTenant, "QUEUED", Instant.now(),
+                Timestamp.from(Instant.now().minusSeconds(1800)));
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+        assertThat(dwCount()).as("QUEUED is never synced").isZero();
+
+        jdbc.update("UPDATE contact SET status = 'COMPLETED' WHERE contact_id = ?", contactId);
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(dwCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("BE-213: brak zmian po znaczniku - brak zapisu do DW, znacznik bez zmian, lag 0")
+    void noChanges_noWrite_markerUnchanged_lagZero() {
+        saveMarkers();
+        Instant future = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        setMarker("contact", future);
+        DataWarehouseWriter spyWriter = org.mockito.Mockito.spy(dwWriter);
+        EtlSyncServiceImpl local = new EtlSyncServiceImpl(jdbc, spyWriter, mock(RabbitTemplate.class));
+
+        local.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        org.mockito.Mockito.verifyNoInteractions(spyWriter);
+        assertThat(marker("contact")).isEqualTo(future);
+        assertThat(local.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, future)).isZero();
+    }
+
+    @Test
+    @DisplayName("BE-213: campaign_contact - backlog > limit, wszystkie rekordy trafiaja do DW (petla + kursor id)")
+    void campaignContactBacklogLargerThanLimit_allRowsReachDw() {
+        saveMarkers();
+        cdcCampaign = UUID.randomUUID();
+        UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-213 cc " + cdcTenant);
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'Kampania BE-213')",
+                cdcCampaign, tenantId);
+        setMarker("campaign_contact", OLD_BASE.minusSeconds(10));
+        ReflectionTestUtils.setField(service, "fetchLimit", 100);
+        // 120 rows share one timestamp (tie group crossing the 100-row boundary), 130 distinct timestamps
+        jdbc.update("""
+                INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status, updated_at)
+                SELECT gen_random_uuid(), ?, ?, '+48' || LPAD(i::text, 9, '0'), 'Jan', 'COMPLETED',
+                       CAST(? AS TIMESTAMPTZ) + (CASE WHEN i <= 120 THEN 0 ELSE i END) * INTERVAL '1 second'
+                FROM generate_series(1, 250) AS i
+                """, cdcCampaign, tenantId, Timestamp.from(OLD_BASE));
+
+        List<UUID> written = new CopyOnWriteArrayList<>();
+        DataWarehouseWriter recording = new DataWarehouseWriter() {
+            public void upsert(List<ContactDwRow> rows) { dwWriter.upsert(rows); }
+            public void upsertCampaigns(List<CampaignDwRow> rows) {
+                rows.stream().filter(r -> cdcCampaign.equals(r.campaignId())).forEach(r -> written.add(r.recordId()));
+            }
+            public void upsertAgentDim(List<AgentDimRow> rows) { }
+            public void upsertQueueDim(List<QueueDimRow> rows) { }
+        };
+        EtlSyncServiceImpl local = new EtlSyncServiceImpl(jdbc, recording, mock(RabbitTemplate.class));
+        ReflectionTestUtils.setField(local, "fetchLimit", 100);
+        ReflectionTestUtils.setField(local, "safetyWindowMs", 0L);
+
+        assertTimeoutPreemptively(java.time.Duration.ofSeconds(60), local::syncCampaignContactTable);
+
+        assertThat(written).hasSize(250).doesNotHaveDuplicates();
+        assertThat(marker("campaign_contact")).isAfterOrEqualTo(OLD_BASE.plusSeconds(250));
     }
 
     private void insertContactWithUpdatedAt(UUID contactId, UUID tenantId, String status, Instant queuedAt,

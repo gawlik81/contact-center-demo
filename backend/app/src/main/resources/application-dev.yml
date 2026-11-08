@@ -92,7 +92,7 @@ spring:
       # Timeout połączenia (ms)
       connect-timeout: 2000
       # Timeout odczytu (ms)
-      timeout: 2000
+      timeout: ${REDIS_TIMEOUT:2000}
       lettuce:
         pool:
           # Maksymalna liczba połączeń w puli

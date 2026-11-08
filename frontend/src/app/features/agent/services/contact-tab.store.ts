@@ -14,24 +14,38 @@ import {
 } from '../models/ws-event.model';
 import { normalizeContactName } from '../models/contact-name';
 
+/**
+ * Layout capacity of the card strip (1366x768, FE-121/FE-133), NOT a business limit.
+ *
+ * The source of truth for how many async contacts an agent gets is the backend
+ * (`queue.max_concurrent_contacts_per_agent`, BE-156, counted per queue; PHONE is outside it). The
+ * desktop therefore accepts every contact the backend assigns: whatever does not fit the strip
+ * is parked in the overflow list (AgentRecoveryService.overflow), accepted but without a card.
+ *
+ * - MAX_PHONE_TABS: one softphone line, one PHONE card (a live call or its ACW).
+ * - MAX_TOTAL_TABS: cards on the strip, all channels together (EMAIL, CHAT and SOCIAL alike).
+ * One strip slot stays reserved for PHONE while no PHONE card is open, so an incoming call is
+ * never displaced by async cards: async cards fill at most MAX_TOTAL_TABS - MAX_PHONE_TABS.
+ */
 export const MAX_PHONE_TABS = 1;
-export const MAX_ASYNC_TABS = 3;
 export const MAX_TOTAL_TABS = 4;
 
-export type TabLimitReason = 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL' | null;
+export type TabLimitReason = 'MAX_PHONE' | 'MAX_TOTAL' | null;
 
 export interface TabCounts {
   total: number;
   phone: number;
-  async: number;
 }
 
-/** The one place that knows the card limits; also used to plan recovery without opening tabs. */
+/** The one place that knows the card layout capacity; also used to plan recovery and promotion. */
 export function tabLimitReason(counts: TabCounts, type: ContactType): TabLimitReason {
-  if (counts.total >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
-  if (type === 'PHONE' && counts.phone >= MAX_PHONE_TABS) return 'MAX_PHONE';
-  if ((type === 'CHAT' || type === 'EMAIL') && counts.async >= MAX_ASYNC_TABS) return 'MAX_ASYNC';
-  return null;
+  if (type === 'PHONE') {
+    if (counts.phone >= MAX_PHONE_TABS) return 'MAX_PHONE';
+    return counts.total >= MAX_TOTAL_TABS ? 'MAX_TOTAL' : null;
+  }
+  // EMAIL / CHAT / SOCIAL alike: keep the PHONE slot free while there is no PHONE card.
+  const reservedForPhone = Math.max(0, MAX_PHONE_TABS - counts.phone);
+  return counts.total + reservedForPhone >= MAX_TOTAL_TABS ? 'MAX_TOTAL' : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -105,9 +119,6 @@ export class ContactTabStore {
   }
 
   readonly phoneTabCount = computed(() => this.tabs().filter((t) => t.type === 'PHONE').length);
-  readonly asyncTabCount = computed(
-    () => this.tabs().filter((t) => t.type === 'CHAT' || t.type === 'EMAIL').length,
-  );
   readonly totalTabCount = computed(() => this.tabs().length);
 
   openFromCallIncoming(payload: CallIncomingPayload): TabLimitReason {
@@ -206,8 +217,16 @@ export class ContactTabStore {
   }
 
   private noteClosed(tab: ContactTab): void {
+    this.markContactClosed(tab.contactId, tab.originalContactId);
+  }
+
+  /**
+   * Logs a contact as closed here without a tab (e.g. returned to the queue from the overflow
+   * list), so a recovery answer already in flight cannot bring it back.
+   */
+  markContactClosed(...contactIds: (string | undefined)[]): void {
     const seq = ++this.closeSeq;
-    for (const id of [tab.contactId, tab.originalContactId]) {
+    for (const id of contactIds) {
       if (!id) continue;
       this.closedLog.delete(id);
       this.closedLog.set(id, seq);
@@ -393,7 +412,6 @@ export class ContactTabStore {
       {
         total: this.totalTabCount(),
         phone: this.phoneTabCount(),
-        async: this.asyncTabCount(),
       },
       type,
     );
@@ -404,7 +422,6 @@ export class ContactTabStore {
     return {
       total: this.totalTabCount(),
       phone: this.phoneTabCount(),
-      async: this.asyncTabCount(),
     };
   }
 }

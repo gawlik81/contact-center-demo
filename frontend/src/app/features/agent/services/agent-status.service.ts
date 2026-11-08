@@ -1,6 +1,15 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpContext } from '@angular/common/http';
-import { catchError, EMPTY, filter, Observable, Subscription, switchMap, tap } from 'rxjs';
+import {
+  catchError,
+  EMPTY,
+  filter,
+  finalize,
+  Observable,
+  Subscription,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { TranslocoService } from '@jsverse/transloco';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
@@ -26,6 +35,19 @@ const ACTIVE_STATUSES: ReadonlySet<AgentStatus> = new Set<AgentStatus>([
   'BREAK',
   'AFTER_CONTACT',
 ]);
+
+/**
+ * Dead-link detector (FE-164 CR): the status is re-read from the server this often while the agent
+ * shell is up. The backend heartbeats nothing towards the client (simple broker without a
+ * scheduler), so a half-open socket gives no signal; this is the cheapest reliable one. Load:
+ * one small GET /users/me per logged-in agent per minute.
+ */
+export const STATUS_RESYNC_INTERVAL_MS = 60000;
+
+/** Why the notice is shown: the server said so (event) or the client only noticed the drop. */
+export type AutoOfflineCause = 'PRESENCE_TIMEOUT' | 'UNKNOWN';
+
+type SyncMode = 'initial' | 'reconnect' | 'poll';
 
 @Injectable({ providedIn: 'root' })
 export class AgentStatusService {
@@ -54,6 +76,20 @@ export class AgentStatusService {
    */
   readonly statusEpisode = signal(0);
 
+  /**
+   * True when the server switched the agent to OFFLINE because presence was lost (BE-210), until
+   * the agent leaves OFFLINE. The UI shows an explanation and a way back; the status is never
+   * restored automatically.
+   */
+  readonly autoOffline = signal(false);
+
+  /**
+   * Cause behind `autoOffline`. `PRESENCE_TIMEOUT` comes from the server event; `UNKNOWN` is a
+   * drop to OFFLINE found by a re-sync, where `/users/me` gives no reason (it may have been
+   * another tab, device or supervisor), so the UI words it more carefully.
+   */
+  readonly autoOfflineCause = signal<AutoOfflineCause>('PRESENCE_TIMEOUT');
+
   /** True when `statusSince` came from the server rather than the client clock fallback. */
   private sinceFromServer = false;
 
@@ -67,6 +103,9 @@ export class AgentStatusService {
   private currentUserId: string | null = null;
   private initialized = false;
   private unregisterConnect: (() => void) | null = null;
+  private unregisterWake: (() => void) | null = null;
+  private resyncTimer: ReturnType<typeof setInterval> | null = null;
+  private syncInFlight = false;
   private subscriptions = new Subscription();
 
   /**
@@ -82,9 +121,16 @@ export class AgentStatusService {
     this.initialized = true;
 
     this.applyStatus('OFFLINE');
-    this.fetchAndSyncStatus();
+    this.fetchAndSyncStatus('initial');
 
-    this.unregisterConnect = this.ws.onConnect(() => this.fetchAndSyncStatus());
+    // A reconnect adopts whatever the server holds (also OFFLINE) and never sets AVAILABLE itself.
+    this.unregisterConnect = this.ws.onConnect(() => this.fetchAndSyncStatus('reconnect'));
+    // Tab visible again / network back / window focused: the timer may have been throttled.
+    this.unregisterWake = this.ws.onWake(() => this.fetchAndSyncStatus('poll'));
+    this.resyncTimer = setInterval(
+      () => this.fetchAndSyncStatus('poll'),
+      STATUS_RESYNC_INTERVAL_MS,
+    );
 
     this.subscriptions.add(
       this.ws.events$
@@ -94,6 +140,14 @@ export class AgentStatusService {
           if (payload.agentId === this.currentUserId) {
             this.statusSeq++;
             this.applyStatus(payload.status, payload.statusSince);
+            if (
+              payload.status === 'OFFLINE' &&
+              payload.reason === 'PRESENCE_TIMEOUT' &&
+              this.currentStatus() === 'OFFLINE'
+            ) {
+              this.autoOfflineCause.set('PRESENCE_TIMEOUT');
+              this.autoOffline.set(true);
+            }
           }
         }),
     );
@@ -107,6 +161,13 @@ export class AgentStatusService {
   stopStatus(): void {
     this.unregisterConnect?.();
     this.unregisterConnect = null;
+    this.unregisterWake?.();
+    this.unregisterWake = null;
+    if (this.resyncTimer !== null) {
+      clearInterval(this.resyncTimer);
+      this.resyncTimer = null;
+    }
+    this.syncInFlight = false;
     this.subscriptions.unsubscribe();
     this.subscriptions = new Subscription();
     this.currentUserId = null;
@@ -116,8 +177,15 @@ export class AgentStatusService {
     this.currentStatus.set('OFFLINE');
     this.statusSince.set(null);
     this.statusEpisode.set(0);
+    this.autoOffline.set(false);
+    this.autoOfflineCause.set('PRESENCE_TIMEOUT');
     this.sinceFromServer = false;
     this.statusSeq = 0;
+  }
+
+  /** The agent's conscious way back from an automatic OFFLINE. */
+  resumeAvailable(): Observable<void> {
+    return this.changeStatus('AVAILABLE');
   }
 
   /**
@@ -137,6 +205,7 @@ export class AgentStatusService {
       this.statusSince.set(parsed ?? Date.now());
       this.sinceFromServer = parsed !== null;
       this.statusEpisode.update((n) => n + 1);
+      if (status !== 'OFFLINE') this.autoOffline.set(false);
       return;
     }
     if (parsed === null || parsed === current) return;
@@ -147,16 +216,40 @@ export class AgentStatusService {
     this.sinceFromServer = true;
   }
 
-  private fetchAndSyncStatus(): void {
+  private fetchAndSyncStatus(mode: SyncMode): void {
+    const resync = mode !== 'initial';
+    // Re-syncs never overlap: a slow answer is not stacked under the next tick.
+    if (resync && this.syncInFlight) return;
+    this.syncInFlight = true;
     const requestSeq = this.statusSeq;
     const sub = this.http
-      .get<UserResponse>(`${environment.apiUrl}/users/me`)
+      .get<UserResponse>(
+        `${environment.apiUrl}/users/me`,
+        // The periodic probe is invisible to the agent: no error toast every minute offline.
+        mode === 'poll' ? { context: new HttpContext().set(SKIP_ERROR_TOAST, true) } : {},
+      )
       .pipe(
         switchMap((user) => {
           this.currentUserId = user.id;
           // A newer local change or WS event overtook this request: its answer is stale.
           if (requestSeq !== this.statusSeq) return EMPTY;
           const status = user?.status as AgentStatus | undefined;
+          if (resync) {
+            // The server may have switched the agent while the link was dead and the event
+            // never arrived: the server value wins. An unexplained drop to OFFLINE is announced,
+            // but as UNKNOWN: /users/me has no reason, so it may be another tab or a supervisor.
+            if (status === 'OFFLINE') {
+              const wasActive = ACTIVE_STATUSES.has(this.currentStatus());
+              this.applyStatus('OFFLINE', user.statusSince);
+              if (wasActive) {
+                this.autoOfflineCause.set('UNKNOWN');
+                this.autoOffline.set(true);
+              }
+            } else if (status && ACTIVE_STATUSES.has(status)) {
+              this.applyStatus(status, user.statusSince);
+            }
+            return EMPTY;
+          }
           if (status && ACTIVE_STATUSES.has(status)) {
             this.applyStatus(status, user.statusSince);
             return EMPTY;
@@ -164,9 +257,12 @@ export class AgentStatusService {
           return this.changeStatus('AVAILABLE');
         }),
         catchError(() => {
-          this.notifications.error(this.transloco.translate('agent.status.errorLoad'));
+          if (mode !== 'poll') {
+            this.notifications.error(this.transloco.translate('agent.status.errorLoad'));
+          }
           return EMPTY;
         }),
+        finalize(() => (this.syncInFlight = false)),
       )
       .subscribe();
     this.subscriptions.add(sub);

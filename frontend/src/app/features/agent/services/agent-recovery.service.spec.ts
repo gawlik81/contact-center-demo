@@ -1,4 +1,6 @@
 import { signal } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
+import { NotificationService } from '../../../core/services/notification.service';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { NEVER, Subject, of, throwError } from 'rxjs';
@@ -10,6 +12,8 @@ import {
   RECOVERY_TIMEOUT_MS,
 } from './agent-recovery.service';
 import { ACCEPT_RETRY_BASE_MS } from './async-contact-accept.service';
+import { AuthService } from '../../../core/services/auth.service';
+import { ContactConflictService } from './contact-conflict.service';
 import { ContactDraftStore } from './contact-draft.store';
 import { AgentStatusService } from './agent-status.service';
 import { ContactTabStore } from './contact-tab.store';
@@ -50,11 +54,13 @@ describe('AgentRecoveryService (FE-136)', () => {
   let agentStatus: ReturnType<typeof signal<string>>;
   let changeStatus: ReturnType<typeof vi.fn>;
   let statusEpisode: ReturnType<typeof signal<number>>;
+  const notify = { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
   const respond = (list: ActiveContactResponse[]) => get.mockReturnValue(of(list));
 
   beforeEach(() => {
     get = vi.fn();
+    Object.values(notify).forEach((f) => f.mockReset());
     post = vi.fn().mockReturnValue(of(null));
     agentStatus = signal('OFFLINE');
     changeStatus = vi.fn().mockReturnValue(of(undefined));
@@ -62,6 +68,8 @@ describe('AgentRecoveryService (FE-136)', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: HttpClient, useValue: { get, post } },
+        { provide: NotificationService, useValue: notify },
+        { provide: TranslocoService, useValue: { translate: (k: string) => k } },
         {
           provide: AgentStatusService,
           useValue: { currentStatus: agentStatus, statusEpisode, changeStatus },
@@ -230,27 +238,40 @@ describe('AgentRecoveryService (FE-136)', () => {
   });
 
   describe('tab limits', () => {
-    it('lists contacts over the limit instead of dropping them', async () => {
+    it('lists contacts over the strip capacity instead of dropping them', async () => {
       respond(['a', 'b', 'c', 'd', 'e'].map((id) => contact({ contactId: id, channel: 'EMAIL' })));
       await service.recoverAfterReconnect();
 
+      // 4 slots, one stays reserved for PHONE: three async cards, the rest waits in the list
       expect(tabs.tabs().map((t) => t.contactId)).toEqual(['a', 'b', 'c']);
       expect(service.overflow().map((o) => [o.contactId, o.reason])).toEqual([
-        ['d', 'MAX_ASYNC'],
-        ['e', 'MAX_ASYNC'],
+        ['d', 'MAX_TOTAL'],
+        ['e', 'MAX_TOTAL'],
       ]);
-      // nothing is accepted for contacts without a card
-      expect(drafts.markAccepted('d')).toBe(true);
+      // IN_PROGRESS contacts are already accepted by the backend: nothing is sent for them
+      expect(post).not.toHaveBeenCalled();
     });
 
-    it('SOCIAL is limited by the total only, so it can use the fourth card', async () => {
+    it('a RINGING contact without a free slot is accepted anyway (never left to the monitor)', async () => {
       respond([
-        ...['a', 'b', 'c'].map((id) => contact({ contactId: id, channel: 'EMAIL' })),
+        ...['a', 'b', 'c'].map((id) => contact({ contactId: id })),
+        contact({ contactId: 'late', phase: 'RINGING', status: 'ASSIGNED' }),
+      ]);
+      await service.recoverAfterReconnect();
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['late']);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post.mock.calls[0][0]).toContain('/contacts/late/accept');
+    });
+
+    it('SOCIAL counts like EMAIL and CHAT', async () => {
+      respond([
+        contact({ contactId: 'a', channel: 'EMAIL' }),
+        contact({ contactId: 'b', channel: 'CHAT' }),
         contact({ contactId: 's', channel: 'SOCIAL' }),
         contact({ contactId: 's2', channel: 'SOCIAL' }),
       ]);
       await service.recoverAfterReconnect();
-      expect(tabs.tabs()).toHaveLength(4);
+      expect(tabs.tabs().map((t) => t.contactId)).toEqual(['a', 'b', 's']);
       expect(service.overflow().map((o) => [o.contactId, o.reason])).toEqual([['s2', 'MAX_TOTAL']]);
     });
 
@@ -279,6 +300,148 @@ describe('AgentRecoveryService (FE-136)', () => {
       await service.recoverAfterReconnect();
       expect(tabs.tabs().map((t) => t.contactId)).toEqual(['b', 'c', 'd']);
       expect(service.overflow()).toEqual([]);
+    });
+  });
+
+  describe('parked contacts: backend is the source of truth (FE-163)', () => {
+    const assigned = (id: string, type: 'EMAIL' | 'SOCIAL' | 'CHAT' = 'EMAIL') =>
+      ({
+        contactId: id,
+        type,
+        customerName: 'Klient ' + id,
+        customerIdentifier: id + '@x.pl',
+        queueName: 'Support',
+      }) as never;
+
+    const settle = async () => {
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+      TestBed.tick();
+    };
+
+    const fill = (n: number) => {
+      for (let i = 0; i < n; i++) tabs.openTab(tabInput('t' + i, 'EMAIL'));
+    };
+
+    it('agent in two queues with limit 3 (6 async): none rejected, none given back by the front', async () => {
+      const ids = ['q1a', 'q1b', 'q1c', 'q2a', 'q2b', 'q2c'];
+      const types = ['EMAIL', 'CHAT', 'SOCIAL', 'EMAIL', 'SOCIAL', 'CHAT'] as const;
+      ids.forEach((id, i) => {
+        const reason = tabs.openFromContactAssigned(assigned(id, types[i]));
+        if (reason !== null) service.parkAssigned(assigned(id, types[i]), reason);
+      });
+      TestBed.tick();
+
+      expect(tabs.tabs()).toHaveLength(3); // layout: 4 slots, one kept for a call
+      expect(service.overflow()).toHaveLength(3);
+      expect(
+        [
+          ...tabs.tabs().map((t) => t.contactId),
+          ...service.overflow().map((o) => o.contactId),
+        ].sort(),
+      ).toEqual([...ids].sort());
+      // all six confirmed to the backend exactly once; nothing released
+      const urls = post.mock.calls.map((c) => c[0] as string);
+      expect(urls.filter((u) => u.endsWith('/accept'))).toHaveLength(6);
+      expect(urls.some((u) => u.endsWith('/release'))).toBe(false);
+    });
+
+    it('parkAssigned is idempotent: a re-delivery adds no row and no second accept', () => {
+      service.parkAssigned(assigned('x'), 'MAX_TOTAL');
+      service.parkAssigned(assigned('x'), 'MAX_TOTAL');
+      expect(service.overflow()).toHaveLength(1);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(service.isParked('x')).toBe(true);
+    });
+
+    it('promotes the first parked contact into a card when a slot frees up (list order)', async () => {
+      fill(3);
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      service.parkAssigned(assigned('p2', 'SOCIAL'), 'MAX_TOTAL');
+      TestBed.tick();
+      expect(service.overflow()).toHaveLength(2);
+
+      tabs.closeTab('t0');
+      TestBed.tick();
+      await settle();
+
+      expect(tabs.tabs().map((t) => t.contactId)).toEqual(['c-t1', 'c-t2', 'p1']);
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['p2']);
+      // not a new accept: it was confirmed when it was parked
+      expect(post.mock.calls.filter((c) => (c[0] as string).endsWith('/p1/accept'))).toHaveLength(
+        1,
+      );
+      expect(notify.info).toHaveBeenCalledWith('agent.recoveryOverflow.promoted');
+    });
+
+    it('a promoted card never steals the active tab', async () => {
+      fill(3);
+      tabs.setActiveTab('t1');
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      tabs.closeTab('t2');
+      TestBed.tick();
+      await settle();
+      expect(tabs.activeTab()?.id).toBe('t1');
+      expect(tabs.tabs().some((t) => t.contactId === 'p1')).toBe(true);
+    });
+
+    it('does not promote while no slot is free', () => {
+      fill(3);
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      TestBed.tick();
+      expect(service.overflow()).toHaveLength(1);
+      expect(tabs.tabs()).toHaveLength(3);
+    });
+
+    it('"return to queue" releases the contact and removes the row', async () => {
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      post.mockClear();
+      await service.returnToQueue('p1');
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post.mock.calls[0][0]).toContain('/contacts/p1/release');
+      expect(service.overflow()).toEqual([]);
+      expect(notify.success).toHaveBeenCalledWith('agent.desktop.tabClose.returned');
+      // a recovery answer that left before the release must not bring it back
+      respond([contact({ contactId: 'p1' })]);
+      expect(tabs.closedSince(0).has('p1')).toBe(true);
+    });
+
+    it('keeps the row and says so when the release fails (5xx)', async () => {
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      await service.returnToQueue('p1');
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['p1']);
+      expect(notify.error).toHaveBeenCalledWith('agent.recoveryOverflow.returnError');
+      expect(service.returningIds().size).toBe(0);
+    });
+
+    it("drops the row with an explanation on 409 (no longer this agent's)", async () => {
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
+      await service.returnToQueue('p1');
+      expect(service.overflow()).toEqual([]);
+      expect(notify.success).toHaveBeenCalledWith('agent.desktop.tabClose.notYours');
+    });
+
+    it('re-opens (or parks) a contact the backend handed back during the release', async () => {
+      fill(3);
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      const release = new Subject<null>();
+      post.mockReturnValue(release);
+      const done = service.returnToQueue('p1');
+      // the same contact is assigned again while the release is pending
+      expect(tabs.noteAssignedDuringRelease(assigned('p1'))).toBe(true);
+      release.next(null);
+      release.complete();
+      await done;
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['p1']);
+    });
+
+    it('a recovery run keeps contacts that still have no slot and accepts a ringing one', async () => {
+      fill(3);
+      respond([contact({ contactId: 'r', phase: 'RINGING', status: 'ASSIGNED' })]);
+      await service.recoverAfterReconnect();
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['r']);
+      expect(post.mock.calls.some((c) => (c[0] as string).endsWith('/r/accept'))).toBe(true);
     });
   });
 
@@ -435,30 +598,26 @@ describe('AgentRecoveryService (FE-136)', () => {
       expect(service.overflow().map((o) => [o.contactId, o.reason])).toEqual([['x', 'MAX_TOTAL']]);
     });
 
-    it('after a slot is freed "check again" opens the ACW, not another e-mail', async () => {
-      for (const id of ['a', 'b', 'c']) tabs.openTab(tabInput(id, 'EMAIL'));
+    it('the ACW takes the reserved PHONE slot before another e-mail; the e-mail follows once a card closes', async () => {
+      for (const id of ['a', 'b']) tabs.openTab(tabInput(id, 'EMAIL'));
       tabs.openTab(tabInput('s', 'SOCIAL'));
       const backend = () => [
         contact({ contactId: 'x', channel: 'EMAIL' }),
         contact({ contactId: 'p', channel: 'PHONE', phase: 'WRAP_UP', status: 'COMPLETED' }),
+        contact({ contactId: 'c-a' }),
         contact({ contactId: 'c-b' }),
-        contact({ contactId: 'c-c' }),
         contact({ contactId: 'c-s', channel: 'SOCIAL' }),
       ];
       respond(backend());
       await service.recoverAfterReconnect();
-      expect(
-        service
-          .overflow()
-          .map((o) => o.contactId)
-          .sort(),
-      ).toEqual(['p', 'x']);
-
-      tabs.closeByContactId('c-a');
-      respond(backend());
-      await service.recoverAfterReconnect();
       expect(tabs.tabs().map((t) => t.contactId)).toContain('p');
       expect(service.overflow().map((o) => o.contactId)).toEqual(['x']);
+
+      tabs.closeByContactId('c-a');
+      respond(backend().filter((c) => c.contactId !== 'c-a'));
+      await service.recoverAfterReconnect();
+      expect(tabs.tabs().map((t) => t.contactId)).toContain('x');
+      expect(service.overflow()).toEqual([]);
     });
   });
 
@@ -844,6 +1003,355 @@ describe('AgentRecoveryService (FE-136)', () => {
       respond([wrap()]);
       await service.recoverAfterReconnect();
       expect(changeStatus).toHaveBeenCalledWith('AFTER_CONTACT', { silent: true });
+    });
+  });
+
+  describe('review fixes: live parks, 409, revalidation (FE-163 CR)', () => {
+    const assigned = (id: string, over: Record<string, unknown> = {}) =>
+      ({
+        contactId: id,
+        type: 'EMAIL',
+        customerName: 'Klient ' + id,
+        customerIdentifier: id + '@x.pl',
+        queueName: 'Support',
+        ...over,
+      }) as never;
+    const fill = (n: number) => {
+      for (let i = 0; i < n; i++) tabs.openTab(tabInput('t' + i, 'EMAIL'));
+    };
+    const settle = async () => {
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      TestBed.tick();
+    };
+    /** active-contacts and GET /contacts/{id} answer separately; unrouted calls give []. */
+    const route = (active: () => unknown, byId: (id: string) => unknown = () => ({})) =>
+      get.mockImplementation((url: string) => {
+        const m = /\/contacts\/([^/]+)$/.exec(url);
+        return m ? (byId(m[1]) as never) : (active() as never);
+      });
+    const detail = (over: Record<string, unknown>) =>
+      of({ contactId: 'x', agentId: 'me', status: 'ACTIVE', ...over });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    beforeEach(() => {
+      writeText.mockClear();
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      });
+    });
+
+    describe('recovery answer vs. entries newer than the request', () => {
+      it('keeps a contact parked live while the request was in flight (complete answer without it)', async () => {
+        const answer = new Subject<ActiveContactResponse[]>();
+        route(() => answer);
+        fill(3);
+        const run = service.recoverAfterReconnect();
+        // CONTACT_ASSIGNED arrives after the request left, the contact is accepted and parked
+        service.parkAssigned(assigned('late'), 'MAX_TOTAL');
+        answer.next([]); // the snapshot was taken before the assignment
+        answer.complete();
+        await run;
+
+        expect(service.overflow().map((o) => o.contactId)).toEqual(['late']);
+        expect(post.mock.calls.some((c) => (c[0] as string).endsWith('/late/accept'))).toBe(true);
+        // and a later answer that already lists it simply confirms it (no duplicate)
+        route(() => of([contact({ contactId: 'late' })]));
+        await service.recoverAfterReconnect();
+        expect(service.overflow().map((o) => o.contactId)).toEqual(['late']);
+      });
+
+      it('still drops a parked entry that an older run knew and the backend no longer lists', async () => {
+        fill(3);
+        service.parkAssigned(assigned('old'), 'MAX_TOTAL');
+        route(() => of([]));
+        await service.recoverAfterReconnect();
+        // parked before this run started: the answer is newer, so it wins
+        expect(service.overflow()).toEqual([]);
+      });
+
+      it('keeps a row whose release is in flight, and keeps it after a 5xx', async () => {
+        const answer = new Subject<ActiveContactResponse[]>();
+        route(() => answer);
+        fill(3);
+        service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+        const release = new Subject<null>();
+        post.mockReturnValue(release);
+        const run = service.recoverAfterReconnect();
+        const returning = service.returnToQueue('p1');
+        answer.next([]); // snapshot from before the release started
+        answer.complete();
+        await run;
+        expect(service.overflow().map((o) => o.contactId)).toEqual(['p1']);
+
+        release.error(new HttpErrorResponse({ status: 500 }));
+        await returning;
+        expect(service.overflow().map((o) => o.contactId)).toEqual(['p1']);
+        expect(notify.error).toHaveBeenCalledWith('agent.recoveryOverflow.returnError');
+      });
+    });
+
+    it('a failed release with a free slot promotes the row at once (no unrelated change needed)', async () => {
+      route(
+        () => of([]),
+        () => detail({ contactId: 'p1' }),
+      );
+      fill(3);
+      service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+      TestBed.tick();
+      const release = new Subject<null>();
+      post.mockReturnValue(release);
+      const returning = service.returnToQueue('p1');
+      tabs.closeTab('t0'); // a slot frees up while the row is being returned
+      TestBed.tick();
+      await settle();
+      expect(tabs.tabs().some((t) => t.contactId === 'p1')).toBe(false); // not while returning
+
+      release.error(new HttpErrorResponse({ status: 500 }));
+      await returning;
+      await settle(); // runs the effect that the freed row woke up
+      await settle(); // and the check that it started
+      expect(tabs.tabs().some((t) => t.contactId === 'p1')).toBe(true);
+      expect(service.overflow()).toEqual([]);
+    });
+
+    describe('409: reconcile the card with the backend', () => {
+      const conflict = () => TestBed.inject(ContactConflictService);
+
+      it("closes the card of a contact that is no longer the agent's, notes go to the clipboard", async () => {
+        TestBed.inject(AuthService); // real service: currentUserId is null, so only the status counts
+        route(
+          () => of([]),
+          () => detail({ status: 'COMPLETED', agentId: null }),
+        );
+        tabs.openTab(tabInput('e', 'EMAIL'));
+        drafts.setSocialReply('c-e', 'Moja odpowiedz');
+        const before = get.mock.calls.length;
+
+        const verdict = await conflict().handle('agent.contactConflict.abandon', 'c-e');
+
+        expect(verdict).toBe('gone');
+        expect(get.mock.calls.length).toBe(before + 1);
+        expect(get.mock.calls[before][0]).toContain('/contacts/c-e');
+        expect(tabs.tabs()).toEqual([]);
+        expect(writeText).toHaveBeenCalledWith('Moja odpowiedz');
+        expect(notify.warning).toHaveBeenCalledTimes(1);
+        expect(notify.warning).toHaveBeenCalledWith('agent.contactConflict.goneNotesCopied');
+      });
+
+      it('says so without the clipboard sentence when there was nothing to copy', async () => {
+        route(
+          () => of([]),
+          () => detail({ status: 'ABANDONED' }),
+        );
+        tabs.openTab(tabInput('e', 'EMAIL'));
+        await conflict().handle('agent.contactConflict.abandon', 'c-e');
+        expect(writeText).not.toHaveBeenCalled();
+        expect(notify.warning).toHaveBeenCalledWith('agent.contactConflict.gone');
+        expect(tabs.tabs()).toEqual([]);
+      });
+
+      it("a contact still the agent's keeps its card and gets the caller's message", async () => {
+        route(
+          () => of([]),
+          () => detail({ status: 'ACTIVE' }),
+        );
+        tabs.openTab(tabInput('e', 'EMAIL'));
+        drafts.setSocialReply('c-e', 'tekst');
+        const verdict = await conflict().handle('agent.contactConflict.abandon', 'c-e');
+        expect(verdict).toBe('mine');
+        expect(tabs.tabs().map((t) => t.id)).toEqual(['e']);
+        expect(drafts.socialReply('c-e')).toBe('tekst');
+        expect(notify.warning).toHaveBeenCalledWith('agent.contactConflict.abandon');
+      });
+
+      it('a finished call turns its card into ACW (the existing card changes)', async () => {
+        route(
+          () => of([]),
+          () =>
+            detail({ status: 'COMPLETED', dispositionCode: null, endedAt: '2026-11-08T10:00:00Z' }),
+        );
+        tabs.openTab(tabInput('p', 'PHONE'));
+        await conflict().handle('agent.contactConflict.disposition', 'c-p');
+        expect(tabs.tabs()[0].status).toBe('WRAPPING');
+        expect(notify.warning).toHaveBeenCalledWith('agent.contactConflict.disposition');
+      });
+
+      it('a disposition already saved elsewhere closes the ACW card: no 409 loop', async () => {
+        route(
+          () => of([]),
+          () => detail({ status: 'COMPLETED', dispositionCode: 'SOLD' }),
+        );
+        tabs.openTab(tabInput('p', 'PHONE'));
+        tabs.updateTabStatus('p', 'WRAPPING');
+        await conflict().handle('agent.contactConflict.disposition', 'c-p');
+        expect(tabs.tabs()).toEqual([]);
+      });
+
+      it('a backend that cannot be asked changes nothing and says so', async () => {
+        route(
+          () => of([]),
+          () => throwError(() => new HttpErrorResponse({ status: 503 })),
+        );
+        tabs.openTab(tabInput('e', 'EMAIL'));
+        const verdict = await conflict().handle('agent.contactConflict.abandon', 'c-e');
+        expect(verdict).toBe('unknown');
+        expect(tabs.tabs()).toHaveLength(1);
+        expect(notify.warning).toHaveBeenCalledWith('agent.contactConflict.unverified');
+      });
+
+      it('does not join an older run: it asks about that contact itself', async () => {
+        const slow = new Subject<ActiveContactResponse[]>();
+        route(
+          () => slow,
+          () => detail({ status: 'COMPLETED' }),
+        );
+        tabs.openTab(tabInput('e', 'EMAIL'));
+        void service.recoverAfterReconnect(); // started before the conflict, still waiting
+        await conflict().handle('agent.contactConflict.abandon', 'c-e');
+        expect(tabs.tabs()).toEqual([]); // reflected although the older run never answered
+      });
+    });
+
+    describe('promotion revalidates the contact', () => {
+      it('a dead entry leaves the list with one short notice instead of becoming a dead card', async () => {
+        route(
+          () => of([]),
+          () => throwError(() => new HttpErrorResponse({ status: 404 })),
+        );
+        fill(3);
+        service.parkAssigned(assigned('dead'), 'MAX_TOTAL');
+        tabs.closeTab('t0');
+        TestBed.tick();
+        await settle();
+
+        expect(tabs.tabs().some((t) => t.contactId === 'dead')).toBe(false);
+        expect(service.overflow()).toEqual([]);
+        expect(notify.info).toHaveBeenCalledWith('agent.recoveryOverflow.vanished');
+        expect(notify.info).not.toHaveBeenCalledWith('agent.recoveryOverflow.promoted');
+        // a recovery answer that left earlier must not bring it back
+        expect(tabs.closedSince(0).has('dead')).toBe(true);
+      });
+
+      it('a contact taken by another agent is dropped the same way', async () => {
+        route(
+          () => of([]),
+          () => detail({ agentId: 'someone-else', status: 'ACTIVE' }),
+        );
+        TestBed.inject(AuthService); // currentUserId null in this harness: status decides, so use one
+        fill(3);
+        service.parkAssigned(assigned('taken'), 'MAX_TOTAL');
+        route(
+          () => of([]),
+          () => detail({ status: 'QUEUED', agentId: null }), // handed back to the queue
+        );
+        tabs.closeTab('t0');
+        TestBed.tick();
+        await settle();
+        expect(service.overflow()).toEqual([]);
+        expect(tabs.tabs().some((t) => t.contactId === 'taken')).toBe(false);
+      });
+
+      it('a live contact gets its card with the assignment time, not the promotion time', async () => {
+        route(
+          () => of([]),
+          () => detail({ status: 'ACTIVE' }),
+        );
+        fill(3);
+        service.parkAssigned(
+          assigned('p1', { assignedAt: '2026-11-08T08:00:00.000Z' }),
+          'MAX_TOTAL',
+        );
+        tabs.closeTab('t0');
+        TestBed.tick();
+        await settle();
+        const card = tabs.tabs().find((t) => t.contactId === 'p1');
+        expect(card?.startedAt.toISOString()).toBe('2026-11-08T08:00:00.000Z');
+      });
+
+      it('recovery rows keep their assignedAt and queueId for the later card', async () => {
+        fill(3);
+        route(() =>
+          of([
+            contact({
+              contactId: 'r',
+              assignedAt: '2026-11-08T07:00:00Z',
+              queueId: 'q1',
+              phase: 'RINGING',
+            }),
+          ]),
+        );
+        await service.recoverAfterReconnect();
+        expect(service.overflow()[0]).toMatchObject({
+          queueId: 'q1',
+          assignedAt: Date.parse('2026-11-08T07:00:00Z'),
+        });
+      });
+
+      it('a batch of promotions gives one toast, not one per contact', async () => {
+        route(
+          () => of([]),
+          () => detail({ status: 'ACTIVE' }),
+        );
+        fill(3);
+        service.parkAssigned(assigned('p1'), 'MAX_TOTAL');
+        service.parkAssigned(assigned('p2'), 'MAX_TOTAL');
+        tabs.closeTab('t0');
+        tabs.closeTab('t1');
+        TestBed.tick();
+        await settle();
+        expect(tabs.tabs().filter((t) => t.contactId.startsWith('p'))).toHaveLength(2);
+        expect(notify.info).toHaveBeenCalledTimes(1);
+        expect(notify.info).toHaveBeenCalledWith('agent.recoveryOverflow.promotedMany');
+      });
+    });
+
+    it('a PHONE entry in the overflow is neither promoted nor released', async () => {
+      // another call is live in this browser, so the recovered call is parked
+      softphone.session.set({ state: 'ACTIVE', contactId: 'live' } as never);
+      route(() => of([contact({ contactId: 'ph', channel: 'PHONE', phase: 'RINGING' })]));
+      await service.recoverAfterReconnect();
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['ph']);
+
+      get.mockClear();
+      post.mockClear();
+      tabs.openTab(tabInput('a', 'EMAIL'));
+      tabs.closeTab('a'); // slots churn
+      TestBed.tick();
+      await settle();
+
+      expect(tabs.tabs().some((t) => t.contactId === 'ph')).toBe(false);
+      expect(service.overflow().map((o) => o.contactId)).toEqual(['ph']);
+      expect(post.mock.calls.some((c) => (c[0] as string).endsWith('/release'))).toBe(false);
+      expect(get).not.toHaveBeenCalled(); // not even asked about
+      expect(service.returningIds().size).toBe(0);
+    });
+
+    it('2 queues x limit 3 with queueId in the events: all 6 kept, 3 as cards, 3 listed, queues preserved', () => {
+      const ids = [
+        ['a1', 'q1'],
+        ['b1', 'q2'],
+        ['a2', 'q1'],
+        ['b2', 'q2'],
+        ['a3', 'q1'],
+        ['b3', 'q2'],
+      ];
+      for (const [id, queueId] of ids) {
+        const payload = assigned(id, { queueId, queueName: queueId.toUpperCase() });
+        const reason = tabs.openFromContactAssigned(payload);
+        if (reason !== null) service.parkAssigned(payload, reason);
+      }
+      TestBed.tick();
+
+      expect(tabs.tabs().map((t) => t.contactId)).toEqual(['a1', 'b1', 'a2']);
+      expect(service.overflow().map((o) => [o.contactId, o.queueId])).toEqual([
+        ['b2', 'q2'],
+        ['a3', 'q1'],
+        ['b3', 'q2'],
+      ]);
+      const urls = post.mock.calls.map((c) => c[0] as string);
+      expect(urls.filter((u) => u.endsWith('/accept'))).toHaveLength(6);
+      expect(urls.some((u) => u.endsWith('/release'))).toBe(false);
     });
   });
 });

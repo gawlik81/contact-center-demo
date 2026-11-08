@@ -169,8 +169,8 @@ class ContactServiceImpl implements ContactService {
         this.socialDefaultQueueResolver = socialDefaultQueueResolver;
     }
 
-    private static final Set<String> TERMINAL_CONTACT_STATUSES =
-            Set.of("COMPLETED", "ABANDONED", "NOT_REACHED", "ERROR");
+    // Single source of truth shared with the SQL of ContactRepository#abandonIfOpen
+    private static final Set<String> TERMINAL_CONTACT_STATUSES = ContactRepository.TERMINAL_CONTACT_STATUSES;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -541,34 +541,28 @@ class ContactServiceImpl implements ContactService {
         }
         rejectAgentOnUnownedQueuedAsync(contact, isAgent);
 
-        // PATCH semantics – null = bez zmiany
-        if (request.agentId() != null) {
-            contact.setAgentId(request.agentId());
+        // PATCH semantics – null = bez zmiany. BE-209: only the requested columns are written, and only if the
+        // row still has the status/agent this decision was based on (a parallel assignment / release wins
+        // instead of being overwritten by this stale snapshot).
+        ContactPatch patch = new ContactPatch(request.agentId(), request.status(), request.assignedAt(),
+                request.endedAt(), request.remoteAddress(),
+                request.channelMetadata() != null ? new HashMap<>(request.channelMetadata()) : null);
+        if (contactRepository.patchIfUnchanged(contact, patch) == 0) {
+            throw staleContactWrite(contact, "Nie udało się zaktualizować kontaktu: " + contactId);
         }
-        if (request.status() != null) {
-            contact.setStatus(request.status());
+
+        // Only what the code below reads (status for logging/terminal check, agentId for the routing pass);
+        // the response is re-read from the DB at the end, so the rest of the entity need not be synchronised.
+        if (patch.agentId() != null) {
+            contact.setAgentId(patch.agentId());
+        }
+        if (patch.status() != null) {
+            contact.setStatus(patch.status());
         }
         if ("COMPLETED".equals(request.status()) || "ABANDONED".equals(request.status())) {
             contactEventService.closeAgent(contactId, tenantId);
             contactEventService.closeQueue(contactId, tenantId);
             contactEventService.closeHold(contactId, tenantId);
-        }
-        if (request.assignedAt() != null) {
-            contact.setAssignedAt(request.assignedAt());
-        }
-        if (request.endedAt() != null) {
-            contact.setEndedAt(request.endedAt());
-        }
-        if (request.remoteAddress() != null) {
-            contact.setRemoteAddress(request.remoteAddress());
-        }
-        if (request.channelMetadata() != null) {
-            contact.setChannelMetadata(new HashMap<>(request.channelMetadata()));
-        }
-
-        int updated = contactRepository.update(contact);
-        if (updated == 0) {
-            throw new EntityNotFoundException("Nie udało się zaktualizować kontaktu: " + contactId);
         }
 
         log.info("[ContactService] Kontakt zaktualizowany: contactId={}, tenant={}, status={}",
@@ -616,13 +610,15 @@ class ContactServiceImpl implements ContactService {
                     "Nie można ustawić disposition dla aktywnego kontaktu (status: " + contact.getStatus() + ")");
         }
 
+        // BE-209: writes disposition_code + notes only (agent_id/status untouched); the "not QUEUED/ACTIVE" and
+        // ownership checks above are repeated atomically in the WHERE clause.
+        int updated = contactRepository.setDispositionIfNotActive(contactId, tenantId, contact.getStartedAt(),
+                contact.getAgentId(), request.dispositionCode(), request.notes());
+        if (updated == 0) {
+            throw staleContactWrite(contact, "Nie udało się ustawić disposition dla kontaktu: " + contactId);
+        }
         contact.setDispositionCode(request.dispositionCode());
         contact.setNotes(request.notes());
-
-        int updated = contactRepository.update(contact);
-        if (updated == 0) {
-            throw new EntityNotFoundException("Nie udało się ustawić disposition dla kontaktu: " + contactId);
-        }
 
         log.info("[ContactService] Disposition ustawiony: contactId={}, tenant={}, code={}",
                 contactId, tenantId, request.dispositionCode());
@@ -743,7 +739,8 @@ class ContactServiceImpl implements ContactService {
         Contact contact = findContactOrThrow(contactId, tenantId);
 
         // Idempotentność – kontakt już w stanie końcowym
-        if ("ABANDONED".equals(contact.getStatus()) || "COMPLETED".equals(contact.getStatus())) {
+        // (COMPLETED/ABANDONED/NOT_REACHED/ERROR - a terminal state, esp. ERROR/NOT_REACHED, is never overwritten)
+        if (TERMINAL_CONTACT_STATUSES.contains(contact.getStatus())) {
             return getContactInternal(contactId, tenantId);
         }
 
@@ -757,10 +754,21 @@ class ContactServiceImpl implements ContactService {
         rejectAgentOnUnownedQueuedAsync(contact, "AGENT".equals(role) || "ROLE_AGENT".equals(role));
 
         Instant now = Instant.now();
+        // BE-209: status + ended_at only, from any non-terminal state, still held by the verified owner
+        if (contactRepository.abandonIfOpen(contactId, tenantId, contact.getStartedAt(), contact.getAgentId(),
+                now) == 0) {
+            // Lost the race. If the contact reached a terminal state meanwhile the request is idempotent
+            // (same as the early return above); otherwise the owner changed under us -> 409.
+            Contact current = contactRepository.findById(contactId, tenantId)
+                    .orElseThrow(() -> new EntityNotFoundException("Kontakt nie istnieje: " + contactId));
+            if (TERMINAL_CONTACT_STATUSES.contains(current.getStatus())) {
+                return getContactInternal(contactId, tenantId);
+            }
+            throw new ConflictException("Kontakt został zmieniony równolegle, spróbuj ponownie: " + contactId);
+        }
         contact.setStatus("ABANDONED");
         contact.setEndedAt(now);
         contact.setUpdatedAt(now);
-        contactRepository.update(contact);
 
         contactEventService.closeAgent(contactId, tenantId);
         contactEventService.closeQueue(contactId, tenantId);
@@ -1582,13 +1590,14 @@ class ContactServiceImpl implements ContactService {
         for (Contact contact : staleContacts) {
             // Przeterminowane kontakty QUEUED to klienci którzy się rozłączyli bez obsługi –
             // właściwy status to ABANDONED, a nie ERROR.
-            contact.setStatus("ABANDONED");
-            contact.setEndedAt(now);
-            int updated = contactRepository.update(contact);
+            // BE-209: conditional on status still being QUEUED; agent_id untouched. 0 rows = the contact was
+            // assigned / completed after the candidate list was read -> nothing to clean up (not an error).
+            int updated = contactRepository.abandonIfStillQueued(contact.getContactId(), tenantId,
+                    contact.getStartedAt(), contact.getQueuedAt(), now);
             if (updated > 0) {
                 terminated++;
             } else {
-                log.warn("[ContactService] Nie udało się zaktualizować kontaktu ABANDONED: contactId={}, tenant={}",
+                log.info("[ContactService] Pominięto kontakt - nie jest już QUEUED: contactId={}, tenant={}",
                         contact.getContactId(), tenantId);
             }
         }
@@ -1645,12 +1654,6 @@ class ContactServiceImpl implements ContactService {
 
     @Override
     @Transactional
-    public int updateContactEntity(Contact contact) {
-        return contactRepository.update(contact);
-    }
-
-    @Override
-    @Transactional
     public AssignmentResult assignQueuedContact(Contact contact, UUID agentId, UUID queueId,
                                                 Integer maxAsyncPerAgent) {
         AssignmentResult result = contactRepository.assignIfQueued(
@@ -1662,6 +1665,12 @@ class ContactServiceImpl implements ContactService {
             contact.setAssignedAt(Instant.now());
         }
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasActivePhoneContact(UUID tenantId, UUID agentId) {
+        return contactRepository.existsActivePhoneContactByAgent(tenantId, agentId);
     }
 
     @Override
@@ -2093,6 +2102,17 @@ class ContactServiceImpl implements ContactService {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /**
+     * BE-209: a conditional write matched 0 rows. Re-reads the contact to tell "gone" (404, as before) from
+     * "changed concurrently" (409 - the caller's decision was based on a stale state; retrying is safe).
+     */
+    private RuntimeException staleContactWrite(Contact snapshot, String notFoundMessage) {
+        return contactRepository.findById(snapshot.getContactId(), snapshot.getTenantId())
+                .<RuntimeException>map(current -> new ConflictException(
+                        "Kontakt został zmieniony równolegle, spróbuj ponownie: " + snapshot.getContactId()))
+                .orElseGet(() -> new EntityNotFoundException(notFoundMessage));
+    }
 
     /**
      * BE-160: after a release an async contact legitimately sits in QUEUED with no agent, so the generic

@@ -46,6 +46,7 @@ describe('AgentDesktopComponent copy and structure (real template)', () => {
             initStatus: vi.fn(),
             currentStatus: signal('AVAILABLE'),
             isChanging: signal(false),
+            autoOffline: signal(false),
             changeStatus: () => of(null),
           },
         },

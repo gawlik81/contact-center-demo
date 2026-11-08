@@ -96,6 +96,7 @@ describe('AgentDesktopComponent contact body remount (real template)', () => {
             initStatus: vi.fn(),
             currentStatus: signal('AVAILABLE'),
             isChanging: signal(false),
+            autoOffline: signal(false),
             changeStatus: () => of(null),
           },
         },

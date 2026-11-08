@@ -1,0 +1,29 @@
+<!-- The live region stays in the DOM (empty) so that text put into it is announced. It carries
+     only the fact (the title); the explanation and the action are read in the section itself. -->
+<p class="sr-only" role="status" data-testid="presence-offline-status">
+  @if (visible()) {
+    {{ 'agent.presenceOffline.title' | transloco }}
+  }
+</p>
+
+@if (visible()) {
+  <section class="presence-notice" data-testid="presence-offline-notice" aria-labelledby="presence-offline-title">
+    <div class="presence-notice__text">
+      <h2 class="presence-notice__title" id="presence-offline-title">
+        {{ 'agent.presenceOffline.title' | transloco }}
+      </h2>
+      <p class="presence-notice__body">
+        {{ (cause() === 'UNKNOWN' ? 'agent.presenceOffline.bodyUnknown' : 'agent.presenceOffline.body') | transloco }}
+      </p>
+    </div>
+    <button
+      type="button"
+      class="presence-notice__action"
+      data-testid="presence-offline-resume"
+      [attr.aria-disabled]="changing()"
+      (click)="resume()"
+    >
+      {{ 'agent.presenceOffline.action' | transloco }}
+    </button>
+  </section>
+}

@@ -444,6 +444,31 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     List<AppUser> findAllByStatusAndDeletedFalse(AppUser.UserStatus status);
 
     /**
+     * BE-210: presence-sweeper candidates (projection, no sensitive columns) - non-deleted AGENTs in one of the given statuses, cross-tenant by
+     * design (same contract as {@link #findAllByStatusAndDeletedFalse}: the caller sets the tenant context
+     * per agent before acting on a row).
+     */
+    @Query("SELECT new com.contactcenter.domain.user.AgentPresenceCandidate("
+            + "u.id, u.tenantId, u.status, u.statusChangedAt, u.lastLoginAt) "
+            + "FROM AppUser u WHERE u.role = com.contactcenter.domain.user.AppUser.UserRole.AGENT "
+            + "AND u.deleted = false AND u.status IN :statuses")
+    List<AgentPresenceCandidate> findAgentsByStatusIn(@Param("statuses") java.util.Collection<AppUser.UserStatus> statuses);
+
+    /**
+     * BE-210: compare-and-set status change - applies only while the row still holds {@code expected}.
+     * Two sweepers (or a sweeper racing a manual change / reconnect-driven status write) can never both win.
+     *
+     * @return 1 when the transition happened, 0 when the status had already changed (or user not in tenant)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE AppUser u SET u.status = :newStatus, u.statusChangedAt = :at "
+            + "WHERE u.id = :userId AND u.tenantId = :tenantId AND u.deleted = false AND u.status = :expected")
+    int changeStatusIfCurrent(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId,
+                              @Param("expected") AppUser.UserStatus expected,
+                              @Param("newStatus") AppUser.UserStatus newStatus,
+                              @Param("at") java.time.Instant at);
+
+    /**
      * Lista wszystkich użytkowników ze wszystkich tenantów (nie usuniętych) z paginacją.
      *
      * <p>Używana wyłącznie przez AdminUserController – nie wymaga filtru tenantId,

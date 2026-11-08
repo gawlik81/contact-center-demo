@@ -463,7 +463,6 @@
     "incomingCall": {
       "label": "Eingehender Anruf",
       "limitMaxPhone": "Sie können nur 1 Telefonanruf gleichzeitig bearbeiten.",
-      "limitMaxAsync": "Sie haben das Limit von 3 Chat/E-Mail-Kontakten erreicht.",
       "limitMaxTotal": "Sie haben das Maximum von 4 aktiven Kontakten erreicht.",
       "limitGeneral": "Sie haben das Limit aktiver Kontakte erreicht.",
       "systemNotificationTitle": "Eingehender Anruf",
@@ -471,13 +470,21 @@
       "goToContact": "Zum Kontakt",
       "hide": "Benachrichtigung ausblenden",
       "inCall": "Gespräch läuft",
-      "openDesktop": "Zum Desktop"
+      "openDesktop": "Zum Desktop",
+      "parkedOverflow": "Neuer Kontakt {{name}} wartet außerhalb des Kartenlimits. Er steht in der Liste über den Karten: Er öffnet sich, sobald ein Platz frei wird, oder geben Sie ihn in die Warteschlange zurück.",
+      "parkedOverflowMore": "Weitere Kontakte warten außerhalb des Kartenlimits (insgesamt: {{count}}). Alle stehen in der Liste über den Karten."
     },
     "acwBanner": {
       "title": "Dispositionscode fehlt noch",
       "action": "Disposition ausfüllen",
       "announcement": "Das Gespräch mit {{who}} ist beendet. Bitte die Disposition ausfüllen.",
       "more": "+{{count}} weitere"
+    },
+    "presenceOffline": {
+      "title": "Dein Status wurde auf Offline gesetzt",
+      "body": "Die Verbindung zum Server war zu lange unterbrochen, daher erhältst du keine neuen Kontakte. Setze deinen Status auf Verfügbar, sobald du bereit bist.",
+      "bodyUnknown": "Der Status Offline wurde gesetzt, als die Verbindung zum Server instabil war oder von anderer Stelle (z. B. einem anderen Tab), daher erhältst du keine neuen Kontakte. Setze deinen Status auf Verfügbar, sobald du bereit bist.",
+      "action": "Status auf Verfügbar setzen"
     },
     "addBreak": {
       "titleAdd": "Pause hinzufügen",
@@ -1014,7 +1021,7 @@
       "title_few": "{{count}} Kontakte außerhalb des Kartenlimits",
       "title_many": "{{count}} Kontakte außerhalb des Kartenlimits",
       "title_other": "{{count}} Kontakte außerhalb des Kartenlimits",
-      "hint": "Diese Kontakte passen nicht auf den Desktop. Schließen Sie eine Karte oder geben Sie sie an die Warteschlange zurück; die Liste aktualisiert sich selbst, mit der Schaltfläche prüfen Sie sofort.",
+      "hint": "Diese Kontakte wurden Ihnen zugewiesen, passen aber nicht auf den Desktop. Schließen Sie eine Karte, dann öffnet sich der Kontakt von selbst. Sie können ihn auch in die Warteschlange zurückgeben.",
       "retry": "Erneut prüfen",
       "retrying": "Prüfung läuft...",
       "listLabel": "Kontakte außerhalb des Kartenlimits",
@@ -1028,7 +1035,8 @@
       "phase": {
         "RINGING": "wartet auf Annahme",
         "IN_PROGRESS": "in Bearbeitung",
-        "WRAP_UP": "Disposition ausstehend"
+        "WRAP_UP": "Disposition ausstehend",
+        "WAITING_SLOT": "angenommen, wartet auf einen Platz"
       },
       "hintRinging": "Ein Kontakt, der auf Annahme wartet, geht zurück in die Warteschlange, wenn er nicht angenommen wird.",
       "reason": {
@@ -1041,7 +1049,23 @@
         "someOpened": "Geöffnete Karten: {{opened}}. Weiterhin außerhalb des Limits: {{remaining}}.",
         "noChange": "Nichts hat sich geändert. Geben Sie einen Kartenplatz frei und prüfen Sie erneut.",
         "callNotRestored": "Eine Gesprächskarte wurde wiederhergestellt, die nach dem Neuladen der Seite nicht fortgesetzt werden kann. Bitte prüfen."
-      }
+      },
+      "returnToQueue": "In die Warteschlange zurückgeben",
+      "returning": "Wird zurückgegeben...",
+      "returnToQueueLabel": "Kontakt {{name}} in die Warteschlange zurückgeben",
+      "returnError": "Kontakt {{name}} konnte nicht in die Warteschlange zurückgegeben werden. Er bleibt in der Liste, versuchen Sie es erneut.",
+      "promoted": "Kontakt {{name}} hat jetzt eine Karte auf dem Desktop.",
+      "promotedMany": "Kontakte, die jetzt eine Karte auf dem Desktop haben: {{count}}.",
+      "vanished": "Kontakt {{name}} gehört nicht mehr Ihnen (geschlossen oder übergeben) und wurde aus der Liste entfernt.",
+      "vanishedMany": "Aus der Liste entfernte Kontakte, die nicht mehr Ihnen gehören: {{count}}."
+    },
+    "contactConflict": {
+      "disposition": "Disposition nicht gespeichert: Der Kontakt wurde in der Zwischenzeit geändert, gehört aber weiterhin Ihnen. Ihre Notizen bleiben im Formular, speichern Sie erneut.",
+      "abandon": "Der Kontakt wurde nicht geschlossen: Er wurde in der Zwischenzeit geändert, gehört aber weiterhin Ihnen. Prüfen Sie seinen Status und versuchen Sie es erneut.",
+      "abandonFailed": "Der Kontakt konnte auf dem Server nicht geschlossen werden. Prüfen Sie seinen Status in der Kontaktliste.",
+      "gone": "Dieser Kontakt gehört nicht mehr Ihnen (geschlossen, beendet oder übergeben). Wir haben seine Karte geschlossen.",
+      "goneNotesCopied": "Dieser Kontakt gehört nicht mehr Ihnen (geschlossen, beendet oder übergeben). Wir haben seine Karte geschlossen und den eingegebenen Text in die Zwischenablage kopiert.",
+      "unverified": "Der Kontakt wurde in der Zwischenzeit geändert, sein aktueller Status konnte nicht geprüft werden. Es wurde nichts geändert, versuchen Sie es gleich noch einmal."
     }
   },
   "supervisor": {

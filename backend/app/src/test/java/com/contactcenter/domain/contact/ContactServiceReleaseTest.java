@@ -304,9 +304,17 @@ class ContactServiceReleaseTest {
         assertThat(response.status()).isEqualTo("QUEUED");
     }
 
+    /** BE-209: none of the (partial / conditional) contact write paths was used. */
+    private void verifyNoContactWrites() {
+        verify(contactRepository, never()).patchIfUnchanged(any(), any());
+        verify(contactRepository, never()).setDispositionIfNotActive(any(), any(), any(), any(), any(), any());
+        verify(contactRepository, never()).abandonIfOpen(any(), any(), any(), any(), any());
+        verify(contactRepository, never()).abandonIfStillQueued(any(), any(), any(), any(), any());
+    }
+
     private void verifyNothingChanged() {
         verify(contactRepository, never()).releaseToQueue(any(), any(), any(), any(), any());
-        verify(contactRepository, never()).update(any());
+        verifyNoContactWrites();
         verify(contactEventService, never()).closeAgentIfOpen(any(), any());
         verify(contactEventService, never()).closeQueueIfOpen(any(), any(), any());
         verify(contactEventService, never()).openQueue(any(), any(), any(), any(), any());
@@ -349,7 +357,7 @@ class ContactServiceReleaseTest {
         ContactResponse response = contactService.acceptContact(CONTACT_ID, TENANT_ID, AGENT_ID);
 
         assertThat(response.status()).isEqualTo("ACTIVE");
-        verify(contactRepository, never()).update(any());
+        verifyNoContactWrites();
     }
 
     @Test
@@ -362,7 +370,7 @@ class ContactServiceReleaseTest {
 
         assertThatThrownBy(() -> contactService.acceptContact(CONTACT_ID, TENANT_ID, AGENT_ID))
                 .isInstanceOf(InvalidOperationException.class);
-        verify(contactRepository, never()).update(any());
+        verifyNoContactWrites();
     }
 
     @Test
@@ -392,7 +400,7 @@ class ContactServiceReleaseTest {
                 .isInstanceOf(InvalidOperationException.class);
         assertThatThrownBy(() -> contactService.setDisposition(CONTACT_ID, disposition, TENANT_ID, AGENT_ID, true))
                 .isInstanceOf(InvalidOperationException.class);
-        verify(contactRepository, never()).update(any());
+        verifyNoContactWrites();
         verify(contactEventService, never()).closeQueue(any(), any());
     }
 
@@ -401,12 +409,13 @@ class ContactServiceReleaseTest {
     void supervisorBehaviourUnchanged() {
         Contact queued = contact("EMAIL", "QUEUED", null, QUEUE_ID);
         givenContact(queued, queued);
-        when(contactRepository.update(any())).thenReturn(1);
+        when(contactRepository.abandonIfOpen(any(), any(), any(), any(), any())).thenReturn(1);
+        when(contactRepository.patchIfUnchanged(any(), any())).thenReturn(1);
         TenantContext.setUserRole("SUPERVISOR");
 
         // abandon: terminal ABANDONED written
         contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID);
-        verify(contactRepository).update(any());
+        verify(contactRepository).abandonIfOpen(eq(CONTACT_ID), eq(TENANT_ID), any(), any(), any());
 
         // updateContact (isAgent=false) passes the guard
         when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(queued));
@@ -419,11 +428,11 @@ class ContactServiceReleaseTest {
     void phoneUnaffectedByGuard() {
         Contact phone = contact("PHONE", "QUEUED", null, QUEUE_ID);
         givenContact(phone, phone);
-        when(contactRepository.update(any())).thenReturn(1);
+        when(contactRepository.abandonIfOpen(any(), any(), any(), any(), any())).thenReturn(1);
 
         contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID);
 
-        verify(contactRepository).update(any());
+        verify(contactRepository).abandonIfOpen(eq(CONTACT_ID), eq(TENANT_ID), any(), any(), any());
     }
 
     @Test

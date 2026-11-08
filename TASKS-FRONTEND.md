@@ -54,10 +54,10 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-28 | Per-Tenant Plugin (Extension) System | 6 | 0 | 0 | 0 | 6 | ✅ Zakończony |
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
-| EPIC-32 | UX i dostępność stanowiska agenta | 33 | 0 | 18 | 0 | 51 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
+| EPIC-32 | UX i dostępność stanowiska agenta | 35 | 0 | 18 | 0 | 53 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
 | EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **145** | **0** | **23** | **1** | **169** |
+| **Razem** | | **147** | **0** | **23** | **1** | **171** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -95,7 +95,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-146 – Reaktywność i18n: `translate()` w `computed`/polach inicjalizowanych raz poza `queue-panel` i `top-navbar` (wzorzec z FE-129/FE-143) — ⬜ (Do zrobienia; wynik FE-143; backlog, nie blokuje epiku; Should Have, S/M)
 - FE-147 – Niestabilny test `social-integrations.component.spec.ts` (WhatsApp connect dialog; pada sporadycznie w pełnym `npm test`) — ✅ (2026-10-30, tura 63; zabezpieczone, nieodtworzone: 0/10 przebiegów przed zmianą, stuby `HTMLDialogElement` w `beforeEach` + sprzątanie w `afterEach`; wynik CR FE-145; Should Have, XS/S)
 - FE-148 – Akceptacja kontaktów asynchronicznych (EMAIL/SOCIAL) w `ASSIGNED` na ścieżce na żywo: nowy `AsyncContactAcceptService` (jeden accept na kontakt, guard `markAccepted`; wynik FE-136) — ✅ (2026-11-04, tura 65; CR 3,5 → 4,5/5; `npm test` 75 plików / 1023 testy; dług: WP-5 bez weryfikacji w przeglądarce)
-- FE-149 – Przycisk „Zwróć do kolejki” przy pozycjach w `cc-recovery-overflow-notice` (`POST /api/contacts/{id}/release`, BE-160 ✅) — ⬜ (Do zrobienia; wynik FE-136; backlog, nie blokuje epiku; Could Have, S)
+- FE-149 – Przycisk „Zwróć do kolejki” przy pozycjach w `cc-recovery-overflow-notice` (`POST /api/contacts/{id}/release`, BE-160 ✅) — ⬜ (częściowo zrealizowane w FE-163, 2026-11-08; zostaje weryfikacja WP-1…WP-7 na local-demo i potwierdzenie z FE-132; wynik FE-136; backlog, nie blokuje epiku; Could Have, S)
 - FE-150 – [BUG] Wątek e-mail > 20 wiadomości: pierwsze ładowanie czyta stronę 0 (najstarsze, `ORDER BY createdAt ASC`), a `hasMore` jest odwrócone — odwrócić stronicowanie; następnie odświeżenie z FE-135 bez warunku ciągłości — ✅ (2026-11-05, tura 69; po FE-135 ✅; CR 3,5/5 APPROVE WITH FIXES, poprawki zastosowane; `impeccable harden`; `npm test` 83 plików / 1142 testy; liczby żądań przy otwarciu 20→1, 21→2, 40→2, 41→3; zweryfikowane w przeglądarce local-demo; następnik: FE-153 ✅)
 - FE-151 – Znacznik UNREAD i ogłoszenie nowej wiadomości, gdy agent jest na trasie innej niż `/agent/desktop` lub karta przeglądarki jest w tle — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
 - FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS (wiadomości z okresu rozłączenia) — ⬜ (Do zrobienia; wynik FE-135; backlog, nie blokuje epiku; Should Have, S/M)
@@ -110,7 +110,8 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-162 – [DECYZJA UX/security] Opcja „pokaż obrazy” dla wiadomości e-mail (zdalne obrazy zablokowane CSP po FE-157) — ⬜ (Do zrobienia; wynik FE-157 / R1; backlog, nie blokuje epiku; Could Have, S)
 - FE-163 – Uzgodnienie limitów kart na froncie (`MAX_ASYNC_TABS`, `MAX_TOTAL_TABS`) z limitem backendu `queue.max_concurrent_contacts_per_agent` (per kolejka, domyślnie 3) + tabela kontraktu BE/FE — ⬜ (Do zrobienia; wynik BE-156 ✅, tura 72; backlog, nie blokuje epiku)
 - FE-165 – Panel admin-metrics: widoczny stan żywotności ETL (`status` ERROR / zastały `lastRunAt`, odpowiednik alertów `JOB_ERROR`/`JOB_STALE`) obok `lagMinutes` — ⬜ (Do zrobienia; wynik CR BE-212; backlog, nie blokuje epiku; Could Have, S)
-- FE-164 – Wsparcie obecności agenta po stronie FE (heartbeat `/app/ping`, komunikat po automatycznym OFFLINE, best-effort `pagehide`; wynik zgłoszenia „agenci-duchy”) — ⬜ (Do zrobienia; zależy od BE-210; tura 73; backlog, nie blokuje epiku; Should Have, M)
+- FE-166 – Obecność agenta (follow-up FE-164): decyzja o komunikacie po reloadzie/loginie po automatycznym OFFLINE, ręczny test „karta w tle 10 min” — ⬜ (Do zrobienia; tura 74; backlog, nie blokuje epiku; Could Have, S)
+- FE-164 – Wsparcie obecności agenta po stronie FE (heartbeat `/app/ping`, komunikat po automatycznym OFFLINE, best-effort `pagehide`; wynik zgłoszenia „agenci-duchy”) — ✅ (Ukończone 2026-11-08, tura 74; CR 4/5; follow-up FE-166; backlog, nie blokuje epiku; Should Have, M)
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -5928,7 +5929,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 33/51** (✅ 33 · 🔧 0 · ⬜ 18 · 🚫 0; FE-165 dołożony w turze 73 (dopisek 2, 2026-11-07, wynik CR BE-212) jako ⬜ backlog; rekoncyliacja tabeli (EPIC-32 było 33/16/49 przy faktycznych 33/17/50); FE-163 dołożony w turze 72, 2026-11-07, jako ⬜ backlog; FE-164 dołożony w turze 73, 2026-11-07, jako ⬜ backlog) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149, FE-151, FE-152, FE-154, FE-158, FE-160…FE-162 oraz BE-156, BE-159, BE-165…BE-170, BE-196…BE-203 (FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ i BE-163 ✅ zamknięte w turze 69; BE-164 ✅ i FE-156 ✅ zamknięte w turze 68; BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+**Ukończone 35/53** (✅ 35 · 🔧 0 · ⬜ 18 · 🚫 0; tura 74 dopisek 2 (2026-11-08): FE-163 ✅, FE-149 ⬜ (częściowo zrealizowane w FE-163; korekta: wcześniej błędnie ✅), nowy FE-167 ⬜; wcześniej tura 74 (2026-11-08): FE-164 ✅, nowy FE-166 ⬜; FE-165 dołożony w turze 73 (dopisek 2, 2026-11-07, wynik CR BE-212) jako ⬜ backlog; rekoncyliacja tabeli (EPIC-32 było 33/16/49 przy faktycznych 33/17/50); FE-163 dołożony w turze 72, 2026-11-07, jako ⬜ backlog; FE-164 dołożony w turze 73, 2026-11-07, jako ⬜ backlog) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149, FE-151, FE-152, FE-154, FE-158, FE-160…FE-162 oraz BE-156, BE-159, BE-165…BE-170, BE-196…BE-203 (FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ i BE-163 ✅ zamknięte w turze 69; BE-164 ✅ i FE-156 ✅ zamknięte w turze 68; BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
@@ -7214,7 +7215,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Could Have
 **Złożoność:** S
 **Zależy od:** FE-136 ✅ (komponent `cc-recovery-overflow-notice`), BE-160 ✅ (`POST /api/contacts/{id}/release`)
-**Status:** ⬜ Do zrobienia
+**Status:** ⬜ Częściowo zrealizowane w FE-163 (2026-11-08, tura 74, dopisek 2; niezacommitowane, gałąź `fix/etl-watermark-and-agent-presence`; korekta: wcześniej błędnie oznaczone ✅). Zrobione i potwierdzone kodem/testami: przycisk `overflow-return` per pozycja dla kanałów async (`recovery-overflow-notice.component.html`), PHONE bez zwrotu (`canReturn`), linia `hintRinging` dla `RINGING`, obsługa 404/409 w `agent-recovery.service.ts` (`returnToQueue`; w specu serwisu testy sukcesu, 5xx i 409, bez osobnego testu 404), klucze i18n w 4 językach (parytet w specu). **Zostaje:** (1) weryfikacja WP-1…WP-7 (`impeccable harden`) na local-demo, (2) osobne potwierdzenie zgodne z FE-132 (zwrot jednym kliknięciem, z blokadą ponownego kliknięcia `aria-busy`, nie spełnia tego wymogu).
 **Czeka na BE:** brak (BE-160 ✅)
 **Blokuje:** brak (backlog, nie blokuje epiku)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog po zamknięciu; wynik FE-136)
@@ -7229,15 +7230,17 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - Dostępność: fokus po zniknięciu pozycji, region live, cel ≥ 24 px; i18n w 4 językach.
 
 **Kryteria akceptacji:**
-- [ ] Każda pozycja EMAIL/SOCIAL w komunikacie ma przycisk „Zwróć do kolejki” wywołujący `POST /api/contacts/{id}/release`
-- [ ] 200/404/409 usuwają pozycję z komunikatu; inne błędy zostawiają ją z komunikatem błędu; brak podwójnego wywołania przy szybkim kliknięciu
-- [ ] Pozycje `RINGING` mają osobną, opisaną akcję/linię; pozycje PHONE bez zwrotu
-- [ ] Testy jednostkowe (sukces, 404/409, błąd, `RINGING`), klucze i18n w pl/en/de/uk (parytet)
-- [ ] WP-1…WP-7 (z `impeccable harden`)
+- [x] Każda pozycja EMAIL/SOCIAL w komunikacie ma przycisk „Zwróć do kolejki” wywołujący `POST /api/contacts/{id}/release`
+- [ ] Potwierdzenie zwrotu zgodne z FE-132 (zakres: „z potwierdzeniem zgodnym z FE-132”) — brak, zwrot jednym kliknięciem z blokadą ponownego kliknięcia
+- [x] 200/404/409 usuwają pozycję z komunikatu; inne błędy zostawiają ją z komunikatem błędu; brak podwójnego wywołania przy szybkim kliknięciu
+- [x] Pozycje `RINGING` mają osobną, opisaną akcję/linię; pozycje PHONE bez zwrotu
+- [x] Testy jednostkowe (sukces, 404/409, błąd, `RINGING`), klucze i18n w pl/en/de/uk (parytet)
+- [ ] WP-1…WP-7 (z `impeccable harden`) — niezweryfikowane na local-demo
 
 **Ryzyka:** (R1) zwrot kontaktu `RINGING` ma inne skutki dla routingu (anti-ping-pong, `ReleaseExclusionStore`) — potwierdzić z BE-160/BE-156; (R2) ryzyko pomylenia z × z FE-132 (to samo wywołanie, inny punkt wejścia).
 **Nie wchodzi w zakres:** zmiany BE, przebudowa logiki limitów kart (BE-156), trwałość komunikatu po F5.
 **Zależności:** `Zależy od` FE-136 ✅, BE-160 ✅; `Blokuje` brak; powiązane: FE-132 ✅ (wzorzec „Zwróć do kolejki”).
+**Dopisek (tura 74, dopisek 2):** `Zależy od` FE-136 ✅, BE-160 ✅, FE-163 ✅ (część zrealizowana w jego ramach dla kanałów async; ticket zostaje ⬜ do weryfikacji WP i potwierdzenia z FE-132). Powiązane: BE-208 (zwrot może wrócić do tego samego agenta), BE-219.
 
 ### FE-150 – [BUG] Wątek e-mail > 20 wiadomości: pierwsze ładowanie czyta stronę 0 (najstarsze), `hasMore` odwrócone
 
@@ -7287,6 +7290,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Ryzyka:** (R1) dublowanie nasłuchu z `ContactMessageListenerService`; (R2) zmiana tytułu dokumentu a czytniki ekranu.
 **Nie wchodzi w zakres:** powiadomienia systemowe/dźwiękowe, trwałe liczniki.
 **Zależności:** `Zależy od` FE-135 ✅, BE-154 ✅; `Blokuje` brak; powiązane: FE-152.
+**Dopisek (tura 74, dopisek 2):** powiązane z FE-163 ✅ — komunikat/znacznik o liście nadmiaru kart (`cc-recovery-overflow-notice`) poza `/agent/desktop` uznany w FE-163 za WONTFIX i przeniesiony tutaj.
 
 ### FE-152 – Resynchronizacja otwartych kart e-mail/social po ponownym połączeniu WS
 
@@ -7537,7 +7541,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** BE-156 ✅ (limit egzekwowany w routingu od 2026-11-07, tura 72; decyzje właściciela: limit dotyczy tylko kontaktów async w danej kolejce, telefon poza limitem)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-08, tura 74, dopisek 2; niezacommitowane, gałąź `fix/etl-watermark-and-agent-presence`; CR-FRONTEND „Review: FE-163 — 2026-11-08” 3,5/5 → poprawki, must-fix RESOLVED; Vitest 86 plików / 1215 testów, lint 0 błędów / 10 ostrzeżeń, format OK)
 **Czeka na BE:** brak (BE-156 ✅; ewentualna zmiana kontraktu BE — osobny ticket)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-156, tura 72)
@@ -7560,24 +7564,26 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zakres:** (1) decyzja właściciela/wykonawcy, która strona jest źródłem prawdy (rekomendacja: backend; front przyjmuje każdy kontakt przydzielony przez backend i ogranicza tylko, gdy to ochrona układu — wtedy komunikat i natychmiastowy `release` zamiast czekania na 3 próby monitora); (2) uzgodnienie stałych albo pobieranie limitu z API; (3) ujednolicenie liczenia SOCIAL; (4) wpis kontraktu (tabela wyżej, wersja docelowa) w dokumentacji `documentation/`.
 
 **Kryteria akceptacji:**
-- [ ] Decyzja o źródle prawdy zapisana w tickecie, tabela kontraktu uzupełniona stanem docelowym
-- [ ] Kontakt przydzielony przez backend w ramach limitu kolejki nie jest odrzucany przez front, albo — jeśli front odrzuca — wraca do kolejki natychmiast (bez czekania na `ContactAssignmentMonitor`)
-- [ ] SOCIAL liczony spójnie z EMAIL/CHAT (lub udokumentowane odstępstwo)
-- [ ] Test: agent w dwóch kolejkach z limitem 3 (razem 6 kontaktów async) — zachowanie zgodne z decyzją
-- [ ] Teksty w 4 językach (pl/en/de/uk), jeśli zmienia się komunikat; testy, lint i format zielone
+- [x] Decyzja o źródle prawdy zapisana w tickecie, tabela kontraktu uzupełniona stanem docelowym
+- [x] Kontakt przydzielony przez backend w ramach limitu kolejki nie jest odrzucany przez front, albo — jeśli front odrzuca — wraca do kolejki natychmiast (bez czekania na `ContactAssignmentMonitor`)
+- [x] SOCIAL liczony spójnie z EMAIL/CHAT (lub udokumentowane odstępstwo)
+- [x] Test: agent w dwóch kolejkach z limitem 3 (razem 6 kontaktów async) — zachowanie zgodne z decyzją
+- [x] Teksty w 4 językach (pl/en/de/uk), jeśli zmienia się komunikat; testy, lint i format zielone
 
 **Ryzyka:** (R1) zmiana `MAX_TOTAL_TABS` wpływa na układ kart (FE-121/FE-133, 1366×768); (R2) pobieranie limitu z API wymaga zmiany kontraktu BE.
 **Nie wchodzi w zakres:** zmiana egzekwowania limitu w routingu (BE-156 ✅), wykluczenia agenta po odrzuceniu (BE-208), przebudowa układu kart.
 **Zależności:** `Zależy od` BE-156 ✅; `Blokuje` brak; powiązane: FE-149 (zwrot do kolejki z komunikatu „poza limitem kart”), FE-132 ✅, FE-148 ✅, BE-208, BE-209.
+**Notatka wykonania (2026-11-08, tura 74, dopisek 2):** decyzje właściciela: backend jest źródłem prawdy (limit per kolejka, BE-156), front przyjmuje każdy przydzielony kontakt; SOCIAL liczony jak EMAIL/CHAT; usunięty `MAX_ASYNC_TABS`, zostają `MAX_PHONE_TABS = 1` i `MAX_TOTAL_TABS = 4` z bezwarunkową rezerwą 1 miejsca na PHONE (async max 3 widoczne karty; FE nie ma sygnału zdolności telefonicznej → BE-220/FE-167). Nadmiar ponad pojemność układu → lista `cc-recovery-overflow-notice` z „Zwróć do kolejki” (`POST /contacts/{id}/release`) i promocją z rewalidacją `GET /contacts/{id}` po zwolnieniu miejsca; kontakt w nadmiarze jest od razu `accept` (`ContactAssignmentMonitor` go nie odsyła; skutki → BE-219). Obsługa 409 z BE-209 (`ContactConflictService` + `reconcileContact`: zamknięcie/aktualizacja karty, tekst do schowka, bez pętli 409 w ACW; `cancelReply` zachowuje szkic); agregacja toastów; dokument kontraktu `documentation/agent-desktop-tab-limits.md`. FE-151: komunikat o liście nadmiaru poza pulpitem — WONTFIX w tym tickecie.
+**Dopisek (tura 74, dopisek 2):** `Zależy od` BE-156 ✅, BE-209 ✅ (409). Nowe powiązane: BE-218 (`assignedAt`/`queueId` w `CONTACT_ASSIGNED`), BE-219 (ACTIVE bez karty), BE-220 → FE-167 (warunkowa rezerwa PHONE), BE-208 (zwrot z nadmiaru może wrócić do tego samego agenta), FE-151.
 
 ### FE-164 – Wsparcie obecności agenta po stronie FE: heartbeat `/app/ping`, komunikat po automatycznym OFFLINE, best-effort `pagehide`
 
 **Typ:** Feature / Hardening (Frontend, stanowisko agenta; kontrakt z BE-210)
 **Priorytet:** Should Have
 **Złożoność:** M
-**Zależy od:** BE-210 (rejestr sesji, klucz obecności, karencja i kontrakt zdarzenia — sam FE bez BE nie naprawia duchów)
-**Status:** ⬜ Do zrobienia
-**Czeka na BE:** BE-210 (nazwa/semantyka heartbeatu i powód zmiany statusu w zdarzeniu `agent.status.changed`, jeśli BE doda pole `reason`)
+**Zależy od:** BE-210 ✅ (rejestr sesji, klucz obecności, karencja i kontrakt zdarzenia — sam FE bez BE nie naprawia duchów)
+**Status:** ✅ Ukończone (2026-11-08, tura 74; niezacommitowane, gałąź `fix/etl-watermark-and-agent-presence`; CR-FRONTEND „Review: FE-164 — 2026-11-08” 4/5 → poprawki RESOLVED; Vitest 85 plików / 1174 testy, lint 0 błędów / 10 ostrzeżeń, format OK; ręczny test „karta w tle 10 min” niewykonany → FE-166)
+**Czeka na BE:** BE-210 ✅ (nazwa/semantyka heartbeatu i powód zmiany statusu w zdarzeniu `agent.status.changed`, jeśli BE doda pole `reason`)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik zgłoszenia „agenci-duchy”, tura 73)
 **Wykonawca:** `angular-frontend-expert` + `impeccable clarify` (komunikat po automatycznym OFFLINE) i `harden` (odporność heartbeatu, wiele kart)
@@ -7591,15 +7597,17 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 4. Teksty w 4 językach (pl/en/de/uk), dostępność (`role="status"`/`aria-live=polite`, bez kradzenia fokusu — The Lamp Rule z `DESIGN.md`).
 
 **Kryteria akceptacji:**
-- [ ] Heartbeat wysyłany w ustalonym interwale, wstrzymany przy braku połączenia, wznowiony po reconnect (test z fake timers)
-- [ ] Zdarzenie `agent.status.changed` → `OFFLINE` w trakcie otwartej sesji aktualizuje UI i wyświetla komunikat; lokalny stan nie nadpisuje serwerowego
-- [ ] Dwie karty tego samego agenta: zamknięcie jednej nie zmienia statusu w drugiej (o ile BE-210 tego dotyczy; test kontraktowy)
-- [ ] Punkt `pagehide` rozstrzygnięty (zaimplementowany albo udokumentowany jako „nie dotyczy”)
-- [ ] Klucze i18n w pl/en/de/uk (test parytetu FE-160), `npm test`, `npm run lint`, `npm run format:check` zielone
+- [x] Heartbeat wysyłany w ustalonym interwale, wstrzymany przy braku połączenia, wznowiony po reconnect (test z fake timers)
+- [x] Zdarzenie `agent.status.changed` → `OFFLINE` w trakcie otwartej sesji aktualizuje UI i wyświetla komunikat; lokalny stan nie nadpisuje serwerowego
+- [x] Dwie karty tego samego agenta: zamknięcie jednej nie zmienia statusu w drugiej (o ile BE-210 tego dotyczy; test kontraktowy)
+- [x] Punkt `pagehide` rozstrzygnięty (zaimplementowany albo udokumentowany jako „nie dotyczy”)
+- [x] Klucze i18n w pl/en/de/uk (test parytetu FE-160), `npm test`, `npm run lint`, `npm run format:check` zielone
 
 **Ryzyka:** (R1) konflikt konfiguracji heartbeatu z FE-155 (jedna zmiana `websocket.service.ts`); (R2) agenci z przeglądarką w tle — throttling timerów w nieaktywnych kartach (heartbeat w tle może spóźniać się >TTL; rozważyć Web Worker lub zapas w TTL BE); (R3) `sendBeacon` nie niesie nagłówka `Authorization` — wymaga innego uwierzytelnienia (dlatego domyślnie poza zakresem).
 **Nie wchodzi w zakres:** logika karencji/sweepera (BE-210), poziomy logów (BE-211), reconnect z jitterem i deduplikacja zdarzeń (FE-155).
+**Notatka wykonania (2026-11-08, tura 74):** ping `/app/ping` po connect i co 30 s; ping + resync na `visibilitychange`/`online`/`focus` (debounce 500 ms); okresowy resync `GET /users/me` co 60 s (bez nakładania, `statusSeq`, cicho); po reconnect serwer wygrywa (bez automatycznego AVAILABLE); komponent `cc-presence-offline-notice` (przyczyna `PRESENCE_TIMEOUT` vs nieznana, fokus na przełącznik statusu); i18n pl/en/de/uk; `sendBeacon` — „nie dotyczy” (decyzja właściciela 2026-11-08, BE-210). Follow-up: FE-166 (decyzja przy reloadzie/loginie po automatycznym OFFLINE, ręczny test karty w tle), BE-217 (PONG na `/user/.../events` nie dociera do subskrypcji `/topic/user/{id}/events`).
 **Zależności:** `Zależy od` BE-210; `Blokuje` brak; powiązane: FE-155 (heartbeat/reconnect WS), FE-130 ✅ (`statusSince`), FE-148 ✅, FE-153 ✅.
+**Dopisek (tura 74):** `Zależy od` BE-210 ✅. Nowe powiązane: FE-166 (follow-up), BE-217 (PONG). FE-155: ping co 30 s i resync zostały zrealizowane w tym tickecie — FE-155 przy zmianie `heartbeatIncoming`/backoffu musi zachować ping obecności (jedna konfiguracja w `websocket.service.ts`).
 
 ### FE-165 – Panel admin-metrics: widoczny stan żywotności ETL (`status` ERROR, zastały `lastRunAt`) obok `lagMinutes`
 
@@ -7629,11 +7637,57 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Nie wchodzi w zakres:** zmiany BE, alerty push/e-mail, historia incydentów ETL.
 **Zależności:** `Zależy od` BE-212 ✅; `Blokuje` brak; powiązane: BE-214, BE-213.
 
+### FE-166 – Obecność agenta (follow-up FE-164): decyzja o komunikacie po reloadzie/loginie po automatycznym OFFLINE, ręczny test „karta w tle 10 min”
+
+**Typ:** Decision / Testing (Frontend, stanowisko agenta)
+**Priorytet:** Niski (Could Have)
+**Złożoność:** S
+**Zależy od:** FE-164 ✅ (ping obecności, `cc-presence-offline-notice`), BE-210 ✅ (karencja 90 s, `reason: PRESENCE_TIMEOUT`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak; powiązane: FE-155, BE-217
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; follow-up z CR-FRONTEND „Review: FE-164 — 2026-11-08”)
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify`; decyzja właściciela
+
+**Zakres:**
+1. DECYZJA WŁAŚCICIELA: pierwsze ładowanie/reload/login po automatycznym OFFLINE ustawia `AVAILABLE` bez komunikatu (zachowanie loginu, bez zmian względem stanu sprzed BE-210). Opcje: (A) zostawić; (B) pokazać `cc-presence-offline-notice` także po reloadzie/loginie, gdy ostatnia przyczyna to `PRESENCE_TIMEOUT` (wymaga pola przyczyny w `GET /users/me` — zmiana BE); (C) po loginie nie ustawiać AVAILABLE automatycznie po `PRESENCE_TIMEOUT`.
+2. Ręczny test „karta w tle 10 min” (Chrome intensive throttling vs karencja 90 s): sprawdzić, czy ping 30 s w karcie w tle nie spóźnia się ponad próg 90 s; ewentualnie przenieść timer do Web Workera.
+
+**Kryteria akceptacji:**
+- [ ] Decyzja właściciela zapisana w tickecie; jeśli B/C — doprecyzowany zakres BE/FE
+- [ ] Wynik testu ręcznego karty w tle (Chrome, 10+ min) zapisany; przy fałszywych OFFLINE — wdrożony Web Worker lub zwiększona karencja (ticket BE)
+- [ ] `npm test`, `npm run lint`, `npm run format:check` zielone (jeśli kod)
+
+**Ryzyka:** (R1) Chrome throttluje timery w tle do 1/min po 5 min ukrycia — ping co 30 s może się spóźniać; (R2) opcja B/C wymaga kontraktu BE.
+**Nie wchodzi w zakres:** logika karencji (BE-210 ✅), PONG (BE-217).
+**Zależności:** `Zależy od` FE-164 ✅, BE-210 ✅; `Blokuje` brak; powiązane: FE-155, BE-217.
+
+### FE-167 – Warunkowa rezerwa miejsca PHONE w układzie kart (po sygnale zdolności telefonicznej agenta z BE-220)
+
+**Typ:** Hardening (Frontend, stanowisko agenta)
+**Priorytet:** Niski (Could Have)
+**Złożoność:** S
+**Zależy od:** FE-163 ✅, BE-220 (sygnał zdolności telefonicznej)
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-220
+**Blokuje:** brak
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik decyzji właściciela w FE-163, tura 74 dopisek 2)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** `contact-tab.store.ts` rezerwuje bezwarunkowo 1 miejsce z `MAX_TOTAL_TABS = 4` na PHONE, więc agent bez kanału telefonicznego widzi najwyżej 3 karty. Po BE-220 rezerwa ma być warunkowa: agent bez zdolności telefonicznej dostaje pełne 4 miejsca async.
+
+**Kryteria akceptacji:**
+- [ ] Agent z kanałem telefonicznym: układ jak dziś (async max 3 + 1 PHONE)
+- [ ] Agent bez kanału telefonicznego: async do `MAX_TOTAL_TABS` (4), bez nadmiaru dla 4. kontaktu
+- [ ] Brak sygnału (starszy backend) → zachowanie bezpieczne jak dziś (rezerwa)
+- [ ] Zaktualizowany `documentation/agent-desktop-tab-limits.md`; testy, lint, format zielone
+
+**Zależności:** `Zależy od` FE-163 ✅, BE-220; `Czeka na BE` BE-220; `Blokuje` brak; powiązane: BE-218.
+
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
 **Ukończone 0/1** (✅ 0 · 🔧 0 · ⬜ 1 · 🚫 0) — status epiku: ⬜ Nie rozpoczęty (epik w przeważającej części backendowy/infrastrukturalny; tu jedyny ticket FE wynikający ze skalowania poziomego: FE-155; tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
 
-> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-166 (FE-156…FE-165 zajął EPIC-32 w turach 68–73).
+> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-168 (FE-156…FE-167 zajął EPIC-32 w turach 68–74).
 
 ### FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń
 
@@ -7667,6 +7721,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Ryzyka:** (R1) zmiana `heartbeatIncoming` wymaga zgodnej konfiguracji serwera (BE-175) — niezgodność = pętla rozłączeń; (R2) deduplikacja po kluczu wymaga stabilnych identyfikatorów w payloadach (część zdarzeń ich nie ma); (R3) skumulowany efekt z FE-152 (podwójne odświeżenia).
 **Nie wchodzi w zakres:** odtwarzanie zdarzeń przez backend (świadomie poza zakresem — zob. FE-152), zmiany w protokole zdarzeń.
 **Zależności:** `Zależy od` BE-175; `Blokuje` brak; powiązane: FE-152, FE-135 ✅, BE-176.
+**Dopisek (tura 74, FE-164 ✅/BE-210 ✅):** FE-164 dodał do `websocket.service.ts` ping obecności `/app/ping` (po connect i co 30 s, ping + resync na `visibilitychange`/`online`/`focus`, resync `GET /users/me` co 60 s). Wykrywanie martwego połączenia i backoff z FE-155 muszą współistnieć z tym pingiem (nie dublować timerów; ping jest też sygnałem obecności po stronie BE — brak pingu > 90 s = `OFFLINE`). Powiązane: BE-210 ✅, FE-164 ✅, BE-217 (PONG), BE-174/BE-175 (obecność przy brokerze zewnętrznym).
 
 ---
 

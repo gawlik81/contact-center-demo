@@ -41,7 +41,8 @@
     color: var(--text-1);
   }
 
-  &__retry {
+  &__retry,
+  &__return {
     min-height: 2rem;
     padding: 0.25rem 0.75rem;
     font: inherit;
@@ -74,13 +75,18 @@
     // Up to 20 contacts: scroll inside the strip instead of pushing the desktop down.
     max-height: 7.5rem;
     overflow-y: auto;
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
   }
 
   &__item {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0 0.75rem;
+    align-items: center;
+    gap: 0.125rem 0.75rem;
     padding: 0.125rem 0;
     font-size: 0.8125rem;
   }
@@ -92,5 +98,12 @@
 
   &__meta {
     color: var(--text-2);
+  }
+
+  &__return {
+    min-height: 1.75rem;
+    margin-left: auto;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.8125rem;
   }
 }

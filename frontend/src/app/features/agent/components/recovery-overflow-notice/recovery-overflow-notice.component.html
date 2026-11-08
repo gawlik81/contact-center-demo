@@ -35,19 +35,38 @@
         {{ a.key | transloco: a.params }}
       </p>
     }
-    <ul class="recovery-overflow__list" [attr.aria-label]="'agent.recoveryOverflow.listLabel' | transloco">
-      @for (item of items(); track item.contactId) {
-        <li class="recovery-overflow__item">
+    <!-- tabindex: the list scrolls, and rows without a button (a call) leave nothing to focus in it -->
+    <ul class="recovery-overflow__list" tabindex="0" [attr.aria-label]="'agent.recoveryOverflow.listLabel' | transloco">
+      @for (item of items(); track item.contactId; let i = $index) {
+        <li class="recovery-overflow__item" [attr.data-contact-id]="item.contactId">
           <span class="recovery-overflow__name" [attr.title]="item.customerName">{{ item.customerName }}</span>
           <span class="recovery-overflow__meta">
             {{ 'agent.recoveryOverflow.channel.' + (item.type ?? 'UNKNOWN') | transloco }}
             <span aria-hidden="true">·</span>
-            {{ 'agent.recoveryOverflow.phase.' + item.phase | transloco }}
+            {{ 'agent.recoveryOverflow.phase.' + phaseKey(item) | transloco }}
             @if (item.reason === 'OTHER_CALL_ACTIVE' || item.reason === 'UNSUPPORTED_CHANNEL') {
               <span aria-hidden="true">·</span>
               {{ 'agent.recoveryOverflow.reason.' + item.reason | transloco }}
             }
           </span>
+          @if (canReturn(item)) {
+            <button
+              type="button"
+              class="recovery-overflow__return"
+              data-testid="overflow-return"
+              [attr.aria-label]="'agent.recoveryOverflow.returnToQueueLabel' | transloco: { name: item.customerName }"
+              [attr.aria-disabled]="returning().has(item.contactId)"
+              [attr.aria-busy]="returning().has(item.contactId)"
+              (click)="returnToQueue(item.contactId, i)"
+            >
+              {{
+                (returning().has(item.contactId)
+                  ? 'agent.recoveryOverflow.returning'
+                  : 'agent.recoveryOverflow.returnToQueue'
+                ) | transloco
+              }}
+            </button>
+          }
         </li>
       }
     </ul>

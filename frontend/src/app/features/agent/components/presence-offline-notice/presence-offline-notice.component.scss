@@ -1,0 +1,64 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+// Inline strip under the toolbar: takes room only while the notice is shown.
+.presence-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin: 0.5rem 0.75rem 0;
+  padding: 0.625rem 0.75rem;
+  background: var(--warning-soft);
+  color: var(--text-1);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+
+  &__text {
+    flex: 1 1 18rem;
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--warning-text);
+  }
+
+  &__body {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+  }
+
+  &__action {
+    min-height: 2rem;
+    padding: 0.25rem 0.75rem;
+    font: inherit;
+    font-weight: 600;
+    color: var(--warning-text);
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+
+    &:hover:not([aria-disabled='true']) {
+      background: color-mix(in oklch, var(--warning) 14%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    &[aria-disabled='true'] {
+      cursor: default;
+      opacity: 0.7;
+    }
+  }
+}

@@ -25,7 +25,7 @@ function item(id: string): OverflowContact {
     type: 'EMAIL',
     customerName: 'Klient ' + id,
     phase: 'IN_PROGRESS',
-    reason: 'MAX_ASYNC',
+    reason: 'MAX_TOTAL',
   };
 }
 
@@ -36,12 +36,16 @@ describe('RecoveryOverflowNoticeComponent (FE-136)', () => {
   const lastRun = signal<RecoverySummary | null>(null);
   let recover: ReturnType<typeof vi.fn>;
   let checkAgain: ReturnType<typeof vi.fn>;
+  let returnToQueue: ReturnType<typeof vi.fn>;
+  const returningIds = signal<ReadonlySet<string>>(new Set());
 
   beforeEach(() => {
     overflow.set([]);
     loading.set(false);
     lastRun.set(null);
     checkAgain = vi.fn().mockResolvedValue(undefined);
+    returnToQueue = vi.fn().mockResolvedValue(undefined);
+    returningIds.set(new Set());
     recover = vi.fn().mockResolvedValue(undefined);
     TestBed.configureTestingModule({
       imports: [
@@ -55,7 +59,15 @@ describe('RecoveryOverflowNoticeComponent (FE-136)', () => {
       providers: [
         {
           provide: AgentRecoveryService,
-          useValue: { overflow, loading, lastRun, recoverAfterReconnect: recover, checkAgain },
+          useValue: {
+            overflow,
+            loading,
+            lastRun,
+            returningIds,
+            recoverAfterReconnect: recover,
+            checkAgain,
+            returnToQueue,
+          },
         },
       ],
     });
@@ -79,7 +91,41 @@ describe('RecoveryOverflowNoticeComponent (FE-136)', () => {
     expect(fixture.nativeElement.querySelectorAll('li')).toHaveLength(2);
     expect(text()).toContain('Klient a');
     expect(text()).toContain('Social');
+    // an accepted social contact is not "waiting to be answered"
+    expect(text()).toContain('przyjęty, czeka na miejsce');
+    expect(text()).not.toContain('oczekuje na odebranie');
+  });
+
+  it('a ringing call still reads "waiting to be answered"', () => {
+    overflow.set([{ ...item('p'), type: 'PHONE', phase: 'RINGING' }]);
+    fixture.detectChanges();
     expect(text()).toContain('oczekuje na odebranie');
+  });
+
+  it('makes the scrolling list focusable (rows without a button leave nothing to focus)', () => {
+    overflow.set([{ ...item('p'), type: 'PHONE', phase: 'IN_PROGRESS' }]);
+    fixture.detectChanges();
+    const list = fixture.nativeElement.querySelector('ul') as HTMLElement;
+    expect(list.getAttribute('tabindex')).toBe('0');
+    expect(list.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  it('moves the focus to the row that took its place when the focused row leaves (promotion)', async () => {
+    overflow.set([item('a'), item('b'), item('c')]);
+    fixture.detectChanges();
+    const buttons = () =>
+      Array.from(
+        fixture.nativeElement.querySelectorAll('[data-testid="overflow-return"]'),
+      ) as HTMLElement[];
+    buttons()[1].focus();
+    expect(document.activeElement).toBe(buttons()[1]);
+
+    overflow.set([item('a'), item('c')]); // b was promoted to a card
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(document.activeElement).toBe(buttons()[1]); // now "c"
+    expect(document.activeElement?.closest('li')?.getAttribute('data-contact-id')).toBe('c');
   });
 
   it.each([
@@ -248,12 +294,49 @@ describe('RecoveryOverflowNoticeComponent (FE-136)', () => {
     fixture.nativeElement.remove();
   });
 
+  describe('return to queue (FE-163)', () => {
+    const returnButtons = () =>
+      Array.from<HTMLButtonElement>(
+        fixture.nativeElement.querySelectorAll('[data-testid="overflow-return"]'),
+      );
+
+    it('offers it for async contacts only, with the contact in the accessible name', () => {
+      overflow.set([item('a'), { ...item('p'), type: 'PHONE', phase: 'RINGING' }]);
+      fixture.detectChanges();
+      expect(returnButtons()).toHaveLength(1);
+      expect(returnButtons()[0].textContent).toContain('Zwróć do kolejki');
+      expect(returnButtons()[0].getAttribute('aria-label')).toBe(
+        'Zwróć do kolejki kontakt Klient a',
+      );
+    });
+
+    it('calls the release for that contact', () => {
+      overflow.set([item('a'), item('b')]);
+      fixture.detectChanges();
+      returnButtons()[1].click();
+      expect(returnToQueue).toHaveBeenCalledWith('b');
+    });
+
+    it('is inert while that contact is being returned', () => {
+      overflow.set([item('a')]);
+      returningIds.set(new Set(['a']));
+      fixture.detectChanges();
+      expect(returnButtons()[0].getAttribute('aria-disabled')).toBe('true');
+      returnButtons()[0].click();
+      expect(returnToQueue).not.toHaveBeenCalled();
+    });
+  });
+
   describe('honest wording and reasons', () => {
     it('adds the "returns to the queue" line only when a ringing contact is listed', () => {
       overflow.set([item('a')]);
       fixture.detectChanges();
       expect(text()).not.toContain('wróci do kolejki');
-      overflow.set([{ ...item('b'), phase: 'RINGING' }]);
+      // an async contact that rings is accepted anyway: no such promise for it
+      overflow.set([{ ...item('e'), phase: 'RINGING' }]);
+      fixture.detectChanges();
+      expect(text()).not.toContain('wróci do kolejki');
+      overflow.set([{ ...item('b'), type: 'PHONE', phase: 'RINGING' }]);
       fixture.detectChanges();
       expect(text()).toContain('wróci do kolejki');
       expect(text()).not.toContain('nadal przypisane');

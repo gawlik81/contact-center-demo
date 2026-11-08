@@ -6,6 +6,8 @@ import {
   effect,
   inject,
   untracked,
+  Injector,
+  afterNextRender,
 } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -41,9 +43,11 @@ export class RecoveryOverflowNoticeComponent {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
 
   protected readonly items = this.recovery.overflow;
   protected readonly loading = this.recovery.loading;
+  protected readonly returning = this.recovery.returningIds;
 
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
@@ -57,7 +61,9 @@ export class RecoveryOverflowNoticeComponent {
   });
 
   /** A ringing contact may be returned to the queue by the backend: the hint must say so. */
-  protected readonly hasRinging = computed(() => this.items().some((i) => i.phase === 'RINGING'));
+  protected readonly hasRinging = computed(() =>
+    this.items().some((i) => i.type === 'PHONE' && i.phase === 'RINGING'),
+  );
 
   /**
    * Text for the status region: the result of a check the agent asked for, or a notice that a
@@ -109,6 +115,25 @@ export class RecoveryOverflowNoticeComponent {
     // The notice disappears together with a button that has focus (a manual check or the
     // automatic refresh emptied the list): hand the focus to the card list, not to <body>.
     // Runs before the view updates, while the button is still in the DOM.
+    // A row that held the focus left the list (promoted to a card, removed after a check or a
+    // return) while others remain: the focus goes to the row that took its place, else to "check
+    // again", never to <body>.
+    let previousIds = untracked(() => this.items().map((i) => i.contactId));
+    effect(() => {
+      const ids = this.items().map((i) => i.contactId);
+      const before = previousIds;
+      previousIds = ids;
+      if (ids.length === 0) return; // an emptied list is handled below
+      const focusedId = this.host.nativeElement.contains(this.document.activeElement)
+        ? (this.document.activeElement
+            ?.closest('[data-contact-id]')
+            ?.getAttribute('data-contact-id') ?? null)
+        : null;
+      if (focusedId === null || ids.includes(focusedId)) return;
+      const index = Math.min(before.indexOf(focusedId), ids.length - 1);
+      untracked(() => this.focusRowOrRetry(Math.max(index, 0)));
+    });
+
     let hadItems = untracked(() => this.items().length > 0);
     effect(() => {
       const has = this.items().length > 0;
@@ -120,9 +145,55 @@ export class RecoveryOverflowNoticeComponent {
     });
   }
 
+  /**
+   * A parked e-mail/social/chat contact is already accepted: "waiting to be answered" would be
+   * wrong for it. Only a ringing call (or a channel the desktop does not know) is still ringing.
+   */
+  protected phaseKey(item: { type: string | null; phase: string }): string {
+    return item.phase === 'RINGING' && item.type !== null && item.type !== 'PHONE'
+      ? 'WAITING_SLOT'
+      : item.phase;
+  }
+
   protected async retry(): Promise<void> {
     if (this.loading()) return;
     await this.recovery.checkAgain('overflow');
+  }
+
+  /** Only async channels can be released; a PHONE call has no "return to queue". */
+  protected canReturn(item: { type: string | null }): boolean {
+    return item.type !== null && item.type !== 'PHONE';
+  }
+
+  protected async returnToQueue(contactId: string, index: number): Promise<void> {
+    if (this.returning().has(contactId)) return;
+    const hadFocus = this.host.nativeElement.contains(this.document.activeElement);
+    await this.recovery.returnToQueue(contactId);
+    // The row is gone and took the focus with it: hand it to the row that moved up (or the last),
+    // else to "check again". An emptied list is handled by the effect in the constructor.
+    if (!hadFocus || this.items().length === 0) return;
+    this.focusRowOrRetry(index);
+  }
+
+  private focusRowOrRetry(index: number): void {
+    afterNextRender(
+      () => {
+        const buttons = this.host.nativeElement.querySelectorAll<HTMLElement>(
+          '[data-testid="overflow-return"]',
+        );
+        if (
+          this.document.activeElement &&
+          this.host.nativeElement.contains(this.document.activeElement)
+        ) {
+          return;
+        }
+        (
+          buttons[Math.min(index, buttons.length - 1)] ??
+          this.host.nativeElement.querySelector<HTMLElement>('[data-testid="recovery-retry"]')
+        )?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   private focusTabs(): void {

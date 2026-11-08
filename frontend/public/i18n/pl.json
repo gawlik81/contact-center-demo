@@ -463,7 +463,6 @@
     "incomingCall": {
       "label": "Przychodzące połączenie",
       "limitMaxPhone": "Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.",
-      "limitMaxAsync": "Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.",
       "limitMaxTotal": "Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.",
       "limitGeneral": "Osiągnąłeś limit aktywnych kontaktów.",
       "systemNotificationTitle": "Przychodzące połączenie",
@@ -471,13 +470,21 @@
       "goToContact": "Przejdź do kontaktu",
       "hide": "Ukryj powiadomienie",
       "inCall": "Rozmowa w toku",
-      "openDesktop": "Przejdź do pulpitu"
+      "openDesktop": "Przejdź do pulpitu",
+      "parkedOverflow": "Nowy kontakt {{name}} czeka poza limitem kart. Jest na liście nad kartami: otworzy się, gdy zwolni się miejsce, albo zwróć go do kolejki.",
+      "parkedOverflowMore": "Kolejne kontakty czekają poza limitem kart (łącznie: {{count}}). Wszystkie są na liście nad kartami."
     },
     "acwBanner": {
       "title": "Dyspozycja czeka na uzupełnienie",
       "action": "Uzupełnij dyspozycję",
       "announcement": "Rozmowa z {{who}} zakończona. Uzupełnij dyspozycję.",
       "more": "+{{count}} kolejne"
+    },
+    "presenceOffline": {
+      "title": "Zmieniono Twój status na Offline",
+      "body": "Utracono połączenie z serwerem na zbyt długo, więc nie otrzymujesz nowych kontaktów. Gdy będziesz gotowy do pracy, ustaw status Dostępny.",
+      "bodyUnknown": "Status Offline ustawiono, gdy połączenie z serwerem było niestabilne lub z innego miejsca (np. drugiej karty), więc nie otrzymujesz nowych kontaktów. Gdy będziesz gotowy do pracy, ustaw status Dostępny.",
+      "action": "Ustaw status Dostępny"
     },
     "addBreak": {
       "titleAdd": "Dodaj przerwę",
@@ -1014,7 +1021,7 @@
       "title_few": "{{count}} kontakty czekają poza limitem kart",
       "title_many": "{{count}} kontaktów czeka poza limitem kart",
       "title_other": "{{count}} kontaktu czeka poza limitem kart",
-      "hint": "Te kontakty nie mieszczą się na pulpicie. Zamknij lub zwróć do kolejki jedną z kart; lista odświeży się sama, a przyciskiem możesz sprawdzić od razu.",
+      "hint": "Te kontakty zostały Ci przydzielone, ale nie mieszczą się na pulpicie. Zamknij kartę, a kontakt otworzy się sam. Możesz też zwrócić go do kolejki.",
       "retry": "Sprawdź ponownie",
       "retrying": "Sprawdzanie...",
       "listLabel": "Kontakty poza limitem kart",
@@ -1028,7 +1035,8 @@
       "phase": {
         "RINGING": "oczekuje na odebranie",
         "IN_PROGRESS": "w toku",
-        "WRAP_UP": "do uzupełnienia dyspozycji"
+        "WRAP_UP": "do uzupełnienia dyspozycji",
+        "WAITING_SLOT": "przyjęty, czeka na miejsce"
       },
       "hintRinging": "Kontakt oczekujący na odebranie wróci do kolejki, jeśli nie zostanie odebrany.",
       "reason": {
@@ -1041,7 +1049,23 @@
         "someOpened": "Otwarto kart: {{opened}}. Poza limitem pozostało: {{remaining}}.",
         "noChange": "Nic się nie zmieniło. Zwolnij miejsce na karcie i sprawdź ponownie.",
         "callNotRestored": "Przywrócono kartę rozmowy, której po odświeżeniu strony nie da się wznowić. Sprawdź ją."
-      }
+      },
+      "returnToQueue": "Zwróć do kolejki",
+      "returning": "Zwracanie...",
+      "returnToQueueLabel": "Zwróć do kolejki kontakt {{name}}",
+      "returnError": "Nie udało się zwrócić kontaktu {{name}} do kolejki. Pozostaje na liście, spróbuj ponownie.",
+      "promoted": "Kontakt {{name}} ma już kartę na pulpicie.",
+      "promotedMany": "Liczba kontaktów, które dostały kartę na pulpicie: {{count}}.",
+      "vanished": "Kontakt {{name}} nie jest już Twój (został zamknięty lub przekazany), więc zniknął z listy.",
+      "vanishedMany": "Liczba kontaktów usuniętych z listy, bo nie są już Twoje: {{count}}."
+    },
+    "contactConflict": {
+      "disposition": "Nie zapisano dyspozycji: kontakt został w międzyczasie zmieniony, ale nadal jest Twój. Notatki zostały w formularzu, zapisz ponownie.",
+      "abandon": "Nie zamknięto kontaktu: został w międzyczasie zmieniony, ale nadal jest Twój. Sprawdź jego stan i spróbuj ponownie.",
+      "abandonFailed": "Nie udało się zamknąć kontaktu po stronie serwera. Sprawdź jego stan na liście kontaktów.",
+      "gone": "Ten kontakt nie jest już Twój (został zamknięty, zakończony lub przekazany). Zamknęliśmy jego kartę.",
+      "goneNotesCopied": "Ten kontakt nie jest już Twój (został zamknięty, zakończony lub przekazany). Zamknęliśmy jego kartę, a wpisany tekst skopiowaliśmy do schowka.",
+      "unverified": "Kontakt został w międzyczasie zmieniony, a jego aktualnego stanu nie udało się sprawdzić. Nic nie zmieniono, spróbuj ponownie za chwilę."
     }
   },
   "supervisor": {

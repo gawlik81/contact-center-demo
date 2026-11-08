@@ -60,6 +60,11 @@ class UserServiceImpl implements UserService {
     private static final String REDIS_AGENT_STATUS_KEY = "session:agent:%s";
     private static final Duration REDIS_AGENT_STATUS_TTL = Duration.ofHours(8);
 
+    /** BE-210: statuses that claim "agent is at the desk" and therefore need a live presence. */
+    private static final Set<UserStatus> PRESENCE_TRACKED_STATUSES = Set.of(
+            UserStatus.AVAILABLE, UserStatus.AFTER_CONTACT, UserStatus.BREAK, UserStatus.BUSY
+    );
+
     /** Statusy dozwolone dla endpointu PATCH /users/{id}/status */
     private static final Set<UserStatus> ALLOWED_AGENT_STATUSES = Set.of(
             UserStatus.AVAILABLE, UserStatus.BUSY, UserStatus.BREAK, UserStatus.AFTER_CONTACT, UserStatus.OFFLINE
@@ -371,37 +376,15 @@ class UserServiceImpl implements UserService {
 
         // Zapis statusu w Redis jako structured Map (wymagane przez AdminMetricsService
         // do zliczania agentów online per tenant – musi zawierać tenantId).
-        // Poprzednia implementacja zapisywała plain String (np. "AVAILABLE") co uniemożliwiało
-        // filtrowanie po tenantId w countOnlineAgentsForTenant → zawsze zwracało 0.
-        String redisKey = String.format(REDIS_AGENT_STATUS_KEY, userId);
-        try {
-            Map<String, String> sessionData = new HashMap<>();
-            sessionData.put("tenantId", tenantId.toString());
-            sessionData.put("userId", userId.toString());
-            sessionData.put("status", request.status().name());
-
-            if (request.status() == UserStatus.BREAK) {
-                // Tylko przy nowym wejściu na przerwę ustawiamy timestamp
-                if (oldStatus != UserStatus.BREAK) {
-                    sessionData.put("breakStartedAt", Instant.now().toString());
-                } else {
-                    // Kontynuacja BREAK – zachowaj poprzedni timestamp jeśli istnieje w Redis
-                    String existingBreakStart = getExistingBreakStartedAt(redisKey);
-                    sessionData.put("breakStartedAt",
-                            existingBreakStart != null ? existingBreakStart : Instant.now().toString());
-                }
-            } else {
-                sessionData.put("breakStartedAt", "");
-            }
-
-            redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
-            log.debug("[UserService] Status agenta zapisany w Redis: key={}, status={}, tenantId={}",
-                    redisKey, request.status(), tenantId);
-        } catch (Exception e) {
-            // Redis failure nie blokuje operacji – logujemy warning
-            log.warn("[UserService] Błąd zapisu statusu w Redis: key={}, error={}",
-                    redisKey, e.getMessage());
+        String breakStartedAt = "";
+        if (request.status() == UserStatus.BREAK) {
+            // Tylko przy nowym wejściu na przerwę ustawiamy timestamp; kontynuacja BREAK zachowuje poprzedni
+            breakStartedAt = oldStatus != UserStatus.BREAK
+                    ? Instant.now().toString()
+                    : Optional.ofNullable(getExistingBreakStartedAt(String.format(REDIS_AGENT_STATUS_KEY, userId)))
+                            .orElseGet(() -> Instant.now().toString());
         }
+        writeAgentSessionToRedis(userId, tenantId, request.status(), breakStartedAt);
 
         // Publikacja eventu RabbitMQ – tylko przy faktycznej zmianie (BE-166). Odświeżenie TTL w Redis
         // powyżej zostaje także bez zmiany.
@@ -463,18 +446,7 @@ class UserServiceImpl implements UserService {
         AppUser savedAgent = changed ? appUserRepository.save(agent) : agent;
 
         // Aktualizuj Redis żeby AdminMetricsService widział poprawny stan agenta
-        String redisKey = String.format(REDIS_AGENT_STATUS_KEY, agentId);
-        try {
-            Map<String, String> sessionData = new HashMap<>();
-            sessionData.put("tenantId", tenantId.toString());
-            sessionData.put("userId", agentId.toString());
-            sessionData.put("status", UserStatus.AVAILABLE.name());
-            sessionData.put("breakStartedAt", "");
-            redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
-        } catch (Exception e) {
-            log.warn("[UserService] Błąd zapisu statusu AVAILABLE w Redis po anulowaniu konsultacji: " +
-                     "agentId={}, error={}", agentId, e.getMessage());
-        }
+        writeAgentSessionToRedis(agentId, tenantId, UserStatus.AVAILABLE, "");
 
         // Propaguj zmianę statusu przez RabbitMQ → WebSocket (agentStatusChanged do agenta i supervisorów)
         if (changed) {
@@ -587,6 +559,73 @@ class UserServiceImpl implements UserService {
 
     @Transactional(readOnly = true)
     @Override
+    public List<AgentPresenceCandidate> findPresenceTrackedAgents() {
+        return appUserRepository.findAgentsByStatusIn(PRESENCE_TRACKED_STATUSES);
+    }
+
+    @Transactional
+    @Override
+    public boolean markOfflineOnPresenceTimeout(UUID userId, UUID tenantId, UserStatus expectedStatus) {
+        // Defense in depth (service-level equivalent of assertSameTenant): the CAS below trusts the parameter.
+        UUID contextTenantId = TenantContext.getTenantIdOrNull();
+        if (!tenantId.equals(contextTenantId)) {
+            log.warn("[UserService][Security] Auto-OFFLINE odrzucony - tenant spoza kontekstu: userId={}, "
+                    + "contextTenant={}, requestedTenant={}", userId, contextTenantId, tenantId);
+            throw new com.contactcenter.domain.exception.CrossTenantAccessException(userId, contextTenantId, tenantId);
+        }
+        if (expectedStatus == UserStatus.OFFLINE) {
+            return false;
+        }
+        Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        // Compare-and-set: no row is touched when the status moved on (manual change, other instance)
+        int updated = appUserRepository.changeStatusIfCurrent(
+                userId, tenantId, expectedStatus, UserStatus.OFFLINE, now);
+        if (updated == 0) {
+            log.debug("[UserService] Auto-OFFLINE pominiety - status juz inny niz {}: userId={}", expectedStatus, userId);
+            return false;
+        }
+
+        // Redis session entry + event only after the DB commit (consumers read the committed row)
+        Runnable afterCommit = () -> {
+            writeAgentSessionToRedis(userId, tenantId, UserStatus.OFFLINE, "");
+            publishStatusChangedEvent(userId, tenantId, expectedStatus, UserStatus.OFFLINE, now,
+                    AgentStatusChangedEvent.REASON_PRESENCE_TIMEOUT);
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    afterCommit.run();
+                }
+            });
+        } else {
+            afterCommit.run();
+        }
+        return true;
+    }
+
+    /**
+     * Single writer of the structured {@code session:agent:{userId}} entry (read by AdminMetricsService and
+     * routing). Best-effort: a Redis failure never blocks the status change.
+     */
+    private void writeAgentSessionToRedis(UUID userId, UUID tenantId, UserStatus status, String breakStartedAt) {
+        String redisKey = String.format(REDIS_AGENT_STATUS_KEY, userId);
+        try {
+            Map<String, String> sessionData = new HashMap<>();
+            sessionData.put("tenantId", tenantId.toString());
+            sessionData.put("userId", userId.toString());
+            sessionData.put("status", status.name());
+            sessionData.put("breakStartedAt", breakStartedAt);
+            redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
+            log.debug("[UserService] Status agenta zapisany w Redis: key={}, status={}, tenantId={}",
+                    redisKey, status, tenantId);
+        } catch (Exception e) {
+            log.warn("[UserService] Blad zapisu statusu {} w Redis: key={}, error={}", status, redisKey, e.getMessage());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    @Override
     public List<Object[]> findActiveTenantsByUserEmail(String email) {
         return appUserRepository.findActiveTenantsByUserEmail(email);
     }
@@ -685,8 +724,14 @@ class UserServiceImpl implements UserService {
     private void publishStatusChangedEvent(UUID userId, UUID tenantId,
                                             UserStatus oldStatus, UserStatus newStatus,
                                             Instant statusSince) {
+        publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince, null);
+    }
+
+    private void publishStatusChangedEvent(UUID userId, UUID tenantId,
+                                            UserStatus oldStatus, UserStatus newStatus,
+                                            Instant statusSince, String reason) {
         AgentStatusChangedEvent event =
-                AgentStatusChangedEvent.of(userId, tenantId, oldStatus, newStatus, statusSince);
+                AgentStatusChangedEvent.of(userId, tenantId, oldStatus, newStatus, statusSince, reason);
         try {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE_EVENTS,

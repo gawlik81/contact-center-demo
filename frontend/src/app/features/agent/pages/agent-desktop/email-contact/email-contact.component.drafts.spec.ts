@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslocoTestingModule } from '@jsverse/transloco';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { EmailContactComponent } from './email-contact.component';
 import { EmailService, EmailMessage } from '../../../services/email.service';
@@ -8,6 +8,7 @@ import { ContactService } from '../../../services/contact.service';
 import { ACCEPT_RETRY_BASE_MS } from '../../../services/async-contact-accept.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 import { ContactTabStore } from '../../../services/contact-tab.store';
+import { AgentRecoveryService } from '../../../services/agent-recovery.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 
 const MESSAGE: EmailMessage = {
@@ -44,7 +45,12 @@ describe('EmailContactComponent drafts', () => {
   };
   let drafts: ContactDraftStore;
   let tabs: ContactTabStore;
-  const notifications = { success: vi.fn(), error: vi.fn() };
+  const notifications = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+  const recovery = {
+    reconcileContact: vi
+      .fn()
+      .mockResolvedValue({ verdict: 'mine', closed: false, notesCopied: false }),
+  };
 
   beforeEach(async () => {
     emailService = {
@@ -80,12 +86,15 @@ describe('EmailContactComponent drafts', () => {
         { provide: EmailService, useValue: emailService },
         { provide: ContactService, useValue: contactService },
         { provide: NotificationService, useValue: notifications },
+        { provide: AgentRecoveryService, useValue: recovery },
       ],
     }).compileComponents();
     drafts = TestBed.inject(ContactDraftStore);
     tabs = TestBed.inject(ContactTabStore);
     tabs.reset();
     notifications.success.mockClear();
+    notifications.warning.mockClear();
+    recovery.reconcileContact.mockClear();
   });
 
   function mount(contactId = 'msg-001'): ComponentFixture<EmailContactComponent> {
@@ -167,7 +176,47 @@ describe('EmailContactComponent drafts', () => {
     f.detectChanges();
     await f.whenStable();
 
-    expect(contactService.abandonContact).toHaveBeenCalledWith('msg-001');
+    expect(contactService.abandonContact).toHaveBeenCalledWith('msg-001', { silent: true });
+    expect(drafts.emailDraft('msg-001')).toBeNull();
+  });
+
+  it('a 409 on abandon checks the contact, says so once and keeps the card and the draft', async () => {
+    contactService.abandonContact.mockReturnValue(throwError(() => ({ status: 409 })));
+    const f = mount();
+    access(f).replyHtml.set('<p>Odp</p>');
+    f.detectChanges();
+    await f.whenStable();
+    const sent: boolean[] = [];
+    f.componentInstance.replySent.subscribe((v: boolean) => sent.push(v));
+
+    access(f).cancelReply();
+    f.detectChanges();
+    await f.whenStable();
+    await new Promise((r) => setTimeout(r));
+
+    expect(recovery.reconcileContact).toHaveBeenCalledWith('msg-001');
+    expect(notifications.warning).toHaveBeenCalledTimes(1);
+    expect(notifications.warning).toHaveBeenCalledWith(
+      expect.stringContaining('agent.contactConflict.abandon'),
+    );
+    // not abandoned in the backend, so nothing is thrown away: the agent can still send or retry
+    expect(sent).toEqual([]);
+    expect(drafts.emailDraft('msg-001')).not.toBeNull();
+  });
+
+  it('any other abandon failure still closes the card (the agent chose to leave)', async () => {
+    contactService.abandonContact.mockReturnValue(throwError(() => ({ status: 500 })));
+    const f = mount();
+    access(f).replyHtml.set('<p>Odp</p>');
+    f.detectChanges();
+    await f.whenStable();
+    const sent: boolean[] = [];
+    f.componentInstance.replySent.subscribe((v: boolean) => sent.push(v));
+
+    access(f).cancelReply();
+    await f.whenStable();
+
+    expect(sent).toEqual([false]);
     expect(drafts.emailDraft('msg-001')).toBeNull();
   });
 

@@ -8,7 +8,8 @@ import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AsyncContactAcceptService } from './async-contact-accept.service';
-import { ContactTabStore, TabLimitReason } from './contact-tab.store';
+import { AgentRecoveryService } from './agent-recovery.service';
+import { ContactTabStore } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
 import { CallDirection, ContactType } from '../models/contact-tab.model';
@@ -39,11 +40,17 @@ export interface IncomingCallAlert {
   receivedAt: Date;
 }
 
-const LIMIT_MESSAGE_KEYS: Record<Exclude<TabLimitReason, null>, string> = {
+/**
+ * PHONE refusals: one softphone line, and the strip keeps room for it. An async contact is never
+ * refused this way (see handleAsyncContactAssigned): it is parked in the overflow list.
+ */
+const PHONE_LIMIT_MESSAGE_KEYS: Record<'MAX_PHONE' | 'MAX_TOTAL', string> = {
   MAX_PHONE: 'agent.incomingCall.limitMaxPhone',
-  MAX_ASYNC: 'agent.incomingCall.limitMaxAsync',
   MAX_TOTAL: 'agent.incomingCall.limitMaxTotal',
 };
+
+/** Window in which further parked contacts are summed into one toast. */
+export const PARK_TOAST_WINDOW_MS = 5000;
 
 @Injectable({ providedIn: 'root' })
 export class IncomingCallAlertService implements OnDestroy {
@@ -55,6 +62,7 @@ export class IncomingCallAlertService implements OnDestroy {
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
   private readonly asyncAccept = inject(AsyncContactAcceptService);
+  private readonly recovery = inject(AgentRecoveryService);
   private readonly url = currentUrlSignal();
 
   private readonly destroy$ = new Subject<void>();
@@ -64,6 +72,9 @@ export class IncomingCallAlertService implements OnDestroy {
 
   private audio: HTMLAudioElement | null = null;
   private systemNotification: Notification | null = null;
+  private parkToastUntil = 0;
+  private parkedQuietly = 0;
+  private parkToastTimer: ReturnType<typeof setTimeout> | null = null;
   private notificationCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -168,7 +179,7 @@ export class IncomingCallAlertService implements OnDestroy {
     const reason = this.tabStore.openFromCallIncoming(payload);
 
     if (reason !== null) {
-      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      this.notifications.warning(this.transloco.translate(PHONE_LIMIT_MESSAGE_KEYS[reason]));
       return;
     }
 
@@ -212,7 +223,7 @@ export class IncomingCallAlertService implements OnDestroy {
     const reason = this.tabStore.openFromCallOutbound(payload);
 
     if (reason !== null) {
-      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      this.notifications.warning(this.transloco.translate(PHONE_LIMIT_MESSAGE_KEYS[reason]));
       return;
     }
 
@@ -286,7 +297,7 @@ export class IncomingCallAlertService implements OnDestroy {
     });
 
     if (reason !== null) {
-      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      this.notifications.warning(this.transloco.translate(PHONE_LIMIT_MESSAGE_KEYS[reason]));
       return;
     }
 
@@ -364,7 +375,9 @@ export class IncomingCallAlertService implements OnDestroy {
     // Re-assigned while the agent is returning it: the tab is re-opened after the release ends.
     if (this.tabStore.noteAssignedDuringRelease(payload)) return;
     const onDesktop = this.isOnDesktop();
-    const exists = this.tabStore.tabs().some((t) => t.contactId === payload.contactId);
+    const exists =
+      this.tabStore.tabs().some((t) => t.contactId === payload.contactId) ||
+      this.recovery.isParked(payload.contactId);
     if (exists) {
       // Re-delivery (WS reconnect, or ContactAssignmentMonitor because the contact is still
       // ASSIGNED): no second tab, but a failed earlier accept is retried here (guarded, so a
@@ -375,7 +388,10 @@ export class IncomingCallAlertService implements OnDestroy {
 
     const reason = this.tabStore.openFromContactAssigned(payload);
     if (reason !== null) {
-      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      // The backend decides who gets a contact (BE-156): never reject it for the card layout.
+      // It waits in the overflow list, confirmed (accepted), until a slot frees or it is returned.
+      this.recovery.parkAssigned(payload, reason);
+      this.warnParked(payload.customerName);
       return;
     }
 
@@ -396,6 +412,33 @@ export class IncomingCallAlertService implements OnDestroy {
       queueName: payload.queueName ?? '',
       receivedAt: new Date(),
     });
+  }
+
+  /**
+   * A series of assignments over the limit must not stack a toast each: the first one names the
+   * contact, the rest inside the window become one summary when it ends (the list shows them all).
+   */
+  private warnParked(name: string): void {
+    const now = Date.now();
+    if (now >= this.parkToastUntil) {
+      this.parkToastUntil = now + PARK_TOAST_WINDOW_MS;
+      this.notifications.warning(
+        this.transloco.translate('agent.incomingCall.parkedOverflow', { name }),
+      );
+      return;
+    }
+    this.parkedQuietly++;
+    if (this.parkToastTimer !== null) return;
+    this.parkToastTimer = setTimeout(() => {
+      this.parkToastTimer = null;
+      if (this.parkedQuietly === 0) return;
+      this.parkedQuietly = 0;
+      this.notifications.warning(
+        this.transloco.translate('agent.incomingCall.parkedOverflowMore', {
+          count: this.recovery.overflow().length,
+        }),
+      );
+    }, this.parkToastUntil - now);
   }
 
   /**
@@ -529,6 +572,7 @@ export class IncomingCallAlertService implements OnDestroy {
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   ngOnDestroy(): void {
+    if (this.parkToastTimer !== null) clearTimeout(this.parkToastTimer);
     this.destroy$.next();
     this.destroy$.complete();
     this.stopAudio();

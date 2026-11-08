@@ -9,6 +9,7 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.user.UserService;
@@ -569,7 +570,7 @@ class ContactServiceTest {
             Contact existing = buildContact(CONTACT_ID, "ACTIVE");
             existing.setAgentId(OTHER_AGENT); // przypisany inny agent
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactRepository.patchIfUnchanged(any(Contact.class), any(ContactPatch.class))).thenReturn(1);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
 
             UpdateContactRequest request = new UpdateContactRequest(
@@ -579,7 +580,7 @@ class ContactServiceTest {
             assertThatNoException().isThrownBy(() ->
                     contactService.updateContact(CONTACT_ID, request, TENANT_ID, AGENT_ID, false));
 
-            verify(contactRepository).update(any(Contact.class));
+            verify(contactRepository).patchIfUnchanged(any(Contact.class), any(ContactPatch.class));
         }
 
         @Test
@@ -589,7 +590,7 @@ class ContactServiceTest {
             Contact existing = buildContact(CONTACT_ID, "ACTIVE");
             existing.setAgentId(AGENT_ID); // ten sam agent
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactRepository.patchIfUnchanged(any(Contact.class), any(ContactPatch.class))).thenReturn(1);
 
             UpdateContactRequest request = new UpdateContactRequest(null, "ON_HOLD", null, null, null, null);
 
@@ -622,7 +623,7 @@ class ContactServiceTest {
             Contact existing = buildContact(CONTACT_ID, "ACTIVE");
             existing.setAgentId(AGENT_ID);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactRepository.patchIfUnchanged(any(Contact.class), any(ContactPatch.class))).thenReturn(1);
 
             UpdateContactRequest request = new UpdateContactRequest(
                     null, "ON_HOLD", null, null, null, null
@@ -632,10 +633,9 @@ class ContactServiceTest {
             contactService.updateContact(CONTACT_ID, request, TENANT_ID, AGENT_ID, true);
 
             // then – status zmieniony, agentId bez zmian
-            verify(contactRepository).update(argThat(c ->
-                    "ON_HOLD".equals(c.getStatus())
-                    && AGENT_ID.equals(c.getAgentId())
-            ));
+            // (the snapshot is synced with the written values afterwards, so only the patch is asserted)
+            verify(contactRepository).patchIfUnchanged(any(Contact.class),
+                    argThat(p -> "ON_HOLD".equals(p.status()) && p.agentId() == null && p.endedAt() == null));
         }
 
         @Test
@@ -667,7 +667,7 @@ class ContactServiceTest {
             Contact contact = buildContact(CONTACT_ID, "COMPLETED");
             contact.setAgentId(AGENT_ID);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactRepository.setDispositionIfNotActive(any(), any(), any(), any(), any(), any())).thenReturn(1);
 
             DispositionRequest request = new DispositionRequest("SALE", null);
 
@@ -675,7 +675,8 @@ class ContactServiceTest {
             contactService.setDisposition(CONTACT_ID, request, TENANT_ID, AGENT_ID, true);
 
             // then
-            verify(contactRepository).update(argThat(c -> "SALE".equals(c.getDispositionCode())));
+            verify(contactRepository).setDispositionIfNotActive(eq(CONTACT_ID), eq(TENANT_ID), any(), eq(AGENT_ID),
+                    eq("SALE"), isNull());
         }
 
         @Test
@@ -736,13 +737,160 @@ class ContactServiceTest {
             Contact contact = buildContact(CONTACT_ID, "COMPLETED");
             contact.setAgentId(OTHER_AGENT);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactRepository.setDispositionIfNotActive(any(), any(), any(), any(), any(), any())).thenReturn(1);
 
             DispositionRequest request = new DispositionRequest("CALLBACK", null);
 
             // when – isAgent=false = SUPERVISOR
             assertThatNoException().isThrownBy(() ->
                     contactService.setDisposition(CONTACT_ID, request, TENANT_ID, AGENT_ID, false));
+        }
+    }
+
+    // =========================================================================
+    // BE-209: zachowanie przy 0 zaktualizowanych wierszy (zapis warunkowy przegrał wyścig)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-209: zapisy warunkowe - 0 wierszy")
+    class ConditionalWriteZeroRowsTests {
+
+        @Test
+        @DisplayName("updateContact: 0 wierszy, kontakt istnieje -> ConflictException (409), bez efektow ubocznych")
+        void updateContact_zeroRowsExistingContact_isConflict() {
+            Contact existing = buildContact(CONTACT_ID, "ASSIGNED");
+            existing.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
+            when(contactRepository.patchIfUnchanged(any(), any())).thenReturn(0);
+
+            UpdateContactRequest request = new UpdateContactRequest(null, "COMPLETED", null, null, null, null);
+
+            assertThatThrownBy(() -> contactService.updateContact(CONTACT_ID, request, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(ConflictException.class);
+            verifyNoInteractions(contactEventService);
+        }
+
+        @Test
+        @DisplayName("updateContact: 0 wierszy, kontakt zniknal -> EntityNotFoundException (404)")
+        void updateContact_zeroRowsMissingContact_isNotFound() {
+            Contact existing = buildContact(CONTACT_ID, "ACTIVE");
+            existing.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing), Optional.empty());
+            when(contactRepository.patchIfUnchanged(any(), any())).thenReturn(0);
+
+            UpdateContactRequest request = new UpdateContactRequest(null, "ON_HOLD", null, null, null, null);
+
+            assertThatThrownBy(() -> contactService.updateContact(CONTACT_ID, request, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("updateContact: PATCH nie niesie agent_id/status, gdy request ich nie zawiera")
+        void updateContact_patchOmitsUntouchedColumns() {
+            Contact existing = buildContact(CONTACT_ID, "ACTIVE");
+            existing.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(existing));
+            when(contactRepository.patchIfUnchanged(any(), any())).thenReturn(1);
+
+            contactService.updateContact(CONTACT_ID,
+                    new UpdateContactRequest(null, null, null, null, "+48123456789", null),
+                    TENANT_ID, AGENT_ID, true);
+
+            verify(contactRepository).patchIfUnchanged(any(), argThat(p ->
+                    p.agentId() == null && p.status() == null && "+48123456789".equals(p.remoteAddress())));
+        }
+
+        @Test
+        @DisplayName("setDisposition: 0 wierszy (kontakt zmieniony rownolegle) -> ConflictException, bez publikacji")
+        void setDisposition_zeroRows_isConflict() {
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactRepository.setDispositionIfNotActive(any(), any(), any(), any(), any(), any())).thenReturn(0);
+
+            assertThatThrownBy(() -> contactService.setDisposition(CONTACT_ID, new DispositionRequest("SALE", null),
+                    TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(ConflictException.class);
+            verifyNoInteractions(extensionPointPublisher);
+        }
+
+        @Test
+        @DisplayName("abandonContact: ERROR/NOT_REACHED to stan koncowy -> idempotentnie, bez zapisu i bez zamykania zdarzen")
+        void abandonContact_errorAndNotReached_areIdempotentNoWrite() {
+            for (String terminal : List.of("ERROR", "NOT_REACHED")) {
+                Contact contact = buildContact(CONTACT_ID, terminal);
+                contact.setAgentId(AGENT_ID);
+                when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+                assertThatNoException().isThrownBy(
+                        () -> contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID));
+            }
+            verify(contactRepository, never()).abandonIfOpen(any(), any(), any(), any(), any());
+            verifyNoInteractions(contactEventService);
+        }
+
+        @Test
+        @DisplayName("abandonContact: 0 wierszy, kontakt przeszedl w ERROR rownolegle -> idempotentnie (nie 409)")
+        void abandonContact_zeroRowsNowError_isIdempotent() {
+            Contact open = buildContact(CONTACT_ID, "ACTIVE");
+            open.setAgentId(AGENT_ID);
+            Contact error = buildContact(CONTACT_ID, "ERROR");
+            error.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(open), Optional.of(error), Optional.of(error));
+            when(contactRepository.abandonIfOpen(any(), any(), any(), any(), any())).thenReturn(0);
+
+            assertThatNoException().isThrownBy(() -> contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID));
+            verifyNoInteractions(contactEventService);
+        }
+
+        @Test
+        @DisplayName("abandonContact: 0 wierszy, kontakt juz w stanie koncowym -> idempotentnie, bez zamykania zdarzen")
+        void abandonContact_zeroRowsNowTerminal_isIdempotent() {
+            Contact open = buildContact(CONTACT_ID, "ACTIVE");
+            open.setAgentId(AGENT_ID);
+            Contact completed = buildContact(CONTACT_ID, "COMPLETED");
+            completed.setAgentId(AGENT_ID);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(open), Optional.of(completed), Optional.of(completed));
+            when(contactRepository.abandonIfOpen(any(), any(), any(), any(), any())).thenReturn(0);
+
+            assertThatNoException().isThrownBy(() -> contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID));
+            verifyNoInteractions(contactEventService);
+        }
+
+        @Test
+        @DisplayName("abandonContact: 0 wierszy, kontakt nadal otwarty (zmiana wlasciciela) -> ConflictException")
+        void abandonContact_zeroRowsStillOpen_isConflict() {
+            Contact open = buildContact(CONTACT_ID, "ACTIVE");
+            open.setAgentId(AGENT_ID);
+            Contact reassigned = buildContact(CONTACT_ID, "ACTIVE");
+            reassigned.setAgentId(OTHER_AGENT);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of(open), Optional.of(reassigned));
+            when(contactRepository.abandonIfOpen(any(), any(), any(), any(), any())).thenReturn(0);
+
+            assertThatThrownBy(() -> contactService.abandonContact(CONTACT_ID, TENANT_ID, AGENT_ID))
+                    .isInstanceOf(ConflictException.class);
+            verifyNoInteractions(contactEventService);
+        }
+
+        @Test
+        @DisplayName("terminateStaleQueuedContacts: kontakt juz nie QUEUED (0 wierszy) jest pominiety, reszta przetworzona")
+        void terminateStale_skipsContactsNoLongerQueued() {
+            Contact lost = buildContact(UUID.randomUUID(), "QUEUED");
+            Contact won = buildContact(UUID.randomUUID(), "QUEUED");
+            when(contactRepository.findStaleQueuedContacts(eq(TENANT_ID), any())).thenReturn(List.of(lost, won));
+            when(contactRepository.abandonIfStillQueued(eq(lost.getContactId()), eq(TENANT_ID), any(), any(), any()))
+                    .thenReturn(0);
+            when(contactRepository.abandonIfStillQueued(eq(won.getContactId()), eq(TENANT_ID), any(), any(), any()))
+                    .thenReturn(1);
+
+            assertThatNoException().isThrownBy(() -> contactService.terminateStaleQueuedContacts(TENANT_ID));
+
+            verify(contactRepository).abandonIfStillQueued(eq(lost.getContactId()), eq(TENANT_ID), any(), any(), any());
+            verify(contactRepository).abandonIfStillQueued(eq(won.getContactId()), eq(TENANT_ID), any(), any(), any());
         }
     }
 

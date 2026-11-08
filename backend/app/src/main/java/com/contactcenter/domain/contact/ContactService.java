@@ -472,18 +472,6 @@ public interface ContactService {
     Contact insertContact(Contact contact);
 
     /**
-     * Aktualizuje istniejącą encję kontaktu przez natywny UPDATE.
-     *
-     * <p>Odpowiednik {@code ContactRepository.update(Contact)} – używane przez konsumentów,
-     * którzy modyfikują encję {@link Contact} otrzymaną z {@link #findContactEntity} i zapisują ją
-     * bez przechodzenia przez pełny cykl {@code updateContact}/DTO.
-     *
-     * @param contact encja kontaktu z wypełnionym contactId i startedAt
-     * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje)
-     */
-    int updateContactEntity(Contact contact);
-
-    /**
      * BE-159/BE-156: atomically assigns a still-QUEUED, unclaimed contact to {@code agentId}
      * ({@code WHERE status='QUEUED' AND agent_id IS NULL}), optionally under the agent's async load limit.
      * On success the in-memory entity is updated too.
@@ -504,6 +492,12 @@ public interface ContactService {
      * Agents with none are absent from the result.
      */
     Map<UUID, Long> countOpenAsyncContactsByAgents(UUID tenantId, UUID queueId, List<UUID> agentIds);
+
+    /**
+     * BE-210: whether the agent holds a PHONE contact in ACTIVE/ON_HOLD (a call in progress that outlives the
+     * agent's browser session).
+     */
+    boolean hasActivePhoneContact(UUID tenantId, UUID agentId);
 
     /**
      * BE-159: atomically ends a QUEUED, queue-less, unassigned contact with {@code ERROR}.

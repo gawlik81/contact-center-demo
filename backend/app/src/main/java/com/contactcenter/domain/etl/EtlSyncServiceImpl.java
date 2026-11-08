@@ -1,5 +1,6 @@
 package com.contactcenter.domain.etl;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Implementacja {@link EtlSyncService}.
@@ -28,8 +30,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 class EtlSyncServiceImpl implements EtlSyncService {
 
-    /** Rozmiar batcha upsert do DW. */
-    private static final int BATCH_SIZE = 500;
+    /** Smallest possible UUID: initial keyset cursor id (all real ids sort after it). */
+    static final UUID MIN_UUID = new UUID(0L, 0L);
 
     /** Max length of errorMessage in JOB_ERROR alert payload. */
     static final int ALERT_ERROR_MESSAGE_MAX = 200;
@@ -60,6 +62,15 @@ class EtlSyncServiceImpl implements EtlSyncService {
     // SQL: heartbeat postepu (BE-212) - odswieza tylko updated_at; liveness liczy od max(last_run_at, updated_at)
     private static final String UPDATE_HEARTBEAT = """
             UPDATE etl_sync_state SET updated_at = NOW() WHERE table_name = ?
+            """;
+
+    // SQL: monotoniczne przesuniecie znacznika w trakcie cyklu (BE-213) - status zostaje RUNNING, heartbeat w gratisie.
+    // Warunek last_synced_at < ? gwarantuje, ze znacznik nigdy sie nie cofa.
+    private static final String UPDATE_ADVANCE_MARKER = """
+            UPDATE etl_sync_state
+            SET last_synced_at = ?, updated_at = NOW()
+            WHERE table_name = ?
+              AND (last_synced_at IS NULL OR last_synced_at < ?)
             """;
 
     // SQL: stan do sprawdzenia zywotnosci
@@ -110,10 +121,20 @@ class EtlSyncServiceImpl implements EtlSyncService {
             WHERE COALESCE(cc.updated_at, cc.created_at) > ?
             """;
 
-    // SQL: pobierz zmodyfikowane kontakty od last_synced_at
-    // Brak RLS – zapytanie systemowe, filtrujemy po tenant_id explicite w DW output
-    // Pomijamy rekordy powiązane z zanonimizowanymi klientami (RODO)
-    private static final String SELECT_CONTACTS_FOR_ETL = """
+    // BE-213: CDC fetch = shared source fragment (strict "> marker", also used by the lag query) PLUS
+    //  - upper bound NOW() - safety window (transactions that got NOW() at start but commit later; see class docs),
+    //  - keyset cursor (effective_ts, id) > (?, ?) with a deterministic ORDER BY effective_ts, id, so ties of the
+    //    marker on a batch boundary can neither be skipped nor loop forever.
+    // Parameters: marker, safetyWindowMs, cursorTs, cursorId, limit. Cross-tenant system query (no RLS).
+    private static String cdcFetchSql(String select, String source, String effectiveTs, String idColumn) {
+        return select + source + "  AND " + effectiveTs + " <= NOW() - (CAST(? AS DOUBLE PRECISION) * INTERVAL '1 millisecond')\n"
+                + "  AND (" + effectiveTs + ", " + idColumn + ") > (?, ?)\n"
+                + "ORDER BY " + effectiveTs + " ASC, " + idColumn + " ASC\n"
+                + "LIMIT ?\n";
+    }
+
+    // SQL: pobierz zmodyfikowane kontakty (RODO: pomijamy zanonimizowanych klientow - w CONTACT_CDC_SOURCE)
+    private static final String SELECT_CONTACTS_FOR_ETL = cdcFetchSql("""
             SELECT c.contact_id,
                    c.tenant_id,
                    c.agent_id,
@@ -128,21 +149,15 @@ class EtlSyncServiceImpl implements EtlSyncService {
                    c.ended_at,
                    c.queued_at,
                    COALESCE(c.updated_at, c.created_at) AS effective_updated_at
-            """ + CONTACT_CDC_SOURCE + """
-            ORDER BY COALESCE(c.updated_at, c.created_at) ASC
-            LIMIT ?
-            """;
+            """, CONTACT_CDC_SOURCE, "COALESCE(c.updated_at, c.created_at)", "c.contact_id");
 
-    // SQL: pobierz zmodyfikowane rekordy kampanii od last_synced_at (CDC po cc.updated_at/created_at)
-    private static final String SELECT_CAMPAIGN_CONTACTS_FOR_ETL = """
+    // SQL: pobierz zmodyfikowane rekordy kampanii (CDC po cc.updated_at/created_at)
+    private static final String SELECT_CAMPAIGN_CONTACTS_FOR_ETL = cdcFetchSql("""
             SELECT cc.record_id, cc.campaign_id, cc.tenant_id,
                    cc.status, cc.disposition_code, cc.attempt_count, cc.last_attempt_at,
                    c.type AS campaign_type, c.dialer_type,
                    COALESCE(cc.updated_at, cc.created_at) AS effective_updated_at
-            """ + CAMPAIGN_CONTACT_CDC_SOURCE + """
-            ORDER BY COALESCE(cc.updated_at, cc.created_at) ASC
-            LIMIT ?
-            """;
+            """, CAMPAIGN_CONTACT_CDC_SOURCE, "COALESCE(cc.updated_at, cc.created_at)", "cc.record_id");
 
     // SQL: wiek najstarszej NIEZSYNCHRONIZOWANEJ zmiany (BE-212) - te same warunki co fetch (wspolne fragmenty)
     private static final String SELECT_OLDEST_UNSYNCED_CONTACT =
@@ -192,6 +207,67 @@ class EtlSyncServiceImpl implements EtlSyncService {
      */
     @Value("${etl.sync.liveness-threshold-ms:300000}")
     private long livenessThresholdMs = 300_000L;
+
+    /** BE-213: max rows fetched from the source in one CDC query (one "batch" of the in-cycle loop). */
+    @Value("${etl.sync.fetch-limit:5000}")
+    private int fetchLimit = 5000;
+
+    /** Rows per DW upsert call (and per heartbeat). */
+    @Value("${etl.sync.write-batch-size:500}")
+    private int writeBatchSize = 500;
+
+    /**
+     * BE-213: max fetch batches in one cycle, so a big backlog (first start, DW outage, bulk import) cannot hold the
+     * scheduler thread forever; the remainder is picked up by the next cycle. Default 20 x 5000 = 100k rows/cycle.
+     */
+    @Value("${etl.sync.max-batches-per-cycle:20}")
+    private int maxBatchesPerCycle = 20;
+
+    /**
+     * BE-213: rows newer than {@code NOW() - safetyWindow} are not fetched yet. {@code updated_at}/{@code created_at}
+     * come from NOW() = transaction START, so a transaction that started before our read but commits after it would
+     * carry a timestamp below the marker and be lost forever. The window gives such transactions time to commit
+     * before the marker may pass them.
+     *
+     * <p>Limitations: (1) DW freshness is delayed by the window (a dashboard sees data at least this old);
+     * (2) the window does NOT protect against transactions open LONGER than the window - e.g. a campaign_contact
+     * import done in one long transaction (rows keep the transaction-start timestamp, commit later, land below the
+     * already advanced marker and are lost, with lag = 0). See TASKS-BACKEND.md, follow-up BE-213.
+     * Default 60 s (regular OLTP transactions last milliseconds; well below the 30 min lag alert threshold).
+     *
+     * <p>All four settings below are validated fail-fast in {@link #validateConfig()}.
+     */
+    @Value("${etl.sync.safety-window-ms:60000}")
+    private long safetyWindowMs = 60_000L;
+
+    /**
+     * Fail-fast validation of the CDC tuning settings (BE-213). A non-positive {@code writeBatchSize} would spin
+     * forever in {@code i += writeBatchSize} while the heartbeat keeps the BE-212 liveness check quiet, and
+     * {@code fetchLimit <= 0} would silently make no progress, so the application refuses to start instead.
+     */
+    @PostConstruct
+    void validateConfig() {
+        List<String> errors = new ArrayList<>();
+        if (fetchLimit < 1) {
+            errors.add("etl.sync.fetch-limit must be >= 1 (was " + fetchLimit + ")");
+        }
+        if (writeBatchSize < 1) {
+            errors.add("etl.sync.write-batch-size must be >= 1 (was " + writeBatchSize + ")");
+        }
+        if (maxBatchesPerCycle < 1) {
+            errors.add("etl.sync.max-batches-per-cycle must be >= 1 (was " + maxBatchesPerCycle + ")");
+        }
+        if (safetyWindowMs < 0) {
+            errors.add("etl.sync.safety-window-ms must be >= 0 (was " + safetyWindowMs + ")");
+        }
+        if (!errors.isEmpty()) {
+            throw new IllegalStateException("Invalid ETL sync configuration: " + String.join("; ", errors));
+        }
+        if (writeBatchSize > fetchLimit) {
+            log.warn("[ETL] etl.sync.write-batch-size ({}) > etl.sync.fetch-limit ({}) - larger write batch has no effect",
+                    writeBatchSize, fetchLimit);
+        }
+    }
 
     // =========================================================================
     // Zadanie cykliczne
@@ -274,6 +350,20 @@ class EtlSyncServiceImpl implements EtlSyncService {
     // Logika synchronizacji
     // =========================================================================
 
+    /**
+     * One CDC row with its cursor coordinates: the effective change timestamp and the primary key.
+     */
+    record CdcRow<T>(T row, Instant effectiveAt, UUID id) {}
+
+    /** Fetches the next CDC batch strictly after keyset cursor (cursorTs, cursorId), ordered by (ts, id). */
+    @FunctionalInterface
+    interface CdcFetcher<T> {
+        List<CdcRow<T>> fetch(Instant marker, Instant cursorTs, UUID cursorId, int limit);
+    }
+
+    /** Outcome of one CDC loop: the new marker, rows written and number of fetched batches. */
+    record CdcResult(Instant newMarker, long rows, int batches) {}
+
     @Override
     public void syncTable(String tableName) {
         Instant syncStartedAt = Instant.now();
@@ -287,22 +377,14 @@ class EtlSyncServiceImpl implements EtlSyncService {
 
         log.info("[ETL] Synchronizacja '{}': last_synced_at={}", tableName, lastSyncedAt);
 
-        // Krok 2: Pobranie i przetworzenie danych
         long totalRows = 0;
-        Instant maxEffectiveUpdatedAt = lastSyncedAt;
+        Instant newMarker = lastSyncedAt;
         String errorMessage = null;
 
         try {
-            List<ContactDwRow> batch = fetchContactsForEtl(lastSyncedAt, BATCH_SIZE * 10);
-            log.info("[ETL] Pobrano {} rekordów contact do synchronizacji", batch.size());
-
-            if (!batch.isEmpty()) {
-                // Krok 3: Zapis do DW w batchach
-                totalRows = writeBatches(batch);
-                // Krok 4: Wyznaczenie nowej pozycji CDC
-                maxEffectiveUpdatedAt = computeMaxUpdatedAt(lastSyncedAt);
-            }
-
+            CdcResult result = runCdcLoop(tableName, lastSyncedAt, this::fetchContactRows, this::writeContactBatches);
+            totalRows = result.rows();
+            newMarker = result.newMarker();
         } catch (Exception ex) {
             log.error("[ETL] Błąd synchronizacji tabeli '{}': {}", tableName, ex.getMessage(), ex);
             errorMessage = ex.getMessage();
@@ -312,15 +394,125 @@ class EtlSyncServiceImpl implements EtlSyncService {
         if (errorMessage != null) {
             markError(tableName, errorMessage);
         } else {
-            markDone(tableName, maxEffectiveUpdatedAt, totalRows);
+            markDone(tableName, newMarker, totalRows);
         }
 
         // Krok 6: Sprawdzenie lagu i alert
-        checkLagAndAlert(tableName, maxEffectiveUpdatedAt);
+        checkLagAndAlert(tableName, newMarker);
 
         Duration elapsed = Duration.between(syncStartedAt, Instant.now());
         log.info("[ETL] Zakończono cykl '{}': rows={}, elapsed={}ms",
                 tableName, totalRows, elapsed.toMillis());
+    }
+
+    /**
+     * BE-213: loops over CDC batches until the source is drained (non-full batch), nothing is left, or
+     * {@code maxBatchesPerCycle} is reached.
+     *
+     * <p>Marker semantics: {@code last_synced_at = M} means "every eligible row with effective timestamp &lt;= M
+     * is in the DW" (so fetch and the BE-212 lag query both use strict {@code > M}; no schema change needed). The
+     * marker is derived ONLY from rows actually fetched and written, never from a separate MAX over the table:
+     * <ul>
+     *   <li>a non-full batch (or an empty one right after a full batch) drains everything up to the last timestamp
+     *       read, so the marker moves to it;</li>
+     *   <li>a full batch may cut a group of equal timestamps in half, so the marker only moves to the largest
+     *       timestamp STRICTLY below the last row's one (rows of the cut group are re-read next time - upserts are
+     *       idempotent: ON CONFLICT in PostgresDwWriter, ReplacingMergeTree in ClickHouse);</li>
+     *   <li>inside the cycle the keyset cursor (ts, id) walks through ties, so a group of equal timestamps larger
+     *       than the fetch limit (e.g. one bulk-import transaction) is still consumed without an infinite loop.
+     *       The batch limit never stops the loop before the marker has advanced at least once, otherwise such a
+     *       group could never be passed.</li>
+     * </ul>
+     * After every batch that moved the marker, the new marker is persisted monotonically (see
+     * {@link #advanceMarker}), so a persistent failure in batch k does not make every cycle replay batches 1..k-1.
+     * The invariant holds because the marker is computed only from batches already written to the DW. A failure
+     * mid-loop therefore leaves the marker at the last persisted advance (the rest is replayed idempotently).
+     */
+    <T> CdcResult runCdcLoop(String tableName, Instant startMarker, CdcFetcher<T> fetcher,
+                             Consumer<List<T>> writer) {
+        Instant cursorTs = startMarker;
+        UUID cursorId = MIN_UUID;
+        Instant newMarker = startMarker;
+        Instant lastReadTs = null;
+        long totalRows = 0;
+        int batches = 0;
+
+        while (true) {
+            List<CdcRow<T>> batch = fetcher.fetch(startMarker, cursorTs, cursorId, fetchLimit);
+            if (batch.isEmpty() && batches == 0) {
+                log.debug("[ETL] '{}': brak rekordów do synchronizacji", tableName);
+            } else {
+                log.info("[ETL] '{}': pobrano {} rekordów do synchronizacji (batch #{})", tableName, batch.size(), batches + 1);
+            }
+            if (batch.isEmpty()) {
+                // everything up to the last row read has been drained
+                if (lastReadTs != null && lastReadTs.isAfter(newMarker)) {
+                    newMarker = lastReadTs;
+                }
+                break;
+            }
+
+            writer.accept(batch.stream().map(CdcRow::row).toList());
+            totalRows += batch.size();
+            batches++;
+
+            CdcRow<T> last = batch.get(batch.size() - 1);
+            cursorTs = last.effectiveAt();
+            cursorId = last.id();
+            lastReadTs = last.effectiveAt();
+
+            if (batch.size() < fetchLimit) {
+                if (lastReadTs.isAfter(newMarker)) {
+                    newMarker = lastReadTs;
+                }
+                break;
+            }
+
+            // Full batch: the group of rows with the last timestamp may be incomplete -> use the previous timestamp
+            Instant completeTs = largestTimestampBelow(batch, last.effectiveAt());
+            if (completeTs != null && completeTs.isAfter(newMarker)) {
+                newMarker = completeTs;
+                // the batch is already in the DW, so everything <= newMarker is there: safe to persist now
+                advanceMarker(tableName, newMarker);
+            }
+            if (batches >= maxBatchesPerCycle) {
+                if (newMarker.isAfter(startMarker)) {
+                    log.warn("[ETL] '{}': osiągnięto limit {} batchy na cykl (batchy={}, wierszy={}) - reszta backlogu w kolejnym cyklu",
+                            tableName, maxBatchesPerCycle, batches, totalRows);
+                    break;
+                }
+                if (batches == maxBatchesPerCycle) {
+                    log.warn("[ETL] '{}': grupa wierszy o tym samym znaczniku większa niż budżet {} batchy x {} wierszy - "
+                                    + "kontynuuję ponad budżet do przesunięcia znacznika (batchy={}, wierszy={})",
+                            tableName, maxBatchesPerCycle, fetchLimit, batches, totalRows);
+                }
+            }
+        }
+        return new CdcResult(newMarker, totalRows, batches);
+    }
+
+    /**
+     * Persists the marker mid-cycle, monotonically (never moves it back) and keeping the status RUNNING. A failure
+     * here is not fatal: markDone/markError at the end of the cycle still decides, and the marker simply stays lower
+     * (safe - rows are re-read idempotently).
+     */
+    void advanceMarker(String tableName, Instant marker) {
+        try {
+            Timestamp ts = Timestamp.from(marker);
+            jdbcTemplate.update(UPDATE_ADVANCE_MARKER, ts, tableName, ts);
+        } catch (Exception ex) {
+            log.warn("[ETL] Zapis znacznika w trakcie cyklu dla '{}' nie powiódł się: {}", tableName, ex.getMessage());
+        }
+    }
+
+    private static <T> Instant largestTimestampBelow(List<CdcRow<T>> orderedBatch, Instant ts) {
+        for (int i = orderedBatch.size() - 1; i >= 0; i--) {
+            Instant candidate = orderedBatch.get(i).effectiveAt();
+            if (candidate.isBefore(ts)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     // =========================================================================
@@ -348,62 +540,28 @@ class EtlSyncServiceImpl implements EtlSyncService {
     }
 
     /**
-     * Pobiera kontakty zaktualizowane po lastSyncedAt, gotowe do synchronizacji.
-     *
-     * <p>Pomija:
-     * <ul>
-     *   <li>Kontakty w statusach roboczych (QUEUED, ACTIVE, ON_HOLD) – niegotowe</li>
-     *   <li>Kontakty powiązane z zanonimizowanymi klientami (RODO)</li>
-     * </ul>
-     *
-     * @param lastSyncedAt pozycja CDC – pobieramy nowsze rekordy
-     * @param limit        maksymalna liczba rekordów w jednym cyklu
-     * @return lista rekordów gotowych do DW
+     * CDC fetch with keyset cursor (BE-213); rows carry their effective timestamp and id. Skips working statuses
+     * (QUEUED, ACTIVE, ON_HOLD) and contacts of anonymized customers (RODO) - see CONTACT_CDC_SOURCE.
      */
-    List<ContactDwRow> fetchContactsForEtl(Instant lastSyncedAt, int limit) {
+    List<CdcRow<ContactDwRow>> fetchContactRows(Instant marker, Instant cursorTs, UUID cursorId, int limit) {
         return jdbcTemplate.query(
                 SELECT_CONTACTS_FOR_ETL,
                 new ContactDwRowMapper(),
-                Timestamp.from(lastSyncedAt),
+                Timestamp.from(marker),
+                safetyWindowMs,
+                Timestamp.from(cursorTs),
+                cursorId,
                 limit
         );
     }
 
-    /**
-     * Zapisuje dane do DW w batchach {@value #BATCH_SIZE}.
-     *
-     * @param rows wszystkie wiersze do zapisu
-     * @return łączna liczba wierszy
-     */
-    private long writeBatches(List<ContactDwRow> rows) {
+    private void writeContactBatches(List<ContactDwRow> rows) {
         int total = rows.size();
-        for (int i = 0; i < total; i += BATCH_SIZE) {
-            List<ContactDwRow> batch = rows.subList(i, Math.min(i + BATCH_SIZE, total));
-            dwWriter.upsert(batch);
+        for (int i = 0; i < total; i += writeBatchSize) {
+            dwWriter.upsert(rows.subList(i, Math.min(i + writeBatchSize, total)));
             heartbeat(TABLE_CONTACT);
-            log.debug("[ETL] Zapisano batch {}/{}", Math.min(i + BATCH_SIZE, total), total);
+            log.debug("[ETL] Zapisano batch {}/{}", Math.min(i + writeBatchSize, total), total);
         }
-        return total;
-    }
-
-    /**
-     * Oblicza nową pozycję CDC jako max(updated_at, created_at) z tabeli contact
-     * zaktualizowanych po lastSyncedAt.
-     *
-     * @param lastSyncedAt poprzednia pozycja CDC
-     * @return nowa pozycja CDC
-     */
-    private Instant computeMaxUpdatedAt(Instant lastSyncedAt) {
-        Timestamp maxTs = jdbcTemplate.queryForObject(
-                """
-                SELECT MAX(COALESCE(updated_at, created_at))
-                FROM contact
-                WHERE COALESCE(updated_at, created_at) > ?
-                """,
-                Timestamp.class,
-                Timestamp.from(lastSyncedAt)
-        );
-        return maxTs != null ? maxTs.toInstant() : lastSyncedAt;
     }
 
     /** BE-212: progress marker for the liveness check; a failure here must never break the cycle. */
@@ -640,21 +798,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
         String errorMessage = null;
 
         try {
-            List<CampaignDwRow> batch = fetchCampaignContactsForEtl(lastSyncedAt, BATCH_SIZE * 10);
-            log.info("[ETL] Pobrano {} rekordów campaign_contact do synchronizacji", batch.size());
-
-            if (!batch.isEmpty()) {
-                // Zapis do DW w batchach
-                for (int i = 0; i < batch.size(); i += BATCH_SIZE) {
-                    List<CampaignDwRow> slice = batch.subList(i, Math.min(i + BATCH_SIZE, batch.size()));
-                    dwWriter.upsertCampaigns(slice);
-                    heartbeat(TABLE_CAMPAIGN_CONTACT);
-                    log.debug("[ETL] campaign_contact: zapisano batch {}/{}", Math.min(i + BATCH_SIZE, batch.size()), batch.size());
-                }
-                totalRows = batch.size();
-                maxEffectiveUpdatedAt = computeMaxCampaignContactUpdatedAt(lastSyncedAt);
-            }
-
+            CdcResult result = runCdcLoop(TABLE_CAMPAIGN_CONTACT, lastSyncedAt, this::fetchCampaignContactRows,
+                    this::writeCampaignBatches);
+            totalRows = result.rows();
+            maxEffectiveUpdatedAt = result.newMarker();
         } catch (Exception ex) {
             log.error("[ETL] Błąd synchronizacji tabeli '{}': {}", TABLE_CAMPAIGN_CONTACT, ex.getMessage(), ex);
             errorMessage = ex.getMessage();
@@ -673,10 +820,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
                 TABLE_CAMPAIGN_CONTACT, totalRows, elapsed.toMillis());
     }
 
-    /**
-     * Pobiera rekordy campaign_contact zaktualizowane po lastSyncedAt.
-     */
-    List<CampaignDwRow> fetchCampaignContactsForEtl(Instant lastSyncedAt, int limit) {
+    /** CDC fetch with keyset cursor (BE-213); rows carry their effective timestamp and id. */
+    List<CdcRow<CampaignDwRow>> fetchCampaignContactRows(Instant marker, Instant cursorTs, UUID cursorId,
+                                                         int limit) {
         return jdbcTemplate.query(
                 SELECT_CAMPAIGN_CONTACTS_FOR_ETL,
                 (rs, rowNum) -> {
@@ -685,11 +831,12 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     String tenantIdStr = rs.getString("tenant_id");
                     Timestamp lastAttemptTs = rs.getTimestamp("last_attempt_at");
                     int attemptCount = rs.getInt("attempt_count");
+                    UUID recordId = recordIdStr != null ? UUID.fromString(recordIdStr) : null;
 
-                    return new CampaignDwRow(
+                    CampaignDwRow row = new CampaignDwRow(
                             campaignIdStr != null ? UUID.fromString(campaignIdStr) : null,
                             tenantIdStr != null ? UUID.fromString(tenantIdStr) : null,
-                            recordIdStr != null ? UUID.fromString(recordIdStr) : null,
+                            recordId,
                             rs.getString("status"),
                             rs.getString("disposition_code"),
                             attemptCount,
@@ -697,23 +844,23 @@ class EtlSyncServiceImpl implements EtlSyncService {
                             rs.getString("campaign_type"),
                             rs.getString("dialer_type")
                     );
+                    return new CdcRow<>(row, rs.getTimestamp("effective_updated_at").toInstant(), recordId);
                 },
-                Timestamp.from(lastSyncedAt),
+                Timestamp.from(marker),
+                safetyWindowMs,
+                Timestamp.from(cursorTs),
+                cursorId,
                 limit
         );
     }
 
-    private Instant computeMaxCampaignContactUpdatedAt(Instant lastSyncedAt) {
-        Timestamp maxTs = jdbcTemplate.queryForObject(
-                """
-                SELECT MAX(COALESCE(cc.updated_at, cc.created_at))
-                FROM campaign_contact cc
-                WHERE COALESCE(cc.updated_at, cc.created_at) > ?
-                """,
-                Timestamp.class,
-                Timestamp.from(lastSyncedAt)
-        );
-        return maxTs != null ? maxTs.toInstant() : lastSyncedAt;
+    private void writeCampaignBatches(List<CampaignDwRow> rows) {
+        for (int i = 0; i < rows.size(); i += writeBatchSize) {
+            List<CampaignDwRow> slice = rows.subList(i, Math.min(i + writeBatchSize, rows.size()));
+            dwWriter.upsertCampaigns(slice);
+            heartbeat(TABLE_CAMPAIGN_CONTACT);
+            log.debug("[ETL] campaign_contact: zapisano batch {}/{}", Math.min(i + writeBatchSize, rows.size()), rows.size());
+        }
     }
 
     // =========================================================================
@@ -755,8 +902,8 @@ class EtlSyncServiceImpl implements EtlSyncService {
             log.info("[ETL] Pobrano {} agentów do agent_dim", agents.size());
 
             if (!agents.isEmpty()) {
-                for (int i = 0; i < agents.size(); i += BATCH_SIZE) {
-                    List<AgentDimRow> slice = agents.subList(i, Math.min(i + BATCH_SIZE, agents.size()));
+                for (int i = 0; i < agents.size(); i += writeBatchSize) {
+                    List<AgentDimRow> slice = agents.subList(i, Math.min(i + writeBatchSize, agents.size()));
                     dwWriter.upsertAgentDim(slice);
                 }
                 totalRows = agents.size();
@@ -799,8 +946,8 @@ class EtlSyncServiceImpl implements EtlSyncService {
             log.info("[ETL] Pobrano {} kolejek do queue_dim", queues.size());
 
             if (!queues.isEmpty()) {
-                for (int i = 0; i < queues.size(); i += BATCH_SIZE) {
-                    List<QueueDimRow> slice = queues.subList(i, Math.min(i + BATCH_SIZE, queues.size()));
+                for (int i = 0; i < queues.size(); i += writeBatchSize) {
+                    List<QueueDimRow> slice = queues.subList(i, Math.min(i + writeBatchSize, queues.size()));
                     dwWriter.upsertQueueDim(slice);
                 }
                 totalRows = queues.size();
@@ -854,10 +1001,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
     // RowMapper
     // =========================================================================
 
-    private static class ContactDwRowMapper implements RowMapper<ContactDwRow> {
+    private static class ContactDwRowMapper implements RowMapper<CdcRow<ContactDwRow>> {
 
         @Override
-        public ContactDwRow mapRow(ResultSet rs, int rowNum) throws SQLException {
+        public CdcRow<ContactDwRow> mapRow(ResultSet rs, int rowNum) throws SQLException {
             String contactIdStr = rs.getString("contact_id");
             String tenantIdStr = rs.getString("tenant_id");
             String agentIdStr = rs.getString("agent_id");
@@ -871,8 +1018,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
             int durationSec = rs.getInt("duration_seconds");
             boolean durationNull = rs.wasNull();
 
-            return new ContactDwRow(
-                    contactIdStr != null ? UUID.fromString(contactIdStr) : null,
+            UUID contactId = contactIdStr != null ? UUID.fromString(contactIdStr) : null;
+            ContactDwRow row = new ContactDwRow(
+                    contactId,
                     tenantIdStr != null ? UUID.fromString(tenantIdStr) : null,
                     agentIdStr != null ? UUID.fromString(agentIdStr) : null,
                     queueIdStr != null ? UUID.fromString(queueIdStr) : null,
@@ -886,6 +1034,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     endedTs != null ? endedTs.toInstant() : null,
                     queuedTs != null ? queuedTs.toInstant() : null
             );
+            return new CdcRow<>(row, rs.getTimestamp("effective_updated_at").toInstant(), contactId);
         }
     }
 }

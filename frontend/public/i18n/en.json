@@ -463,7 +463,6 @@
     "incomingCall": {
       "label": "Incoming call",
       "limitMaxPhone": "You can only handle 1 phone call at a time.",
-      "limitMaxAsync": "You have reached the limit of 3 chat/email contacts.",
       "limitMaxTotal": "You have reached the maximum limit of 4 active contacts.",
       "limitGeneral": "You have reached the active contact limit.",
       "systemNotificationTitle": "Incoming call",
@@ -471,13 +470,21 @@
       "goToContact": "Go to contact",
       "hide": "Hide notification",
       "inCall": "Call in progress",
-      "openDesktop": "Go to desktop"
+      "openDesktop": "Go to desktop",
+      "parkedOverflow": "New contact {{name}} is waiting beyond the card limit. It is in the list above the cards: it opens when a slot frees up, or return it to the queue.",
+      "parkedOverflowMore": "More contacts are waiting beyond the card limit (total: {{count}}). All of them are in the list above the cards."
     },
     "acwBanner": {
       "title": "Disposition is waiting",
       "action": "Complete disposition",
       "announcement": "The call with {{who}} has ended. Complete the disposition.",
       "more": "+{{count}} more"
+    },
+    "presenceOffline": {
+      "title": "Your status was changed to Offline",
+      "body": "The connection to the server was lost for too long, so you are not receiving new contacts. When you are ready to work, set your status to Available.",
+      "bodyUnknown": "The Offline status was set while the connection to the server was unstable or from elsewhere (for example another tab), so you are not receiving new contacts. When you are ready to work, set your status to Available.",
+      "action": "Set status to Available"
     },
     "addBreak": {
       "titleAdd": "Add break",
@@ -1014,7 +1021,7 @@
       "title_few": "{{count}} contacts waiting beyond the card limit",
       "title_many": "{{count}} contacts waiting beyond the card limit",
       "title_other": "{{count}} contacts waiting beyond the card limit",
-      "hint": "These contacts do not fit on the desktop. Close or return one of the cards to the queue; the list refreshes by itself, and you can check right away with the button.",
+      "hint": "These contacts were assigned to you but do not fit on the desktop. Close a card and the contact opens by itself. You can also return it to the queue.",
       "retry": "Check again",
       "retrying": "Checking...",
       "listLabel": "Contacts beyond the card limit",
@@ -1028,7 +1035,8 @@
       "phase": {
         "RINGING": "waiting to be answered",
         "IN_PROGRESS": "in progress",
-        "WRAP_UP": "disposition pending"
+        "WRAP_UP": "disposition pending",
+        "WAITING_SLOT": "accepted, waiting for a slot"
       },
       "hintRinging": "A contact waiting to be answered returns to the queue if it is not answered.",
       "reason": {
@@ -1041,7 +1049,23 @@
         "someOpened": "Cards opened: {{opened}}. Still beyond the limit: {{remaining}}.",
         "noChange": "Nothing changed. Free a card slot and check again.",
         "callNotRestored": "A call card was restored that cannot be resumed after a page reload. Please check it."
-      }
+      },
+      "returnToQueue": "Return to queue",
+      "returning": "Returning...",
+      "returnToQueueLabel": "Return contact {{name}} to the queue",
+      "returnError": "Could not return contact {{name}} to the queue. It stays on the list, try again.",
+      "promoted": "Contact {{name}} now has a card on the desktop.",
+      "promotedMany": "Contacts that now have a card on the desktop: {{count}}.",
+      "vanished": "Contact {{name}} is no longer yours (it was closed or handed over), so it left the list.",
+      "vanishedMany": "Contacts removed from the list because they are no longer yours: {{count}}."
+    },
+    "contactConflict": {
+      "disposition": "Disposition not saved: the contact was changed in the meantime, but it is still yours. Your notes are still in the form, save again.",
+      "abandon": "The contact was not closed: it was changed in the meantime, but it is still yours. Check its state and try again.",
+      "abandonFailed": "The contact could not be closed on the server. Check its state in the contact list.",
+      "gone": "This contact is no longer yours (it was closed, finished or handed over). We closed its card.",
+      "goneNotesCopied": "This contact is no longer yours (it was closed, finished or handed over). We closed its card and copied the text you had typed to the clipboard.",
+      "unverified": "The contact was changed in the meantime and its current state could not be checked. Nothing was changed, try again in a moment."
     }
   },
   "supervisor": {

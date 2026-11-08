@@ -35,7 +35,8 @@ import java.util.Map;
  * <p>Użycie Redis w projekcie:
  * <ul>
  *   <li>JWT blacklista (logout/revoke) – TTL = pozostały czas ważności tokenu</li>
- *   <li>Agent presence – status agentów (TTL = 30s, odnawiane przy heartbeat)</li>
+ *   <li>Status agentów {@code session:agent:{userId}} – TTL 8h (UserServiceImpl); obecność WebSocket agenta
+ *       to osobne klucze {@code presence:*} (AgentPresenceRegistry, BE-210)</li>
  *   <li>Cache kolejek (stats) – TTL 5s</li>
  *   <li>Cache metryk admin – TTL 30s</li>
  *   <li>Cache CLI lookup (numery telefonów) – TTL 5 min</li>

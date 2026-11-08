@@ -82,6 +82,10 @@ spring:
   # Spring Data Web – paginacja
   # ---------------------------------------------------------------------------
   data:
+    redis:
+      # BE-210: command timeout (Lettuce default is 60 s). Presence writes run on the STOMP inbound channel
+      # thread, so a hanging Redis must fail fast. dev/prod profiles override with the same env variable.
+      timeout: ${REDIS_TIMEOUT:2s}
     web:
       pageable:
         # Globalny limit rozmiaru strony – zapobiega wyciąganiu całej tabeli
@@ -355,6 +359,17 @@ etl:
     # BE-212: job considered stuck when etl_sync_state.last_run_at is older than this (ms). Keep >= 3x fixed-delay-ms.
     liveness-threshold-ms: ${ETL_SYNC_LIVENESS_THRESHOLD_MS:300000}
     liveness-check-interval-ms: ${ETL_SYNC_LIVENESS_CHECK_INTERVAL_MS:60000}
+    # BE-213: max rows per CDC fetch query (one batch of the in-cycle loop) and rows per DW upsert call.
+    fetch-limit: ${ETL_SYNC_FETCH_LIMIT:5000}
+    write-batch-size: ${ETL_SYNC_WRITE_BATCH_SIZE:500}
+    # BE-213: max fetch batches per cycle (backlog remainder goes to the next cycle); 20 x 5000 = 100k rows/cycle.
+    max-batches-per-cycle: ${ETL_SYNC_MAX_BATCHES_PER_CYCLE:20}
+    # BE-213: rows newer than NOW() - window are not synced yet (late-committing transactions keep their start-time
+    # updated_at). Trade-off: DW freshness is delayed by this window. It does NOT protect against transactions longer
+    # than the window (e.g. a campaign_contact import in one long transaction) - those rows can be missed with lag=0
+    # (see TASKS-BACKEND.md, follow-up BE-213).
+    # Validated at startup (fail-fast): fetch-limit, write-batch-size, max-batches-per-cycle >= 1; safety-window-ms >= 0.
+    safety-window-ms: ${ETL_SYNC_SAFETY_WINDOW_MS:60000}
 
 # =============================================================================
 # Retencja danych – silnik usuwania (EPIC-29, BE-113) + job liczący dane do usunięcia (BE-112)
@@ -553,6 +568,20 @@ dialer:
 # Agent Breaks Activator – automatyczna aktywacja i kończenie przerw agentów
 # =============================================================================
 agent:
+  # BE-210: agent presence detection ("ghost agents"). The frontend pings /app/ping every 30 s (FE-164);
+  # the sweeper moves agents without presence to OFFLINE. Durations in ms.
+  presence:
+    enabled: ${AGENT_PRESENCE_ENABLED:true}
+    # AVAILABLE / AFTER_CONTACT / BREAK -> OFFLINE after this long without presence (refresh / short network drop).
+    grace-period-ms: ${AGENT_PRESENCE_GRACE_PERIOD_MS:90000}
+    # BUSY without a PHONE contact in ACTIVE/ON_HOLD -> OFFLINE after this long without presence (10 min).
+    busy-orphan-timeout-ms: ${AGENT_PRESENCE_BUSY_ORPHAN_TIMEOUT_MS:600000}
+    # fixedDelay of the sweeper.
+    sweep-interval-ms: ${AGENT_PRESENCE_SWEEP_INTERVAL_MS:30000}
+    # A WebSocket session is alive if it showed a sign of life (CONNECT/SUBSCRIBE/ping) within this window.
+    session-ttl-ms: ${AGENT_PRESENCE_SESSION_TTL_MS:90000}
+    # Min. spacing of Redis writes per WebSocket session (SUBSCRIBE burst after CONNECT = 1 write).
+    touch-throttle-ms: ${AGENT_PRESENCE_TOUCH_THROTTLE_MS:5000}
   # BE-157: GET /api/agent/me/active-contacts - how long a COMPLETED PHONE contact without disposition
   # still counts as after-call work (ACW). Cuts "eternal" ACW after an abandoned disposition. Duration (12h, 30m).
   active-contacts:

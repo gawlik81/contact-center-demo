@@ -3,12 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { ContactTab } from '../models/contact-tab.model';
 import { ContactDraftStore } from './contact-draft.store';
-import {
-  ContactTabStore,
-  MAX_ASYNC_TABS,
-  MAX_PHONE_TABS,
-  MAX_TOTAL_TABS,
-} from './contact-tab.store';
+import { ContactTabStore, MAX_PHONE_TABS, MAX_TOTAL_TABS } from './contact-tab.store';
 
 function tabInput(id: string, type: ContactTab['type'], isActive?: boolean) {
   return {
@@ -108,9 +103,18 @@ describe('ContactTabStore (FE-133: a new contact does not take the active tab)',
       expect(store.tabs()).toHaveLength(MAX_PHONE_TABS);
     });
 
-    it('rejects a fourth e-mail/chat tab', () => {
-      for (let i = 0; i < MAX_ASYNC_TABS; i++) store.openTab(tabInput('e' + i, 'EMAIL'));
-      expect(store.openTab(tabInput('e-extra', 'CHAT'))).toBe('MAX_ASYNC');
+    it('never refuses an async contact for its own limit, only for the strip capacity', () => {
+      // MAX_TOTAL_TABS - MAX_PHONE_TABS async cards fit; one slot stays free for a call
+      const asyncCapacity = MAX_TOTAL_TABS - MAX_PHONE_TABS;
+      const types = ['EMAIL', 'CHAT', 'SOCIAL', 'EMAIL', 'SOCIAL'] as const;
+      for (let i = 0; i < asyncCapacity; i++) {
+        expect(store.openTab(tabInput('a' + i, types[i]))).toBeNull();
+      }
+      expect(store.openTab(tabInput('over', 'EMAIL'))).toBe('MAX_TOTAL');
+      expect(store.openTab(tabInput('over-s', 'SOCIAL'))).toBe('MAX_TOTAL');
+      // the reserved slot still takes a call
+      expect(store.openTab(tabInput('call', 'PHONE'))).toBeNull();
+      expect(store.tabs()).toHaveLength(MAX_TOTAL_TABS);
     });
 
     it('rejects anything over the total limit', () => {

@@ -5,6 +5,21 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { WsEvent } from '../../features/agent/models/ws-event.model';
 
+/**
+ * Presence ping (BE-210): `SEND /app/ping` right after every connect and then at this interval.
+ * The backend marks an agent OFFLINE after 90 s without one, so this leaves room for two lost
+ * pings. STOMP heartbeats (FE-155) are a separate, transport-level setting and stay untouched.
+ */
+export const PRESENCE_PING_INTERVAL_MS = 30000;
+export const PRESENCE_PING_DESTINATION = '/app/ping';
+/**
+ * Browsers throttle timers of background tabs (Chrome: once a minute, frozen tabs not at all),
+ * which can eat the backend grace period. When the tab becomes visible, the network returns or
+ * the window gets focus, a ping goes out at once (after this short debounce, so the three events
+ * that usually arrive together cost one ping).
+ */
+export const WAKE_DEBOUNCE_MS = 500;
+
 export type WsConnectionState = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
 
 @Injectable({ providedIn: 'root' })
@@ -18,6 +33,10 @@ export class WebSocketService {
   readonly events$ = this._events$.asObservable();
 
   private client: Client | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private wakeTimer: ReturnType<typeof setTimeout> | null = null;
+  private removeWakeListeners: (() => void) | null = null;
+  private readonly _onWakeCallbacks = new Set<() => void>();
 
   /**
    * Callbacks invoked on every successful STOMP connect (including reconnects).
@@ -36,6 +55,15 @@ export class WebSocketService {
   onConnect(callback: () => void): () => void {
     this._onConnectCallbacks.add(callback);
     return () => this._onConnectCallbacks.delete(callback);
+  }
+
+  /**
+   * Registers a callback fired (debounced) when the tab becomes visible, the browser goes back
+   * online or the window regains focus. Returns an unregister function.
+   */
+  onWake(callback: () => void): () => void {
+    this._onWakeCallbacks.add(callback);
+    return () => this._onWakeCallbacks.delete(callback);
   }
 
   /**
@@ -67,20 +95,25 @@ export class WebSocketService {
         this.connectionState.set('CONNECTED');
         this.subscribeToUserEvents();
         this.resubscribeExtraTopics();
+        this.startPresencePing();
         this._onConnectCallbacks.forEach((cb) => cb());
       },
       onDisconnect: () => {
+        this.stopPresencePing();
         this.connectionState.set('DISCONNECTED');
       },
       onStompError: (frame) => {
         console.error('[WS] STOMP error:', frame);
+        this.stopPresencePing();
         this.connectionState.set('ERROR');
       },
       onWebSocketError: (event) => {
         console.error('[WS] WebSocket error:', event);
+        this.stopPresencePing();
         this.connectionState.set('ERROR');
       },
       onWebSocketClose: () => {
+        this.stopPresencePing();
         if (this.connectionState() !== 'DISCONNECTED') {
           this.connectionState.set('DISCONNECTED');
         }
@@ -89,9 +122,12 @@ export class WebSocketService {
 
     this.client = new Client(config);
     this.client.activate();
+    this.listenForWake();
   }
 
   disconnect(): void {
+    this.stopPresencePing();
+    this.stopListeningForWake();
     if (this.client) {
       this.client.deactivate();
       this.client = null;
@@ -133,6 +169,55 @@ export class WebSocketService {
    */
   unregisterTopic(destination: string): void {
     this._extraTopics.delete(destination);
+  }
+
+  /** Pings now and then every interval; a restart never leaves two timers running. */
+  private startPresencePing(): void {
+    this.stopPresencePing();
+    this.publish(PRESENCE_PING_DESTINATION, {});
+    this.pingTimer = setInterval(
+      () => this.publish(PRESENCE_PING_DESTINATION, {}),
+      PRESENCE_PING_INTERVAL_MS,
+    );
+  }
+
+  private listenForWake(): void {
+    this.stopListeningForWake();
+    const onWake = () => {
+      if (this.wakeTimer !== null) return;
+      this.wakeTimer = setTimeout(() => {
+        this.wakeTimer = null;
+        this.publish(PRESENCE_PING_DESTINATION, {});
+        this._onWakeCallbacks.forEach((cb) => cb());
+      }, WAKE_DEBOUNCE_MS);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onWake();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onWake);
+    window.addEventListener('focus', onWake);
+    this.removeWakeListeners = () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onWake);
+      window.removeEventListener('focus', onWake);
+    };
+  }
+
+  private stopListeningForWake(): void {
+    this.removeWakeListeners?.();
+    this.removeWakeListeners = null;
+    if (this.wakeTimer !== null) {
+      clearTimeout(this.wakeTimer);
+      this.wakeTimer = null;
+    }
+  }
+
+  private stopPresencePing(): void {
+    if (this.pingTimer !== null) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
   }
 
   private subscribeOneTopic(destination: string): void {

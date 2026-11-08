@@ -1,4 +1,4 @@
-import { Type } from '@angular/core';
+import { Type, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslocoTestingModule } from '@jsverse/transloco';
 import { EMPTY, Subject, of } from 'rxjs';
@@ -89,7 +89,7 @@ describe('native <dialog> Esc handling', () => {
           provide: CustomDispositionService,
           useValue: { getAvailableDispositions: () => of([]) },
         },
-        { provide: AgentStatusService, useValue: {} },
+        { provide: AgentStatusService, useValue: { autoOffline: signal(false) } },
         { provide: WebSocketService, useValue: { events$: new Subject() } },
       ],
     });

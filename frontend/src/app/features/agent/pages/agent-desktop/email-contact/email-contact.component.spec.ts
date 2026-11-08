@@ -5,6 +5,7 @@ import { TranslocoTestingModule } from '@jsverse/transloco';
 import { of, throwError } from 'rxjs';
 
 import { EmailContactComponent } from './email-contact.component';
+import { ContactService } from '../../../services/contact.service';
 import { EmailService, EmailMessage, EmailTemplate } from '../../../services/email.service';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';
 
@@ -106,6 +107,10 @@ describe('EmailContactComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: EmailService, useValue: emailServiceMock },
+        {
+          provide: ContactService,
+          useValue: { abandonContact: () => of(null), acceptContact: () => of(null) },
+        },
       ],
     }).compileComponents();
 

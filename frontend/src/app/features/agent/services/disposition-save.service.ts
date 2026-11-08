@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AgentStatusService } from './agent-status.service';
 import { ContactService } from './contact.service';
+import { ContactConflictService, isConflict } from './contact-conflict.service';
 import { ContactTabStore } from './contact-tab.store';
 
 export interface DispositionSaveRequest {
@@ -33,6 +34,7 @@ export class DispositionSaveService {
   private readonly transloco = inject(TranslocoService);
   private readonly tabStore = inject(ContactTabStore);
   private readonly auth = inject(AuthService);
+  private readonly conflict = inject(ContactConflictService);
   private readonly injector = inject(Injector);
 
   private readonly savingIds = signal<ReadonlySet<string>>(new Set());
@@ -50,10 +52,15 @@ export class DispositionSaveService {
     this.setSaving(req.contactId, true);
 
     this.contacts.setDisposition(req.contactId, req.code, req.notes).subscribe({
-      error: () => {
+      error: (err: unknown) => {
         // The form and its draft stay as they are: the agent retries. The HTTP interceptor is
         // told to stay silent for this call, so this is the one and only toast.
-        this.notifications.error(this.transloco.translate('agent.disposition.errorSave'));
+        if (isConflict(err)) {
+          // Changed in parallel (BE-209): say so, reconcile the card with the backend, keep the form.
+          void this.conflict.handle('agent.contactConflict.disposition', req.contactId);
+        } else {
+          this.notifications.error(this.transloco.translate('agent.disposition.errorSave'));
+        }
         this.setSaving(req.contactId, false);
       },
       next: () => {

@@ -58,7 +58,6 @@ class EmailContactCreatorCompletionTest {
         creator.onEmailEvent(sentEvent());
 
         verify(contactService).completeContactIfOpen(any(Contact.class), any(Instant.class));
-        verify(contactService, never()).updateContactEntity(any());
     }
 
     @Test

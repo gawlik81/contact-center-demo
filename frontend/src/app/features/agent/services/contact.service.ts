@@ -38,8 +38,11 @@ export interface ContactFilterParams {
 export class ContactService {
   private readonly http = inject(HttpClient);
 
-  getContact(contactId: string): Observable<ContactResponse> {
-    return this.http.get<ContactResponse>(`${environment.apiUrl}/contacts/${contactId}`);
+  getContact(contactId: string, options?: { silent?: boolean }): Observable<ContactResponse> {
+    return this.http.get<ContactResponse>(
+      `${environment.apiUrl}/contacts/${contactId}`,
+      options?.silent ? { context: new HttpContext().set(SKIP_ERROR_TOAST, true) } : undefined,
+    );
   }
 
   setDisposition(
@@ -103,10 +106,11 @@ export class ContactService {
    * Abandons an EMAIL or CHAT contact without sending a reply.
    * Transitions the contact to ABANDONED on the backend.
    */
-  abandonContact(contactId: string): Observable<ContactResponse> {
+  abandonContact(contactId: string, options?: { silent?: boolean }): Observable<ContactResponse> {
     return this.http.post<ContactResponse>(
       `${environment.apiUrl}/contacts/${contactId}/abandon`,
       {},
+      options?.silent ? { context: new HttpContext().set(SKIP_ERROR_TOAST, true) } : undefined,
     );
   }
 

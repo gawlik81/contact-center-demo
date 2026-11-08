@@ -7,13 +7,14 @@ import { Subject } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { WsEvent } from '../models/ws-event.model';
-import { AgentStatusService } from './agent-status.service';
+import { AgentStatusService, STATUS_RESYNC_INTERVAL_MS } from './agent-status.service';
 
 describe('AgentStatusService lifecycle (FE-134)', () => {
   let service: AgentStatusService;
   let http: HttpTestingController;
   let events$: Subject<WsEvent>;
   let connectCallbacks: Set<() => void>;
+  let wakeCallbacks: Set<() => void>;
   const unregister = vi.fn();
   const publish = vi.fn();
 
@@ -26,6 +27,7 @@ describe('AgentStatusService lifecycle (FE-134)', () => {
     vi.clearAllMocks();
     events$ = new Subject<WsEvent>();
     connectCallbacks = new Set();
+    wakeCallbacks = new Set();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
@@ -36,6 +38,10 @@ describe('AgentStatusService lifecycle (FE-134)', () => {
             events$,
             publish,
             connectionState: signal('CONNECTED'),
+            onWake: (cb: () => void) => {
+              wakeCallbacks.add(cb);
+              return () => wakeCallbacks.delete(cb);
+            },
             onConnect: (cb: () => void) => {
               connectCallbacks.add(cb);
               return () => {
@@ -118,6 +124,172 @@ describe('AgentStatusService lifecycle (FE-134)', () => {
     patches[0].flush(null);
     expect(service.isChanging()).toBe(false);
     expect(service.currentStatus()).toBe('BREAK');
+  });
+
+  describe('automatic OFFLINE (FE-164)', () => {
+    const ws = (payload: Record<string, unknown>) =>
+      events$.next({
+        eventType: 'AGENT_STATUS_CHANGED',
+        payload: { agentId: 'u-1', ...payload },
+      } as WsEvent);
+
+    it('OFFLINE with reason PRESENCE_TIMEOUT overwrites the status and raises the notice', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      ws({ status: 'OFFLINE', reason: 'PRESENCE_TIMEOUT' });
+      expect(service.currentStatus()).toBe('OFFLINE');
+      expect(service.autoOffline()).toBe(true);
+      http.expectNone('/api/users/me/status');
+    });
+
+    it('a change without reason works as before and shows no notice', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      ws({ status: 'OFFLINE' });
+      expect(service.currentStatus()).toBe('OFFLINE');
+      expect(service.autoOffline()).toBe(false);
+    });
+
+    it('the notice clears once the agent leaves OFFLINE', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      ws({ status: 'OFFLINE', reason: 'PRESENCE_TIMEOUT' });
+      service.resumeAvailable().subscribe();
+      http.expectOne('/api/users/me/status').flush(null);
+      expect(service.currentStatus()).toBe('AVAILABLE');
+      expect(service.autoOffline()).toBe(false);
+    });
+
+    it('reconnect re-sync adopts a server OFFLINE, announces it and does not set AVAILABLE', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      connectCallbacks.forEach((cb) => cb());
+      flushMe('OFFLINE');
+      expect(service.currentStatus()).toBe('OFFLINE');
+      expect(service.autoOffline()).toBe(true);
+      http.expectNone('/api/users/me/status');
+    });
+
+    it('a re-sync that finds OFFLINE without an event is announced as UNKNOWN cause', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      connectCallbacks.forEach((cb) => cb());
+      flushMe('OFFLINE');
+      expect(service.autoOfflineCause()).toBe('UNKNOWN');
+    });
+
+    it('the PRESENCE_TIMEOUT event upgrades the cause from UNKNOWN', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      connectCallbacks.forEach((cb) => cb());
+      flushMe('OFFLINE');
+      service.resumeAvailable().subscribe();
+      http.expectOne('/api/users/me/status').flush(null);
+      ws({ status: 'OFFLINE', reason: 'PRESENCE_TIMEOUT' });
+      expect(service.autoOfflineCause()).toBe('PRESENCE_TIMEOUT');
+      expect(service.autoOffline()).toBe(true);
+    });
+
+    it('reconnect re-sync adopts another active server status', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      connectCallbacks.forEach((cb) => cb());
+      flushMe('BREAK');
+      expect(service.currentStatus()).toBe('BREAK');
+      expect(service.autoOffline()).toBe(false);
+    });
+
+    it('reconnect while already OFFLINE by choice raises no notice', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      service.changeStatus('OFFLINE').subscribe();
+      http.expectOne('/api/users/me/status').flush(null);
+      connectCallbacks.forEach((cb) => cb());
+      flushMe('OFFLINE');
+      expect(service.autoOffline()).toBe(false);
+    });
+
+    it('stopStatus() clears the notice', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      ws({ status: 'OFFLINE', reason: 'PRESENCE_TIMEOUT' });
+      service.stopStatus();
+      expect(service.autoOffline()).toBe(false);
+    });
+  });
+
+  describe('dead-link detection by periodic re-sync (FE-164)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      service.stopStatus();
+      vi.useRealTimers();
+    });
+
+    it('re-reads the status every interval and adopts a silent server OFFLINE', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      http.expectNone('/api/users/me');
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      flushMe('OFFLINE');
+      expect(service.currentStatus()).toBe('OFFLINE');
+      expect(service.autoOffline()).toBe(true);
+      expect(service.autoOfflineCause()).toBe('UNKNOWN');
+      http.expectNone('/api/users/me/status');
+    });
+
+    it('does not stack a request while the previous one is in flight', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      const first = http.expectOne('/api/users/me');
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      http.expectNone('/api/users/me');
+      first.flush({ id: 'u-1', status: 'AVAILABLE' });
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      flushMe('AVAILABLE');
+    });
+
+    it('ignores an answer overtaken by a WS event (statusSeq guard)', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      const req = http.expectOne('/api/users/me');
+      events$.next({
+        eventType: 'AGENT_STATUS_CHANGED',
+        payload: { agentId: 'u-1', status: 'BREAK' },
+      } as WsEvent);
+      req.flush({ id: 'u-1', status: 'OFFLINE' });
+      expect(service.currentStatus()).toBe('BREAK');
+      expect(service.autoOffline()).toBe(false);
+    });
+
+    it('a failed probe is silent and the next tick tries again', () => {
+      const error = TestBed.inject(NotificationService).error as ReturnType<typeof vi.fn>;
+      service.initStatus();
+      flushMe('AVAILABLE');
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      http.expectOne('/api/users/me').flush(null, { status: 500, statusText: 'x' });
+      expect(error).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS);
+      flushMe('AVAILABLE');
+    });
+
+    it('a wake-up (visible tab, online, focus) re-syncs at once', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      wakeCallbacks.forEach((cb) => cb());
+      flushMe('OFFLINE');
+      expect(service.autoOffline()).toBe(true);
+    });
+
+    it('stopStatus() stops the timer and the wake subscription', () => {
+      service.initStatus();
+      flushMe('AVAILABLE');
+      service.stopStatus();
+      expect(wakeCallbacks.size).toBe(0);
+      vi.advanceTimersByTime(STATUS_RESYNC_INTERVAL_MS * 3);
+      http.expectNone('/api/users/me');
+    });
   });
 
   describe('statusSince (FE-130)', () => {

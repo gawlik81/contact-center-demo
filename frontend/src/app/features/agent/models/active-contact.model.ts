@@ -28,7 +28,6 @@ export interface ActiveContactResponse {
 /** Why a contact did not get a card on recovery. */
 export type RecoveryOverflowReason =
   | 'MAX_PHONE'
-  | 'MAX_ASYNC'
   | 'MAX_TOTAL'
   /** A PHONE contact while another call is live in this browser. */
   | 'OTHER_CALL_ACTIVE'
@@ -43,6 +42,13 @@ export interface OverflowContact {
   customerName: string;
   phase: ContactPhase;
   reason: RecoveryOverflowReason;
+  /** Needed to open a card from the list once a slot frees up (absent in old entries). */
+  customerIdentifier?: string;
+  customerId?: string;
+  queueName?: string;
+  queueId?: string;
+  /** Epoch ms of the assignment: the card opened from the list keeps this clock, not "now". */
+  assignedAt?: number;
 }
 
 /** Outcome of one recovery run, for the UI that reports it (null source = automatic run). */

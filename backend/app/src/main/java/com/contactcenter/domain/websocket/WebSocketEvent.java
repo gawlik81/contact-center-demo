@@ -202,10 +202,19 @@ public record WebSocketEvent(
      */
     public static WebSocketEvent agentStatusChanged(UUID tenantId, UUID agentId, String newStatus,
                                                      Instant statusSince) {
+        return agentStatusChanged(tenantId, agentId, newStatus, statusSince, null);
+    }
+
+    /**
+     * Zdarzenie zmiany statusu z opcjonalnym {@code reason} (BE-210; np. {@code PRESENCE_TIMEOUT} dla
+     * automatycznego OFFLINE). {@code null} = zmiana reczna - pole nie trafia do JSON.
+     */
+    public static WebSocketEvent agentStatusChanged(UUID tenantId, UUID agentId, String newStatus,
+                                                     Instant statusSince, String reason) {
         return new WebSocketEvent(
                 TYPE_AGENT_STATUS_CHANGED,
                 tenantId,
-                new AgentStatusPayload(agentId.toString(), newStatus, statusSince),
+                new AgentStatusPayload(agentId.toString(), newStatus, statusSince, reason),
                 Instant.now()
         );
     }
@@ -428,8 +437,15 @@ public record WebSocketEvent(
     public record AgentStatusPayload(
             String agentId,
             String status,
-            Instant statusSince
-    ) {}
+            Instant statusSince,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            String reason
+    ) {
+        /** Backward-compatible constructor: manual change, no reason. */
+        public AgentStatusPayload(String agentId, String status, Instant statusSince) {
+            this(agentId, status, statusSince, null);
+        }
+    }
 
     /**
      * Payload zdarzenia {@code CONTACT_MESSAGE_RECEIVED}. Brak treści wiadomości (RODO).

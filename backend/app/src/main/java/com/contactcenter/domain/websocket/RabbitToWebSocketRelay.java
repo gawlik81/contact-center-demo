@@ -153,7 +153,8 @@ class RabbitToWebSocketRelay {
             UUID agentId  = UUID.fromString(agentIdStr);
 
             WebSocketEvent event = WebSocketEvent.agentStatusChanged(
-                    tenantId, agentId, status, parseInstantOrNull(payload.get("statusSince")));
+                    tenantId, agentId, status, parseInstantOrNull(payload.get("statusSince")),
+                    blankToNull(payload.get("reason")));
 
             // Zmiana statusu agenta → unicast do samego agenta + broadcast do supervisorów tenanta
             broadcaster.sendToUser(agentId, event);
@@ -164,6 +165,10 @@ class RabbitToWebSocketRelay {
         } catch (Exception e) {
             log.error("[WS-Relay] Błąd przetwarzania AgentStatus event: {}", e.getMessage(), e);
         }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** Lenient ISO-8601 parse of the optional {@code statusSince}; null/blank/invalid -> null (unknown). */

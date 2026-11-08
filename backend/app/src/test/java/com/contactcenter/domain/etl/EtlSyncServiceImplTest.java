@@ -74,6 +74,11 @@ class EtlSyncServiceImplTest {
     private static final UUID CONTACT_ID = UUID.randomUUID();
     private static final UUID AGENT_ID = UUID.randomUUID();
 
+    /** PG uuid order = unsigned bytes = lexicographic order of the canonical lowercase hex string (not UUID.compareTo). */
+    private static int pgUuidOrder(UUID a, UUID b) {
+        return a.toString().compareTo(b.toString());
+    }
+
     @BeforeEach
     void setUp() {
         // Domyślnie queryForObject dla max(updated_at) zwraca null
@@ -251,14 +256,14 @@ class EtlSyncServiceImplTest {
         void lagQueryAndFetchShareCdcSource() {
             service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, Instant.EPOCH);
             service.computeDataLagMinutes(EtlSyncService.TABLE_CAMPAIGN_CONTACT, Instant.EPOCH);
-            service.fetchContactsForEtl(Instant.EPOCH, 1);
-            service.fetchCampaignContactsForEtl(Instant.EPOCH, 1);
+            service.fetchContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 1);
+            service.fetchCampaignContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 1);
 
             ArgumentCaptor<String> lagSql = ArgumentCaptor.forClass(String.class);
             verify(jdbcTemplate, org.mockito.Mockito.times(2))
                     .queryForObject(lagSql.capture(), eq(Timestamp.class), any());
             ArgumentCaptor<String> fetchSql = ArgumentCaptor.forClass(String.class);
-            verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(fetchSql.capture(), any(RowMapper.class), any(), any());
+            verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(fetchSql.capture(), any(RowMapper.class), any(), any(), any(), any(), any());
 
             assertThat(lagSql.getAllValues().get(0)).contains(EtlSyncServiceImpl.CONTACT_CDC_SOURCE);
             assertThat(fetchSql.getAllValues().get(0)).contains(EtlSyncServiceImpl.CONTACT_CDC_SOURCE);
@@ -427,7 +432,7 @@ class EtlSyncServiceImplTest {
             Timestamp epochTs = Timestamp.from(Instant.EPOCH);
             when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
                     .thenReturn(List.of(Map.of("last_synced_at", epochTs, "status", "DONE")));
-            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any()))
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
                     .thenReturn(List.of());
 
             service.syncTable(EtlSyncService.TABLE_CONTACT);
@@ -445,8 +450,8 @@ class EtlSyncServiceImplTest {
                     .thenReturn(List.of(Map.of("last_synced_at", epochTs, "status", "DONE")));
 
             ContactDwRow row = buildDwRow();
-            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any()))
-                    .thenReturn(List.of(row));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(new EtlSyncServiceImpl.CdcRow<>(row, Instant.now().minusSeconds(100), CONTACT_ID)));
             when(jdbcTemplate.queryForObject(anyString(), eq(Timestamp.class), any()))
                     .thenReturn(Timestamp.from(Instant.now()));
 
@@ -465,8 +470,8 @@ class EtlSyncServiceImplTest {
                     .thenReturn(List.of(Map.of("last_synced_at", epochTs, "status", "DONE")));
 
             ContactDwRow row = buildDwRow();
-            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any()))
-                    .thenReturn(List.of(row));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(new EtlSyncServiceImpl.CdcRow<>(row, Instant.now().minusSeconds(100), CONTACT_ID)));
             doThrow(new DataWarehouseException("ClickHouse unavailable"))
                     .when(dwWriter).upsert(anyList());
 
@@ -477,6 +482,296 @@ class EtlSyncServiceImplTest {
                     contains("ClickHouse unavailable"),
                     eq(EtlSyncService.TABLE_CONTACT)
             );
+        }
+    }
+
+    // =========================================================================
+    // runCdcLoop (BE-213)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("runCdcLoop - znacznik z faktycznie pobranego batcha, kursor (ts, id), limit batchy (BE-213)")
+    class RunCdcLoopTest {
+
+        private final Instant base = Instant.parse("2026-01-01T00:00:00Z");
+        private final List<List<String>> written = new java.util.ArrayList<>();
+
+        /** In-memory source mimicking the SQL: eff > marker AND (eff, id) > cursor ORDER BY eff, id LIMIT. */
+        private EtlSyncServiceImpl.CdcFetcher<String> source(List<EtlSyncServiceImpl.CdcRow<String>> data) {
+            return (marker, cursorTs, cursorId, limit) -> data.stream()
+                    .filter(r -> r.effectiveAt().isAfter(marker))
+                    .filter(r -> r.effectiveAt().isAfter(cursorTs)
+                            || (r.effectiveAt().equals(cursorTs) && pgUuidOrder(r.id(), cursorId) > 0))
+                    .sorted(java.util.Comparator.comparing(EtlSyncServiceImpl.CdcRow<String>::effectiveAt)
+                            .thenComparing(EtlSyncServiceImpl.CdcRow::id, EtlSyncServiceImplTest::pgUuidOrder))
+                    .limit(limit)
+                    .toList();
+        }
+
+        /** n rows, row i (1-based) has ts = base + tsOf(i) seconds. */
+        private List<EtlSyncServiceImpl.CdcRow<String>> rows(int n, java.util.function.IntUnaryOperator tsOf) {
+            return java.util.stream.IntStream.rangeClosed(1, n)
+                    .mapToObj(i -> new EtlSyncServiceImpl.CdcRow<>("r" + i, base.plusSeconds(tsOf.applyAsInt(i)),
+                            new UUID(0L, i)))
+                    .toList();
+        }
+
+        private void configure(int fetchLimit, int maxBatches) {
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "fetchLimit", fetchLimit);
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "maxBatchesPerCycle", maxBatches);
+        }
+
+        @Test
+        @DisplayName("backlog > limit: wszystkie wiersze zapisane, znacznik = max faktycznie zapisanego")
+        void backlogLargerThanLimit_allRowsWritten_markerIsMaxWritten() {
+            configure(3, 100);
+
+            var result = service.runCdcLoop("contact", Instant.EPOCH, source(rows(8, i -> i)), written::add);
+
+            assertThat(written.stream().flatMap(List::stream).toList())
+                    .containsExactly("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8");
+            assertThat(result.rows()).isEqualTo(8);
+            assertThat(result.batches()).isEqualTo(3);
+            assertThat(result.newMarker()).isEqualTo(base.plusSeconds(8));
+        }
+
+        @Test
+        @DisplayName("limit batchy w cyklu: znacznik cofniety do ostatniego kompletnego timestampu, reszta w kolejnym cyklu")
+        void batchBudgetReached_markerStopsBeforeUnreadRows_nextCycleResumes() {
+            configure(3, 2);
+            var data = rows(10, i -> i);
+
+            var first = service.runCdcLoop("contact", Instant.EPOCH, source(data), written::add);
+
+            assertThat(first.rows()).isEqualTo(6);
+            // row 6 closes a full batch -> its timestamp group may be incomplete -> marker = ts of row 5
+            assertThat(first.newMarker()).isEqualTo(base.plusSeconds(5));
+
+            var second = service.runCdcLoop("contact", first.newMarker(), source(data), written::add);
+
+            // row 6 re-read (idempotent upsert), nothing lost
+            assertThat(written.stream().flatMap(List::stream).distinct().toList())
+                    .containsExactly("r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10");
+            assertThat(second.newMarker()).isEqualTo(base.plusSeconds(10));
+        }
+
+        @Test
+        @DisplayName("remis znacznika na granicy batcha: bez pominiec i bez nieskonczonej petli")
+        void tiesAcrossBatchBoundary_noLossNoInfiniteLoop() {
+            configure(3, 100);
+            // rows 1-2 at t=1, rows 3-8 all at t=2 (tie group spans 3 batches), row 9 at t=3
+            var data = rows(9, i -> i <= 2 ? 1 : (i <= 8 ? 2 : 3));
+
+            var result = service.runCdcLoop("contact", Instant.EPOCH, source(data), written::add);
+
+            assertThat(written.stream().flatMap(List::stream).toList()).hasSize(9).doesNotHaveDuplicates();
+            assertThat(result.batches()).isEqualTo(3);
+            assertThat(result.newMarker()).isEqualTo(base.plusSeconds(3));
+        }
+
+        @Test
+        @DisplayName("grupa remisowa wieksza niz limit: limit batchy nie zatrzymuje petli przed przesunieciem znacznika")
+        void tieGroupLargerThanLimit_budgetDoesNotStallProgress() {
+            configure(3, 1);
+            var data = rows(10, i -> 1); // all 10 rows share one timestamp
+
+            var result = service.runCdcLoop("contact", Instant.EPOCH, source(data), written::add);
+
+            assertThat(written.stream().flatMap(List::stream).toList()).hasSize(10).doesNotHaveDuplicates();
+            assertThat(result.newMarker()).isEqualTo(base.plusSeconds(1));
+        }
+
+        @Test
+        @DisplayName("brak zmian: brak zapisu, znacznik bez zmian")
+        void noChanges_noWrite_markerUnchanged() {
+            var result = service.runCdcLoop("contact", base, source(List.of()), written::add);
+
+            assertThat(written).isEmpty();
+            assertThat(result.newMarker()).isEqualTo(base);
+            assertThat(result.rows()).isZero();
+        }
+
+        @Test
+        @DisplayName("wyjatek zapisu do DW propaguje sie (znacznik nie jest przesuwany przez wolajacego)")
+        void writerFailure_propagates() {
+            configure(3, 100);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.runCdcLoop("contact", Instant.EPOCH,
+                            source(rows(5, i -> i)), batch -> { throw new DataWarehouseException("DW down"); }))
+                    .isInstanceOf(DataWarehouseException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("validateConfig - walidacja konfiguracji fail-fast (BE-213)")
+    class ValidateConfigTest {
+
+        private void set(String field, Object value) {
+            org.springframework.test.util.ReflectionTestUtils.setField(service, field, value);
+        }
+
+        @Test
+        @DisplayName("domyslna konfiguracja jest poprawna")
+        void defaults_valid() {
+            assertThatNoException().isThrownBy(service::validateConfig);
+        }
+
+        @Test
+        @DisplayName("safetyWindowMs = 0 jest dozwolone (okno wylaczone)")
+        void zeroSafetyWindow_valid() {
+            set("safetyWindowMs", 0L);
+            assertThatNoException().isThrownBy(service::validateConfig);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest(name = "{0} = {1} -> IllegalStateException")
+        @org.junit.jupiter.params.provider.CsvSource({
+                "fetchLimit,0,etl.sync.fetch-limit",
+                "fetchLimit,-1,etl.sync.fetch-limit",
+                "writeBatchSize,0,etl.sync.write-batch-size",
+                "writeBatchSize,-5,etl.sync.write-batch-size",
+                "maxBatchesPerCycle,0,etl.sync.max-batches-per-cycle",
+                "maxBatchesPerCycle,-1,etl.sync.max-batches-per-cycle",
+                "safetyWindowMs,-1,etl.sync.safety-window-ms"
+        })
+        void invalidValue_failsFastWithReadableMessage(String field, long value, String property) {
+            Object typed = field.equals("safetyWindowMs") ? (Object) value : (Object) (int) value;
+            set(field, typed);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(service::validateConfig)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining(property)
+                    .hasMessageContaining("was " + value);
+        }
+
+        @Test
+        @DisplayName("wiele blednych ustawien naraz - komunikat zawiera wszystkie")
+        void multipleInvalid_allReported() {
+            set("fetchLimit", 0);
+            set("writeBatchSize", 0);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(service::validateConfig)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("fetch-limit")
+                    .hasMessageContaining("write-batch-size");
+        }
+    }
+
+    @Nested
+    @DisplayName("syncTable / syncCampaignContactTable - znacznik zapisywany po batchach (BE-213)")
+    class MidCycleMarkerTest {
+
+        private final Instant t1 = Instant.parse("2026-01-01T00:01:00Z");
+        private final Instant t2 = Instant.parse("2026-01-01T00:02:00Z");
+        private final Instant t3 = Instant.parse("2026-01-01T00:03:00Z");
+        private final Instant t4 = Instant.parse("2026-01-01T00:04:00Z");
+
+        private void configure() {
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "fetchLimit", 2);
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 100);
+        }
+
+        @Test
+        @DisplayName("contact: wyjatek w 3. batchu -> znacznik = ostatnie udane przesuniecie, status ERROR, brak DONE")
+        void contactFailureAfterTwoBatches_markerKeptAtLastAdvance() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdc(t1, 1), cdc(t2, 2)))
+                    .thenReturn(List.of(cdc(t3, 3), cdc(t4, 4)))
+                    .thenReturn(List.of(cdc(t4.plusSeconds(60), 5)));
+            org.mockito.Mockito.doNothing().doNothing()
+                    .doThrow(new DataWarehouseException("DW down at batch 3"))
+                    .when(dwWriter).upsert(anyList());
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            // batch 1 full -> marker t1 (t2 group may be incomplete); batch 2 full -> marker t3
+            verify(jdbcTemplate).update(contains("last_synced_at < ?"), eq(Timestamp.from(t1)),
+                    eq(EtlSyncService.TABLE_CONTACT), eq(Timestamp.from(t1)));
+            verify(jdbcTemplate).update(contains("last_synced_at < ?"), eq(Timestamp.from(t3)),
+                    eq(EtlSyncService.TABLE_CONTACT), eq(Timestamp.from(t3)));
+            verify(jdbcTemplate, never()).update(contains("last_synced_at < ?"), eq(Timestamp.from(t4)), any(), any());
+            verify(jdbcTemplate).update(contains("ERROR"), contains("DW down at batch 3"),
+                    eq(EtlSyncService.TABLE_CONTACT));
+            verify(jdbcTemplate, never()).update(contains("DONE"), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("campaign_contact: wyjatek w 3. batchu -> te same gwarancje")
+        void campaignFailureAfterTwoBatches_markerKeptAtLastAdvance() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CAMPAIGN_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdcCampaign(t1, 1), cdcCampaign(t2, 2)))
+                    .thenReturn(List.of(cdcCampaign(t3, 3), cdcCampaign(t4, 4)))
+                    .thenReturn(List.of(cdcCampaign(t4.plusSeconds(60), 5)));
+            org.mockito.Mockito.doNothing().doNothing()
+                    .doThrow(new DataWarehouseException("DW down at batch 3"))
+                    .when(dwWriter).upsertCampaigns(anyList());
+
+            service.syncCampaignContactTable();
+
+            verify(jdbcTemplate).update(contains("last_synced_at < ?"), eq(Timestamp.from(t1)),
+                    eq(EtlSyncService.TABLE_CAMPAIGN_CONTACT), eq(Timestamp.from(t1)));
+            verify(jdbcTemplate).update(contains("last_synced_at < ?"), eq(Timestamp.from(t3)),
+                    eq(EtlSyncService.TABLE_CAMPAIGN_CONTACT), eq(Timestamp.from(t3)));
+            verify(jdbcTemplate).update(contains("ERROR"), contains("DW down at batch 3"),
+                    eq(EtlSyncService.TABLE_CAMPAIGN_CONTACT));
+            verify(jdbcTemplate, never()).update(contains("DONE"), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("blad zapisu znacznika w trakcie cyklu nie przerywa cyklu")
+        void advanceMarkerFailure_doesNotBreakCycle() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdc(t1, 1), cdc(t2, 2)))
+                    .thenReturn(List.of(cdc(t3, 3)));
+            when(jdbcTemplate.update(contains("last_synced_at < ?"), any(Object[].class)))
+                    .thenThrow(new org.springframework.dao.QueryTimeoutException("timeout"));
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            verify(jdbcTemplate).update(contains("DONE"), eq(Timestamp.from(t3)), eq(3L),
+                    eq(EtlSyncService.TABLE_CONTACT));
+        }
+
+        private EtlSyncServiceImpl.CdcRow<ContactDwRow> cdc(Instant ts, long n) {
+            return new EtlSyncServiceImpl.CdcRow<>(buildDwRow(), ts, new UUID(0L, n));
+        }
+
+        private EtlSyncServiceImpl.CdcRow<CampaignDwRow> cdcCampaign(Instant ts, long n) {
+            UUID id = new UUID(0L, n);
+            return new EtlSyncServiceImpl.CdcRow<>(
+                    new CampaignDwRow(UUID.randomUUID(), TENANT_ID, id, "COMPLETED", null, 1, null, null, null), ts, id);
+        }
+    }
+
+    @Nested
+    @DisplayName("syncTable - znacznik z batcha (BE-213)")
+    class SyncTableMarkerTest {
+
+        @Test
+        @DisplayName("markDone dostaje max efektywnego znacznika faktycznie pobranego batcha, nie MAX po tabeli")
+        void markDoneUsesFetchedBatchMarker() {
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            Instant ts = Instant.now().minusSeconds(300).truncatedTo(ChronoUnit.MILLIS);
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(new EtlSyncServiceImpl.CdcRow<>(buildDwRow(), ts, CONTACT_ID)));
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            // parameter order of the CDC fetch: marker, safety window, cursor ts, cursor id, limit
+            verify(jdbcTemplate).query(anyString(), any(RowMapper.class), eq(Timestamp.from(Instant.EPOCH)),
+                    eq(60_000L), eq(Timestamp.from(Instant.EPOCH)), eq(EtlSyncServiceImpl.MIN_UUID), eq(5000));
+
+            verify(jdbcTemplate).update(contains("DONE"), eq(Timestamp.from(ts)), eq(1L),
+                    eq(EtlSyncService.TABLE_CONTACT));
         }
     }
 

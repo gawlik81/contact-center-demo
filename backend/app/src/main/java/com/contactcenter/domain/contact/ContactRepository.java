@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -494,70 +495,220 @@ class ContactRepository extends TenantAwareRepository {
     return contact;
   }
 
+  /**
+   * Terminal contact states - single source of truth shared with {@code ContactServiceImpl}
+   * (idempotency checks) and the SQL of {@link #abandonIfOpen} so the two cannot drift apart.
+   * Fixed literals only (never request data), hence safe to inline into SQL.
+   */
+  public static final java.util.Set<String> TERMINAL_CONTACT_STATUSES =
+      java.util.Set.of("COMPLETED", "ABANDONED", "NOT_REACHED", "ERROR");
+
+  private static final String TERMINAL_STATUSES_SQL_LIST = "'COMPLETED', 'ABANDONED', 'NOT_REACHED', 'ERROR'";
+
   // =========================================================================
-  // BE-027: Aktualizacja – natywny UPDATE
+  // BE-209: Partial / conditional writes (replaces the full-row BE-027 update)
   // =========================================================================
+  //
+  // The former general update(Contact) wrote EVERY column from an entity snapshot, so a stale snapshot could
+  // overwrite agent_id / status changed in the meantime (assignIfQueued, resetAssignmentIfAssigned, ...).
+  // Every method below writes only the columns its operation owns and carries the precondition in the WHERE
+  // clause (compare-and-set), so the row count tells the caller whether the precondition still held.
+  // started_at (the partition key from the entity the caller read) prunes the partitioned table.
 
   /**
-   * Aktualizuje istniejący kontakt przez natywny UPDATE.
+   * PATCH-style write used by {@code updateContact}: sets ONLY the non-null fields of {@code patch} and only
+   * when the row still has the status and agent the caller based its decision on (compare-and-set against
+   * the snapshot). {@code agent_id}/{@code status} are therefore never overwritten with a stale value, and
+   * when the patch changes them the transition is conditional.
    *
-   * <p>Trigger {@code fn_contact_on_update} automatycznie:
-   * <ul>
-   *   <li>Ustawia {@code updated_at = NOW()}</li>
-   *   <li>Oblicza {@code duration_seconds} gdy ustawiamy {@code ended_at}</li>
-   * </ul>
+   * @param snapshot entity as read by the caller (contactId, tenantId, startedAt, status, agentId are used)
+   * <p>The status/agent compare-and-set is applied only when the patch itself changes {@code status} or
+   * {@code agent_id}; otherwise the row is matched by tenant/id/started_at only.
    *
-   * <p>Klucz partycji {@code started_at} jest wymagany w WHERE – pozwala PostgreSQL
-   * ograniczyć UPDATE do jednej partycji bez skanowania wszystkich.
-   *
-   * <p>{@code status} to {@code VARCHAR} po V025 – używamy {@code CAST(:status AS VARCHAR)}.
-   *
-   * @param contact encja kontaktu z wypełnionym contactId i startedAt
-   * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje)
+   * @return updated rows (0 = not found, other tenant, or (for status/agent patches) status/agent changed concurrently)
    */
   @Transactional
-  public int update(Contact contact) {
-    assertSameTenant(contact.getTenantId());
-    setTenantContextInDb(contact.getTenantId());
+  public int patchIfUnchanged(Contact snapshot, ContactPatch patch) {
+    Objects.requireNonNull(snapshot.getStartedAt(), "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(snapshot.getTenantId());
+    setTenantContextInDb(snapshot.getTenantId());
 
-    log.debug("[ContactRepo] Aktualizacja kontaktu: contactId={}, tenant={}",
-        contact.getContactId(), contact.getTenantId());
+    // Only fixed SQL fragments are appended; all values are bound parameters.
+    StringBuilder sql = new StringBuilder("UPDATE contact SET updated_at = NOW()");
+    List<Object> args = new ArrayList<>();
+    if (patch.agentId() != null) {
+      sql.append(", agent_id = ?::uuid");
+      args.add(patch.agentId().toString());
+    }
+    if (patch.status() != null) {
+      sql.append(", status = ?");
+      args.add(patch.status());
+    }
+    if (patch.assignedAt() != null) {
+      sql.append(", assigned_at = ?");
+      args.add(java.sql.Timestamp.from(patch.assignedAt()));
+    }
+    if (patch.endedAt() != null) {
+      sql.append(", ended_at = ?");
+      args.add(java.sql.Timestamp.from(patch.endedAt()));
+    }
+    if (patch.remoteAddress() != null) {
+      sql.append(", remote_address = ?");
+      args.add(patch.remoteAddress());
+    }
+    if (patch.channelMetadata() != null) {
+      sql.append(", channel_metadata = ?::jsonb");
+      args.add(channelMetadataToJson(patch.channelMetadata()));
+    }
+    sql.append(" WHERE contact_id = ?::uuid AND tenant_id = ?::uuid AND started_at = ?");
+    args.add(snapshot.getContactId().toString());
+    args.add(snapshot.getTenantId().toString());
+    args.add(java.sql.Timestamp.from(snapshot.getStartedAt()));
+    // CAS on status/agent_id only when the patch touches them. A patch of independent columns
+    // (remote_address, channel_metadata, assigned_at, ended_at) does not depend on who owns the contact
+    // right now, so a concurrent hold/resume/transfer must not turn it into a spurious 409.
+    if (patch.status() != null || patch.agentId() != null) {
+      sql.append(" AND status = ?");
+      args.add(snapshot.getStatus());
+      if (snapshot.getAgentId() == null) {
+        sql.append(" AND agent_id IS NULL");
+      } else {
+        sql.append(" AND agent_id = ?::uuid");
+        args.add(snapshot.getAgentId().toString());
+      }
+    }
 
-    int updated = em.createNativeQuery("""
-            UPDATE contact SET
-                agent_id          = CAST(:agentId AS uuid),
-                status            = CAST(:status AS VARCHAR),
-                assigned_at       = :assignedAt,
-                ended_at          = :endedAt,
-                remote_address    = :remoteAddress,
-                disposition_code  = :dispositionCode,
-                notes             = :notes,
-                channel_metadata  = CAST(:channelMetadata AS jsonb)
-            WHERE contact_id = CAST(:contactId AS uuid)
-              AND tenant_id  = CAST(:tenantId AS uuid)
-              AND started_at = :startedAt
-            """)
-        .setParameter("agentId", uuidToString(contact.getAgentId()))
-        .setParameter("status", contact.getStatus())
-        .setParameter("assignedAt", contact.getAssignedAt())
-        .setParameter("endedAt", contact.getEndedAt())
-        .setParameter("remoteAddress", contact.getRemoteAddress())
-        .setParameter("dispositionCode", contact.getDispositionCode())
-        .setParameter("notes", contact.getNotes())
-        .setParameter("channelMetadata", channelMetadataToJson(contact.getChannelMetadata()))
-        .setParameter("contactId", contact.getContactId().toString())
-        .setParameter("tenantId", contact.getTenantId().toString())
-        .setParameter("startedAt", contact.getStartedAt())
-        .executeUpdate();
+    int updated = jdbcTemplate.update(sql.toString(), args.toArray());
 
-    log.debug("[ContactRepo] Zaktualizowano {} wierszy dla contactId={}", updated, contact.getContactId());
-
-    // Wyczyść L1 cache Hibernate po natywnym UPDATE – trigger DB mógł zmienić
-    // duration_seconds i updated_at. Bez flush+clear kolejny JPQL select trafił
-    // w cache i zwróciłby stan sprzed UPDATE.
+    // Trigger fn_contact_on_update recomputes duration_seconds; drop L1 so the next read sees it.
     em.flush();
     em.clear();
 
+    log.debug("[ContactRepo] patchIfUnchanged: contactId={}, rows={}", snapshot.getContactId(), updated);
+    return updated;
+  }
+
+  /**
+   * Sets disposition code and notes ONLY (never {@code agent_id}/{@code status}) on a contact that is not
+   * {@code QUEUED}/{@code ACTIVE} any more than when the caller validated it, and that is still held by the
+   * agent the ownership check was done against.
+   *
+   * @param expectedAgentId owner seen by the caller's ownership check ({@code null} = unowned)
+   * @return updated rows (0 = not found, now QUEUED/ACTIVE, or owner changed concurrently)
+   */
+  @Transactional
+  public int setDispositionIfNotActive(UUID contactId, UUID tenantId, Instant startedAt, UUID expectedAgentId,
+                                       String dispositionCode, String notes) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    List<Object> args = new ArrayList<>(Arrays.asList(dispositionCode, notes, contactId.toString(),
+        tenantId.toString(), java.sql.Timestamp.from(startedAt)));
+    String agentCondition;
+    if (expectedAgentId == null) {
+      agentCondition = "agent_id IS NULL";
+    } else {
+      agentCondition = "agent_id = ?::uuid";
+      args.add(expectedAgentId.toString());
+    }
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET disposition_code = ?,
+                   notes            = ?,
+                   updated_at       = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status NOT IN ('QUEUED', 'ACTIVE')
+               AND %s
+            """.formatted(agentCondition), args.toArray());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] setDispositionIfNotActive: contactId={}, rows={}", contactId, updated);
+    return updated;
+  }
+
+  /**
+   * Abandons a contact that is not in a terminal state ({@link #TERMINAL_CONTACT_STATUSES}) and is still held by the agent the
+   * caller's ownership check was done against. Writes status + ended_at only; {@code agent_id} is untouched.
+   *
+   * @param expectedAgentId owner seen by the caller's ownership check ({@code null} = unowned)
+   * @return updated rows (0 = not found, already terminal - COMPLETED/ABANDONED/NOT_REACHED/ERROR are never overwritten - or owner changed concurrently)
+   */
+  @Transactional
+  public int abandonIfOpen(UUID contactId, UUID tenantId, Instant startedAt, UUID expectedAgentId,
+                           Instant endedAt) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    List<Object> args = new ArrayList<>(List.of(java.sql.Timestamp.from(endedAt), contactId.toString(),
+        tenantId.toString(), java.sql.Timestamp.from(startedAt)));
+    String agentCondition;
+    if (expectedAgentId == null) {
+      agentCondition = "agent_id IS NULL";
+    } else {
+      agentCondition = "agent_id = ?::uuid";
+      args.add(expectedAgentId.toString());
+    }
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'ABANDONED',
+                   ended_at   = ?,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status NOT IN (%s)
+               AND %s
+            """.formatted(TERMINAL_STATUSES_SQL_LIST, agentCondition), args.toArray());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] abandonIfOpen: contactId={}, rows={}", contactId, updated);
+    return updated;
+  }
+
+  /**
+   * Abandons a contact that is STILL {@code QUEUED} (stale-queue cleanup). Writes status + ended_at only, so
+   * an assignment that happened after the candidate list was read (status moved to ASSIGNED) is not undone.
+   *
+   * @param queuedAt {@code queued_at} from the candidate snapshot ({@code null} allowed)
+   * @return updated rows (0 = no longer QUEUED, re-queued since the snapshot, or not found)
+   */
+  @Transactional
+  public int abandonIfStillQueued(UUID contactId, UUID tenantId, Instant startedAt, Instant queuedAt,
+                                  Instant endedAt) {
+    Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    // queued_at is compared with IS NOT DISTINCT FROM (the column is nullable): a contact that was released and
+    // re-queued (BE-160 resets queued_at) after the candidate list was read is not the stale one we saw.
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET status     = 'ABANDONED',
+                   ended_at   = ?,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+               AND started_at = ?
+               AND status     = 'QUEUED'
+               AND queued_at IS NOT DISTINCT FROM ?::timestamptz
+            """,
+        java.sql.Timestamp.from(endedAt), contactId.toString(), tenantId.toString(),
+        java.sql.Timestamp.from(startedAt), queuedAt == null ? null : java.sql.Timestamp.from(queuedAt));
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] abandonIfStillQueued: contactId={}, rows={}", contactId, updated);
     return updated;
   }
 
@@ -785,7 +936,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Assigns an agent to a contact that was created without one (e.g. inbound Twilio call).
    *
-   * <p>Unlike {@link #update(Contact)}, this method does NOT require {@code started_at}
+   * <p>Unlike {@code update(Contact)} (removed in BE-209), this method does NOT require {@code started_at}
    * in the WHERE clause because it uses JdbcTemplate with positional parameters.
    * PostgreSQL will scan all partitions by {@code contact_id + tenant_id}.
    * This is intentional – the caller (answer endpoint) only knows the callId/contactId,
@@ -891,7 +1042,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Conditionally moves a contact {@code ASSIGNED -> ACTIVE} for the owning agent (BE-160 review).
    *
-   * <p>Unlike {@link #update(Contact)} (unconditional full-state write) the WHERE clause carries
+   * <p>Unlike the former {@code update(Contact)} (removed in BE-209; an unconditional full-state write) the WHERE clause carries
    * {@code status = 'ASSIGNED' AND agent_id = :agentId}, so an accept that lost a race with
    * {@link #releaseToQueue} or a re-assignment cannot resurrect the old owner.
    *
@@ -957,6 +1108,29 @@ class ContactRepository extends TenantAwareRepository {
       counts.put(toPurgeUuid(cols[0]), ((Number) cols[1]).longValue());
     }
     return counts;
+  }
+
+  /**
+   * BE-210: true when the agent still holds a PHONE contact in progress (ACTIVE or ON_HOLD) - the call runs in
+   * Twilio independently of the agent's browser, so the presence sweeper must not flip such a BUSY agent to
+   * OFFLINE. Legacy rows without a channel count as PHONE (see {@code ContactChannels.DEFAULT_TYPE}).
+   */
+  @Transactional(readOnly = true)
+  public boolean existsActivePhoneContactByAgent(UUID tenantId, UUID agentId) {
+    setTenantContextInDb(tenantId);
+    Object result = em.createNativeQuery("""
+            SELECT EXISTS (
+              SELECT 1 FROM contact
+               WHERE tenant_id = CAST(:tenantId AS uuid)
+                 AND agent_id  = CAST(:agentId AS uuid)
+                 AND status IN ('ACTIVE', 'ON_HOLD')
+                 AND (channel = 'PHONE' OR channel IS NULL)
+            )
+            """)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("agentId", agentId.toString())
+        .getSingleResult();
+    return Boolean.TRUE.equals(result);
   }
 
   /**
@@ -1108,7 +1282,7 @@ class ContactRepository extends TenantAwareRepository {
 
   /**
    * Completes a contact that is not yet in {@code COMPLETED}/{@code ABANDONED} (BE-159, e-mail reply sent).
-   * Targeted write (status + ended_at only) instead of the full-entity {@link #update(Contact)}, so a
+   * Targeted write (status + ended_at only) instead of the full-entity {@code update(Contact)} (removed in BE-209), so a
    * stale snapshot cannot overwrite an agent / status changed concurrently.
    *
    * @return updated rows (0 = already COMPLETED/ABANDONED or not found)
@@ -1465,11 +1639,13 @@ class ContactRepository extends TenantAwareRepository {
    * (String, Number, Boolean) i nie escapowała znaków kontrolnych Unicode –
    * wartości zagnieżdżone (List, Map) były błędnie serializowane przez {@code val.toString()}.
    *
-   * <p>Przy błędzie serializacji zwraca {@code "{}"} i loguje warning – operacja
-   * zapisu nie jest przerywana (zgubienie metadanych jest mniej krytyczne niż błąd kontaktu).
+   * <p>Przy błędzie serializacji rzuca {@link IllegalArgumentException} (transakcja jest wycofywana,
+   * GlobalExceptionHandler mapuje na HTTP 400) zamiast po cichu zapisywać {@code "{}"} i kasować istniejące
+   * metadane (BE-209: to jedyna droga zapisu channel_metadata w PATCH).
    *
    * @param metadata mapa metadanych kanałowych (może być null lub pusta)
    * @return poprawny JSON string do wstawienia jako JSONB w PostgreSQL
+   * @throws IllegalArgumentException gdy mapy nie da się zserializować
    */
   private String channelMetadataToJson(Map<String, Object> metadata) {
     if (metadata == null || metadata.isEmpty()) {
@@ -1480,7 +1656,8 @@ class ContactRepository extends TenantAwareRepository {
     }
     catch (JsonProcessingException e) {
       log.warn("[ContactRepo] Błąd serializacji channelMetadata: {}", e.getMessage());
-      return "{}";
+      throw new IllegalArgumentException("channelMetadata nie może zostać zserializowane do JSON: "
+          + e.getOriginalMessage(), e);
     }
   }
 

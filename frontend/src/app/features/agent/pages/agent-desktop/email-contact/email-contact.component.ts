@@ -44,6 +44,7 @@ import { PagedResponse } from '../../../../../core/models/paged-response.model';
 import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { ContactMessageReceivedPayload, WsEvent } from '../../../models/ws-event.model';
 import { AsyncContactAcceptService } from '../../../services/async-contact-accept.service';
+import { ContactConflictService, isConflict } from '../../../services/contact-conflict.service';
 import { ContactService } from '../../../services/contact.service';
 import { ContactDraftStore } from '../../../services/contact-draft.store';
 import { EmailReplyService } from '../../../services/email-reply.service';
@@ -98,6 +99,7 @@ export class EmailContactComponent implements OnInit {
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
   private readonly asyncAccept = inject(AsyncContactAcceptService);
+  private readonly conflict = inject(ContactConflictService);
   private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
@@ -681,15 +683,30 @@ export class EmailContactComponent implements OnInit {
   }
 
   protected cancelReply(): void {
-    // Abandon the contact on the backend before closing the tab.
-    // Fire-and-forget — idempotent, UI closes regardless of backend response.
+    // Abandon the contact on the backend before closing the tab. Silent for the global
+    // interceptor, so a failure gets one clear message from ContactConflictService.
     this.contactService
-      .abandonContact(this.contactId())
-      .pipe(catchError(() => of(null)))
-      .subscribe();
-
-    this.discardDraft();
-    this.replySent.emit(false);
+      .abandonContact(this.contactId(), { silent: true })
+      .pipe(
+        map(() => true),
+        catchError((err: unknown) => {
+          if (isConflict(err)) {
+            // Changed in parallel (BE-209): the contact is not abandoned, so the card and the
+            // draft stay. If it turns out to be no longer the agent's, the card is closed from
+            // there (with the draft text on the clipboard) and this component goes with it.
+            void this.conflict.handle('agent.contactConflict.abandon', this.contactId());
+            return of(false);
+          }
+          // Any other failure: the agent chose to leave, the UI closes regardless.
+          void this.conflict.handle('agent.contactConflict.abandonFailed', this.contactId());
+          return of(true);
+        }),
+      )
+      .subscribe((close) => {
+        if (!close) return;
+        this.discardDraft();
+        this.replySent.emit(false);
+      });
   }
 
   private discardDraft(): void {

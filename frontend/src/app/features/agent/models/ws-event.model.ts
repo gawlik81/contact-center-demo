@@ -137,7 +137,11 @@ export interface ContactAssignedPayload {
   customerName: string;
   customerIdentifier: string;
   queueName?: string;
+  /** Queue the contact came from (per-queue limit, BE-156); absent from an old backend. */
+  queueId?: string;
   customerId?: string;
+  /** ISO-8601 instant of the assignment; absent from an old backend (the desktop then uses "now"). */
+  assignedAt?: string | null;
 }
 
 export interface AgentStatusChangedPayload {
@@ -145,7 +149,15 @@ export interface AgentStatusChangedPayload {
   status: AgentStatus;
   /** ISO-8601 UTC start of the status; null/absent from an old backend. */
   statusSince?: string | null;
+  /**
+   * Why the server changed the status on its own. `PRESENCE_TIMEOUT`: the agent was switched to
+   * OFFLINE after the client stopped reporting presence (BE-210). Absent for ordinary changes
+   * and from an old backend.
+   */
+  reason?: AgentStatusChangeReason | null;
 }
+
+export type AgentStatusChangeReason = 'PRESENCE_TIMEOUT';
 
 export interface QueueUpdatePayload {
   items: QueueItem[];

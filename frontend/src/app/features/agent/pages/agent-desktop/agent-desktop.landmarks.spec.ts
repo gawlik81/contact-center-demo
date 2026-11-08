@@ -43,6 +43,7 @@ describe('AgentDesktopComponent landmarks (real template)', () => {
             initStatus: vi.fn(),
             currentStatus: signal('AVAILABLE'),
             isChanging: signal(false),
+            autoOffline: signal(false),
             changeStatus: () => of(null),
           },
         },

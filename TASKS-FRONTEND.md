@@ -108,9 +108,10 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-160 – Brak testu parytetu kluczy i18n między językami (pl/en/de/uk) — dodać test — ⬜ (Do zrobienia; wynik CR FE-156; backlog, nie blokuje epiku; Could Have, S)
 - FE-161 – [DECYZJA PO/security] `allow-popups-to-escape-sandbox` dla linków z maili: strony otwierane z linków dziedziczą sandbox bez skryptów (logowania/SPA mogą nie działać) — ⬜ (Do zrobienia; wynik FE-157; backlog, nie blokuje epiku; Could Have, XS/S)
 - FE-162 – [DECYZJA UX/security] Opcja „pokaż obrazy” dla wiadomości e-mail (zdalne obrazy zablokowane CSP po FE-157) — ⬜ (Do zrobienia; wynik FE-157 / R1; backlog, nie blokuje epiku; Could Have, S)
-- FE-163 – Uzgodnienie limitów kart na froncie (`MAX_ASYNC_TABS`, `MAX_TOTAL_TABS`) z limitem backendu `queue.max_concurrent_contacts_per_agent` (per kolejka, domyślnie 3) + tabela kontraktu BE/FE — ⬜ (Do zrobienia; wynik BE-156 ✅, tura 72; backlog, nie blokuje epiku)
+- FE-163 – Uzgodnienie limitów kart na froncie (`MAX_ASYNC_TABS`, `MAX_TOTAL_TABS`) z limitem backendu `queue.max_concurrent_contacts_per_agent` (per kolejka, domyślnie 3) + tabela kontraktu BE/FE — ✅ (Ukończone 2026-11-08, tura 74 dopisek 2; CR 3,5/5; wynik BE-156 ✅; backlog, nie blokuje epiku; follow-up: FE-149 ⬜ częściowo, FE-167)
 - FE-165 – Panel admin-metrics: widoczny stan żywotności ETL (`status` ERROR / zastały `lastRunAt`, odpowiednik alertów `JOB_ERROR`/`JOB_STALE`) obok `lagMinutes` — ⬜ (Do zrobienia; wynik CR BE-212; backlog, nie blokuje epiku; Could Have, S)
 - FE-166 – Obecność agenta (follow-up FE-164): decyzja o komunikacie po reloadzie/loginie po automatycznym OFFLINE, ręczny test „karta w tle 10 min” — ⬜ (Do zrobienia; tura 74; backlog, nie blokuje epiku; Could Have, S)
+- FE-167 – Warunkowa rezerwa miejsca PHONE w układzie kart po sygnale zdolności telefonicznej agenta (zależy od FE-163 ✅, BE-220) — ⬜ (Do zrobienia; tura 74 dopisek 2; backlog, nie blokuje epiku; Could Have, S)
 - FE-164 – Wsparcie obecności agenta po stronie FE (heartbeat `/app/ping`, komunikat po automatycznym OFFLINE, best-effort `pagehide`; wynik zgłoszenia „agenci-duchy”) — ✅ (Ukończone 2026-11-08, tura 74; CR 4/5; follow-up FE-166; backlog, nie blokuje epiku; Should Have, M)
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**

@@ -1,6 +1,7 @@
 package com.contactcenter.domain.routing;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
+import com.contactcenter.domain.contact.AssignmentResult;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactService;
@@ -98,7 +99,7 @@ class SocialContactToAgentFlowTest {
         when(contactService.findActiveSocialContact(any(), anyString(), anyString())).thenReturn(Optional.empty());
         when(contactService.findContactEntity(any(), any())).thenAnswer(inv -> storedContacts.stream()
                 .filter(c -> c.getContactId().equals(inv.getArgument(0))).findFirst());
-        when(contactService.updateContactEntity(any())).thenReturn(1);
+        when(contactService.assignQueuedContact(any(Contact.class), any(UUID.class), any(), any())).thenAnswer(inv -> assignWins(inv));
         lenient().when(contactService.findQueuedContactsForAgentView(any())).thenReturn(List.of());
 
         QueueAssignmentService queueAssignmentService = mock(QueueAssignmentService.class);
@@ -215,5 +216,14 @@ class SocialContactToAgentFlowTest {
 
         verify(contactService).updateQueueId(legacy.getContactId(), TENANT_ID, QUEUE_ID);
         assertThat(legacy.getStatus()).isEqualTo("ASSIGNED");
+    }
+
+    /** Stands in for the conditional DB write that wins: mutates the entity like the real service does (BE-159). */
+    private static AssignmentResult assignWins(org.mockito.invocation.InvocationOnMock inv) {
+        Contact c = inv.getArgument(0);
+        c.setAgentId(inv.getArgument(1));
+        c.setStatus("ASSIGNED");
+        c.setAssignedAt(Instant.now());
+        return AssignmentResult.ASSIGNED;
     }
 }

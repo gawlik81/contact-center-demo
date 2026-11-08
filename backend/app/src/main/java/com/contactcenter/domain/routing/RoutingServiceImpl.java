@@ -4,6 +4,7 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
+import com.contactcenter.domain.contact.AssignmentResult;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.social.SocialDefaultQueueResolver;
 import com.contactcenter.domain.contact.ContactChannels;
@@ -23,6 +24,7 @@ import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.event.Level;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.event.EventListener;
@@ -32,6 +34,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -66,10 +72,20 @@ class RoutingServiceImpl implements RoutingService {
     private final SocialDefaultQueueResolver socialDefaultQueueResolver;
     private final ReleaseExclusionStore releaseExclusionStore;
 
+    /** Upper bound of engine re-asks within one routeContact when chosen agents turn out to be at their limit. */
+    private static final int MAX_ROUTING_ATTEMPTS = 10;
+
     // =========================================================================
     // Główna metoda routingu
     // =========================================================================
 
+    /**
+     * <strong>Transaction note:</strong> every caller invokes this method from inside this class (self-invocation),
+     * so the {@code @Transactional} below is inert in practice - which is what we rely on: the async limit lock in
+     * {@code ContactRepository#assignIfQueued} must live in the SHORT transaction of
+     * {@code ContactService#assignQueuedContact}, not for the whole retry loop (agent locks taken in different
+     * orders by two passes could deadlock). Do not call this through the proxy from another bean.
+     */
     @Override
     @Transactional
     public Optional<UUID> routeContact(UUID contactId, UUID queueId, UUID tenantId) {
@@ -110,34 +126,50 @@ class RoutingServiceImpl implements RoutingService {
                 : Set.of();
         RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds, excludedAgentIds);
 
-        // 5. Wywołaj silnik routingu
+        // 5. Wywołaj silnik routingu. BE-156: the engine already skips agents at their async limit, but the
+        // limit is re-checked atomically at write time; an agent that filled up in between is excluded for
+        // this pass and the engine is asked again (each round excludes one more agent, so it terminates).
         Optional<RoutingResult> result = routingEngine.findBestAgent(request);
-
-        if (result.isPresent()) {
+        for (int attempt = 0; attempt < MAX_ROUTING_ATTEMPTS; attempt++) {
+            if (result.isEmpty()) {
+                break;
+            }
             RoutingResult routing = result.get();
             UUID agentId = routing.agentId();
 
             log.info("[RoutingService] Agent znaleziony: contactId={}, agentId={}, strategy={}",
                     contactId, agentId, routing.strategy());
 
-            // 6a. Aktualizuj kontakt – przypisz agenta i zmień status na ACTIVE
-            assignContactToAgent(contact, agentId, tenantId);
+            // 6a. Conditional assignment (BE-159): WHERE status='QUEUED' AND agent_id IS NULL, plus the atomic
+            // async limit (BE-156). Anything but ASSIGNED: no contact.assigned, the agent stays free.
+            AssignmentResult assignment = assignContactToAgent(contact, agentId, tenantId,
+                    queueId, request.maxConcurrentAsyncPerAgent());
+            if (assignment == AssignmentResult.AGENT_AT_LIMIT) {
+                Set<UUID> excluded = new HashSet<>(request.excludedAgentIds());
+                excluded.add(agentId);
+                request = request.withExcludedAgents(excluded);
+                result = routingEngine.findBestAgent(request);
+                continue;
+            }
+            if (assignment != AssignmentResult.ASSIGNED) {
+                return Optional.empty(); // CONTACT_UNAVAILABLE: a parallel path took the contact
+            }
 
-            // 6b. Opublikuj event contact.assigned
+            // 6b. Opublikuj event contact.assigned (only after the successful conditional write)
             publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy(), contact, queue.getName());
 
             return Optional.of(agentId);
-
-        } else {
-            log.info("[RoutingService] Brak dostępnych agentów, kontakt czeka: contactId={}, queueId={}",
-                    contactId, queueId);
-
-            // Kontakt pozostaje w statusie QUEUED w DB.
-            // NIE publikujemy contact.queued – to spowodowałoby nieskończoną pętlę
-            // (onContactQueued → routeContact → brak agentów → contact.queued → ...).
-            // Retry nastąpi przy evencie agent.status.changed (patrz onAgentStatusChanged).
-            return Optional.empty();
         }
+
+        log.info("[RoutingService] Brak dostępnych agentów (zajęci / na limicie / wykluczeni), kontakt czeka: " +
+                "contactId={}, queueId={}", contactId, queueId);
+
+        // Kontakt pozostaje w statusie QUEUED w DB.
+        // NIE publikujemy contact.queued – to spowodowałoby nieskończoną pętlę
+        // (onContactQueued → routeContact → brak agentów → contact.queued → ...).
+        // Retry nastąpi przy evencie agent.status.changed, po zwolnieniu slotu async (BE-156)
+        // albo w pollAvailableAgents (patrz onAgentStatusChanged).
+        return Optional.empty();
     }
 
     // =========================================================================
@@ -199,7 +231,7 @@ class RoutingServiceImpl implements RoutingService {
             return;
         }
 
-        retryQueuedContacts(event.tenantId(), event.userId());
+        retryQueuedContacts(event.tenantId(), event.userId(), false);
     }
 
     /**
@@ -213,12 +245,55 @@ class RoutingServiceImpl implements RoutingService {
     @Async
     @EventListener
     public void onAgentAvailabilityRefreshed(AgentAvailabilityRefreshedEvent event) {
-        retryQueuedContacts(event.tenantId(), event.userId());
+        retryQueuedContacts(event.tenantId(), event.userId(), false);
     }
 
-    private void retryQueuedContacts(UUID tenantId, UUID availableAgentId) {
-        log.info("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: " +
-                "agentId={}, tenantId={}", availableAgentId, tenantId);
+    /**
+     * Tenants with a backlog pass running right now (single JVM; multi-instance coordination is BE-172, EPIC-33).
+     */
+    private final Set<UUID> passesRunning = ConcurrentHashMap.newKeySet();
+
+    /** Tenants that requested another pass while one was running: at most ONE follow-up pass is run for them. */
+    private final Set<UUID> passesDirty = ConcurrentHashMap.newKeySet();
+
+    /**
+     * One backlog pass per tenant at a time, with coalescing (BE-156 review): a request that arrives while a pass is
+     * running only marks the tenant "dirty" and returns; the running thread then runs ONE more pass. This bounds
+     * the load when many contacts close at once (each close asks for a pass) or when the 30 s poll overlaps
+     * with event-driven passes. Exceptions propagate to the caller of the pass that threw (cleanup in finally).
+     *
+     * <p>BE-211: {@code fromPoll} passes (periodic safety net) announce themselves at DEBUG so an idle tenant does not
+     * flood the INFO log every poll interval; event-driven passes announce at INFO. Follow-up passes triggered by the
+     * "dirty" flag are continuations and always announce at DEBUG. Coalescing behaviour is unchanged.
+     */
+    private void retryQueuedContacts(UUID tenantId, UUID availableAgentId, boolean fromPoll) {
+        while (true) {
+            if (!passesRunning.add(tenantId)) {
+                passesDirty.add(tenantId);
+                log.debug("[RoutingService] Przebieg dla tenanta {} w toku – zlecono kolejny (koalescencja)", tenantId);
+                return;
+            }
+            try {
+                boolean announceAtInfo = !fromPoll;
+                do {
+                    passesDirty.remove(tenantId);
+                    runRetryPass(tenantId, availableAgentId, announceAtInfo);
+                    announceAtInfo = false;
+                } while (passesDirty.contains(tenantId));
+            } finally {
+                passesRunning.remove(tenantId);
+            }
+            // A request may have marked the tenant dirty between the loop check and the removal above
+            if (!passesDirty.contains(tenantId)) {
+                return;
+            }
+        }
+    }
+
+    private void runRetryPass(UUID tenantId, UUID availableAgentId, boolean announceAtInfo) {
+        log.atLevel(announceAtInfo ? Level.INFO : Level.DEBUG)
+                .log("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: "
+                        + "agentId={}, tenantId={}", availableAgentId, tenantId);
 
         TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
                 tenantId, availableAgentId, null, "SYSTEM");
@@ -242,7 +317,11 @@ class RoutingServiceImpl implements RoutingService {
                     ? socialDefaultQueueResolver.resolve(tenantId)
                     : Optional.empty();
 
+            boolean phoneAssigned = false;
             for (Contact contact : queuedContacts) {
+                if (phoneAssigned && !ContactChannels.isAsync(contact.getChannel())) {
+                    continue; // phone path: the agent that took a call is busy until the next trigger
+                }
                 // Kontakty OUTBOUND z kampanii mają agentId ustawiony przez dialer w momencie
                 // inicjowania połączenia. RoutingService nie powinien ich dotykać – agent jest
                 // już przypisany, a połączenie czeka na odebranie przez klienta.
@@ -267,9 +346,12 @@ class RoutingServiceImpl implements RoutingService {
                     log.warn("[RoutingService] Kontakt bez queueId – kończę ze statusem ERROR: contactId={}",
                             contact.getContactId());
                     try {
-                        contact.setStatus("ERROR");
-                        contact.setEndedAt(Instant.now());
-                        contactService.updateContactEntity(contact);
+                        // BE-159: conditional (still QUEUED, no queue, no agent) - a concurrent pass that
+                        // assigned the contact or resolved its queue wins
+                        if (!contactService.markQueuedContactWithoutQueueAsError(contact, Instant.now())) {
+                            log.info("[RoutingService] Kontakt bez queueId zmienił stan w międzyczasie – " +
+                                    "pomijam ERROR: contactId={}", contact.getContactId());
+                        }
                     } catch (Exception ex) {
                         log.error("[RoutingService] Błąd przy kończeniu kontaktu bez queueId: contactId={}, error={}",
                                 contact.getContactId(), ex.getMessage());
@@ -287,9 +369,13 @@ class RoutingServiceImpl implements RoutingService {
                     if (agentId.isPresent()) {
                         log.info("[RoutingService] Oczekujący kontakt przydzielony: contactId={}, agentId={}",
                                 contact.getContactId(), agentId.get());
-                        // Jeden agent może obsłużyć jeden kontakt naraz – przerywamy po pierwszym
-                        // przydzieleniu (agent jest teraz zajęty)
-                        break;
+                        // Telefon: jeden agent = jeden kontakt naraz - kolejne kontakty TELEFONICZNE pomijamy, ale
+                        // async leżące za nim w liście nadal przydzielamy (brak zagłodzenia, BE-156 review).
+                        // Async (BE-156): agent zostaje AVAILABLE; kolejne kontakty przydzielamy dalej,
+                        // a limit slotów egzekwuje silnik routingu i atomowy zapis.
+                        if (!ContactChannels.isAsync(contact.getChannel())) {
+                            phoneAssigned = true;
+                        }
                     }
                 } catch (Exception e) {
                     log.error("[RoutingService] Błąd routingu oczekującego kontaktu: contactId={}, error={}",
@@ -379,7 +465,20 @@ class RoutingServiceImpl implements RoutingService {
                     .orElseThrow(() -> new IllegalStateException(
                             "Kontakt nie istnieje: " + message.contactId()));
 
-            assignContactToAgent(contact, message.agentId(), message.tenantId());
+            // Since BE-159 review the telephony adapter inserts the transferred contact ALREADY ASSIGNED to the
+            // target agent (no QUEUED window in which a routing pass could hand it to someone else). A QUEUED
+            // contact (message from an older adapter / retried delivery) is still assigned here conditionally.
+            boolean insertedAssigned = "ASSIGNED".equals(contact.getStatus())
+                    && message.agentId().equals(contact.getAgentId());
+            if (!insertedAssigned
+                    && assignContactToAgent(contact, message.agentId(), message.tenantId(), null, null)
+                    != AssignmentResult.ASSIGNED) {
+                // BE-159: the contact was claimed by another path first (e.g. a routing pass picked the
+                // freshly inserted QUEUED contact) - no contact.assigned, nothing else to do.
+                log.warn("[RoutingService] Bezpośrednie przypisanie pominięte – kontakt nie jest już " +
+                        "QUEUED bez agenta: contactId={}, agentId={}", message.contactId(), message.agentId());
+                return;
+            }
             // Nie wywołujemy closeQueue() — dla direct transfer do agenta etap QUEUE
             // nie jest tworzony (transferToAgentViaConference nie wywołuje openQueue()),
             // więc closeQueue() zawsze trafiałby w pustkę i generował WARN w logach.
@@ -442,49 +541,19 @@ class RoutingServiceImpl implements RoutingService {
         log.debug("[RoutingService] pollAvailableAgents: sprawdzam {} AVAILABLE agentów",
                 availableAgents.size());
 
+        // BE-156 review: ONE backlog pass per tenant (not per agent). The pass lets the engine pick among all
+        // AVAILABLE agents, so repeating it for every agent only multiplied the DB load (agents x backlog).
+        Map<UUID, UUID> triggerAgentByTenant = new LinkedHashMap<>();
         for (AppUser agent : availableAgents) {
-            UUID agentId  = agent.getId();
-            UUID tenantId = agent.getTenantId();
-
-            TenantContext.Snapshot snapshot =
-                    new TenantContext.Snapshot(tenantId, agentId, null, "SYSTEM");
-            TenantContext.restore(snapshot);
-            try {
-                List<Contact> queuedContacts = contactService.findQueuedContacts(tenantId);
-                if (queuedContacts.isEmpty()) {
-                    continue;
-                }
-
-                for (Contact contact : queuedContacts) {
-                    // Kontakty OUTBOUND z kampanii mają agenta przypisanego przez dialer –
-                    // RoutingService nie powinien ich dotykać (duplikacja przypisania).
-                    if ("OUTBOUND".equals(contact.getDirection()) && contact.getAgentId() != null) {
-                        continue;
-                    }
-
-                    if (contact.getQueueId() == null) {
-                        continue;
-                    }
-
-                    Optional<UUID> assignedAgent = routeContact(
-                            contact.getContactId(),
-                            contact.getQueueId(),
-                            tenantId
-                    );
-
-                    if (assignedAgent.isPresent()) {
-                        broadcastQueueStateToAgents(tenantId);
-                        // Agent zajęty po przydzieleniu kontaktu – przejdź do następnego agenta
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("[RoutingService] pollAvailableAgents: błąd dla agenta {}: {}",
-                        agentId, e.getMessage());
-            } finally {
-                TenantContext.clear();
-            }
+            triggerAgentByTenant.putIfAbsent(agent.getTenantId(), agent.getId());
         }
+        triggerAgentByTenant.forEach((tenantId, agentId) -> {
+            try {
+                retryQueuedContacts(tenantId, agentId, true);
+            } catch (Exception e) {
+                log.warn("[RoutingService] pollAvailableAgents: błąd dla tenanta {}: {}", tenantId, e.getMessage());
+            }
+        });
     }
 
     // =========================================================================
@@ -499,23 +568,28 @@ class RoutingServiceImpl implements RoutingService {
      * Przejście ASSIGNED → ACTIVE następuje dopiero gdy adapter telefoniczny wykona
      * faktyczne zestawienie połączenia audio (dialAgentIntoConference).
      *
-     * @param contact  encja kontaktu
-     * @param agentId  UUID wybranego agenta
-     * @param tenantId UUID tenanta
+     * <p>BE-159: zapis jest warunkowy ({@code WHERE status='QUEUED' AND agent_id IS NULL}); wynik inny niż
+     * {@code ASSIGNED} oznacza brak przydziału i caller MUSI pominąć kontakt (bez efektów ubocznych).
+     * BE-156: {@code maxAsyncPerAgent != null} dodatkowo egzekwuje atomowo limit otwartych kontaktów async agenta.
+     *
+     * @param contact          encja kontaktu
+     * @param agentId          UUID wybranego agenta
+     * @param tenantId         UUID tenanta
+     * @param queueId          kolejka tego przebiegu routingu (jawnie, nie z encji) lub null (transfer bezpośredni)
+     * @param maxAsyncPerAgent limit kontaktów async agenta w kolejce lub null (telefon / transfer bezpośredni)
+     * @return wynik przydziału
      */
-    private void assignContactToAgent(Contact contact, UUID agentId, UUID tenantId) {
-        contact.setAgentId(agentId);
-        contact.setStatus("ASSIGNED");
-        contact.setAssignedAt(Instant.now());
-
-        int updated = contactService.updateContactEntity(contact);
-        if (updated == 0) {
-            log.warn("[RoutingService] Nie zaktualizowano kontaktu (0 wierszy): contactId={}",
-                    contact.getContactId());
-        } else {
-            log.debug("[RoutingService] Kontakt przypisany do agenta: contactId={}, agentId={}",
-                    contact.getContactId(), agentId);
+    private AssignmentResult assignContactToAgent(Contact contact, UUID agentId, UUID tenantId,
+                                                  UUID queueId, Integer maxAsyncPerAgent) {
+        AssignmentResult result = contactService.assignQueuedContact(contact, agentId, queueId, maxAsyncPerAgent);
+        if (result != AssignmentResult.ASSIGNED) {
+            log.info("[RoutingService] Kontakt nieprzydzielony ({}) – pomijam: contactId={}, agentId={}, " +
+                    "tenantId={}", result, contact.getContactId(), agentId, tenantId);
+            return result;
         }
+        log.debug("[RoutingService] Kontakt przypisany do agenta: contactId={}, agentId={}",
+                contact.getContactId(), agentId);
+        return result;
     }
 
     /**

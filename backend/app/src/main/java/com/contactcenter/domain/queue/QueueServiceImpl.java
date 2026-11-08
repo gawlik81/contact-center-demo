@@ -56,7 +56,7 @@ class QueueServiceImpl implements QueueService {
                         : 60)
                 .maxConcurrentContactsPerAgent(request.maxConcurrentContactsPerAgent() != null
                         ? request.maxConcurrentContactsPerAgent()
-                        : 1)
+                        : Queue.DEFAULT_MAX_CONCURRENT_CONTACTS_PER_AGENT)
                 .emailAddress(request.emailAddress())
                 .waitConfig(request.waitConfig())
                 .active(request.active() != null ? request.active() : true)

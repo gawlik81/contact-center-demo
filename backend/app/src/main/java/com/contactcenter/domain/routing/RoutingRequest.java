@@ -1,6 +1,7 @@
 package com.contactcenter.domain.routing;
 
 import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.contact.ContactChannels;
 import com.contactcenter.domain.queue.Queue;
 
 import java.util.ArrayList;
@@ -25,6 +26,11 @@ import java.util.UUID;
  *                          {@code null} oznacza all_agents=TRUE (brak filtru – wszyscy agenci tenanta)
  * @param excludedAgentIds  agenci wykluczeni dla TEGO kontaktu (anti-ping-pong po zwrocie do kolejki,
  *                          BE-160/BE-156); pusty zbiór = brak wykluczeń. Dotyczy wszystkich strategii i sticky
+ * @param maxConcurrentAsyncPerAgent limit otwartych kontaktów ASYNC (EMAIL/CHAT/SOCIAL) agenta w tej kolejce
+ *                          (BE-156, {@code queue.max_concurrent_contacts_per_agent}); {@code null} = bez limitu
+ *                          (kontakt telefoniczny - telefon sterowany statusem BUSY, nie tym limitem)
+ * @param retryRound        true gdy to PONOWNE pytanie silnika w tym samym przebiegu (poprzednio wybrany agent
+ *                          okazał się pełny przy zapisie); ROUND_ROBIN nie przesuwa wtedy licznika rotacji
  */
 public record RoutingRequest(
         UUID tenantId,
@@ -34,12 +40,41 @@ public record RoutingRequest(
         UUID preferredAgentId,
         String contactChannel,
         Set<UUID> eligibleAgentIds,
-        Set<UUID> excludedAgentIds
+        Set<UUID> excludedAgentIds,
+        Integer maxConcurrentAsyncPerAgent,
+        boolean retryRound
 ) {
 
     /** Compact constructor: a missing exclusion set means "no exclusions". */
     public RoutingRequest {
         excludedAgentIds = excludedAgentIds != null ? excludedAgentIds : Set.of();
+    }
+
+    /** Request without an async load limit (phone path, legacy callers). */
+    public RoutingRequest(UUID tenantId, UUID queueId, String routingStrategy, List<String> requiredSkills,
+                          UUID preferredAgentId, String contactChannel, Set<UUID> eligibleAgentIds,
+                          Set<UUID> excludedAgentIds) {
+        this(tenantId, queueId, routingStrategy, requiredSkills, preferredAgentId, contactChannel,
+                eligibleAgentIds, excludedAgentIds, null, false);
+    }
+
+    /** Request with an async limit, first round (legacy 9-argument form). */
+    public RoutingRequest(UUID tenantId, UUID queueId, String routingStrategy, List<String> requiredSkills,
+                          UUID preferredAgentId, String contactChannel, Set<UUID> eligibleAgentIds,
+                          Set<UUID> excludedAgentIds, Integer maxConcurrentAsyncPerAgent) {
+        this(tenantId, queueId, routingStrategy, requiredSkills, preferredAgentId, contactChannel,
+                eligibleAgentIds, excludedAgentIds, maxConcurrentAsyncPerAgent, false);
+    }
+
+    /** Same request with a larger exclusion set (agents rejected at write time because they are at the limit). */
+    public RoutingRequest withExcludedAgents(Set<UUID> newExcludedAgentIds) {
+        return new RoutingRequest(tenantId, queueId, routingStrategy, requiredSkills, preferredAgentId,
+                contactChannel, eligibleAgentIds, newExcludedAgentIds, maxConcurrentAsyncPerAgent, true);
+    }
+
+    /** True when agents holding {@code maxConcurrentAsyncPerAgent} open async contacts in this queue are skipped. */
+    public boolean hasAsyncLimit() {
+        return maxConcurrentAsyncPerAgent != null;
     }
 
     /** Request without per-contact exclusions (phone path, legacy callers). */
@@ -103,7 +138,8 @@ public record RoutingRequest(
                 contact.getAgentId(),   // sticky agent (może być null)
                 contact.getChannel(),
                 eligibleAgentIds,
-                excludedAgentIds
+                excludedAgentIds,
+                ContactChannels.isAsync(contact.getChannel()) ? queue.getMaxConcurrentContactsPerAgent() : null
         );
     }
 }

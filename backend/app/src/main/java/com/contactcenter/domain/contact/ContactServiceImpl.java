@@ -131,6 +131,17 @@ class ContactServiceImpl implements ContactService {
     }
 
     /**
+     * BE-156: used to ask routing for another pass when an agent frees an async slot. Setter injection
+     * (optional) keeps the constructor stable; {@code null} (unit tests) simply disables the trigger.
+     */
+    private org.springframework.context.ApplicationEventPublisher routingTriggerPublisher;
+
+    @Autowired(required = false)
+    public void setRoutingTriggerPublisher(org.springframework.context.ApplicationEventPublisher publisher) {
+        this.routingTriggerPublisher = publisher;
+    }
+
+    /**
      * Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
      * ExtensionPointPublisherImpl → ContactService → ExtensionPointPublisher.
      */
@@ -562,6 +573,9 @@ class ContactServiceImpl implements ContactService {
 
         log.info("[ContactService] Kontakt zaktualizowany: contactId={}, tenant={}, status={}",
                 contactId, tenantId, contact.getStatus());
+        if (TERMINAL_CONTACT_STATUSES.contains(contact.getStatus())) {
+            requestRoutingPassAfterSlotFreed(contact);
+        }
 
         // Odczyt po UPDATE – trigger mógł zmienić duration_seconds i updated_at.
         // Używamy getContactInternal bo uprawnienia zostały już zweryfikowane wyżej.
@@ -635,13 +649,18 @@ class ContactServiceImpl implements ContactService {
 
         // If already assigned to a different agent – reject (do not silently overwrite ownership)
         if (contact.getAgentId() != null && !agentId.equals(contact.getAgentId())) {
-            throw new InvalidOperationException(
-                    "Kontakt jest już przypisany do innego agenta: " + contactId);
+            throw new InvalidOperationException(describeNotAssignable(contact));
         }
 
         Instant assignedAt = Instant.now();
         int updated = contactRepository.assignAgent(contactId, tenantId, agentId, assignedAt);
         if (updated == 0) {
+            // BE-159: the conditional write also fails when another agent took the contact between the
+            // read above and the UPDATE - report that as an ownership conflict, not as "not found".
+            Contact current = findContactOrThrow(contactId, tenantId);
+            if (current.getAgentId() != null && !agentId.equals(current.getAgentId())) {
+                throw new InvalidOperationException(describeNotAssignable(current));
+            }
             throw new EntityNotFoundException(
                     "Nie udało się przypisać agenta do kontaktu (zły status lub brak rekordu): " + contactId);
         }
@@ -656,6 +675,14 @@ class ContactServiceImpl implements ContactService {
                 contactId, agentId, tenantId);
 
         return getContactInternal(contactId, tenantId);
+    }
+
+    /** Message for a contact owned by another agent; a closed contact is reported as closed, not as "taken". */
+    private static String describeNotAssignable(Contact contact) {
+        if (TERMINAL_CONTACT_STATUSES.contains(contact.getStatus())) {
+            return "Kontakt jest już zakończony (status: " + contact.getStatus() + "): " + contact.getContactId();
+        }
+        return "Kontakt jest już przypisany do innego agenta: " + contact.getContactId();
     }
 
     // =========================================================================
@@ -740,6 +767,7 @@ class ContactServiceImpl implements ContactService {
 
         log.info("[ContactService] Kontakt porzucony przez agenta: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);
+        requestRoutingPassAfterSlotFreed(contact);
 
         return getContactInternal(contactId, tenantId);
     }
@@ -806,6 +834,7 @@ class ContactServiceImpl implements ContactService {
         contactEventService.openQueue(contactId, tenantId, queueId, queueName, now);
 
         publishContactQueuedAfterCommit(new ContactQueuedMessage(contactId, queueId, tenantId), agentId);
+        requestRoutingPassAfterSlotFreed(contact); // after the exclusion/contact.queued hook (same order)
 
         log.info("[ContactService] Kontakt zwrócony do kolejki: contactId={}, agentId={}, queueId={}, tenant={}",
                 contactId, agentId, queueId, tenantId);
@@ -826,6 +855,40 @@ class ContactServiceImpl implements ContactService {
         }
         throw new InvalidOperationException(
                 "Kontakt nie ma kolejki, do której można go zwrócić: " + contact.getContactId());
+    }
+
+    /**
+     * BE-156: an agent just freed an async slot (contact closed / abandoned / returned to the queue), but they
+     * stay AVAILABLE, so no {@code agent.status.changed} fires. Ask routing for a pass for this tenant right
+     * after the commit (the pass counts open contacts, so it must see the closed row). Without this trigger
+     * the next queued contact would wait for {@code pollAvailableAgents} (up to 30 s). Failures are swallowed.
+     */
+    private void requestRoutingPassAfterSlotFreed(Contact contact) {
+        if (routingTriggerPublisher == null || contact.getAgentId() == null
+                || !ContactChannels.isAsync(contact.getChannel())) {
+            return;
+        }
+        com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent event =
+                new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(
+                        contact.getAgentId(), contact.getTenantId());
+        Runnable publish = () -> {
+            try {
+                routingTriggerPublisher.publishEvent(event);
+            } catch (Exception e) {
+                log.warn("[ContactService] Nie udało się zlecić przebiegu routingu po zwolnieniu slotu: " +
+                        "contactId={}, error={}", contact.getContactId(), e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 
     /** Records the exclusion and publishes after the DB commit so routing never sees the pre-release row. */
@@ -1584,6 +1647,55 @@ class ContactServiceImpl implements ContactService {
     @Transactional
     public int updateContactEntity(Contact contact) {
         return contactRepository.update(contact);
+    }
+
+    @Override
+    @Transactional
+    public AssignmentResult assignQueuedContact(Contact contact, UUID agentId, UUID queueId,
+                                                Integer maxAsyncPerAgent) {
+        AssignmentResult result = contactRepository.assignIfQueued(
+                contact.getContactId(), contact.getTenantId(), contact.getStartedAt(), agentId,
+                queueId, maxAsyncPerAgent);
+        if (result == AssignmentResult.ASSIGNED) {
+            contact.setAgentId(agentId);
+            contact.setStatus("ASSIGNED");
+            contact.setAssignedAt(Instant.now());
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Long> countOpenAsyncContactsByAgents(UUID tenantId, UUID queueId, List<UUID> agentIds) {
+        return contactRepository.countOpenAsyncContactsByAgents(tenantId, queueId, agentIds);
+    }
+
+    @Override
+    @Transactional
+    public boolean markQueuedContactWithoutQueueAsError(Contact contact, Instant endedAt) {
+        int updated = contactRepository.markErrorIfQueuedWithoutQueue(
+                contact.getContactId(), contact.getTenantId(), contact.getStartedAt(), endedAt);
+        if (updated == 0) {
+            return false;
+        }
+        contact.setStatus("ERROR");
+        contact.setEndedAt(endedAt);
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean completeContactIfOpen(Contact contact, Instant endedAt) {
+        int updated = contactRepository.completeIfOpen(
+                contact.getContactId(), contact.getTenantId(), contact.getStartedAt(), endedAt);
+        if (updated == 0) {
+            return false;
+        }
+        contact.setStatus("COMPLETED");
+        contact.setEndedAt(endedAt);
+        contact.setUpdatedAt(endedAt);
+        requestRoutingPassAfterSlotFreed(contact);
+        return true;
     }
 
     @Override

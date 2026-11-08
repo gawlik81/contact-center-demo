@@ -543,6 +543,19 @@ queue dimension   -- via runQueueDimSync()
 Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfaced via
 `EtlStatusController` / `AdminMetricsController` (`/api/admin/etl/status`).
 
+- **Data lag** (BE-212) = age of the oldest source change not yet synced to the DW
+  (`MIN(effective_ts) WHERE effective_ts > last_synced_at`, same CDC source/filters as the fetch);
+  `0` when nothing is pending. `last_synced_at` is the CDC watermark, not the run time, so an idle
+  source never raises a lag alert.
+- **Job liveness** (`checkJobLiveness`, every `etl.sync.liveness-check-interval-ms`, default 60 s):
+  alerts when `status = ERROR` or the newest of `last_run_at` / `updated_at` (heartbeat refreshed
+  after every written batch) is older than `etl.sync.liveness-threshold-ms` (default 5 min, keep
+  ≥ 3 × `etl.sync.fixed-delay-ms`).
+- Alerts are logged as `[ETL][ALERT]` and published to `cc.events` / `etl.lag.alert` with
+  `alertType` = `DATA_LAG` | `JOB_STALE` | `JOB_ERROR` (`errorMessage` truncated to 200 chars).
+  Known gaps: watermark skip above the 5000-row fetch limit (BE-213), alert cooldown (BE-214),
+  multi-instance deduplication (BE-172).
+
 ---
 
 ## 5. API Design

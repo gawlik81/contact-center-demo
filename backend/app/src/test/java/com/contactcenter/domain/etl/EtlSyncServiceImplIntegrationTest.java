@@ -179,6 +179,117 @@ class EtlSyncServiceImplIntegrationTest {
         assertThat(saved.get("remote_address")).isNull();
     }
 
+    @Test
+    @DisplayName("BE-212: brak zmian po znaczniku CDC -> lag 0 (SQL lagu dziala na prawdziwym PG dla obu tabel)")
+    void dataLag_noChangesAfterCdcPosition_isZero() {
+        Instant futureCutoff = Instant.now().plus(1, ChronoUnit.DAYS);
+
+        assertThat(service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, futureCutoff)).isZero();
+        assertThat(service.computeDataLagMinutes(EtlSyncService.TABLE_CAMPAIGN_CONTACT, futureCutoff)).isZero();
+    }
+
+    /*
+     * Isolation on the shared DB: the lag query is cross-tenant, so foreign rows cannot be excluded. Our changes are
+     * placed 90 min in the past and the CDC cutoff 95 min in the past; rows of other tests are (practically) younger,
+     * so "oldest pending" is our row when it counts, and strictly younger than 90 min when it must not count.
+     */
+    private static final long CHANGE_AGE_MIN = 90;
+    private static final long CUTOFF_AGE_MIN = 95;
+
+    private Timestamp changedAt() {
+        return Timestamp.from(Instant.now().minus(CHANGE_AGE_MIN, ChronoUnit.MINUTES));
+    }
+
+    private Instant cutoff() {
+        return Instant.now().minus(CUTOFF_AGE_MIN, ChronoUnit.MINUTES);
+    }
+
+    @Test
+    @DisplayName("BE-212: zalegla zmiana kontaktu COMPLETED -> lag = jej wiek")
+    void dataLag_completedContactCountsWithItsAge() {
+        UUID contactId = UUID.randomUUID();
+        contactIdToCleanUp = contactId;
+        insertContactWithUpdatedAt(contactId, UUID.randomUUID(), "COMPLETED", Instant.now().minus(3, ChronoUnit.HOURS),
+                changedAt());
+
+        long lag = service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, cutoff());
+
+        assertThat(lag).isBetween(CHANGE_AGE_MIN - 1, CHANGE_AGE_MIN + 6);
+    }
+
+    @Test
+    @DisplayName("BE-212: kontakt w statusie roboczym (QUEUED/ACTIVE/ON_HOLD) nie liczy sie do lagu (jak fetch CDC)")
+    void dataLag_workingStatusesAreIgnored() {
+        for (String status : List.of("QUEUED", "ACTIVE", "ON_HOLD")) {
+            UUID contactId = UUID.randomUUID();
+            contactIdToCleanUp = contactId;
+            insertContactWithUpdatedAt(contactId, UUID.randomUUID(), status, Instant.now().minus(3, ChronoUnit.HOURS),
+                    changedAt());
+
+            long lag = service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, cutoff());
+
+            // without the status filter the lag would be >= 90; foreign rows are younger
+            assertThat(lag).as("status %s", status).isLessThan(CHANGE_AGE_MIN - 1);
+            jdbc.update("DELETE FROM contact WHERE contact_id = ?", contactId);
+        }
+    }
+
+    @Test
+    @DisplayName("BE-212: kontakt zanonimizowanego klienta nie liczy sie do lagu (jak fetch CDC)")
+    void dataLag_anonymizedCustomerContactIsIgnored() {
+        UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-212 anon " + UUID.randomUUID());
+        UUID customerId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        contactIdToCleanUp = contactId;
+        jdbc.update("INSERT INTO customer (customer_id, tenant_id, first_name, last_name, phone, email) "
+                + "VALUES (?, ?, 'ANONYMIZED', 'X', '[]'::jsonb, '[]'::jsonb)", customerId, tenantId);
+        try {
+            jdbc.update("""
+                    INSERT INTO contact (contact_id, tenant_id, customer_id, channel, direction, status, queued_at, updated_at)
+                    VALUES (?, ?, ?, 'PHONE', 'INBOUND', 'COMPLETED', ?, ?)
+                    """, contactId, tenantId, customerId,
+                    Timestamp.from(Instant.now().minus(3, ChronoUnit.HOURS)), changedAt());
+
+            long lag = service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, cutoff());
+
+            assertThat(lag).isLessThan(CHANGE_AGE_MIN - 1);
+        } finally {
+            jdbc.update("DELETE FROM contact WHERE contact_id = ?", contactId);
+            jdbc.update("DELETE FROM customer WHERE customer_id = ?", customerId);
+        }
+    }
+
+    @Test
+    @DisplayName("BE-212: realny wiersz campaign_contact (JOIN campaign) daje niezerowy lag = jego wiek")
+    void dataLag_campaignContactRowCountsWithItsAge() {
+        UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-212 cc " + UUID.randomUUID());
+        UUID campaignId = UUID.randomUUID();
+        UUID recordId = UUID.randomUUID();
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'Kampania BE-212')",
+                campaignId, tenantId);
+        try {
+            jdbc.update("""
+                    INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status, updated_at)
+                    VALUES (?, ?, ?, '+48500100300', 'Jan', 'COMPLETED', ?)
+                    """, recordId, campaignId, tenantId, changedAt());
+
+            long lag = service.computeDataLagMinutes(EtlSyncService.TABLE_CAMPAIGN_CONTACT, cutoff());
+
+            assertThat(lag).isBetween(CHANGE_AGE_MIN - 1, CHANGE_AGE_MIN + 6);
+        } finally {
+            jdbc.update("DELETE FROM campaign_contact WHERE record_id = ?", recordId);
+            jdbc.update("DELETE FROM campaign WHERE campaign_id = ?", campaignId);
+        }
+    }
+
+    private void insertContactWithUpdatedAt(UUID contactId, UUID tenantId, String status, Instant queuedAt,
+                                            Timestamp updatedAt) {
+        jdbc.update("""
+                INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at, updated_at)
+                VALUES (?, ?, 'PHONE', 'INBOUND', ?, ?, ?)
+                """, contactId, tenantId, status, Timestamp.from(queuedAt), updatedAt);
+    }
+
     private void insertContact(UUID contactId, UUID tenantId, UUID agentId, UUID queueId, UUID campaignId,
                                 String channel, String direction, String status, String dispositionCode,
                                 Integer durationSeconds, Instant queuedAt, Instant startedAt, Instant endedAt,

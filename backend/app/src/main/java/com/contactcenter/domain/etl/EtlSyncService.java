@@ -26,7 +26,10 @@ import java.util.List;
  * Tenant_id jest uwzględniany w danych wyjściowych ({@link ContactDwRow#tenantId()}).
  *
  * <h3>Alert monitoringowy</h3>
- * <p>Gdy lag > 30 min, publikowany jest event do RabbitMQ (exchange {@code cc.events},
+ * <p>Lag = wiek najstarszej niezsynchronizowanej zmiany w źródle (BE-212; brak zmian = 0). Dodatkowo
+ * {@code checkJobLiveness} alarmuje o stanie ERROR i nieaktywnym jobie ({@code last_run_at} za stary);
+ * payload zawiera {@code alertType} = DATA_LAG | JOB_STALE | JOB_ERROR.
+ * Gdy lag > 30 min, publikowany jest event do RabbitMQ (exchange {@code cc.events},
  * routing key {@code etl.lag.alert}). Logowany jest WARN niezależnie od RabbitMQ.
  */
 public interface EtlSyncService {

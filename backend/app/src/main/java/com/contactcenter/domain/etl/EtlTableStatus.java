@@ -11,7 +11,8 @@ import java.time.Instant;
  * @param lastRunAt      czas ostatniego uruchomienia zadania
  * @param lastRowCount   liczba wierszy przetworzonych w ostatnim cyklu
  * @param status         status: IDLE | RUNNING | DONE | ERROR
- * @param lagMinutes     lag w minutach (now - lastSyncedAt), null gdy brak danych
+ * @param lagMinutes     lag danych w minutach: wiek najstarszej niezsynchronizowanej zmiany w źródle (0 = brak zaległości,
+ *                       BE-212), null dla tabel bez definicji CDC
  * @param errorMessage   komunikat błędu gdy status=ERROR (null w pozostałych)
  */
 public record EtlTableStatus(

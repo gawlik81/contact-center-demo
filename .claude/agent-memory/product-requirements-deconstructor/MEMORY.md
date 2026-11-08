@@ -33,3 +33,5 @@
 - [Tura 69: EPIC-32 FE-150/153/157/159, BE-163](project_tura69_epic32.md) — 383/78/7 z 468, nowe BE-200..203, FE-161/162
 - [Tura 70: BE-165/166/168 ✅, BE-204..206](project_tura70_epic32.md) — 386/78/7 z 471, wolne BE-207/FE-163/DB-096
 - [Tura 71: BE-200 ✅](project_tura71_be200.md) — 387/77/7 z 471, wolne BE-207/FE-163/DB-096
+- [Tura 72: BE-156/BE-159 ✅, DB-096/097](project_tura72_be156_be159.md) — 391/79/7 z 477, nowe BE-207..209, FE-163, wolne BE-210/FE-164/DB-098
+- [Tura 73: agenci-duchy BE-210/211, FE-164, BE-212 lag ETL](project_tura73_ghost_agents.md) — dopisek 2: BE-211/212 ✅, BE-213/214, DB-098, FE-165; 393/85/7=485, wolne BE-215/FE-166/DB-099

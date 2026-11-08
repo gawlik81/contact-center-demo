@@ -35,3 +35,5 @@
 - [Tura 71: BE-200 ✅](project_tura71_be200.md) — 387/77/7 z 471, wolne BE-207/FE-163/DB-096
 - [Tura 72: BE-156/BE-159 ✅, DB-096/097](project_tura72_be156_be159.md) — 391/79/7 z 477, nowe BE-207..209, FE-163, wolne BE-210/FE-164/DB-098
 - [Tura 73: agenci-duchy BE-210/211, FE-164, BE-212 lag ETL](project_tura73_ghost_agents.md) — dopisek 2: BE-211/212 ✅, BE-213/214, DB-098, FE-165; 393/85/7=485, wolne BE-215/FE-166/DB-099
+- [Tura 74: BE-213/BE-210/FE-164 ✅](project_tura74_etl_presence.md) — nowe BE-215..217, FE-166, DB-098 podniesiony, 396/86/7=489, wolne BE-218/FE-167/DB-099
+- [Tura 74 dopisek 2: BE-209/FE-163 ✅, FE-149 skorygowane na ⬜](project_tura74_dopisek2.md) — nowe BE-218..220, FE-167, 398/88/7=493, wolne BE-221/FE-168/DB-099

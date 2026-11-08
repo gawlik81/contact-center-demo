@@ -517,7 +517,9 @@ Full DDL, indexes, partitioning helper functions and Mermaid ER diagrams:
 | Key Pattern | Type | Content |
 |-------------|------|---------|
 | `jwt:blacklist:{jti}` | String (TTL = token expiry) | revoked access-token marker |
-| Agent presence / heartbeats | Hash | status, last-seen — used by routing/availability views |
+| `session:agent:{userId}` | Hash (TTL 8 h) | agent status snapshot (status, break start) |
+| `presence:sessions:{tenantId}:{userId}` | Sorted set | live STOMP sessions → epoch ms of last signal (CONNECTED/SUBSCRIBE/`/app/ping`); alive within `agent.presence.session-ttl-ms` (BE-210) |
+| `presence:last-seen:{tenantId}:{userId}`, `presence:closed:*`, `presence:epoch` | String | last presence signal, closed-session markers (late ping ignored), registry epoch sentinel (detects a flushed Redis) |
 | `ivr:session:{callId}` | Hash/String | voicebot conversation session state (shared with `voicebot/`) |
 | Dialer de-duplication locks | String (`SET NX`) | prevents double-dialing the same `campaign_contact` record |
 | Tenant/queue config caches | Hash/String | short-TTL caches to avoid repeated PostgreSQL reads |
@@ -553,8 +555,15 @@ Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfac
   ≥ 3 × `etl.sync.fixed-delay-ms`).
 - Alerts are logged as `[ETL][ALERT]` and published to `cc.events` / `etl.lag.alert` with
   `alertType` = `DATA_LAG` | `JOB_STALE` | `JOB_ERROR` (`errorMessage` truncated to 200 chars).
-  Known gaps: watermark skip above the 5000-row fetch limit (BE-213), alert cooldown (BE-214),
-  multi-instance deduplication (BE-172).
+  Known gaps: alert cooldown (BE-214), multi-instance deduplication (BE-172).
+- **CDC cursor** (BE-213): the watermark is derived only from rows actually fetched and written
+  (no table-wide `MAX`). `runCdcLoop` pages with a keyset cursor `(effective_ts, id)` up to
+  `etl.sync.max-batches-per-cycle` × `etl.sync.fetch-limit` rows per cycle; after a full batch the
+  watermark stops just below the last timestamp, so a cut tie group is re-read (DW upserts are
+  idempotent). The watermark is advanced monotonically after every written batch. Rows newer than
+  `NOW() - etl.sync.safety-window-ms` (default 60 s) are deferred so late-committing transactions
+  are not skipped; transactions longer than the window are still a gap (BE-216). ClickHouse
+  aggregates fed by materialized views over-count re-read rows (BE-215).
 
 ---
 
@@ -698,9 +707,18 @@ Subscriptions (server -> client):
 Representative WsEvent types (server -> client):
   CONTACT_ASSIGNED     { contactId, channel, customerId, customerName, remoteAddress }
   CONTACT_ENDED        { contactId, durationSeconds }
-  AGENT_STATUS_CHANGED { agentId, status }
+  AGENT_STATUS_CHANGED { agentId, status, statusSince, reason? }   # reason = PRESENCE_TIMEOUT on auto-OFFLINE
   QUEUE_WAIT_UPDATE    { queueId, depth, estimatedWaitSeconds }
   SYSTEM_NOTIFICATION  { severity, message }
+
+Presence (BE-210, FE-164): the client sends STOMP SEND /app/ping after connect and every 30 s
+(plus on visibilitychange/online/focus). AgentPresenceSweeper (every
+agent.presence.sweep-interval-ms, and once after startup) switches agents without presence
+to OFFLINE: AVAILABLE/AFTER_CONTACT/BREAK after agent.presence.grace-period-ms (90 s), BUSY
+only without an ACTIVE/ON_HOLD PHONE contact after agent.presence.busy-orphan-timeout-ms
+(10 min). The write is a conditional UPDATE on the previously read status; a Redis outage or
+flush restarts the grace period. The client also resyncs its own status via GET /users/me
+every 60 s and never auto-restores AVAILABLE after a reconnect.
 
 Internal relay: RabbitToWebSocketRelay consumes cc.queue.call-events and republishes to
 the relevant /topic/... destinations; some services (SupervisorMetricsService,

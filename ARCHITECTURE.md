@@ -522,6 +522,7 @@ Full DDL, indexes, partitioning helper functions and Mermaid ER diagrams:
 | `presence:last-seen:{tenantId}:{userId}`, `presence:closed:*`, `presence:epoch` | String | last presence signal, closed-session markers (late ping ignored), registry epoch sentinel (detects a flushed Redis) |
 | `ivr:session:{callId}` | Hash/String | voicebot conversation session state (shared with `voicebot/`) |
 | Dialer de-duplication locks | String (`SET NX`) | prevents double-dialing the same `campaign_contact` record |
+| `etl:alert:{table}:{alertType}` | String (`SET NX PX`, TTL = `etl.sync.alert-cooldown-ms`, default 15 min) | cooldown slot of an `etl.lag.alert` (`alertType` = `DATA_LAG` \| `JOB_STALE` \| `JOB_ERROR`); shared by all instances, deleted on recovery (BE-214) |
 | Tenant/queue config caches | Hash/String | short-TTL caches to avoid repeated PostgreSQL reads |
 
 > The original plan's Redis-only "queue depth / sorted-set of waiting contacts" model is
@@ -555,15 +556,63 @@ Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfac
   ≥ 3 × `etl.sync.fixed-delay-ms`).
 - Alerts are logged as `[ETL][ALERT]` and published to `cc.events` / `etl.lag.alert` with
   `alertType` = `DATA_LAG` | `JOB_STALE` | `JOB_ERROR` (`errorMessage` truncated to 200 chars).
-  Known gaps: alert cooldown (BE-214), multi-instance deduplication (BE-172).
+- **Alert cooldown** (BE-214): the broker message for a `(table, alertType)` pair is sent once per
+  `etl.sync.alert-cooldown-ms` (default 15 min) via Redis `SET NX PX` on `etl:alert:{table}:{alertType}`
+  (shared by all instances, so duplicate alerts from several instances are also suppressed). Recovery
+  (cycle `DONE`, liveness OK, lag below threshold) deletes the key, so the next entry into the state
+  (e.g. `DONE` → `ERROR`) alerts at once; a persistent state re-alerts after the TTL. A `RUNNING` sample
+  does not count as recovery. The slot value is a unique owner token: after taking the slot the service
+  re-reads the job state, and if it recovered in the meantime (a cycle ended `DONE` between the liveness
+  read and the `SET NX`) it drops the alert and deletes the slot only if it still holds its own token, so
+  a late thread can neither send a false alert nor leave a slot that mutes the next real one (`JOB_STALE`
+  gets the same check; `DATA_LAG` is evaluated and cleared by the same per-table cycle thread). Redis
+  failure = fail-open (alert sent, WARN logged); a failed slot delete (recovery) only delays the next
+  alert for that state until the TTL; `0` disables the cooldown. Accepted behaviour: a job flapping
+  `ERROR`/`DONE` alerts on every new `ERROR` (each one follows a real recovery), i.e. at most one alert per
+  cycle per table — the pre-BE-214 rate, never worse — so no extra "last sent" spacing key is kept. The `[ETL][ALERT]` WARN log is written on every check; payload contract unchanged. Known gap:
+  ShedLock on the ETL jobs (BE-172).
 - **CDC cursor** (BE-213): the watermark is derived only from rows actually fetched and written
   (no table-wide `MAX`). `runCdcLoop` pages with a keyset cursor `(effective_ts, id)` up to
   `etl.sync.max-batches-per-cycle` × `etl.sync.fetch-limit` rows per cycle; after a full batch the
   watermark stops just below the last timestamp, so a cut tie group is re-read (DW upserts are
-  idempotent). The watermark is advanced monotonically after every written batch. Rows newer than
-  `NOW() - etl.sync.safety-window-ms` (default 60 s) are deferred so late-committing transactions
-  are not skipped; transactions longer than the window are still a gap (BE-216). ClickHouse
-  aggregates fed by materialized views over-count re-read rows (BE-215).
+  idempotent). The watermark is advanced monotonically after every written batch. After a mid-cycle
+  failure the lag check uses the marker persisted by the last successful advance (BE-216).
+  ClickHouse aggregates fed by materialized views over-count re-read rows (BE-215).
+- **Upper bound of the fetch and long transactions** (BE-213, BE-216): `updated_at`/`created_at` are
+  stamped with `NOW()` = transaction *start* (triggers V002/V007, `DEFAULT NOW()`), so a transaction that
+  commits late would land below an already advanced watermark. A row is fetched only when
+  `effective_ts <= LEAST(NOW(), oldest open write transaction start) - etl.sync.safety-window-ms`
+  (default 60 s). The bound is computed by a separate statement executed *before* each fetch and passed as
+  a parameter (autocommit, READ COMMITTED: every statement takes its own snapshot): reading
+  `pg_stat_activity` inside the fetch itself would happen after the data snapshot, and a long transaction
+  committing in between would be invisible both in the data and in the guard. "Open write transaction" = a `client backend` of this database in `pg_stat_activity`
+  with `backend_xid IS NOT NULL`, excluding the ETL's own backend
+  (`etl.sync.open-transaction-guard-enabled`, default `true`). A row written by such a transaction has
+  `effective_ts >= xact_start`, so the cursor cannot pass it before the commit, however long the
+  transaction runs (e.g. a bulk update); it is delivered in the cycle after the commit. No schema change.
+  The window is subtracted from the guard as well, because some writers stamp the timestamp in Java just
+  before their transaction starts (campaign import `created_at`, `Contact` insert), i.e. slightly
+  earlier than `xact_start`; the campaign import itself already commits in short per-batch transactions.
+  Limits: (1) any long-lived write transaction — even an unrelated one (retention purge, bulk
+  maintenance) — holds the cursor back for its duration; the lag grows and `DATA_LAG` fires after 30 min
+  (its WARN log names the blocking backend: pid, state, `application_name`, `xact_start`). A connection
+  stuck `idle in transaction` after a write blocks the cursor indefinitely, so set
+  `idle_in_transaction_session_timeout` (e.g. a few minutes) on the application role (relates to BE-150).
+  No Micrometer gauge for the age of the blocking transaction exists: the ETL service has no
+  `MeterRegistry` today, so this is left as a follow-up;
+  (2) a transaction that has only read so far has no xid and is invisible to the guard — if it writes
+  later, only the window protects it (read-only phase longer than the window, then a write);
+  (3) `pg_stat_activity` masks `xact_start`/`backend_xid` of sessions of *other roles* unless the reading
+  role is a superuser or a member of `pg_read_all_stats` (same-role sessions stay visible). Today the
+  application role is a superuser/BYPASSRLS role (full visibility); for the future `cc_app` role
+  (BE-150, EPIC-31) either every writer — application, Flyway owner, DBA sessions — must run as that
+  role or `cc_app` must be granted `pg_read_all_stats` (otherwise the guard silently degrades to the
+  window-only behaviour). At startup (`ApplicationReadyEvent`) the service checks
+  `rolsuper OR pg_has_role(current_user, 'pg_read_all_stats', 'USAGE')` and logs a loud WARN when the guard
+  would be blind (the application keeps running); a WARN is also logged when
+  `etl.sync.open-transaction-guard-enabled=false`; (4) prepared (2PC) transactions are not listed in `pg_stat_activity` (not
+  used); (5) with `safety-window-ms = 0` two transactions started in the very same microsecond could tie
+  at the cap (irrelevant with the default window).
 
 ---
 

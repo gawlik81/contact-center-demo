@@ -77,6 +77,21 @@ class UserServiceTest {
         TenantContext.clear();
     }
 
+    @Test
+    @DisplayName("findAvailableAgents (BE-221) pyta repozytorium wylacznie o role AGENT")
+    void findAvailableAgents_queriesOnlyAgentRole() {
+        AppUser agent = AppUser.builder().id(UUID.randomUUID()).role(UserRole.AGENT)
+                .status(UserStatus.AVAILABLE).build();
+        when(appUserRepository.findAllByStatusAndRoleAndDeletedFalse(UserStatus.AVAILABLE, UserRole.AGENT))
+                .thenReturn(List.of(agent));
+
+        assertThat(userService.findAvailableAgents()).containsExactly(agent);
+
+        verify(appUserRepository).findAllByStatusAndRoleAndDeletedFalse(UserStatus.AVAILABLE, UserRole.AGENT);
+        verify(appUserRepository, never()).findAllByStatusAndRoleAndDeletedFalse(any(), eq(UserRole.ADMIN));
+        verify(appUserRepository, never()).findAllByStatusAndRoleAndDeletedFalse(any(), eq(UserRole.SUPERVISOR));
+    }
+
     // =========================================================================
     // Tworzenie użytkownika
     // =========================================================================

@@ -181,10 +181,20 @@ services:
         condition: service_healthy
     volumes:
       - ./dw/migrations:/migrations:ro
+    # V001 używa CREATE OR REPLACE TABLE (czyści dane!) – uruchamiane TYLKO gdy sentinel (queue_dim =
+    # ostatni obiekt V001, nie usuwany przez V003) jednoznacznie NIE istnieje (EXISTS=0). Błąd zapytania
+    # lub nieoczekiwana odpowiedź => exit 1 (fail-closed). EXISTS TABLE na nieistniejącej bazie zwraca 0.
+    # V003+ są idempotentne i bezpieczne dla danych – uruchamiane zawsze (BE-215).
     entrypoint: >
       /bin/sh -c "
-        clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V001__create_contacts_dw.sql &&
-        clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V002__add_agent_performance_mv.sql &&
+        EX=$$(clickhouse-client --host clickhouse --port 9000 --user default --password '' -q 'EXISTS TABLE contact_center_dw.queue_dim') || exit 1;
+        if [ \"$$EX\" = '0' ]; then
+          clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V001__create_contacts_dw.sql &&
+          clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V002__add_agent_performance_mv.sql || exit 1;
+        elif [ \"$$EX\" != '1' ]; then
+          echo \"EXISTS TABLE zwrocil nieoczekiwana wartosc: $$EX\" >&2; exit 1;
+        fi;
+        clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V003__dedup_safe_agent_kpi.sql &&
         echo 'ClickHouse DW schema initialized.'
       "
     networks:

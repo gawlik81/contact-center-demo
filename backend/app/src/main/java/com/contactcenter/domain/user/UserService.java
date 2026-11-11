@@ -280,7 +280,8 @@ public interface UserService {
     List<AppUser> findTransferCandidates(UUID tenantId, UUID excludeUserId);
 
     /**
-     * Zwraca wszystkich nieusunietych agentów ze statusem AVAILABLE, cross-tenant.
+     * Zwraca wszystkich nieusunietych agentów (rola AGENT; bez ADMIN/SUPERVISOR – BE-221)
+     * ze statusem AVAILABLE, cross-tenant.
      *
      * <p>Używana przez {@code ProgressiveDialerService} i {@code RoutingService}
      * do cyklicznego pollingu agentów dostępnych do obsługi.

@@ -438,14 +438,18 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * <p>Brak paginacji – lista agentów online jest zazwyczaj krótka (kilkuset agentów
      * na instalację). Jeśli w przyszłości wzrośnie, dodaj stronicowanie.
      *
+     * <p>Filtr po roli (BE-221): konta ADMIN/SUPERVISOR nie należą do kolejek i nie
+     * odbierają kontaktów, więc nie powinny trafiać do pollingu routingu/dialera.
+     *
      * @param status  status agenta (np. {@link AppUser.UserStatus#AVAILABLE})
-     * @return lista agentów z danym statusem, is_deleted=false
+     * @param role    rola użytkownika (dla routingu/dialera: {@link AppUser.UserRole#AGENT})
+     * @return lista użytkowników z danym statusem i rolą, is_deleted=false
      */
-    List<AppUser> findAllByStatusAndDeletedFalse(AppUser.UserStatus status);
+    List<AppUser> findAllByStatusAndRoleAndDeletedFalse(AppUser.UserStatus status, AppUser.UserRole role);
 
     /**
      * BE-210: presence-sweeper candidates (projection, no sensitive columns) - non-deleted AGENTs in one of the given statuses, cross-tenant by
-     * design (same contract as {@link #findAllByStatusAndDeletedFalse}: the caller sets the tenant context
+     * design (same contract as {@link #findAllByStatusAndRoleAndDeletedFalse}: the caller sets the tenant context
      * per agent before acting on a row).
      */
     @Query("SELECT new com.contactcenter.domain.user.AgentPresenceCandidate("

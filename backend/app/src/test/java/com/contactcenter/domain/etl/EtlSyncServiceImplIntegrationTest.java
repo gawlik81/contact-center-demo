@@ -324,6 +324,11 @@ class EtlSyncServiceImplIntegrationTest {
                 Timestamp.from(marker), table);
     }
 
+    /** PostgreSQL timestamptz keeps microseconds and rounds (half up) - not truncates - sub-microsecond input. */
+    private static Instant roundToMicros(Instant i) {
+        return i.plusNanos(500).truncatedTo(ChronoUnit.MICROS);
+    }
+
     private Instant marker(String table) {
         return jdbc.queryForObject("SELECT last_synced_at FROM etl_sync_state WHERE table_name = ?",
                 Timestamp.class, table).toInstant();
@@ -359,6 +364,15 @@ class EtlSyncServiceImplIntegrationTest {
                        CAST(? AS TIMESTAMPTZ) + (CASE WHEN ? THEN 0 ELSE i END) * INTERVAL '1 second'
                 FROM generate_series(1, ?) AS i
                 """, cdcTenant, Timestamp.from(OLD_BASE), sameTimestamp, n);
+    }
+
+    /** Recent COMPLETED contacts (updated_at ~ now) - simulate rows left behind by other tests; cleaned in @AfterEach. */
+    private void seedForeignRecentContacts(int n) {
+        jdbc.update("""
+                INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at, updated_at)
+                SELECT gen_random_uuid(), ?, 'PHONE', 'INBOUND', 'COMPLETED', NOW(), NOW() - INTERVAL '5 minutes'
+                FROM generate_series(1, ?) AS i
+                """, cdcTenant, n);
     }
 
     private int dwCount() {
@@ -421,7 +435,9 @@ class EtlSyncServiceImplIntegrationTest {
     @DisplayName("BE-213: okno bezpieczenstwa - wiersze w oknie i 'spozniony commit' (starszy timestamp) trafiaja do DW, gdy okno minie")
     void rowInSafetyWindowAndLateCommit_syncedInNextCycle() {
         saveMarkers();
-        Instant start = Instant.now().minusSeconds(3600);
+        // sub-microsecond nanos on purpose (CI JVM clock): PostgreSQL timestamptz ROUNDS to micros, so the expected
+        // value is compared against the DB round-trip, not a Java truncation
+        Instant start = Instant.now().minusSeconds(3600).truncatedTo(ChronoUnit.SECONDS).plusNanos(417_409_700);
         setMarker("contact", start);
         // large window and rows with timestamps in the past (no sleeping, no dependence on wall-clock pauses)
         ReflectionTestUtils.setField(service, "safetyWindowMs", 600_000L);
@@ -434,7 +450,7 @@ class EtlSyncServiceImplIntegrationTest {
         service.syncTable(EtlSyncService.TABLE_CONTACT);
 
         assertThat(dwCount()).as("row inside the safety window is not fetched yet").isZero();
-        assertThat(marker("contact")).as("marker must not pass the window").isEqualTo(start.truncatedTo(ChronoUnit.MICROS));
+        assertThat(marker("contact")).as("marker must not pass the window").isEqualTo(roundToMicros(start));
 
         // late commit: a transaction that started BEFORE row A (older updated_at) commits only now
         insertContactWithUpdatedAt(rowB, cdcTenant, "COMPLETED", Instant.now(),
@@ -454,6 +470,11 @@ class EtlSyncServiceImplIntegrationTest {
         saveMarkers();
         setMarker("contact", OLD_BASE.minusSeconds(10));
         seedContacts(5, false); // ts = OLD_BASE + 1..5 s
+        // The CDC query is cross-tenant: on a shared DB other tests leave recent COMPLETED contacts behind (CI).
+        // Foreign "now" rows must not influence this scenario -> seed some and exclude them with a 5-year window
+        // (the 2001 rows are older than NOW() - 5y, the foreign rows are not).
+        seedForeignRecentContacts(38);
+        long fiveYearsMs = 5L * 365 * 24 * 3600 * 1000;
 
         java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
         DataWarehouseWriter failing = new DataWarehouseWriter() {
@@ -469,7 +490,7 @@ class EtlSyncServiceImplIntegrationTest {
         };
         EtlSyncServiceImpl failingService = new EtlSyncServiceImpl(jdbc, failing, mock(RabbitTemplate.class));
         ReflectionTestUtils.setField(failingService, "fetchLimit", 2);
-        ReflectionTestUtils.setField(failingService, "safetyWindowMs", 0L);
+        ReflectionTestUtils.setField(failingService, "safetyWindowMs", fiveYearsMs);
 
         failingService.syncTable(EtlSyncService.TABLE_CONTACT);
 
@@ -488,7 +509,7 @@ class EtlSyncServiceImplIntegrationTest {
         };
         EtlSyncServiceImpl next = new EtlSyncServiceImpl(jdbc, counting, mock(RabbitTemplate.class));
         ReflectionTestUtils.setField(next, "fetchLimit", 2);
-        ReflectionTestUtils.setField(next, "safetyWindowMs", 0L);
+        ReflectionTestUtils.setField(next, "safetyWindowMs", fiveYearsMs);
 
         next.syncTable(EtlSyncService.TABLE_CONTACT);
 

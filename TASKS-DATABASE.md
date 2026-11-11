@@ -4568,7 +4568,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Złożoność:** M (indeks na tabeli partycjonowanej, `CREATE INDEX CONCURRENTLY` per partycja, pomiar `EXPLAIN` na scratch)
 **Zależy od:** BE-213 ✅ (kursor `(effective_ts, id)` i pętla batchy — patrz wyżej), BE-212 ✅ (nowe zapytania lagu `MIN(COALESCE(updated_at, created_at))` + `EXISTS` na `customer`; wspólne stałe `CONTACT_CDC_SOURCE`/`CAMPAIGN_CONTACT_CDC_SOURCE`)
 **Status:** ⬜ Nie rozpoczęte (założony 2026-11-07, tura 73; wyzwalacz wolumenowy poniżej)
-**Blokuje:** brak; powiązane: BE-213 (poprawka znacznika CDC — korzysta z tego samego wyrażenia w `ORDER BY`/`WHERE`), BE-212 ✅, DB-088 (inny indeks na `contact`, bramkowany wolumenem), BE-172
+**Blokuje:** brak; powiązane: BE-213 (poprawka znacznika CDC — korzysta z tego samego wyrażenia w `ORDER BY`/`WHERE`), BE-212 ✅, DB-088 (inny indeks na `contact`, bramkowany wolumenem), BE-172, BE-215 ✅ (tura 75: ClickHouse DW — dedup przy odczycie, bez wpływu na indeksy Postgres)
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; domena ETL/DW z EPIC-10 — epik pozostaje ✅ 5/5; spójnie z BE-212/BE-213; mianownik tabeli DB: wiersz EPIC-32 = 3/0/2)
 **Wykonawca:** `db-schema-architect` (+ `backend-dev-expert` przy cache w `getStatus`)
 

@@ -554,7 +554,7 @@ class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     @Override
     public List<AppUser> findAvailableAgents() {
-        return appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+        return appUserRepository.findAllByStatusAndRoleAndDeletedFalse(UserStatus.AVAILABLE, AppUser.UserRole.AGENT);
     }
 
     @Transactional(readOnly = true)

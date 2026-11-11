@@ -3948,3 +3948,59 @@ _Brak must-fix._ Nie znalazłem ścieżki, która po zmianie gubi pole zapisywan
 
 ### Summary
 **Rating: 4/5 ⭐** — **APPROVE WITH FIXES.** Zmiana poprawnie zastępuje pełny zapis wierszowy zapisami warunkowymi z kompletną izolacją tenanta, pruningiem partycji i brakiem utraty pól; do poprawy zostaje niespójny zestaw stanów końcowych w `abandonIfOpen` oraz kilka luk w testach (disposition/abandon vs wyścig, kontrakt 409 na bazie/HTTP).
+
+---
+
+## Review: BE-215 + BE-221 — 2026-11-11
+
+Zakres: `dw/migrations/V003__dedup_safe_agent_kpi.sql`, `dw/README.md`, `docker-compose.yml` (entrypoint `clickhouse-init`), `ClickHouseDwDedupIntegrationTest` (BE-215); `AppUserRepository`, `UserService(Impl)`, `UserServiceTest`, `FindAvailableAgentsIntegrationTest` (BE-221). Review statyczny (bez uruchamiania testów — `mvn verify` w toku u orkiestratora).
+
+### BE-215 — ClickHouse DW: dedup przy odczycie
+
+#### 🐛 Bugs / Critical Issues
+- **[MUST-FIX] `docker-compose.yml` entrypoint `clickhouse-init`, warunek `!= '1'` — fail-open na destrukcyjnej ścieżce.** Gdy `EXISTS TABLE` zawiedzie (timeout, błąd auth, restart CH), podstawienie komendy zwraca pusty string, `'' != '1'` jest prawdą i uruchamia się V001 z `CREATE OR REPLACE TABLE contacts_dw`, czyli **czyszczenie danych faktów**. Komentarz w pliku obiecuje "TYLKO na świeżej bazie", a bezpiecznik jest odwrócony. Fix: wykonać pytanie osobno, sprawdzić kod wyjścia i uruchamiać V001 wyłącznie przy jawnym `0` (przy błędzie: `exit 1`), np. `EX=$$(clickhouse-client ... -q 'EXISTS TABLE ...') || exit 1; if [ "$$EX" = '0' ]; then ...`. Do potwierdzenia na żywym CH: czy `EXISTS TABLE nieistniejaca_baza.t` zwraca `0`, czy rzuca UNKNOWN_DATABASE (wtedy świeża instalacja wymaga wcześniejszego `CREATE DATABASE IF NOT EXISTS contact_center_dw`). Przy `depends_on: service_healthy` ryzyko jest małe, ale skutek (utrata DW) nieproporcjonalny.
+
+#### ⚠️ Security Concerns
+- **[SHOULD-FIX] `v_campaign_conversion` (V003, podzapytanie): `tenant_id` jest wyliczane przez `argMax(tenant_id, updated_at)`, a nie jest kluczem grupowania.** (1) Predykat `WHERE tenant_id = ?` nad widokiem nie schodzi do skanu `campaigns_dw`, więc zapytanie jednego tenanta czyta całą tabelę — a tabela jest `PARTITION BY tenant_id` właśnie dla izolacji/pruningu, który ten widok neutralizuje. (2) Dwa rekordy różnych tenantów o tym samym `(campaign_id, record_id)` (praktycznie niemożliwe dla UUID, ale to granica izolacji) zostałyby scalone między tenantami. Fix: `GROUP BY tenant_id, campaign_id, record_id` (jak w `v_contacts_current`, gdzie `tenant_id` jest kluczem i pushdown działa). Klucz dedup `(campaign_id, record_id)` jest zgodny z `ORDER BY` tabeli, więc semantycznie dedup jest poprawny.
+
+#### 🏗️ Architecture / Pattern Violations
+- **[SHOULD-FIX] Sentinel `EXISTS TABLE contacts_dw` nie jest atomowy względem V001.** V001 tworzy kolejno contacts_dw, agent_performance_dw, widok, campaigns_dw, agent_dim, queue_dim. Jeżeli V001 padnie po utworzeniu `contacts_dw` (lub padnie V002), kolejny start pomija V001/V002 na zawsze, a V003 `CREATE OR REPLACE VIEW v_campaign_conversion` wywala się na braku `campaigns_dw` — instalacja się nie samonaprawia. Fix: sentinel = ostatnio tworzona tabela z V001 (`queue_dim`) albo tabela `schema_version`.
+- **[SHOULD-FIX / udokumentować] Wersja = zegar piszącego, nie wersja źródła.** `ClickHouseDwWriter` ustawia `updated_at = Instant.now()` per wiersz (ms). `argMax(…, updated_at)` to "ostatni zapis wygrywa". Dla jednego sekwencyjnego ETL jest poprawne (kolejny cykl czyta aktualny stan z PG; duplikaty to identyczne wartości, więc remis nie szkodzi), ale: (a) przy 2 instancjach ETL / skew zegara lub opóźnionym retry starszego batcha stara wersja może wygrać, (b) remis ms między różnymi wersjami tego samego klucza daje wynik niedeterministyczny. Spec mówił o `argMax(…, version)`. Akceptowalne dla BE-215, ale zapisać w README założenie "jeden writer" albo wpisać do backlogu (wersja ze źródła).
+- Przesłanka o partycjach (`FINAL` nie scala wersji między partycjami `toYYYYMM(started_at)`) jest poprawna, test #6 ją dowodzi. Widok zachowuje kolumny wyjściowe V001 (`tenant_id, agent_id, contact_date, channel, total/completed/abandoned_contacts, sum_handle_time_seconds, avg_*_seconds, completion_rate`; typy zgodne). Idempotencja V003: `DROP VIEW IF EXISTS` + `CREATE OR REPLACE VIEW` — OK, test #2 stosuje ją dwa razy.
+
+#### 🔧 Improvements & Suggestions
+- **[SHOULD-FIX] README "Koszt": zalecenie "zawężaj filtrem na datę" jest mylące.** `started_at` w `v_contacts_current` to `argMax`, więc filtr po `contact_date`/`started_at` nad widokiem nie przycina partycji `toYYYYMM(started_at)` — działa tylko filtr na `tenant_id` (klucz grupowania). Poprawić zdanie.
+- **[SHOULD-FIX] README, krok 3 `DROP TABLE agent_performance_dw` jest nieodwracalny.** Rozsądniej: `RENAME TABLE agent_performance_dw TO agent_performance_dw_legacy` i `DROP` po okresie karencji (albo backup). Dodać adnotację, że V001 na świeżej instalacji nadal tworzy martwą `agent_performance_dw` (nit: nie da się tego sprzątnąć bez edycji zastosowanych migracji).
+- **[NIT]** README: zdanie "Zawsze wykonuj korektę w oknie bez ETL lub po prostu zdaj się na idempotencję" jest wewnętrznie sprzeczne — zostawić jedno (idempotencja; zapis nie jest blokowany).
+- **[NIT]** Test nie wykonuje shellowego entrypointu `clickhouse-init`, a tam jest najgroźniejsza logika. Dodać test/skrypt dymny: świeża baza -> V001..V003; drugie uruchomienie -> fakty nietknięte; symulacja błędu `EXISTS`. Test jest zależny od kolejności (#1 wymaga MV z V002, #2 stosuje V003) — jawnie przez `@Order`, OK. `Thread.sleep(5)` do rozróżnienia ms akceptowalny.
+- **[NIT]** `avg_handle_time_seconds` dzieli przez `total_contacts` (także nieukończone) — odziedziczone z V001/V002, nie regresja; warto zanotować w README.
+- Składnia shellowa: `$$(...)` -> `$(...)` po interpolacji compose, `\"` w `>` jest zachowane literalnie i zdejmowane przez shlex parsujący `entrypoint`; niezależnie od zachowania newline'ów skrypt pozostaje poprawny (`; then`, `; fi &&`). Bez uwag poza fail-open wyżej.
+
+#### ✅ Positive Observations
+- Trafna diagnoza: usunięcie MV (nie da się jej uodpornić na powtórne INSERT-y) i agregacja przy odczycie z `argMax` po kluczu biznesowym, z uzasadnieniem dlaczego nie `FINAL`.
+- Obsługa pułapki "argMax pomija NULL" (`tuple(...)` + `tupleElement`) i alias `last_updated_at` unikający cyklu aliasów — z testem na wersję z `NULL` duration.
+- V003 nie dotyka tabel faktów; `DROP TABLE` odłożony do ręcznego kroku z opisem.
+- Test na prawdziwym CH 24.3 z `SYSTEM STOP MERGES` (deterministyczne "przed merge"), kontrola że duplikaty fizycznie istnieją, test regresji starej MV, przeniesienia wersji do innej partycji, kontaktu bez agenta.
+
+### BE-221 — filtr roli AGENT w `findAvailableAgents`
+
+#### 🐛 Bugs / Critical Issues
+_None identified._
+
+#### ⚠️ Security Concerns
+_None identified._ Kontrakt cross-tenant metody zachowany (callery ustawiają TenantContext per agent / per tenant).
+
+#### 🏗️ Architecture / Pattern Violations
+_None identified._ Tylko dwaj wywołujący (`RoutingServiceImpl:534`, `ProgressiveDialerServiceImpl:176`), obaj chcą wyłącznie AGENT; `QueueAssignmentServiceImpl` egzekwuje rolę AGENT przy przypisaniu do kolejki, więc filtr nie odbiera nikomu legalnego routingu. Brak pozostałych odwołań do usuniętej `findAllByStatusAndDeletedFalse` (grep main+test).
+
+#### 🔧 Improvements & Suggestions
+- **[NIT]** `UserServiceTest`: dwa `verify(..., never())` z `eq(ADMIN/SUPERVISOR)` są zbędne wobec `verify` z dokładnymi argumentami; realny dowód to test integracyjny. Usunąć lub zamienić na `verifyNoMoreInteractions`.
+- **[NIT]** Kryterium "Metryki bez zmian albo opisane" wymaga notatki wykonania w `TASKS-BACKEND.md` (metryki admin/supervisor nie używają zmienionej metody — potwierdzone grepem) oraz zapisu, że decyzja o domyślnym statusie AVAILABLE dla ADMIN/SUPERVISOR czeka na właściciela.
+- **[NIT]** `FindAvailableAgentsIntegrationTest` zostawia wiersze we współdzielonej bazie; asercje `contains/doesNotContain` są właściwie tolerancyjne — OK.
+
+#### ✅ Positive Observations
+- Minimalna, celowa zmiana z poprawionym Javadocem w repo/interfejsie/impl i zaktualizowanym odwołaniem w komentarzu sweepera BE-210.
+- Test integracyjny na prawdziwym Postgresie pokrywa komplet przypadków brzegowych: dwa tenanty, ADMIN, SUPERVISOR, nie-AVAILABLE, usunięty.
+
+### Summary
+**BE-215: 4/5** — APPROVE WITH FIXES: dedup `argMax` + `tuple()` jest poprawny i dobrze przetestowany, ale bezpiecznik `EXISTS TABLE` w entrypoincie jest fail-open (może wykonać destrukcyjne V001), a `v_campaign_conversion` gubi pushdown/izolację tenanta. **BE-221: 4.5/5** — APPROVE: poprawna, minimalna zmiana z solidnym testem na prawdziwej bazie; tylko nity w testach i notatce wykonania.

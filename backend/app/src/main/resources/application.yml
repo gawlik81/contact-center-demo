@@ -365,11 +365,21 @@ etl:
     # BE-213: max fetch batches per cycle (backlog remainder goes to the next cycle); 20 x 5000 = 100k rows/cycle.
     max-batches-per-cycle: ${ETL_SYNC_MAX_BATCHES_PER_CYCLE:20}
     # BE-213: rows newer than NOW() - window are not synced yet (late-committing transactions keep their start-time
-    # updated_at). Trade-off: DW freshness is delayed by this window. It does NOT protect against transactions longer
-    # than the window (e.g. a campaign_contact import in one long transaction) - those rows can be missed with lag=0
-    # (see TASKS-BACKEND.md, follow-up BE-213).
-    # Validated at startup (fail-fast): fetch-limit, write-batch-size, max-batches-per-cycle >= 1; safety-window-ms >= 0.
+    # updated_at). Trade-off: DW freshness is delayed by this window.
+    # Validated at startup (fail-fast): fetch-limit, write-batch-size, max-batches-per-cycle >= 1; safety-window-ms >= 0;
+    # alert-cooldown-ms >= 0. WARN when liveness-threshold-ms < 3 x fixed-delay-ms.
     safety-window-ms: ${ETL_SYNC_SAFETY_WINDOW_MS:60000}
+    # BE-216: additionally cap the CDC upper bound by the start of the oldest open WRITE transaction
+    # (pg_stat_activity.xact_start where backend_xid IS NOT NULL), so transactions longer than the window cannot be
+    # skipped. Cost: a long-lived unrelated write transaction holds the cursor back (lag grows, DATA_LAG alert after
+    # 30 min). Needs visibility of other sessions in pg_stat_activity: superuser or pg_read_all_stats for sessions of
+    # other roles (BE-150 / EPIC-31: grant it to cc_app); a WARN at startup tells when the role is blind.
+    # false = window-only behaviour of BE-213 (also WARNs at startup).
+    open-transaction-guard-enabled: ${ETL_SYNC_OPEN_TRANSACTION_GUARD_ENABLED:true}
+    # BE-214: cooldown of etl.lag.alert per (table, alertType), Redis SET NX PX (key etl:alert:{table}:{alertType}).
+    # A persistent state re-alerts once per cooldown, recovery re-arms immediately. 0 = no cooldown. Redis failure =
+    # fail-open (alert is sent). Default 15 min.
+    alert-cooldown-ms: ${ETL_SYNC_ALERT_COOLDOWN_MS:900000}
 
 # =============================================================================
 # Retencja danych – silnik usuwania (EPIC-29, BE-113) + job liczący dane do usunięcia (BE-112)

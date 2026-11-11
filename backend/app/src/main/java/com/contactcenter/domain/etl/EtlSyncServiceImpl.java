@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -43,6 +48,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
     static final String ALERT_TYPE_DATA_LAG = "DATA_LAG";
     static final String ALERT_TYPE_JOB_STALE = "JOB_STALE";
     static final String ALERT_TYPE_JOB_ERROR = "JOB_ERROR";
+
+    /** BE-214: Redis key prefix of the alert cooldown slots: {@code etl:alert:{table}:{alertType}}. */
+    static final String ALERT_KEY_PREFIX = "etl:alert:";
 
     // SQL: pobierz stan sync dla danej tabeli
     private static final String SELECT_SYNC_STATE = """
@@ -78,6 +86,13 @@ class EtlSyncServiceImpl implements EtlSyncService {
             SELECT table_name, last_run_at, updated_at, status, error_message
             FROM etl_sync_state
             ORDER BY table_name
+            """;
+
+    // BE-214: re-read of one job's state right after the cooldown slot was acquired (slot/recovery race)
+    private static final String SELECT_LIVENESS_ONE = """
+            SELECT table_name, last_run_at, updated_at, status, error_message
+            FROM etl_sync_state
+            WHERE table_name = ?
             """;
 
     // SQL: aktualizacja po zakończeniu cyklu
@@ -121,20 +136,66 @@ class EtlSyncServiceImpl implements EtlSyncService {
             WHERE COALESCE(cc.updated_at, cc.created_at) > ?
             """;
 
+    // BE-216: oldest start of an open client transaction that already holds a write xid (backend_xid), in this
+    // database, excluding the ETL's own backend. In PostgreSQL NOW() = transaction START, and updated_at/created_at
+    // are stamped with NOW() (triggers V002/V007, DEFAULT NOW()), so a row written by an open transaction has a
+    // timestamp >= that transaction's xact_start. Capping the fetch at this value keeps the cursor from passing rows
+    // that are not committed yet. NULL when there is no such transaction.
+    // Visibility: for sessions of OTHER roles pg_stat_activity masks xact_start/backend_xid (NULL) unless the
+    // reading role is a superuser or has pg_read_all_stats - see EtlSyncServiceImpl#openTransactionGuardEnabled.
+    static final String OLDEST_OPEN_WRITE_XACT_START = """
+            (SELECT MIN(a.xact_start)
+               FROM pg_stat_activity a
+              WHERE a.backend_xid IS NOT NULL
+                AND a.pid <> pg_backend_pid()
+                AND a.backend_type = 'client backend'
+                AND a.datname = current_database())""";
+
+    // BE-216 diagnostics only (log text of a lag alert): which open write transaction holds the cursor back.
+    static final String SELECT_OLDEST_OPEN_WRITE_XACT = """
+            SELECT a.pid, a.state, a.application_name, a.xact_start
+            FROM pg_stat_activity a
+            WHERE a.backend_xid IS NOT NULL
+              AND a.pid <> pg_backend_pid()
+              AND a.backend_type = 'client backend'
+              AND a.datname = current_database()
+            ORDER BY a.xact_start ASC
+            LIMIT 1
+            """;
+
+    // BE-216: the upper bound of the fetch is computed by a SEPARATE statement executed BEFORE the fetch (see
+    // computeUpperBound) and passed as a parameter. Reading pg_stat_activity in a subquery of the fetch itself would
+    // read it AFTER the data snapshot: a transaction that commits between the snapshot and the view read would be
+    // invisible in the data AND gone from the guard. A guard read before the snapshot is conservative (READ COMMITTED
+    // autocommit: every statement takes its own snapshot).
+    // LEAST ignores NULLs, so "no open write transaction" yields NOW(). The window is subtracted from the guard too:
+    // some writers stamp timestamps in Java BEFORE their transaction starts (campaign import created_at, Contact
+    // insert), so a row may be slightly OLDER than its transaction's xact_start; the window absorbs that skew.
+    static final String SELECT_UPPER_BOUND_GUARDED = "SELECT LEAST(NOW(), " + OLDEST_OPEN_WRITE_XACT_START
+            + ") - (CAST(? AS DOUBLE PRECISION) * INTERVAL '1 millisecond')";
+    static final String SELECT_UPPER_BOUND_PLAIN =
+            "SELECT NOW() - (CAST(? AS DOUBLE PRECISION) * INTERVAL '1 millisecond')";
+
+    // BE-216: startup check - can this role see the sessions of OTHER roles in pg_stat_activity?
+    static final String SELECT_GUARD_VISIBILITY = """
+            SELECT (r.rolsuper OR pg_has_role(current_user, 'pg_read_all_stats', 'USAGE'))
+            FROM pg_roles r WHERE r.rolname = current_user
+            """;
+
     // BE-213: CDC fetch = shared source fragment (strict "> marker", also used by the lag query) PLUS
-    //  - upper bound NOW() - safety window (transactions that got NOW() at start but commit later; see class docs),
+    //  - upper bound "eff <= ?" (computed before the fetch, see above), so transactions that got NOW() at start but
+    //    commit later are not passed over,
     //  - keyset cursor (effective_ts, id) > (?, ?) with a deterministic ORDER BY effective_ts, id, so ties of the
     //    marker on a batch boundary can neither be skipped nor loop forever.
-    // Parameters: marker, safetyWindowMs, cursorTs, cursorId, limit. Cross-tenant system query (no RLS).
+    // Parameters: marker, upperBound, cursorTs, cursorId, limit. Cross-tenant system query (no RLS).
     private static String cdcFetchSql(String select, String source, String effectiveTs, String idColumn) {
-        return select + source + "  AND " + effectiveTs + " <= NOW() - (CAST(? AS DOUBLE PRECISION) * INTERVAL '1 millisecond')\n"
+        return select + source + "  AND " + effectiveTs + " <= ?\n"
                 + "  AND (" + effectiveTs + ", " + idColumn + ") > (?, ?)\n"
                 + "ORDER BY " + effectiveTs + " ASC, " + idColumn + " ASC\n"
                 + "LIMIT ?\n";
     }
 
-    // SQL: pobierz zmodyfikowane kontakty (RODO: pomijamy zanonimizowanych klientow - w CONTACT_CDC_SOURCE)
-    private static final String SELECT_CONTACTS_FOR_ETL = cdcFetchSql("""
+    private static final String CONTACT_SELECT = """
             SELECT c.contact_id,
                    c.tenant_id,
                    c.agent_id,
@@ -149,15 +210,22 @@ class EtlSyncServiceImpl implements EtlSyncService {
                    c.ended_at,
                    c.queued_at,
                    COALESCE(c.updated_at, c.created_at) AS effective_updated_at
-            """, CONTACT_CDC_SOURCE, "COALESCE(c.updated_at, c.created_at)", "c.contact_id");
+            """;
 
-    // SQL: pobierz zmodyfikowane rekordy kampanii (CDC po cc.updated_at/created_at)
-    private static final String SELECT_CAMPAIGN_CONTACTS_FOR_ETL = cdcFetchSql("""
+    private static final String CAMPAIGN_CONTACT_SELECT = """
             SELECT cc.record_id, cc.campaign_id, cc.tenant_id,
                    cc.status, cc.disposition_code, cc.attempt_count, cc.last_attempt_at,
                    c.type AS campaign_type, c.dialer_type,
                    COALESCE(cc.updated_at, cc.created_at) AS effective_updated_at
-            """, CAMPAIGN_CONTACT_CDC_SOURCE, "COALESCE(cc.updated_at, cc.created_at)", "cc.record_id");
+            """;
+
+    // SQL: pobierz zmodyfikowane kontakty (RODO: pomijamy zanonimizowanych klientow - w CONTACT_CDC_SOURCE)
+    private static final String SELECT_CONTACTS_FOR_ETL = cdcFetchSql(CONTACT_SELECT, CONTACT_CDC_SOURCE,
+            "COALESCE(c.updated_at, c.created_at)", "c.contact_id");
+
+    // SQL: pobierz zmodyfikowane rekordy kampanii (CDC po cc.updated_at/created_at)
+    private static final String SELECT_CAMPAIGN_CONTACTS_FOR_ETL = cdcFetchSql(CAMPAIGN_CONTACT_SELECT,
+            CAMPAIGN_CONTACT_CDC_SOURCE, "COALESCE(cc.updated_at, cc.created_at)", "cc.record_id");
 
     // SQL: wiek najstarszej NIEZSYNCHRONIZOWANEJ zmiany (BE-212) - te same warunki co fetch (wspolne fragmenty)
     private static final String SELECT_OLDEST_UNSYNCED_CONTACT =
@@ -197,6 +265,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
     private final JdbcTemplate jdbcTemplate;
     private final DataWarehouseWriter dwWriter;
     private final RabbitTemplate rabbitTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * BE-212: a CDC job with no activity for longer than this is considered stuck/dead. Activity = the newest of
@@ -229,16 +298,58 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * carry a timestamp below the marker and be lost forever. The window gives such transactions time to commit
      * before the marker may pass them.
      *
-     * <p>Limitations: (1) DW freshness is delayed by the window (a dashboard sees data at least this old);
-     * (2) the window does NOT protect against transactions open LONGER than the window - e.g. a campaign_contact
-     * import done in one long transaction (rows keep the transaction-start timestamp, commit later, land below the
-     * already advanced marker and are lost, with lag = 0). See TASKS-BACKEND.md, follow-up BE-213.
+     * <p>Limitations: DW freshness is delayed by the window (a dashboard sees data at least this old). The window
+     * alone does NOT protect against transactions open LONGER than the window - that gap is closed by
+     * {@link #openTransactionGuardEnabled} (BE-216).
      * Default 60 s (regular OLTP transactions last milliseconds; well below the 30 min lag alert threshold).
      *
-     * <p>All four settings below are validated fail-fast in {@link #validateConfig()}.
+     * <p>All CDC settings are validated fail-fast in {@link #validateConfig()}.
      */
     @Value("${etl.sync.safety-window-ms:60000}")
     private long safetyWindowMs = 60_000L;
+
+    /**
+     * BE-216: also cap the CDC upper bound by the start of the oldest open WRITE transaction
+     * ({@code pg_stat_activity}: {@code backend_xid IS NOT NULL}, own backend excluded), i.e.
+     * {@code eff <= LEAST(NOW(), oldestOpenWriteXactStart) - safetyWindow}.
+     *
+     * <p>Guarantee: a row stamped by NOW() (triggers V002/V007 on UPDATE, {@code DEFAULT NOW()} on INSERT) carries a
+     * timestamp {@code >= xact_start} of the transaction that wrote it, so while that transaction is open (however
+     * long) the cursor cannot pass its rows; they are picked up in the cycle after the commit. No schema change.
+     *
+     * <p>Limits (documented in ARCHITECTURE.md, section CDC cursor):
+     * <ul>
+     *   <li>Any long-lived write transaction (even an unrelated one: bulk UPDATE, retention purge) holds the cursor
+     *       back for its duration; the lag grows and the {@code DATA_LAG} alert fires after 30 min. The alert's WARN
+     *       log names the blocking backend (pid, state, application_name, xact_start).</li>
+     *   <li>A transaction without an xid yet (only reads so far) is invisible to the guard; if it first writes later,
+     *       only the safety window covers it (gap: read-only phase longer than the window, then a write).</li>
+     *   <li>Sessions of OTHER roles are masked in {@code pg_stat_activity} (NULL {@code xact_start}/{@code backend_xid})
+     *       unless the ETL role is a superuser or a member of {@code pg_read_all_stats}; sessions of the same role
+     *       (or a role the reader is a member of) stay visible. Today the application connects as a
+     *       superuser/BYPASSRLS role (full visibility). For the future {@code cc_app} role (BE-150, EPIC-31) every
+     *       writer (app, Flyway owner, DBA sessions) must either run as that role or {@code cc_app} must be granted
+     *       {@code pg_read_all_stats}.</li>
+     *   <li>Prepared (2PC) transactions are not in {@code pg_stat_activity} (not used by the application).</li>
+     * </ul>
+     * Default true; set false only to fall back to the window-only behaviour (e.g. view unreadable).
+     */
+    @Value("${etl.sync.open-transaction-guard-enabled:true}")
+    private boolean openTransactionGuardEnabled = true;
+
+    /**
+     * BE-214: cooldown of ETL alerts per (table, alertType), enforced with Redis {@code SET NX PX}
+     * (key {@code etl:alert:{table}:{alertType}}). A persistent state re-alerts once per cooldown; recovery
+     * (cycle DONE, liveness OK, lag below threshold) deletes the key, so the next entry into the state alerts
+     * immediately. Shared between instances (one alert per window). {@code 0} disables the cooldown (every check
+     * alerts, Redis is not used). Redis failure = fail-open (alert is sent, WARN logged). Default 15 min.
+     */
+    @Value("${etl.sync.alert-cooldown-ms:900000}")
+    private long alertCooldownMs = 900_000L;
+
+    /** Interval between cycles; only used to validate {@link #livenessThresholdMs} (BE-214 nit). */
+    @Value("${etl.sync.fixed-delay-ms:60000}")
+    private long fixedDelayMs = 60_000L;
 
     /**
      * Fail-fast validation of the CDC tuning settings (BE-213). A non-positive {@code writeBatchSize} would spin
@@ -260,8 +371,15 @@ class EtlSyncServiceImpl implements EtlSyncService {
         if (safetyWindowMs < 0) {
             errors.add("etl.sync.safety-window-ms must be >= 0 (was " + safetyWindowMs + ")");
         }
+        if (alertCooldownMs < 0) {
+            errors.add("etl.sync.alert-cooldown-ms must be >= 0 (was " + alertCooldownMs + ")");
+        }
         if (!errors.isEmpty()) {
             throw new IllegalStateException("Invalid ETL sync configuration: " + String.join("; ", errors));
+        }
+        if (livenessThresholdMs < 3 * fixedDelayMs) {
+            log.warn("[ETL] etl.sync.liveness-threshold-ms ({}) < 3 x etl.sync.fixed-delay-ms ({}) - a slow cycle can "
+                    + "raise a false JOB_STALE alert", livenessThresholdMs, fixedDelayMs);
         }
         if (writeBatchSize > fetchLimit) {
             log.warn("[ETL] etl.sync.write-batch-size ({}) > etl.sync.fetch-limit ({}) - larger write batch has no effect",
@@ -380,14 +498,18 @@ class EtlSyncServiceImpl implements EtlSyncService {
         long totalRows = 0;
         Instant newMarker = lastSyncedAt;
         String errorMessage = null;
+        AtomicReference<Instant> persistedMarker = new AtomicReference<>(lastSyncedAt);
 
         try {
-            CdcResult result = runCdcLoop(tableName, lastSyncedAt, this::fetchContactRows, this::writeContactBatches);
+            CdcResult result = runCdcLoop(tableName, lastSyncedAt, this::fetchContactRows, this::writeContactBatches,
+                    persistedMarker);
             totalRows = result.rows();
             newMarker = result.newMarker();
         } catch (Exception ex) {
             log.error("[ETL] Błąd synchronizacji tabeli '{}': {}", tableName, ex.getMessage(), ex);
             errorMessage = ex.getMessage();
+            // BE-216: the lag check must see the marker persisted by the last successful advance, not the pre-cycle one
+            newMarker = persistedMarker.get();
         }
 
         // Krok 5: Aktualizacja stanu ETL
@@ -395,6 +517,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
             markError(tableName, errorMessage);
         } else {
             markDone(tableName, newMarker, totalRows);
+            clearAlertState(tableName, ALERT_TYPE_JOB_ERROR, ALERT_TYPE_JOB_STALE);
         }
 
         // Krok 6: Sprawdzenie lagu i alert
@@ -430,6 +553,16 @@ class EtlSyncServiceImpl implements EtlSyncService {
      */
     <T> CdcResult runCdcLoop(String tableName, Instant startMarker, CdcFetcher<T> fetcher,
                              Consumer<List<T>> writer) {
+        return runCdcLoop(tableName, startMarker, fetcher, writer, new AtomicReference<>(startMarker));
+    }
+
+    /**
+     * Same as above; additionally publishes the marker last PERSISTED by {@link #advanceMarker} to
+     * {@code persistedMarker}, so a caller that gets an exception from the loop (BE-216 nit) still knows the real
+     * position of {@code etl_sync_state.last_synced_at} (e.g. for the lag check) instead of the pre-cycle one.
+     */
+    <T> CdcResult runCdcLoop(String tableName, Instant startMarker, CdcFetcher<T> fetcher,
+                             Consumer<List<T>> writer, AtomicReference<Instant> persistedMarker) {
         Instant cursorTs = startMarker;
         UUID cursorId = MIN_UUID;
         Instant newMarker = startMarker;
@@ -473,7 +606,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
             if (completeTs != null && completeTs.isAfter(newMarker)) {
                 newMarker = completeTs;
                 // the batch is already in the DW, so everything <= newMarker is there: safe to persist now
-                advanceMarker(tableName, newMarker);
+                if (advanceMarker(tableName, newMarker)) {
+                    persistedMarker.set(newMarker);
+                }
             }
             if (batches >= maxBatchesPerCycle) {
                 if (newMarker.isAfter(startMarker)) {
@@ -495,13 +630,17 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * Persists the marker mid-cycle, monotonically (never moves it back) and keeping the status RUNNING. A failure
      * here is not fatal: markDone/markError at the end of the cycle still decides, and the marker simply stays lower
      * (safe - rows are re-read idempotently).
+     *
+     * @return true when the marker was written (false = write failed, marker unchanged)
      */
-    void advanceMarker(String tableName, Instant marker) {
+    boolean advanceMarker(String tableName, Instant marker) {
         try {
             Timestamp ts = Timestamp.from(marker);
             jdbcTemplate.update(UPDATE_ADVANCE_MARKER, ts, tableName, ts);
+            return true;
         } catch (Exception ex) {
             log.warn("[ETL] Zapis znacznika w trakcie cyklu dla '{}' nie powiódł się: {}", tableName, ex.getMessage());
+            return false;
         }
     }
 
@@ -540,15 +679,66 @@ class EtlSyncServiceImpl implements EtlSyncService {
     }
 
     /**
+     * Upper bound (inclusive) of the effective timestamp the next fetch may read:
+     * {@code LEAST(NOW(), oldest open write transaction start) - safetyWindow} (guard on) or
+     * {@code NOW() - safetyWindow} (guard off). Evaluated by the DATABASE in its own statement, which MUST run before
+     * the fetch statement (see {@link #SELECT_UPPER_BOUND_GUARDED}). Falls back to the JVM clock only if the DB
+     * returned nothing (never for a real database).
+     */
+    Timestamp computeUpperBound() {
+        Timestamp ub = jdbcTemplate.queryForObject(
+                openTransactionGuardEnabled ? SELECT_UPPER_BOUND_GUARDED : SELECT_UPPER_BOUND_PLAIN,
+                Timestamp.class, safetyWindowMs);
+        return ub != null ? ub : Timestamp.from(Instant.now().minusMillis(safetyWindowMs));
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    void onApplicationReady() {
+        checkOpenTransactionGuardVisibility();
+    }
+
+    /**
+     * BE-216: at startup warns loudly when the guard cannot do its job. {@code pg_stat_activity} masks
+     * {@code xact_start}/{@code backend_xid} of sessions of OTHER roles unless the current role is a superuser or has
+     * the privileges of {@code pg_read_all_stats}; then MIN(xact_start) is NULL and the guard silently degrades to the
+     * window-only behaviour of BE-213 (long transactions can be lost again). The application keeps running.
+     *
+     * @return false when the guard is disabled or known/suspected to be blind, true when it is fully effective
+     */
+    boolean checkOpenTransactionGuardVisibility() {
+        if (!openTransactionGuardEnabled) {
+            log.warn("[ETL] etl.sync.open-transaction-guard-enabled=false - transactions longer than "
+                    + "etl.sync.safety-window-ms ({} ms) can be skipped by the CDC cursor (BE-216)", safetyWindowMs);
+            return false;
+        }
+        try {
+            Boolean visible = jdbcTemplate.queryForObject(SELECT_GUARD_VISIBILITY, Boolean.class);
+            if (Boolean.TRUE.equals(visible)) {
+                return true;
+            }
+            log.warn("[ETL] The database role is neither a superuser nor a member of pg_read_all_stats: "
+                    + "pg_stat_activity hides write transactions of OTHER roles, so the CDC open-transaction guard is "
+                    + "BLIND to them and long transactions can be lost (BE-216). Grant pg_read_all_stats to the "
+                    + "application role or make sure every writer uses this role.");
+            return false;
+        } catch (Exception ex) {
+            log.warn("[ETL] Could not verify pg_stat_activity visibility for the open-transaction guard (BE-216): {}",
+                    ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * CDC fetch with keyset cursor (BE-213); rows carry their effective timestamp and id. Skips working statuses
      * (QUEUED, ACTIVE, ON_HOLD) and contacts of anonymized customers (RODO) - see CONTACT_CDC_SOURCE.
      */
     List<CdcRow<ContactDwRow>> fetchContactRows(Instant marker, Instant cursorTs, UUID cursorId, int limit) {
+        Timestamp upperBound = computeUpperBound(); // separate statement, BEFORE the data snapshot (BE-216)
         return jdbcTemplate.query(
                 SELECT_CONTACTS_FOR_ETL,
                 new ContactDwRowMapper(),
                 Timestamp.from(marker),
-                safetyWindowMs,
+                upperBound,
                 Timestamp.from(cursorTs),
                 cursorId,
                 limit
@@ -618,16 +808,19 @@ class EtlSyncServiceImpl implements EtlSyncService {
         }
 
         if (lagMinutes >= LAG_ALERT_THRESHOLD_MINUTES) {
-            log.warn("[ETL][ALERT] Lag danych dla tabeli '{}' wynosi {} minut (próg: {} min)",
-                    tableName, lagMinutes, LAG_ALERT_THRESHOLD_MINUTES);
+            log.warn("[ETL][ALERT] Lag danych dla tabeli '{}' wynosi {} minut (próg: {} min){}",
+                    tableName, lagMinutes, LAG_ALERT_THRESHOLD_MINUTES, describeOpenWriteTransaction());
 
-            publishAlert(Map.of(
+            publishAlertWithCooldown(tableName, ALERT_TYPE_DATA_LAG, Map.of(
                     "alertType", ALERT_TYPE_DATA_LAG,
                     "tableName", tableName,
                     "lagMinutes", lagMinutes,
                     "lastSyncedAt", lastSyncedAt.toString(),
                     "alertedAt", Instant.now().toString()
-            ));
+            ), () -> true); // lag is evaluated and cleared by the same per-table cycle thread: no slot race
+        } else {
+            // BE-214: lag recovered -> the next breach alerts immediately instead of waiting for the cooldown
+            clearAlertState(tableName, ALERT_TYPE_DATA_LAG);
         }
     }
 
@@ -638,15 +831,20 @@ class EtlSyncServiceImpl implements EtlSyncService {
     void checkLivenessAndAlert(String tableName, Instant lastRunAt, String status, String errorMessage) {
         if ("ERROR".equals(status)) {
             log.warn("[ETL][ALERT] Job tabeli '{}' w stanie ERROR: {}", tableName, errorMessage);
-            publishAlert(Map.of(
+            publishAlertWithCooldown(tableName, ALERT_TYPE_JOB_ERROR, Map.of(
                     "alertType", ALERT_TYPE_JOB_ERROR,
                     "tableName", tableName,
                     "status", status,
                     "errorMessage", truncateForAlert(errorMessage),
                     "lastRunAt", lastRunAt != null ? lastRunAt.toString() : "",
                     "alertedAt", Instant.now().toString()
-            ));
+            ), () -> rereadLiveness(tableName)
+                    .map(r -> "ERROR".equals(r.status()) || "RUNNING".equals(r.status())).orElse(true));
             return;
+        }
+        // BE-214: recovery from ERROR (a RUNNING sample is neutral: a failing cycle is RUNNING between two ERRORs)
+        if (!"RUNNING".equals(status)) {
+            clearAlertState(tableName, ALERT_TYPE_JOB_ERROR);
         }
         if (lastRunAt == null) {
             return;
@@ -656,14 +854,19 @@ class EtlSyncServiceImpl implements EtlSyncService {
             long staleMinutes = staleMs / 60_000;
             log.warn("[ETL][ALERT] Brak przebiegu joba tabeli '{}' od {} minut (próg: {} ms, status: {})",
                     tableName, staleMinutes, livenessThresholdMs, status);
-            publishAlert(Map.of(
+            publishAlertWithCooldown(tableName, ALERT_TYPE_JOB_STALE, Map.of(
                     "alertType", ALERT_TYPE_JOB_STALE,
                     "tableName", tableName,
                     "status", status != null ? status : "",
                     "staleMinutes", staleMinutes,
                     "lastRunAt", lastRunAt.toString(),
                     "alertedAt", Instant.now().toString()
-            ));
+            ), () -> rereadLiveness(tableName)
+                    .map(r -> r.lastActivityAt() != null
+                            && Duration.between(r.lastActivityAt(), Instant.now()).toMillis() >= livenessThresholdMs)
+                    .orElse(true));
+        } else {
+            clearAlertState(tableName, ALERT_TYPE_JOB_STALE);
         }
     }
 
@@ -673,6 +876,125 @@ class EtlSyncServiceImpl implements EtlSyncService {
             return "";
         }
         return message.length() > ALERT_ERROR_MESSAGE_MAX ? message.substring(0, ALERT_ERROR_MESSAGE_MAX) : message;
+    }
+
+    private static String alertKey(String tableName, String alertType) {
+        return ALERT_KEY_PREFIX + tableName + ":" + alertType;
+    }
+
+    /**
+     * BE-214: sends the alert unless one for the same (table, alertType) was already sent within the cooldown
+     * (shared via Redis, so also across instances). The {@code [ETL][ALERT]} WARN log is written by the callers on
+     * every check (cheap, visible to operators); only the broker message is deduplicated.
+     */
+    private void publishAlertWithCooldown(String tableName, String alertType, Map<String, Object> alertPayload,
+                                          BooleanSupplier stillApplicable) {
+        String token = acquireAlertSlot(tableName, alertType);
+        if (token == null) {
+            log.debug("[ETL] Alert {} dla '{}' wyciszony (cooldown {} ms)", alertType, tableName, alertCooldownMs);
+            return;
+        }
+        // Race: the state was read BEFORE the slot was taken; if the job recovered in the meantime (a cycle ended DONE
+        // and cleared the slot), this late alert would be false AND its fresh slot would mute the next real alert.
+        // Re-check after acquiring and give the slot back (only if it still holds OUR token).
+        boolean applicable = true;
+        try {
+            applicable = stillApplicable.getAsBoolean();
+        } catch (Exception ex) {
+            log.debug("[ETL] Re-check stanu przed alertem {} '{}' nieudany - wysyłam (fail-open): {}", alertType,
+                    tableName, ex.getMessage());
+        }
+        if (!applicable) {
+            releaseAlertSlot(tableName, alertType, token);
+            log.debug("[ETL] Alert {} dla '{}' odrzucony - stan wrócił do normy w trakcie sprawdzania", alertType,
+                    tableName);
+            return;
+        }
+        publishAlert(alertPayload);
+    }
+
+    /**
+     * Atomic {@code SET key token NX PX cooldown}: returns the token when this caller owns the slot and must send the
+     * alert, {@code null} when the slot is taken (alert suppressed). The value is a unique token so the owner can later
+     * release exactly its own slot. Fail-open: when Redis fails (or the cooldown is disabled) a token is returned, so
+     * the alert is sent - a missing alert is worse than a duplicate.
+     */
+    String acquireAlertSlot(String tableName, String alertType) {
+        String token = UUID.randomUUID().toString();
+        if (alertCooldownMs <= 0) {
+            return token;
+        }
+        try {
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                    alertKey(tableName, alertType), token, Duration.ofMillis(alertCooldownMs));
+            return Boolean.FALSE.equals(acquired) ? null : token;
+        } catch (Exception ex) {
+            log.warn("[ETL] Redis niedostępny dla cooldownu alertu {} '{}' - wysyłam alert (fail-open): {}",
+                    alertType, tableName, ex.getMessage());
+            return token;
+        }
+    }
+
+    /** Deletes the slot only if it still holds {@code token} (compare, then delete; best effort). */
+    private void releaseAlertSlot(String tableName, String alertType, String token) {
+        if (alertCooldownMs <= 0) {
+            return;
+        }
+        try {
+            String key = alertKey(tableName, alertType);
+            if (token.equals(redisTemplate.opsForValue().get(key))) {
+                redisTemplate.delete(key);
+            }
+        } catch (Exception ex) {
+            log.warn("[ETL] Nie udało się zwolnić slotu alertu {} '{}' (wygaśnie przez TTL): {}", alertType, tableName,
+                    ex.getMessage());
+        }
+    }
+
+    /** Re-reads one job's liveness state; empty when the row is gone or the read fails (callers fail open). */
+    private java.util.Optional<LivenessRow> rereadLiveness(String tableName) {
+        List<LivenessRow> rows = jdbcTemplate.query(SELECT_LIVENESS_ONE, LIVENESS_MAPPER, tableName);
+        return rows == null || rows.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(rows.get(0));
+    }
+
+    /**
+     * BE-214: state recovered -> forget the cooldown slots so that the NEXT entry into the state alerts at once.
+     * Best effort: a Redis failure only means the slot expires by TTL.
+     */
+    void clearAlertState(String tableName, String... alertTypes) {
+        if (alertCooldownMs <= 0) {
+            return;
+        }
+        try {
+            List<String> keys = new ArrayList<>();
+            for (String alertType : alertTypes) {
+                keys.add(alertKey(tableName, alertType));
+            }
+            redisTemplate.delete(keys);
+        } catch (Exception ex) {
+            log.warn("[ETL] Nie udało się wyczyścić stanu alertu dla '{}' (wygaśnie przez TTL): {}", tableName,
+                    ex.getMessage());
+        }
+    }
+
+    /**
+     * BE-216 diagnostics: names the oldest open write transaction (the usual reason of a growing lag with the guard
+     * on). Best effort, never throws; empty text when the guard is off or nothing is found.
+     */
+    private String describeOpenWriteTransaction() {
+        if (!openTransactionGuardEnabled) {
+            return "";
+        }
+        try {
+            List<String> found = jdbcTemplate.query(SELECT_OLDEST_OPEN_WRITE_XACT, (rs, rowNum) ->
+                    " | najstarsza otwarta transakcja piszaca: pid=" + rs.getInt("pid") + ", state=" + rs.getString("state")
+                            + ", application_name='" + rs.getString("application_name") + "', xact_start="
+                            + rs.getTimestamp("xact_start"));
+            return found == null || found.isEmpty() ? "" : found.get(0);
+        } catch (Exception ex) {
+            log.debug("[ETL] Could not describe the open write transaction: {}", ex.getMessage());
+            return "";
+        }
     }
 
     private void publishAlert(Map<String, Object> alertPayload) {
@@ -739,7 +1061,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
     record LivenessRow(String tableName, Instant lastActivityAt, String status, String errorMessage) {}
 
     private List<LivenessRow> readLivenessRows() {
-        return jdbcTemplate.query(SELECT_LIVENESS, (rs, rowNum) -> {
+        return jdbcTemplate.query(SELECT_LIVENESS, LIVENESS_MAPPER);
+    }
+
+    private static final RowMapper<LivenessRow> LIVENESS_MAPPER = (rs, rowNum) -> {
             Timestamp lastRun = rs.getTimestamp("last_run_at");
             Timestamp updated = rs.getTimestamp("updated_at");
             // never-run job (fresh install) has last_run_at NULL -> not alerted, whatever updated_at says
@@ -752,8 +1077,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
             }
             return new LivenessRow(rs.getString("table_name"), activity, rs.getString("status"),
                     rs.getString("error_message"));
-        });
-    }
+        };
 
     /** Raw rows of etl_sync_state; {@code lagMinutes} is left null here. */
     private List<EtlTableStatus> readSyncStates() {
@@ -796,21 +1120,25 @@ class EtlSyncServiceImpl implements EtlSyncService {
         long totalRows = 0;
         Instant maxEffectiveUpdatedAt = lastSyncedAt;
         String errorMessage = null;
+        AtomicReference<Instant> persistedMarker = new AtomicReference<>(lastSyncedAt);
 
         try {
             CdcResult result = runCdcLoop(TABLE_CAMPAIGN_CONTACT, lastSyncedAt, this::fetchCampaignContactRows,
-                    this::writeCampaignBatches);
+                    this::writeCampaignBatches, persistedMarker);
             totalRows = result.rows();
             maxEffectiveUpdatedAt = result.newMarker();
         } catch (Exception ex) {
             log.error("[ETL] Błąd synchronizacji tabeli '{}': {}", TABLE_CAMPAIGN_CONTACT, ex.getMessage(), ex);
             errorMessage = ex.getMessage();
+            // BE-216: marker after the last successful advance (not the pre-cycle one) for the lag check
+            maxEffectiveUpdatedAt = persistedMarker.get();
         }
 
         if (errorMessage != null) {
             markError(TABLE_CAMPAIGN_CONTACT, errorMessage);
         } else {
             markDone(TABLE_CAMPAIGN_CONTACT, maxEffectiveUpdatedAt, totalRows);
+            clearAlertState(TABLE_CAMPAIGN_CONTACT, ALERT_TYPE_JOB_ERROR, ALERT_TYPE_JOB_STALE);
         }
 
         checkLagAndAlert(TABLE_CAMPAIGN_CONTACT, maxEffectiveUpdatedAt);
@@ -823,6 +1151,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
     /** CDC fetch with keyset cursor (BE-213); rows carry their effective timestamp and id. */
     List<CdcRow<CampaignDwRow>> fetchCampaignContactRows(Instant marker, Instant cursorTs, UUID cursorId,
                                                          int limit) {
+        Timestamp upperBound = computeUpperBound(); // separate statement, BEFORE the data snapshot (BE-216)
         return jdbcTemplate.query(
                 SELECT_CAMPAIGN_CONTACTS_FOR_ETL,
                 (rs, rowNum) -> {
@@ -847,7 +1176,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     return new CdcRow<>(row, rs.getTimestamp("effective_updated_at").toInstant(), recordId);
                 },
                 Timestamp.from(marker),
-                safetyWindowMs,
+                upperBound,
                 Timestamp.from(cursorTs),
                 cursorId,
                 limit

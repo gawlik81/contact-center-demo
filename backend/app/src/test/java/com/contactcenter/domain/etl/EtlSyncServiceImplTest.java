@@ -12,12 +12,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -67,6 +70,12 @@ class EtlSyncServiceImplTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
     @InjectMocks
     private EtlSyncServiceImpl service;
 
@@ -84,6 +93,9 @@ class EtlSyncServiceImplTest {
         // Domyślnie queryForObject dla max(updated_at) zwraca null
         lenient().when(jdbcTemplate.queryForObject(anyString(), eq(Timestamp.class), any()))
                 .thenReturn(null);
+        // BE-214: cooldown slot always free by default (cooldown behaviour: EtlSyncAlertCooldownTest)
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
     }
 
     // =========================================================================
@@ -260,7 +272,8 @@ class EtlSyncServiceImplTest {
             service.fetchCampaignContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 1);
 
             ArgumentCaptor<String> lagSql = ArgumentCaptor.forClass(String.class);
-            verify(jdbcTemplate, org.mockito.Mockito.times(2))
+            // 2 lag queries + 2 upper-bound statements executed before the fetches (BE-216); lag ones come first
+            verify(jdbcTemplate, org.mockito.Mockito.times(4))
                     .queryForObject(lagSql.capture(), eq(Timestamp.class), any());
             ArgumentCaptor<String> fetchSql = ArgumentCaptor.forClass(String.class);
             verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(fetchSql.capture(), any(RowMapper.class), any(), any(), any(), any(), any());
@@ -391,6 +404,41 @@ class EtlSyncServiceImplTest {
         }
 
         @Test
+        @DisplayName("BE-214 nit: ERROR z lastRunAt == null i errorMessage == null - alert z pustymi polami (bez NPE)")
+        void errorWithNullLastRunAndNullMessage_sendsAlertWithEmptyFields() {
+            service.checkLivenessAndAlert("contact", null, "ERROR", null);
+
+            verify(rabbitTemplate).convertAndSend(
+                    eq("cc.events"),
+                    eq("etl.lag.alert"),
+                    (Object) argThat(payload -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) payload;
+                        return "JOB_ERROR".equals(map.get("alertType"))
+                               && "".equals(map.get("errorMessage"))
+                               && "".equals(map.get("lastRunAt"))
+                               && map.containsKey("alertedAt");
+                    })
+            );
+        }
+
+        @Test
+        @DisplayName("BE-214 nit: granica progu liveness - dokladnie prog (>=) alarmuje, tuz ponizej progu nie")
+        void livenessThresholdBoundary() {
+            long threshold = 300_000L; // default etl.sync.liveness-threshold-ms
+
+            // age == threshold at the time of the check (the check's own clock is a few ms later) -> alert
+            service.checkLivenessAndAlert("contact", Instant.now().minusMillis(threshold), "DONE", null);
+            verify(rabbitTemplate, org.mockito.Mockito.times(1))
+                    .convertAndSend(eq("cc.events"), eq("etl.lag.alert"), (Object) any());
+
+            // 5 s younger than the threshold -> still alive
+            org.mockito.Mockito.clearInvocations(rabbitTemplate);
+            service.checkLivenessAndAlert("contact", Instant.now().minusMillis(threshold - 5_000), "DONE", null);
+            verifyNoInteractions(rabbitTemplate);
+        }
+
+        @Test
         @DisplayName("checkJobLiveness czyta etl_sync_state i alarmuje tylko dla tabel CDC")
         void scheduledCheckAlertsOnlyForCdcTables() throws SQLException {
             when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
@@ -414,6 +462,34 @@ class EtlSyncServiceImplTest {
     @Nested
     @DisplayName("syncTable – kompletny cykl synchronizacji")
     class SyncTableTest {
+
+        @Test
+        @DisplayName("BE-214 nit: blad cyklu -> markError + checkLagAndAlert (DATA_LAG); JOB_ERROR z liveness to osobny typ (podwojny alert)")
+        void failedCycle_marksErrorAndAlertsLag_thenLivenessAlertsJobError() {
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(new EtlSyncServiceImpl.CdcRow<>(buildDwRow(),
+                            Instant.now().minusSeconds(60), CONTACT_ID)));
+            org.mockito.Mockito.doThrow(new DataWarehouseException("DW down")).when(dwWriter).upsert(anyList());
+            when(jdbcTemplate.queryForObject(contains("FROM contact c"), eq(Timestamp.class), any()))
+                    .thenReturn(Timestamp.from(Instant.now().minus(45, ChronoUnit.MINUTES)));
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            verify(jdbcTemplate).update(contains("ERROR"), contains("DW down"), eq(EtlSyncService.TABLE_CONTACT));
+            ArgumentCaptor<Object> first = ArgumentCaptor.forClass(Object.class);
+            verify(rabbitTemplate).convertAndSend(eq("cc.events"), eq("etl.lag.alert"), first.capture());
+            assertThat(((Map<?, ?>) first.getValue()).get("alertType")).isEqualTo("DATA_LAG");
+
+            // the liveness check then sees status ERROR -> a second, different alert type for the same incident
+            service.checkLivenessAndAlert(EtlSyncService.TABLE_CONTACT, Instant.now(), "ERROR", "DW down");
+            ArgumentCaptor<Object> all = ArgumentCaptor.forClass(Object.class);
+            verify(rabbitTemplate, org.mockito.Mockito.times(2))
+                    .convertAndSend(eq("cc.events"), eq("etl.lag.alert"), all.capture());
+            assertThat(all.getAllValues().stream().map(p -> (Object) ((Map<?, ?>) p).get("alertType")).toList())
+                    .containsExactly("DATA_LAG", "JOB_ERROR");
+        }
 
         @Test
         @DisplayName("Pomija synchronizację gdy brak wpisu w etl_sync_state")
@@ -631,16 +707,52 @@ class EtlSyncServiceImplTest {
                 "writeBatchSize,-5,etl.sync.write-batch-size",
                 "maxBatchesPerCycle,0,etl.sync.max-batches-per-cycle",
                 "maxBatchesPerCycle,-1,etl.sync.max-batches-per-cycle",
-                "safetyWindowMs,-1,etl.sync.safety-window-ms"
+                "safetyWindowMs,-1,etl.sync.safety-window-ms",
+                "alertCooldownMs,-1,etl.sync.alert-cooldown-ms"
         })
         void invalidValue_failsFastWithReadableMessage(String field, long value, String property) {
-            Object typed = field.equals("safetyWindowMs") ? (Object) value : (Object) (int) value;
+            boolean isLong = field.equals("safetyWindowMs") || field.equals("alertCooldownMs");
+            Object typed = isLong ? (Object) value : (Object) (int) value;
             set(field, typed);
 
             org.assertj.core.api.Assertions.assertThatThrownBy(service::validateConfig)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(property)
                     .hasMessageContaining("was " + value);
+        }
+
+        @Test
+        @DisplayName("alertCooldownMs = 0 jest dozwolone (cooldown wylaczony)")
+        void zeroAlertCooldown_valid() {
+            set("alertCooldownMs", 0L);
+            assertThatNoException().isThrownBy(service::validateConfig);
+        }
+
+        @Test
+        @DisplayName("BE-214 nit: WARN gdy liveness-threshold-ms < 3 x fixed-delay-ms; brak WARN dla wartosci domyslnych")
+        void livenessThresholdBelowThreeCycles_warns() {
+            ch.qos.logback.classic.Logger logger =
+                    (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EtlSyncServiceImpl.class);
+            ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                    new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            logger.addAppender(appender);
+            try {
+                service.validateConfig(); // defaults: 300000 >= 3 x 60000
+                assertThat(appender.list).noneMatch(e -> e.getFormattedMessage().contains("liveness-threshold-ms"));
+
+                set("livenessThresholdMs", 179_999L); // < 3 x 60000
+                service.validateConfig();
+                assertThat(appender.list).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                        && e.getFormattedMessage().contains("liveness-threshold-ms (179999)"));
+
+                appender.list.clear();
+                set("livenessThresholdMs", 180_000L); // exactly 3 x -> ok
+                service.validateConfig();
+                assertThat(appender.list).noneMatch(e -> e.getFormattedMessage().contains("liveness-threshold-ms"));
+            } finally {
+                logger.detachAppender(appender);
+            }
         }
 
         @Test
@@ -723,6 +835,68 @@ class EtlSyncServiceImplTest {
         }
 
         @Test
+        @DisplayName("BE-216: blad w srodku cyklu - checkLagAndAlert dostaje znacznik po ostatnim udanym advanceMarker (t3), nie sprzed cyklu")
+        void contactFailureMidCycle_lagCheckedAgainstLastPersistedMarker() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdc(t1, 1), cdc(t2, 2)))
+                    .thenReturn(List.of(cdc(t3, 3), cdc(t4, 4)))
+                    .thenReturn(List.of(cdc(t4.plusSeconds(60), 5)));
+            org.mockito.Mockito.doNothing().doNothing()
+                    .doThrow(new DataWarehouseException("DW down at batch 3"))
+                    .when(dwWriter).upsert(anyList());
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            verify(jdbcTemplate).queryForObject(contains("FROM contact c"), eq(Timestamp.class),
+                    eq(Timestamp.from(t3)));
+            verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Timestamp.class),
+                    eq(Timestamp.from(Instant.EPOCH)));
+        }
+
+        @Test
+        @DisplayName("BE-216: campaign_contact - to samo (lag liczony od znacznika po ostatnim advanceMarker)")
+        void campaignFailureMidCycle_lagCheckedAgainstLastPersistedMarker() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CAMPAIGN_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdcCampaign(t1, 1), cdcCampaign(t2, 2)))
+                    .thenReturn(List.of(cdcCampaign(t3, 3), cdcCampaign(t4, 4)))
+                    .thenReturn(List.of(cdcCampaign(t4.plusSeconds(60), 5)));
+            org.mockito.Mockito.doNothing().doNothing()
+                    .doThrow(new DataWarehouseException("DW down at batch 3"))
+                    .when(dwWriter).upsertCampaigns(anyList());
+
+            service.syncCampaignContactTable();
+
+            verify(jdbcTemplate).queryForObject(contains("FROM campaign_contact cc"), eq(Timestamp.class),
+                    eq(Timestamp.from(t3)));
+        }
+
+        @Test
+        @DisplayName("BE-216: gdy advanceMarker sie nie powiodl, lag liczony od znacznika faktycznie zapisanego w bazie (sprzed cyklu)")
+        void failedAdvance_lagCheckedAgainstPreCycleMarker() {
+            configure();
+            when(jdbcTemplate.queryForList(anyString(), eq(EtlSyncService.TABLE_CONTACT)))
+                    .thenReturn(List.of(Map.of("last_synced_at", Timestamp.from(Instant.EPOCH), "status", "DONE")));
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any()))
+                    .thenReturn(List.of(cdc(t1, 1), cdc(t2, 2)))
+                    .thenReturn(List.of(cdc(t3, 3)));
+            when(jdbcTemplate.update(contains("last_synced_at < ?"), any(Object[].class)))
+                    .thenThrow(new org.springframework.dao.QueryTimeoutException("timeout"));
+            org.mockito.Mockito.doNothing().doThrow(new DataWarehouseException("DW down"))
+                    .when(dwWriter).upsert(anyList());
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            verify(jdbcTemplate).queryForObject(contains("FROM contact c"), eq(Timestamp.class),
+                    eq(Timestamp.from(Instant.EPOCH)));
+        }
+
+        @Test
         @DisplayName("blad zapisu znacznika w trakcie cyklu nie przerywa cyklu")
         void advanceMarkerFailure_doesNotBreakCycle() {
             configure();
@@ -767,11 +941,142 @@ class EtlSyncServiceImplTest {
             service.syncTable(EtlSyncService.TABLE_CONTACT);
 
             // parameter order of the CDC fetch: marker, safety window, cursor ts, cursor id, limit
+            // (the 2nd parameter is the upper bound computed by the separate guard statement - BE-216)
             verify(jdbcTemplate).query(anyString(), any(RowMapper.class), eq(Timestamp.from(Instant.EPOCH)),
-                    eq(60_000L), eq(Timestamp.from(Instant.EPOCH)), eq(EtlSyncServiceImpl.MIN_UUID), eq(5000));
+                    any(Timestamp.class), eq(Timestamp.from(Instant.EPOCH)), eq(EtlSyncServiceImpl.MIN_UUID), eq(5000));
 
             verify(jdbcTemplate).update(contains("DONE"), eq(Timestamp.from(ts)), eq(1L),
                     eq(EtlSyncService.TABLE_CONTACT));
+        }
+    }
+
+    @Nested
+    @DisplayName("gorna granica CDC - straznik w OSOBNYM zapytaniu przed fetchem (BE-216)")
+    class UpperBoundGuardTest {
+
+        @Test
+        @DisplayName("straznik jest odczytany PRZED zapytaniem o dane, a jego wynik trafia do fetchu jako parametr")
+        void guardStatementRunsBeforeFetchAndIsPassedAsParameter() {
+            Timestamp upper = Timestamp.from(Instant.parse("2026-02-03T04:05:06Z"));
+            when(jdbcTemplate.queryForObject(contains("pg_stat_activity"), eq(Timestamp.class), any()))
+                    .thenReturn(upper);
+
+            service.fetchContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 10);
+            service.fetchCampaignContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 10);
+
+            org.mockito.InOrder order = org.mockito.Mockito.inOrder(jdbcTemplate);
+            order.verify(jdbcTemplate).queryForObject(contains("pg_stat_activity"), eq(Timestamp.class), eq(60_000L));
+            order.verify(jdbcTemplate).query(contains("FROM contact c"), any(RowMapper.class), any(), eq(upper),
+                    any(), any(), any());
+            order.verify(jdbcTemplate).queryForObject(contains("pg_stat_activity"), eq(Timestamp.class), eq(60_000L));
+            order.verify(jdbcTemplate).query(contains("FROM campaign_contact cc"), any(RowMapper.class), any(),
+                    eq(upper), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("SQL fetchu nie czyta pg_stat_activity (inaczej odczyt byłby PO snapshocie danych)")
+        void fetchSqlDoesNotReadPgStatActivity() {
+            service.fetchContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 10);
+            service.fetchCampaignContactRows(Instant.EPOCH, Instant.EPOCH, EtlSyncServiceImpl.MIN_UUID, 10);
+
+            ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, org.mockito.Mockito.times(2))
+                    .query(sql.capture(), any(RowMapper.class), any(), any(), any(), any(), any());
+            assertThat(sql.getAllValues()).noneMatch(q -> q.contains("pg_stat_activity") || q.contains("NOW()"));
+        }
+
+        @Test
+        @DisplayName("straznik wylaczony: zapytanie o granice bez pg_stat_activity")
+        void guardDisabled_plainUpperBound() {
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", false);
+            when(jdbcTemplate.queryForObject(contains("NOW()"), eq(Timestamp.class), any())).thenReturn(null);
+
+            service.computeUpperBound();
+
+            ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate).queryForObject(sql.capture(), eq(Timestamp.class), eq(60_000L));
+            assertThat(sql.getValue()).isEqualTo(EtlSyncServiceImpl.SELECT_UPPER_BOUND_PLAIN)
+                    .doesNotContain("pg_stat_activity");
+        }
+
+        @Test
+        @DisplayName("zapytanie straznika: LEAST(NOW(), MIN(xact_start) piszacych transakcji) - okno; bez COALESCE; wlasny backend wykluczony")
+        void guardSqlShape() {
+            assertThat(EtlSyncServiceImpl.SELECT_UPPER_BOUND_GUARDED)
+                    .contains("LEAST(NOW(), (SELECT MIN(a.xact_start)")
+                    .contains("a.backend_xid IS NOT NULL")
+                    .contains("a.pid <> pg_backend_pid()")
+                    .doesNotContain("COALESCE");
+        }
+    }
+
+    @Nested
+    @DisplayName("checkOpenTransactionGuardVisibility - start aplikacji (BE-216)")
+    class GuardVisibilityTest {
+
+        private ch.qos.logback.classic.Logger logger;
+        private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender;
+
+        @BeforeEach
+        void attach() {
+            logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EtlSyncServiceImpl.class);
+            appender = new ch.qos.logback.core.read.ListAppender<>();
+            appender.start();
+            logger.addAppender(appender);
+        }
+
+        @org.junit.jupiter.api.AfterEach
+        void detach() {
+            logger.detachAppender(appender);
+        }
+
+        private long warns() {
+            return appender.list.stream().filter(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN).count();
+        }
+
+        @Test
+        @DisplayName("superuser / pg_read_all_stats: true, brak ostrzezenia")
+        void visible_noWarning() {
+            when(jdbcTemplate.queryForObject(eq(EtlSyncServiceImpl.SELECT_GUARD_VISIBILITY), eq(Boolean.class)))
+                    .thenReturn(true);
+
+            assertThat(service.checkOpenTransactionGuardVisibility()).isTrue();
+            assertThat(warns()).isZero();
+        }
+
+        @Test
+        @DisplayName("rola bez uprawnien: glosne WARN o pg_read_all_stats, false, aplikacja dziala dalej (brak wyjatku)")
+        void blind_loudWarning() {
+            when(jdbcTemplate.queryForObject(eq(EtlSyncServiceImpl.SELECT_GUARD_VISIBILITY), eq(Boolean.class)))
+                    .thenReturn(false);
+
+            assertThat(service.checkOpenTransactionGuardVisibility()).isFalse();
+            assertThat(appender.list).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                    && e.getFormattedMessage().contains("pg_read_all_stats")
+                    && e.getFormattedMessage().contains("BLIND"));
+        }
+
+        @Test
+        @DisplayName("blad zapytania: WARN i false, bez wyjatku")
+        void checkFailure_warnsAndDoesNotThrow() {
+            when(jdbcTemplate.queryForObject(eq(EtlSyncServiceImpl.SELECT_GUARD_VISIBILITY), eq(Boolean.class)))
+                    .thenThrow(new org.springframework.dao.QueryTimeoutException("timeout"));
+
+            assertThatNoException().isThrownBy(() -> assertThat(service.checkOpenTransactionGuardVisibility()).isFalse());
+            assertThat(warns()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("open-transaction-guard-enabled=false: WARN o utracie gwarancji, bez zapytania do bazy")
+        void guardDisabled_warns() {
+            org.springframework.test.util.ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", false);
+
+            assertThat(service.checkOpenTransactionGuardVisibility()).isFalse();
+
+            assertThat(appender.list).anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                    && e.getFormattedMessage().contains("open-transaction-guard-enabled=false"));
+            verify(jdbcTemplate, never()).queryForObject(eq(EtlSyncServiceImpl.SELECT_GUARD_VISIBILITY),
+                    eq(Boolean.class));
         }
     }
 
@@ -818,6 +1123,43 @@ class EtlSyncServiceImplTest {
                     .thenReturn(Timestamp.from(Instant.now().minus(7, ChronoUnit.MINUTES)));
 
             assertThat(service.getStatus().get(0).lagMinutes()).isBetween(6L, 8L);
+        }
+
+        @Test
+        @DisplayName("BE-214 nit: tabela bez CDC - lagMinutes == null (zapytanie lagu nie jest wykonywane)")
+        void tableWithoutCdc_lagIsNull() {
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+                    .thenAnswer(inv -> {
+                        RowMapper<EtlTableStatus> mapper = inv.getArgument(1);
+                        ResultSet rs = mockResultSet(Instant.now().minus(15, ChronoUnit.MINUTES), 3L, "DONE", null);
+                        when(rs.getString("table_name")).thenReturn("agent_dim");
+                        return List.of(mapper.mapRow(rs, 0));
+                    });
+
+            EtlTableStatus status = service.getStatus().get(0);
+
+            assertThat(status.tableName()).isEqualTo("agent_dim");
+            assertThat(status.lagMinutes()).isNull();
+            verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Timestamp.class), any());
+        }
+
+        @Test
+        @DisplayName("BE-214 nit: wyjatek zapytania lagu - getStatus nie wylatuje, lagMinutes == null")
+        void lagQueryFailure_lagIsNullAndStatusStillReturned() {
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+                    .thenAnswer(inv -> {
+                        RowMapper<EtlTableStatus> mapper = inv.getArgument(1);
+                        return List.of(mapper.mapRow(
+                                mockResultSet(Instant.now().minus(15, ChronoUnit.MINUTES), 3L, "DONE", null), 0));
+                    });
+            when(jdbcTemplate.queryForObject(anyString(), eq(Timestamp.class), any()))
+                    .thenThrow(new org.springframework.dao.QueryTimeoutException("timeout"));
+
+            List<EtlTableStatus> statuses = service.getStatus();
+
+            assertThat(statuses).hasSize(1);
+            assertThat(statuses.get(0).status()).isEqualTo("DONE");
+            assertThat(statuses.get(0).lagMinutes()).isNull();
         }
 
         @Test

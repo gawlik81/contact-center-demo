@@ -4367,6 +4367,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 **Uwaga z tury 72 (2026-11-07, z CR BE-159/BE-156 — POZA ZAKRESEM V147; do uwzględnienia w tym tickecie, EPIC-31):** migracja V147 (DB-096 ✅) wykonuje `UPDATE queue ... WHERE max_concurrent_contacts_per_agent = 1`, a `queue` ma FORCE RLS. Przy Flyway uruchamianym rolą bez BYPASSRLS (po przejściu na rolę `cc_app`, BE-148) takie migracje DANYCH dotkną 0 wierszy BEZ błędu (brak `app.current_tenant_id`). Wymóg dla DB-083/BE-148: (a) rola migracyjna z BYPASSRLS (spójnie z korektą z tury 34) albo (b) guard `DO $$` w migracjach aktualizujących dane pod FORCE RLS (`RAISE EXCEPTION`, gdy `NOT rolbypassrls` i nie superuser, lub kontrola liczby zaktualizowanych wierszy). Inwentarz takich migracji zacząć od V147.
 
+**Dopisek (tura 75 cd., BE-216 ✅):** wymaganie wynikające z BE-216 — strażnik CDC ETL czyta `pg_stat_activity` (`xact_start`/`backend_xid` sesji piszących innych ról). Rola aplikacji `cc_app` / rola ETL musi mieć `GRANT pg_read_all_stats` (albo wszyscy writerzy tabel CDC muszą działać jako ta sama rola), inaczej strażnik degraduje się do samego okna bezpieczeństwa (WARN przy starcie). Do uwzględnienia w pkt 1 (role/GRANT-y) i w teście pod rolą ograniczoną; rekomendacja `idle_in_transaction_session_timeout` dla roli aplikacji. Status DB-083 bez zmian (⬜); powiązane: BE-216 ✅, BE-150.
 
 ### DB-089 – Kolumna `app_user.status_changed_at`: trwałe źródło czasu rozpoczęcia bieżącego statusu agenta (`statusSince`, BE-153)
 

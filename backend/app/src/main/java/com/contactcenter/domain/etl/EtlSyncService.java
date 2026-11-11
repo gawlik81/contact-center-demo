@@ -31,6 +31,36 @@ import java.util.List;
  * payload zawiera {@code alertType} = DATA_LAG | JOB_STALE | JOB_ERROR.
  * Gdy lag > 30 min, publikowany jest event do RabbitMQ (exchange {@code cc.events},
  * routing key {@code etl.lag.alert}). Logowany jest WARN niezależnie od RabbitMQ.
+ *
+ * <h3>Payload {@code etl.lag.alert} (JSON, kontrakt)</h3>
+ * <table>
+ *   <caption>Pola payloadu per alertType (X = obecne)</caption>
+ *   <tr><th>pole</th><th>DATA_LAG</th><th>JOB_STALE</th><th>JOB_ERROR</th><th>opis</th></tr>
+ *   <tr><td>alertType</td><td>X</td><td>X</td><td>X</td><td>DATA_LAG | JOB_STALE | JOB_ERROR</td></tr>
+ *   <tr><td>tableName</td><td>X</td><td>X</td><td>X</td><td>tabela źródłowa ({@code contact}, {@code campaign_contact})</td></tr>
+ *   <tr><td>alertedAt</td><td>X</td><td>X</td><td>X</td><td>ISO-8601, moment wysłania</td></tr>
+ *   <tr><td>lagMinutes</td><td>X</td><td></td><td></td><td>wiek najstarszej niezsynchronizowanej zmiany (min)</td></tr>
+ *   <tr><td>lastSyncedAt</td><td>X</td><td></td><td></td><td>znacznik CDC (ISO-8601)</td></tr>
+ *   <tr><td>status</td><td></td><td>X</td><td>X</td><td>status z {@code etl_sync_state} (JOB_STALE: "" gdy brak)</td></tr>
+ *   <tr><td>staleMinutes</td><td></td><td>X</td><td></td><td>minuty od ostatniej aktywności joba</td></tr>
+ *   <tr><td>lastRunAt</td><td></td><td>X</td><td>X</td><td>ISO-8601 ostatniej aktywności ("" gdy brak; w JOB_ERROR)</td></tr>
+ *   <tr><td>errorMessage</td><td></td><td></td><td>X</td><td>skrócone do 200 znaków ("" gdy brak)</td></tr>
+ * </table>
+ *
+ * <h3>Cooldown alertów (BE-214)</h3>
+ * <p>Wiadomość dla pary (tabela, alertType) jest wysyłana raz na {@code etl.sync.alert-cooldown-ms} (domyślnie
+ * 15 min) - Redis {@code SET NX PX}, klucz {@code etl:alert:{table}:{alertType}}, wspólny dla wszystkich instancji.
+ * Powrót do normy (cykl DONE, brak ERROR/STALE, lag poniżej progu) kasuje klucz, więc kolejne wejście w stan
+ * (np. DONE -> ERROR) alarmuje natychmiast. Awaria Redis = fail-open (alert wysyłany, WARN w logu).
+ * Log {@code [ETL][ALERT]} jest pisany przy każdym sprawdzeniu, deduplikowany jest tylko komunikat do brokera.
+ *
+ * <h3>Gwarancje i granice CDC (BE-213, BE-216)</h3>
+ * <p>Wiersz jest czytany, gdy {@code effective_ts <= LEAST(NOW(), początek najstarszej otwartej transakcji piszącej)
+ * - safety-window}. Dzięki temu transakcja otwarta dowolnie długo (np. import w jednej transakcji) nie zostanie
+ * pominięta: jej wiersze mają znacznik {@code >= xact_start}, więc kursor nie wyprzedzi ich przed commitem. Koszt:
+ * długa, niezwiązana transakcja pisząca wstrzymuje kursor (lag rośnie, po 30 min alert DATA_LAG). Szczegóły i
+ * ograniczenia (widoczność {@code pg_stat_activity} pod rolą bez {@code pg_read_all_stats}, transakcja bez xid):
+ * Javadoc pola {@code EtlSyncServiceImpl#openTransactionGuardEnabled} i ARCHITECTURE.md.
  */
 public interface EtlSyncService {
 

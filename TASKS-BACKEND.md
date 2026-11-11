@@ -56,14 +56,14 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 23 | 0 | 21 | 0 | 44 | 🔧 W toku |
+| EPIC-32 | UX i dostępność stanowiska agenta | 25 | 0 | 20 | 0 | 45 | 🔧 W toku |
 | EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 25 | 0 | 25 | ⬜ Nie rozpoczęty |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **166** | **0** | **56** | **3** | **225** | |
+| **RAZEM** | | **168** | **0** | **55** | **3** | **226** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -131,14 +131,15 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-211 | Poziom logu przebiegu routingu z pollu: `Agent AVAILABLE, próbuję routować…` na DEBUG (INFO tylko dla przebiegów wyzwolonych zdarzeniem; tura 73) | ✅ Ukończone (2026-11-07, tura 73; CR 3,5/5) |
 | BE-212 | [BUG] Fałszywy alarm lagu ETL przy braku zmian w źródle: `checkLagAndAlert` liczy `now - last_synced_at` (znacznik CDC), więc lag rośnie bez końca; osobny alert żywotności (`last_run_at`/ERROR), poprawny `lagMinutes` w statusie ETL (zgłoszenie 2026-11-07; powiązane BE-211; tura 73) | ✅ Ukończone (2026-11-07, tura 73; CR 3,5/5) — follow-upy: BE-213, BE-214, DB-098, FE-165 |
 | BE-213 | [BUG] Utrata danych ETL przy backlogu CDC > LIMIT: znacznik `computeMax*` przeskakuje poza pobrany batch, wyścig fetch↔computeMax (domena EPIC-10; Wysoki P1, M; wynik CR BE-212; tura 73) | ✅ Ukończone (2026-11-08, tura 74; CR 4/5; otwarty punkt: weryfikacja local-demo) — follow-upy: BE-215, BE-216, DB-098 (podniesiony) |
-| BE-214 | Cooldown i deduplikacja alertów ETL `etl.lag.alert` (Redis `SET NX`/zmiana stanu) + drobne nity z CR BE-212 (domena EPIC-10; Średni, S; tura 73) | ⬜ Do zrobienia |
+| BE-214 | Cooldown i deduplikacja alertów ETL `etl.lag.alert` (Redis `SET NX`/zmiana stanu) + drobne nity z CR BE-212 (domena EPIC-10; Średni, S; tura 73) | ✅ Ukończone (2026-11-11, tura 75 cd.; CR 4/5; poprawki naniesione) — powiązane: BE-172 (cooldown nie zastępuje ShedLock), BE-216 ✅ |
 | BE-215 | [BUG] ClickHouse DW: MV `mv_agent_performance_from_contacts` zawyża `agent_performance_dw` po ponownym wstawianiu wierszy; `ReplacingMergeTree` bez `FINAL` w odczytach (domena EPIC-10; Wysoki P1, M; zależy od BE-213 ✅; tura 74) | ✅ Ukończone (2026-11-11, tura 75; CR 4/5; V003 zastosowana na local-demo 2026-11-11) — powiązane: BE-216, DB-098, BE-172 |
-| BE-216 | ETL: transakcje dłuższe niż `safety-window-ms` mogą zostać pominięte przez CDC + nit lag po błędzie cyklu (domena EPIC-10; Średni, M; zależy od BE-213 ✅; tura 74) | ⬜ Do zrobienia |
+| BE-216 | ETL: transakcje dłuższe niż `safety-window-ms` mogą zostać pominięte przez CDC + nit lag po błędzie cyklu (domena EPIC-10; Średni, M; zależy od BE-213 ✅; tura 74) | ✅ Ukończone (2026-11-11, tura 75 cd.; opcja 2 — strażnik `MIN(xact_start)`; CR 3,5/5) — wymaga `GRANT pg_read_all_stats` w BE-150; follow-up: BE-222 |
 | BE-217 | Obecność agenta, follow-up BE-210: test e2e STOMP, sweeper pod rolą bez BYPASSRLS, osierocony kontakt PHONE, runbook agenta tylko-REST, PONG na nieobsługiwanym kanale (Średni/Niski, M; zależy od BE-210 ✅; tura 74) | ⬜ Do zrobienia |
 | BE-218 | Zdarzenie WS `CONTACT_ASSIGNED` bez `assignedAt` i `queueId` (zależy od FE-163 ✅; Niski, S; tura 74 dopisek 2) | ⬜ Do zrobienia |
 | BE-219 | Kontakt przyjęty w nadmiarze (ACTIVE bez karty): wpływ na AHT/SLA/timeouty/metryki supervisora, ewentualny stan „oczekuje na kartę” (zależy od FE-163 ✅, BE-209 ✅; Średni, S/M; tura 74 dopisek 2) | ⬜ Do zrobienia |
 | BE-220 | Sygnał zdolności telefonicznej agenta w `/users/me` (zależy od FE-163 ✅; blokuje FE-167; Niski, S/M; tura 74 dopisek 2) | ⬜ Do zrobienia |
 | BE-221 | `findAvailableAgents` (poll routingu i dialer) zwraca konta ADMIN/SUPERVISOR w statusie AVAILABLE — korekta diagnozy „agentów-duchów” z 2026-11-07 (Niski, XS/S; tura 74 dopisek 3) | ✅ Ukończone (2026-11-11, tura 75; CR 4,5/5; punkt 2 — domyślny status kont ADMIN/SUPERVISOR — nadal decyzja właściciela) |
+| BE-222 | Stemplowanie `created_at`/`updated_at` po stronie bazy (`NOW()`/DEFAULT) zamiast `Instant.now()` w Javie (`CampaignImportServiceImpl.buildRow`, natywny INSERT w `ContactRepository`) — uszczelnienie strażnika CDC z BE-216 (domena EPIC-10/ETL; Niski/Średni, S; zależy od BE-216 ✅; powiązane: BE-213 ✅, DB-098; tura 75 cd.) | ⬜ Do zrobienia |
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
@@ -8481,6 +8482,7 @@ backend/app/src/test/java/com/contactcenter/
 **Ryzyka:** (R1) cichy błąd routingu `DataSource`/`TransactionManager` ETL (powrót na rolę aplikacji = „0 wierszy”); (R2) wydajność przy wielu tenantach (N transakcji) — pomiar; (R3) czujnik kandydatów sam może być ślepy, jeśli liczy pod RLS — musi pochodzić z definera; (R4) wspólny scheduler 4 wątków i dodatkowa pula.
 **Nie wchodzi w zakres:** ścieżki HTTP/audyt/logowanie (BE-149), migracje i role (DB-083), zmiana modelu CDC, wymiana sekretów, włączanie flag na produkcji.
 **Zależności:** `Zależy od` BE-148, DB-083, BE-139.
+**Dopisek (tura 75 cd., BE-216 ✅):** wymaganie wynikające z BE-216 — strażnik CDC ETL czyta `pg_stat_activity` (`xact_start`/`backend_xid` sesji piszących). Pod rolą `cc_app` bez uprawnień widzi NULL dla sesji innych ról i degraduje się do samego okna bezpieczeństwa (WARN przy starcie, `ApplicationReadyEvent`). Wymagane: `GRANT pg_read_all_stats TO cc_app` (albo wszyscy writerzy tabel CDC jako ta sama rola); dodatkowo rekomendacja `idle_in_transaction_session_timeout` dla roli aplikacji (zawieszona transakcja `idle in transaction` wstrzymuje kursor ETL). Dotyczy też osobnego `DataSource` ETL (#10). Status BE-150 bez zmian (⬜); powiązane: BE-216 ✅, DB-083.
 **Adnotacja (tura 35, 2026-10-11):** `CampaignArchiveJob`/`CampaignArchiveJobRepository` zmienia też BE-151 (okres archiwizacji per tenant, funkcja SQL z DB-084); brak formalnej zależności — przy równoległej pracy uzgodnić kolejność merge; DB-084 zachowuje sygnaturę funkcji bez parametrów. **Tura 38:** BE-151 ✅ (`760fb263`) — WP-4 BE-120 (flaga w demo) czeka na FE-113 i ponowną zgodę właściciela.
 
 **Adnotacja (tura 36, 2026-10-11):** DB-083 `Zależy od` DB-084 (decyzja P6: DB-084 PRZED DB-083). Czujnik kandydatów archiwizacji kampanii (DB-083 pkt 3(v)) ma predykat identyczny z pętlą funkcji po DB-084 — próg per tenant (`tenant_campaign_archive_setting`, brak wiersza = 180) i `COALESCE(ended_at, updated_at)`; funkcja przełączana na definera przez `ALTER FUNCTION`, nie przez kopię ciała. W BE-150 testy joba pod `cc_app` mają obejmować ≥ 2 tenanty o RÓŻNYCH progach (parytet czujnika z wynikiem przebiegu). Brak nowej formalnej zależności BE-150 od DB-084 (przechodnia przez DB-083).
@@ -8489,7 +8491,7 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 23/44** · ✅ 23 · 🔧 0 · ⬜ 21 · 🚫 0 (tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-222)
+**Ukończone 25/45** · ✅ 25 · 🔧 0 · ⬜ 20 · 🚫 0 (tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-223)
 
 > Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200 ✅ (tura 71, 2026-11-06), BE-201…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Tura 72 (2026-11-07): BE-156 ✅, BE-159 ✅, DB-096/DB-097 ✅; nowe BE-207…BE-209 ⬜ i FE-163 ⬜. Tura 73 (2026-11-07, zgłoszenie użytkownika — „agenci-duchy”: status AVAILABLE nigdy nie wygasa po zamknięciu karty/restarcie): nowe BE-210 ⬜ (wykrywanie obecności i automatyczny OFFLINE) i BE-211 ⬜ (poziom logu pollu routingu) oraz FE-164 ⬜ w `TASKS-FRONTEND.md`; bez nowych ticketów DB (ewentualny DB-099 — DB-098 zajął w dopisku 2 ticket indeksów CDC — tylko jeśli BE-210 zdecyduje o kolumnie ostatniej aktywności). Tura 73 (dopisek, 2026-11-07): nowy BE-212 ⬜ ([BUG] fałszywy alarm lagu ETL przy braku zmian w źródle; domena ETL/DW z EPIC-10, który pozostaje ✅ 5/5 — ticket liczony tutaj jako backlog, razem z BE-211). Tura 73 (dopisek 2, 2026-11-07, gałąź `fix/routing-conditional-assignment-and-limits`, niezacommitowane): BE-211 ✅ (log pollu routingu na DEBUG) i BE-212 ✅ (lag ETL = wiek najstarszej niezsynchronizowanej zmiany, alert żywotności `checkJobLiveness`, `alertType`); CR „Review: BE-211 + BE-212 — 2026-11-07” 3,5/5 APPROVE WITH FIXES, 0 must-fix, `mvn verify` 3089 testów (0 F, 0 E, 1 pominięty); nowe BE-213 ⬜ ([BUG] P1: utrata danych ETL przy backlogu > LIMIT i wyścig `computeMax*`; domena EPIC-10), BE-214 ⬜ (cooldown alertów ETL), DB-098 ⬜ w `TASKS-DATABASE.md` (indeksy wyrażeniowe CDC) i FE-165 ⬜ w `TASKS-FRONTEND.md` (JOB_STALE/JOB_ERROR w panelu admin-metrics); BE-172 dopisano `checkJobLiveness`. Rekoncyliacja liczników (tura 73): tabela „Indeks wg EPIC” była nieaktualna (RAZEM 153/52/208 przy faktycznych 159/54/216 przed turą). Następne wolne numery: BE-215, FE-166, DB-099 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
@@ -9404,7 +9406,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Średni
 **Złożoność:** S
 **Zależy od:** BE-212 ✅ (`checkJobLiveness`, `alertType`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-11, tura 75 cd.; niezacommitowane, gałąź `fix/etl-alert-cooldown-and-cdc-window`; CR „Review: BE-214 + BE-216 — 2026-11-11” w `CR-BACKEND.md` 4/5, poprawki naniesione; `mvn -q clean verify -pl app` (JDK 21) EXIT 0, 3267 testów, 0 F, 0 E, 1 pominięty (spoza ETL))
 **Blokuje:** brak; powiązane: BE-172 (ShedLock — przy wielu instancjach cooldown w Redis rozwiązuje duplikaty alertów, zanim ShedLock obejmie ETL), BE-213
 **Epic:** EPIC-10 Dashboardy i raporty (domena ETL/DW; epik pozostaje ✅ 5/5 — ticket liczony jako backlog w sekcji EPIC-32; wynik CR „Review: BE-211 + BE-212 — 2026-11-07”, should-fix pkt 3)
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -9416,16 +9418,18 @@ backend/app/src/test/java/com/contactcenter/
 2. Drobne nity z CR BE-212 (opcjonalnie w tym samym PR): (a) walidacja przy starcie (`@PostConstruct`): WARN gdy `liveness-threshold-ms < 3 × fixed-delay-ms`; (b) Javadoc `EtlSyncService` z tabelą pól payloadu `etl.lag.alert` per `alertType` (`lagMinutes`/`lastSyncedAt` tylko w `DATA_LAG`); (c) brakujące testy: `getStatus()` dla tabeli bez CDC (`lagMinutes == null`) i dla wyjątku zapytania lagu, `checkLivenessAndAlert` dla `lastRunAt == null`/`errorMessage == null`, granica progu liveness (dokładnie == próg), ścieżka `syncTable` → `markError` + `checkLagAndAlert` (podwójny alert).
 
 **Kryteria akceptacji:**
-- [ ] Trwały `ERROR` tabeli przez 10 min generuje jeden alert `JOB_ERROR` (nie 10) i co najwyżej jeden `DATA_LAG` na okno cooldownu
-- [ ] Zmiana stanu (np. powrót do DONE i ponowny `ERROR`) wysyła alert natychmiast
-- [ ] Dwie instancje (test na dwóch kontekstach lub zamockowany Redis `SET NX`) → jeden alert na okno
-- [ ] Brak Redis (wyjątek) nie przerywa cyklu ETL ani liveness (fail-open: alert wysyłany, WARN w logu)
-- [ ] Cooldown konfigurowalny w `application.yml`; payload `etl.lag.alert` bez zmian kontraktu
-- [ ] `mvn verify -pl app` zielone
+- [x] Trwały `ERROR` tabeli przez 10 min generuje jeden alert `JOB_ERROR` (nie 10) i co najwyżej jeden `DATA_LAG` na okno cooldownu
+- [x] Zmiana stanu (np. powrót do DONE i ponowny `ERROR`) wysyła alert natychmiast
+- [x] Dwie instancje (test na dwóch kontekstach lub zamockowany Redis `SET NX`) → jeden alert na okno
+- [x] Brak Redis (wyjątek) nie przerywa cyklu ETL ani liveness (fail-open: alert wysyłany, WARN w logu)
+- [x] Cooldown konfigurowalny w `application.yml`; payload `etl.lag.alert` bez zmian kontraktu
+- [x] `mvn verify -pl app` zielone
 
 **Ryzyka:** (R1) fail-open vs fail-closed przy awarii Redis (rekomendacja: fail-open — brak alertu groźniejszy niż duplikat); (R2) wyciszone alerty maskują eskalację — wysyłać ponownie po upływie TTL.
 **Nie wchodzi w zakres:** ShedLock na jobach ETL (BE-172), zmiana semantyki lagu (BE-212 ✅), poprawka znacznika CDC (BE-213).
-**Zależności:** `Zależy od` BE-212 ✅; `Blokuje` brak; powiązane: BE-172, BE-213.
+**Notatka wykonania (2026-11-11, tura 75 cd.):** cooldown alertów `etl.lag.alert` przez Redis `SET NX PX`, klucz `etl:alert:{table}:{alertType}`, wartość = unikalny token UUID, TTL `etl.sync.alert-cooldown-ms` (env `ETL_SYNC_ALERT_COOLDOWN_MS`, domyślnie 900000 = 15 min; `0` wyłącza cooldown, wartość ujemna → fail-fast przy starcie). Wykrywanie zmiany stanu: klucz kasowany przy powrocie do normy (udany cykl / liveness nie-ERROR / lag < próg); próbka `RUNNING` jest neutralna. Po zajęciu slotu re-check stanu (`JOB_ERROR`/`JOB_STALE`) — gdy stan już wrócił do normy, slot zwalniany (tylko jeśli nadal nasz token) i alert nie jest wysyłany (poprawka wyścigu z CR). Fail-open przy błędzie Redis (alert wysyłany, WARN w logu). Payload bez zmian; log `[ETL][ALERT]` nadal przy każdym sprawdzeniu — deduplikowany jest tylko komunikat do brokera. Flapping ERROR/DONE świadomie zaakceptowany i opisany w `ARCHITECTURE.md` (max 1 alert/cykl/tabelę — poziom sprzed BE-214), test `flapping_everyNewErrorAlerts`. Nity z CR BE-212 (a)–(c) zrobione: WARN w `@PostConstruct` dla `liveness-threshold-ms < 3 × fixed-delay-ms`; Javadoc `EtlSyncService` z tabelą pól payloadu per `alertType`; brakujące testy (`getStatus`, liveness, granica progu, ścieżka `markError` + `checkLagAndAlert`). Testy: `EtlSyncAlertCooldownTest` (fake Redis), `EtlSyncAlertCooldownRedisIntegrationTest` (prawdziwy Redis, w tym współbieżny test 2 instancji 2×50 → 1 alert). `ARCHITECTURE.md`: klucz w tabeli kluczy Redis, akapit cooldownu i limitów.
+**Otwarte (bez nowych ticketów):** cooldown NIE zastępuje ShedLock (BE-172) — przy wielu instancjach ogranicza tylko duplikaty alertów, nie podwójne przebiegi ETL; BE-172 nadal ⬜.
+**Zależności:** `Zależy od` BE-212 ✅; `Blokuje` brak; powiązane: BE-172 (cooldown nie zastępuje ShedLock), BE-213 ✅, BE-216 ✅ (ta sama tura 75 cd., wspólny review).
 
 ### BE-215 – [BUG] ClickHouse DW: materialized view `mv_agent_performance_from_contacts` zawyża `agent_performance_dw` przy ponownym wstawianiu wierszy; `ReplacingMergeTree` bez `FINAL` w odczytach
 
@@ -9469,8 +9473,8 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Średni
 **Złożoność:** M
 **Zależy od:** BE-213 ✅ (`runCdcLoop`, okno bezpieczeństwa `eff <= NOW() - safety-window`, `advanceMarker`)
-**Status:** ⬜ Do zrobienia
-**Blokuje:** brak; powiązane: BE-213 ✅, BE-150 (uprawnienia roli `cc_app` do `pg_stat_activity`), BE-172, BE-215 ✅ (tura 75)
+**Status:** ✅ Ukończone (2026-11-11, tura 75 cd.; niezacommitowane, gałąź `fix/etl-alert-cooldown-and-cdc-window`; wybrana opcja 2; CR „Review: BE-214 + BE-216 — 2026-11-11” w `CR-BACKEND.md` 3,5/5, poprawki naniesione; `mvn -q clean verify -pl app` (JDK 21) EXIT 0, 3267 testów, 0 F, 0 E, 1 pominięty (spoza ETL))
+**Blokuje:** BE-222 (follow-up z CR; zależy od BE-216); powiązane: BE-213 ✅, BE-150 (uprawnienia roli `cc_app` do `pg_stat_activity` — `GRANT pg_read_all_stats`), BE-172, BE-214 ✅ (ta sama tura), BE-215 ✅ (tura 75)
 **Epic:** EPIC-10 Dashboardy i raporty (domena ETL/DW; epik pozostaje ✅ 5/5 — backlog liczony w sekcji EPIC-32; wynik CR „Review: BE-213 — 2026-11-08”, punkt „okno bezpieczeństwa vs długie transakcje — OPEN”)
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -9483,14 +9487,16 @@ backend/app/src/test/java/com/contactcenter/
 4. Nit: w `syncTable` przy błędzie cyklu `checkLagAndAlert` otrzymuje znacznik sprzed cyklu, więc lag jest chwilowo przeszacowany — przekazać znacznik zaktualizowany po ostatnim udanym `advanceMarker`.
 
 **Kryteria akceptacji:**
-- [ ] Test integracyjny (realna baza): transakcja otwarta dłużej niż `safety-window-ms`, commit po cyklu ETL — wiersze trafiają do DW w kolejnym cyklu (dla wybranej opcji)
-- [ ] Udokumentowane gwarancje i granice (maksymalny czas transakcji, jeśli opcja 1)
-- [ ] Błąd w środku cyklu nie przeszacowuje lagu w `checkLagAndAlert`; test jednostkowy
-- [ ] `mvn verify -pl app` zielone
+- [x] Test integracyjny (realna baza): transakcja otwarta dłużej niż `safety-window-ms`, commit po cyklu ETL — wiersze trafiają do DW w kolejnym cyklu (dla wybranej opcji)
+- [x] Udokumentowane gwarancje i granice (maksymalny czas transakcji, jeśli opcja 1)
+- [x] Błąd w środku cyklu nie przeszacowuje lagu w `checkLagAndAlert`; test jednostkowy
+- [x] `mvn verify -pl app` zielone
 
 **Ryzyka:** (R1) uprawnienia do `pg_stat_activity` pod `cc_app` (BE-150, EPIC-31 wstrzymany); (R2) opcja 3 zmienia kontrakt `etl_sync_state` (potencjalna migracja → osobny ticket DB).
 **Nie wchodzi w zakres:** idempotencja agregatów w ClickHouse (BE-215), blokada cyklu między instancjami (BE-172).
-**Zależności:** `Zależy od` BE-213 ✅; `Blokuje` brak; powiązane: BE-150, BE-172, BE-215 ✅, DB-098.
+**Notatka wykonania (2026-11-11, tura 75 cd.):** wybrana opcja 2 — górna granica fetch CDC = `LEAST(NOW(), MIN(xact_start) otwartych transakcji piszących) − safety-window` (`pg_stat_activity`: client backend, ta sama baza, `backend_xid IS NOT NULL`, bez własnego pid), liczona OSOBNYM zapytaniem PRZED fetchem i przekazywana jako parametr (poprawka wyścigu snapshotu z CR). Okno odejmowane także od strażnika, bo część writerów stempluje czas w Javie przed startem transakcji (`CampaignImportServiceImpl.buildRow` `created_at`, natywny INSERT w `ContactRepository`) — uszczelnienie: BE-222. Import `campaign_contact` i tak commituje paczkami po 1000. Wyłącznik `etl.sync.open-transaction-guard-enabled` (env `ETL_SYNC_OPEN_TRANSACTION_GUARD_ENABLED`, domyślnie `true`). Sprawdzenie przy starcie (`ApplicationReadyEvent`): `rolsuper OR pg_has_role(current_user,'pg_read_all_stats','USAGE')` — głośny WARN, gdy strażnik byłby ślepy (widzi NULL dla sesji innych ról), oraz WARN przy wyłączonym strażniku. Nit lagu: po błędzie w środku cyklu `checkLagAndAlert` dostaje znacznik po ostatnim udanym `advanceMarker`. Testy IT (realna baza): transakcja dłuższa niż okno — ze strażnikiem wiersze docierają w kolejnym cyklu, bez strażnika trwała utrata bez alertu (dowód „przed”); transakcja tylko-odczyt nie trzyma kursora; `campaign_contact`; kilka otwartych transakcji (trzyma najstarszą); `SAVEPOINT`; znacznik z Javy 5 s starszy niż `xact_start` → dostarczony; widoczność `pg_stat_activity` (rola bez `pg_read_all_stats` widzi NULL, po `GRANT` widzi). Stare testy BE-213 z wyłączonym strażnikiem (stabilność). Unit: kolejność strażnik→fetch (`InOrder`), widoczność, nit lagu. Gwarancje i granice opisane w `ARCHITECTURE.md`.
+**Otwarte punkty (bez nowych ticketów poza BE-222):** (1) BE-150/EPIC-31 (rola `cc_app`): wymagany `GRANT pg_read_all_stats TO cc_app` (albo wszyscy writerzy jako ta sama rola), inaczej strażnik degraduje się do samego okna (WARN przy starcie); rekomendacja `idle_in_transaction_session_timeout` dla roli aplikacji — wpisane do BE-150 i DB-083; (2) długa niezwiązana transakcja pisząca wstrzymuje kursor (lag rośnie → `DATA_LAG`; WARN wskazuje blokujący backend); brak metryki Micrometer wieku blokującej transakcji (ETL nie używa `MeterRegistry`); (3) brak deterministycznego testu samego wyścigu snapshotu w bazie (pokryty testem jednostkowym kolejności); (4) BE-222 — stemplowanie czasu po stronie bazy.
+**Zależności:** `Zależy od` BE-213 ✅; `Blokuje` BE-222 (follow-up); powiązane: BE-150 (wymaganie `GRANT pg_read_all_stats`), DB-083 (GRANT-y roli), BE-172, BE-214 ✅, BE-215 ✅, DB-098.
 
 ### BE-217 – Obecność agenta (follow-up BE-210): test e2e STOMP, sweeper pod rolą bez BYPASSRLS, osierocony kontakt PHONE, runbook agenta tylko-REST, PONG na nieobsługiwanym kanale
 
@@ -9618,6 +9624,31 @@ backend/app/src/test/java/com/contactcenter/
 **Notatka wykonania (2026-11-11, tura 75):** `UserServiceImpl.findAvailableAgents()` → nowa metoda `AppUserRepository.findAllByStatusAndRoleAndDeletedFalse(AVAILABLE, AGENT)`; stara `findAllByStatusAndDeletedFalse` usunięta (brak innych użyć). Wywołujący (grep): `RoutingServiceImpl.pollAvailableAgents` i `ProgressiveDialerServiceImpl.pollAvailableAgents` — oba potrzebują wyłącznie roli AGENT, więc wystarczył filtr w repozytorium (bez osobnej metody). Metryki: `AdminMetricsServiceImpl` i `SupervisorMetricsService` NIE używają tej metody — zachowanie metryk „dostępni agenci” bez zmian. Testy: `UserServiceTest.findAvailableAgents_queriesOnlyAgentRole` + `FindAvailableAgentsIntegrationTest` (Postgres Testcontainers: 2 tenanty, ADMIN, SUPERVISOR, OFFLINE, usunięty); istniejące testy routingu i dialera zielone.
 - [ ] (OTWARTE — DECYZJA WŁAŚCICIELA, tura 75) Punkt 2 zakresu: czy domyślny status AVAILABLE dla nowych kont ADMIN/SUPERVISOR ma sens (alternatywa ACTIVE/OFFLINE); istniejące konta nietknięte
 **Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-210 ✅, BE-211 ✅, BE-166 ✅, BE-215 ✅ (ta sama tura 75, wspólny review).
+
+### BE-222 – Stemplowanie `created_at`/`updated_at` po stronie bazy (`NOW()`/DEFAULT) zamiast `Instant.now()` w Javie: uszczelnienie gwarancji strażnika CDC z BE-216
+
+**Typ:** Hardening (Backend, ETL/CDC, integralność danych)
+**Priorytet:** Niski/Średni
+**Złożoność:** S
+**Zależy od:** BE-216 ✅ (strażnik `MIN(xact_start) − safety-window`; wynik CR „Review: BE-214 + BE-216 — 2026-11-11”)
+**Status:** ⬜ Do zrobienia (założony 2026-11-11, tura 75 cd.)
+**Blokuje:** brak; powiązane: BE-216 ✅, BE-213 ✅, DB-098, BE-150
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog, jak BE-211…BE-221; domena ETL/EPIC-10, który pozostaje ✅ 5/5 — ticket liczony jako backlog w sekcji EPIC-32)
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Kontekst:** strażnik z BE-216 ogranicza górną granicę fetch CDC przez `MIN(xact_start)` otwartych transakcji piszących, ale część writerów stempluje `created_at`/`updated_at` w Javie (`Instant.now()`) PRZED startem transakcji (`CampaignImportServiceImpl.buildRow` — `created_at`; natywny INSERT w `ContactRepository`, wołany z `ContactServiceImpl`). Wiersz może więc mieć czas wcześniejszy niż `xact_start`, a strażnik ratuje to tylko oknem `safety-window` (domyślnie 60 s) — gwarancja jest słabsza niż dla wierszy stemplowanych w bazie (trigger V007 / `NOW()`).
+
+**Zakres:** (1) `CampaignImportServiceImpl.buildRow` i natywny INSERT w `ContactRepository` (używany przez `ContactServiceImpl`): znaczniki czasu nadawane przez bazę w transakcji zapisu (`NOW()` / `DEFAULT`) zamiast `Instant.now()`; (2) przegląd pozostałych writerów tabel CDC (`contact`, `campaign_contact`) pod kątem stemplowania w Javie (grep `Instant.now()` przy `created_at`/`updated_at`) i ocena, czy wymagają tej samej zmiany; (3) testy: znacznik czasu wiersza ≥ `xact_start` transakcji zapisu; brak regresji importu i kontaktów; (4) aktualizacja `ARCHITECTURE.md` (granica gwarancji strażnika) — za zgodą, jeśli dotyczy.
+
+**Kryteria akceptacji:**
+- [ ] Znaczniki czasu wierszy CDC (`created_at`/`updated_at`) są nadawane przez bazę w transakcji zapisu (test integracyjny na realnej bazie: czas wiersza ≥ `xact_start`)
+- [ ] Brak regresji importu `campaign_contact` i tworzenia kontaktów (istniejące testy `CampaignImport*`, `Contact*` zielone)
+- [ ] Test strażnika CDC: wiersz z importu otwartego dłużej niż okno trafia do DW w kolejnym cyklu bez polegania na oknie `safety-window`
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana semantyki `created_at` — czas commitu transakcji (lub jej startu, `NOW()` = początek transakcji) zamiast czasu zbudowania wiersza w Javie; ewentualne raporty/sortowania zależne od kolejności w obrębie paczki importu; (R2) kod czytający `created_at` z obiektu po zapisie (bez `RETURNING`) może dostać `null`.
+**Nie wchodzi w zakres:** zmiana algorytmu CDC (BE-213 ✅, BE-216 ✅), indeksy wyrażeniowe (DB-098), uprawnienia `pg_stat_activity` (BE-150).
+**Zależności:** `Zależy od` BE-216 ✅; `Blokuje` brak; powiązane: BE-213 ✅, DB-098, BE-150, BE-214 ✅.
 
 ### BE-169 – Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses`
 
@@ -9972,6 +10003,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Nie wchodzi w zakres:** joby dialera/routingu (BE-173), zmiana interwałów, przenoszenie jobów do osobnego deploymentu.
 **Zależności:** `Zależy od` BE-171; `Blokuje` brak; powiązane: BE-179; BE-159 ✅/BE-156 ✅ (tura 72): warunkowy przydział i koalescencja przebiegów per tenant są gotowe i działają na jednej instancji — BE-172 dokłada blokadę między instancjami (koalescencja per tenant w `RoutingServiceImpl` nie jest współdzielona między replikami). **Dopisek (tura 73, 2026-11-07, CR BE-212):** (1) lista metod klasy (S) musi objąć także nowy `EtlSyncServiceImpl.checkJobLiveness` (BE-212 ✅, co 60 s) — bez ShedLock każda instancja wyśle ten sam alert `JOB_STALE`/`JOB_ERROR` (do czasu BE-172 łagodzi to cooldown z BE-214); (2) joby ETL (`runContactSync` itd.) bez ShedLock → duplikaty alertów `etl.lag.alert` przy wielu instancjach; (3) `EtlSyncServiceImpl.readAndLockSyncState` ma `@Transactional` na metodzie package-private wołanej self-invocation (adnotacja martwa — `SELECT … FOR UPDATE` w autocommit, blokada zwolniona natychmiast) — realna blokada cyklu (advisory lock/ShedLock) jest warunkiem, by dwie instancje nie przetwarzały tego samego zakresu CDC (powiązane: BE-213). Powiązane: BE-213, BE-214.
 **Dopisek (tura 74, BE-210/BE-213 ✅):** (1) nowy `AgentPresenceSweeper` (BE-210 ✅, `@Scheduled` co `agent.presence.sweep-interval-ms` + przebieg startowy) musi dołączyć do inwentarza jobów pod ShedLock — dziś chroni go tylko flaga nakładania w obrębie JVM; przejścia są idempotentne (`changeStatusIfCurrent`), więc dwie instancje nie generują duplikatu zdarzenia, tylko podwójną pracę; (2) ETL po BE-213 ✅ (`runCdcLoop`): kursor w pamięci cyklu, znacznik zapisywany monotonicznie — dwie instancje nie cofną znacznika, ale ponownie czytają te same batche; ShedLock/advisory lock na cyklu ETL nadal wymagany. Powiązane: BE-210, BE-213, BE-216.
+**Dopisek (tura 75 cd., BE-214 ✅):** cooldown alertów ETL w Redis (`etl:alert:{table}:{alertType}`, `SET NX PX`) ogranicza wyłącznie duplikaty alertów `etl.lag.alert` z wielu instancji — NIE zastępuje ShedLock: dwie instancje nadal mogą jednocześnie wykonywać ten sam cykl ETL (podwójna praca, wyścig o znacznik); zakres BE-172 bez zmian. Strażnik CDC z BE-216 ✅ liczy `MIN(xact_start)` globalnie dla bazy, więc nie zależy od liczby instancji.
 **Dopisek (tura 75, BE-215 ✅):** widoki ClickHouse z BE-215 (`v_contacts_current`, `v_agent_kpi_daily`) deduplikują przez `argMax` po `updated_at` ustawianym w `ClickHouseDwWriter` jako `Instant.now()` — poprawność zakłada JEDEN sekwencyjny writer DW. Przy wielu instancjach ETL bez blokady (ten ticket) starsza wersja wiersza zapisana później przez wolniejszą instancję mogłaby wygrać `argMax`; zob. `dw/README.md`.
 
 ### BE-173 – Dialer i routing: blokada na poziomie kampanii/kolejki zamiast pętli na każdej instancji

@@ -9,9 +9,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -63,9 +68,20 @@ class EtlSyncServiceImplIntegrationTest {
         pool = PostgresTestDatabase.superuserPool(2);
         jdbc = new JdbcTemplate(pool);
         dwWriter = new PostgresDwWriter(jdbc);
-        service = new EtlSyncServiceImpl(jdbc, dwWriter, mock(RabbitTemplate.class));
+        service = etl(dwWriter, false);
         // BE-213: existing tests insert and fetch immediately - disable the safety window for them
         ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+    }
+
+    /**
+     * Service on the shared DB. The BE-213 tests run with the open-transaction guard OFF (foreign open write
+     * transactions of other tests on the shared DB would make them flaky); only the BE-216 tests turn it on.
+     */
+    private static EtlSyncServiceImpl etl(DataWarehouseWriter writer, boolean guard) {
+        EtlSyncServiceImpl impl = new EtlSyncServiceImpl(jdbc, writer, mock(RabbitTemplate.class),
+                mock(StringRedisTemplate.class));
+        ReflectionTestUtils.setField(impl, "openTransactionGuardEnabled", guard);
+        return impl;
     }
 
     /** All rows after the cut-off (no cursor), as the first CDC batch would see them. */
@@ -352,6 +368,7 @@ class EtlSyncServiceImplIntegrationTest {
         ReflectionTestUtils.setField(service, "fetchLimit", 5000);
         ReflectionTestUtils.setField(service, "maxBatchesPerCycle", 20);
         ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", false);
         cdcTenant = null;
         cdcCampaign = null;
     }
@@ -488,7 +505,7 @@ class EtlSyncServiceImplIntegrationTest {
             public void upsertAgentDim(List<AgentDimRow> rows) { }
             public void upsertQueueDim(List<QueueDimRow> rows) { }
         };
-        EtlSyncServiceImpl failingService = new EtlSyncServiceImpl(jdbc, failing, mock(RabbitTemplate.class));
+        EtlSyncServiceImpl failingService = etl(failing, false);
         ReflectionTestUtils.setField(failingService, "fetchLimit", 2);
         ReflectionTestUtils.setField(failingService, "safetyWindowMs", fiveYearsMs);
 
@@ -507,7 +524,7 @@ class EtlSyncServiceImplIntegrationTest {
             public void upsertAgentDim(List<AgentDimRow> rows) { }
             public void upsertQueueDim(List<QueueDimRow> rows) { }
         };
-        EtlSyncServiceImpl next = new EtlSyncServiceImpl(jdbc, counting, mock(RabbitTemplate.class));
+        EtlSyncServiceImpl next = etl(counting, false);
         ReflectionTestUtils.setField(next, "fetchLimit", 2);
         ReflectionTestUtils.setField(next, "safetyWindowMs", fiveYearsMs);
 
@@ -544,7 +561,7 @@ class EtlSyncServiceImplIntegrationTest {
         Instant future = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
         setMarker("contact", future);
         DataWarehouseWriter spyWriter = org.mockito.Mockito.spy(dwWriter);
-        EtlSyncServiceImpl local = new EtlSyncServiceImpl(jdbc, spyWriter, mock(RabbitTemplate.class));
+        EtlSyncServiceImpl local = etl(spyWriter, false);
 
         local.syncTable(EtlSyncService.TABLE_CONTACT);
 
@@ -580,7 +597,7 @@ class EtlSyncServiceImplIntegrationTest {
             public void upsertAgentDim(List<AgentDimRow> rows) { }
             public void upsertQueueDim(List<QueueDimRow> rows) { }
         };
-        EtlSyncServiceImpl local = new EtlSyncServiceImpl(jdbc, recording, mock(RabbitTemplate.class));
+        EtlSyncServiceImpl local = etl(recording, false);
         ReflectionTestUtils.setField(local, "fetchLimit", 100);
         ReflectionTestUtils.setField(local, "safetyWindowMs", 0L);
 
@@ -588,6 +605,377 @@ class EtlSyncServiceImplIntegrationTest {
 
         assertThat(written).hasSize(250).doesNotHaveDuplicates();
         assertThat(marker("campaign_contact")).isAfterOrEqualTo(OLD_BASE.plusSeconds(250));
+    }
+
+    // =========================================================================
+    // BE-216: transactions longer than the safety window
+    // =========================================================================
+
+    /*
+     * Scenario (window = 0, i.e. the transaction is "longer than the window" by construction, no sleeping):
+     *   1. transaction B starts at T0 and inserts a row; created_at DEFAULT NOW() = T0, so its effective timestamp
+     *      is T0 - exactly like a row stamped by the V007/V002 triggers or a long import;
+     *   2. a regular row A is committed AFTER T0 (timestamp > T0);
+     *   3. an ETL cycle runs while B is still open;
+     *   4. B commits; the next ETL cycle runs.
+     * Before BE-216 (guard off) cycle 3 syncs A and moves the marker past T0, so B's row (T0 <= marker) is skipped
+     * by every later cycle - lost, with lag = 0. With the guard the upper bound stays at T0, A waits, and both rows
+     * arrive in cycle 4. Both rows use the same tenant, which is also what the assertions count by (foreign rows of
+     * the shared DB are older/irrelevant: the checks never depend on them).
+     */
+
+    private UUID insertContactInOpenTransaction(Connection tx, UUID contactId) throws Exception {
+        try (PreparedStatement ps = tx.prepareStatement("""
+                INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at)
+                VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', NOW())
+                """)) {
+            ps.setObject(1, contactId);
+            ps.setObject(2, cdcTenant);
+            ps.executeUpdate();
+        }
+        return contactId;
+    }
+
+    private Instant transactionStart(Connection tx) throws Exception {
+        try (Statement st = tx.createStatement(); ResultSet rs = st.executeQuery("SELECT NOW()")) {
+            rs.next();
+            return rs.getTimestamp(1).toInstant();
+        }
+    }
+
+    /** Commits a row A strictly after the (already open) transaction B started; its timestamp is > T0. */
+    private void insertLaterCommittedRow(UUID contactId) {
+        jdbc.execute("SELECT pg_sleep(0.01)"); // clock_timestamp() below is then strictly greater than T0
+        jdbc.update("""
+                INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at, updated_at)
+                VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', NOW(), clock_timestamp())
+                """, contactId, cdcTenant);
+    }
+
+    private boolean inDw(UUID contactId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM contacts_dw WHERE contact_id = ?", Integer.class, contactId) > 0;
+    }
+
+    @Test
+    @DisplayName("BE-216: transakcja dluzsza niz okno (commit po cyklu ETL) - jej wiersze trafiaja do DW w kolejnym cyklu")
+    void longTransaction_guardOn_rowsReachDwInCycleAfterCommit() throws Exception {
+        saveMarkers();
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", true);
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        UUID rowB = UUID.randomUUID();
+        UUID rowA = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            insertContactInOpenTransaction(tx, rowB);
+            Instant t0 = transactionStart(tx);
+            insertLaterCommittedRow(rowA);
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            assertThat(inDw(rowA)).as("A is newer than the open transaction - the cursor must not pass it yet").isFalse();
+            assertThat(inDw(rowB)).isFalse();
+            assertThat(marker("contact")).as("marker must not pass the start of the open write transaction")
+                    .isBeforeOrEqualTo(t0);
+
+            tx.commit();
+        }
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(inDw(rowB)).as("the long transaction's row reaches the DW after its commit").isTrue();
+        assertThat(inDw(rowA)).isTrue();
+        assertThat(dwCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("BE-216 (kontrola 'przed'): bez straznika ten sam scenariusz GUBI wiersz dlugiej transakcji (zachowanie BE-213)")
+    void longTransaction_guardOff_documentsTheLossBeforeTheFix() throws Exception {
+        saveMarkers();
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", false);
+        UUID rowB = UUID.randomUUID();
+        UUID rowA = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            insertContactInOpenTransaction(tx, rowB);
+            Instant t0 = transactionStart(tx);
+            insertLaterCommittedRow(rowA);
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            assertThat(inDw(rowA)).isTrue();
+            assertThat(marker("contact")).as("without the guard the marker passes the open transaction").isAfter(t0);
+
+            tx.commit();
+        }
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM contact WHERE contact_id = ?", Integer.class, rowB))
+                .as("the row exists in the source").isEqualTo(1);
+        assertThat(inDw(rowB)).as("... but was skipped for good: its timestamp T0 <= the advanced marker").isFalse();
+        assertThat(service.computeDataLagMinutes(EtlSyncService.TABLE_CONTACT, marker("contact")))
+                .as("and the lag stays low, so no alert would ever fire").isLessThan(EtlSyncService.LAG_ALERT_THRESHOLD_MINUTES);
+    }
+
+    @Test
+    @DisplayName("BE-216: transakcja bez zapisu (sam SELECT, brak xid) nie wstrzymuje kursora")
+    void readOnlyTransaction_doesNotHoldCursor() throws Exception {
+        saveMarkers();
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", true);
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            transactionStart(tx); // read-only statement, no xid
+            UUID rowA = UUID.randomUUID();
+            insertLaterCommittedRow(rowA);
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            assertThat(inDw(rowA)).isTrue();
+            tx.rollback();
+        }
+    }
+
+    @Test
+    @DisplayName("BE-216: straznik dziala tez dla campaign_contact (otwarta transakcja pisaca wstrzymuje kursor, po commicie wiersz dociera)")
+    void longTransaction_campaignContact_guardHoldsCursor() throws Exception {
+        saveMarkers();
+        cdcCampaign = UUID.randomUUID();
+        UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-216 cc " + cdcTenant);
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'Kampania BE-216')",
+                cdcCampaign, tenantId);
+        setMarker("campaign_contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        List<UUID> written = new CopyOnWriteArrayList<>();
+        DataWarehouseWriter recording = new DataWarehouseWriter() {
+            public void upsert(List<ContactDwRow> rows) { }
+            public void upsertCampaigns(List<CampaignDwRow> rows) {
+                rows.stream().filter(r -> cdcCampaign.equals(r.campaignId())).forEach(r -> written.add(r.recordId()));
+            }
+            public void upsertAgentDim(List<AgentDimRow> rows) { }
+            public void upsertQueueDim(List<QueueDimRow> rows) { }
+        };
+        EtlSyncServiceImpl local = etl(recording, true);
+        ReflectionTestUtils.setField(local, "safetyWindowMs", 0L);
+        UUID importedInLongTx = UUID.randomUUID();
+        UUID laterRow = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            try (PreparedStatement ps = tx.prepareStatement("""
+                    INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status)
+                    VALUES (?, ?, ?, '+48500100416', 'Jan', 'PENDING')
+                    """)) {
+                ps.setObject(1, importedInLongTx);
+                ps.setObject(2, cdcCampaign);
+                ps.setObject(3, tenantId);
+                ps.executeUpdate();
+            }
+            jdbc.execute("SELECT pg_sleep(0.01)");
+            jdbc.update("""
+                    INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status, created_at)
+                    VALUES (?, ?, ?, '+48500100417', 'Ewa', 'PENDING', clock_timestamp())
+                    """, laterRow, cdcCampaign, tenantId);
+
+            local.syncCampaignContactTable();
+            assertThat(written).as("neither row passes while the write transaction is open").isEmpty();
+
+            tx.commit();
+        }
+
+        local.syncCampaignContactTable();
+
+        assertThat(written).containsExactlyInAnyOrder(importedInLongTx, laterRow);
+    }
+
+    @Test
+    @DisplayName("BE-216: kilka otwartych transakcji pisacych - kursor trzyma MIN(xact_start), commit mlodszej niczego nie odblokowuje")
+    void severalOpenWriteTransactions_cursorHeldAtTheOldest() throws Exception {
+        saveMarkers();
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", true);
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        UUID oldest = UUID.randomUUID();
+        UUID younger = UUID.randomUUID();
+        UUID committed = UUID.randomUUID();
+
+        HikariDataSource extra = PostgresTestDatabase.superuserPool(3);
+        try {
+            try (Connection tx1 = extra.getConnection(); Connection tx2 = extra.getConnection()) {
+                tx1.setAutoCommit(false);
+                tx2.setAutoCommit(false);
+                insertContactInOpenTransaction(tx1, oldest);
+                Instant t1 = transactionStart(tx1);
+                jdbc.execute("SELECT pg_sleep(0.01)");
+                insertContactInOpenTransaction(tx2, younger);
+                insertLaterCommittedRow(committed);
+
+                service.syncTable(EtlSyncService.TABLE_CONTACT);
+                assertThat(dwCount()).isZero();
+                assertThat(marker("contact")).isBeforeOrEqualTo(t1);
+
+                tx2.commit(); // the younger one finishes; the oldest is still open -> still capped at its start
+                service.syncTable(EtlSyncService.TABLE_CONTACT);
+                assertThat(inDw(younger)).as("capped by the OLDEST open transaction, not by the youngest").isFalse();
+                assertThat(inDw(committed)).isFalse();
+                assertThat(marker("contact")).isBeforeOrEqualTo(t1);
+
+                tx1.commit();
+            }
+        } finally {
+            extra.close();
+        }
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(inDw(oldest)).isTrue();
+        assertThat(inDw(younger)).isTrue();
+        assertThat(inDw(committed)).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-216: zapis w SAVEPOINT (podtransakcja) tez trzyma kursor - xid nadrzednej transakcji jest widoczny")
+    void writeInsideSavepoint_guardHoldsCursor() throws Exception {
+        saveMarkers();
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", true);
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 0L);
+        UUID inSubtransaction = UUID.randomUUID();
+        UUID later = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            Instant t0 = transactionStart(tx); // transaction started, no xid yet
+            try (Statement st = tx.createStatement()) {
+                st.execute("SAVEPOINT s1");
+            }
+            insertContactInOpenTransaction(tx, inSubtransaction); // first write happens in the subtransaction
+            insertLaterCommittedRow(later);
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            assertThat(inDw(later)).isFalse();
+            assertThat(marker("contact")).isBeforeOrEqualTo(t0);
+            tx.commit();
+        }
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(inDw(inSubtransaction)).isTrue();
+        assertThat(inDw(later)).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-216: wiersz ze znacznikiem Javy nieco STARSZYM niz xact_start (w oknie) nie jest tracony - okno odjete takze od straznika")
+    void javaStampedTimestampOlderThanXactStart_withinWindow_isDelivered() throws Exception {
+        saveMarkers();
+        ReflectionTestUtils.setField(service, "openTransactionGuardEnabled", true);
+        setMarker("contact", Instant.now().minusSeconds(3600));
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 60_000L);
+        UUID javaStamped = UUID.randomUUID();
+        UUID committedBetween = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            Instant t0 = transactionStart(tx);
+            // like CampaignImport/Contact insert: timestamp taken in Java 5 s BEFORE the transaction started
+            try (PreparedStatement ps = tx.prepareStatement("""
+                    INSERT INTO contact (contact_id, tenant_id, channel, direction, status, queued_at, updated_at)
+                    VALUES (?, ?, 'PHONE', 'INBOUND', 'COMPLETED', NOW(), ?)
+                    """)) {
+                ps.setObject(1, javaStamped);
+                ps.setObject(2, cdcTenant);
+                ps.setTimestamp(3, Timestamp.from(t0.minusSeconds(5)));
+                ps.executeUpdate();
+            }
+            // a committed row stamped between the Java timestamp and xact_start: without the window subtracted from
+            // the guard the cursor would pass it (marker > javaStamped) and the Java-stamped row would be lost
+            insertContactWithUpdatedAt(committedBetween, cdcTenant, "COMPLETED", Instant.now(),
+                    Timestamp.from(t0.minusSeconds(2)));
+
+            service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+            assertThat(inDw(committedBetween)).isFalse();
+            assertThat(marker("contact")).isBefore(t0.minusSeconds(5));
+            tx.commit();
+        }
+        ReflectionTestUtils.setField(service, "safetyWindowMs", 1000L); // the window elapses (no sleeping)
+
+        service.syncTable(EtlSyncService.TABLE_CONTACT);
+
+        assertThat(inDw(javaStamped)).isTrue();
+        assertThat(inDw(committedBetween)).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-216 (b): pg_stat_activity maskuje sesje INNYCH rol (xact_start/backend_xid = NULL) bez pg_read_all_stats; sesje tej samej roli sa widoczne; start aplikacji ostrzega")
+    void pgStatActivityVisibility_otherRolesMaskedUnlessPgReadAllStats() throws Exception {
+        String role = "etl_probe_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String password = PostgresTestDatabase.createRestrictedLoginRole(jdbc, role);
+        HikariDataSource probePool = PostgresTestDatabase.pool(role, password, 2);
+        try {
+            JdbcTemplate probe = new JdbcTemplate(probePool);
+            String guardSql = "SELECT " + EtlSyncServiceImpl.OLDEST_OPEN_WRITE_XACT_START;
+            EtlSyncServiceImpl probeService = new EtlSyncServiceImpl(probe, dwWriter, mock(RabbitTemplate.class),
+                    mock(StringRedisTemplate.class));
+
+            assertThat(etl(dwWriter, true).checkOpenTransactionGuardVisibility()).as("superuser role").isTrue();
+            // the startup check is not tied to whether anything is open right now
+            assertThat(probeService.checkOpenTransactionGuardVisibility())
+                    .as("role without superuser / pg_read_all_stats: warning, guard blind").isFalse();
+
+            try (Connection superWriter = pool.getConnection()) {
+                superWriter.setAutoCommit(false);
+                try (Statement st = superWriter.createStatement()) {
+                    st.execute("SELECT txid_current()"); // forces an xid, i.e. a "write" transaction
+                }
+
+                assertThat(jdbc.queryForObject(guardSql, Timestamp.class))
+                        .as("superuser reader sees the open write transaction").isNotNull();
+                assertThat(probe.queryForObject(guardSql, Timestamp.class))
+                        .as("a role without pg_read_all_stats sees NULL for a session of another role - the guard is blind")
+                        .isNull();
+
+                jdbc.execute("GRANT pg_read_all_stats TO " + role);
+                assertThat(probe.queryForObject(guardSql, Timestamp.class))
+                        .as("pg_read_all_stats restores the visibility").isNotNull();
+                assertThat(probeService.checkOpenTransactionGuardVisibility()).isTrue();
+                jdbc.execute("REVOKE pg_read_all_stats FROM " + role);
+                superWriter.rollback();
+            }
+
+            // same role: the session is visible without any extra privilege
+            try (Connection ownWriter = probePool.getConnection()) {
+                ownWriter.setAutoCommit(false);
+                try (Statement st = ownWriter.createStatement()) {
+                    st.execute("SELECT txid_current()");
+                }
+                assertThat(probe.queryForObject(guardSql, Timestamp.class))
+                        .as("a session of the SAME role is visible without pg_read_all_stats").isNotNull();
+                ownWriter.rollback();
+            }
+        } finally {
+            // cleanup must never mask the original assertion failure
+            try {
+                probePool.close();
+            } catch (RuntimeException ignored) {
+                // best effort
+            }
+            try {
+                jdbc.execute("REVOKE pg_read_all_stats FROM " + role);
+                jdbc.execute("DROP ROLE IF EXISTS " + role);
+            } catch (RuntimeException ignored) {
+                // best effort
+            }
+        }
     }
 
     private void insertContactWithUpdatedAt(UUID contactId, UUID tenantId, String status, Instant queuedAt,

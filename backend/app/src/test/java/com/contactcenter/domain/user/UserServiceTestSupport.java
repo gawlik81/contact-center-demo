@@ -31,4 +31,11 @@ public final class UserServiceTestSupport {
                 users, mock(PasswordEncoder.class), mock(TenantResourceLimitService.class),
                 rabbit, redis, contactService, eventPublisher));
     }
+
+    /** Plain (unproxied) real {@code UserServiceImpl} with mocked collaborators other than Redis/RabbitMQ. */
+    public static UserService create(RabbitTemplate rabbit, RedisTemplate<String, Object> redis) {
+        return new UserServiceImpl(mock(AppUserRepository.class), mock(PasswordEncoder.class),
+                mock(TenantResourceLimitService.class), rabbit, redis, mock(ContactService.class),
+                mock(ApplicationEventPublisher.class));
+    }
 }

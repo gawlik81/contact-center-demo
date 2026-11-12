@@ -1101,17 +1101,23 @@ class ContactRepository extends TenantAwareRepository {
   // BE-159: conditional (compare-and-set) writes for every assign / un-assign path
   // =========================================================================
 
-  /** Statuses in which an async contact occupies one of the agent's slots (same set as BE-157 active-contacts). */
+  /**
+   * Statuses in which an async contact occupies one of the agent's slots (same set as BE-157 active-contacts).
+   * The status set is {@link OccupiedSlot#STATUSES_SQL} (QUEUED excluded: an async contact waiting
+   * for an agent holds no slot). {@code AppUserRepository.countActiveContactsByAgentIds} (BE-207) uses the
+   * broader {@link OccupiedSlot#AGENT_LOAD_STATUSES_SQL} (adds QUEUED = agent-owned outbound dial) and a wider
+   * scope (all channels, whole tenant); the difference is deliberate and documented there.
+   */
   static final String OPEN_ASYNC_COUNT_SQL = """
       SELECT agent_id, COUNT(*)
         FROM contact
        WHERE tenant_id = CAST(:tenantId AS uuid)
          AND queue_id  = CAST(:queueId AS uuid)
          AND agent_id IN (:agentIds)
-         AND status IN ('ASSIGNED', 'ACTIVE', 'ON_HOLD')
-         AND (channel IN ('EMAIL', 'CHAT') OR channel LIKE 'SOCIAL%')
+         AND status IN (%s)
+         AND (channel IN ('EMAIL', 'CHAT') OR channel LIKE 'SOCIAL%%')
        GROUP BY agent_id
-      """;
+      """.formatted(OccupiedSlot.STATUSES_SQL);
 
   /**
    * Open ASYNC contacts (EMAIL/CHAT/SOCIAL*; statuses ASSIGNED/ACTIVE/ON_HOLD) per agent in ONE queue (BE-156).

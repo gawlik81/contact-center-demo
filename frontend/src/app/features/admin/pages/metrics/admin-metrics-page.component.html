@@ -581,6 +581,10 @@
       <h2 class="section__title">{{ 'admin.metrics.etlTitle' | transloco }}</h2>
     </div>
 
+    <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {{ etlLivenessAnnouncement() }}
+    </div>
+
     @if (etlError() && !etlLoading()) {
       <div class="section-error" role="alert">
         <p>{{ 'admin.metrics.etlError' | transloco }}</p>
@@ -658,7 +662,9 @@
                         />
                       </svg>
                       <span class="etl-liveness__text">{{
-                        'admin.metrics.etlLivenessStale' | transloco: { minutes: view.staleMinutes }
+                        view.staleMinutes === null
+                          ? ('admin.metrics.etlLivenessStaleUnknown' | transloco)
+                          : ('admin.metrics.etlLivenessStale' | transloco: { minutes: view.staleMinutes })
                       }}</span>
                     </p>
                   } @else if (view.liveness === 'error' && view.shortError) {

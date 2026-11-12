@@ -86,6 +86,15 @@ export interface EtlTableStatus {
   status: 'IDLE' | 'RUNNING' | 'DONE' | 'ERROR';
   lagMinutes: number | null;
   errorMessage: string | null;
+  /**
+   * Server-computed liveness (same rule as the JOB_STALE alert, heartbeat-aware, so a hung
+   * RUNNING job is stale). Null when the job never ran. Optional: absent on older backends.
+   */
+  stale?: boolean | null;
+  /** ISO-8601 UTC, max(last_run_at, heartbeat); null if the job never ran. Absent on older backends. */
+  lastActivityAt?: string | null;
+  /** Liveness threshold used by the server, in ms (informational). Absent on older backends. */
+  livenessThresholdMs?: number | null;
 }
 
 /** One row of the contacts-by-channel matrix — a single tenant's counts across all channels. */

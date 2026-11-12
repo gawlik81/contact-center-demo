@@ -1180,6 +1180,107 @@ class EtlSyncServiceImplTest {
     }
 
     // =========================================================================
+    // BE-223 - zywotnosc w statusie (wspolny predykat z alertem JOB_STALE)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-223 - stale / lastActivityAt / livenessThresholdMs (zegar bazy)")
+    class LivenessInStatusTest {
+
+        private static final long THRESHOLD = 300_000L;
+        /** Fixed DB "now": the app clock (Instant.now) must play no role in the evaluation. */
+        private final Instant dbNow = Instant.parse("2030-01-01T12:00:00Z");
+
+        private EtlTableStatus statusOf(String status, Instant lastRun, Instant heartbeat) {
+            when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+                    .thenAnswer(inv -> {
+                        RowMapper<EtlTableStatus> mapper = inv.getArgument(1);
+                        ResultSet rs = mockResultSet(Instant.now(), 1L, status, "ERROR".equals(status) ? "boom" : null);
+                        when(rs.getTimestamp("last_run_at")).thenReturn(lastRun != null ? Timestamp.from(lastRun) : null);
+                        when(rs.getTimestamp("updated_at")).thenReturn(heartbeat != null ? Timestamp.from(heartbeat) : null);
+                        when(rs.getTimestamp("db_now")).thenReturn(Timestamp.from(dbNow));
+                        return List.of(mapper.mapRow(rs, 0));
+                    });
+            return service.getStatus().get(0);
+        }
+
+        @Test
+        @DisplayName("RUNNING ze starym heartbeatem -> stale=true")
+        void runningOldHeartbeat() {
+            Instant old = dbNow.minus(20, ChronoUnit.MINUTES);
+            EtlTableStatus st = statusOf("RUNNING", old.minusSeconds(60), old);
+            assertThat(st.stale()).isTrue();
+            assertThat(st.lastActivityAt()).isEqualTo(old);
+            assertThat(st.livenessThresholdMs()).isEqualTo(THRESHOLD);
+        }
+
+        @Test
+        @DisplayName("RUNNING ze swiezym heartbeatem (stary last_run_at) -> stale=false")
+        void runningFreshHeartbeat() {
+            Instant heartbeat = dbNow.minusSeconds(10);
+            EtlTableStatus st = statusOf("RUNNING", dbNow.minus(2, ChronoUnit.HOURS), heartbeat);
+            assertThat(st.stale()).isFalse();
+            assertThat(st.lastActivityAt()).isEqualTo(heartbeat);
+        }
+
+        @Test
+        @DisplayName("DONE swiezy -> false; DONE stary -> true")
+        void done() {
+            assertThat(statusOf("DONE", dbNow.minusSeconds(30), null).stale()).isFalse();
+            assertThat(statusOf("DONE", dbNow.minus(20, ChronoUnit.MINUTES), null).stale()).isTrue();
+        }
+
+        @Test
+        @DisplayName("ERROR raportowany ta sama regula czasowa")
+        void error() {
+            assertThat(statusOf("ERROR", dbNow.minusSeconds(30), null).stale()).isFalse();
+            assertThat(statusOf("ERROR", dbNow.minus(20, ChronoUnit.MINUTES), null).stale()).isTrue();
+        }
+
+        @Test
+        @DisplayName("job nigdy nie uruchomiony -> stale=null, lastActivityAt=null, prog nadal podany")
+        void neverRun() {
+            EtlTableStatus st = statusOf("IDLE", null, dbNow);
+            assertThat(st.stale()).isNull();
+            assertThat(st.lastActivityAt()).isNull();
+            assertThat(st.livenessThresholdMs()).isEqualTo(THRESHOLD);
+        }
+
+        @Test
+        @DisplayName("S1: zegar aplikacji nie ma wplywu - wiek liczony wzgledem NOW() bazy")
+        void usesDbClockNotAppClock() {
+            // activity is "fresh" relative to the app clock (now) but 1 h old relative to the DB clock -> stale
+            Instant activity = Instant.now().minusSeconds(5);
+            EtlTableStatus st = statusOf("DONE", activity, null);
+            assertThat(st.stale()).isTrue();
+        }
+
+        @Test
+        @DisplayName("predykat: granica progu (>=) i null")
+        void predicateBoundary() {
+            assertThat(service.evaluateStale(dbNow.minusMillis(THRESHOLD), dbNow)).isTrue();
+            assertThat(service.evaluateStale(dbNow.minusMillis(THRESHOLD - 1), dbNow)).isFalse();
+            assertThat(service.evaluateStale(null, dbNow)).isNull();
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest(name = "wiek = prog + {0} ms -> stale/alert = {1}")
+        @org.junit.jupiter.params.provider.CsvSource({"-1,false", "0,true", "1,true"})
+        @DisplayName("status.stale i alert JOB_STALE zgodne na granicy progu (ta sama aktywnosc i ten sam now)")
+        void statusAndAlertAgreeAtThreshold(long offsetMs, boolean expectStale) {
+            Instant activity = dbNow.minusMillis(THRESHOLD + offsetMs);
+
+            assertThat(statusOf("DONE", activity, null).stale()).isEqualTo(expectStale);
+
+            service.checkLivenessAndAlert("contact", activity, "DONE", null, dbNow);
+            if (expectStale) {
+                verify(rabbitTemplate).convertAndSend(eq("cc.events"), eq("etl.lag.alert"), (Object) any());
+            } else {
+                verifyNoInteractions(rabbitTemplate);
+            }
+        }
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 

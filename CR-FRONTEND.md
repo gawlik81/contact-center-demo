@@ -3041,3 +3041,48 @@ _Brak._
 
 ### Summary
 **Rating: 4/5 ⭐ — APPROVE (bez must-fix), z poprawkami should-fix.** Implementacja spełnia kryteria akceptacji i jest poprawna funkcjonalnie, ale testy nie obejmują szablonu ani przypadków brzegowych, pełny komunikat błędu jest niedostępny z klawiatury, a stale obok zielonego "Gotowe" wysyła sprzeczne sygnały.
+
+
+## Review: FE-168 + FE-160 — 2026-11-12
+
+Zakres: `admin-metrics-page.component.{ts,html,spec.ts}`, `admin-metrics.model.ts`, i18n pl/en/de/uk, nowy `core/i18n/i18n-key-parity.spec.ts`. Kontrakt zweryfikowany z `EtlTableStatus.java` (working tree). Uruchomiono (read-only): `ng test` dla obu specow (60/60 zielone), prettier i eslint zielone.
+
+### Kontrakt FE <-> BE-223
+- `stale: Boolean`, `lastActivityAt: Instant`, `livenessThresholdMs: Long` — model FE (`?: ... | null`) zgodny. `default-property-inclusion: non_null` => pole nieobecne == null; FE obsluguje (`!== true`, `??`). Instant jako ISO string tak samo jak istniejace `lastRunAt`.
+- Wdrozenie FE przed BE: `stale` undefined => zawsze "ok", detekcja zastoju cicho znika (akceptowane w R1 ticketu, ale warto jedno zdanie w PR).
+
+### must-fix
+_Brak._
+
+### should-fix
+1. **AC1 FE-168 spelnione tylko czesciowo / literalnie.** Kryterium: "brak stalej progu i zegara klienta w komponencie". Stala progu usunieta, ale `Date.now()` zostaje w `etlLiveness()` do liczenia N min. To jest zgodne z zakresem pkt 1 ("tekst liczony z `lastActivityAt`"), ale liczba N pochodzi z zegara przegladarki, wiec przy skosie zegara >0 widac np. "Brak aktywnosci od 0 min" obok flagi stale=true (`Math.max(0, ...)` maskuje, nie rozwiazuje) albo N rozjechane z progiem serwera. Propozycja: gdy `minutes * 60000 < livenessThresholdMs` (czyli klient jest niespojny z serwerem) pokazac wariant `etlLivenessStaleUnknown`, a `livenessThresholdMs` wreszcie uzyc (dzis pole w modelu bez konsumenta). Alternatywnie dopisac do ticketu, ze zegar klienta do tekstu jest swiadomie dozwolony.
+2. **Region aria-live: brak testow na scenariusze z review-checklisty.** Testy pokrywaja: pierwsze ladowanie (cisza), 1 tabela stale/ok/error, brak ponownego `set`. Brakuje: (a) 2+ tabel zmieniajacych stan w jednym pollingu (asercja na tresc zlaczona `'. '` i na przekazany `{ table }` — obecnie test widzi tylko klucz, bo TranslocoTestingModule zwraca klucz, wiec param `table` w ogole nie jest weryfikowany), (b) polling z bledem miedzy pollingami (brak ogloszenia, `previousLiveness` nie resetowane), (c) tabela znikajaca/pojawiajaca sie, (d) przejscie stale->error i error->ok. Spy na `signal.set` testuje implementacje, nie zachowanie — lepiej asercja na `textContent` przed/po.
+3. **Zachowanie regionu przy wielu tabelach.** Ogloszenia sa lepione w jeden `aria-atomic` komunikat ("A: ... . B: ..."). Przy awarii ETL (wszystkie tabele stale naraz, realistyczny scenariusz — ten sam cykl) czytnik odczyta liste N zdan. Rozwazyc agregacje ("Synchronizacja nieaktywna dla N tabel") powyzej progu np. 3 tabel. Nie blokuje.
+4. **Tabela pojawiajaca sie po pierwszym ladowaniu juz jako stale/error nie jest ogloszona** (`before === undefined` => continue). Swiadomy wybor (unika szumu), ale to realna luka: nowa tabela CDC z bledem od startu jest niema. Ogloszenie przy `before === undefined && liveness !== 'ok'` jest bezpieczne.
+
+### nit
+1. **Tekst ogloszenia zostaje w regionie bez konca.** Region nie jest czyszczony; dla czytnikow w trybie przegladania stary komunikat pozostaje w drzewie. Powtorzony identyczny tekst nie jest re-ogloszony (signal z ta sama wartoscia nie zmienia DOM) — w praktyce tu nie wystepuje, bo kolejne komunikaty tej samej tabeli sie naprzemiennie roznia (stale/ok), ale przy 2 tabelach A: stale->ok i B: ok->stale w roznych pollingach tez sie roznia. Bezpieczne; opcjonalnie wyczysc po ~10 s.
+2. **`role="status"` + `aria-live="polite"` + `aria-atomic`** — redundantne (status ma implicit polite+atomic), nieszkodliwe; region jest renderowany poza `@if`, co jest poprawne (musi istniec przed zmiana tresci). `sr-only` istnieje globalnie w `styles.scss`.
+3. **Wyciek pamieci / pamiec stanu:** brak. `previousLiveness` jest podmieniane w calosci (`current`) przy kazdym udanym pollingu, wiec usuniete tabele znikaja; po bledzie pollingu (`catchError -> EMPTY`) mapa zostaje z ostatniego sukcesu, wiec po powrocie moga byc ogloszone przejscia, ktore zaszly w czasie awarii — poprawne.
+4. **`getActiveLang()`** zwraca `'pl'|'en'|'de'|'uk'` — poprawne znaczniki BCP-47, `toLocaleString` je przyjmuje (test `en` vs `de` to potwierdza). Reaktywnosc na zmiane jezyka: metoda jest wywolywana w szablonie, a pipe `transloco` w tym samym widoku oznacza OnPush jako dirty przy zmianie jezyka, wiec data przerenderuje sie razem z tekstami; brak testu na przelaczenie jezyka w DOM (test tylko mockuje `getActiveLang`). Nit: brak sledzenia sygnalu — gdyby szablon przestal uzywac pipe w tym widoku, data zostanie w starym jezyku.
+5. **Odstepstwo tekstowe od ticketu:** ticket mowi "Brak uruchomienia od N min", wdrozono "Brak aktywnosci od N min" (slusznie — heartbeat, nie uruchomienie). Zaktualizowac opis ticketu / AC.
+6. **Normalizacja plural-root:** sufiks regex `_(zero|one|two|few|many|other)$` — w repo 19 kluczy z sufiksem, wszystkie to prawdziwe formy mnogie; zero kolizji (zaden rdzen nie istnieje jednoczesnie jako zwykly klucz). Ryzyko przyszle: klucz nie-pluralny konczacy sie np. `_other` (`reason_other`) zostanie potraktowany jako plural i jego brak w jezyku zamaskuje inny `reason_one`; mala, ale warto dopisac w komentarzu. Slabsza strona: parytet na poziomie rdzenia nie wykryje braku `_few/_many` w pl/uk (dokladnie ten przypadek R1 ticketu FE-160 swiadomie akceptuje — rozwazyc osobna asercje "pl/uk maja `_few` i `_many` dla kazdego rdzenia z `_one`").
+7. **Test parytetu:** `findMissingKeys` czysta i testowana negatywnie (4 przypadki, w tym plural i wyjatki) — dobrze. `ALLOWED_MISSING` pusta, parytet 2851/2851 potwierdzony. Drobne: `flattenKeys` — pusty obiekt `{}` nie daje liscia (klucz-kontener znika), a lisc `null` jest liczony; pusta tresc tlumaczenia (`""`) nie jest wykrywana (parytet kluczy, nie jakosci — poza zakresem). Tylko komplet 4 jezykow w `describe`; brak asercji, ze liczba jezykow == `availableLangs` z `app.config.ts`.
+8. **i18n:** diakrytyki zachowane (pl: "aktywnosci"/"synchronizacja dziala ponownie" ok), tresci rodzajowo neutralne we wszystkich 4 jezykach (rzeczownik "Tabela/Tabelle/Таблиця", orzeczniki przy "synchronizacja"). de: "Synchronisierung inaktiv" / "läuft wieder" ok. uk: "знову працює" ok. Uwaga: ogloszenie czyta surowa nazwe tabeli (np. `contact`), ok dla admina.
+9. **Statusy w TASKS-FRONTEND.md** FE-168 i FE-160 nadal ⬜ — do zamkniecia razem (zgodnie z dopiskiem w FE-160).
+
+### Zgodnosc z kryteriami akceptacji
+- FE-168 AC1 (tylko pola serwera, brak stalej/zegara): stala usunieta, decyzja stale/ok wylacznie z serwera — spelnione; zegar tylko do tekstu (patrz should-fix 1).
+- AC2 zawieszony RUNNING wg serwera = stale: spelnione + test.
+- AC3 ogloszenie zmiany w aria-live z testem DOM: spelnione (luki w scenariuszach — should-fix 2).
+- AC4 `formatRelativePast` na jezyku aktywnym: spelnione + test.
+- AC5 testy FE-165 zaktualizowane, test/lint/format zielone: spelnione (zweryfikowano dla zakresu).
+- FE-160: test negatywny jest, rozjazdow brak, wyjatki jawnie (pusta lista), zielone — spelnione.
+
+### Pozytywne
+- Czysta funkcja `findMissingKeys` wyeksportowana i przetestowana negatywnie; globalny test zamiast per-komponent.
+- Liveness jako czyste `computed()` bez efektow ubocznych; side-effect (ogloszenie) w subskrypcji pollingu, `takeUntilDestroyed`, pierwszy load bez ogloszenia (`previousLiveness === null`).
+- Odpornosc na `undefined/null` z BE (kompatybilnosc wsteczna), `NaN` w dacie.
+
+### Summary
+**4/5 — APPROVE (brak must-fix).** Poprawna, zgodna z BE-223 i kryteriami implementacja; do dopracowania: testy scenariuszy aria-live (wiele tabel, param `table`, blad pollingu), spojnosc N min z zegarem klienta oraz ogloszenie nowej tabeli juz zastalej.

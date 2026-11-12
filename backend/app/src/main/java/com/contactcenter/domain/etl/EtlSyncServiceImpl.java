@@ -83,14 +83,14 @@ class EtlSyncServiceImpl implements EtlSyncService {
 
     // SQL: stan do sprawdzenia zywotnosci
     private static final String SELECT_LIVENESS = """
-            SELECT table_name, last_run_at, updated_at, status, error_message
+            SELECT table_name, last_run_at, updated_at, NOW() AS db_now, status, error_message
             FROM etl_sync_state
             ORDER BY table_name
             """;
 
     // BE-214: re-read of one job's state right after the cooldown slot was acquired (slot/recovery race)
     private static final String SELECT_LIVENESS_ONE = """
-            SELECT table_name, last_run_at, updated_at, status, error_message
+            SELECT table_name, last_run_at, updated_at, NOW() AS db_now, status, error_message
             FROM etl_sync_state
             WHERE table_name = ?
             """;
@@ -257,7 +257,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
             """;
 
     private static final String SELECT_STATUS = """
-            SELECT table_name, last_synced_at, last_run_at, last_row_count, status, error_message
+            SELECT table_name, last_synced_at, last_run_at, updated_at, NOW() AS db_now, last_row_count, status, error_message
             FROM etl_sync_state
             ORDER BY table_name
             """;
@@ -456,7 +456,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                 if (!isCdcTable(row.tableName())) {
                     continue;
                 }
-                checkLivenessAndAlert(row.tableName(), row.lastActivityAt(), row.status(), row.errorMessage());
+                checkLivenessAndAlert(row.tableName(), row.lastActivityAt(), row.status(), row.errorMessage(), row.dbNow());
             }
         } catch (Exception ex) {
             // Monitoring must never break the scheduler thread
@@ -829,6 +829,14 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * (job stuck/dead). A never-run job ({@code lastRunAt == null}) is not alerted (fresh install).
      */
     void checkLivenessAndAlert(String tableName, Instant lastRunAt, String status, String errorMessage) {
+        checkLivenessAndAlert(tableName, lastRunAt, status, errorMessage, Instant.now());
+    }
+
+    /**
+     * @param now reference "now" for the age computation: the DB clock ({@code NOW()} read in the same query as
+     *            the activity timestamps, BE-223 S1), so app/DB clock skew cannot flip the result
+     */
+    void checkLivenessAndAlert(String tableName, Instant lastRunAt, String status, String errorMessage, Instant now) {
         if ("ERROR".equals(status)) {
             log.warn("[ETL][ALERT] Job tabeli '{}' w stanie ERROR: {}", tableName, errorMessage);
             publishAlertWithCooldown(tableName, ALERT_TYPE_JOB_ERROR, Map.of(
@@ -849,8 +857,8 @@ class EtlSyncServiceImpl implements EtlSyncService {
         if (lastRunAt == null) {
             return;
         }
-        long staleMs = Duration.between(lastRunAt, Instant.now()).toMillis();
-        if (staleMs >= livenessThresholdMs) {
+        if (isActivityStale(lastRunAt, now)) {
+            long staleMs = Duration.between(lastRunAt, now).toMillis();
             long staleMinutes = staleMs / 60_000;
             log.warn("[ETL][ALERT] Brak przebiegu joba tabeli '{}' od {} minut (próg: {} ms, status: {})",
                     tableName, staleMinutes, livenessThresholdMs, status);
@@ -862,12 +870,35 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     "lastRunAt", lastRunAt.toString(),
                     "alertedAt", Instant.now().toString()
             ), () -> rereadLiveness(tableName)
-                    .map(r -> r.lastActivityAt() != null
-                            && Duration.between(r.lastActivityAt(), Instant.now()).toMillis() >= livenessThresholdMs)
+                    .map(r -> isActivityStale(r.lastActivityAt(), r.dbNow()))
                     .orElse(true));
         } else {
             clearAlertState(tableName, ALERT_TYPE_JOB_STALE);
         }
+    }
+
+    /**
+     * BE-223: the single TIME predicate of "stale" shared by the JOB_STALE alert and {@code GET /api/admin/etl/status}.
+     * The alert additionally gates it: it skips non-CDC tables and ERROR rows (alerted separately as JOB_ERROR),
+     * while the status reports {@code stale} for every row. {@code now} must be the DB clock ({@code NOW()}),
+     * the same one that stamped last_run_at / updated_at (no app/DB clock skew).
+     * A job is stale when its last activity (max of {@code last_run_at} and the {@code updated_at} heartbeat) is at
+     * least {@code etl.sync.liveness-threshold-ms} old. Status is deliberately not part of the rule: a RUNNING job
+     * with an old heartbeat is stale, one with a fresh heartbeat is not.
+     *
+     * @param lastActivityAt last activity, {@code null} when the job never ran
+     * @return {@code null} for a never-run job (unknown, fresh install), otherwise the stale flag
+     */
+    Boolean evaluateStale(Instant lastActivityAt, Instant now) {
+        if (lastActivityAt == null) {
+            return null;
+        }
+        return Duration.between(lastActivityAt, now).toMillis() >= livenessThresholdMs;
+    }
+
+    /** Null-safe boolean view of {@link #evaluateStale}: a never-run job is not stale (not alerted). */
+    private boolean isActivityStale(Instant lastActivityAt, Instant now) {
+        return Boolean.TRUE.equals(evaluateStale(lastActivityAt, now));
     }
 
     /** Broker payload must not carry long driver messages (SQL fragments, hosts); full text stays in DB/log. */
@@ -1038,10 +1069,12 @@ class EtlSyncServiceImpl implements EtlSyncService {
 
     @Override
     public List<EtlTableStatus> getStatus() {
-        // Lag queries run after the state result set is closed (no nested queries on a second connection)
+        // Lag queries run after the state result set is closed (no nested queries on a second connection).
+        // stale/lastActivityAt/livenessThresholdMs are already set by readSyncStates (DB clock, one NOW() per row set)
         return readSyncStates().stream()
                 .map(st -> new EtlTableStatus(st.tableName(), st.lastSyncedAt(), st.lastRunAt(),
-                        st.lastRowCount(), st.status(), safeDataLag(st), st.errorMessage()))
+                        st.lastRowCount(), st.status(), safeDataLag(st), st.errorMessage(),
+                        st.stale(), st.lastActivityAt(), st.livenessThresholdMs()))
                 .toList();
     }
 
@@ -1058,32 +1091,53 @@ class EtlSyncServiceImpl implements EtlSyncService {
     }
 
     /** Liveness input: last activity = newest of last_run_at and updated_at (heartbeat); null if never run. */
-    record LivenessRow(String tableName, Instant lastActivityAt, String status, String errorMessage) {}
+    record LivenessRow(String tableName, Instant lastActivityAt, String status, String errorMessage, Instant dbNow) {
+        /** Convenience for tests: "now" = app clock. */
+        LivenessRow(String tableName, Instant lastActivityAt, String status, String errorMessage) {
+            this(tableName, lastActivityAt, status, errorMessage, Instant.now());
+        }
+    }
+
+    /** DB clock from the same row set; falls back to the app clock only if the column is absent/null. */
+    private static Instant dbNow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Timestamp ts = rs.getTimestamp("db_now");
+        return ts != null ? ts.toInstant() : Instant.now();
+    }
 
     private List<LivenessRow> readLivenessRows() {
         return jdbcTemplate.query(SELECT_LIVENESS, LIVENESS_MAPPER);
     }
 
     private static final RowMapper<LivenessRow> LIVENESS_MAPPER = (rs, rowNum) -> {
-            Timestamp lastRun = rs.getTimestamp("last_run_at");
-            Timestamp updated = rs.getTimestamp("updated_at");
-            // never-run job (fresh install) has last_run_at NULL -> not alerted, whatever updated_at says
-            Instant activity = null;
-            if (lastRun != null) {
-                activity = lastRun.toInstant();
-                if (updated != null && updated.toInstant().isAfter(activity)) {
-                    activity = updated.toInstant();
-                }
-            }
+            Instant activity = lastActivity(rs.getTimestamp("last_run_at"), rs.getTimestamp("updated_at"));
             return new LivenessRow(rs.getString("table_name"), activity, rs.getString("status"),
-                    rs.getString("error_message"));
+                    rs.getString("error_message"), dbNow(rs));
         };
+
+    /**
+     * Last activity = newest of last_run_at and the updated_at heartbeat. A never-run job (fresh install) has
+     * last_run_at NULL -> null, whatever updated_at says.
+     */
+    private static Instant lastActivity(Timestamp lastRun, Timestamp updated) {
+        if (lastRun == null) {
+            return null;
+        }
+        Instant activity = lastRun.toInstant();
+        if (updated != null && updated.toInstant().isAfter(activity)) {
+            activity = updated.toInstant();
+        }
+        return activity;
+    }
 
     /** Raw rows of etl_sync_state; {@code lagMinutes} is left null here. */
     private List<EtlTableStatus> readSyncStates() {
         return jdbcTemplate.query(SELECT_STATUS, (rs, rowNum) -> {
             Timestamp lastSyncedTs = rs.getTimestamp("last_synced_at");
             Timestamp lastRunTs = rs.getTimestamp("last_run_at");
+            Instant lastActivity = lastActivity(lastRunTs, rs.getTimestamp("updated_at"));
+            // DB-clock "now" (same statement as the timestamps). A heartbeat written after NOW() was taken gives a
+            // negative age -> not stale, which is correct (fresh activity).
+            Boolean stale = evaluateStale(lastActivity, dbNow(rs));
             return new EtlTableStatus(
                     rs.getString("table_name"),
                     lastSyncedTs != null ? lastSyncedTs.toInstant() : Instant.EPOCH,
@@ -1091,7 +1145,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     rs.getLong("last_row_count"),
                     rs.getString("status"),
                     null,
-                    rs.getString("error_message"));
+                    rs.getString("error_message"),
+                    stale,
+                    lastActivity,
+                    livenessThresholdMs);
         });
     }
 

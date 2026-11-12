@@ -538,7 +538,8 @@ class DefaultRoutingEngine implements RoutingEngine {
     /**
      * Spośród listy kandydatów wybiera agenta z najmniejszą liczbą aktywnych kontaktów.
      *
-     * <p>Aktywne kontakty: status IN (QUEUED, ACTIVE, ON_HOLD). Używa jednego zapytania
+     * <p>Obciążenie agenta: status IN (ASSIGNED, ACTIVE, ON_HOLD, QUEUED) - slot z BE-156 plus QUEUED z agent_id
+     * (wychodzące połączenie agenta), patrz {@code OccupiedSlot#AGENT_LOAD_STATUSES_SQL}. Używa jednego zapytania
      * SQL batch ({@link com.contactcenter.domain.user.UserService#countActiveContactsByAgentIds})
      * zamiast N osobnych SELECT COUNT(*) – eliminuje problem N+1 zapytań.
      *

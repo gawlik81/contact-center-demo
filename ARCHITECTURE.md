@@ -554,6 +554,16 @@ Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfac
   alerts when `status = ERROR` or the newest of `last_run_at` / `updated_at` (heartbeat refreshed
   after every written batch) is older than `etl.sync.liveness-threshold-ms` (default 5 min, keep
   ≥ 3 × `etl.sync.fixed-delay-ms`).
+- **Liveness in the status API** (BE-223): `GET /api/admin/etl/status` additionally returns per table
+  `stale` (Boolean, computed by the same `EtlSyncServiceImpl#evaluateStale` as `JOB_STALE`; `null` when the
+  job never ran), `lastActivityAt` (`max(last_run_at, updated_at)`, ISO-8601 UTC) and `livenessThresholdMs`
+  (`etl.sync.liveness-threshold-ms`). There is no separate ETL on/off flag: when the jobs do not run, the
+  heartbeat is not written and `stale` turns `true` after the threshold. The age is computed against the
+  DB clock (`NOW()` read in the same query as the timestamps), for both the status and the alert. `stale` uses
+  the same time predicate as `JOB_STALE`, but the alert additionally skips non-CDC tables and `ERROR` rows
+  (alerted as `JOB_ERROR`), while the status reports `stale` for every row. Null fields are omitted in JSON
+  (`non_null`). Known limitation: a job that never ran (`last_run_at` NULL) yields no `stale` and no alert, so
+  a scheduler dead since install is not detected.
 - Alerts are logged as `[ETL][ALERT]` and published to `cc.events` / `etl.lag.alert` with
   `alertType` = `DATA_LAG` | `JOB_STALE` | `JOB_ERROR` (`errorMessage` truncated to 200 chars).
 - **Alert cooldown** (BE-214): the broker message for a `(table, alertType)` pair is sent once per

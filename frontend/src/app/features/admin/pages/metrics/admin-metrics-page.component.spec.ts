@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TranslocoTestingModule } from '@jsverse/transloco';
+import { TranslocoService, TranslocoTestingModule } from '@jsverse/transloco';
 import { of, Subject, throwError } from 'rxjs';
 import { AdminMetricsPageComponent } from './admin-metrics-page.component';
 import { AdminMetricsService } from '../../services/admin-metrics.service';
@@ -608,30 +608,51 @@ describe('AdminMetricsPageComponent', () => {
         expect(view({ status: 'ERROR', errorMessage: 'boom' }).liveness).toBe('error');
       });
 
-      it('ERROR wins over stale', () => {
+      it('ERROR wins over server stale=true', () => {
+        expect(view({ status: 'ERROR', stale: true, errorMessage: 'x' }).liveness).toBe('error');
+      });
+
+      it('stale is decided only by the server field, never by the client clock', () => {
+        // Ancient lastRunAt but no server flag => ok (no client-side fallback).
+        expect(view({ lastRunAt: '2026-07-14T01:00:00Z' }).liveness).toBe('ok');
+        expect(view({ lastRunAt: '2026-07-14T01:00:00Z', stale: false }).liveness).toBe('ok');
+        expect(view({ stale: null }).liveness).toBe('ok');
+        expect(view({ stale: true }).liveness).toBe('stale');
+      });
+
+      it('hung RUNNING job flagged stale by the server is stale', () => {
+        expect(view({ status: 'RUNNING', stale: true }).liveness).toBe('stale');
+        expect(view({ status: 'RUNNING', stale: false }).liveness).toBe('ok');
+      });
+
+      it('stale minutes come from lastActivityAt, falling back to lastRunAt', () => {
         expect(
-          view({ status: 'ERROR', lastRunAt: '2026-07-14T08:00:00Z', errorMessage: 'x' }).liveness,
-        ).toBe('error');
+          view({
+            stale: true,
+            lastRunAt: '2026-07-14T08:00:00Z',
+            lastActivityAt: '2026-07-14T09:50:00Z',
+          }).staleMinutes,
+        ).toBe(10);
+        expect(view({ stale: true, lastRunAt: '2026-07-14T09:40:00Z' }).staleMinutes).toBe(20);
       });
 
-      it('boundary: exactly 5:00 is ok, 5:01 is stale', () => {
-        expect(view({ lastRunAt: '2026-07-14T09:55:00Z' }).liveness).toBe('ok');
-        expect(view({ lastRunAt: '2026-07-14T09:54:59Z' }).liveness).toBe('stale');
+      it('stale minutes are null when elapsed time is below the server threshold', () => {
+        const lastActivityAt = '2026-07-14T09:57:00Z'; // 3 min before NOW
+        expect(
+          view({ stale: true, lastActivityAt, livenessThresholdMs: 300_000 }).staleMinutes,
+        ).toBeNull();
+        expect(
+          view({ stale: true, lastActivityAt, livenessThresholdMs: 120_000 }).staleMinutes,
+        ).toBe(3);
+        expect(
+          view({ stale: true, lastActivityAt: '2026-07-14T09:59:30Z' }).staleMinutes,
+        ).toBeNull();
       });
 
-      it('stale view exposes whole minutes since last run', () => {
-        expect(view({ lastRunAt: '2026-07-14T09:50:00Z' }).staleMinutes).toBe(10);
-      });
-
-      it('IDLE with old lastRunAt is stale, RUNNING with old lastRunAt is not', () => {
-        expect(view({ status: 'IDLE', lastRunAt: '2026-07-14T09:00:00Z' }).liveness).toBe('stale');
-        expect(view({ status: 'RUNNING', lastRunAt: '2026-07-14T09:00:00Z' }).liveness).toBe('ok');
-      });
-
-      it('fresh table without lastRunAt, invalid or future date is NOT flagged', () => {
-        expect(view({ lastRunAt: null, status: 'IDLE' }).liveness).toBe('ok');
-        expect(view({ lastRunAt: 'garbage' }).liveness).toBe('ok');
-        expect(view({ lastRunAt: '2026-07-14T11:00:00Z' }).liveness).toBe('ok');
+      it('stale minutes are null without a valid timestamp, in the future or under a minute', () => {
+        expect(view({ stale: true, lastRunAt: null }).staleMinutes).toBeNull();
+        expect(view({ stale: true, lastRunAt: 'garbage' }).staleMinutes).toBeNull();
+        expect(view({ stale: true, lastRunAt: '2026-07-14T11:00:00Z' }).staleMinutes).toBeNull();
       });
 
       it('error text: 120 chars is not truncated, 121 is; whitespace-only is empty', () => {
@@ -662,7 +683,7 @@ describe('AdminMetricsPageComponent', () => {
       });
 
       it('DOM: stale row renders a warning line with aria-hidden icon', () => {
-        const el = render({ lastRunAt: '2026-07-14T09:50:00Z' });
+        const el = render({ stale: true, lastActivityAt: '2026-07-14T09:50:00Z' });
         const line = el.querySelector('.etl-liveness--stale');
         expect(line).not.toBeNull();
         expect(el.querySelector('.etl-liveness--error')).toBeNull();
@@ -673,6 +694,7 @@ describe('AdminMetricsPageComponent', () => {
       it('DOM: ERROR with stale lastRunAt shows only the error line, without a label', () => {
         const el = render({
           status: 'ERROR',
+          stale: true,
           lastRunAt: '2026-07-14T08:00:00Z',
           errorMessage: 'connection refused',
         });
@@ -698,6 +720,147 @@ describe('AdminMetricsPageComponent', () => {
         expect(details.querySelector('.etl-liveness__full')!.textContent).toContain(full);
         expect(el.querySelector('.etl-liveness__detail')!.textContent).toContain('…');
       });
+    });
+
+    describe('ETL liveness live region (FE-168)', () => {
+      const row = (over: Partial<EtlTableStatus>): EtlTableStatus => ({
+        tableName: 'contact',
+        lastSyncedAt: null,
+        lastRunAt: '2026-07-14T09:58:00Z',
+        lastRowCount: 0,
+        status: 'DONE',
+        lagMinutes: 0,
+        errorMessage: null,
+        stale: false,
+        ...over,
+      });
+      const region = (): HTMLElement =>
+        (fixture.nativeElement as HTMLElement).querySelector('[aria-live="polite"].sr-only')!;
+      const poll = async (rows: EtlTableStatus[]): Promise<void> => {
+        getEtlStatusSpy.mockReturnValue(of(rows));
+        await vi.advanceTimersByTimeAsync(30_000);
+        fixture.detectChanges();
+      };
+
+      it('is empty after first load, even when a table is already stale', async () => {
+        getEtlStatusSpy.mockReturnValue(of([row({ stale: true })]));
+        const fresh = TestBed.createComponent(AdminMetricsPageComponent);
+        fresh.detectChanges();
+        await vi.advanceTimersByTimeAsync(0);
+        fresh.detectChanges();
+        const el = (fresh.nativeElement as HTMLElement).querySelector(
+          '[aria-live="polite"].sr-only',
+        );
+        expect(el).not.toBeNull();
+        expect(el!.textContent!.trim()).toBe('');
+        expect(fresh.componentInstance.etlRows()[0].liveness).toBe('stale');
+      });
+
+      const useRealMessages = (): void => {
+        TestBed.inject(TranslocoService).setTranslation(
+          {
+            admin: {
+              metrics: {
+                etlLivenessAnnounceStale: 'STALE {{ table }}',
+                etlLivenessAnnounceError: 'ERROR {{ table }}',
+                etlLivenessAnnounceOk: 'OK {{ table }}',
+                etlLivenessAnnounceMany: 'MANY {{ count }}',
+              },
+            },
+          },
+          'pl',
+        );
+      };
+      const text = (): string => region().textContent!.trim();
+      const t = (name: string, over: Partial<EtlTableStatus> = {}): EtlTableStatus =>
+        row({ tableName: name, ...over });
+
+      it('announces a transition with the table name and stays silent on unchanged polls', async () => {
+        useRealMessages();
+        await poll([row({ stale: false })]);
+        expect(text()).toBe('');
+
+        await poll([row({ stale: true })]);
+        expect(text()).toBe('STALE contact');
+
+        await poll([row({ stale: true })]);
+        expect(text()).toBe('STALE contact'); // unchanged, nothing new announced
+
+        await poll([row({ stale: false })]);
+        expect(text()).toBe('OK contact');
+      });
+
+      it('announces stale -> error and error -> ok', async () => {
+        useRealMessages();
+        await poll([row({ stale: true })]);
+        await poll([row({ status: 'ERROR', errorMessage: 'boom', stale: true })]);
+        expect(text()).toBe('ERROR contact');
+        await poll([row({})]);
+        expect(text()).toBe('OK contact');
+      });
+
+      it('lists several tables changing in one poll', async () => {
+        useRealMessages();
+        await poll([t('a'), t('b'), t('c')]);
+        await poll([t('a', { stale: true }), t('b', { status: 'ERROR' }), t('c')]);
+        expect(text()).toBe('STALE a. ERROR b');
+      });
+
+      it('aggregates into one summary when more than 3 tables change', async () => {
+        useRealMessages();
+        const names = ['a', 'b', 'c', 'd'];
+        await poll(names.map((n) => t(n)));
+        await poll(names.map((n) => t(n, { stale: true })));
+        expect(text()).toBe('MANY 4');
+      });
+
+      it('announces a newly appearing table only when its first state is not ok', async () => {
+        useRealMessages();
+        await poll([t('a')]);
+        await poll([t('a'), t('b')]);
+        expect(text()).toBe('');
+        await poll([t('a'), t('b'), t('c', { stale: true })]);
+        expect(text()).toBe('STALE c');
+      });
+
+      it('a disappearing table is silent; re-appearing as stale is announced', async () => {
+        useRealMessages();
+        await poll([t('a'), t('b')]);
+        await poll([t('a')]);
+        expect(text()).toBe('');
+        await poll([t('a'), t('b', { stale: true })]);
+        expect(text()).toBe('STALE b');
+      });
+
+      it('a failed poll between reads keeps the previous state as baseline', async () => {
+        useRealMessages();
+        await poll([row({ stale: false })]);
+        getEtlStatusSpy.mockReturnValue(throwError(() => new Error('boom')));
+        await vi.advanceTimersByTimeAsync(30_000);
+        fixture.detectChanges();
+        expect(text()).toBe('');
+        await poll([row({ stale: true })]);
+        expect(text()).toBe('STALE contact');
+      });
+    });
+
+    it('formatRelativePast – uses the active language for old dates, not a hard-coded locale', () => {
+      const transloco = TestBed.inject(TranslocoService);
+      const iso = '2020-03-05T14:07:00Z';
+      const opts: Intl.DateTimeFormatOptions = {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      };
+      const langSpy = vi.spyOn(transloco, 'getActiveLang');
+      langSpy.mockReturnValue('en');
+      const en = component.formatRelativePast(iso);
+      expect(en).toBe(new Date(iso).toLocaleString('en', opts));
+      langSpy.mockReturnValue('de');
+      const de = component.formatRelativePast(iso);
+      expect(de).toBe(new Date(iso).toLocaleString('de', opts));
+      expect(de).not.toBe(en);
     });
 
     it('formatDuration – formats seconds as m:ss, dash for null/undefined', () => {

@@ -149,6 +149,20 @@ public interface UserService {
                                          UserStatus newStatus, Instant statusSince);
 
     /**
+     * Writes the agent's status to the Redis session entry {@code session:agent:{userId}} (same structure and
+     * TTL as {@link #updateStatus}; read by AdminMetricsService) for a status change done outside
+     * {@link #updateStatus} (native dialer UPDATE, BE-204). Writes after commit when a transaction is active,
+     * otherwise immediately. Best-effort: a Redis failure is logged, never thrown. Callers must invoke it only
+     * after a real transition (no write for an UPDATE that changed 0 rows).
+     *
+     * <p>Known narrow race: the write overwrites the whole entry (last write wins). A concurrent
+     * {@link #updateStatus} landing between the dialer's commit and this afterCommit write can be overwritten
+     * with AFTER_CONTACT in Redis until the agent's next status write (DB and event stay correct).
+     * BREAK is rejected ({@link IllegalStateException}) because the entry would lose {@code breakStartedAt}.
+     */
+    void syncAgentSessionStatusAfterCommit(UUID userId, UUID tenantId, UserStatus status);
+
+    /**
      * Ustawia status agenta na AVAILABLE po anulowaniu konsultacji (attended transfer bez bridge).
      *
      * <p>Wywoływana przez TwilioTelephonyAdapter gdy Agent1 rozłączy nogę konsultacyjną

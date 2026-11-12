@@ -1,5 +1,6 @@
 package com.contactcenter.domain.user;
 
+import com.contactcenter.domain.contact.OccupiedSlot;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -279,30 +280,11 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
                 SELECT 1 FROM contact
                 WHERE agent_id = CAST(:userId AS uuid)
                   AND tenant_id = CAST(:tenantId AS uuid)
-                  AND status IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+                  AND status IN ('QUEUED', 'ASSIGNED', 'ACTIVE', 'ON_HOLD')
             )
             """, nativeQuery = true)
     boolean existsActiveContactsByUserId(@Param("userId") UUID userId,
                                           @Param("tenantId") UUID tenantId);
-
-    /**
-     * Zlicza aktywne kontakty przypisane do agenta.
-     *
-     * <p>Używane przez routing engine (BE-019) do wybrania najmniej obciążonego
-     * agenta w strategii SKILL_BASED. Aktywne statusy: QUEUED, ACTIVE, ON_HOLD.
-     *
-     * @param agentId  UUID agenta
-     * @param tenantId UUID tenanta (izolacja cross-tenant)
-     * @return liczba aktywnych kontaktów agenta
-     */
-    @Query(value = """
-            SELECT COUNT(*) FROM contact
-            WHERE agent_id  = CAST(:agentId AS uuid)
-              AND tenant_id = CAST(:tenantId AS uuid)
-              AND status    IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
-            """, nativeQuery = true)
-    long countActiveContactsByAgentId(@Param("agentId") UUID agentId,
-                                       @Param("tenantId") UUID tenantId);
 
     /**
      * Zwraca agentów dostępnych jako kandydaci do przyjęcia transferu połączenia.
@@ -339,25 +321,27 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     /**
      * Zwraca liczbę aktywnych kontaktów dla listy agentów w jednym zapytaniu SQL (batch).
      *
-     * <p>Zastępuje N osobnych wywołań {@link #countActiveContactsByAgentId} w strategii SKILL_BASED,
+     * <p>Zastępuje N osobnych wywołań pojedynczych zliczeń w strategii SKILL_BASED,
      * eliminując problem N+1 zapytań. Wynik zawiera tylko agentów z co najmniej jednym aktywnym
      * kontaktem – agenci z 0 kontaktów są pomijani przez GROUP BY (należy obsłużyć ich jako 0
      * po stronie aplikacji).
      *
-     * <p>Aktywne statusy: QUEUED, ACTIVE, ON_HOLD.
+     * <p>Obciążenie agenta (BE-207): {@link OccupiedSlot#AGENT_LOAD_STATUSES_SQL} = ASSIGNED, ACTIVE, ON_HOLD
+     * (slot z BE-156/BE-157, {@link OccupiedSlot#STATUSES_SQL}) plus QUEUED. QUEUED z {@code agent_id = X}
+     * to wychodzące połączenie agenta (adaptery telefonii wstawiają je jako QUEUED z agent_id aż do ACTIVE),
+     * więc zajmuje agenta. Różnice względem {@code ContactRepository.OPEN_ASYNC_COUNT_SQL}: tam tylko
+     * kontakty async w jednej kolejce (limit slotów), tu wszystkie kanały i cały tenant.
      *
      * @param tenantId  UUID tenanta (izolacja cross-tenant)
      * @param agentIds  lista UUID agentów do sprawdzenia
      * @return lista par [agent_id, active_contacts_count] jako Object[]
      */
-    @Query(value = """
-            SELECT agent_id::text, COUNT(*) AS active_contacts
-            FROM contact
-            WHERE tenant_id = CAST(:tenantId AS uuid)
-              AND agent_id  IN (:agentIds)
-              AND status    IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
-            GROUP BY agent_id
-            """, nativeQuery = true)
+    @Query(value = "SELECT agent_id::text, COUNT(*) AS active_contacts "
+            + "FROM contact "
+            + "WHERE tenant_id = CAST(:tenantId AS uuid) "
+            + "AND agent_id IN (:agentIds) "
+            + "AND status IN (" + OccupiedSlot.AGENT_LOAD_STATUSES_SQL + ") "
+            + "GROUP BY agent_id", nativeQuery = true)
     List<Object[]> countActiveContactsByAgentIds(@Param("tenantId") UUID tenantId,
                                                   @Param("agentIds") List<UUID> agentIds);
 

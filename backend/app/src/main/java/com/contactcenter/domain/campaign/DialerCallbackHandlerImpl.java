@@ -613,6 +613,8 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
             // 0 wierszy (już AFTER_CONTACT / BREAK / OFFLINE) → brak zmiany, brak eventu (BE-165/BE-166)
             for (AfterContactTransition t : transitions) {
                 log.debug("[DialerHandler] Agent {} → AFTER_CONTACT (ACW po połączeniu kampanijnym)", agentId);
+                // BE-204: Redis session first (best-effort, never throws) so it cannot block the event below
+                userService.syncAgentSessionStatusAfterCommit(agentId, t.tenantId(), AppUser.UserStatus.AFTER_CONTACT);
                 userService.publishStatusChangedAfterCommit(agentId, t.tenantId(), t.oldStatus(),
                         AppUser.UserStatus.AFTER_CONTACT, t.since());
             }

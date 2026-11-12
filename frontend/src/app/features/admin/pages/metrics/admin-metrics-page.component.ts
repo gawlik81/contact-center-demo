@@ -33,12 +33,8 @@ import {
  */
 const METRICS_POLL_INTERVAL_MS = 30_000;
 const ETL_LAG_WARNING_THRESHOLD_MINUTES = 30;
-/**
- * Job liveness threshold: a table whose `lastRunAt` is older than this is "stale".
- * Mirrors backend property `etl.sync.liveness-threshold-ms` (default 300000 ms = 5 min).
- * Keep in sync manually — the API does not expose the threshold (FE-165, risk R1).
- */
-const ETL_LIVENESS_THRESHOLD_MINUTES = 5;
+/** More changed tables than this in one poll are announced as a single summary message. */
+const ETL_ANNOUNCE_MAX_INDIVIDUAL = 3;
 /** Max characters (code points) of `errorMessage` shown inline; the rest sits behind a disclosure. */
 const ETL_ERROR_MESSAGE_MAX_LENGTH = 120;
 
@@ -53,12 +49,13 @@ type SortDir = 'asc' | 'desc';
 type RangeOption = '7' | '30' | '90';
 type UtilizationTier = 'low' | 'mid' | 'high';
 type EtlVisualStatus = 'idle' | 'running' | 'done' | 'warning' | 'error';
-/** Job liveness, independent of data lag: `error` = status ERROR, `stale` = no recent run. */
+/** Job liveness, independent of data lag: `error` = status ERROR, `stale` = server says `stale`. */
 type EtlLiveness = 'ok' | 'error' | 'stale';
 interface EtlRowView {
   row: EtlTableStatus;
   liveness: EtlLiveness;
-  staleMinutes: number;
+  /** Minutes since last activity for the stale line; null when no valid timestamp is available. */
+  staleMinutes: number | null;
   shortError: string;
   fullError: string;
   isTruncated: boolean;
@@ -144,6 +141,10 @@ export class AdminMetricsPageComponent implements OnInit {
   readonly etlLoading = signal(true);
   readonly etlError = signal(false);
   readonly etlStatuses = signal<EtlTableStatus[]>([]);
+  /** Text for the polite live region; set only when a table's liveness changes between polls. */
+  readonly etlLivenessAnnouncement = signal('');
+  /** Liveness per table from the previous poll; null until the first load (no announcement then). */
+  private previousLiveness: Map<string, EtlLiveness> | null = null;
 
   readonly exportingCsv = signal(false);
 
@@ -336,7 +337,48 @@ export class AdminMetricsPageComponent implements OnInit {
       .subscribe((data) => {
         this.etlStatuses.set(data);
         this.etlLoading.set(false);
+        this.announceLivenessChanges();
       });
+  }
+
+  /** Compares liveness with the previous poll and announces transitions only (not first load). */
+  private announceLivenessChanges(): void {
+    const current = new Map(this.etlRows().map((v) => [v.row.tableName, v.liveness] as const));
+    const previous = this.previousLiveness;
+    this.previousLiveness = current;
+    if (previous === null) return;
+    // Changed tables, plus tables appearing for the first time (new or re-appearing) whose
+    // first state is not 'ok'. Tables that disappear are silent.
+    const changes: { table: string; liveness: EtlLiveness }[] = [];
+    for (const [table, liveness] of current) {
+      const before = previous.get(table);
+      if (before === liveness) continue;
+      if (before === undefined && liveness === 'ok') continue;
+      changes.push({ table, liveness });
+    }
+    if (changes.length === 0) return;
+    if (changes.length > ETL_ANNOUNCE_MAX_INDIVIDUAL) {
+      this.etlLivenessAnnouncement.set(
+        this.transloco.translate('admin.metrics.etlLivenessAnnounceMany', {
+          count: changes.length,
+        }),
+      );
+      return;
+    }
+    this.etlLivenessAnnouncement.set(
+      changes
+        .map(({ table, liveness }) =>
+          this.transloco.translate(
+            liveness === 'stale'
+              ? 'admin.metrics.etlLivenessAnnounceStale'
+              : liveness === 'error'
+                ? 'admin.metrics.etlLivenessAnnounceError'
+                : 'admin.metrics.etlLivenessAnnounceOk',
+            { table },
+          ),
+        )
+        .join('. '),
+    );
   }
 
   /** Resources poll every 30s independently, only while this page is mounted. */
@@ -483,26 +525,27 @@ export class AdminMetricsPageComponent implements OnInit {
   }
 
   /**
-   * Job liveness (distinct from data lag). ERROR wins over stale. Not flagged: a table
-   * with no `lastRunAt` (never ran yet), an invalid or future date.
+   * Job liveness (distinct from data lag), decided ONLY by the server (BE-223): ERROR wins,
+   * otherwise stale iff `stale === true`. Missing/undefined/null (older backend, never ran)
+   * means "ok" — deliberately no client-side fallback.
    *
-   * RUNNING is never "stale": backend `last_run_at` is the cycle START
-   * (`SET status='RUNNING', last_run_at = NOW()`), so a long cycle would look stale, while
-   * backend liveness uses max(last_run_at, updated_at heartbeat) which the API does not
-   * expose. A server-side field (e.g. `stale` / `lastActivityAt`) would be the proper fix.
-   *
-   * Age uses the client clock (the API returns no server time); "now" refreshes with the
-   * 30 s polling because the view-model is recomputed whenever `etlStatuses` changes.
+   * `staleMinutes` is display text only ("No activity for N min"): elapsed time since
+   * `lastActivityAt` (fallback `lastRunAt`) against the client clock. The client clock NEVER
+   * decides state. When the elapsed time is unparseable, negative (clock skew), under a full
+   * minute or below the server's `livenessThresholdMs` (so the number would contradict the
+   * server's verdict), `null` is returned and the "no activity" text without a number is shown.
    */
-  private etlLiveness(row: EtlTableStatus): { liveness: EtlLiveness; staleMinutes: number } {
-    if (row.status === 'ERROR') return { liveness: 'error', staleMinutes: 0 };
-    if (row.status === 'RUNNING' || !row.lastRunAt) return { liveness: 'ok', staleMinutes: 0 };
-    const ts = new Date(row.lastRunAt).getTime();
-    if (isNaN(ts)) return { liveness: 'ok', staleMinutes: 0 };
-    const ageMin = (Date.now() - ts) / 60000;
-    return ageMin > ETL_LIVENESS_THRESHOLD_MINUTES
-      ? { liveness: 'stale', staleMinutes: Math.floor(ageMin) }
-      : { liveness: 'ok', staleMinutes: 0 };
+  private etlLiveness(row: EtlTableStatus): {
+    liveness: EtlLiveness;
+    staleMinutes: number | null;
+  } {
+    if (row.status === 'ERROR') return { liveness: 'error', staleMinutes: null };
+    if (row.stale !== true) return { liveness: 'ok', staleMinutes: null };
+    const ts = new Date(row.lastActivityAt ?? row.lastRunAt ?? '').getTime();
+    const elapsedMs = Date.now() - ts;
+    const thresholdMs = row.livenessThresholdMs ?? 0;
+    const unreliable = isNaN(elapsedMs) || elapsedMs < Math.max(60_000, thresholdMs);
+    return { liveness: 'stale', staleMinutes: unreliable ? null : Math.floor(elapsedMs / 60000) };
   }
 
   /** Per-row view-model for the ETL table (liveness + error text trimmed by code points). */
@@ -558,7 +601,7 @@ export class AdminMetricsPageComponent implements OnInit {
     if (diffHours < 24) {
       return this.transloco.translate('admin.metrics.etlHoursAgo', { count: diffHours });
     }
-    return date.toLocaleString('pl-PL', {
+    return date.toLocaleString(this.transloco.getActiveLang(), {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',

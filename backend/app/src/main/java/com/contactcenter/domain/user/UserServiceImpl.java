@@ -480,15 +480,31 @@ class UserServiceImpl implements UserService {
     public void publishStatusChangedAfterCommit(UUID userId, UUID tenantId,
                                                 UserStatus oldStatus, UserStatus newStatus,
                                                 Instant statusSince) {
+        runAfterCommit(() -> publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince));
+    }
+
+    @Override
+    public void syncAgentSessionStatusAfterCommit(UUID userId, UUID tenantId, UserStatus status) {
+        if (status == UserStatus.BREAK) {
+            throw new IllegalStateException("BREAK needs breakStartedAt - use updateStatus");
+        }
+        // breakStartedAt = "" : callers only move agents out of AVAILABLE/BUSY (never into/out of BREAK).
+        // writeAgentSessionToRedis is best-effort (catches everything), so a Redis outage neither fails the
+        // caller's transaction (afterCommit runs after it) nor blocks the event registered next to it.
+        runAfterCommit(() -> writeAgentSessionToRedis(userId, tenantId, status, ""));
+    }
+
+    /** Runs the action after the current transaction commits; immediately when no transaction is active. */
+    private void runAfterCommit(Runnable action) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince);
+                    action.run();
                 }
             });
         } else {
-            publishStatusChangedEvent(userId, tenantId, oldStatus, newStatus, statusSince);
+            action.run();
         }
     }
 
@@ -591,16 +607,7 @@ class UserServiceImpl implements UserService {
             publishStatusChangedEvent(userId, tenantId, expectedStatus, UserStatus.OFFLINE, now,
                     AgentStatusChangedEvent.REASON_PRESENCE_TIMEOUT);
         };
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    afterCommit.run();
-                }
-            });
-        } else {
-            afterCommit.run();
-        }
+        runAfterCommit(afterCommit);
         return true;
     }
 

@@ -52,6 +52,7 @@ public class EtlStatusController {
      *   <li>Status: IDLE | RUNNING | DONE | ERROR</li>
      *   <li>Lag w minutach ({@code lagMinutes})</li>
      *   <li>Komunikat błędu gdy {@code status=ERROR}</li>
+     *   <li>Żywotność (BE-223): {@code stale}, {@code lastActivityAt}, {@code livenessThresholdMs}</li>
      * </ul>
      */
     @GetMapping("/status")
@@ -59,7 +60,11 @@ public class EtlStatusController {
             summary = "Status ETL pipeline",
             description = "Zwraca status synchronizacji ETL do Data Warehouse. " +
                           "Lag w minutach (now - lastSyncedAt) – alert gdy > 30 min. " +
-                          "Status ERROR zawiera errorMessage z przyczyną.",
+                          "Status ERROR zawiera errorMessage z przyczyną. " +
+                          "Żywotność liczona na serwerze zegarem bazy (ten sam predykat czasowy co alert JOB_STALE; " +
+                          "alert dodatkowo pomija tabele nie-CDC i status ERROR, status raportuje stale dla każdego wiersza): " +
+                          "stale (pole pomijane gdy job nigdy nie ruszył), lastActivityAt = max(lastRunAt, heartbeat), " +
+                          "livenessThresholdMs = etl.sync.liveness-threshold-ms.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Status ETL wszystkich tabel"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),

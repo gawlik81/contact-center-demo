@@ -90,6 +90,11 @@ public interface EtlSyncService {
     /**
      * Zwraca aktualny status synchronizacji wszystkich tabel ETL.
      *
+     * <p>Payload (BE-223, pola żywotności addytywne i nullable): {@code stale} (Boolean, ta sama reguła co alert
+     * JOB_STALE; null gdy job nigdy nie ruszył), {@code lastActivityAt} (max(last_run_at, heartbeat updated_at)),
+     * {@code livenessThresholdMs} (z {@code etl.sync.liveness-threshold-ms}). Brak osobnej flagi wyłączenia ETL -
+     * gdy cykle nie chodzą, heartbeat się nie odświeża i {@code stale} przechodzi w true po upływie progu.
+     *
      * @return lista statusów per tabela
      */
     List<EtlTableStatus> getStatus();

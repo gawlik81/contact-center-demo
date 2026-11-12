@@ -576,6 +576,130 @@ describe('AdminMetricsPageComponent', () => {
       ).toBe('error');
     });
 
+    describe('ETL job liveness (FE-165)', () => {
+      const NOW = new Date('2026-07-14T10:00:00Z');
+      const row = (over: Partial<EtlTableStatus>): EtlTableStatus => ({
+        tableName: 'contact',
+        lastSyncedAt: null,
+        lastRunAt: '2026-07-14T09:58:00Z',
+        lastRowCount: 0,
+        status: 'DONE',
+        lagMinutes: 0,
+        errorMessage: null,
+        ...over,
+      });
+      const view = (over: Partial<EtlTableStatus>) => {
+        component.etlStatuses.set([row(over)]);
+        return component.etlRows()[0];
+      };
+      const render = (over: Partial<EtlTableStatus>): HTMLElement => {
+        component.etlStatuses.set([row(over)]);
+        fixture.detectChanges();
+        return fixture.nativeElement as HTMLElement;
+      };
+
+      // createFixture() installs fake timers; set the clock explicitly for determinism.
+      beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+      });
+
+      it('ERROR status is flagged as error even with lag 0', () => {
+        expect(view({ status: 'ERROR', errorMessage: 'boom' }).liveness).toBe('error');
+      });
+
+      it('ERROR wins over stale', () => {
+        expect(
+          view({ status: 'ERROR', lastRunAt: '2026-07-14T08:00:00Z', errorMessage: 'x' }).liveness,
+        ).toBe('error');
+      });
+
+      it('boundary: exactly 5:00 is ok, 5:01 is stale', () => {
+        expect(view({ lastRunAt: '2026-07-14T09:55:00Z' }).liveness).toBe('ok');
+        expect(view({ lastRunAt: '2026-07-14T09:54:59Z' }).liveness).toBe('stale');
+      });
+
+      it('stale view exposes whole minutes since last run', () => {
+        expect(view({ lastRunAt: '2026-07-14T09:50:00Z' }).staleMinutes).toBe(10);
+      });
+
+      it('IDLE with old lastRunAt is stale, RUNNING with old lastRunAt is not', () => {
+        expect(view({ status: 'IDLE', lastRunAt: '2026-07-14T09:00:00Z' }).liveness).toBe('stale');
+        expect(view({ status: 'RUNNING', lastRunAt: '2026-07-14T09:00:00Z' }).liveness).toBe('ok');
+      });
+
+      it('fresh table without lastRunAt, invalid or future date is NOT flagged', () => {
+        expect(view({ lastRunAt: null, status: 'IDLE' }).liveness).toBe('ok');
+        expect(view({ lastRunAt: 'garbage' }).liveness).toBe('ok');
+        expect(view({ lastRunAt: '2026-07-14T11:00:00Z' }).liveness).toBe('ok');
+      });
+
+      it('error text: 120 chars is not truncated, 121 is; whitespace-only is empty', () => {
+        const exact = view({ status: 'ERROR', errorMessage: 'x'.repeat(120) });
+        expect(exact.isTruncated).toBe(false);
+        expect(exact.shortError).toBe('x'.repeat(120));
+        const long = view({ status: 'ERROR', errorMessage: 'x'.repeat(300) });
+        expect(long.isTruncated).toBe(true);
+        expect(long.shortError).toBe('x'.repeat(120) + '…');
+        expect(long.fullError.length).toBe(300);
+        expect(view({ status: 'ERROR', errorMessage: '   ' }).shortError).toBe('');
+        expect(view({ status: 'ERROR', errorMessage: null }).shortError).toBe('');
+      });
+
+      it('truncation does not split surrogate pairs', () => {
+        const v = view({ status: 'ERROR', errorMessage: '😀'.repeat(130) });
+        expect(v.shortError).toBe('😀'.repeat(120) + '…');
+      });
+
+      it('does not regress lagMinutes handling (null / 0 / > 30)', () => {
+        expect(component.etlVisualStatus(row({ lagMinutes: null }))).toBe('done');
+        expect(component.etlVisualStatus(row({ lagMinutes: 0 }))).toBe('done');
+        expect(component.etlVisualStatus(row({ lagMinutes: 31 }))).toBe('warning');
+      });
+
+      it('DOM: ok row renders no liveness line', () => {
+        expect(render({}).querySelector('.etl-liveness')).toBeNull();
+      });
+
+      it('DOM: stale row renders a warning line with aria-hidden icon', () => {
+        const el = render({ lastRunAt: '2026-07-14T09:50:00Z' });
+        const line = el.querySelector('.etl-liveness--stale');
+        expect(line).not.toBeNull();
+        expect(el.querySelector('.etl-liveness--error')).toBeNull();
+        expect(line!.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
+        expect(line!.textContent).toContain('etlLivenessStale');
+      });
+
+      it('DOM: ERROR with stale lastRunAt shows only the error line, without a label', () => {
+        const el = render({
+          status: 'ERROR',
+          lastRunAt: '2026-07-14T08:00:00Z',
+          errorMessage: 'connection refused',
+        });
+        expect(el.querySelector('.etl-liveness--stale')).toBeNull();
+        const line = el.querySelector('.etl-liveness--error')!;
+        expect(line.textContent).toContain('connection refused');
+        expect(line.textContent).not.toContain('etlLivenessStale');
+        expect(line.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
+        expect(line.querySelector('details')).toBeNull();
+        expect(el.querySelector('[title]')).toBeNull();
+      });
+
+      it('DOM: ERROR without message renders no extra line (badge already says error)', () => {
+        expect(render({ status: 'ERROR' }).querySelector('.etl-liveness')).toBeNull();
+      });
+
+      it('DOM: truncated error exposes the full text via a keyboard-accessible disclosure', () => {
+        const full = 'y'.repeat(200);
+        const el = render({ status: 'ERROR', errorMessage: full });
+        const details = el.querySelector('.etl-liveness--error details')!;
+        expect(details).not.toBeNull();
+        expect(details.querySelector('summary')).not.toBeNull();
+        expect(details.querySelector('.etl-liveness__full')!.textContent).toContain(full);
+        expect(el.querySelector('.etl-liveness__detail')!.textContent).toContain('…');
+      });
+    });
+
     it('formatDuration – formats seconds as m:ss, dash for null/undefined', () => {
       expect(component.formatDuration(185)).toBe('3:05');
       expect(component.formatDuration(null)).toBe('—');

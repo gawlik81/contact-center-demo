@@ -431,7 +431,6 @@ class SocialMessageServiceImpl implements SocialMessageService {
                 .remoteAddress(incoming.senderExternalId())
                 .queuedAt(now)
                 .startedAt(now)
-                .createdAt(now)
                 .updatedAt(now)
                 .build();
 

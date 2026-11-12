@@ -152,7 +152,6 @@ class EmailContactCreator {
                 .queuedAt(now)
                 .startedAt(now)
                 .channelMetadata(channelMetadata)
-                .createdAt(now)
                 .updatedAt(now)
                 .build();
 
@@ -375,7 +374,6 @@ class EmailContactCreator {
                 .startedAt(now)
                 .endedAt(now)
                 .channelMetadata(channelMetadata)
-                .createdAt(now)
                 .updatedAt(now)
                 .build();
 
@@ -464,7 +462,6 @@ class EmailContactCreator {
                 .startedAt(now)
                 .endedAt(now)
                 .channelMetadata(channelMetadata)
-                .createdAt(now)
                 .updatedAt(now)
                 .build();
 

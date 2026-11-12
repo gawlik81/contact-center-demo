@@ -611,7 +611,8 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of etlStatuses(); track row.tableName) {
+            @for (view of etlRows(); track view.row.tableName) {
+              @let row = view.row;
               <tr class="data-row">
                 <td class="data-row__name">{{ row.tableName }}</td>
                 <td>{{ formatRelativePast(row.lastSyncedAt) }}</td>
@@ -643,6 +644,47 @@
                       }
                     }
                   </span>
+                  @if (view.liveness === 'stale') {
+                    <p class="etl-liveness etl-liveness--stale">
+                      <svg
+                        class="etl-liveness__icon"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"
+                        />
+                      </svg>
+                      <span class="etl-liveness__text">{{
+                        'admin.metrics.etlLivenessStale' | transloco: { minutes: view.staleMinutes }
+                      }}</span>
+                    </p>
+                  } @else if (view.liveness === 'error' && view.shortError) {
+                    <div class="etl-liveness etl-liveness--error">
+                      <svg
+                        class="etl-liveness__icon"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                        />
+                      </svg>
+                      <div class="etl-liveness__text">
+                        <span class="etl-liveness__detail">{{ view.shortError }}</span>
+                        @if (view.isTruncated) {
+                          <details class="etl-liveness__more">
+                            <summary>{{ 'admin.metrics.etlLivenessShowFull' | transloco }}</summary>
+                            <span class="etl-liveness__full">{{ view.fullError }}</span>
+                          </details>
+                        }
+                      </div>
+                    </div>
+                  }
                 </td>
               </tr>
             }

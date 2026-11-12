@@ -1294,7 +1294,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .transferredFromContactId(originalContactId)
           .queuedAt(now)
           .startedAt(now)
-          .createdAt(now)
           .updatedAt(now)
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
           .build();
@@ -1515,7 +1514,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .remoteAddress(customerAddress)
           .queuedAt(now)
           .startedAt(now)
-          .createdAt(now)
           .updatedAt(now)
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
           .transferredFromContactId(originalContactId)
@@ -2899,7 +2897,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .queuedAt(now)
             .startedAt(now)
             .channelMetadata(metadata)
-            .createdAt(now)
             .build();
 
         contactService.insertContact(contact);
@@ -2969,7 +2966,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .queuedAt(now)
             .startedAt(now)
             .channelMetadata(metadata)
-            .createdAt(now)
             .build();
 
         contactService.insertContact(contact);

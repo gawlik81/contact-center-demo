@@ -205,7 +205,6 @@ class ContactServiceImpl implements ContactService {
                 .startedAt(startedAt)
                 .channelMetadata(request.channelMetadata() != null
                         ? new HashMap<>(request.channelMetadata()) : new HashMap<>())
-                .createdAt(now)
                 .callbackId(request.callbackId())
                 .build();
 
@@ -1555,7 +1554,6 @@ class ContactServiceImpl implements ContactService {
                 .agentId(agentId)
                 .customerId(original.getCustomerId())
                 .queueId(original.getQueueId())
-                .createdAt(now)
                 .startedAt(now)
                 .assignedAt(now)
                 .queuedAt(now)

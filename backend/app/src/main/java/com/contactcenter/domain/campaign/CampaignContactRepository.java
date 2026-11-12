@@ -104,6 +104,12 @@ class CampaignContactRepository extends TenantAwareRepository {
 
     /**
      * Buduje SQL INSERT z odpowiednią klauzulą ON CONFLICT.
+     *
+     * <p>BE-222: {@code created_at} is stamped by the database with {@code clock_timestamp()} (never by the
+     * application clock): always >= the transaction's {@code xact_start} (ETL CDC guard) yet distinct per row, so
+     * the CSV order inside a chunk survives in {@code created_at} (dialer pick order, pagination). Rows of a JDBC
+     * batch are executed one by one, hence strictly increasing values. The upsert path sets {@code updated_at}
+     * explicitly ({@code NOW()} below; trigger V009 confirms it).
      */
     private String buildInsertSql(boolean skipDuplicates) {
         String baseInsert = """
@@ -111,7 +117,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                     (record_id, campaign_id, tenant_id, phone, first_name, last_name,
                      custom_fields, status, created_at)
                 VALUES
-                    (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, 'PENDING', ?)
+                    (gen_random_uuid(), ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, 'PENDING', clock_timestamp())
                 """;
 
         if (skipDuplicates) {
@@ -459,7 +465,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                 )
                   AND status IN ('PENDING', 'NO_ANSWER', 'FAILED')
                   AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-                ORDER BY campaign_id ASC, created_at ASC
+                ORDER BY campaign_id ASC, created_at ASC, record_id ASC
                 """;
 
         // Parametry: tenantId + wszystkie campaignId
@@ -561,7 +567,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
                       AND status = ?
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, record_id DESC
                     LIMIT ? OFFSET ?
                     """;
             selectParams.add(campaignId.toString());
@@ -575,7 +581,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
-                    ORDER BY created_at DESC
+                    ORDER BY created_at DESC, record_id DESC
                     LIMIT ? OFFSET ?
                     """;
             selectParams.add(campaignId.toString());

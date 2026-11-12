@@ -33,6 +33,14 @@ import {
  */
 const METRICS_POLL_INTERVAL_MS = 30_000;
 const ETL_LAG_WARNING_THRESHOLD_MINUTES = 30;
+/**
+ * Job liveness threshold: a table whose `lastRunAt` is older than this is "stale".
+ * Mirrors backend property `etl.sync.liveness-threshold-ms` (default 300000 ms = 5 min).
+ * Keep in sync manually — the API does not expose the threshold (FE-165, risk R1).
+ */
+const ETL_LIVENESS_THRESHOLD_MINUTES = 5;
+/** Max characters (code points) of `errorMessage` shown inline; the rest sits behind a disclosure. */
+const ETL_ERROR_MESSAGE_MAX_LENGTH = 120;
 
 type SortableField =
   | 'agentsOnline'
@@ -45,6 +53,16 @@ type SortDir = 'asc' | 'desc';
 type RangeOption = '7' | '30' | '90';
 type UtilizationTier = 'low' | 'mid' | 'high';
 type EtlVisualStatus = 'idle' | 'running' | 'done' | 'warning' | 'error';
+/** Job liveness, independent of data lag: `error` = status ERROR, `stale` = no recent run. */
+type EtlLiveness = 'ok' | 'error' | 'stale';
+interface EtlRowView {
+  row: EtlTableStatus;
+  liveness: EtlLiveness;
+  staleMinutes: number;
+  shortError: string;
+  fullError: string;
+  isTruncated: boolean;
+}
 
 /**
  * Maps the cosmetic day-range selector to the `weeks` param accepted by /growth.
@@ -463,6 +481,43 @@ export class AdminMetricsPageComponent implements OnInit {
     }
     return 'done';
   }
+
+  /**
+   * Job liveness (distinct from data lag). ERROR wins over stale. Not flagged: a table
+   * with no `lastRunAt` (never ran yet), an invalid or future date.
+   *
+   * RUNNING is never "stale": backend `last_run_at` is the cycle START
+   * (`SET status='RUNNING', last_run_at = NOW()`), so a long cycle would look stale, while
+   * backend liveness uses max(last_run_at, updated_at heartbeat) which the API does not
+   * expose. A server-side field (e.g. `stale` / `lastActivityAt`) would be the proper fix.
+   *
+   * Age uses the client clock (the API returns no server time); "now" refreshes with the
+   * 30 s polling because the view-model is recomputed whenever `etlStatuses` changes.
+   */
+  private etlLiveness(row: EtlTableStatus): { liveness: EtlLiveness; staleMinutes: number } {
+    if (row.status === 'ERROR') return { liveness: 'error', staleMinutes: 0 };
+    if (row.status === 'RUNNING' || !row.lastRunAt) return { liveness: 'ok', staleMinutes: 0 };
+    const ts = new Date(row.lastRunAt).getTime();
+    if (isNaN(ts)) return { liveness: 'ok', staleMinutes: 0 };
+    const ageMin = (Date.now() - ts) / 60000;
+    return ageMin > ETL_LIVENESS_THRESHOLD_MINUTES
+      ? { liveness: 'stale', staleMinutes: Math.floor(ageMin) }
+      : { liveness: 'ok', staleMinutes: 0 };
+  }
+
+  /** Per-row view-model for the ETL table (liveness + error text trimmed by code points). */
+  readonly etlRows = computed<EtlRowView[]>(() =>
+    this.etlStatuses().map((row) => {
+      const { liveness, staleMinutes } = this.etlLiveness(row);
+      const fullError = (row.errorMessage ?? '').trim();
+      const points = Array.from(fullError);
+      const isTruncated = points.length > ETL_ERROR_MESSAGE_MAX_LENGTH;
+      const shortError = isTruncated
+        ? `${points.slice(0, ETL_ERROR_MESSAGE_MAX_LENGTH).join('').trimEnd()}…`
+        : fullError;
+      return { row, liveness, staleMinutes, shortError, fullError, isTruncated };
+    }),
+  );
 
   formatDuration(seconds: number | null | undefined): string {
     if (seconds === null || seconds === undefined) return '—';

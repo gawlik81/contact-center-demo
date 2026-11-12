@@ -2908,6 +2908,8 @@
       "etlJustNow": "щойно",
       "etlMinutesAgo": "{{ count }} хв тому",
       "etlHoursAgo": "{{ count }} год тому",
+      "etlLivenessStale": "Немає запусків уже {{ minutes }} хв",
+      "etlLivenessShowFull": "Показати повне повідомлення",
       "tenantsRankingTitle": "Рейтинг тенантів",
       "tenantsRankingLabel": "Рейтинг тенантів з розширеними метриками",
       "colContactsToday": "Контакти сьогодні",

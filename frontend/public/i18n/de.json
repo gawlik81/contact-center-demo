@@ -2908,6 +2908,8 @@
       "etlJustNow": "gerade eben",
       "etlMinutesAgo": "vor {{ count }} Min.",
       "etlHoursAgo": "vor {{ count }} Std.",
+      "etlLivenessStale": "Kein Lauf seit {{ minutes }} Min.",
+      "etlLivenessShowFull": "Vollständige Meldung anzeigen",
       "tenantsRankingTitle": "Mandanten-Ranking",
       "tenantsRankingLabel": "Mandanten-Ranking mit erweiterten Metriken",
       "colContactsToday": "Kontakte heute",

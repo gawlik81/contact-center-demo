@@ -38,7 +38,9 @@ import java.util.UUID;
  * ({@code ContactRepository#update}) – oba omijają mechanizm JPA lifecycle callbacków.
  * Wszystkie pola (createdAt, startedAt, queuedAt, status, channelMetadata) muszą być
  * ustawiane explicite w warstwie serwisowej ({@code ContactService}) przed wywołaniem
- * metod repozytorium.
+ * metod repozytorium - z wyjątkiem {@code createdAt}/{@code updatedAt}: od BE-222 nadaje je baza
+ * ({@code NOW()} w transakcji zapisu), a {@code ContactRepository#insert} wpisuje je z powrotem do encji
+ * (wartość przekazana przez wołającego jest ignorowana; {@code updatedAt != null} oznacza „ustaw updated_at").
  */
 @Entity
 @Table(name = "contact")

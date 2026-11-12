@@ -3000,3 +3000,44 @@ Zakres: niezacommitowane zmiany na gałęzi `fix/etl-watermark-and-agent-presenc
 
 ### Summary
 **Rating: 3.5/5 ⭐** — **APPROVE WITH FIXES (po poprawce must-fix).** Kierunek jest właściwy i zgodny z decyzjami właściciela (backend jako źródło prawdy, `accept` przy parkowaniu poprawny względem BE-156, efekty Angulara bez pętli, pełny parytet i18n), ale lista nadmiaru stała się stanem lokalnym, który recovery nadal nadpisuje w całości, co przy współbieżnym przydziale gubi przyjęty kontakt, a obsługa 409 obiecuje odświeżenie, którego dla istniejących kart nie wykonuje.
+
+---
+
+## Review: FE-165 — wskaźnik żywotności ETL w panelu admin-metrics (`admin-metrics-page.component.{ts,html,scss,spec.ts}`, i18n pl/en/de/uk) — 2026-11-12
+
+### Zakres i weryfikacja
+- Przeczytano diff frontendu, ticket FE-165 oraz powiązane metody (`etlVisualStatus`, `formatRelativePast`, polling `timer(0, 30s)`). `prettier --check` dla zmienionych plików: zielony. Testów/lintu nie uruchamiano w tej recenzji.
+
+### must-fix
+_Brak._
+
+### should-fix
+1. **Testy nie dotykają szablonu.** Wszystkie nowe przypadki wołają metody komponentu; nic nie dowodzi, że w DOM: (a) ERROR ma pierwszeństwo przed stale, (b) ikona ma `aria-hidden`, (c) `title` jest ustawiony tylko dla ERROR z `errorMessage`, (d) wiersz `ok` nie renderuje `.etl-liveness`. Dodać 2–3 testy renderujące tabelę (ERROR z długim komunikatem, stale, ok).
+2. **Brakujące przypadki brzegowe w testach**, choć implementacja je obsługuje i ticket/opis je obiecuje: data z przyszłości (nie oznaczana), dokładnie 5:00 (`>` czyli ok) i 5:01 (stale), `RUNNING` + stary `lastRunAt`, `IDLE` + stary `lastRunAt`, komunikat dokładnie 120 znaków (bez `…`) i z samymi białymi znakami. Zależność od `vi.useFakeTimers()` z `createFixture` jest niejawna — `vi.setSystemTime` zadziała tylko dzięki temu; dopisać komentarz albo jawne `vi.useFakeTimers()` w `beforeEach` zagnieżdżonego `describe`.
+3. **Pełny `errorMessage` w `title` jest niedostępny dla klawiatury i czytników ekranu** (`title` na niefokusowalnym `<p>`; brak na dotyku). Skrócone 120 znaków jest widoczne, ale reszta tylko myszą. Opcje: (a) rozwijany `<details>`/przycisk "pokaż pełny komunikat", (b) fokusowalny element z `aria-describedby` wskazującym ukryty pełny tekst, (c) zostawić `title` i uznać 120 znaków za wystarczające (wtedy świadomie odnotować). Dodatkowo `title` jest ustawiany także gdy komunikat nie został skrócony — duplikuje treść (czytniki mogą czytać dwa razy); ustawiać tylko gdy `length > 120`.
+4. **Stale obok zielonego "Gotowe" (otwarty punkt z opisu) — jest mylące.** Przy `status = DONE`, lag 0 i `lastRunAt` sprzed 5–30 min badge pokazuje zielone "Gotowe", a pod nim czerwone "Zadanie nie działa". Dwa sprzeczne sygnały w jednej komórce. Rekomendacja: przy `liveness === 'stale'` nie pokazywać zielonego stanu "done" — albo zmienić badge na `warning` (jak przy lagu) z tekstem żywotności pod spodem, albo zmienić sformułowanie na neutralne ("Brak uruchomienia od {{ago}}"). Co najmniej: ustalić z właścicielem i opisać decyzję w tickecie. Analogicznie przy ERROR badge już mówi "Błąd", a linia powtarza "Zadanie zakończone błędem" — redundancja; wystarczyłby sam komunikat błędu.
+5. **Semantyka `lastRunAt` dla `RUNNING`.** Nie zweryfikowałem po stronie BE, czy `lastRunAt` jest ustawiane na starcie czy na końcu cyklu. Jeśli na końcu, długo trwający `RUNNING` (>5 min) będzie fałszywie "zastały". Potwierdzić z BE-212 (alert `JOB_STALE` stosuje ten sam warunek?) i ewentualnie nie flagować `RUNNING`.
+
+### nit
+1. **Odświeżanie "teraz":** `etlLiveness(row)` jest wywoływane w szablonie, ale komponent jest `OnPush`; przeliczenie następuje tylko przy zmianie sygnału `etlStatuses` (polling co 30 s, `set(data)` tworzy nowe tablice) lub zdarzeniu w komponencie. Opóźnienie flagi stale ≤ ~30 s — akceptowalne, zgodne z pollingiem. Przy błędzie pollingu dane i flaga zamarzają (to samo dotyczy reszty panelu). Czystsze rozwiązanie: `computed()` mapujące wiersze na view-model `{row, liveness, shortError}` zamiast trzech wywołań metod na wiersz przy każdym CD (tanie, ale konwencja projektu to signals/computed). Jeśli zostaje metoda, dopisać komentarz, że "teraz" odświeża się z pollingiem.
+2. **Kolor:** stale i error używają tego samego `--danger-text`. Stale to raczej ostrzeżenie — rozważyć token ostrzegawczy (`--warning-text`, jeśli istnieje) dla odróżnienia; nośnikiem poza kolorem są ikona (wykrzyknik vs zegar) i tekst, więc WCAG 1.4.1 spełnione. Fallback `var(--text-2, var(--danger-text))` zbędny — `--text-2` jest zdefiniowany globalnie w obu motywach. Wszystkie kolory to tokeny — OK.
+3. **Brak regionu live** dla zmiany stanu po pollingu (admin nie dostanie komunikatu czytnika o nowym błędzie ETL). Opcjonalnie `role="status"` na kontenerze listy — ale uwaga na hałas co 30 s; tylko przy zmianie stanu.
+4. **Obcięcie `slice` po jednostkach UTF-16** może przeciąć parę zastępczą (emoji w komunikacie). Marginalne; `Array.from(msg)` jeśli zależy.
+5. **Próg 5 min vs `formatRelativePast` (`Math.round`):** tuż po przekroczeniu progu tekst pokaże "5 min temu" — poprawne, ale mało informatywne; dla >24 h `formatRelativePast` używa na sztywno `'pl-PL'` (przedwcześnie istniejące, nie z tego ticketu) — dla de/en/uk format daty w polskim stylu.
+6. **Zegar klienta (R2):** przesunięcie zegara >5 min oznaczy wszystkie tabele jako stale naraz. Komentarz w kodzie to uczciwie opisuje; docelowo osobny mały ticket BE: pole `stale`/`livenessThresholdMs`/`serverTime` w `EtlTableStatus` (usuwa też drift stałej FE, R1). `export type EtlLiveness` jest eksportowany bez konsumenta zewnętrznego — można zdjąć `export`.
+7. **i18n:** pl/en/de/uk poprawne, diakrytyki zachowane, sformułowania neutralne rodzajowo (rzeczownik "zadanie"/"Job"/"Завдання"). Uwaga merytoryczna: "Zadanie nie działa" / "Job inaktiv" / "Завдання не виконується" sugerują twierdzenie o stanie, którego FE nie zna (wiemy tylko, że od >5 min nie było uruchomienia) — lepsze: "Brak uruchomienia zadania od …" / "Kein Joblauf seit …" / "Завдання не запускалося: …". Klucz `etlLivenessErrorTitle` dobrze osadza `message` w interpolacji (Transloco nie renderuje HTML w `title`). Sprawdzić, że istniejący test parytetu kluczy obejmuje 3 nowe klucze (ticket wymaga).
+
+### Zgodność z kryteriami akceptacji
+- ERROR pokazuje stan błędu + komunikat (obcięty, pełny w `title`): spełnione (z zastrzeżeniem a11y pkt should-fix 3).
+- `lastRunAt` > 5 min → stale; świeża tabela bez `lastRunAt` / nieprawidłowa / przyszła data → nieoznaczona: spełnione (przyszła data bez testu).
+- Brak regresji `lagMinutes` (null/0/>30): spełnione, test dodany (de facto test nieruszonej funkcji).
+- Klucze i18n w 4 językach, prettier zielony: spełnione; `npm test` i `lint` nie uruchamiano w recenzji.
+
+### ✅ Pozytywne
+- Czysta separacja: lag (badge, bez zmian) vs żywotność (osobna linia), ERROR ma pierwszeństwo przed stale, brak flagowania tabel bez `lastRunAt`/z niepoprawną datą (odporność na `NaN`).
+- Ikona `aria-hidden` + `focusable="false"`, informacja przenoszona tekstem; tylko tokeny kolorów; `overflow-wrap: anywhere` chroni układ przed długim komunikatem.
+- Stała progu z komentarzem o powiązaniu z `etl.sync.liveness-threshold-ms` i świadome odnotowanie ryzyk R1/R2 w kodzie.
+- `@let` + `@if` z nowej składni Angulara, standalone, OnPush zachowany.
+
+### Summary
+**Rating: 4/5 ⭐ — APPROVE (bez must-fix), z poprawkami should-fix.** Implementacja spełnia kryteria akceptacji i jest poprawna funkcjonalnie, ale testy nie obejmują szablonu ani przypadków brzegowych, pełny komunikat błędu jest niedostępny z klawiatury, a stale obok zielonego "Gotowe" wysyła sprzeczne sygnały.

@@ -590,9 +590,19 @@ Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfac
   (`etl.sync.open-transaction-guard-enabled`, default `true`). A row written by such a transaction has
   `effective_ts >= xact_start`, so the cursor cannot pass it before the commit, however long the
   transaction runs (e.g. a bulk update); it is delivered in the cycle after the commit. No schema change.
-  The window is subtracted from the guard as well, because some writers stamp the timestamp in Java just
-  before their transaction starts (campaign import `created_at`, `Contact` insert), i.e. slightly
-  earlier than `xact_start`; the campaign import itself already commits in short per-batch transactions.
+  Since BE-222 every *application* writer of the CDC tables stamps the timestamps in the database inside the
+  writing transaction: the `campaign_contact` import INSERT sets `created_at = clock_timestamp()` (always >=
+  `xact_start`, yet distinct per row, so the CSV order inside a 1000-row chunk survives for the dialer pick and
+  pagination; every ORDER BY on `created_at` also has a `record_id` tiebreaker); its `ON CONFLICT DO UPDATE`
+  path sets `updated_at = NOW()` explicitly (trigger V009 confirms it); `ContactRepository#insert` writes
+  `created_at` (and `updated_at` when the caller asks) as `NOW()` and reads them back with `RETURNING` into the
+  entity; all UPDATEs go through the V007/V009 triggers (`NEW.updated_at := NOW()`, overriding any value the
+  application sends). The guarantee `effective_ts >= xact_start` therefore holds for every such row,
+  independent of the safety window. Caveats: one-off migrations that copy old timestamps (V088 move from
+  `contact_default`) do not obey it, and the trigger guarantee is void while triggers are off
+  (`session_replication_role = replica`, `DISABLE TRIGGER`, as V137 does once for `campaign`). The window stays
+  subtracted from the guard as defence in depth (a future writer stamping the time in Java, manual SQL with an
+  explicit timestamp). The CDC keyset cursor orders by `(effective_ts, id)`, so ties stay deterministic.
   Limits: (1) any long-lived write transaction — even an unrelated one (retention purge, bulk
   maintenance) — holds the cursor back for its duration; the lag grows and `DATA_LAG` fires after 30 min
   (its WARN log names the blocking backend: pid, state, `application_name`, `xact_start`). A connection

@@ -916,6 +916,62 @@ class EtlSyncServiceImplIntegrationTest {
     }
 
     @Test
+    @DisplayName("BE-222 (kontrakt PG, nie kod repozytorium): wiersz ze znacznikiem z bazy w transakcji dluzszej niz okno - dostarczony w kolejnym cyklu; kod repozytorium: CampaignContactDbTimestampsIntegrationTest")
+    void dbStampedImportLongerThanWindow_deliveredWithoutRelyingOnTheWindow() throws Exception {
+        saveMarkers();
+        cdcCampaign = UUID.randomUUID();
+        UUID tenantId = PostgresTestDatabase.insertTenant(jdbc, "Tenant BE-222 cc " + cdcTenant);
+        jdbc.update("INSERT INTO campaign (campaign_id, tenant_id, name) VALUES (?, ?, 'Kampania BE-222')",
+                cdcCampaign, tenantId);
+        setMarker("campaign_contact", Instant.now().minusSeconds(3600));
+        List<UUID> written = new CopyOnWriteArrayList<>();
+        DataWarehouseWriter recording = new DataWarehouseWriter() {
+            public void upsert(List<ContactDwRow> rows) { }
+            public void upsertCampaigns(List<CampaignDwRow> rows) {
+                rows.stream().filter(r -> cdcCampaign.equals(r.campaignId())).forEach(r -> written.add(r.recordId()));
+            }
+            public void upsertAgentDim(List<AgentDimRow> rows) { }
+            public void upsertQueueDim(List<QueueDimRow> rows) { }
+        };
+        EtlSyncServiceImpl local = etl(recording, true);
+        ReflectionTestUtils.setField(local, "safetyWindowMs", 300L); // short window; the transaction outlives it
+        UUID imported = UUID.randomUUID();
+
+        try (Connection tx = pool.getConnection()) {
+            tx.setAutoCommit(false);
+            // the same statement shape as CampaignContactRepository#buildInsertSql after BE-222: no created_at
+            try (PreparedStatement ps = tx.prepareStatement("""
+                    INSERT INTO campaign_contact (record_id, campaign_id, tenant_id, phone, first_name, status)
+                    VALUES (?, ?, ?, '+48500222100', 'Jan', 'PENDING')
+                    """)) {
+                ps.setObject(1, imported);
+                ps.setObject(2, cdcCampaign);
+                ps.setObject(3, tenantId);
+                ps.executeUpdate();
+            }
+            Instant t0 = transactionStart(tx);
+            try (Statement st = tx.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT created_at, xact_start FROM campaign_contact, "
+                         + "pg_stat_activity WHERE record_id = '" + imported + "' AND pid = pg_backend_pid()")) {
+                rs.next();
+                assertThat(rs.getTimestamp(1).toInstant()).as("row timestamp >= xact_start of the writing transaction")
+                        .isAfterOrEqualTo(rs.getTimestamp(2).toInstant());
+            }
+            jdbc.execute("SELECT pg_sleep(0.6)"); // the transaction is now longer than the safety window
+
+            local.syncCampaignContactTable();
+            assertThat(written).as("not delivered while the transaction is open").isEmpty();
+            assertThat(marker("campaign_contact")).as("the cursor is held at the open transaction's start")
+                    .isBeforeOrEqualTo(t0);
+            tx.commit();
+        }
+
+        local.syncCampaignContactTable();
+
+        assertThat(written).containsExactly(imported);
+    }
+
+    @Test
     @DisplayName("BE-216 (b): pg_stat_activity maskuje sesje INNYCH rol (xact_start/backend_xid = NULL) bez pg_read_all_stats; sesje tej samej roli sa widoczne; start aplikacji ostrzega")
     void pgStatActivityVisibility_otherRolesMaskedUnlessPgReadAllStats() throws Exception {
         String role = "etl_probe_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);

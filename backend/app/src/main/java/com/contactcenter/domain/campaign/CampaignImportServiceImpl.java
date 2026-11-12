@@ -25,7 +25,6 @@ import java.io.InputStreamReader;
 import java.io.PushbackReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -889,7 +888,8 @@ class CampaignImportServiceImpl implements CampaignImportService {
      * Buduje tablicę parametrów dla batch INSERT.
      *
      * <p>Kolejność parametrów: campaign_id, tenant_id, phone, first_name, last_name,
-     * custom_fields (JSON), created_at.
+     * custom_fields (JSON). {@code created_at} is deliberately NOT supplied: the repository INSERT stamps it
+     * in the database with {@code clock_timestamp()} (BE-222), never with the Java clock.
      */
     private Object[] buildRow(UUID campaignId, UUID tenantId, CsvRow csvRow) {
         String customFieldsJson = toJson(csvRow.customFields());
@@ -899,8 +899,7 @@ class CampaignImportServiceImpl implements CampaignImportService {
                 csvRow.phone(),
                 csvRow.firstName(),
                 csvRow.lastName(),
-                customFieldsJson,
-                Timestamp.from(Instant.now())
+                customFieldsJson
         };
     }
 

@@ -425,7 +425,7 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
                   AND tenant_id = ?::uuid
                   AND status IN ('PENDING', 'NO_ANSWER')
                   AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-                ORDER BY created_at ASC
+                ORDER BY created_at ASC, record_id ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
                 """,

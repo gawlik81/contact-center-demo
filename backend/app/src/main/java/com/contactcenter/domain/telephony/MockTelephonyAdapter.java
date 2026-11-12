@@ -633,7 +633,6 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .queuedAt(now)
                     .startedAt(now)
                     .channelMetadata(metadata)
-                    .createdAt(now)
                     .build();
 
             contactService.insertContact(contact);

@@ -418,8 +418,20 @@ class ContactRepository extends TenantAwareRepository {
    * {@code contact_channel}, {@code contact_direction}, {@code contact_status} – te typy
    * nie istnieją po V025 i spowodowałyby błąd {@code type does not exist}.
    *
+   * <p><strong>BE-222:</strong> {@code created_at} (and {@code updated_at}, when the caller expects it to be
+   * set) are stamped by the database ({@code NOW()} = start of the writing transaction), NOT taken from the
+   * entity: a Java {@code Instant.now()} taken before the transaction would be earlier than its
+   * {@code xact_start} and weaken the ETL CDC guard (oldest open write transaction). The values the database
+   * chose are read back with {@code RETURNING} and written into the passed entity, so callers reading
+   * {@code getCreatedAt()} after the insert never see a stale / null value. {@code updated_at} is
+   * {@code NOW()} when the entity carries a non-null {@code updatedAt}, otherwise it stays {@code NULL}
+   * (as before; an explicit, bound flag - not text templating). {@code NOW()} (not {@code clock_timestamp()}) is
+   * deliberate here: a single row has no intra-batch ordering concern, and {@code created_at == updated_at} stays
+   * exact. The ordered bulk path ({@code campaign_contact} import) uses {@code clock_timestamp()} instead.
+   * Other time columns (started_at, queued_at, ...) are business data and stay application-supplied.
+   *
    * @param contact encja kontaktu do zapisu (contactId musi być ustawiony)
-   * @return przekazana encja (trigger oblicza duration_seconds przy UPDATE)
+   * @return przekazana encja z uzupełnionymi {@code createdAt}/{@code updatedAt} (trigger oblicza duration_seconds przy UPDATE)
    */
   @Transactional
   public Contact insert(Contact contact) {
@@ -429,7 +441,11 @@ class ContactRepository extends TenantAwareRepository {
     log.info("[ContactRepo] Tworzenie kontaktu: tenant={}, channel={}, direction={}",
         contact.getTenantId(), contact.getChannel(), contact.getDirection());
 
-    em.createNativeQuery("""
+    // Explicit rule: updated_at is stamped only when the caller marked the entity with a non-null updatedAt.
+    boolean stampUpdatedAt = contact.getUpdatedAt() != null;
+
+    @SuppressWarnings("unchecked")
+    List<Object[]> stamped = em.createNativeQuery("""
             INSERT INTO contact (
                 contact_id, tenant_id, customer_id, agent_id, queue_id, campaign_id,
                 channel, direction, status, remote_address,
@@ -457,13 +473,15 @@ class ContactRepository extends TenantAwareRepository {
                 :notes,
                 :recordingUrl,
                 CAST(:channelMetadata AS jsonb),
-                :createdAt,
-                :updatedAt,
+                NOW(),
+                CASE WHEN CAST(:stampUpdatedAt AS boolean) THEN NOW() END,
                 CAST(:callbackId AS uuid),
                 CAST(:transferredFromContactId AS uuid),
                 CAST(:campaignContactRecordId AS uuid)
             )
+            RETURNING created_at, updated_at
             """)
+        .setParameter("stampUpdatedAt", stampUpdatedAt)
         .setParameter("contactId", contact.getContactId().toString())
         .setParameter("tenantId", contact.getTenantId().toString())
         .setParameter("customerId", uuidToString(contact.getCustomerId()))
@@ -483,12 +501,14 @@ class ContactRepository extends TenantAwareRepository {
         .setParameter("notes", contact.getNotes())
         .setParameter("recordingUrl", contact.getRecordingUrl())
         .setParameter("channelMetadata", channelMetadataToJson(contact.getChannelMetadata()))
-        .setParameter("createdAt", contact.getCreatedAt())
-        .setParameter("updatedAt", contact.getUpdatedAt())
         .setParameter("callbackId", uuidToString(contact.getCallbackId()))
         .setParameter("transferredFromContactId", uuidToString(contact.getTransferredFromContactId()))
         .setParameter("campaignContactRecordId", uuidToString(contact.getCampaignContactRecordId()))
-        .executeUpdate();
+        .getResultList();
+
+    Object[] row = stamped.get(0);
+    contact.setCreatedAt(toInstant(row[0]));
+    contact.setUpdatedAt(row[1] != null ? toInstant(row[1]) : null);
 
     log.info("[ContactRepo] Kontakt utworzony: contactId={}, tenant={}",
         contact.getContactId(), contact.getTenantId());
@@ -848,7 +868,7 @@ class ContactRepository extends TenantAwareRepository {
     List<Object[]> rows = query.getResultList();
 
     List<ContactPurgeCandidate> candidates = rows.stream()
-        .map(row -> new ContactPurgeCandidate(toPurgeUuid(row[0]), toPurgeInstant(row[1])))
+        .map(row -> new ContactPurgeCandidate(toPurgeUuid(row[0]), toInstant(row[1])))
         .toList();
 
     log.debug("[ContactRepo] Strona kandydatów do purge (z usuwaniem wiadomości): tenant={}, cutoff={}, "
@@ -928,9 +948,15 @@ class ContactRepository extends TenantAwareRepository {
     return value instanceof UUID uuid ? uuid : UUID.fromString(value.toString());
   }
 
-  /** Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania (BE-126). */
-  private static Instant toPurgeInstant(Object value) {
-    return value instanceof java.sql.Timestamp ts ? ts.toInstant() : (Instant) value;
+  /** Konwersja wartości kolumny {@code timestamptz} z natywnego zapytania (BE-126, BE-222). */
+  private static Instant toInstant(Object value) {
+    if (value instanceof java.sql.Timestamp ts) {
+      return ts.toInstant();
+    }
+    if (value instanceof java.time.OffsetDateTime odt) {
+      return odt.toInstant();
+    }
+    return (Instant) value;
   }
 
   /**

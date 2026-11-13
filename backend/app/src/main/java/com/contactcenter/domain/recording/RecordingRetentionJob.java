@@ -8,6 +8,7 @@ import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -60,6 +61,12 @@ class RecordingRetentionJob {
     /** Maksymalna liczba rekordów przetwarzanych w jednym batchu per tenant. */
     private static final int BATCH_SIZE = 100;
 
+    /** Maks. liczba stron kandydatów EML-only (BE-196) na tenanta w jednym przebiegu (ogranicza czas jobu). */
+    private static final int MAX_EML_BATCHES = 20;
+
+    /** Po tylu KOLEJNYCH stronach zakończonych wyłącznie błędami job uznaje to za awarię S3 i przerywa tenanta. */
+    private static final int MAX_CONSECUTIVE_FAILED_EML_BATCHES = 3;
+
     private final RecordingService recordingService;
     private final ContactService contactService;
     private final RetentionPolicyService retentionPolicyService;
@@ -85,6 +92,7 @@ class RecordingRetentionJob {
      * <p>W trybie DEV możliwe jest nadpisanie przez {@code @Scheduled(cron = "${s3.retention-cron}")}.
      * Nie oznaczamy {@code @Transactional} – każda operacja S3 + DB jest osobną jednostką pracy.
      */
+    @SchedulerLock(name = "RecordingRetentionJob_runRetentionJob", lockAtMostFor = "PT2H", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${s3.retention-cron:0 0 2 * * *}", zone = "UTC")
     public void runRetentionJob() {
         log.info("[RetentionJob] Start retencji nagrań (per-tenant, BE-116).");
@@ -94,8 +102,10 @@ class RecordingRetentionJob {
 
         try {
             // Krok 1: pobierz listę tenantów z nagraniami
-            List<UUID> tenants = contactService.findTenantsWithRecordings();
-            log.info("[RetentionJob] Znaleziono {} tenantów z nagraniami do sprawdzenia", tenants.size());
+            // Tenanci z nagraniami (recording_url) + tenanci z EML odpowiedzi bez nagrania (BE-196).
+            java.util.Set<UUID> tenants = new java.util.LinkedHashSet<>(contactService.findTenantsWithRecordings());
+            tenants.addAll(emailMessageService.findTenantIdsWithEml());
+            log.info("[RetentionJob] Znaleziono {} tenantów z nagraniami lub EML do sprawdzenia", tenants.size());
 
             // Krok 2: przetwarzaj każdy tenant osobno – granica czasowa liczona INDYWIDUALNIE,
             // na podstawie jego własnej polityki retencji RECORDINGS (nie globalnej wartości).
@@ -177,6 +187,12 @@ class RecordingRetentionJob {
                 }
             }
 
+            // BE-196: EMAIL contacts WITHOUT recording_url (first message's EML never generated) whose replies have
+            // their own EML - the recording-driven selection above never reaches them.
+            int[] emlOnly = purgeEmlOnlyContacts(tenantId, cutoffTimestamp);
+            deleted += emlOnly[0];
+            errors  += emlOnly[1];
+
         } catch (Exception e) {
             log.error("[RetentionJob] Błąd przetwarzania tenanta {}: {}", tenantId, e.getMessage(), e);
             errors++;
@@ -187,6 +203,52 @@ class RecordingRetentionJob {
         }
 
         return new int[]{ deleted, errors };
+    }
+
+    /**
+     * BE-196: sprząta EML odpowiedzi kontaktów EMAIL bez {@code recording_url}. Kandydaci:
+     * {@link EmailMessageService#findContactIdsWithExpiredEml} (ta sama granica retencji co nagrania), stronicowani
+     * keysetem po {@code contact_id}: pętla po stronach, maks. {@link #MAX_EML_BATCHES} na tenanta na przebieg.
+     * Keyset gwarantuje postęp - trwale wadliwy kontakt zostaje ominięty przez kolejną stronę i nie zjada limitu.
+     * Pętla kończy się też przy pustej/niepełnej stronie albo po {@link #MAX_CONSECUTIVE_FAILED_EML_BATCHES}
+     * kolejnych stronach zakończonych wyłącznie błędami (awaria S3 - nie młócimy dalej). Obiekt S3 jest usuwany idempotentnie (brak obiektu = sukces), potem
+     * {@code eml_s3_key = NULL}; porażka S3 nie zeruje klucza, więc kontakt wraca w kolejnym przebiegu.
+     *
+     * @return [liczbaKontaktówZUsuniętymiEML, liczbaBłędów]
+     */
+    private int[] purgeEmlOnlyContacts(UUID tenantId, Instant cutoffTimestamp) {
+        int processed = 0;
+        int errors = 0;
+        UUID after = null;
+        int failedInARow = 0;
+        for (int batchNo = 0; batchNo < MAX_EML_BATCHES; batchNo++) {
+            List<UUID> contactIds = emailMessageService.findContactIdsWithExpiredEml(
+                    tenantId, cutoffTimestamp, after, BATCH_SIZE);
+            log.debug("[RetentionJob] Tenant {}: strona {} - {} kontaktów EMAIL bez nagrania z wygasłymi EML",
+                    tenantId, batchNo, contactIds.size());
+            if (contactIds.isEmpty()) {
+                break;
+            }
+            int batchErrors = 0;
+            for (UUID contactId : contactIds) {
+                try {
+                    if (emailMessageService.deleteEmlObjectsByContact(tenantId, contactId) > 0) {
+                        processed++;
+                    }
+                } catch (Exception e) {
+                    log.error("[RetentionJob] Błąd usuwania EML odpowiedzi contactId={}: {}",
+                            contactId, e.getMessage(), e);
+                    errors++;
+                    batchErrors++;
+                }
+            }
+            after = contactIds.get(contactIds.size() - 1);
+            failedInARow = batchErrors == contactIds.size() ? failedInARow + 1 : 0;
+            if (contactIds.size() < BATCH_SIZE || failedInARow >= MAX_CONSECUTIVE_FAILED_EML_BATCHES) {
+                break;
+            }
+        }
+        return new int[]{ processed, errors };
     }
 
     /**

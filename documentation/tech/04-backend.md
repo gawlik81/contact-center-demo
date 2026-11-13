@@ -1183,6 +1183,153 @@ Błędy audytu nie przerywają operacji biznesowej (logowane jako WARN/ERROR).
 Encje z `@Version` (np. `Campaign`, `Queue`) – konflikt równoczesnej edycji →
 `ObjectOptimisticLockingFailureException` → HTTP 409 (klient odświeża i ponawia).
 
+### 4.6 Zadania cykliczne i blokady rozproszone (ShedLock, BE-171/BE-172)
+
+Przy więcej niż jednej instancji backendu każda metoda `@Scheduled` uruchomiłaby się na każdej instancji.
+Joby singletonowe są serializowane przez **ShedLock** (`shedlock-spring` + `shedlock-provider-jdbc-template`,
+wersja w property `shedlock.version` w `backend/pom.xml`), tabela platformowa `shedlock` (migracja V149, bez RLS i
+`tenant_id`, GRANT DML dla `app_user`).
+
+> **Bramka wdrożeniowa (twarda): więcej niż 1 replika backendu dopiero po BE-175 (broker WebSocket współdzielony)
+> i BE-179 (stan lokalny cache).** WebSocket używa dziś wbudowanego `SimpleBroker` w pamięci JVM
+> (`WebSocketConfig`, `enableSimpleBroker`): zdarzenie opublikowane na jednej replice trafia tylko do sesji
+> podłączonych do TEJ repliki. Przed ShedLock każda replika publikowała do własnych subskrybentów (poprawnie); po
+> ShedLock publikuje tylko zwycięzca blokady, więc sesje na pozostałych replikach przestają dostawać zdarzenia.
+> Joby publikujące WS bezpośrednio przez `SimpleBroker` i objęte tą bramką: `SupervisorMetricsService#broadcastMetrics`
+> (metryki RT - supervisorzy na replice-przegranej nie dostają ich wcale), `WaitTimeEstimationServiceImpl#broadcastWaitTimeUpdates`
+> (EWT + lokalny `lastKnownAgentCounts`, BE-179) oraz `ContactAssignmentMonitor#checkStaleAssignments` (ponowne
+> `CONTACT_ASSIGNED` do agenta, którego sesja WS jest na innej replice, nie dotrze, a licznik prób w Redis rośnie ->
+> reset kontaktu do QUEUED mimo żywej sesji). Pośrednio (zdarzenie przez RabbitMQ do konsumenta WS, który też
+> wypuszcza je przez własny `SimpleBroker`): `AgentBreakActivator`, `AgentPresenceSweeper`. Do czasu BE-175/BE-179
+> produkcja i compose zostają przy JEDNEJ instancji.
+
+**Konfiguracja** (`infrastructure/config/ShedLockConfig.java`):
+
+- `JdbcTemplateLockProvider` z `usingDbTime()` - czas blokady liczy zegar bazy (UTC), więc rozjazd zegarów instancji nie
+  skraca ani nie wydłuża blokady. Kolumny `shedlock.lock_until/locked_at` są celowo `TIMESTAMP` bez strefy
+  (provider zapisuje `timezone('utc', CURRENT_TIMESTAMP)`) - nie zmieniać typów.
+- `@EnableSchedulerLock(interceptMode = PROXY_METHOD, order = HIGHEST_PRECEDENCE, proxyTargetClass = true)`:
+  advisor AOP wokół metody z `@SchedulerLock`, **najbardziej zewnętrzny** (blokada przed otwarciem `@Transactional`
+  joba; provider sam używa `REQUIRES_NEW`). Skutek uboczny `PROXY_METHOD`: **bezpośrednie wywołanie metody z
+  `@SchedulerLock` na beanie Springa też jest blokowane** (pominięte, gdy blokada jest trzymana lub trwa
+  `lockAtLeastFor`); na obiekcie z `new` (testy jednostkowe) blokady nie ma. Testy integracyjne wołające joby przez
+  beana muszą to uwzględnić (czyścić `DELETE FROM shedlock WHERE name LIKE ...`).
+- Bean `LockingTaskExecutor` do blokad programowych (polling e-mail per skrzynka).
+- Scheduling w testach: pełny kontekst `@SpringBootTest` nie jest dziś uruchamiany (`ContactCenterApplicationIT` nie
+  jest wykonywany przez surefire); testy jobów budują małe konteksty (`ShedLockTestInstance`) z prawdziwym
+  providerem i `@EnableScheduling`. Profil `test` nie wyłącza schedulingu - nie ma potrzeby, bo nie ładuje całej aplikacji.
+
+**Konwencja nazw:** `<Klasa>_<metoda>` (kolumna `name` to VARCHAR(64)); wyjątek: `EmailPolling_pollInbox_<tenantId>`
+(59 znaków). Test `SchedulerLockCoverageTest` pilnuje konwencji, unikalności, `lockAtLeastFor <= lockAtMostFor` i tego,
+że KAŻDA metoda `@Scheduled` ma blokadę albo wpis na liście wyjątków i wiersz w tabeli poniżej.
+
+**Dobór `lockAtMostFor` / `lockAtLeastFor`:**
+
+- `lockAtMostFor` to bezpiecznik na wypadek padniętej instancji, a nie limit czasu pracy: musi być dłuższy niż realny
+  maksymalny przebieg (inaczej drugi węzeł wejdzie w trakcie), ale nie tak długi, by po awarii joby długo stały.
+  Joby cron (raz dziennie): `atMost` 30 min - 2 h; krótkie interwały: 2-3x interwał, ETL i polling e-mail dłużej
+  (cykl ETL to do 100 tys. wierszy, IMAP + S3 trwa minuty).
+- `lockAtLeastFor` ogranicza częstotliwość między instancjami (dwie instancje w przesuniętych fazach nie dadzą 2x na
+  interwał) i chroni cron przed rozjazdem zegarów JVM między węzłami (cron liczy zegar JVM, blokada zegar bazy; węzeł z zegarem +2 min odpaliłby job po wygaśnięciu krótkiego `atLeast` jeszcze raz) - dla cronów dziennych **10 min**, bo przy jednym przebiegu na dobę nic to nie kosztuje. **Przy `fixedDelay` nie może zablokować
+  własnego następnego przebiegu:** kolejny start tej samej instancji następuje po `interwał + czas pracy`, więc
+  `lockAtLeastFor < interwał` jest bezpieczne. Przyjęto **~0,8x interwału** (a nie 0,5x z tickietu): przy 0,5x dwie
+  instancje w przeciwfazie wykonują job co 0,5 interwału (2x na interwał), przy 0,8x co >= 0,8 interwału; margines 0,2
+  absorbuje różnicę zegara JVM vs baza. `lockAtLeastFor == interwał` jest NIEbezpieczne (job o czasie pracy bliskim 0
+  i zegar bazy przed zegarem JVM -> instancja pominęłaby własny przebieg). Dla `fixedRate` (SupervisorMetrics, 5 s)
+  przyjęto 3 s.
+- Interwał ETL ma jedną nazwę env **`ETL_SYNC_FIXED_DELAY_MS`** (`etl.sync.fixed-delay-ms`); stara nazwa `ETL_SYNC_DELAY_MS` działa jako fallback (`${ETL_SYNC_FIXED_DELAY_MS:${ETL_SYNC_DELAY_MS:60000}}` w `application.yml`, `-dev`, `-prod`). Test `SchedulerLockCoverageTest#lockAtLeastForIsBelowTheInterval` sprawdza, że dla domyślnych interwałów (profile base/dev/prod) `lockAtLeastFor < interwał`.
+- Wartości dla interwałów konfigurowalnych idą przez placeholdery z domyślnymi (`${shedlock.etl.at-most-for:PT10M}`
+  itd.; klucze w tabeli). **Obniżenie interwału joba (env/property) poniżej domyślnego WYMAGA obniżenia odpowiedniego `shedlock.<job>.at-least-for` (np. `SHEDLOCK_ETL_AT_LEAST_FOR`) - inaczej blokada po cichu spowolni job do kadencji `at-least`; nie ma automatycznej walidacji dla wartości z env, tylko dla domyślnych** (np. dev:
+  `agent.breaks.activator.interval-ms=10000` ma `shedlock.break-activator.at-least-for=PT8S` w `application-dev.yml`);
+  podwyższenie interwału nie wymaga zmian.
+- Wygaśnięcie blokady w trakcie przebiegu nie zwalnia z idempotencji (kolumna „Idempotencja" poniżej).
+  `unlock()` wykonuje `... WHERE name = ? AND locked_by = ?`, więc instancja z wygasłą blokadą NIE zwolni blokady
+  przejętej przez inny węzeł, o ile `locked_by` obu jest różne: stąd `locked_by = host:pid:uuid` (uuid na start JVM;
+  domyślny hostname nie odróżniałby dwóch JVM na jednym hoście). `lockAtMostFor` nadal ma być zapasowe, a nie robocze.
+- Cron raz dziennie + awaria instancji w trakcie przebiegu = przebieg tego dnia przepada (inne instancje już go
+  pominęły); nadrabia go następny dzień. Bez ShedLock każda instancja wykonałaby job - tu świadomie wybieramy
+  pojedynczy przebieg.
+- Rolling deploy: instancje starej wersji (bez ShedLock) nie biorą blokad - w oknie wdrożenia joby mogą wykonać się
+  podwójnie; przed wdrożeniem V149 musi być zastosowana.
+
+**Klasyfikacja WSZYSTKICH metod `@Scheduled`** (weryfikacja: `grep -rnE '^\s*@Scheduled\b' backend/app/src/main` = 24 wiersze
+tabeli). S = singleton globalny (ShedLock), I = per instancja (bez blokady, świadomie), T = shardowalny per
+tenant/kampania/kolejka (BE-173). Podsumowanie: **S = 22, I = 0, T = 2**.
+
+| # | Metoda | Harmonogram | Kl. | Blokada / klucze property | atMost / atLeast | Idempotencja przy wygaśnięciu blokady w trakcie przebiegu | Stan |
+|---|--------|-------------|-----|---------------------------|------------------|-----------------------------------------------------------|------|
+| 1 | `RecordingRetentionJob#runRetentionJob` | cron 02:00 UTC | S | `RecordingRetentionJob_runRetentionJob` | PT2H / PT10M | Usuwanie nagrań po progu: drugi przebieg nie znajdzie już wyczyszczonych `recording_url`; DELETE obiektu S3 idempotentny | zrealizowane (BE-171) |
+| 2 | `RefreshTokenCleanupJob#run` | cron 03:30 UTC | S | `RefreshTokenCleanupJob_run` | PT30M / PT10M | Pojedynczy `DELETE ... WHERE wygasły/odwołany` - bezpieczny | zrealizowane (BE-171) |
+| 3 | `PendingAttachmentSweepJob#runSweep` | cron 02:30 UTC | S | `PendingAttachmentSweepJob_runSweep` | PT1H / PT10M | Re-sprawdza referencje przed usunięciem, DELETE S3 idempotentny; domyślnie dry-run | zrealizowane (BE-171) |
+| 4 | `CampaignArchiveJob#run` | cron 04:00 UTC | S | `CampaignArchiveJob_run` | PT1H / PT10M | Funkcja SQL `archive_completed_campaign_contacts()` idempotentna (V015); job domyślnie wyłączony. Odczyt `cron_log` „najnowszy wpis" patrz `CampaignArchiveJobRepository` | zrealizowane (BE-171) |
+| 5 | `PartitionReclaimJob#runReclaimJob` | cron niedz. 03:00 UTC | S | `PartitionReclaimJob_runReclaimJob` | PT1H / PT10M | `DROP TABLE IF EXISTS` + strażnik niepustych partycji (BE-145) | zrealizowane (BE-171) |
+| 6 | `RetentionEvaluationJob#runEvaluationJob` | cron 01:00 UTC | S | `RetentionEvaluationJob_runEvaluationJob` | PT2H / PT10M | Cutoffy liczone na nowo, DELETE-y po cutoffie idempotentne; brak własnej serializacji (tylko `retention_purge_log` RUNNING) - drugi przebieg dubluje co najwyżej wpisy logu, nie dane. Uwaga: auto-purge startuje przez `purgeAsync` (`@Async`) i PRZEŻYWA blokadę (zwalniana po powrocie z `runForAllActiveTenants`); ochroną przed równoległym purge jest własna serializacja EPIC-30, nie ShedLock | zrealizowane (BE-171) |
+| 7 | `PartitionMaintenanceJob#ensureFuturePartitions` | cron 00:30 UTC | S | `PartitionMaintenanceJob_ensureFuturePartitions` | PT30M / PT10M | Funkcje `create_*_partition` z `IF NOT EXISTS` | zrealizowane (BE-171) |
+| 8 | `EtlSyncServiceImpl#runContactSync` | fixedDelay `etl.sync.fixed-delay-ms` (60 s) | S | `EtlSyncServiceImpl_runContactSync`; `shedlock.etl.at-most-for` / `.at-least-for` | PT10M / PT48S | Upsert DW po kluczu (ON CONFLICT / ReplacingMergeTree), znacznik przesuwany monotonicznie (BE-213) - drugi przebieg czyta te same batche, nie duplikuje i nie cofa znacznika (test `EtlSyncShedLockIntegrationTest`). ClickHouse: `argMax` po `updated_at = now()` zakłada jednego writera - wygaśnięcie blokady = chwilowo dwóch (dług S6 niżej). Ręczny trigger (`POST /api/admin/etl/trigger`) bierze TĘ SAMĄ blokadę (`EtlSyncService.LOCK_CONTACT_SYNC`, `lockAtLeastFor=0`) i przy zajętej zwraca 409 `ETL_SYNC_IN_PROGRESS` | zrealizowane (BE-172) |
+| 9 | `EtlSyncServiceImpl#runCampaignContactSync` | j.w. | S | `EtlSyncServiceImpl_runCampaignContactSync`; klucze j.w. | PT10M / PT48S | j.w. | zrealizowane (BE-172) |
+| 10 | `EtlSyncServiceImpl#runAgentDimSync` | j.w. | S | `EtlSyncServiceImpl_runAgentDimSync`; klucze j.w. | PT10M / PT48S | Pełny snapshot wymiaru, ReplacingMergeTree(snapshot_at) - idempotentny | zrealizowane (BE-172) |
+| 11 | `EtlSyncServiceImpl#runQueueDimSync` | j.w. | S | `EtlSyncServiceImpl_runQueueDimSync`; klucze j.w. | PT10M / PT48S | j.w. | zrealizowane (BE-172) |
+| 12 | `EtlSyncServiceImpl#checkJobLiveness` | fixedDelay `etl.sync.liveness-check-interval-ms` (60 s) | S | `EtlSyncServiceImpl_checkJobLiveness`; `shedlock.etl-liveness.at-most-for` / `.at-least-for` | PT3M / PT48S | Czysty odczyt + alert; duplikat alertu tłumi cooldown Redis (BE-214) | zrealizowane (BE-172) |
+| 13 | `EmailPollingServiceImpl#pollAllTenants` | fixedDelay `email.poll-delay-ms` (60 s) | S | programowo, per skrzynka: `EmailPolling_pollInbox_<tenantId>` (`LockingTaskExecutor`) | max(3x interwał, 5 min) / 0,8x interwał | Deduplikacja po `Message-ID` pod advisory lockiem (BE-134) - wygaśnięcie blokady nie tworzy duplikatów; wyjątek: wiadomość BEZ nagłówka `Message-ID` mogłaby zostać zapisana dwa razy | zrealizowane (BE-172) |
+| 14 | `SocialIntegrationServiceImpl#refreshExpiringTokens` | fixedDelay 1 h | S | `SocialIntegrationServiceImpl_refreshExpiringTokens` | PT2H / PT45M | Podwójna wymiana tokenu: ostatni zapis wygrywa, dodatkowy wpis audytu; ryzyko niskie | zrealizowane (BE-172) |
+| 15 | `ScheduledCallbackExecutor#executeScheduledCallbacks` | fixedDelay `dialer.callback-executor.interval-ms` (60 s) | S | `ScheduledCallbackExecutor_executeScheduledCallbacks`; `shedlock.callback-executor.*` | PT3M / PT48S | Atomowe `PENDING -> PROCESSING` (`updateStatusIfPending`) - drugi węzeł dostaje 0 zmienionych wierszy | zrealizowane (BE-172) |
+| 16 | `DialerCallbackHandlerImpl#checkRingTimeouts` | fixedDelay `dialer.ring-timeout-check-interval-ms` (5 s) | S | `DialerCallbackHandlerImpl_checkRingTimeouts`; `shedlock.ring-timeout.*` | PT30S / PT4S | Redis `GETDEL` na `dialer:call:{callSid}` - tylko jeden wykonawca przetwarza połączenie | zrealizowane (BE-172) |
+| 17 | `CampaignWindowActivator#activateScheduledCampaigns` | fixedDelay `campaign.window-activator.interval-ms` (60 s) | S | `CampaignWindowActivator_activateScheduledCampaigns`; `shedlock.window-activator.*` | PT3M / PT48S | `SCHEDULED -> RUNNING` ustawia tę samą wartość; wyścig z ręczną zmianą statusu - ostatni zapis wygrywa (ryzyko niskie) | zrealizowane (BE-172) |
+| 18 | `ContactAssignmentMonitor#checkStaleAssignments` | fixedDelay 10 s | S | `ContactAssignmentMonitor_checkStaleAssignments` | PT30S / PT8S | Licznik prób w Redis (`cc:assign-retry:*`) - bez blokady dwie instancje liczą 2x szybciej i dublują `CONTACT_ASSIGNED`; reset do QUEUED warunkowy (`resetAssignmentIfAssigned`, BE-159) | zrealizowane (BE-172) |
+| 19 | `AgentBreakActivator#activateAndCompleteBreaks` | fixedDelay `agent.breaks.activator.interval-ms` (30 s; dev 10 s, prod 60 s) | S | `AgentBreakActivator_activateAndCompleteBreaks`; `shedlock.break-activator.*` | PT90S / PT24S (dev PT30S / PT8S) | `UPDATE ... RETURNING` zwraca przerwy tylko raz; zmiana statusu agenta warunkowa (`changeAgentStatusIfBreak`) | zrealizowane (BE-172) |
+| 20 | `SupervisorMetricsService#broadcastMetrics` | fixedRate 5 s | S | `SupervisorMetricsService_broadcastMetrics` | PT15S / PT3S | Tylko odczyt + publikacja WS; podwójny przebieg = zdublowany event (odbiorca nadpisuje stan). Jedna instancja publikuje; po BE-175 broker dostarczy zdarzenie wszystkim sesjom | zrealizowane (BE-172) |
+| 21 | `WaitTimeEstimationServiceImpl#broadcastWaitTimeUpdates` | fixedDelay 30 s (initialDelay 5 s) | S | `WaitTimeEstimationServiceImpl_broadcastWaitTimeUpdates` | PT90S / PT24S | Odczyt + `SET` statystyk w Redis (ostatni wygrywa) + WS - bezpieczne. **Stan lokalny:** `lastKnownAgentCounts` (cache JVM używany przez `getQueueStats`) odświeża tylko instancja, która wygrała blokadę - na pozostałych `getQueueStats` zwróci 0 agentów do czasu BE-179 (przeniesienie do Redis) | zrealizowane (BE-172); dług: BE-179 |
+| 22 | `AgentPresenceSweeper#scheduledSweep` | fixedDelay `agent.presence.sweep-interval-ms` (30 s) | S | `AgentPresenceSweeper_scheduledSweep`; `shedlock.presence-sweeper.*` | PT90S / PT24S | Compare-and-set `markOfflineOnPresenceTimeout` - dwie instancje dają najwyżej jedno przejście i jedno zdarzenie. Przebieg startowy (`onApplicationReady`) świadomie NIE jest blokowany (per instancja, własny `startedAt`) | zrealizowane (BE-172) |
+| 23 | `ProgressiveDialerServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak (BE-173) | - | Dziś chroni Redis `SET NX` per agent (`initiateDialForAgent`) | do BE-173 |
+| 24 | `RoutingServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak (BE-173) | - | Przydział warunkowy (BE-159); koalescencja przebiegów per tenant jest w pamięci JVM, nie między replikami | do BE-173 |
+
+Klasa **I** jest pusta: żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (jedyny taki przypadek to
+przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). Inne mechanizmy czasowe poza
+`@Scheduled`: timeouty DTMF IVR (`taskScheduler.schedule` per rozmowa, stan w pamięci JVM - BE-177).
+
+**Decyzje (BE-172):**
+
+- **Polling e-mail - blokada per skrzynka, nie globalna.** Pętla już iteruje po tenantach, a skrzynka IMAP należy do
+  tenanta (jedna na tenanta), więc `tenantId` == skrzynka. Blokada globalna zserializowałaby cały polling na jednej
+  instancji; per tenant dwie instancje dzielą się skrzynkami (kto pierwszy, ten bierze). `TenantContext` jest ustawiany
+  i czyszczony wewnątrz blokady, na tym samym wątku schedulera.
+- **`EtlSyncServiceImpl.readAndLockSyncState` - martwy `@Transactional` usunięty, nie „naprawiony".** Adnotacja na
+  metodzie package-private wołanej self-invocation nigdy nie działała, więc `SELECT ... FOR UPDATE` szedł w autocommit
+  i blokada wiersza zwalniała się od razu. Zamiast otwierać transakcję na cały cykl (do 100 tys. wierszy + zapisy do DW,
+  heartbeat i znacznik aktualizują ten sam wiersz) wzajemne wykluczanie przejął ShedLock na `run*Sync`; z metody usunięto
+  `@Transactional` i `FOR UPDATE`, a komentarze mówią, że `RUNNING` to tylko stan dla liveness (BE-212).
+- **Single-writer ClickHouse (BE-215).** Blokada per metoda `run*Sync` daje jednego writera na tabelę (kontakty i
+  `campaign_contact` mogą pracować równolegle na różnych instancjach - różne tabele DW). Okno dwóch writerów:
+  wygaśnięcie blokady w trakcie cyklu (stąd zapas `PT10M`). **Ręczny trigger** `POST /api/admin/etl/trigger`
+  (tylko tabela `contact`) przechodzi przez `LockingTaskExecutor` z tą samą nazwą blokady co zaplanowany cykl
+  (`lockAtLeastFor=0`); gdy blokada zajęta (cykl trwa tu lub na innej instancji) odpowiedź to **409 Conflict**
+  (`ProblemDetail`, `code=ETL_SYNC_IN_PROGRESS`), więc trigger nie jest już drugim writerem.
+- **Monitory (`ContactAssignmentMonitor`, `AgentBreakActivator`, `WaitTimeEstimationServiceImpl`) - S.** Pierwszy ma
+  semantykę „raz na interwał" opartą o licznik w Redis (bez blokady liczy 2x szybciej), drugi jest bezpieczny dzięki
+  `UPDATE ... RETURNING`, ale daje podwójną pracę, trzeci publikuje zdarzenia WS i zapis Redis (stan lokalny: BE-179).
+  `TenantContext` w jobach wielotenantowych: ShedLock wykonuje zadanie inline na wątku schedulera (brak granicy wątków),
+  więc obowiązuje istniejący wzorzec `setTenantId(...)` + `clear()` w `finally` per tenant/rekord - bez
+  snapshot/restore (te służą przekraczaniu wątków, `@Async`/`CompletableFuture`).
+
+**Otwarte kwestie / dług:**
+
+1. **ClickHouse `argMax` vs dwóch writerów (S6, dług jawny).** Widoki BE-215 deduplikują po `updated_at`, które
+   `ClickHouseDwWriter` ustawia jako `Instant.now()` w chwili zapisu. Gdy `lockAtMostFor` wygaśnie w trakcie cyklu i
+   drugi węzeł zapisze nowszą wersję wiersza przed wolniejszym pierwszym, starsza wersja zapisana później wygra
+   `argMax`. Zapas `PT10M`, monotoniczny znacznik i idempotentne upserty zmniejszają, ale nie eliminują ryzyka; test
+   `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na PostgreSQL (`ON CONFLICT`), NIE semantyki `argMax`
+   ClickHouse. Do rozważenia w osobnym tickecie: `updated_at` w DW z kolumny źródłowej zamiast `now()`
+   albo `KeepAliveLockProvider` dla ETL. Wpis także w `dw/README.md`.
+2. `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` - BE-179. Joby klasy T (dialer/routing) - BE-173.
+3. **Brak metryki/alertu „job pominięty, bo blokada trzymana" i „blokada przejęta po wygaśnięciu".** Przy
+   `throwUnexpectedException=false` (domyślnie) awaria DB przy zakładaniu blokady jest tylko logiem ERROR providera,
+   a job po prostu nie startuje na żadnej instancji. Licznik Micrometer wymagałby własnego wrappera nad
+   `LockProvider` - świadomie odłożone (dług).
+4. Skan `SchedulerLockCoverageTest` nie widzi schedulingu programowego (`taskScheduler.schedule`,
+   `SchedulingConfigurer`, np. IVR DTMF) - tylko adnotacji `@Scheduled`.
+5. Dowód startu pełnego kontekstu na dev/prod: patrz raport/PROGRESS (S8) - `ContactCenterApplicationIT` nie jest
+   wykonywany przez surefire.
+
 ---
 
 ## 5. Integracje zewnętrzne

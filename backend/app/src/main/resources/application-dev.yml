@@ -196,7 +196,7 @@ etl:
     type: ${ETL_DW_TYPE:postgres}
   sync:
     # Interwał ETL w ms – 60s domyślnie (nadpisywalne przez ENV)
-    fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
+    fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:${ETL_SYNC_DELAY_MS:60000}}
 
 # =============================================================================
 # Agent Breaks Activator – DEV: krótszy interwał (10s) dla wygody testowania
@@ -206,3 +206,10 @@ agent:
     activator:
       enabled: ${AGENT_BREAKS_ACTIVATOR_ENABLED:true}
       interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:10000}
+
+# BE-172: ShedLock dla AgentBreakActivator - lockAtLeastFor musi byc < interwalu (10 s w dev), inaczej blokada
+# spowolni job do cadence lockAtLeastFor. Pozostale joby: domyslne wartosci inline w @SchedulerLock.
+shedlock:
+  break-activator:
+    at-most-for: PT30S
+    at-least-for: PT8S

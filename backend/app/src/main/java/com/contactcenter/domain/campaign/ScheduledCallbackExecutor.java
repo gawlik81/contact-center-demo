@@ -10,6 +10,7 @@ import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -72,6 +73,9 @@ class ScheduledCallbackExecutor {
      * <p>fixedDelay gwarantuje, że kolejny cykl rozpoczyna się dopiero po zakończeniu
      * poprzedniego (w odróżnieniu od fixedRate, które może nakładać cykle przy wolnej DB).
      */
+    @SchedulerLock(name = "ScheduledCallbackExecutor_executeScheduledCallbacks",
+            lockAtMostFor = "${shedlock.callback-executor.at-most-for:PT3M}",
+            lockAtLeastFor = "${shedlock.callback-executor.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${dialer.callback-executor.interval-ms:60000}")
     public void executeScheduledCallbacks() {
         log.debug("[CallbackExecutor] Rozpoczynam cykl oddzwonień");

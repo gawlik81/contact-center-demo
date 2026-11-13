@@ -51,6 +51,8 @@
         <flyway.version>10.20.1</flyway.version>
         <jjwt.version>0.12.6</jjwt.version>
         <aws.sdk.version>2.28.29</aws.sdk.version>
+        <!-- BE-171: rozproszone blokady jobow @Scheduled (JDBC LockProvider na tabeli shedlock, V149) -->
+        <shedlock.version>6.10.0</shedlock.version>
     </properties>
 
     <!-- ===================================================================

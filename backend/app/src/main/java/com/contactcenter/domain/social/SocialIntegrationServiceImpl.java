@@ -7,6 +7,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -247,6 +248,9 @@ class SocialIntegrationServiceImpl implements SocialIntegrationService {
      * <p>WhatsApp: tokeny nie wygasają – pomijane (tokenExpiresAt = null).
      * Facebook / Instagram: wykonywane long-lived token exchange przez Graph API.
      */
+    @SchedulerLock(name = "SocialIntegrationServiceImpl_refreshExpiringTokens",
+            lockAtMostFor = "PT2H",
+            lockAtLeastFor = "PT45M")
     @Scheduled(fixedDelay = 3_600_000)
     public void refreshExpiringTokens() {
         Instant threshold = Instant.now().plus(REFRESH_THRESHOLD_HOURS, ChronoUnit.HOURS);

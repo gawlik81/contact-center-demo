@@ -6,6 +6,7 @@ import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -88,6 +89,7 @@ class PendingAttachmentSweepJob {
      * Uruchamiany codziennie o 02:30 UTC (po {@code RecordingRetentionJob}, 02:00 UTC) — godzina
      * małej aktywności. Nadpisywalne przez {@code email.attachments.pending-sweep-cron} (DEV/testy).
      */
+    @SchedulerLock(name = "PendingAttachmentSweepJob_runSweep", lockAtMostFor = "PT1H", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${email.attachments.pending-sweep-cron:0 30 2 * * *}", zone = "UTC")
     public void runSweep() {
         List<Tenant> tenants = tenantService.getAllTenants();

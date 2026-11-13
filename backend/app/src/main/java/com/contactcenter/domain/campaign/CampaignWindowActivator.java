@@ -5,6 +5,7 @@ import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +47,9 @@ class CampaignWindowActivator {
      * <p>fixedDelay gwarantuje, że kolejny cykl rozpoczyna się dopiero po zakończeniu
      * poprzedniego (eliminuje ryzyko nakładania cykli przy wolnej bazie).
      */
+    @SchedulerLock(name = "CampaignWindowActivator_activateScheduledCampaigns",
+            lockAtMostFor = "${shedlock.window-activator.at-most-for:PT3M}",
+            lockAtLeastFor = "${shedlock.window-activator.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${campaign.window-activator.interval-ms:60000}")
     public void activateScheduledCampaigns() {
         log.debug("[CampaignWindowActivator] Rozpoczynam cykl aktywacji kampanii SCHEDULED");

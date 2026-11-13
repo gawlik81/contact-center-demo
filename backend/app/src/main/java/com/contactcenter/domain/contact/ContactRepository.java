@@ -2081,8 +2081,12 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Pobiera wszystkie tenantId, które posiadają kontakty z nagraniami.
    *
+   * <p>Od BE-196 job retencji łączy tę listę z {@code EmailMessageService#findTenantIdsWithEml()} (tenanci z EML
+   * odpowiedzi bez nagrania).
+   *
    * <p><strong>WYŁĄCZNIE DLA SCHEDULED JOB ({@code RecordingRetentionJob}) – POMIJA RLS.</strong>
-   * Metoda celowo nie wywołuje {@code setTenantContextInDb()} – zwraca dane wszystkich tenantów.
+   * Metoda celowo nie wywołuje {@code setTenantContextInDb()} – zwraca dane wszystkich tenantów (wymaga roli
+   * połączenia omijającej RLS, jak w produkcji).
    * Jeśli zostanie wywołana przez pomyłkę ze ścieżki HTTP, ujawni dane cross-tenant.
    *
    * <p>Asercja w metodzie wymusza brak aktywnego TenantContext – jeśli kontekst HTTP jest
@@ -2120,7 +2124,14 @@ class ContactRepository extends TenantAwareRepository {
   // =========================================================================
 
   /**
-   * Zlicza aktywne/w toku kontakty tenanta (status QUEUED, ACTIVE lub ON_HOLD).
+   * Zlicza aktywne/w toku kontakty tenanta (BE-224: {@link OccupiedSlot#IN_PROGRESS_STATUSES_SQL} =
+   * QUEUED, ASSIGNED, ACTIVE, ON_HOLD).
+   *
+   * <p>Semantyka: licznik "kontaktow zywych w tenancie" dla paneli administratora
+   * ({@code TenantDetailMetrics.activeContacts}, {@code totalActiveContacts}) - NIE obciazenie agenta
+   * (to {@link OccupiedSlot#AGENT_LOAD_STATUSES_SQL}, wymaga filtra {@code agent_id}) i NIE slot async
+   * ({@link OccupiedSlot#STATUSES_SQL}, pomija QUEUED). Kontakt ASSIGNED (zroutowany, dzwoni, jeszcze
+   * nieprzyjety) jest zywy, wiec jest liczony; nie jest to limit tenanta (wywolujacy tylko wyswietlaja wynik).
    *
    * <p>Wywoływana per tenant (jawny {@code tenantId}) – ustawia kontekst RLS przed zapytaniem,
    * bezpieczna do wywołania w pętli po wielu tenantach (wzorzec analogiczny do
@@ -2140,8 +2151,8 @@ class ContactRepository extends TenantAwareRepository {
     Number count = (Number) em.createNativeQuery("""
             SELECT COUNT(*) FROM contact
             WHERE tenant_id = CAST(:tenantId AS uuid)
-              AND status IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
-            """)
+              AND status IN (%s)
+            """.formatted(OccupiedSlot.IN_PROGRESS_STATUSES_SQL))
         .setParameter("tenantId", tenantId.toString())
         .getSingleResult();
 
@@ -2576,6 +2587,8 @@ class ContactRepository extends TenantAwareRepository {
         tenantId, senderExternalId, channel);
 
     @SuppressWarnings("unchecked")
+    // BE-224: the status literal below is deliberate, NOT OccupiedSlot.IN_PROGRESS_STATUSES_SQL - it means "open
+    // conversation of this sender" (follow-up matching), a different meaning with the same members today.
     List<Contact> results = em.createNativeQuery(
             """
                 SELECT * FROM contact
@@ -2624,6 +2637,8 @@ class ContactRepository extends TenantAwareRepository {
     Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
     setTenantContextInDb(tenantId);
 
+    // BE-224: the status literal below is deliberate, NOT OccupiedSlot.IN_PROGRESS_STATUSES_SQL - it means "open
+    // conversation of this sender" (follow-up matching), a different meaning with the same members today.
     List<?> rows = em.createNativeQuery(
             """
                 SELECT 1 FROM contact

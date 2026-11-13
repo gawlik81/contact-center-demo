@@ -67,7 +67,8 @@ class EmailPollingServiceTest {
                 encryptionService,
                 attachmentStorageService,
                 new ObjectMapper(),
-                org.mockito.Mockito.mock(EmailFollowUpJoiner.class)
+                org.mockito.Mockito.mock(EmailFollowUpJoiner.class),
+                com.contactcenter.support.NoOpLockProvider.executor()
         );
     }
 

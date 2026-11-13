@@ -3,6 +3,7 @@ package com.contactcenter.domain.etl;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -52,15 +53,15 @@ class EtlSyncServiceImpl implements EtlSyncService {
     /** BE-214: Redis key prefix of the alert cooldown slots: {@code etl:alert:{table}:{alertType}}. */
     static final String ALERT_KEY_PREFIX = "etl:alert:";
 
-    // SQL: pobierz stan sync dla danej tabeli
+    // SQL: pobierz stan sync dla danej tabeli. Bez FOR UPDATE (BE-172): wywolanie idzie w autocommit, wiec blokada
+    // wiersza zwalnialaby sie natychmiast - wzajemne wykluczanie cykli zapewnia ShedLock na metodach run*Sync.
     private static final String SELECT_SYNC_STATE = """
             SELECT last_synced_at, status
             FROM etl_sync_state
             WHERE table_name = ?
-            FOR UPDATE
             """;
 
-    // SQL: oznacz tabelę jako RUNNING
+    // SQL: oznacz tabelę jako RUNNING (znacznik stanu/heartbeat dla BE-212, NIE mechanizm blokady)
     private static final String UPDATE_RUNNING = """
             UPDATE etl_sync_state
             SET status = 'RUNNING', last_run_at = NOW(), updated_at = NOW()
@@ -400,6 +401,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * <p>Wątek scheduler nie ma TenantContext – poprawne, bo zapytania są cross-tenant
      * i nie używają RLS.
      */
+    @SchedulerLock(name = EtlSyncService.LOCK_CONTACT_SYNC,
+            lockAtMostFor = "${shedlock.etl.at-most-for:PT10M}",
+            lockAtLeastFor = "${shedlock.etl.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")
     public void runContactSync() {
         log.debug("[ETL] Start cyklu synchronizacji tabeli contact");
@@ -413,6 +417,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * Wymagany wpis {@code campaign_contact} w tabeli {@code etl_sync_state}
      * (tworzony przez migrację V045).
      */
+    @SchedulerLock(name = "EtlSyncServiceImpl_runCampaignContactSync",
+            lockAtMostFor = "${shedlock.etl.at-most-for:PT10M}",
+            lockAtLeastFor = "${shedlock.etl.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")
     public void runCampaignContactSync() {
         log.debug("[ETL] Start cyklu synchronizacji tabeli campaign_contact");
@@ -426,6 +433,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * ReplacingMergeTree(snapshot_at) w ClickHouse zapewnia, że najnowszy snapshot
      * zastępuje poprzedni per agent.
      */
+    @SchedulerLock(name = "EtlSyncServiceImpl_runAgentDimSync",
+            lockAtMostFor = "${shedlock.etl.at-most-for:PT10M}",
+            lockAtLeastFor = "${shedlock.etl.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")
     public void runAgentDimSync() {
         log.debug("[ETL] Start cyklu synchronizacji agent_dim");
@@ -439,6 +449,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * ReplacingMergeTree(snapshot_at) w ClickHouse zapewnia, że najnowszy snapshot
      * zastępuje poprzedni per kolejkę.
      */
+    @SchedulerLock(name = "EtlSyncServiceImpl_runQueueDimSync",
+            lockAtMostFor = "${shedlock.etl.at-most-for:PT10M}",
+            lockAtLeastFor = "${shedlock.etl.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")
     public void runQueueDimSync() {
         log.debug("[ETL] Start cyklu synchronizacji queue_dim");
@@ -449,6 +462,9 @@ class EtlSyncServiceImpl implements EtlSyncService {
      * BE-212: lightweight liveness check, independent of the table jobs themselves (so it also fires when a
      * table job is stuck inside {@code syncTable}). Reads only {@code etl_sync_state}.
      */
+    @SchedulerLock(name = "EtlSyncServiceImpl_checkJobLiveness",
+            lockAtMostFor = "${shedlock.etl-liveness.at-most-for:PT3M}",
+            lockAtLeastFor = "${shedlock.etl-liveness.at-least-for:PT48S}")
     @Scheduled(fixedDelayString = "${etl.sync.liveness-check-interval-ms:60000}")
     public void checkJobLiveness() {
         try {
@@ -486,7 +502,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
     public void syncTable(String tableName) {
         Instant syncStartedAt = Instant.now();
 
-        // Krok 1: Odczyt last_synced_at z blokadą (FOR UPDATE zapobiega równoległym rundom)
+        // Krok 1: Odczyt last_synced_at i oznaczenie RUNNING (równoległe rundy wyklucza ShedLock, BE-172)
         Instant lastSyncedAt = readAndLockSyncState(tableName);
         if (lastSyncedAt == null) {
             log.warn("[ETL] Brak wpisu etl_sync_state dla tabeli '{}' – pomijam", tableName);
@@ -659,19 +675,33 @@ class EtlSyncServiceImpl implements EtlSyncService {
     // =========================================================================
 
     /**
-     * Pobiera i blokuje stan sync dla tabeli, oznacza jako RUNNING.
+     * Reads the sync state of a table and marks it RUNNING.
      *
-     * @param tableName nazwa tabeli
-     * @return last_synced_at lub null gdy brak wpisu
+     * <p><strong>This is NOT a lock (BE-172).</strong> Until BE-172 the method carried {@code @Transactional} and the
+     * SQL {@code SELECT ... FOR UPDATE}, but the annotation was dead (package-private method called by
+     * self-invocation, so it never went through the transaction proxy) and the row lock was released at once in
+     * autocommit - two instances could read the same marker. The annotation and the misleading {@code FOR UPDATE}
+     * were removed instead of "fixed" by a transaction around the whole cycle, because a cycle (up to
+     * {@code max-batches-per-cycle} x {@code fetch-limit} rows plus the DW writes) must not hold a database
+     * transaction/row lock open, and the heartbeat/marker updates of the same row would have to share it.
+     *
+     * <p>Mutual exclusion of the cycles is provided by ShedLock on the scheduled entry points
+     * ({@code EtlSyncServiceImpl_runContactSync} and the other {@code run*Sync} methods, shared table {@code shedlock}):
+     * at most one instance runs a given table's cycle at a time. {@code RUNNING} is only the BE-212 liveness
+     * state. Residual risks are listed in {@code documentation/tech/04-backend.md} (lock expiry mid-cycle is
+     * safe thanks to the monotonic marker, BE-213, and idempotent DW upserts; the manual admin trigger
+     * {@code EtlSyncService#syncTable} is not covered by the lock).
+     *
+     * @param tableName table name
+     * @return last_synced_at or null when there is no entry
      */
-    @Transactional
     Instant readAndLockSyncState(String tableName) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(SELECT_SYNC_STATE, tableName);
         if (rows.isEmpty()) {
             return null;
         }
 
-        // Oznaczamy RUNNING natychmiast – blokuje równoległe uruchomienia
+        // RUNNING = stan do liveness (BE-212); wzajemne wykluczanie cykli zapewnia ShedLock, nie ten UPDATE
         jdbcTemplate.update(UPDATE_RUNNING, tableName);
 
         Timestamp ts = (Timestamp) rows.get(0).get("last_synced_at");

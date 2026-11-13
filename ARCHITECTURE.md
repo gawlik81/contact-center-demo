@@ -579,8 +579,9 @@ Sync status/lag is tracked per table in `etl_sync_state` (PostgreSQL) and surfac
   failure = fail-open (alert sent, WARN logged); a failed slot delete (recovery) only delays the next
   alert for that state until the TTL; `0` disables the cooldown. Accepted behaviour: a job flapping
   `ERROR`/`DONE` alerts on every new `ERROR` (each one follows a real recovery), i.e. at most one alert per
-  cycle per table — the pre-BE-214 rate, never worse — so no extra "last sent" spacing key is kept. The `[ETL][ALERT]` WARN log is written on every check; payload contract unchanged. Known gap:
-  ShedLock on the ETL jobs (BE-172).
+  cycle per table — the pre-BE-214 rate, never worse — so no extra "last sent" spacing key is kept. The `[ETL][ALERT]` WARN log is written on every check; payload contract unchanged. Cross-instance
+  exclusion of the ETL cycles is provided by ShedLock (BE-172, see §8.6); the cooldown above remains the guard against
+  duplicate alerts.
 - **CDC cursor** (BE-213): the watermark is derived only from rows actually fetched and written
   (no table-wide `MAX`). `runCdcLoop` pages with a keyset cursor `(effective_ts, id)` up to
   `etl.sync.max-batches-per-cycle` × `etl.sync.fetch-limit` rows per cycle; after a full batch the
@@ -1191,6 +1192,18 @@ inactive backstops. Design: `DESIGN-message-retention-and-partitioning.md`.
 All `@Scheduled` jobs that touch tenant-scoped data must follow the `TenantContext.snapshot()`/
 `restore()`/`clear()` pattern documented in `CLAUDE.md` and `documentation/tech/04-backend.md`,
 since `@Scheduled` methods run outside the normal request thread and filter chain.
+
+**Deployment gate: more than one backend replica only after BE-175 (shared WebSocket broker) and BE-179.** WebSocket uses the in-memory `SimpleBroker`; with ShedLock only the lock winner publishes, so sessions on other replicas would miss the events of `SupervisorMetricsService` (metrics), `WaitTimeEstimationServiceImpl` (EWT) and `ContactAssignmentMonitor` (repeated `CONTACT_ASSIGNED`; the retry counter would still grow and reset the contact to QUEUED despite a live session), and indirectly of `AgentBreakActivator`/`AgentPresenceSweeper` status events. Production and compose stay at ONE instance until then.
+
+**Distributed locks (ShedLock, BE-171/BE-172).** Every `@Scheduled` method runs on every backend instance, so with
+more than one replica the singleton jobs are serialized through the platform table `shedlock` (V149, no RLS, no
+`tenant_id`) using `@SchedulerLock` (Spring AOP advisor around the method, DB-clock based `usingDbTime()`; configuration
+in `infrastructure/config/ShedLockConfig`). All 24 `@Scheduled` methods are classified as S (singleton, ShedLock), I
+(per instance) or T (shardable per tenant/campaign/queue, BE-173): 22 are S, 2 are T (dialer/routing agent polling,
+still unlocked until BE-173), none is I. Lock names follow `<Class>_<method>`; e-mail polling takes one lock per tenant
+mailbox (`EmailPolling_pollInbox_<tenantId>`). `lockAtMostFor` is a crash safety net, not a run-time limit, so every
+job must stay idempotent when a lock expires mid-run; `lockAtLeastFor` caps the cross-instance cadence and must stay below the job interval (~0.75-0.8x for short intervals; 10 min for the daily crons, to absorb JVM clock skew between nodes). Details, per-job values and the idempotency audit:
+`documentation/tech/04-backend.md` §4.6. The manual ETL trigger takes the same lock as the scheduled contact cycle (409 `ETL_SYNC_IN_PROGRESS` when busy). Known limits: a lock that expires mid-cycle can briefly allow two ClickHouse writers (`argMax` by write time, tracked as debt); instance-local state read by other instances (`WaitTimeEstimationServiceImpl`) is tracked in BE-179.
 
 ---
 

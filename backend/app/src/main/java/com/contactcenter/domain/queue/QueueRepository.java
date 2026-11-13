@@ -1,5 +1,6 @@
 package com.contactcenter.domain.queue;
 
+import com.contactcenter.domain.contact.OccupiedSlot;
 import com.contactcenter.domain.repository.TenantAwareRepository;
 
 import com.contactcenter.api.PagedResponse;
@@ -211,8 +212,10 @@ class QueueRepository extends TenantAwareRepository {
     /**
      * Sprawdza czy w kolejce istnieją aktywne kontakty.
      *
-     * <p>Aktywne statusy kontaktów: QUEUED, ACTIVE, ON_HOLD.
-     * Używane przy próbie usunięcia (deaktywacji) kolejki.
+     * <p>Aktywne statusy kontaktów (BE-224): {@link OccupiedSlot#IN_PROGRESS_STATUSES_SQL} =
+     * QUEUED, ASSIGNED, ACTIVE, ON_HOLD. Używane jako guard przy próbie usunięcia (deaktywacji) kolejki:
+     * kontakt ASSIGNED (zroutowany do agenta, jeszcze nieprzyjęty) jest żywy i zniknąłby razem z kolejką,
+     * więc musi blokować usunięcie - to semantyka "żywych kontaktów kolejki", nie obciążenia agenta.
      *
      * @param queueId  UUID kolejki
      * @param tenantId UUID tenanta
@@ -226,8 +229,8 @@ class QueueRepository extends TenantAwareRepository {
                 SELECT COUNT(*) FROM contact
                 WHERE queue_id  = CAST(:queueId AS uuid)
                   AND tenant_id = CAST(:tenantId AS uuid)
-                  AND status    IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
-                """)
+                  AND status    IN (%s)
+                """.formatted(OccupiedSlot.IN_PROGRESS_STATUSES_SQL))
                 .setParameter("queueId", queueId.toString())
                 .setParameter("tenantId", tenantId.toString())
                 .getSingleResult();

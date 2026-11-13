@@ -232,4 +232,20 @@ public interface EmailMessageService {
      *                                  wczesniej sa juz wyzerowane; pozostale zostaja do ponowienia)
      */
     int deleteEmlObjectsByContact(UUID tenantId, UUID contactId);
+
+    /**
+     * BE-196: one keyset page (ascending {@code contact_id}, strictly after {@code afterContactId}; {@code null} =
+     * first page) of ended EMAIL contacts without {@code recording_url} that still own EML objects of their messages
+     * (retention horizon {@code contact.ended_at < cutoff}, message partitions pruned by {@code message_at < cutoff}).
+     * Candidates for {@link #deleteEmlObjectsByContact} in {@code RecordingRetentionJob}.
+     *
+     * @throws com.contactcenter.domain.exception.CrossTenantAccessException gdy tenantId != kontekst
+     */
+    List<UUID> findContactIdsWithExpiredEml(UUID tenantId, Instant cutoff, UUID afterContactId, int limit);
+
+    /**
+     * BE-196: tenants with at least one live EML key. CROSS-TENANT, scheduled job only (RLS-bypassing role, no
+     * active TenantContext) - same model as {@code ContactService#findTenantsWithRecordings}.
+     */
+    List<UUID> findTenantIdsWithEml();
 }

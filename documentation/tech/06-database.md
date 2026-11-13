@@ -514,6 +514,8 @@ agenci `AVAILABLE`, `is_deleted=FALSE`, `queue.is_active=TRUE`; aplikacja dofilt
 | `social_integration` | `integration_id` (UUID) | Konfiguracja kont social media per tenant (`FACEBOOK/INSTAGRAM/WHATSAPP`). `access_token_encrypted BYTEA` (AES-256). `UNIQUE(tenant_id, platform, page_id)`. RLS DML policies dodane w V041. |
 | `social_message` | `message_id` (UUID) | Wiadomości social media, `contact_id` (FK do contact), `external_message_id` – idempotentność webhooków (`UNIQUE(tenant_id, external_message_id)`). **Partycjonowana RANGE po `sent_at`, miesięcznie (V100, DB-065)**; RLS jak `email_message` (V099); brak obiektów S3. |
 
+**Indeks EML (V150, BE-196/BE-224):** `idx_email_message_eml_contact` – `(tenant_id, contact_id, message_at) WHERE eml_s3_key IS NOT NULL`, na rodzicu partycjonowanym (propaguje się na istniejące i przyszłe partycje, `create_email_message_partition` bez zmian; potomne nazywają się `email_message_YYYY_MM_tenant_id_contact_id_message_at_idx`). Obsługuje `EmailMessageRepository.EXPIRED_EML_CONTACTS_SQL` (keyset po `contact_id`, `message_at < cutoff` sprawdzane w indeksie bez wizyty w heap) i `findTenantIdsWithEml` (pełny uporządkowany skan indeksu – PG nie ma skip scan; koszt proporcjonalny do liczby żywych kluczy EML, indeks kurczy się po `clearEmlS3Keys`). Koszt zapisu tylko dla wierszy z kluczem EML.
+
 ---
 
 ### 3.7 Konfiguracja integracji per tenant (V051, V064)
@@ -544,6 +546,7 @@ Obie tabele: partial index `WHERE is_active`, RLS `USING (tenant_id = current_se
 | `cron_log` | `log_id` (BIGSERIAL) | Log wykonań zadań maintenance (wpisy zapisują funkcje SQL wołane przez joby Java; pg_cron nie jest zainstalowany). |
 | `scheduled_job` | `job_id` (UUID) | Rejestr zadań maintenance (V014) uzgodniony z rzeczywistymi wykonawcami w V133 (DB-076) – patrz niżej. Nic w Javie go nie czyta; `last_run_at`/`last_run_status` aktualizują wyłącznie same funkcje SQL po `job_name`: `create_next_month_partitions()`, `archive_completed_campaign_contacts()`, `cleanup_expired_refresh_tokens()` oraz 6× `rotate_*_partitions()` (te ostatnie to nieaktywne backstopy – aktualizują wiersz tylko gdy ktoś je wywoła ręcznie). Wykonawcy Java (`@Scheduled`) wiersza nie dotykają. |
 | `etl_sync_state` | – | Stan synchronizacji ETL → ClickHouse (V036), rozszerzony o `campaign_contact` w V045. |
+| `shedlock` | `name` (VARCHAR(64)) | **Tabela platformowa (V149, DB-090)**: blokady rozproszone ShedLock JDBC dla jobów `@Scheduled` (jeden wiersz na nazwę joba; zapewnia wykonanie na jednej instancji backendu, EPIC-33). Bez `tenant_id`, bez RLS (poza klasą TENANT w `RlsValidationService`), `REVOKE ALL FROM PUBLIC`, DML dla `app_user`. Kolumny `lock_until`/`locked_at` to `TIMESTAMP(3)` **bez strefy, zawsze UTC** – kontrakt `JdbcTemplateLockProvider.usingDbTime()` (`timezone('utc', CURRENT_TIMESTAMP)`); `TIMESTAMPTZ` przesunęłby blokady o offset strefy sesji. Wiersze nadpisuje biblioteka – nie edytować ręcznie, nie czyścić. Przy zmianie wersji ShedLock sprawdź, czy DDL się nie zmienił. |
 
 **Funkcje GDPR (V013, V017, V095, V096):** `anonymize_customer()` (zwraca JSONB, tryb `p_dry_run`),
 `export_customer_data()`, pomocnicza `fn_customer_subject_ids`, widok `v_customer_timeline` (historia

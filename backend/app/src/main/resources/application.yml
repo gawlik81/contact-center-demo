@@ -355,7 +355,7 @@ etl:
   sync:
     # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
     # fixedDelay: 60000 = 60 sekund. W prod możesz wydłużyć do 300000 (5 min).
-    fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:60000}
+    fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:${ETL_SYNC_DELAY_MS:60000}}   # ETL_SYNC_DELAY_MS = stara nazwa (fallback, BE-172)
     # BE-212: job considered stuck when etl_sync_state.last_run_at is older than this (ms). Keep >= 3x fixed-delay-ms.
     liveness-threshold-ms: ${ETL_SYNC_LIVENESS_THRESHOLD_MS:300000}
     liveness-check-interval-ms: ${ETL_SYNC_LIVENESS_CHECK_INTERVAL_MS:60000}
@@ -608,3 +608,16 @@ agent:
 # BE-160 / BE-156: how long an agent who returned an async contact to the queue is excluded from receiving it again
 routing:
   release-exclusion-ttl: 5m
+
+# =============================================================================
+# ShedLock - blokady rozproszone jobow @Scheduled (BE-171/BE-172)
+# Tabela `shedlock` (V149), konfiguracja: infrastructure/config/ShedLockConfig. Wartosci domyslne sa wpisane inline
+# w @SchedulerLock; ponizsze klucze (ISO-8601, np. PT48S) pozwalaja je nadpisac. Zasada: obnizajac INTERWAL joba
+# ponizej domyslnego, obniz tez `at-least-for` (musi byc < interwal). Pelna tabela: documentation/tech/04-backend.md, sekcja 4.6
+#   shedlock.etl.at-most-for / .at-least-for                 (4 joby ETL, domyslnie PT10M / PT48S)
+#   shedlock.etl-liveness.at-most-for / .at-least-for        (PT3M / PT48S)
+#   shedlock.callback-executor.*   (PT3M / PT48S)      shedlock.ring-timeout.*       (PT30S / PT4S)
+#   shedlock.window-activator.*    (PT3M / PT48S)      shedlock.break-activator.*    (PT90S / PT24S)
+#   shedlock.presence-sweeper.*    (PT90S / PT24S)
+# Polling e-mail uzywa blokady programowej per skrzynka: at-least = 0,8 x email.poll-delay-ms, at-most = max(3 x delay, 5 min).
+# =============================================================================

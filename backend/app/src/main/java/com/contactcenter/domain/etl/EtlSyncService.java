@@ -70,6 +70,13 @@ public interface EtlSyncService {
     /** Nazwa tabeli źródłowej kontaktów (klucz w etl_sync_state). */
     String TABLE_CONTACT = "contact";
 
+    /**
+     * Nazwa blokady ShedLock zaplanowanego cyklu tabeli {@code contact} ({@code EtlSyncServiceImpl#runContactSync}).
+     * Ręczny trigger ({@code POST /api/admin/etl/trigger}) bierze TĘ SAMĄ blokadę, więc nie może być drugim writerem
+     * DW równolegle z cyklem zaplanowanym (BE-172).
+     */
+    String LOCK_CONTACT_SYNC = "EtlSyncServiceImpl_runContactSync";
+
     /** Nazwa tabeli rekordów kampanii (klucz w etl_sync_state). */
     String TABLE_CAMPAIGN_CONTACT = "campaign_contact";
 

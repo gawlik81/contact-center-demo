@@ -9,6 +9,7 @@ import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -88,6 +89,9 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
      *
      * <p>Błąd dla pojedynczej kolejki / tenanta nie przerywa przetwarzania pozostałych.
      */
+    @SchedulerLock(name = "WaitTimeEstimationServiceImpl_broadcastWaitTimeUpdates",
+            lockAtMostFor = "PT90S",
+            lockAtLeastFor = "PT24S")
     @Scheduled(fixedDelay = 30_000, initialDelay = 5_000)
     public void broadcastWaitTimeUpdates() {
         log.debug("[EWT] Rozpoczęcie obliczania szacowanego czasu oczekiwania");

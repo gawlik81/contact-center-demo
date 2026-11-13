@@ -2,6 +2,7 @@ package com.contactcenter.domain.retention;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -105,6 +106,7 @@ class PartitionMaintenanceJob {
     // Scheduled job
     // =========================================================================
 
+    @SchedulerLock(name = "PartitionMaintenanceJob_ensureFuturePartitions", lockAtMostFor = "PT30M", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${retention.partition-maintenance-cron:0 30 0 * * *}", zone = "UTC")
     public void ensureFuturePartitions() {
         log.info("[PartitionMaintenanceJob] Start tworzenia przyszłych partycji (bufor {} miesięcy, {} tabel).",

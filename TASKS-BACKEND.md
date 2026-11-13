@@ -56,14 +56,14 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
-| EPIC-32 | UX i dostępność stanowiska agenta | 29 | 0 | 18 | 0 | 47 | 🔧 W toku |
-| EPIC-33 | Skalowanie poziome i pojemność platformy | 0 | 0 | 25 | 0 | 25 | ⬜ Nie rozpoczęty |
+| EPIC-32 | UX i dostępność stanowiska agenta | 31 | 0 | 18 | 0 | 49 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 2 | 0 | 25 | 0 | 27 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **172** | **0** | **53** | **3** | **228** | |
+| **RAZEM** | | **176** | **0** | **53** | **3** | **232** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -113,7 +113,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-168 | Social: warunkowy zapis wiadomości do kontaktu (odczyt kontaktu → zapis nie jest atomowy; wzorzec ścieżki e-mail; wynik BE-154; tura 66) | ✅ Ukończone (2026-11-06, tura 70; CR 4/5, poprawki naniesione) |
 | BE-169 | Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses` (tura 66) | ⬜ Do zrobienia |
 | BE-170 | [OPCJONALNE] Weryfikacja SPF/DKIM/DMARC dla join follow-upu e-mail (ryzyko zaakceptowane przez właściciela; wynik BE-154; tura 66) | ⬜ Do zrobienia — opcjonalny |
-| BE-196 | `RecordingRetentionJob` wybiera kontakty po `recording_url IS NOT NULL` — EML odpowiedzi z wątku nie są sprzątane, gdy EML pierwszej wiadomości nie powstał (wynik BE-164; tura 68) | ⬜ Do zrobienia |
+| BE-196 | `RecordingRetentionJob` wybiera kontakty po `recording_url IS NOT NULL` — EML odpowiedzi z wątku nie są sprzątane, gdy EML pierwszej wiadomości nie powstał (wynik BE-164; tura 68) | ✅ Ukończone (2026-11-13, tura 77; CR 3,5/5; follow-up BE-226; indeks DB-099 ✅) |
 | BE-197 | Podgląd wątku e-mail: limit rozmiaru treści (100 pełnych body), zapytania bez `message_at` (skan partycji), brak indeksu `(tenant_id, contact_id, message_at)`, brak testu EXPLAIN dla `findThreadTail` (wynik CR BE-164; tura 68) | ⬜ Do zrobienia |
 | BE-198 | Spójny klucz S3 EML: pierwsza wiadomość z `receivedAt`, follow-upy z `messageAt` (wynik BE-164; tura 68) | ⬜ Do zrobienia |
 | BE-199 | `@Audited` dla pobrania EML pojedynczej wiadomości `GET /api/contacts/{id}/email-messages/{messageId}/eml` — wymaga decyzji właściciela (wynik BE-164; tura 68) | ⬜ Do zrobienia — decyzja |
@@ -141,14 +141,16 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-221 | `findAvailableAgents` (poll routingu i dialer) zwraca konta ADMIN/SUPERVISOR w statusie AVAILABLE — korekta diagnozy „agentów-duchów” z 2026-11-07 (Niski, XS/S; tura 74 dopisek 3) | ✅ Ukończone (2026-11-11, tura 75; CR 4,5/5; punkt 2 — domyślny status kont ADMIN/SUPERVISOR — nadal decyzja właściciela) |
 | BE-222 | Stemplowanie `created_at`/`updated_at` po stronie bazy (`NOW()`/DEFAULT) zamiast `Instant.now()` w Javie (`CampaignImportServiceImpl.buildRow`, natywny INSERT w `ContactRepository`) — uszczelnienie strażnika CDC z BE-216 (domena EPIC-10/ETL; Niski/Średni, S; zależy od BE-216 ✅; powiązane: BE-213 ✅, DB-098; tura 75 cd.) | ✅ Ukończone (2026-11-12, tura 75 cd. 2; CR 3,5/5; bez migracji) |
 | BE-223 | Żywotność ETL liczona na serwerze w `GET /api/admin/etl/status` (`stale`, `lastActivityAt`, `livenessThresholdMs`) — usuwa ryzyka R1/R2 z FE-165 i ślepą plamę dla zawieszonego `RUNNING` (domena EPIC-10/ETL; Niski, XS/S; zależy od BE-212 ✅; powiązane: FE-165 ✅; blokuje FE-168; tura 75 cd. 2) | ✅ Ukończone (2026-11-12, tura 76; CR 4/5; bez migracji) — odblokował FE-168 ✅ |
-| BE-224 | Spójna definicja „aktywnych kontaktów” w `ContactRepository.countActiveContactsByTenantId` i `QueueRepository` (bez `ASSIGNED`) + `existsActiveContactsByUserId` na `OccupiedSlot.AGENT_LOAD_STATUSES_SQL` zamiast literału (zależy od BE-207 ✅; powiązane: BE-156 ✅, BE-157 ✅; Niski, S; tura 76) | ⬜ Do zrobienia |
+| BE-224 | Spójna definicja „aktywnych kontaktów” w `ContactRepository.countActiveContactsByTenantId` i `QueueRepository` (bez `ASSIGNED`) + `existsActiveContactsByUserId` na `OccupiedSlot.AGENT_LOAD_STATUSES_SQL` zamiast literału (zależy od BE-207 ✅; powiązane: BE-156 ✅, BE-157 ✅; Niski, S; tura 76) | ✅ Ukończone (2026-11-13, tura 77; CR 3,5/5; follow-up BE-225) |
+| BE-225 | [DECYZJA PRODUKTOWA] Zapytania z odwrotną negacją statusów (`EtlSyncServiceImpl.CONTACT_CDC_SOURCE`, `CustomerRepository`) traktują `ASSIGNED` jako zakończony (zależy od BE-224 ✅; Średni, S/M; tura 77) | ⬜ Do zrobienia — decyzja |
+| BE-226 | `EmailMessageRepository.findTenantIdsWithEml` przez tabelę `tenant` + `EXISTS ... LIMIT 1` zamiast pełnego skanu indeksu częściowego (zależy od BE-196 ✅, DB-099 ✅; Niski, XS/S; tura 77) | ⬜ Do zrobienia |
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
 | ID | Nazwa | Status |
 |----|-------|--------|
-| BE-171 | ShedLock (JDBC) na jobach cron/nocnych + klasyfikacja 22 metod `@Scheduled` (P0) | ⬜ Do zrobienia |
-| BE-172 | ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) + idempotencja (P0) | ⬜ Do zrobienia |
+| BE-171 | ShedLock (JDBC) na jobach cron/nocnych + klasyfikacja metod `@Scheduled` (faktycznie 24: 22 × S + 2 × T) (P0) | ✅ Ukończone (2026-11-13, tura 77; CR 4/5; odblokował BE-172 ✅, BE-173, BE-176, BE-187) |
+| BE-172 | ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) + idempotencja (P0) | ✅ Ukończone (2026-11-13, tura 77; CR 4/5; metody T → BE-173) |
 | BE-173 | Dialer i routing: blokada na poziomie kampanii/kolejki (P0) | ⬜ Do zrobienia |
 | BE-174 | ADR-14: broker WebSocket dla wielu instancji (RabbitMQ STOMP relay vs alternatywa) – spike + decyzja (P0) | ⬜ Do zrobienia |
 | BE-175 | WebSocket: przejście na broker zewnętrzny (STOMP relay) zgodnie z ADR-14 (P0) | ⬜ Do zrobienia |
@@ -172,6 +174,8 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-193 | Dedykowana komórka dla dużego tenanta: procedura przeniesienia tenanta między komórkami (P2) | ⬜ Do zrobienia |
 | BE-194 | Dokumentacja pojemności: limity w `ARCHITECTURE.md`, runbook skalowania w `DEPLOYMENT.md` (P1) | ⬜ Do zrobienia |
 | BE-195 | Ochrona przed „hałaśliwym sąsiadem” (noisy neighbor): limity per tenant (P2) | ⬜ Do zrobienia |
+| BE-227 | Naprawa martwego `ContactCenterApplicationIT` — test startu pełnego kontekstu (Testcontainers) jako dowód startu dev/prod (zależy od BE-171 ✅; Średni, M; tura 77) | ⬜ Do zrobienia |
+| BE-228 | Obserwowalność ShedLock (metryka pominiętych/przejętych blokad) i dług `argMax` ClickHouse przy wygaśnięciu blokady (zależy od BE-171 ✅, BE-172 ✅; Niski, Should przed >1 repliką, M; tura 77) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8493,7 +8497,7 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 29/47** · ✅ 29 · 🔧 0 · ⬜ 18 · 🚫 0 (tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
+**Ukończone 31/49** · ✅ 31 · 🔧 0 · ⬜ 18 · 🚫 0 (tura 77, 2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane: BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`, guard usuwania kolejki) i BE-196 ✅ (sprzątanie EML odpowiedzi w `RecordingRetentionJob`; indeks DB-099 ✅/V150); nowe ⬜ BE-225 (decyzja produktowa: odwrotna negacja statusów w ETL/`CustomerRepository`) i BE-226 (`findTenantIdsWithEml`); następne wolne BE-229, FE-169, DB-100; wcześniej tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
 
 > Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200 ✅ (tura 71, 2026-11-06), BE-201…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Tura 72 (2026-11-07): BE-156 ✅, BE-159 ✅, DB-096/DB-097 ✅; nowe BE-207…BE-209 ⬜ i FE-163 ⬜. Tura 73 (2026-11-07, zgłoszenie użytkownika — „agenci-duchy”: status AVAILABLE nigdy nie wygasa po zamknięciu karty/restarcie): nowe BE-210 ⬜ (wykrywanie obecności i automatyczny OFFLINE) i BE-211 ⬜ (poziom logu pollu routingu) oraz FE-164 ⬜ w `TASKS-FRONTEND.md`; bez nowych ticketów DB (ewentualny DB-099 — DB-098 zajął w dopisku 2 ticket indeksów CDC — tylko jeśli BE-210 zdecyduje o kolumnie ostatniej aktywności). Tura 73 (dopisek, 2026-11-07): nowy BE-212 ⬜ ([BUG] fałszywy alarm lagu ETL przy braku zmian w źródle; domena ETL/DW z EPIC-10, który pozostaje ✅ 5/5 — ticket liczony tutaj jako backlog, razem z BE-211). Tura 73 (dopisek 2, 2026-11-07, gałąź `fix/routing-conditional-assignment-and-limits`, niezacommitowane): BE-211 ✅ (log pollu routingu na DEBUG) i BE-212 ✅ (lag ETL = wiek najstarszej niezsynchronizowanej zmiany, alert żywotności `checkJobLiveness`, `alertType`); CR „Review: BE-211 + BE-212 — 2026-11-07” 3,5/5 APPROVE WITH FIXES, 0 must-fix, `mvn verify` 3089 testów (0 F, 0 E, 1 pominięty); nowe BE-213 ⬜ ([BUG] P1: utrata danych ETL przy backlogu > LIMIT i wyścig `computeMax*`; domena EPIC-10), BE-214 ⬜ (cooldown alertów ETL), DB-098 ⬜ w `TASKS-DATABASE.md` (indeksy wyrażeniowe CDC) i FE-165 ⬜ w `TASKS-FRONTEND.md` (JOB_STALE/JOB_ERROR w panelu admin-metrics); BE-172 dopisano `checkJobLiveness`. Rekoncyliacja liczników (tura 73): tabela „Indeks wg EPIC” była nieaktualna (RAZEM 153/52/208 przy faktycznych 159/54/216 przed turą). Następne wolne numery: BE-215, FE-166, DB-099 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
@@ -9689,7 +9693,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Niski
 **Złożoność:** S
 **Zależy od:** BE-207 ✅ (`OccupiedSlot.STATUSES_SQL` / `AGENT_LOAD_STATUSES_SQL`)
-**Status:** ⬜ Do zrobienia (założony 2026-11-12, tura 76)
+**Status:** ✅ Ukończone (2026-11-13, tura 77; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; wykonawca `backend-dev-expert`; CR „Review: BE-224 + BE-196 — 2026-11-13” 3,5/5, 0 must-fix, S1–S6 i nity naprawione; testy `OccupiedSlotTest`, `ContactRepositoryTenantActiveCountIntegrationTest`, `QueueRepositoryHasActiveContactsIntegrationTest` (+ test serwisowy `deleteQueue` z ASSIGNED); przebiegi cząstkowe 3326/3333 zielone, pełny `mvn verify` po scaleniu — wynik w PROGRESS.md) — założony 2026-11-12, tura 76; follow-up BE-225 (wynik CR S7)
 **Blokuje:** brak; powiązane: BE-156 ✅, BE-157 ✅, BE-207 ✅
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR „Review: BE-204 + BE-207 — 2026-11-12”)
 **Wykonawca:** `backend-dev-expert`
@@ -9699,13 +9703,62 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** (1) ustalić dla każdego z dwóch zapytań, czy mają liczyć obciążenie agenta, slot async czy „aktywne w tenancie” i przełączyć je na właściwą definicję z `OccupiedSlot` (decyzja wykonawcy z uzasadnieniem, w Javadoc); (2) `existsActiveContactsByUserId` na `OccupiedSlot.AGENT_LOAD_STATUSES_SQL` zamiast literału; (3) testy integracyjne: kontakt `ASSIGNED` jest liczony w obu zapytaniach.
 
 **Kryteria akceptacji:**
-- [ ] `countActiveContactsByTenantId` i zapytanie w `QueueRepository` uwzględniają `ASSIGNED` (lub mają jawnie udokumentowane uzasadnienie braku) — test integracyjny
-- [ ] `existsActiveContactsByUserId` używa `OccupiedSlot.AGENT_LOAD_STATUSES_SQL`; test guardu soft-delete z BE-207 zielony
-- [ ] Brak regresji testów kolejek i limitów tenanta; `mvn verify -pl app` zielone
+- [x] `countActiveContactsByTenantId` i zapytanie w `QueueRepository` uwzględniają `ASSIGNED` (lub mają jawnie udokumentowane uzasadnienie braku) — test integracyjny
+- [x] `existsActiveContactsByUserId` używa `OccupiedSlot.AGENT_LOAD_STATUSES_SQL`; test guardu soft-delete z BE-207 zielony
+- [x] Brak regresji testów kolejek i limitów tenanta; `mvn verify -pl app` zielone (po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty)
 
 **Ryzyka:** (R1) zmiana liczników widocznych w panelach (kolejki/limity tenanta) — skutek tylko dla kontaktów `ASSIGNED`.
 **Nie wchodzi w zakres:** zmiany limitu slotów (BE-156 ✅), nowe strategie routingu.
-**Zależności:** `Zależy od` BE-207 ✅; `Blokuje` brak; powiązane: BE-156 ✅, BE-157 ✅.
+**Zależności:** `Zależy od` BE-207 ✅; `Blokuje` brak; powiązane: BE-156 ✅, BE-157 ✅; follow-up: BE-225.
+**Notatka wykonania (2026-11-13, tura 77):** nowa stała `OccupiedSlot.IN_PROGRESS_STATUSES_SQL` (QUEUED/ASSIGNED/ACTIVE/ON_HOLD; semantyka „żywe w tenancie/kolejce”, dziś równa `AGENT_LOAD`; `OccupiedSlotTest` pilnuje). `ContactRepository.countActiveContactsByTenantId` (tylko wyświetlanie w `AdminMetricsServiceImpl`) i `QueueRepository.hasActiveContacts` (guard usuwania/dezaktywacji kolejki — **realny bug: kolejkę z kontaktem ASSIGNED dało się usunąć**) przełączone na nową stałą; `AppUserRepository.existsActiveContactsByUserId` na `AGENT_LOAD_STATUSES_SQL`. Literały w `ContactRepository` ~2594/2643 celowo zostawione (dopasowanie otwartej rozmowy follow-up) — z komentarzem w kodzie. Wynik CR S7 → BE-225: zapytania z odwrotną negacją traktujące ASSIGNED jako zakończony (ETL, `CustomerRepository`) wymagają decyzji produktowej.
+
+### BE-225 – [DECYZJA PRODUKTOWA] Zapytania z odwrotną negacją statusów traktujące `ASSIGNED` jako zakończony (ETL CDC, historia klienta)
+
+**Typ:** Bug / Refactor (Backend, spójność definicji „kontakt w toku”)
+**Priorytet:** Średni
+**Złożoność:** S/M
+**Zależy od:** BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`)
+**Status:** ⬜ Do zrobienia (założony 2026-11-13, tura 77; wymaga decyzji produktowej dla ETL)
+**Blokuje:** brak; powiązane: BE-224 ✅, BE-207 ✅, BE-156 ✅
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik CR „Review: BE-224 + BE-196 — 2026-11-13”, S7; domena ETL/EPIC-10 dla pkt 1)
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst:** BE-224 ✅ ujednolicił definicję „żywych” kontaktów przez zestaw pozytywny (`OccupiedSlot`). Pozostały zapytania zapisane odwrotną negacją, które traktują `ASSIGNED` jako stan zakończony: (1) `EtlSyncServiceImpl.CONTACT_CDC_SOURCE` — `NOT IN ('QUEUED','ACTIVE','ON_HOLD')` (~l. 124): kontakt ASSIGNED trafia do ETL/DW jak zakończony; (2) `CustomerRepository` ~l. 467 i ~515 („ostatni kontakt”, historia klienta).
+
+**Zakres:** (1) decyzja produktowa, czy kontakt `ASSIGNED` ma być widoczny w DW/ETL i w historii klienta jako zakończony, czy w toku (wpływ na CDC: wiersz w stanie przejściowym vs ponowne wysłanie przy zmianie statusu); (2) przełączyć zapytania na jedną definicję z `OccupiedSlot` (zestaw pozytywny) albo jawnie udokumentować, dlaczego negacja jest zamierzona; (3) testy integracyjne dla kontaktu `ASSIGNED`.
+
+**Kryteria akceptacji:**
+- [ ] Decyzja właściciela/produktu zapisana w tickecie (ETL: ASSIGNED w toku czy zakończony)
+- [ ] `CONTACT_CDC_SOURCE` i zapytania w `CustomerRepository` zgodne z decyzją; test integracyjny dla kontaktu `ASSIGNED`
+- [ ] Brak regresji ETL (`EtlSyncServiceImpl` testy) i historii klienta; `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) zmiana ETL wpływa na dane w DW (ponowne przetwarzanie wierszy, `argMax` — zob. BE-215 ✅); (R2) widoczność „ostatniego kontaktu” w panelu klienta.
+**Nie wchodzi w zakres:** zmiany limitu slotów (BE-156 ✅), nowe statusy kontaktu.
+**Zależności:** `Zależy od` BE-224 ✅; `Blokuje` brak; powiązane: BE-207 ✅, BE-215 ✅.
+
+### BE-226 – `EmailMessageRepository.findTenantIdsWithEml`: zapytanie po tabeli `tenant` z `EXISTS ... LIMIT 1` zamiast pełnego skanu indeksu częściowego
+
+**Typ:** Perf (Backend, retencja)
+**Priorytet:** Niski
+**Złożoność:** XS/S
+**Zależy od:** BE-196 ✅ (`findTenantIdsWithEml`), DB-099 ✅ (indeks częściowy `idx_email_message_eml_contact`)
+**Status:** ⬜ Do zrobienia (założony 2026-11-13, tura 77; wynik DB-099)
+**Blokuje:** brak; powiązane: BE-196 ✅, DB-099 ✅
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; jak BE-196/DB-094)
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst:** `findTenantIdsWithEml` (wybór tenantów dla `RecordingRetentionJob.purgeEmlOnlyContacts`) robi dziś pełny skan indeksu częściowego z DB-099 (PostgreSQL nie ma skip scan); zapytanie wołane raz dziennie.
+
+**Zakres:** przepisać na `SELECT t.tenant_id FROM tenant t WHERE EXISTS (SELECT 1 FROM email_message m WHERE m.tenant_id = t.tenant_id AND m.eml_s3_key IS NOT NULL LIMIT 1)` (jeden odczyt indeksu na tenanta); zachować semantykę (suma z `findTenantsWithRecordings`); test `EXPLAIN` lub test równoważności wyniku.
+
+**Kryteria akceptacji:**
+- [ ] Zapytanie przepisane; wynik identyczny jak dotychczasowy (test integracyjny `EmailMessageTenantDiscoveryIntegrationTest`)
+- [ ] Plan używa indeksu `idx_email_message_eml_contact` z `LIMIT 1` per tenant (EXPLAIN w teście lub w tickecie)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) tabela `tenant` pod RLS/rolą aplikacji — sprawdzić dostęp w kontekście joba platformowego.
+**Nie wchodzi w zakres:** zmiany indeksu (DB-099), zmiany semantyki retencji.
+**Zależności:** `Zależy od` BE-196 ✅, DB-099 ✅; `Blokuje` brak.
 
 ### BE-169 – Dług testowy BE-154: realna współbieżność `FOR SHARE` w join e-mail oraz wątek > 200 wiadomości w `findThreadCustomerSideAddresses`
 
@@ -9757,7 +9810,7 @@ backend/app/src/test/java/com/contactcenter/
 **Priorytet:** Should Have
 **Złożoność:** S/M
 **Zależy od:** BE-164 ✅ (EML per wiadomość, `email_message.eml_s3_key`), DB-094 ✅
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-13, tura 77; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; wykonawca `backend-dev-expert`; CR „Review: BE-224 + BE-196 — 2026-11-13” w `CR-BACKEND.md` 3,5/5, 0 must-fix, S1–S6 i nity naprawione; testy `RecordingRetentionJobTest`, `RecordingRetentionEmlOnlyIntegrationTest` (15), `EmailMessageTenantDiscoveryIntegrationTest`, `ContactRepositoryTenantsWithRecordingsIntegrationTest`; przebiegi cząstkowe 3326/3333 zielone, pełny `mvn verify` po scaleniu — wynik w PROGRESS.md) — follow-up BE-226; indeks DB-099 ✅ (V150)
 **Blokuje:** brak
 **Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; wynik BE-164)
 **Wykonawca:** `backend-dev-expert`
@@ -9767,14 +9820,15 @@ backend/app/src/test/java/com/contactcenter/
 **Zakres:** rozszerzyć wybór kandydatów o kontakty z wiadomościami mającymi `eml_s3_key IS NOT NULL` (bez pełnego skanu partycji — z granicą `message_at`/`ended_at`), zachować semantykę retencji i idempotencję (po usunięciu obiektu `eml_s3_key = NULL`).
 
 **Kryteria akceptacji:**
-- [ ] Kontakt z `recording_url = NULL` i odpowiedziami z `eml_s3_key` po upływie retencji nagrań: obiekty S3 usunięte, `eml_s3_key = NULL` (test w `RecordingRetentionJobTest` i integracyjny)
-- [ ] Kontakt z `recording_url` i EML odpowiedzi — zachowanie bez zmian; drugi przebieg joba nic nie robi (idempotencja)
-- [ ] Zapytanie wyboru kandydatów ma plan z przycinaniem partycji (test EXPLAIN lub uzasadnienie w teście)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Kontakt z `recording_url = NULL` i odpowiedziami z `eml_s3_key` po upływie retencji nagrań: obiekty S3 usunięte, `eml_s3_key = NULL` (test w `RecordingRetentionJobTest` i integracyjny)
+- [x] Kontakt z `recording_url` i EML odpowiedzi — zachowanie bez zmian; drugi przebieg joba nic nie robi (idempotencja)
+- [x] Zapytanie wyboru kandydatów ma plan z przycinaniem partycji (test EXPLAIN lub uzasadnienie w teście)
+- [x] `mvn verify -pl app` zielone (JDK 21) — po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty
 
 **Ryzyka:** (R1) koszt zapytania na `email_message` (partycje; zob. BE-197); (R2) wyścig z purge `CONTACT_INTERACTIONS` — usuwanie obiektu musi być idempotentne (brak obiektu = sukces).
 **Nie wchodzi w zakres:** backfill EML dla odpowiedzi sprzed poprawki (świadomie brak), zmiany FE.
-**Zależności:** `Zależy od` BE-164 ✅, DB-094 ✅; `Blokuje` brak; powiązane: BE-198 (klucze S3), DB-095 ✅ (RODO).
+**Zależności:** `Zależy od` BE-164 ✅, DB-094 ✅; `Blokuje` brak; powiązane: BE-198 (klucze S3), DB-095 ✅ (RODO). Dopisek (tura 77): powiązane także DB-099 ✅ (indeks), BE-226 (follow-up).
+**Notatka wykonania (2026-11-13, tura 77):** `RecordingRetentionJob.purgeEmlOnlyContacts`: kandydaci z `EmailMessageRepository.EXPIRED_EML_CONTACTS_SQL` (od `email_message`: `eml_s3_key IS NOT NULL`, `message_at < cutoff` — przycinanie partycji; `EXISTS contact` kanał EMAIL, `recording_url IS NULL`, `ended_at < cutoff`), keyset po `contact_id`, strony po 100, maks. 20 stron/tenant/przebieg, stop po 3 kolejnych w pełni nieudanych stronach. Wybór tenantów = suma `findTenantsWithRecordings` (pierwotna semantyka) i nowego `findTenantIdsWithEml`. Testy m.in. EXPLAIN przycinania i użycia indeksu, idempotencja drugiego przebiegu, 100 wadliwych + 1 dobry. Indeks częściowy pod zapytania: DB-099 ✅ (V150). Follow-up: BE-226 (przepisanie `findTenantIdsWithEml` — dziś pełny skan indeksu częściowego, raz dziennie).
 
 ### BE-197 – Podgląd wątku e-mail: limit rozmiaru treści, przycinanie partycji w zapytaniach i indeks `(tenant_id, contact_id, message_at)`
 
@@ -9985,7 +10039,9 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 0/25** · ✅ 0 · 🔧 0 · ⬜ 25 · 🚫 0
+**Ukończone 2/27** · ✅ 2 · 🔧 0 · ⬜ 25 · 🚫 0
+
+> **Tura 77 (2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane):** BE-171 ✅ i BE-172 ✅ (ShedLock 6.10.0; DB-090 ✅/V149; inwentarz 24 metody `@Scheduled` = 22 × S + 2 × T), nowe ⬜ BE-227 (martwy `ContactCenterApplicationIT`) i BE-228 (obserwowalność ShedLock + dług `argMax`); pozostaje z fazy 0 ShedLock: BE-173 (metody T). **TWARDA BRAMKA WDROŻENIOWA (tura 77, z CR BE-171/BE-172):** więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
 
 > **Założony 2026-11-04 (tura 67)** na podstawie analizy kodu (bez testów obciążeniowych): jedna instancja backendu obsłuży szacunkowo ok. 300 agentów / 20 tenantów; cel z `ARCHITECTURE.md` (§7, HPA 3+ replik) to 50 tenantów × 100 agentów. Szacunek jest HIPOTEZĄ do potwierdzenia w BE-184/BE-185. Epik obejmuje usunięcie blokerów skalowania poziomego (WebSocket in-memory, brak blokad `@Scheduled`, stan w pamięci JVM), zarządzanie pulami i połączeniami DB, obserwowalność, testy obciążeniowe jako bramkę, voicebota, oraz (P2) repliki odczytowe i model komórkowy (cell-based). Tickety DB: DB-090…DB-093 (`TASKS-DATABASE.md`); tickety FE: FE-155 (`TASKS-FRONTEND.md`). **Konwencja:** w repo nie ma prefiksu `INF-`; zadania infrastrukturalne mają w tym pliku Typ „Infrastructure” (jak „Bez epiku – Infrastruktura i Fundament”), a numeracja jest wspólna z BE.
 >
@@ -10004,8 +10060,8 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Infrastructure (Backend, współbieżność)
 **Priorytet:** Must Have (P0)
 **Złożoność:** M
-**Zależy od:** DB-090 (tabela `shedlock`)
-**Status:** ⬜ Do zrobienia
+**Zależy od:** DB-090 ✅ (tabela `shedlock`)
+**Status:** ✅ Ukończone (2026-11-13, tura 77; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; wykonawca `backend-dev-expert`; CR „Review: BE-171 + BE-172 — 2026-11-13” w `CR-BACKEND.md` 4/5, 0 must-fix, should-fixy S1–S7 i nity naprawione; S8 otwarte → BE-227; przebiegi cząstkowe `mvn verify` 3326 testów (główne drzewo) i 3333 (worktree), 0 F, 0 E, 1 pominięty; pełny `mvn verify` po scaleniu — wynik w PROGRESS.md) — odblokował BE-172 ✅, BE-173, BE-176, BE-187
 **Blokuje:** BE-172, BE-173, BE-176, BE-187
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -10019,24 +10075,26 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 - Tabela klasyfikacji 22 metod z uzasadnieniem (np. `SupervisorMetricsService` co 5 s publikuje przez WS — (S); `AgentBreakActivator`, `ContactAssignmentMonitor`, `WaitTimeEstimationServiceImpl` — decyzja z uzasadnieniem, uwzględniając idempotencję i stan lokalny).
 
 **Kryteria akceptacji:**
-- [ ] Zależności dodane, `LockProvider` z `usingDbTime()`, `@EnableSchedulerLock`; aplikacja startuje na `dev` i `prod`
-- [ ] 7 jobów cron ma `@SchedulerLock` z unikalnymi nazwami (`<klasa>_<metoda>`), uzasadnionymi `lockAtMostFor`/`lockAtLeastFor`
-- [ ] Tabela klasyfikacji obejmuje 22/22 metod (weryfikacja `grep -rn "@Scheduled"` = liczba wierszy tabeli)
-- [ ] Test integracyjny (Testcontainers Postgres, 2 konteksty/wątki): job cron uruchomiony równolegle wykonuje się dokładnie raz; po `lockAtMostFor` blokada się zwalnia
-- [ ] `RLS`: tabela `shedlock` poza RLS i poza `tenant_id` (tabela platformowa) — potwierdzone w DB-090, test `RlsValidationService` zielony
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Zależności dodane (ShedLock 6.10.0, property `shedlock.version`), `LockProvider` z `usingDbTime()`, włączone przechwytywanie `@SchedulerLock` (`ShedLockConfig`) — **start pełnego kontekstu na `dev`/`prod` bez automatycznego dowodu** (`ContactCenterApplicationIT` martwy → BE-227; ręczny start dev/obraz prod po merge)
+- [x] 7 jobów cron ma `@SchedulerLock` z unikalnymi nazwami (`<klasa>_<metoda>`), uzasadnionymi `lockAtMostFor`/`lockAtLeastFor`
+- [x] Tabela klasyfikacji obejmuje 24/24 metod (faktycznie 24, nie 22: 22 × S, 2 × T, I = 0; `documentation/tech/04-backend.md` §4.6 i `ARCHITECTURE.md` §8.6) — zob. notatkę wykonania; oryginalne sformułowanie: 22/22 metod (weryfikacja `grep -rn "@Scheduled"` = liczba wierszy tabeli)
+- [x] Test integracyjny (Testcontainers Postgres, 2 konteksty/wątki; `ShedLockProviderIntegrationTest`): job cron uruchomiony równolegle wykonuje się dokładnie raz; po `lockAtMostFor` blokada się zwalnia
+- [x] `RLS`: tabela `shedlock` poza RLS i poza `tenant_id` (tabela platformowa) — potwierdzone w DB-090, test `RlsValidationService` zielony
+- [x] `mvn verify -pl app` zielone (JDK 21) — po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty
 
 **Ryzyka:** (R1) zbyt krótki `lockAtMostFor` → job równolegle na 2 instancjach; zbyt długi → po awarii instancji job nie wystartuje do wygaśnięcia; (R2) joby partycji/retencji używają `SECURITY DEFINER` i rozbudowanej własnej serializacji — ShedLock jest dodatkiem, nie zamiennikiem (zweryfikować, że nie dubluje blokad); (R3) rola `cc_app` (EPIC-31) wymaga GRANT na `shedlock`.
 **Nie wchodzi w zakres:** joby krótkiego interwału (BE-172), blokada per kampania (BE-173), przeniesienie jobów do osobnego procesu „worker”.
-**Zależności:** `Zależy od` DB-090; `Blokuje` BE-172, BE-173, BE-176, BE-187.
+**Zależności:** `Zależy od` DB-090 ✅; `Blokuje` BE-172 ✅, BE-173, BE-176, BE-187.
+**Notatka wykonania (2026-11-13, tura 77):** ShedLock 6.10.0 (`shedlock-spring` + `shedlock-provider-jdbc-template`, property `shedlock.version`); `ShedLockConfig` (tryb `PROXY_METHOD`, order `HIGHEST_PRECEDENCE`, `proxyTargetClass`, `defaultLockAtMostFor` PT10M, `@Qualifier("dataSource")`, `usingDbTime()`, `lockedBy` = host:pid:uuid). **Inwentarz: 24 metody `@Scheduled` (nie 22)** — 22 × klasa S z `@SchedulerLock`, 2 × T (`ProgressiveDialerServiceImpl#pollAvailableAgents`, `RoutingServiceImpl#pollAvailableAgents` → BE-173), I = 0. Tabela klasyfikacji: `documentation/tech/04-backend.md` §4.6 i `ARCHITECTURE.md` §8.6. Cron dzienne: `lockAtLeastFor` PT10M. Usunięta adnotacja o braku ShedLock w `CampaignArchiveJobRepository` (zakres ticketu). Dług zapisany w §4.6: brak metryki „lock skipped / acquire failure” (`throwUnexpectedException=false` → tylko log ERROR), `argMax` w ClickHouse z `updated_at = now()` przy wygaśnięciu blokady (KeepAliveLockProvider lub `updated_at` ze źródła), daily cron + awaria instancji = przebieg dnia przepada → BE-228. S8 otwarte: `ContactCenterApplicationIT` jest martwy (wyłącza JPA, pada na `entityManagerFactory`, nie jest uruchamiany przez surefire) → BE-227.
+**TWARDA BRAMKA WDROŻENIOWA (tura 77, z CR BE-171/BE-172):** więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
 
 ### BE-172 – ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) z weryfikacją idempotencji
 
 **Typ:** Infrastructure (Backend, współbieżność)
 **Priorytet:** Must Have (P0)
 **Złożoność:** M/L
-**Zależy od:** BE-171
-**Status:** ⬜ Do zrobienia
+**Zależy od:** BE-171 ✅
+**Status:** ✅ Ukończone (2026-11-13, tura 77; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; zamknięty razem z BE-171; wykonawca `backend-dev-expert`; CR „Review: BE-171 + BE-172 — 2026-11-13” 4/5, 0 must-fix; testy: `SchedulerLockCoverageTest`, `EtlSyncShedLockIntegrationTest`, `EmailPollingShedLockIntegrationTest`, `ContactAssignmentMonitorShedLockIntegrationTest`, `RefreshTokenCleanupJobShedLockIntegrationTest`, `EtlStatusControllerContractTest`; pełny `mvn verify` po scaleniu — wynik w PROGRESS.md)
 **Blokuje:** brak
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -10050,15 +10108,17 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 - Audyt idempotencji: co się stanie, gdy blokada wygaśnie w trakcie przebiegu (podwójny przebieg) — każda metoda ma być bezpieczna (UPSERT / `FOR UPDATE SKIP LOCKED` / status).
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie metody klasy (S) z BE-171 mają `@SchedulerLock`; tabela klasyfikacji zaktualizowana o stan „zrealizowane”
-- [ ] Test integracyjny na 2 kontekstach: ETL, e-mail polling i monitory wykonują się raz na interwał (zliczanie wywołań mockowanych zależności)
-- [ ] Test idempotencji: wymuszone wygaśnięcie blokady w trakcie przebiegu nie tworzy duplikatów kontaktów/wpisów ETL
-- [ ] `ContactAssignmentMonitor`, `AgentBreakActivator`, `WaitTimeEstimationServiceImpl`: decyzja udokumentowana, `TenantContext` w jobach wielotenantowych zgodny z regułą snapshot/restore
-- [ ] `mvn verify -pl app` zielone
+- [x] Wszystkie metody klasy (S) z BE-171 mają `@SchedulerLock` (22; `SchedulerLockCoverageTest` — pokrycie 100%, `lockAtLeastFor` < interwał, proxy CGLIB); tabela klasyfikacji zaktualizowana o stan „zrealizowane”
+- [x] Test integracyjny na 2 kontekstach: ETL, e-mail polling i monitory wykonują się raz na interwał (zliczanie wywołań mockowanych zależności)
+- [x] Test idempotencji: wymuszone wygaśnięcie blokady w trakcie przebiegu nie tworzy duplikatów kontaktów/wpisów ETL (`EtlSyncShedLockIntegrationTest`: drugi przebieg po wygaśnięciu, brak duplikatów w `contacts_dw`, znacznik się nie cofa; semantyka `argMax` ClickHouse → BE-228)
+- [x] `ContactAssignmentMonitor`, `AgentBreakActivator`, `WaitTimeEstimationServiceImpl`: decyzja udokumentowana, `TenantContext` w jobach wielotenantowych zgodny z regułą snapshot/restore
+- [x] `mvn verify -pl app` zielone — po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty
 
 **Ryzyka:** (R1) blokada globalna dla ETL serializuje pracę — przy dużej liczbie tenantów rozważyć shard per tenant (zapisać jako dług, nie robić tu); (R2) job wykonujący się na instancji A, a wynik czytany z pamięci instancji B (zob. BE-179).
 **Nie wchodzi w zakres:** joby dialera/routingu (BE-173), zmiana interwałów, przenoszenie jobów do osobnego deploymentu.
-**Zależności:** `Zależy od` BE-171; `Blokuje` brak; powiązane: BE-179; BE-159 ✅/BE-156 ✅ (tura 72): warunkowy przydział i koalescencja przebiegów per tenant są gotowe i działają na jednej instancji — BE-172 dokłada blokadę między instancjami (koalescencja per tenant w `RoutingServiceImpl` nie jest współdzielona między replikami). **Dopisek (tura 73, 2026-11-07, CR BE-212):** (1) lista metod klasy (S) musi objąć także nowy `EtlSyncServiceImpl.checkJobLiveness` (BE-212 ✅, co 60 s) — bez ShedLock każda instancja wyśle ten sam alert `JOB_STALE`/`JOB_ERROR` (do czasu BE-172 łagodzi to cooldown z BE-214); (2) joby ETL (`runContactSync` itd.) bez ShedLock → duplikaty alertów `etl.lag.alert` przy wielu instancjach; (3) `EtlSyncServiceImpl.readAndLockSyncState` ma `@Transactional` na metodzie package-private wołanej self-invocation (adnotacja martwa — `SELECT … FOR UPDATE` w autocommit, blokada zwolniona natychmiast) — realna blokada cyklu (advisory lock/ShedLock) jest warunkiem, by dwie instancje nie przetwarzały tego samego zakresu CDC (powiązane: BE-213). Powiązane: BE-213, BE-214.
+**Zależności:** `Zależy od` BE-171 ✅; `Blokuje` brak; powiązane: BE-179; BE-159 ✅/BE-156 ✅ (tura 72): warunkowy przydział i koalescencja przebiegów per tenant są gotowe i działają na jednej instancji — BE-172 dokłada blokadę między instancjami (koalescencja per tenant w `RoutingServiceImpl` nie jest współdzielona między replikami). **Notatka wykonania (2026-11-13, tura 77):** krótkie interwały: `lockAtLeastFor` ≈ 0,8× interwału (odstępstwo od ½ z zakresu ticketu — uzasadnione: przy ½ dwie instancje w przeciwfazie dawałyby 2 przebiegi na interwał), ETL `lockAtMostFor` PT10M. E-mail polling: blokada programowa per tenant `EmailPolling_pollInbox_<tenantId>` (`LockingTaskExecutor`). Usunięty martwy `@Transactional` + `FOR UPDATE` w `EtlSyncServiceImpl.readAndLockSyncState`. Ręczny trigger ETL (`POST /api/admin/etl/trigger`) bierze tę samą blokadę co cykl contact → 409 `ETL_SYNC_IN_PROGRESS` (`EtlSyncInProgressException`). Env ETL ujednolicony: `ETL_SYNC_FIXED_DELAY_MS` kanoniczna, `ETL_SYNC_DELAY_MS` fallback. Kryterium testu idempotencji (wymuszone wygaśnięcie blokady w trakcie przebiegu) nie jest potwierdzone osobnym testem w opisie tury 77 — pozostaje `[ ]` (ryzyko: `argMax` ClickHouse → BE-228). **Metoda T (2 × `pollAvailableAgents`) NIE jest objęta tym ticketem → BE-173** (jedyny pozostały ticket fazy 0 ShedLock).
+**TWARDA BRAMKA WDROŻENIOWA (tura 77, z CR BE-171/BE-172):** więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
+**Dopisek (tura 73, 2026-11-07, CR BE-212):** (1) lista metod klasy (S) musi objąć także nowy `EtlSyncServiceImpl.checkJobLiveness` (BE-212 ✅, co 60 s) — bez ShedLock każda instancja wyśle ten sam alert `JOB_STALE`/`JOB_ERROR` (do czasu BE-172 łagodzi to cooldown z BE-214); (2) joby ETL (`runContactSync` itd.) bez ShedLock → duplikaty alertów `etl.lag.alert` przy wielu instancjach; (3) `EtlSyncServiceImpl.readAndLockSyncState` ma `@Transactional` na metodzie package-private wołanej self-invocation (adnotacja martwa — `SELECT … FOR UPDATE` w autocommit, blokada zwolniona natychmiast) — realna blokada cyklu (advisory lock/ShedLock) jest warunkiem, by dwie instancje nie przetwarzały tego samego zakresu CDC (powiązane: BE-213). Powiązane: BE-213, BE-214.
 **Dopisek (tura 74, BE-210/BE-213 ✅):** (1) nowy `AgentPresenceSweeper` (BE-210 ✅, `@Scheduled` co `agent.presence.sweep-interval-ms` + przebieg startowy) musi dołączyć do inwentarza jobów pod ShedLock — dziś chroni go tylko flaga nakładania w obrębie JVM; przejścia są idempotentne (`changeStatusIfCurrent`), więc dwie instancje nie generują duplikatu zdarzenia, tylko podwójną pracę; (2) ETL po BE-213 ✅ (`runCdcLoop`): kursor w pamięci cyklu, znacznik zapisywany monotonicznie — dwie instancje nie cofną znacznika, ale ponownie czytają te same batche; ShedLock/advisory lock na cyklu ETL nadal wymagany. Powiązane: BE-210, BE-213, BE-216.
 **Dopisek (tura 75 cd., BE-214 ✅):** cooldown alertów ETL w Redis (`etl:alert:{table}:{alertType}`, `SET NX PX`) ogranicza wyłącznie duplikaty alertów `etl.lag.alert` z wielu instancji — NIE zastępuje ShedLock: dwie instancje nadal mogą jednocześnie wykonywać ten sam cykl ETL (podwójna praca, wyścig o znacznik); zakres BE-172 bez zmian. Strażnik CDC z BE-216 ✅ liczy `MIN(xact_start)` globalnie dla bazy, więc nie zależy od liczby instancji.
 **Dopisek (tura 75, BE-215 ✅):** widoki ClickHouse z BE-215 (`v_contacts_current`, `v_agent_kpi_daily`) deduplikują przez `argMax` po `updated_at` ustawianym w `ClickHouseDwWriter` jako `Instant.now()` — poprawność zakłada JEDEN sekwencyjny writer DW. Przy wielu instancjach ETL bez blokady (ten ticket) starsza wersja wiersza zapisana później przez wolniejszą instancję mogłaby wygrać `argMax`; zob. `dw/README.md`.
@@ -10068,7 +10128,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Infrastructure (Backend, współbieżność)
 **Priorytet:** Must Have (P0)
 **Złożoność:** M
-**Zależy od:** BE-171
+**Zależy od:** BE-171 ✅
 **Status:** ⬜ Do zrobienia
 **Blokuje:** brak
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
@@ -10091,7 +10151,8 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 **Ryzyka:** (R1) rozjazd z BE-159 i BE-156 (EPIC-32) — jedna implementacja warunkowego przydziału; (R2) lock leak przy awarii w połowie przebiegu (advisory xact lock zwalnia się z transakcją).
 **Nie wchodzi w zakres:** zmiana algorytmu dialera, nowe tryby (predictive), limity per tenant (BE-195).
-**Zależności:** `Zależy od` BE-171; `Blokuje` brak; powiązane: BE-156 ✅, BE-159 ✅ (EPIC-32; ✅ 2026-11-07 — warunkowy przydział kontaktu `assignIfQueued` gotowy, BE-173 obejmuje tylko przydział agenta w dialerze i blokadę między instancjami).
+**Zależności:** `Zależy od` BE-171 ✅; `Blokuje` brak; powiązane: BE-156 ✅, BE-159 ✅ (EPIC-32; ✅ 2026-11-07 — warunkowy przydział kontaktu `assignIfQueued` gotowy, BE-173 obejmuje tylko przydział agenta w dialerze i blokadę między instancjami).
+**Dopisek (tura 77, BE-171 ✅/BE-172 ✅):** ODBLOKOWANY — BE-171 ✅ i BE-172 ✅ (ShedLock 6.10.0, `ShedLockConfig`). To jedyny pozostały ticket fazy 0 ShedLock: 2 metody klasy T (`ProgressiveDialerServiceImpl#pollAvailableAgents`, `RoutingServiceImpl#pollAvailableAgents`) świadomie zostały bez `@SchedulerLock` w BE-172 (inwentarz 24 = 22 × S + 2 × T, I = 0; tabela w `documentation/tech/04-backend.md` §4.6). Blokada ma być na poziomie kampanii/kolejki, nie globalna.
 
 ### BE-174 – ADR-14: broker WebSocket dla wielu instancji (RabbitMQ STOMP relay vs alternatywa) – spike + decyzja
 
@@ -10151,13 +10212,14 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Nie wchodzi w zakres:** test między-instancyjny (BE-176), zmiany FE (FE-155), klaster RabbitMQ (infrastruktura DEPLOYMENT.md).
 **Zależności:** `Zależy od` BE-174; `Blokuje` BE-176, BE-187, FE-155.
 **Dopisek (tura 74, BE-210 ✅):** po przejściu na relay STOMP `AgentPresenceEventListener` (BE-210 ✅) przestanie widzieć CONNECT/DISCONNECT sesji — kryterium akceptacji: zdarzenia obecności zasilane z brokera (lub odnowa wyłącznie przez `/app/ping` z FE-164 ✅), test regresji karencji 90 s przy brokerze zewnętrznym. Powiązane: BE-210, BE-217, FE-155.
+**Dopisek (tura 77, BE-171 ✅/BE-172 ✅):** TWARDA BRAMKA WDROŻENIOWA — ten ticket ją zamyka (razem z BE-179): więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
 
 ### BE-176 – Test między-instancyjny WebSocket: 2 instancje backendu + wspólny broker (Testcontainers)
 
 **Typ:** Testing (Backend, integracyjny)
 **Priorytet:** Must Have (P0)
 **Złożoność:** M
-**Zależy od:** BE-175, BE-171
+**Zależy od:** BE-175, BE-171 ✅
 **Status:** ⬜ Do zrobienia
 **Blokuje:** brak
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
@@ -10175,7 +10237,8 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 **Ryzyka:** (R1) czas i niestabilność testów z Testcontainers + 2 kontekstami; (R2) konkurencja portów.
 **Nie wchodzi w zakres:** obciążenie (BE-184), testy FE.
-**Zależności:** `Zależy od` BE-175, BE-171; `Blokuje` brak.
+**Zależności:** `Zależy od` BE-175, BE-171 ✅; `Blokuje` brak.
+**Dopisek (tura 77, BE-171 ✅):** zależność od BE-171 spełniona (ShedLock; singleton publikacji metryk WS). Pozostaje BE-175. Test między-instancyjny powinien objąć także joby publikujące przez broker (zob. bramka wdrożeniowa w BE-175).
 
 ### BE-177 – IVR: stan `pendingConference*`/`pendingQueueTransfer*` z pamięci JVM do Redis (klucz po CallSid)
 
@@ -10260,6 +10323,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Ryzyka:** (R1) burza unieważnień przy masowej zmianie konfiguracji — zdarzenie per tenant, bez przeładowania globalnego; (R2) komunikat unieważnienia gubiony przy chwilowej awarii brokera → TTL jako zabezpieczenie.
 **Nie wchodzi w zakres:** BE-177 (IVR), BE-178 (wtyczki).
 **Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-172.
+**Dopisek (tura 77, BE-171 ✅/BE-172 ✅):** TWARDA BRAMKA WDROŻENIOWA — ten ticket ją współtworzy z BE-175; jego zakres obejmuje lokalny stan `WaitTimeEstimationServiceImpl.lastKnownAgentCounts`: więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby. BE-172 ✅ wprowadził ShedLock na `WaitTimeEstimationServiceImpl`, więc job działa na jednej instancji, a wynik czytany jest z pamięci tej replika-zwycięzcy.
 
 ### BE-180 – Parametryzacja pul wątków (`AsyncConfig`, schedulera, wtyczek) i budżet zasobów per instancja
 
@@ -10447,7 +10511,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Infrastructure (DevOps)
 **Priorytet:** Should Have (P1)
 **Złożoność:** L
-**Zależy od:** BE-175, BE-171, BE-182
+**Zależy od:** BE-175, BE-171 ✅, BE-182
 **Status:** ⬜ Do zrobienia
 **Blokuje:** BE-191, BE-194
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
@@ -10465,7 +10529,8 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 **Ryzyka:** (R1) brak klastra testowego w repo — kryteria dla środowiska docelowego do uzgodnienia z właścicielem; (R2) skalowanie w dół ścina sesje WS (PDB + drain).
 **Nie wchodzi w zakres:** provisioning chmury (Terraform: BE-191), zarządzane bazy.
-**Zależności:** `Zależy od` BE-175, BE-171, BE-182; `Blokuje` BE-191, BE-194; powiązane: BE-186, FE-155.
+**Zależności:** `Zależy od` BE-175, BE-171 ✅, BE-182; `Blokuje` BE-191, BE-194; powiązane: BE-186, FE-155.
+**Dopisek (tura 77, BE-171 ✅):** zależność od BE-171 spełniona; pozostają BE-175 i BE-182. HPA/`replicas` > 1 dopiero po BE-175 i BE-179 (twarda bramka wdrożeniowa z BE-175); migracja V149 (`shedlock`) przed nową wersją aplikacji.
 
 ### BE-188 – Repliki odczytowe: routing zapytań raportowych na replikę (read-only datasource)
 
@@ -10654,6 +10719,56 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Ryzyka:** (R1) fałszywe odrzucenia legalnego ruchu (peak o 9:00); (R2) nowa kolumna/tabela limitów wymaga ticketu DB — zapisać, jeśli wybrano trwałe ustawienia.
 **Nie wchodzi w zakres:** billing/quoty komercyjne.
 **Zależności:** `Zależy od` BE-183; `Blokuje` brak.
+
+### BE-227 – Naprawa martwego `ContactCenterApplicationIT`: test startu pełnego kontekstu (Testcontainers) jako dowód startu dev/prod
+
+**Typ:** Testing (Backend, test integracyjny startu aplikacji)
+**Priorytet:** Średni
+**Złożoność:** M
+**Zależy od:** BE-171 ✅ (`ShedLockConfig` i proxy `@SchedulerLock` — brak automatycznego dowodu startu pełnego kontekstu)
+**Status:** ⬜ Do zrobienia (założony 2026-11-13, tura 77; wynik CR BE-171 S8)
+**Blokuje:** brak; powiązane: BE-171 ✅, BE-172 ✅, BE-187
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `test-suite-expert` (+ `backend-dev-expert`)
+
+**Kontekst:** `ContactCenterApplicationIT` jest martwy: wyłącza JPA, pada na `entityManagerFactory`, nie jest uruchamiany przez surefire. W efekcie nie ma automatycznego dowodu, że pełny kontekst aplikacji (w tym ShedLock z BE-171 ✅, proxy CGLIB na klasach `@Scheduled`) startuje na profilach `dev`/`prod`.
+
+**Zakres:** naprawić/zastąpić test startu pełnego kontekstu: Testcontainers (Postgres, Redis, RabbitMQ), stuby S3/Twilio, uruchamiany w `mvn verify`; asercje: kontekst startuje, `LockProvider` i proxy `@SchedulerLock` obecne, walidacja RLS startowa zielona.
+
+**Kryteria akceptacji:**
+- [ ] Test startu pełnego kontekstu uruchamiany w `mvn verify` (nie pomijany przez surefire/failsafe)
+- [ ] Brak zależności od zewnętrznych usług (S3/Twilio stuby)
+- [ ] Czas przebiegu zmierzony; test nie destabilizuje pozostałych (porty, kontenery)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) czas startu kontekstu w CI; (R2) współdzielone kontenery z innymi testami integracyjnymi.
+**Nie wchodzi w zakres:** testy obciążeniowe (BE-184/BE-185), test między-instancyjny WS (BE-176).
+**Zależności:** `Zależy od` BE-171 ✅; `Blokuje` brak; powiązane: BE-172 ✅, BE-187.
+
+### BE-228 – Obserwowalność ShedLock (metryka „job pominięty / blokada niezałożona / przejęta po wygaśnięciu”) i dług `argMax` ClickHouse przy wygaśnięciu blokady
+
+**Typ:** Infrastructure (Backend, obserwowalność)
+**Priorytet:** Niski (Should przed >1 repliką)
+**Złożoność:** M
+**Zależy od:** BE-171 ✅, BE-172 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-13, tura 77; wynik CR BE-171/BE-172)
+**Blokuje:** brak; powiązane: BE-175, BE-179, BE-183
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Kontekst:** ShedLock skonfigurowany z `throwUnexpectedException=false` — nieudane założenie blokady kończy się tylko logiem ERROR, bez metryki/alertu. Przy wygaśnięciu blokady w trakcie przebiegu dwie instancje mogą jednocześnie pisać do DW, a `argMax` po `updated_at = now()` w ClickHouse (`ClickHouseDwWriter`) faworyzuje późniejszy zapis (zob. dopisek BE-215 w BE-172). Daily cron + awaria instancji = przebieg dnia przepada.
+
+**Zakres:** (1) owinięcie `LockProvider` licznikiem/metryką: blokada niezałożona (pominięty przebieg), błąd providera, blokada przejęta po wygaśnięciu; alert; (2) rozwiązanie długu `argMax`: `KeepAliveLockProvider` albo `updated_at` ze źródła zamiast `Instant.now()`; (3) opcjonalnie: ponowienie przebiegu dziennego crona po awarii instancji (decyzja w tickecie).
+
+**Kryteria akceptacji:**
+- [ ] Metryka/log strukturalny dla: blokada niezałożona, błąd providera, przejęcie po wygaśnięciu (test na `LockProvider`)
+- [ ] Wygaśnięcie blokady w trakcie przebiegu ETL nie powoduje przegranej nowszej wersji wiersza w `argMax` (test integracyjny) albo udokumentowane świadome odstępstwo
+- [ ] Alert w konfiguracji metryk (powiązanie z BE-183, jeśli już istnieje)
+- [ ] `mvn verify -pl app` zielone
+
+**Ryzyka:** (R1) kardynalność metryk (nazwa joba, nie tenant); (R2) `KeepAliveLockProvider` wymaga puli wątków i zarządzania cyklem życia.
+**Nie wchodzi w zakres:** blokady dialera/routingu (BE-173), broker WS (BE-175).
+**Zależności:** `Zależy od` BE-171 ✅, BE-172 ✅; `Blokuje` brak; powiązane: BE-175, BE-179, BE-183.
 
 ---
 

@@ -2,6 +2,7 @@ package com.contactcenter.domain.retention;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,7 @@ class RetentionEvaluationJob {
 
     private final RetentionEvaluationService evaluationService;
 
+    @SchedulerLock(name = "RetentionEvaluationJob_runEvaluationJob", lockAtMostFor = "PT2H", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${retention.evaluation-cron:0 0 1 * * *}", zone = "UTC")
     public void runEvaluationJob() {
         log.debug("[RetentionEvaluationJob] Trigger schedulera — delegacja do RetentionEvaluationService.runForAllActiveTenants()");

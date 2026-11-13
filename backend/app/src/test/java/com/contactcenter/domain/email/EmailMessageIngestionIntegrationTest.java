@@ -165,7 +165,7 @@ class EmailMessageIngestionIntegrationTest {
 
         poller = new EmailPollingServiceImpl(tenantService, repository, routing, publisher,
                 encryption, storage, new ObjectMapper(),
-                mock(EmailFollowUpJoiner.class));
+                mock(EmailFollowUpJoiner.class), com.contactcenter.support.NoOpLockProvider.executor());
         creator = new EmailContactCreator(contactService, customerService, repository, rabbit, emlService);
         sender = new EmailSendServiceImpl(repository, publisher, tenantService, encryption,
                 mock(EmailTemplateService.class), mock(TemplateVariableResolver.class), storage, new ObjectMapper());

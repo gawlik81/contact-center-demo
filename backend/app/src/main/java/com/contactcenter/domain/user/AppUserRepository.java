@@ -267,7 +267,8 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     List<String> findAllDistinctSkillsByTenantId(@Param("tenantId") UUID tenantId);
 
     /**
-     * Sprawdza czy agent ma aktywne kontakty (status IN QUEUED, ACTIVE, ON_HOLD).
+     * Sprawdza czy agent ma aktywne kontakty ({@link OccupiedSlot#AGENT_LOAD_STATUSES_SQL} =
+     * QUEUED, ASSIGNED, ACTIVE, ON_HOLD).
      *
      * <p>Używane przed soft delete agenta – nie można usunąć agenta z aktywnymi kontaktami.
      *
@@ -275,14 +276,11 @@ interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * @param tenantId UUID tenanta (izolacja)
      * @return true jeśli agent ma co najmniej jeden aktywny kontakt
      */
-    @Query(value = """
-            SELECT EXISTS (
-                SELECT 1 FROM contact
-                WHERE agent_id = CAST(:userId AS uuid)
-                  AND tenant_id = CAST(:tenantId AS uuid)
-                  AND status IN ('QUEUED', 'ASSIGNED', 'ACTIVE', 'ON_HOLD')
-            )
-            """, nativeQuery = true)
+    @Query(value = "SELECT EXISTS ("
+            + "SELECT 1 FROM contact "
+            + "WHERE agent_id = CAST(:userId AS uuid) "
+            + "AND tenant_id = CAST(:tenantId AS uuid) "
+            + "AND status IN (" + OccupiedSlot.AGENT_LOAD_STATUSES_SQL + "))", nativeQuery = true)
     boolean existsActiveContactsByUserId(@Param("userId") UUID userId,
                                           @Param("tenantId") UUID tenantId);
 

@@ -184,7 +184,7 @@ etl:
   dw:
     type: ${ETL_DW_TYPE:clickhouse}
   sync:
-    fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
+    fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:${ETL_SYNC_DELAY_MS:60000}}
 
 # =============================================================================
 # Logowanie – prod: INFO (bez SQL dump, bez debug security)

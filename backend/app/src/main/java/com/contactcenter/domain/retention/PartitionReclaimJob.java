@@ -3,6 +3,7 @@ package com.contactcenter.domain.retention;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -231,6 +232,7 @@ class PartitionReclaimJob {
      * <p>Cron expression: {@code 0 0 3 * * SUN} — sekunda 0, minuta 0, godzina 3 (UTC),
      * każdy dzień miesiąca/miesiąc, dzień tygodnia = niedziela.
      */
+    @SchedulerLock(name = "PartitionReclaimJob_runReclaimJob", lockAtMostFor = "PT1H", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${retention.partition-reclaim-cron:0 0 3 * * SUN}", zone = "UTC")
     public void runReclaimJob() {
         log.info("[PartitionReclaimJob] Start odzyskiwania miejsca (Poziom 2 — DROP TABLE partycji).");

@@ -20,8 +20,9 @@ import java.util.List;
  *
  * <p>Funkcja zwraca {@code VOID}, więc liczba przeniesionych wierszy jest odczytywana z wpisu
  * {@code cron_log.rows_affected}, który ta sama funkcja zapisuje na końcu — w TEJ SAMEJ transakcji.
- * To odczyt NAJNOWSZEGO wpisu, nie wpisu „własnego" wywołania — przy wielu instancjach (brak ShedLock)
- * możliwy jest odczyt wpisu innej instancji; patrz {@link #archiveCompletedCampaigns()}.
+ * To odczyt NAJNOWSZEGO wpisu, nie wpisu „własnego" wywołania; wołający ({@link CampaignArchiveJob#run()})
+ * jest objęty ShedLock ({@code CampaignArchiveJob_run}, BE-171), więc przy wielu instancjach działa jedna naraz;
+ * patrz {@link #archiveCompletedCampaigns()}.
  */
 @Slf4j
 @Repository
@@ -40,17 +41,17 @@ class CampaignArchiveJobRepository {
     /**
      * Uruchamia archiwizację (jedna transakcja dla wszystkich kwalifikujących się kampanii).
      *
-     * <p><strong>Ograniczenia odczytu {@code cron_log}</strong> (BE-120): wpis jest wybierany jako
-     * NAJNOWSZY ({@code ORDER BY log_id DESC LIMIT 1}) dla {@link #JOB_NAME} — to NIE jest dowód, że
-     * należy do tego wywołania. W repo nie ma ShedLock/{@code @SchedulerLock}, więc przy wielu instancjach
-     * aplikacji job startuje na każdej; instancja A może odczytać wpis instancji B, jeśli B zatwierdziło
-     * wiersz z wyższym {@code log_id} między INSERT-em A a jej SELECT-em (READ COMMITTED). Skutek ogranicza
-     * się do mylącej liczby w logu (dane są bezpieczne dzięki idempotencji funkcji SQL). Dodatkowo
-     * „brak wpisu" i „zarchiwizowano 0" są nierozróżnialne (oba zwracają 0). Funkcja SQL (V015) przy
-     * wyjątku robi {@code RAISE} po zapisie wpisu ERROR, więc ten wpis jest cofany razem z transakcją.
-     * Trwały ślad awarii zapisuje dopiero {@link CampaignArchiveJob} przez
-     * {@link CronFailureLogRepository#recordFailure} w osobnej transakcji (DB-082/V135), już po
-     * wycofaniu tej metody.
+     * <p><strong>Ograniczenia odczytu {@code cron_log}</strong> (BE-120, BE-171): wpis jest wybierany jako
+     * NAJNOWSZY ({@code ORDER BY log_id DESC LIMIT 1}) dla {@link #JOB_NAME}. Od BE-171 job jest objęty ShedLock
+     * ({@code @SchedulerLock} na {@link CampaignArchiveJob#run()}), więc dwie instancje aplikacji nie wykonują go
+     * równolegle i odczyt „najnowszego wpisu" nie trafia w wpis innej instancji tej samej aplikacji. Zostają dwa
+     * wąskie przypadki, w których liczba w logu bywa myląca (dane są bezpieczne dzięki idempotencji funkcji SQL):
+     * (1) {@code lockAtMostFor} wygasło w trakcie przebiegu albo (2) funkcję woła ktoś poza tym jobem (pg_cron,
+     * DBA) - wtedy jego wpis może mieć wyższe {@code log_id}. Dodatkowo „brak wpisu" i „zarchiwizowano 0" są
+     * nierozróżnialne (oba zwracają 0). Funkcja SQL (V015) przy wyjątku robi {@code RAISE} po zapisie wpisu ERROR,
+     * więc ten wpis jest cofany razem z transakcją. Trwały ślad awarii zapisuje dopiero {@link CampaignArchiveJob}
+     * przez {@link CronFailureLogRepository#recordFailure} w osobnej transakcji (DB-082/V135), już po wycofaniu tej
+     * metody.
      *
      * @return liczba wierszy skopiowanych do archiwum wg {@code cron_log.rows_affected}
      *         (0, gdy brak wpisu — np. gdy {@code cron_log} jest niewidoczny dla roli)

@@ -8,6 +8,7 @@ import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -157,6 +158,9 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
      * <p>Atomowość: używa {@code GETDEL} (pobierz i usuń atomicznie) na kluczu {@code dialer:call},
      * co gwarantuje że tylko jeden wywołujący (ten job lub {@code onCallHangup}) przetworzy zdarzenie.
      */
+    @SchedulerLock(name = "DialerCallbackHandlerImpl_checkRingTimeouts",
+            lockAtMostFor = "${shedlock.ring-timeout.at-most-for:PT30S}",
+            lockAtLeastFor = "${shedlock.ring-timeout.at-least-for:PT4S}")
     @Scheduled(fixedDelayString = "${dialer.ring-timeout-check-interval-ms:5000}")
     public void checkRingTimeouts() {
         // SCAN zamiast KEYS – nieblokujące, bezpieczne przy dużej liczbie kluczy

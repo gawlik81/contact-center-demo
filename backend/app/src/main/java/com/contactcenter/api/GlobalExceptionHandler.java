@@ -6,6 +6,7 @@ import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.exception.EtlSyncInProgressException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
 import com.contactcenter.domain.exception.WhatsAppApiException;
@@ -526,6 +527,19 @@ public class GlobalExceptionHandler {
      *
      * <p>Przykład: próba usunięcia agenta z aktywnymi kontaktami (BE-008).
      */
+    @ExceptionHandler(EtlSyncInProgressException.class)
+    public ResponseEntity<ProblemDetail> handleEtlSyncInProgress(EtlSyncInProgressException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setType(URI.create(ERROR_BASE_URI + "etl-sync-in-progress"));
+        problem.setTitle("Synchronizacja ETL już trwa");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("code", EtlSyncInProgressException.CODE);
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API] Ręczny trigger ETL odrzucony: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflictException(
             ConflictException ex, WebRequest request) {

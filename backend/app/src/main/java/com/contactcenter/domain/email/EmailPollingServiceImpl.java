@@ -10,6 +10,8 @@ import jakarta.mail.internet.MimePart;
 import jakarta.mail.internet.MimeUtility;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockConfiguration;
+import net.javacrumbs.shedlock.core.LockingTaskExecutor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -40,6 +43,14 @@ class EmailPollingServiceImpl implements EmailPollingService {
     private final EmailAttachmentStorageService attachmentStorageService;
     private final ObjectMapper objectMapper;
     private final EmailFollowUpJoiner followUpJoiner;
+    /** BE-172: distributed lock per tenant mailbox (see {@link #pollTenantUnderLock}). */
+    private final LockingTaskExecutor lockingTaskExecutor;
+
+    /** Prefix of the ShedLock name; the full name is {@code EmailPolling_pollInbox_<tenantId>} (59 chars, limit 64). */
+    static final String POLL_LOCK_PREFIX = "EmailPolling_pollInbox_";
+
+    /** Floor of the per-mailbox {@code lockAtMostFor}: a slow IMAP server plus S3 uploads can take minutes. */
+    private static final long POLL_LOCK_AT_MOST_FLOOR_MS = 300_000L;
 
     @Value("${email.poll-delay-ms:60000}")
     private long pollDelayMs;
@@ -69,30 +80,94 @@ class EmailPollingServiceImpl implements EmailPollingService {
             return;
         }
 
-        log.info("[EmailPolling] Rozpoczynam polling IMAP dla {} tenantów", activeTenants.size());
+        log.debug("[EmailPolling] Rozpoczynam polling IMAP, skrzynek do rozważenia: {}", activeTenants.size());
 
+        int polled = 0;
         for (Tenant tenant : activeTenants) {
-            // Snapshot kontekstu = pusty (brak HTTP request) – tworzymy ręcznie per tenant
-            TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
-                    tenant.getId(),
-                    null,    // userId: polling = system action, brak usera
-                    tenant.getName(),
-                    "SYSTEM"
-            );
-
-            try {
-                TenantContext.restore(snapshot);
-                pollTenantInbox(tenant);
-            } catch (Exception e) {
-                // Błąd jednego tenanta NIE przerywa pętli – logujemy i przechodzimy dalej
-                log.error("[EmailPolling] Błąd pollingu dla tenanta {}: {}",
-                        tenant.getId(), e.getMessage(), e);
-            } finally {
-                TenantContext.clear();
+            if (Thread.currentThread().isInterrupted()) {
+                log.warn("[EmailPolling] Przerwano (shutdown?) - pomijam pozostałe skrzynki");
+                break;
+            }
+            if (pollTenantUnderLock(tenant)) {
+                polled++;
             }
         }
 
-        log.info("[EmailPolling] Zakończono polling IMAP dla {} tenantów", activeTenants.size());
+        // INFO tylko gdy ta replika faktycznie coś pollowała (pozostałe skrzynki trzyma inna instancja)
+        if (polled > 0) {
+            log.info("[EmailPolling] Zakończono polling IMAP: {} z {} skrzynek pollowanych przez tę instancję",
+                    polled, activeTenants.size());
+        } else {
+            log.debug("[EmailPolling] Wszystkie {} skrzynki zablokowane przez inną instancję", activeTenants.size());
+        }
+    }
+
+    // =========================================================================
+    // Blokada rozproszona per skrzynka (BE-172)
+    // =========================================================================
+
+    /**
+     * Polls ONE tenant mailbox under a ShedLock named {@code EmailPolling_pollInbox_<tenantId>}.
+     *
+     * <p><strong>Why per tenant (and not one global lock):</strong> the loop already iterates over tenants and each
+     * tenant owns exactly one mailbox ({@code tenant.config} email account), so a mailbox == a tenant. A global
+     * lock would serialise the whole polling on one instance; with per-mailbox locks two instances split the
+     * tenants between them (each instance skips mailboxes locked by the other).
+     *
+     * <p>{@code lockAtLeastFor} = 0.8 x poll delay: the same mailbox is not polled twice within one interval by
+     * two instances running out of phase; it never blocks the own next pass (a {@code fixedDelay} pass starts at
+     * least {@code poll delay} after the previous one ended). {@code lockAtMostFor} = max(3 x delay, 5 min), a
+     * safety net for a crashed instance - NOT a runtime limit: if it expires mid-poll a second instance may poll
+     * the same mailbox, which is safe because {@code processMessage} deduplicates by {@code Message-ID} under an
+     * advisory lock ({@code EmailMessageRepository#save}); only messages WITHOUT a {@code Message-ID} header could
+     * be stored twice.
+     *
+     * <p>{@link TenantContext} is set and cleared inside the lock on the scheduler thread (no thread boundary).
+     */
+    private boolean pollTenantUnderLock(Tenant tenant) {
+        LockConfiguration lockConfig = new LockConfiguration(
+                Instant.now(),
+                POLL_LOCK_PREFIX + tenant.getId(),
+                Duration.ofMillis(Math.max(pollDelayMs * 3, POLL_LOCK_AT_MOST_FLOOR_MS)),
+                Duration.ofMillis(pollDelayMs * 8 / 10));
+        try {
+            LockingTaskExecutor.TaskResult<Void> result = lockingTaskExecutor.executeWithLock(
+                    (LockingTaskExecutor.TaskWithResult<Void>) () -> {
+                        pollTenantInTenantContext(tenant);
+                        return null;
+                    }, lockConfig);
+            if (!result.wasExecuted()) {
+                log.debug("[EmailPolling] Skrzynka tenanta {} jest już pollowana przez inną instancję - pomijam",
+                        tenant.getId());
+            }
+            return result.wasExecuted();
+        } catch (Throwable t) {
+            if (t instanceof Error error) {
+                throw error;
+            }
+            if (t instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            // Błąd jednego tenanta NIE przerywa pętli – logujemy i przechodzimy dalej
+            log.error("[EmailPolling] Błąd pollingu dla tenanta {}: {}", tenant.getId(), t.getMessage(), t);
+            return true; // próba była wykonana (blokada wzięta), tylko zakończyła się błędem
+        }
+    }
+
+    private void pollTenantInTenantContext(Tenant tenant) {
+        // Snapshot kontekstu = pusty (brak HTTP request) – tworzymy ręcznie per tenant
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
+                tenant.getId(),
+                null,    // userId: polling = system action, brak usera
+                tenant.getName(),
+                "SYSTEM"
+        );
+        try {
+            TenantContext.restore(snapshot);
+            pollTenantInbox(tenant);
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     // =========================================================================

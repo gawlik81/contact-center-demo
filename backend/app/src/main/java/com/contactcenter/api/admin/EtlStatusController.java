@@ -6,8 +6,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.contactcenter.domain.exception.EtlSyncInProgressException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockConfiguration;
+import net.javacrumbs.shedlock.core.LockingTaskExecutor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +19,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -40,6 +46,11 @@ import java.util.List;
 public class EtlStatusController {
 
     private final EtlSyncService etlSyncService;
+    private final LockingTaskExecutor lockingTaskExecutor;
+
+    /** Safety net of the manual-trigger lock, same key as the scheduled cycle ({@code shedlock.etl.at-most-for}). */
+    @Value("${shedlock.etl.at-most-for:PT10M}")
+    private Duration lockAtMostFor = Duration.ofMinutes(10);
 
     /**
      * Zwraca status synchronizacji ETL dla wszystkich tabel.
@@ -87,17 +98,36 @@ public class EtlStatusController {
     @PostMapping("/trigger")
     @Operation(
             summary = "Ręczne wyzwolenie ETL",
-            description = "Natychmiast uruchamia cykl synchronizacji ETL. " +
+            description = "Natychmiast uruchamia cykl synchronizacji ETL tabeli contact (pod tą samą blokadą co cykl zaplanowany; " +
+                          "gdy cykl już trwa - 409 ETL_SYNC_IN_PROGRESS). " +
                           "Operacja synchroniczna. Zwraca status po zakończeniu.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Synchronizacja zakończona"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-                    @ApiResponse(responseCode = "403", description = "Brak roli ADMIN")
+                    @ApiResponse(responseCode = "403", description = "Brak roli ADMIN"),
+                    @ApiResponse(responseCode = "409", description = "Cykl ETL już trwa (code=ETL_SYNC_IN_PROGRESS)")
             }
     )
     public ResponseEntity<List<EtlTableStatus>> triggerEtlSync() {
         log.info("[EtlStatusController] POST /api/admin/etl/trigger – ręczne wyzwolenie ETL");
-        etlSyncService.syncTable(EtlSyncService.TABLE_CONTACT);
+        // BE-172: the SAME ShedLock as the scheduled contact cycle, lockAtLeastFor = 0 (released right after the run).
+        // Busy lock (cycle running here or on another instance) -> 409, never a second DW writer.
+        LockConfiguration lockConfig = new LockConfiguration(
+                Instant.now(), EtlSyncService.LOCK_CONTACT_SYNC, lockAtMostFor, Duration.ZERO);
+        LockingTaskExecutor.TaskResult<Boolean> result;
+        try {
+            result = lockingTaskExecutor.executeWithLock((LockingTaskExecutor.TaskWithResult<Boolean>) () -> {
+                etlSyncService.syncTable(EtlSyncService.TABLE_CONTACT);
+                return Boolean.TRUE;
+            }, lockConfig);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new IllegalStateException("Ręczny trigger ETL nie powiódł się", t);
+        }
+        if (!result.wasExecuted()) {
+            throw new EtlSyncInProgressException(EtlSyncService.TABLE_CONTACT);
+        }
         List<EtlTableStatus> statuses = etlSyncService.getStatus();
         return ResponseEntity.ok(statuses);
     }

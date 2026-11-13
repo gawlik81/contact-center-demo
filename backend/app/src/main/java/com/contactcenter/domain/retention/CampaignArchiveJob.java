@@ -1,6 +1,7 @@
 package com.contactcenter.domain.retention;
 
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -98,6 +99,7 @@ class CampaignArchiveJob {
     }
 
     /** Punkt wejścia schedulera; nigdy nie rzuca wyjątku. */
+    @SchedulerLock(name = "CampaignArchiveJob_run", lockAtMostFor = "PT1H", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${retention.campaign-archive-cron:0 0 4 * * *}", zone = "UTC")
     void run() {
         if (!enabled) {

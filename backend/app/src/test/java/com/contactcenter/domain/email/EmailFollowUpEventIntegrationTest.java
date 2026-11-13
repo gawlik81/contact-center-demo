@@ -123,7 +123,8 @@ class EmailFollowUpEventIntegrationTest {
                 new ContactMessageReceivedPublisher(broadcaster), emlService);
         poller = new EmailPollingServiceImpl(mock(TenantService.class), repository, routing,
                 mock(EmailEventPublisher.class), new EmailEncryptionServiceImpl(TEST_KEY),
-                mock(EmailAttachmentStorageService.class), new ObjectMapper(), joiner);
+                mock(EmailAttachmentStorageService.class), new ObjectMapper(), joiner,
+                com.contactcenter.support.NoOpLockProvider.executor());
         insertAgentAndContact("ACTIVE", "EMAIL");
 
         parentHeader = "<parent-" + UUID.randomUUID() + "@ext.example>";

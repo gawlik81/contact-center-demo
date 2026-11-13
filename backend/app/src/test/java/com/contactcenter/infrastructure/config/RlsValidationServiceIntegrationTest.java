@@ -86,6 +86,9 @@ class RlsValidationServiceIntegrationTest {
         // Klasa GLOBAL (DB-071) – tenant_id NOT NULL, ale świadomie bez izolacji RLS.
         assertThat(tables).doesNotContain("tenant", "plugin_version");
 
+        // Tabela platformowa bez tenant_id (DB-090, ShedLock) – poza klasa TENANT z definicji.
+        assertThat(tables).doesNotContain("shedlock");
+
         // Klasa MIXED (DB-071) – tenant_id nullable (NULL = rekord globalny), wykluczona naturalnie
         // przez is_nullable = 'NO', nie przez nazwę.
         assertThat(tables).doesNotContain("audit_log", "app_user", "refresh_token", "gdpr_processing_register");

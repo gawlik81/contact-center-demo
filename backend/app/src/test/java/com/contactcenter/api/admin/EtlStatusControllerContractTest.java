@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,7 +35,16 @@ class EtlStatusControllerContractTest {
     @EnableMethodSecurity(prePostEnabled = true)
     @Import({EtlStatusController.class, com.contactcenter.api.GlobalExceptionHandler.class})
     static class MinimalBootConfig {
+        /** Real executor over a mocked provider: the test decides whether the ShedLock is free or held. */
+        @org.springframework.context.annotation.Bean
+        net.javacrumbs.shedlock.core.LockingTaskExecutor lockingTaskExecutor(
+                net.javacrumbs.shedlock.core.LockProvider provider) {
+            return new net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor(provider);
+        }
     }
+
+    @MockBean
+    private net.javacrumbs.shedlock.core.LockProvider lockProvider;
 
     @Autowired
     private MockMvc mockMvc;
@@ -80,5 +90,38 @@ class EtlStatusControllerContractTest {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
         }
         org.mockito.Mockito.verifyNoInteractions(etlSyncService);
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    @DisplayName("POST /trigger: blokada wolna -> 200, syncTable(contact) wywołane, blokada tą samą nazwą co cykl zaplanowany, lockAtLeastFor=0")
+    void triggerRunsUnderTheScheduledCycleLock() throws Exception {
+        org.mockito.ArgumentCaptor<net.javacrumbs.shedlock.core.LockConfiguration> cfg =
+                org.mockito.ArgumentCaptor.forClass(net.javacrumbs.shedlock.core.LockConfiguration.class);
+        when(lockProvider.lock(cfg.capture()))
+                .thenReturn(java.util.Optional.of(org.mockito.Mockito.mock(net.javacrumbs.shedlock.core.SimpleLock.class)));
+        when(etlSyncService.getStatus()).thenReturn(List.of());
+
+        mockMvc.perform(post("/api/admin/etl/trigger")).andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(etlSyncService).syncTable(EtlSyncService.TABLE_CONTACT);
+        org.assertj.core.api.Assertions.assertThat(cfg.getValue().getName()).isEqualTo("EtlSyncServiceImpl_runContactSync");
+        org.assertj.core.api.Assertions.assertThat(cfg.getValue().getLockAtLeastFor()).isEqualTo(java.time.Duration.ZERO);
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    @DisplayName("POST /trigger: blokada zajęta (cykl trwa) -> 409 ProblemDetail z code=ETL_SYNC_IN_PROGRESS, syncTable NIE wywołane")
+    void triggerWhileCycleRunningReturns409() throws Exception {
+        when(lockProvider.lock(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(post("/api/admin/etl/trigger"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("ETL_SYNC_IN_PROGRESS"))
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.endsWith("etl-sync-in-progress")))
+                .andExpect(jsonPath("$.detail").isNotEmpty());
+
+        org.mockito.Mockito.verify(etlSyncService, org.mockito.Mockito.never()).syncTable(org.mockito.ArgumentMatchers.anyString());
     }
 }

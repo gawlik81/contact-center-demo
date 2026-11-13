@@ -32,7 +32,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -369,6 +371,142 @@ class RecordingRetentionJobTest {
             job.runRetentionJob();
 
             assertThat(TenantContext.isSet()).isFalse();
+        }
+    }
+
+    // =========================================================================
+    // BE-196 - EML odpowiedzi kontaktow EMAIL bez recording_url
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-196 - kontakty EMAIL bez recording_url z EML odpowiedzi")
+    class EmlOnlyContacts {
+
+        private static final UUID EML_CONTACT_1 = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        private static final UUID EML_CONTACT_2 = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
+
+        @BeforeEach
+        void givenTenant() {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(30);
+        }
+
+        @Test
+        @DisplayName("kandydaci EML-only: usuwa EML przez deleteEmlObjectsByContact z cutoffem retencji tenanta, bez clearRecordingUrl")
+        void deletesEmlOfContactsWithoutRecordingUrl() {
+            when(emailMessageService.findContactIdsWithExpiredEml(eq(TENANT_SHORT_RETENTION), any(), any(), eq(100)))
+                    .thenReturn(List.of(EML_CONTACT_1, EML_CONTACT_2));
+
+            job.runRetentionJob();
+
+            ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
+            verify(emailMessageService).findContactIdsWithExpiredEml(
+                    eq(TENANT_SHORT_RETENTION), cutoff.capture(), eq(null), eq(100));
+            assertThat(cutoff.getValue()).isCloseTo(Instant.now().minus(30, ChronoUnit.DAYS), within(5, ChronoUnit.SECONDS));
+            verify(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, EML_CONTACT_1);
+            verify(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, EML_CONTACT_2);
+            verify(contactService, never()).clearRecordingUrl(any(), any());
+            verify(recordingService, never()).deleteFromS3(any());
+        }
+
+        @Test
+        @DisplayName("porazka S3 jednego kontaktu nie przerywa pozostalych")
+        void failureOfOneContactDoesNotStopOthers() {
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(EML_CONTACT_1, EML_CONTACT_2));
+            doThrow(new RuntimeException("S3 down"))
+                    .when(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, EML_CONTACT_1);
+
+            job.runRetentionJob();
+
+            verify(emailMessageService).deleteEmlObjectsByContact(TENANT_SHORT_RETENTION, EML_CONTACT_2);
+            assertThat(TenantContext.isSet()).isFalse();
+        }
+
+        @Test
+        @DisplayName("tenanci: suma listy z nagraniami i listy z EML (bez duplikatow); tenant tylko-EML jest przetwarzany")
+        void unionsTenantsFromRecordingsAndEml() {
+            when(contactService.findTenantsWithRecordings()).thenReturn(List.of(TENANT_SHORT_RETENTION));
+            when(emailMessageService.findTenantIdsWithEml())
+                    .thenReturn(List.of(TENANT_SHORT_RETENTION, TENANT_LONG_RETENTION));
+            when(retentionPolicyService.getRetentionDays(TENANT_LONG_RETENTION, RetentionDataCategory.RECORDINGS))
+                    .thenReturn(360);
+
+            job.runRetentionJob();
+
+            verify(retentionPolicyService, times(1)).getRetentionDays(TENANT_SHORT_RETENTION, RetentionDataCategory.RECORDINGS);
+            verify(retentionPolicyService, times(1)).getRetentionDays(TENANT_LONG_RETENTION, RetentionDataCategory.RECORDINGS);
+        }
+
+        @Test
+        @DisplayName("stronicowanie keysetem: pelna strona -> kolejne zapytanie z 'after' = ostatni id; konczy na niepelnej")
+        void pagesWithKeysetUntilShortPage() {
+            List<UUID> page1 = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                page1.add(new UUID(0L, i + 1));
+            }
+            UUID last = page1.get(99);
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), eq(null), eq(100))).thenReturn(page1);
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), eq(last), eq(100)))
+                    .thenReturn(List.of(EML_CONTACT_2));
+            when(emailMessageService.deleteEmlObjectsByContact(any(), any())).thenReturn(1);
+
+            job.runRetentionJob();
+
+            verify(emailMessageService, times(2)).findContactIdsWithExpiredEml(any(), any(), any(), eq(100));
+            verify(emailMessageService, times(101)).deleteEmlObjectsByContact(eq(TENANT_SHORT_RETENTION), any());
+        }
+
+        @Test
+        @DisplayName("limit stron: nawet gdy zawsze pelne strony, maks. 20 zapytan na tenanta")
+        void stopsAtMaxBatches() {
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), any(), eq(100)))
+                    .thenAnswer(inv -> {
+                        UUID after = inv.getArgument(2);
+                        long base = after == null ? 0 : after.getLeastSignificantBits();
+                        List<UUID> page = new ArrayList<>();
+                        for (int i = 1; i <= 100; i++) {
+                            page.add(new UUID(0L, base + i));
+                        }
+                        return page;
+                    });
+            when(emailMessageService.deleteEmlObjectsByContact(any(), any())).thenReturn(1);
+
+            job.runRetentionJob();
+
+            verify(emailMessageService, times(20)).findContactIdsWithExpiredEml(any(), any(), any(), eq(100));
+        }
+
+        @Test
+        @DisplayName("awaria S3: 3 kolejne strony zakonczone wylacznie bledami -> stop")
+        void stopsWhenWholeBatchFails() {
+            List<UUID> page = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                page.add(new UUID(0L, i + 1));
+            }
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), any(), eq(100))).thenReturn(page);
+            when(emailMessageService.deleteEmlObjectsByContact(any(), any())).thenThrow(new RuntimeException("S3 down"));
+
+            job.runRetentionJob();
+
+            verify(emailMessageService, times(3)).findContactIdsWithExpiredEml(any(), any(), any(), eq(100));
+        }
+
+        @Test
+        @DisplayName("kontakt z recording_url: dotychczasowa sciezka bez zmian; brak kandydatow EML-only -> brak usuwania EML z tej galezi")
+        void recordingPathUnchanged() {
+            ContactRecordingEntry entry = new ContactRecordingEntry(CONTACT_SHORT, "tenant/x/rec.mp3");
+            when(contactService.findExpiredRecordings(eq(TENANT_SHORT_RETENTION), any(), anyInt()))
+                    .thenReturn(List.of(entry));
+            when(emailMessageService.findContactIdsWithExpiredEml(any(), any(), any(), anyInt())).thenReturn(List.of());
+
+            job.runRetentionJob();
+
+            verify(recordingService).deleteFromS3("tenant/x/rec.mp3");
+            verify(contactService).clearRecordingUrl(CONTACT_SHORT, TENANT_SHORT_RETENTION);
+            verify(emailMessageService, never()).deleteEmlObjectsByContact(any(), any());
+            verify(emailMessageService, times(1)).findContactIdsWithExpiredEml(any(), any(), any(), anyInt());
         }
     }
 }

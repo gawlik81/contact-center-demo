@@ -98,6 +98,18 @@ class EmailMessageServiceImpl implements EmailMessageService {
         return emailMessageRepository.findEarliestMessageId(contactId, tenantId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findContactIdsWithExpiredEml(UUID tenantId, Instant cutoff, UUID afterContactId, int limit) {
+        return emailMessageRepository.findContactIdsWithExpiredEml(tenantId, cutoff, afterContactId, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findTenantIdsWithEml() {
+        return emailMessageRepository.findTenantIdsWithEml();
+    }
+
     /** Bez {@code @Transactional}: I/O do S3 poza transakcja (jak {@link #purgeByContactIds}). */
     @Override
     public int deleteEmlObjectsByContact(UUID tenantId, UUID contactId) {

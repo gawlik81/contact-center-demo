@@ -861,3 +861,37 @@ Zakres: `V142__purge_campaign_contact_archive_pk_nested_loop.sql`, test migracyj
 ### Summary
 
 **Ocena: 4/5 ⭐ — migracja jest semantycznie wierna V126 i poprawnie obsługuje pustą partię oraz zakres `SET`, a test parytetu na dwóch bazach jest solidny; odejmuję za nieprawdziwą tezę „odporne na partycjonowanie” (DELETE bez `archived_at` nad-usunie po zmianie PK w DB-069), pustą asercję kolejności w teście i nieaktualny status „niezastosowana” (V142 jest już na żywej bazie, więc poprawki tylko przez V143).**
+
+---
+
+## Review: DB-090 — 2026-11-13
+
+Zakres: `backend/src/main/resources/db/migration/V149__create_shedlock.sql`, `Db090ShedlockMigrationTest`, `RlsValidationServiceIntegrationTest` (+3 linie), `documentation/tech/06-database.md` (wiersz `shedlock`). Porownanie z SQL providera `shedlock-provider-jdbc-template:6.10.0` (`PostgresSqlServerTimeStatementsSource`, z `-sources.jar`). Uruchomione: `Db090ShedlockMigrationTest` + `SchedulerLockCoverageTest` (zielone, JDK 21; Flyway stosuje V149 w Testcontainers).
+
+**Ocena: 4,5/5 — zatwierdzone, brak must-fix.**
+
+### 🐛 Bugs / Critical Issues
+_None identified._ Struktura zgodna z DDL ShedLock (`name VARCHAR(64) PK`, `lock_until/locked_at TIMESTAMP(3) NOT NULL`, `locked_by VARCHAR(255) NOT NULL`); wszystkie 4 instrukcje providera (INSERT ... ON CONFLICT, UPDATE, unlock, extend) dzialaja na tej definicji.
+
+### ⚠️ Security Concerns
+_None identified._ `REVOKE ALL ... FROM PUBLIC`, DML (bez TRUNCATE/DDL) dla `app_user`; test uprawnien potwierdza brak `TRUNCATE` dla roli aplikacyjnej. Tabela bez danych tenantow, wiec brak RLS jest wlasciwy (`RlsValidationService` klasyfikuje po `tenant_id NOT NULL`; asercja w `RlsValidationServiceIntegrationTest` + test `platformTableWithoutTenantAndRls`).
+
+### 🏗️ Architecture / Pattern Violations
+- **DB-S1 (should-fix, ryzyko uspione) GRANT warunkowy dla `cc_app` zadziala tylko jesli rola istnieje W CHWILI migracji (`V149:56-64`).** Blok `DO` pomija `cc_app`, jesli nie istnieje; gdy EPIC-31/DB-083 utworzy te role pozniej, wiersz `shedlock` nie dostanie uprawnien, chyba ze tamta migracja robi `GRANT ... ON ALL TABLES` / `ALTER DEFAULT PRIVILEGES`. Skutek: po przejsciu aplikacji na `cc_app` `JdbcTemplateLockProvider` loguje ERROR (`permission denied`) i — przy `throwUnexpectedException=false` — wszystkie joby po cichu przestaja sie wykonywac na wszystkich instancjach. Dopisac punkt do DoD DB-083 ("jawny GRANT na `shedlock` albo test, ze `cc_app` ma DML na tabelach platformowych") oraz, jesli mozna, test: rola z `createRestrictedLoginRole` (jest `ShedLockProviderIntegrationTest#restrictedApplicationRoleCanLock`) powtorzony po utworzeniu `cc_app`.
+- Odstepstwo od spec (`TIMESTAMPTZ` preferowany -> `TIMESTAMP(3)`) jest **uzasadnione i poprawne** (kontrakt `timezone('utc', CURRENT_TIMESTAMP)` providera) i jawnie opisane; spec dopuszczal je ("jesli wspierane przez wybrana wersje").
+
+### 🔧 Improvements & Suggestions
+- **DB-N1.** Uzasadnienie w naglowku V149 i `06-database.md` ("TIMESTAMPTZ przesunalby blokady o offset strefy sesji") jest przesadzone: przy tej samej strefie sesji zapis i porownanie bylyby spojne; realne problemy to sesje o roznych strefach i niejednoznacznosc DST (np. Europe/Warsaw 02:00-03:00). Doprecyzowac jednym zdaniem — decyzja pozostaje slusznie TIMESTAMP.
+- **DB-N2.** Komentarz "22 metody @Scheduled w 19 klasach" (V149 linia 3) jest nieaktualny (po BE-172: 24 w 21 klasach; migracji nie edytowac — Flyway checksum! — wystarczy dokumentacja; tego komentarza NIE poprawiac w pliku zastosowanym).
+- **DB-N3.** `Db090ShedlockMigrationTest#providerSqlWorksWithNonUtcSessionTimeZone` odtwarza SQL providera recznie (stale w tescie) — dryf przy aktualizacji ShedLock (R1 z ticketu) nie zostanie wykryty. Taniej i pewniej: ten sam scenariusz przez prawdziwy `JdbcTemplateLockProvider` z pula, w ktorej `connectionInitSql = 'SET TimeZone=''Europe/Warsaw'''` (dodatkowo `ShedLockProviderIntegrationTest` nie ma zadnej sesji z nie-UTC strefa, wiec sam test `lockUntilUsesDatabaseClock` nie chroni decyzji TIMESTAMP vs TIMESTAMPTZ — przeszedlby tez na TIMESTAMPTZ w sesji UTC).
+- **DB-N4.** Wysokoczestotliwosciowe UPDATE-y (do 24 wierszy, najczestsze co 5 s) sa HOT-owe (PK nie jest zmieniany), wiec bloat jest pomijalny; mozna opcjonalnie `ALTER TABLE shedlock SET (fillfactor = 70, autovacuum_vacuum_scale_factor = 0.0, autovacuum_vacuum_threshold = 50)` — nie wymagane.
+- **DB-N5.** `SET LOCAL lock_timeout` przy `CREATE TABLE IF NOT EXISTS` praktycznie bez efektu (spec tego wymagal; zgodne z konwencja innych migracji — zostawic).
+
+### ✅ Positive Observations
+- Typ czasowy dobrany na podstawie zrodel providera, nie "z pamieci"; test wykonuje caly cykl insert/odmowa/extend/unlock/re-acquire na sesji Europe/Warsaw z asercja przesuniecia 55-65 s.
+- Test struktury sprawdza typ, precyzje (3), dlugosci, NOT NULL i PK z `information_schema`, a uprawnienia — przez realna role z ograniczeniami (INSERT/DELETE ok, `TRUNCATE` odmowa).
+- Numer V149 poprawnie ustalony (V148 ostatnia na galezi), idempotencja (`IF NOT EXISTS`, powtarzalne REVOKE/GRANT/COMMENT), `COMMENT ON` tabeli i kolumn, dokumentacja `06-database.md` ze wzmianka o niezmienianiu typow i o sprawdzeniu DDL przy aktualizacji wersji.
+- Swiadome wyjscie poza RLS z udokumentowanym uzasadnieniem i dowodem testowym (brak polityk, brak FORCE, poza klasa TENANT).
+
+### Summary
+4,5/5 — poprawna, minimalna i dobrze przetestowana migracja platformowa; jedyne realne ryzyko to warunkowy GRANT dla przyszlej roli `cc_app` (do wpisania w DoD DB-083), reszta to doprecyzowania uzasadnienia i wzmocnienie testu na drift providera.

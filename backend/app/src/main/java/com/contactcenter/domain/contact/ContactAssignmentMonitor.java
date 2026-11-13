@@ -10,6 +10,7 @@ import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -79,6 +80,9 @@ class ContactAssignmentMonitor {
      * <p>Błąd pojedynczego kontaktu nie przerywa pętli – każdy jest opakowywany
      * w try/catch dla izolacji awarii.
      */
+    @SchedulerLock(name = "ContactAssignmentMonitor_checkStaleAssignments",
+            lockAtMostFor = "PT30S",
+            lockAtLeastFor = "PT8S")
     @Scheduled(fixedDelay = 10_000)
     public void checkStaleAssignments() {
         Instant cutoff = Instant.now().minusSeconds(STALE_THRESHOLD_SECONDS);

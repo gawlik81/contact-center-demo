@@ -1,6 +1,7 @@
 package com.contactcenter.domain.user;
 
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -63,6 +64,7 @@ class RefreshTokenCleanupJob {
     }
 
     /** Punkt wejścia schedulera; nigdy nie rzuca wyjątku (błąd jest logowany, kolejny przebieg jutro). */
+    @SchedulerLock(name = "RefreshTokenCleanupJob_run", lockAtMostFor = "PT30M", lockAtLeastFor = "PT10M")
     @Scheduled(cron = "${auth.refresh-token-cleanup.cron:0 30 3 * * *}", zone = "UTC")
     void run() {
         try {

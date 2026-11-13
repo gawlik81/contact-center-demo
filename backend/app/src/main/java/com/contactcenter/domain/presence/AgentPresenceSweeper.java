@@ -9,6 +9,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -52,7 +53,9 @@ import java.util.stream.Stream;
  * before the write (only for real candidates); the write is a
  * compare-and-set on the status read by the sweeper ({@code UserService#markOfflineOnPresenceTimeout}), so two
  * instances or a manual change racing the sweeper produce at most one transition and one event.
- * (Cross-instance locking, BE-172, is not required for correctness.)
+ * Cross-instance locking (BE-172): {@link #scheduledSweep()} runs under ShedLock, so normally one instance sweeps per
+ * interval; the compare-and-set above keeps it correct even if the lock expires mid-pass. The startup pass
+ * ({@link #onApplicationReady()}) is deliberately NOT locked - it is per instance (own {@code startedAt} grace).
  */
 @Slf4j
 @Component
@@ -112,6 +115,9 @@ class AgentPresenceSweeper {
         startupExecutor.execute(this::sweep);
     }
 
+    @SchedulerLock(name = "AgentPresenceSweeper_scheduledSweep",
+            lockAtMostFor = "${shedlock.presence-sweeper.at-most-for:PT90S}",
+            lockAtLeastFor = "${shedlock.presence-sweeper.at-least-for:PT24S}")
     @Scheduled(fixedDelayString = "${agent.presence.sweep-interval-ms:30000}",
             initialDelayString = "${agent.presence.sweep-interval-ms:30000}")
     public void scheduledSweep() {

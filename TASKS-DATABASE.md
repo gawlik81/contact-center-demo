@@ -45,10 +45,10 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 9 | 0 | 0 | 0 | 9 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
-| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 3 | 0 | 2 | 0 | 5 | 🔧 W toku (DB-089, DB-096, DB-097 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty (DB-090 P0, DB-091 P1, DB-092/DB-093 P2) |
+| EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 4 | 0 | 2 | 0 | 6 | 🔧 W toku (DB-089, DB-096, DB-097, DB-099 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 1 | 0 | 3 | 0 | 4 | 🔧 W toku (DB-090 ✅ P0; DB-091 P1, DB-092/DB-093 P2 ⬜) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
-| **RAZEM** | | **87** | **0** | **8** | **3** | **98** | |
+| **RAZEM** | | **89** | **0** | **7** | **3** | **99** | |
 
 Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099.
 
@@ -68,10 +68,11 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 - DB-096 – Domyślny limit `queue.max_concurrent_contacts_per_agent` = 3 i podniesienie istniejących 1→3 (BE-156) – ✅ (2026-11-07, tura 72; V147)
 - DB-097 – Indeks częściowy `idx_contact_open_async_count (tenant_id, agent_id, queue_id) WHERE status IN (ASSIGNED, ACTIVE, ON_HOLD)` (BE-156/BE-159, CR should-fix #1) – ✅ (2026-11-07, tura 72; V148)
 - DB-098 – [BRAMKOWANY WOLUMENEM] Indeksy wyrażeniowe `COALESCE(updated_at, created_at)` dla `contact` i `campaign_contact` pod zapytania CDC i lag ETL (BE-212; CR 2026-11-07) – ⬜ (tura 73; priorytet podniesiony do Should Have w turze 74 po BE-213 ✅)
+- DB-099 – Indeks częściowy `idx_email_message_eml_contact (tenant_id, contact_id, message_at) WHERE eml_s3_key IS NOT NULL` (BE-196) – ✅ (2026-11-13, tura 77; V150; założony i zamknięty w tej samej turze)
 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
-- DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ⬜
+- DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ✅ (2026-11-13, tura 77; V149)
 - DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
@@ -4363,11 +4364,13 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 3/5** (⬜ nie rozpoczęte: 2) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu pięć ticketów DB: DB-089 ✅, DB-096 ✅ (V147), DB-097 ✅ (V148), DB-088 ⬜ backlog, DB-098 ⬜ backlog (tura 73); numery DB-096/DB-097 dołożone w turze 72, 2026-11-07, i wchodzą od razu jako ✅)
+**Ukończone 4/6** (⬜ nie rozpoczęte: 2) — status epiku: 🔧 W toku (część FE/BE w `TASKS-FRONTEND.md`/`TASKS-BACKEND.md`; tu sześć ticketów DB: DB-089 ✅, DB-096 ✅ (V147), DB-097 ✅ (V148), DB-099 ✅ (V150; tura 77, założony i zamknięty w tej samej turze), DB-088 ⬜ backlog, DB-098 ⬜ backlog (tura 73); numery DB-096/DB-097 dołożone w turze 72, 2026-11-07, i wchodzą od razu jako ✅)
 
 **Uwaga z tury 72 (2026-11-07, z CR BE-159/BE-156 — POZA ZAKRESEM V147; do uwzględnienia w tym tickecie, EPIC-31):** migracja V147 (DB-096 ✅) wykonuje `UPDATE queue ... WHERE max_concurrent_contacts_per_agent = 1`, a `queue` ma FORCE RLS. Przy Flyway uruchamianym rolą bez BYPASSRLS (po przejściu na rolę `cc_app`, BE-148) takie migracje DANYCH dotkną 0 wierszy BEZ błędu (brak `app.current_tenant_id`). Wymóg dla DB-083/BE-148: (a) rola migracyjna z BYPASSRLS (spójnie z korektą z tury 34) albo (b) guard `DO $$` w migracjach aktualizujących dane pod FORCE RLS (`RAISE EXCEPTION`, gdy `NOT rolbypassrls` i nie superuser, lub kontrola liczby zaktualizowanych wierszy). Inwentarz takich migracji zacząć od V147.
 
 **Dopisek (tura 75 cd., BE-216 ✅):** wymaganie wynikające z BE-216 — strażnik CDC ETL czyta `pg_stat_activity` (`xact_start`/`backend_xid` sesji piszących innych ról). Rola aplikacji `cc_app` / rola ETL musi mieć `GRANT pg_read_all_stats` (albo wszyscy writerzy tabel CDC muszą działać jako ta sama rola), inaczej strażnik degraduje się do samego okna bezpieczeństwa (WARN przy starcie). Do uwzględnienia w pkt 1 (role/GRANT-y) i w teście pod rolą ograniczoną; rekomendacja `idle_in_transaction_session_timeout` dla roli aplikacji. Status DB-083 bez zmian (⬜); powiązane: BE-216 ✅, BE-150.
+
+**Dopisek (tura 77, DB-090 ✅ — wynik CR DB-S1):** `V149` (DB-090 ✅) nadaje GRANT DML na `shedlock` dla `app_user`/`cc_app` WARUNKOWO (rola musi istnieć w chwili migracji). **DoD DB-083:** przy przejściu produkcji na `cc_app` jawnie nadać `GRANT SELECT, INSERT, UPDATE, DELETE ON shedlock TO cc_app` (jeśli rola powstała po V149) i dodać do testu pod rolą ograniczoną sprawdzenie, że `JdbcTemplateLockProvider` zakłada/odnawia/zwalnia blokadę — inaczej wszystkie joby `@SchedulerLock` (BE-171 ✅/BE-172 ✅) po cichu przestaną działać (log ERROR, `throwUnexpectedException=false`). Status DB-083 bez zmian (⬜); powiązane: DB-090 ✅, BE-171 ✅, BE-148.
 
 ### DB-089 – Kolumna `app_user.status_changed_at`: trwałe źródło czasu rozpoczęcia bieżącego statusu agenta (`statusSince`, BE-153)
 
@@ -4597,9 +4600,32 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Dopisek (tura 76):** BE-223 ✅, BE-204 ✅, BE-207 ✅ nie wprowadzają migracji ani zmian schematu (najwyższa V148); BE-207 zmienia tylko zestaw statusów w zapytaniach (`OccupiedSlot`), więc nie wpływa na indeks `idx_contact_open_async_count` z DB-097 ✅ ani na zakres DB-088/DB-098 (oba nadal ⬜, bramkowane wolumenem). Liczniki DB bez zmian (87/0/8/3 = 98); następny wolny numer DB: DB-099.
 
 
+### DB-099 – Indeks częściowy `idx_email_message_eml_contact` na `email_message (tenant_id, contact_id, message_at) WHERE eml_s3_key IS NOT NULL` (V150, pod BE-196)
+
+**Typ:** Perf (indeks częściowy na tabeli partycjonowanej)
+**Priorytet:** Should Have (pod zapytania `RecordingRetentionJob.purgeEmlOnlyContacts`, BE-196)
+**Złożoność:** S
+**Zależy od:** BE-196 ✅ (zapytania `EXPIRED_EML_CONTACTS_SQL`), DB-094 ✅ (kolumna `email_message.eml_s3_key`)
+**Status:** ✅ Ukończone (2026-11-13, tura 77; `V150__email_message_eml_s3_key_partial_index.sql`; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; założony i zamknięty w tej samej turze; test planu w `RecordingRetentionEmlOnlyIntegrationTest` (EXPLAIN przycinania i użycia indeksu); stan żywej bazy nieweryfikowany)
+**Blokuje:** brak; powiązane: BE-226 (przepisanie `findTenantIdsWithEml`), DB-097 ✅, DB-094 ✅
+**Epic:** EPIC-32 UX i dostępność stanowiska agenta (backlog; jak BE-196/DB-094; mianownik tabeli DB: wiersz EPIC-32 = 4/0/2)
+**Wykonawca:** `db-schema-architect`
+
+**Zrealizowano:** indeks częściowy `idx_email_message_eml_contact ON email_message (tenant_id, contact_id, message_at) WHERE eml_s3_key IS NOT NULL` z propagacją na partycje (nowe partycje dziedziczą); dokumentacja `documentation/tech/06-database.md` §3.6.
+
+**Kryteria akceptacji:**
+- [x] Indeks istnieje na tabeli nadrzędnej i partycjach, predykat = `eml_s3_key IS NOT NULL`
+- [x] Plan zapytań BE-196 przycina partycje i używa indeksu (test EXPLAIN w `RecordingRetentionEmlOnlyIntegrationTest`)
+- [x] Dokumentacja `06-database.md` §3.6 zaktualizowana
+- [x] `mvn verify -pl app` zielone — po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty
+
+**Ograniczenie (→ BE-226):** `findTenantIdsWithEml` nadal czyta cały indeks częściowy (PostgreSQL bez skip scan), raz dziennie.
+**Nie wchodzi w zakres:** indeks `idx_email_message_*` pod podgląd wątku (BE-197), zmiany `DB-098`.
+**Zależności:** `Zależy od` BE-196 ✅, DB-094 ✅; `Blokuje` brak; powiązane: BE-226, BE-197.
+
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 0/4** (⬜ nie rozpoczęte: 4) — status epiku: ⬜ Nie rozpoczęty (część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 1/4** (✅ 1 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 
@@ -4607,7 +4633,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Priorytet:** Must Have (P0)
 **Złożoność:** S
 **Zależy od:** brak
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (2026-11-13, tura 77; `V149__create_shedlock.sql`; gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane; wykonawca `db-schema-architect`; test `Db090ShedlockMigrationTest` (4); CR „Review: DB-090 — 2026-11-13” w `CR-DATABASE.md` 4,5/5, 0 must-fix, DB-N3 naprawiony (test strefy sesji Europe/Warsaw); stan żywej bazy nieweryfikowany) — odblokował BE-171 ✅
 **Blokuje:** BE-171 (→ BE-172, BE-173, BE-176)
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `db-schema-architect`
@@ -4621,16 +4647,17 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 - Migracja idempotentna, `SET LOCAL lock_timeout`.
 
 **Kryteria akceptacji:**
-- [ ] Migracja `V{n}__create_shedlock.sql` tworzy tabelę ze zgodną strukturą (test: ShedLock `JdbcTemplateLockProvider` zapisuje/odnawia/zwalnia blokadę)
-- [ ] `RlsValidationService` i test klasyfikacji RLS uznają `shedlock` za tabelę platformową (0 ostrzeżeń/błędów)
-- [ ] Migracja idempotentna; składnia zwalidowana w `BEGIN … ROLLBACK` na lokalnym PostgreSQL
-- [ ] Uprawnienia: brak dostępu PUBLIC; rola aplikacji ma wymagane GRANT-y
-- [ ] `mvn verify -pl app` zielone (migracja stosowana w Testcontainers)
-- [ ] Dokumentacja `documentation/tech/06-database.md` (nowa tabela, cel)
+- [x] Migracja `V{n}__create_shedlock.sql` tworzy tabelę ze zgodną strukturą (test: ShedLock `JdbcTemplateLockProvider` zapisuje/odnawia/zwalnia blokadę)
+- [x] `RlsValidationService` i test klasyfikacji RLS uznają `shedlock` za tabelę platformową (0 ostrzeżeń/błędów) — serwis klasyfikuje TENANT po `tenant_id NOT NULL`, więc bez zmian w kodzie; asercja `doesNotContain("shedlock")` w `RlsValidationServiceIntegrationTest` i brak RLS/polityk w `Db090ShedlockMigrationTest`
+- [x] Migracja idempotentna (`IF NOT EXISTS`); stosowana w Testcontainers przez `Db090ShedlockMigrationTest` oraz zwalidowana w `BEGIN … ROLLBACK` na lokalnym `cc-postgres` (tabela nie pozostała w żywej bazie)
+- [x] Uprawnienia: brak dostępu PUBLIC; rola aplikacji ma wymagane GRANT-y
+- [x] `mvn verify -pl app` zielone (migracja stosowana w Testcontainers) — po scaleniu 3359 testów, 0 F / 0 E / 1 pominięty
+- [x] Dokumentacja `documentation/tech/06-database.md` (nowa tabela, cel)
 
 **Ryzyka:** (R1) dryf definicji tabeli przy aktualizacji wersji ShedLock; (R2) `FORCE RLS`/polityki domyślne dodawane masowo przez wcześniejsze migracje — upewnić się, że `shedlock` nie jest nimi objęta.
 **Nie wchodzi w zakres:** zależność w `pom.xml` i adnotacje (BE-171), czyszczenie starych wpisów (ShedLock sam nadpisuje wiersze po nazwie).
-**Zależności:** `Zależy od` brak; `Blokuje` BE-171.
+**Zależności:** `Zależy od` brak; `Blokuje` BE-171. Dopisek (tura 77): BE-171 ✅/BE-172 ✅ zamknięte na tej tabeli.
+**Notatka wykonania (2026-11-13, tura 77):** `V149__create_shedlock.sql` — tabela platformowa `shedlock` (`name VARCHAR(64)` PK, `lock_until`/`locked_at` `TIMESTAMP(3)` BEZ strefy, `locked_by VARCHAR(255)`), bez `tenant_id`/RLS, `REVOKE ... FROM PUBLIC`, warunkowy GRANT DML dla `app_user`/`cc_app`. **Świadome odstępstwo od preferencji `TIMESTAMPTZ`:** provider ShedLock 6.10.0 przy `usingDbTime()` używa `timezone('utc', CURRENT_TIMESTAMP)`, więc kolumny muszą być `TIMESTAMP(3)` (test strefy sesji Europe/Warsaw — DB-N3). Dokumentacja: `documentation/tech/06-database.md`. **DB-S1 (wynik CR) → DB-083:** GRANT na `shedlock` dla `cc_app` jest warunkowy (rola musi istnieć w chwili migracji) — przy przejściu na `cc_app` trzeba nadać GRANT jawnie, inaczej joby ShedLock po cichu przestaną działać (dopisek w DB-083).
 
 ### DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów)
 

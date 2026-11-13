@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -106,6 +107,9 @@ class SupervisorMetricsService {
      * <p>Disconnected supervisor automatycznie przestaje otrzymywać eventy – STOMP
      * w Spring usuwa subskrypcje przy rozłączeniu klienta.
      */
+    @SchedulerLock(name = "SupervisorMetricsService_broadcastMetrics",
+            lockAtMostFor = "PT15S",
+            lockAtLeastFor = "PT3S")
     @Scheduled(fixedRate = 5000)
     @Transactional(readOnly = true)
     public void broadcastMetrics() {

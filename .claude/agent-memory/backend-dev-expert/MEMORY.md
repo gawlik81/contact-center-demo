@@ -148,3 +148,4 @@
 - [BE-157 GET /api/agent/me/active-contacts](project_be157_active_contacts.md) — ACW pochodne, bulk nazwy, EXPLAIN bez prunningu partycji (DB-088), harness z rola RLS
 - [BE-161/162 404/405 handlery + deprecated assigned-contact](project_be161_be162_404_405_deprecation.md) — wyjatki MVC wpadaja w catch-all 500; 405 przez ex.getHeaders()
 - [BE-164 EML per wiadomosc + podglad rozmowy](project_be164_email_thread_eml_per_message.md) — eml_s3_key, V146 GDPR, sprzatanie S3, pulapka ResponseStatusException->500
+- [BE-171/BE-172 ShedLock (EPIC-33)](project_be171_be172_shedlock.md) — ShedLock 6.10.0 na Spring 6.1, lockAtLeastFor ~0.8x, PROXY_METHOD blokuje bezposrednie wywolania, DelegatingDataSource w testach

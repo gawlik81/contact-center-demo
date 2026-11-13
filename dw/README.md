@@ -58,8 +58,15 @@ wolumenu zmierz koszt (R2); w razie potrzeby strategia (c) – okresowe przelicz
 
 `argMax(..., updated_at)` zakłada, że `updated_at` rośnie zgodnie z kolejnością zapisu. `ClickHouseDwWriter`
 ustawia `Instant.now()` w momencie INSERT, więc przy kilku równoległych instancjach ETL (lub rozjazdzie zegarów)
-starsza wersja kontaktu mogłaby wygrać z nowszą. Obecnie ETL działa jako jeden sekwencyjny writer; gwarancja
-na wielu instancjach wymaga blokady cyklu (ShedLock, BE-172 – EPIC-33).
+starsza wersja kontaktu mogłaby wygrać z nowszą. Od BE-172 cykle ETL (`run*Sync`) są pod blokadą ShedLock, a ręczny
+trigger `POST /api/admin/etl/trigger` bierze tę samą blokadę (409 `ETL_SYNC_IN_PROGRESS`, gdy cykl trwa), więc w
+normalnej pracy jest jeden writer na tabelę.
+
+**Dług (jawny):** blokada ma `lockAtMostFor` (domyślnie 10 min). Jeśli cykl potrwa dłużej lub instancja się zawiesi i
+blokada wygaśnie, drugi węzeł może zapisać nowszą wersję wiersza, zanim pierwszy dopisze starszą - starsza z
+późniejszym `updated_at = now()` wygra `argMax`. Test `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na
+PostgreSQL (`ON CONFLICT`), nie semantyki `argMax` w ClickHouse. Możliwe rozwiązania (osobny ticket): `updated_at` z
+kolumny źródłowej zamiast `Instant.now()` albo `KeepAliveLockProvider` dla ETL.
 
 ## Korekta zawyżonych danych historycznych (BE-215)
 

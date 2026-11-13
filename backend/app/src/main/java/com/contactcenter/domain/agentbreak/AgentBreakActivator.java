@@ -9,6 +9,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -61,6 +62,9 @@ class AgentBreakActivator {
      * <p>fixedDelay gwarantuje, że kolejny cykl rozpoczyna się dopiero po zakończeniu
      * poprzedniego (w odróżnieniu od fixedRate, które może nakładać cykle przy wolnej DB).
      */
+    @SchedulerLock(name = "AgentBreakActivator_activateAndCompleteBreaks",
+            lockAtMostFor = "${shedlock.break-activator.at-most-for:PT90S}",
+            lockAtLeastFor = "${shedlock.break-activator.at-least-for:PT24S}")
     @Scheduled(fixedDelayString = "${agent.breaks.activator.interval-ms:30000}")
     public void activateAndCompleteBreaks() {
         log.debug("[BreakActivator] Rozpoczynam cykl aktywacji/kończenia przerw");

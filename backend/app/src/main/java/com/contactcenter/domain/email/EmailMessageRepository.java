@@ -331,6 +331,97 @@ class EmailMessageRepository extends TenantAwareRepository {
         return keys;
     }
 
+    /** Lowest possible UUID: keyset start of {@link #findContactIdsWithExpiredEml}. */
+    static final UUID KEYSET_START = new UUID(0L, 0L);
+
+    /**
+     * BE-196: ended EMAIL contacts WITHOUT {@code recording_url} whose messages still carry an EML object
+     * ({@code eml_s3_key IS NOT NULL}) - the leftover that the recording-driven retention
+     * ({@code contact.recording_url IS NOT NULL}) never reaches (the first message's EML was not generated, but
+     * replies have their own).
+     *
+     * <p>The query is driven by {@code email_message} (rows with a live key, the set that shrinks to empty as the
+     * cleanup proceeds - a partial index {@code (tenant_id, contact_id) WHERE eml_s3_key IS NOT NULL} fits it) and
+     * semi-joins {@code contact}; contacts that were already cleaned never re-enter the work set, so the cost does
+     * not grow with history. {@code m.message_at < cutoff} bounds the RANGE partitioning column: partitions newer
+     * than the retention horizon are pruned. Retention semantics match recordings: {@code contact.ended_at <
+     * cutoff} (open threads, {@code ended_at IS NULL}, and fresh contacts are skipped). Messages of a contact
+     * never post-date its end (follow-ups join only open contacts), so {@code message_at < cutoff} does not drop
+     * valid candidates; once a contact qualifies, {@link #findEmlKeysByContactId} + {@link #clearEmlS3Keys} handle
+     * ALL of its keys.
+     *
+     * <p>Keyset paging: ordered by {@code contact_id}, strictly after {@code afterContactId}
+     * ({@link #KEYSET_START} for the first page) - a permanently failing contact is passed over by the next page
+     * instead of eating the limit again within one run.
+     *
+     * <p>Runs under RLS of {@code tenantId} (GUC set here) and filters {@code tenant_id} explicitly.
+     *
+     * @return distinct contact ids ascending (at most {@code limit})
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> findContactIdsWithExpiredEml(UUID tenantId, Instant cutoff, UUID afterContactId, int limit) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+        @SuppressWarnings("unchecked")
+        List<Object> rows = em.createNativeQuery(EXPIRED_EML_CONTACTS_SQL)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("cutoff", cutoff)
+                .setParameter("after", (afterContactId != null ? afterContactId : KEYSET_START).toString())
+                .setParameter("limit", limit)
+                .getResultList();
+        List<UUID> ids = new ArrayList<>(rows.size());
+        for (Object row : rows) {
+            ids.add(UUID.fromString(row.toString()));
+        }
+        return ids;
+    }
+
+    /** SQL of {@link #findContactIdsWithExpiredEml} (package-visible for the EXPLAIN test). */
+    static final String EXPIRED_EML_CONTACTS_SQL = """
+            SELECT DISTINCT m.contact_id
+              FROM email_message m
+             WHERE m.tenant_id = CAST(:tenantId AS uuid)
+               AND m.eml_s3_key IS NOT NULL
+               AND m.message_at < :cutoff
+               AND m.contact_id > CAST(:after AS uuid)
+               AND EXISTS (SELECT 1
+                             FROM contact c
+                            WHERE c.tenant_id = m.tenant_id
+                              AND c.contact_id = m.contact_id
+                              AND c.channel = 'EMAIL'
+                              AND c.recording_url IS NULL
+                              AND c.ended_at IS NOT NULL
+                              AND c.ended_at < :cutoff)
+             ORDER BY m.contact_id
+             LIMIT :limit
+            """;
+
+    /**
+     * BE-196: tenants that own at least one message with a live EML key (work discovery for
+     * {@code RecordingRetentionJob}).
+     *
+     * <p><strong>CROSS-TENANT, FOR THE SCHEDULED JOB ONLY.</strong> Same model as
+     * {@code ContactRepository#findTenantsWithRecordings}: no {@code set_tenant_context}, so it sees all tenants only
+     * on a connection whose role bypasses RLS (the production application role; see
+     * {@code RlsValidationService}); under a restricted role it returns nothing. Fails fast when a
+     * {@code TenantContext} is active (a request thread must never call it).
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> findTenantIdsWithEml() {
+        if (com.contactcenter.security.TenantContext.getTenantIdOrNull() != null) {
+            throw new IllegalStateException("findTenantIdsWithEml() is cross-tenant and must not run with an "
+                    + "active TenantContext");
+        }
+        @SuppressWarnings("unchecked")
+        List<Object> rows = em.createNativeQuery(
+                "SELECT DISTINCT tenant_id FROM email_message WHERE eml_s3_key IS NOT NULL").getResultList();
+        List<UUID> ids = new ArrayList<>(rows.size());
+        for (Object row : rows) {
+            ids.add(UUID.fromString(row.toString()));
+        }
+        return ids;
+    }
+
     /** NULLs {@code eml_s3_key} of the contact's messages whose object was just deleted from S3. */
     public int clearEmlS3Keys(UUID tenantId, UUID contactId, Collection<String> deletedKeys) {
         if (deletedKeys == null || deletedKeys.isEmpty()) {

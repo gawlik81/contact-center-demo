@@ -46,11 +46,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
 | EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 4 | 0 | 2 | 0 | 6 | 🔧 W toku (DB-089, DB-096, DB-097, DB-099 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 1 | 0 | 3 | 0 | 4 | 🔧 W toku (DB-090 ✅ P0; DB-091 P1, DB-092/DB-093 P2 ⬜) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 2 | 0 | 3 | 0 | 5 | 🔧 W toku (DB-090 ✅ P0, DB-100 ✅ P0 — V151 pod BE-173, numer nadany i zamknięty w turze 78; DB-091 P1, DB-092/DB-093 P2 ⬜) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
-| **RAZEM** | | **89** | **0** | **7** | **3** | **99** | |
+| **RAZEM** | | **90** | **0** | **7** | **3** | **100** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099. Tura 77 (2026-11-13): DB-090 ✅ (V149) i nowy DB-099 ✅ (V150, EPIC-32 jako backlog). Tura 78 (2026-11-14): nowy DB-100 ✅ (EPIC-33; V151 `campaign_contact.dialing_agent_id` + dwa indeksy częściowe, pod BE-173 ✅; numer nadany i zamknięty w tej samej turze); następny wolny: DB-101.
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -73,6 +73,7 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
 - DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ✅ (2026-11-13, tura 77; V149)
+- DB-100 – `campaign_contact.dialing_agent_id` (własność claimu dialera) + indeksy częściowe `idx_campaign_contact_dialing_agent` i `idx_contact_agent_phone_load` (V151, pod BE-173) (P0) – ✅ (2026-11-14, tura 78; V151; numer nadany i zamknięty w tej samej turze)
 - DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
@@ -4515,6 +4516,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Dopisek (tura 74, BE-210 ✅):** sweeper obecności agenta (`AgentPresenceSweeper`) dla statusu `BUSY` sprawdza istnienie kontaktu PHONE w `ACTIVE`/`ON_HOLD` danego agenta (reguła osieroconego `BUSY` po 10 min) — zapytanie o tym samym kształcie co `findActiveContactsForAgent` (tenant + agent + status). Przy dużej liczbie partycji `contact` ten sam indeks częściowy (DB-088/V148) przyspieszy również tę kontrolę; przy realizacji DB-088 uwzględnić ją w teście planu. Bez zmian wyzwalacza. Powiązane: BE-210 ✅, BE-217.
 
 **Notatka z tury 72 (2026-11-07) — DB-088 CZĘŚCIOWO zrealizowany przez V148 (DB-097 ✅):** migracja `V148__contact_open_async_count_index.sql` założyła `idx_contact_open_async_count ON contact (tenant_id, agent_id, queue_id) WHERE status IN ('ASSIGNED','ACTIVE','ON_HOLD')` (pod `OPEN_ASYNC_COUNT_SQL` z BE-156/BE-159). Ma ten sam predykat i te same wiodące kolumny co wariant B(1) z tego ticketu, więc **zapytanie (1) z BE-157 (otwarte kontakty agenta) jest pokryte** — nie zakładać drugiego indeksu pod to zapytanie. **Pozostaje otwarte (ticket nadal ⬜, nadal bramkowany wolumenem):** (a) część ACW — zapytanie (2): `status = 'COMPLETED' AND disposition_code IS NULL AND channel = 'PHONE'`, sortowanie `ended_at DESC` (wariant B(2) albo A zawężony do ACW); (b) wariant C (dolna granica po `started_at` w zapytaniach BE-157, pruning partycji) — wymaga decyzji właściciela. Pomiar `EXPLAIN (ANALYZE, BUFFERS)` z kryteriów akceptacji dotyczy teraz tylko ACW i ewentualnie sprawdzenia, że zapytanie (1) faktycznie używa V148. Ostatni znany plik migracji w repo: V148.
+**Dopisek (tura 78, DB-100 ✅):** V151 dołożyła na `contact` indeks częściowy `idx_contact_agent_phone_load (tenant_id, agent_id) WHERE agent_id IS NOT NULL AND status IN (QUEUED, ASSIGNED, ACTIVE, ON_HOLD)`, który częściowo dubluje `idx_contact_open_async_count` (V148/DB-097). Przy rozstrzyganiu DB-088 (pomiar na scratch) ZAKRES OBEJMUJE KONSOLIDACJĘ: zostawić jeden z dwóch indeksów lub uzasadnić oba liczbami (koszt zapisu vs pokrycie zapytań PHONE/async). Powiązane: DB-100 ✅, DB-091.
 
 ### DB-096 – Domyślny limit `queue.max_concurrent_contacts_per_agent` = 3 i podniesienie istniejących wartości 1→3 (V147, BE-156)
 
@@ -4625,7 +4627,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 1/4** (✅ 1 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 
@@ -4731,6 +4733,39 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Ryzyka:** (R1) zmiana klucza partycji tabeli gorącej wymaga przepisania danych; (R2) wzrost liczby partycji pogarsza czas planowania.
 **Nie wchodzi w zakres:** sharding między bazami (zob. model komórkowy BE-189).
 **Zależności:** `Zależy od` DB-091; `Blokuje` brak; powiązane: EPIC-29, EPIC-30 (DB-069), BE-193.
+
+### DB-100 – `campaign_contact.dialing_agent_id` (własność claimu dialera) + indeksy `idx_campaign_contact_dialing_agent` i `idx_contact_agent_phone_load` (V151, pod BE-173)
+
+**Typ:** Schema (migracja DDL: kolumna, trigger, CHECK, indeksy częściowe na tabeli partycjonowanej)
+**Priorytet:** Must Have (P0; część BE-173, bramka „>1 replika”)
+**Złożoność:** M
+**Zależy od:** BE-173 ✅ (numer założony wstecznie w turze 78 — migracja powstała w ramach BE-173; wykonawca po stronie backendu)
+**Status:** ✅ Ukończone (2026-11-14, tura 78; `V151__dialer_claim_agent_ownership.sql`; gałąź `feature/epic33-routing-locks-and-ws-adr` (z `develop` ace01a47), niezacommitowane; numer DB-100 nadany w turze 78 i zamknięty od razu; wykonawca `backend-dev-expert` w ramach BE-173; review DB: `CR-DATABASE.md` „Review: V151 (BE-173)” 4/5; test `CampaignContactDialingAgentIntegrationTest` + EXPLAIN V151 w `ProgressiveDialerCampaignLockIntegrationTest`; pełny `mvn verify` po scaleniu 3503 testy, 0 F / 0 E / 1 pominięty (JDK 21); stan żywej bazy nieweryfikowany — V151 niezastosowana do czasu restartu backendu)
+**Blokuje:** brak; powiązane: BE-173 ✅, BE-230, BE-232, DB-088
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (review: `db-schema-architect` w `CR-DATABASE.md`)
+
+**Kontekst:** Dialer (BE-173) po claimie kontaktu (`status = 'DIALING'`) musi wiedzieć, KTÓREMU agentowi kontakt został zarezerwowany, żeby (a) wspólna blokada per agent z `ContactRepository#assignIfQueued` była weryfikowana ponownie po claimie, (b) `OrphanedDialingReaper` mógł rozpoznać i odzyskać osierocone claimy po awarii instancji. Nowe powiązanie = nowa kolumna z opisową nazwą (zakaz przeciążania kolumn, CLAUDE.md).
+
+**Zrealizowano (V151):**
+- `campaign_contact.dialing_agent_id` — nullable, BEZ FK, znaczenie wyłącznie przy `status = 'DIALING'`;
+- trigger BEFORE UPDATE `trg_campaign_contact_dialing_agent` — wyjście z `DIALING` zeruje kolumnę (wynik CR: must-fix M-1 w BE-173 — zerowanie `dialing_agent_id`);
+- CHECK `chk_cc_dialing_agent_only_when_dialing` (wartość tylko przy `DIALING`);
+- indeks częściowy `idx_campaign_contact_dialing_agent (tenant_id, dialing_agent_id) WHERE status = 'DIALING'` (liczenie/odzysk claimów agenta);
+- indeks częściowy `idx_contact_agent_phone_load (tenant_id, agent_id) WHERE agent_id IS NOT NULL AND status IN ('QUEUED','ASSIGNED','ACTIVE','ON_HOLD')` na partycjonowanej `contact` (obciążenie agenta telefonicznego pod blokadą per agent);
+- komentarz w migracji z ręczną procedurą dla dużych wolumenów (`CREATE INDEX ... ON ONLY` → `CONCURRENTLY` na partycjach → `ATTACH`).
+
+**Kryteria akceptacji:**
+- [x] Kolumna `dialing_agent_id` istnieje, jest nullable i bez FK; CHECK `chk_cc_dialing_agent_only_when_dialing` odrzuca wartość poza `DIALING`
+- [x] Trigger `trg_campaign_contact_dialing_agent` zeruje kolumnę przy wyjściu z `DIALING` (test `CampaignContactDialingAgentIntegrationTest`)
+- [x] Indeksy częściowe istnieją na tabelach nadrzędnych (dla `contact` — z propagacją na partycje); plan zapytań V151 potwierdzony EXPLAIN (`ProgressiveDialerCampaignLockIntegrationTest`)
+- [x] Migracja zweryfikowana w review DB (`CR-DATABASE.md` „Review: V151 (BE-173)” 4/5)
+- [x] `mvn verify -pl app` zielone (JDK 21) — po scaleniu 3503 testy, 0 F / 0 E / 1 pominięty
+
+**Ryzyka / notka:** (R1) `idx_contact_agent_phone_load` CZĘŚCIOWO DUBLUJE `idx_contact_open_async_count` (V148/DB-097) — świadomie, bo pokrywa też wariant PHONE/QUEUED; konsolidacja obu indeksów → DB-088 (zob. dopisek tam); (R2) przy dużych wolumenach `contact` indeks należy zakładać ręcznie wg procedury w komentarzu migracji (`CONCURRENTLY`), nie przez zwykłe `CREATE INDEX` w migracji.
+**Nie wchodzi w zakres:** klucz idempotencji `initiateCall` (BE-232), wyłączność agenta routing PHONE ↔ dialer (BE-230).
+**Zależności:** `Zależy od` BE-173 ✅ (realizowany razem); `Blokuje` brak; powiązane: BE-230, BE-232, DB-088, DB-097 ✅.
+**Notatka wykonania (2026-11-14, tura 78):** migracja V151 dostarczona w ramach BE-173; ticket DB założony wstecznie w turze 78 i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). Najwyższa V po turze 78 = V151 (niezastosowana na żywej bazie do restartu backendu).
 
 ---
 

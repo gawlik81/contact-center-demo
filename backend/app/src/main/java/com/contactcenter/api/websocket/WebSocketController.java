@@ -5,15 +5,12 @@ import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.security.StompPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.annotation.SendToUser;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.UUID;
 
 /**
  * Kontroler STOMP obsługujący wiadomości przychodzące od klientów WebSocket.
@@ -23,10 +20,9 @@ import java.util.UUID;
  *   <li>{@code /app/ping} – heartbeat, zwraca PONG do nadawcy</li>
  * </ul>
  *
- * <p>Obsługiwane subscribe destinations:
- * <ul>
- *   <li>{@code /topic/tenant/{tenantId}/supervisor} – walidacja uprawnień przy subskrypcji</li>
- * </ul>
+ * <p>Autoryzacja SUBSCRIBE/SEND (allow-list destynacji, tenant, rola) odbywa się w
+ * {@link com.contactcenter.security.StompDestinationAuthorizationInterceptor} (BE-229) –
+ * {@code @SubscribeMapping} nie chroni destynacji brokera, dlatego został usunięty.
  *
  * <p>Principal użytkownika (userId) jest dostępny przez parametr {@link Principal},
  * ustawiony przez {@link com.contactcenter.security.WebSocketAuthInterceptor}.
@@ -69,60 +65,5 @@ public class WebSocketController {
 
         log.warn("[WS-Controller] PING od nieznanego principal: {}", principal);
         return WebSocketEvent.pong(null);
-    }
-
-    // =========================================================================
-    // Subscribe handlers – walidacja uprawnień
-    // =========================================================================
-
-    /**
-     * Obsługuje subskrypcję topic supervisora tenanta.
-     *
-     * <p>Klient subskrybuje {@code /topic/tenant/{tenantId}/supervisor}.
-     * Handler waliduje, czy użytkownik ma rolę SUPERVISOR lub ADMIN dla danego tenanta.
-     *
-     * <p><strong>Uwaga:</strong> {@code @SubscribeMapping} z prefixem {@code /app}
-     * obsługuje wiadomości SUBSCRIBE na {@code /app/topic/tenant/{tenantId}/supervisor}.
-     * Bezpośrednie subskrypcje na {@code /topic/...} są obsługiwane przez broker –
-     * ten handler służy do logowania i walidacji przy subskrypcji przez relay.
-     *
-     * @param tenantId  UUID tenanta z destination
-     * @param principal zalogowany użytkownik
-     * @param headerAccessor dostęp do atrybutów sesji WebSocket
-     */
-    @SubscribeMapping("/topic/tenant/{tenantId}/supervisor")
-    public void handleSupervisorSubscription(
-            @DestinationVariable String tenantId,
-            Principal principal,
-            SimpMessageHeaderAccessor headerAccessor
-    ) {
-        if (!(principal instanceof StompPrincipal stompPrincipal)) {
-            log.warn("[WS-Controller] Subskrypcja supervisor topic bez StompPrincipal: {}",
-                    principal);
-            return;
-        }
-
-        String role = stompPrincipal.getRole();
-        UUID principalTenantId = stompPrincipal.getTenantId();
-
-        // Walidacja: tylko SUPERVISOR lub ADMIN może subskrybować tenant supervisor topic
-        if (!"SUPERVISOR".equals(role) && !"ADMIN".equals(role)) {
-            log.warn("[WS-Controller] Nieautoryzowana subskrypcja supervisor topic: " +
-                            "userId={}, role={}, requestedTenantId={}",
-                    stompPrincipal.getName(), role, tenantId);
-            return;
-        }
-
-        // Walidacja: tenant w destination musi pasować do tenanta w tokenie JWT
-        // (zapobiega nasłuchiwaniu na eventy innych tenantów)
-        if (!principalTenantId.toString().equals(tenantId)) {
-            log.warn("[WS-Controller] Cross-tenant subskrypcja supervisor topic: " +
-                            "userId={}, jwtTenantId={}, requestedTenantId={}",
-                    stompPrincipal.getName(), principalTenantId, tenantId);
-            return;
-        }
-
-        log.info("[WS-Controller] Supervisor subskrypcja: userId={}, tenantId={}",
-                stompPrincipal.getName(), tenantId);
     }
 }

@@ -289,6 +289,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                 """
                 UPDATE campaign_contact
                 SET status = 'DIALING',
+                    dialing_agent_id = NULL,
                     last_attempt_at = NOW(),
                     next_attempt_at = NULL,
                     attempt_count = attempt_count + 1,
@@ -321,6 +322,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                 """
                 UPDATE campaign_contact
                 SET status = 'DIALING',
+                    dialing_agent_id = NULL,
                     last_attempt_at = NOW(),
                     updated_at = NOW()
                 WHERE record_id = ?::uuid
@@ -353,6 +355,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                 """
                 UPDATE campaign_contact
                 SET status = 'CALLBACK',
+                    dialing_agent_id = NULL,
                     next_attempt_at = ?,
                     updated_at = NOW()
                 WHERE record_id = ?::uuid
@@ -385,6 +388,7 @@ class CampaignContactRepository extends TenantAwareRepository {
                 """
                 UPDATE campaign_contact
                 SET status = 'ERROR',
+                    dialing_agent_id = NULL,
                     updated_at = NOW()
                 WHERE record_id = ?::uuid
                   AND campaign_id = ?::uuid
@@ -399,6 +403,9 @@ class CampaignContactRepository extends TenantAwareRepository {
     /**
      * Wycofuje status rekordu z DIALING z powrotem na PENDING (rollback przy błędzie telefonii).
      *
+     * <p>Warunkowe ({@code AND status = 'DIALING'}, BE-173 S-2): jeśli w międzyczasie callback Twilio przeniósł rekord
+     * dalej (CONNECTED/NO_ANSWER), nic nie jest nadpisywane i licznik prób nie jest zmniejszany.
+     *
      * @param recordId   UUID rekordu
      * @param campaignId UUID kampanii
      * @param tenantId   UUID tenanta
@@ -412,11 +419,13 @@ class CampaignContactRepository extends TenantAwareRepository {
                 """
                 UPDATE campaign_contact
                 SET status = 'PENDING',
+                    dialing_agent_id = NULL,
                     attempt_count = GREATEST(attempt_count - 1, 0),
                     updated_at = NOW()
                 WHERE record_id = ?::uuid
                   AND campaign_id = ?::uuid
                   AND tenant_id = ?::uuid
+                  AND status = 'DIALING'
                 """,
                 recordId.toString(),
                 campaignId.toString(),

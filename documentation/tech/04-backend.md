@@ -1252,9 +1252,9 @@ wersja w property `shedlock.version` w `backend/pom.xml`), tabela platformowa `s
 - Rolling deploy: instancje starej wersji (bez ShedLock) nie biorą blokad - w oknie wdrożenia joby mogą wykonać się
   podwójnie; przed wdrożeniem V149 musi być zastosowana.
 
-**Klasyfikacja WSZYSTKICH metod `@Scheduled`** (weryfikacja: `grep -rnE '^\s*@Scheduled\b' backend/app/src/main` = 24 wiersze
+**Klasyfikacja WSZYSTKICH metod `@Scheduled`** (weryfikacja: `grep -rnE '^\s*@Scheduled\b' backend/app/src/main` = 25 wierszy
 tabeli). S = singleton globalny (ShedLock), I = per instancja (bez blokady, świadomie), T = shardowalny per
-tenant/kampania/kolejka (BE-173). Podsumowanie: **S = 22, I = 0, T = 2**.
+tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewnątrz przebiegu, patrz „Dialer i routing" niżej). Podsumowanie: **S = 23, I = 0, T = 2**.
 
 | # | Metoda | Harmonogram | Kl. | Blokada / klucze property | atMost / atLeast | Idempotencja przy wygaśnięciu blokady w trakcie przebiegu | Stan |
 |---|--------|-------------|-----|---------------------------|------------------|-----------------------------------------------------------|------|
@@ -1280,8 +1280,9 @@ tenant/kampania/kolejka (BE-173). Podsumowanie: **S = 22, I = 0, T = 2**.
 | 20 | `SupervisorMetricsService#broadcastMetrics` | fixedRate 5 s | S | `SupervisorMetricsService_broadcastMetrics` | PT15S / PT3S | Tylko odczyt + publikacja WS; podwójny przebieg = zdublowany event (odbiorca nadpisuje stan). Jedna instancja publikuje; po BE-175 broker dostarczy zdarzenie wszystkim sesjom | zrealizowane (BE-172) |
 | 21 | `WaitTimeEstimationServiceImpl#broadcastWaitTimeUpdates` | fixedDelay 30 s (initialDelay 5 s) | S | `WaitTimeEstimationServiceImpl_broadcastWaitTimeUpdates` | PT90S / PT24S | Odczyt + `SET` statystyk w Redis (ostatni wygrywa) + WS - bezpieczne. **Stan lokalny:** `lastKnownAgentCounts` (cache JVM używany przez `getQueueStats`) odświeża tylko instancja, która wygrała blokadę - na pozostałych `getQueueStats` zwróci 0 agentów do czasu BE-179 (przeniesienie do Redis) | zrealizowane (BE-172); dług: BE-179 |
 | 22 | `AgentPresenceSweeper#scheduledSweep` | fixedDelay `agent.presence.sweep-interval-ms` (30 s) | S | `AgentPresenceSweeper_scheduledSweep`; `shedlock.presence-sweeper.*` | PT90S / PT24S | Compare-and-set `markOfflineOnPresenceTimeout` - dwie instancje dają najwyżej jedno przejście i jedno zdarzenie. Przebieg startowy (`onApplicationReady`) świadomie NIE jest blokowany (per instancja, własny `startedAt`) | zrealizowane (BE-172) |
-| 23 | `ProgressiveDialerServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak (BE-173) | - | Dziś chroni Redis `SET NX` per agent (`initiateDialForAgent`) | do BE-173 |
-| 24 | `RoutingServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak (BE-173) | - | Przydział warunkowy (BE-159); koalescencja przebiegów per tenant jest w pamięci JVM, nie między replikami | do BE-173 |
+| 23 | `ProgressiveDialerServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak `@SchedulerLock` (świadomie); `pg_try_advisory_xact_lock(0x43430173, hashtext(campaignId))` per kampania w krótkiej transakcji claim | - | Redis `SET NX` per agent + warunkowy `DIALING` (`status IN (PENDING,NO_ANSWER)`, sprawdzenie liczby wierszy) + `SKIP LOCKED`; claim cofany przy błędzie po claim | zrealizowane (BE-173) |
+| 24 | `RoutingServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak `@SchedulerLock` (świadomie); ShedLock `RoutingQueue_<queueId>` (programowo, `RoutingQueueLock`) per kolejka wewnątrz przebiegu | atMost PT2M (`routing.queue-lock.at-most-for-ms`) / 0 | Przydział warunkowy (BE-159); koalescencja per tenant w JVM zostaje, między instancjami wyklucza blokada kolejki | zrealizowane (BE-173) |
+| 25 | `OrphanedDialingReaper#reapOrphanedDialing` | fixedDelay `dialer.dialing-reaper.interval-ms` (5 min) | S | `OrphanedDialingReaper_reapOrphanedDialing`; `shedlock.dialing-reaper.*` | PT15M / PT4M | Idempotentne UPDATE-y warunkowe na `status='DIALING'` starszych niż `dialer.dialing-reaper.stale-after-minutes` (10); powtórka po wygaśnięciu blokady nic nie zmienia | zrealizowane (BE-173 review S3) |
 
 Klasa **I** jest pusta: żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (jedyny taki przypadek to
 przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). Inne mechanizmy czasowe poza
@@ -1320,15 +1321,141 @@ przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). 
    `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na PostgreSQL (`ON CONFLICT`), NIE semantyki `argMax`
    ClickHouse. Do rozważenia w osobnym tickecie: `updated_at` w DW z kolumny źródłowej zamiast `now()`
    albo `KeepAliveLockProvider` dla ETL. Wpis także w `dw/README.md`.
-2. `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` - BE-179. Joby klasy T (dialer/routing) - BE-173.
+2. ~~`WaitTimeEstimationServiceImpl.lastKnownAgentCounts`~~ - usunięte w BE-179 (patrz §4.7). Joby klasy T (dialer/routing) - zrealizowane w BE-173 (sekcja niżej).
 3. **Brak metryki/alertu „job pominięty, bo blokada trzymana" i „blokada przejęta po wygaśnięciu".** Przy
    `throwUnexpectedException=false` (domyślnie) awaria DB przy zakładaniu blokady jest tylko logiem ERROR providera,
    a job po prostu nie startuje na żadnej instancji. Licznik Micrometer wymagałby własnego wrappera nad
    `LockProvider` - świadomie odłożone (dług).
 4. Skan `SchedulerLockCoverageTest` nie widzi schedulingu programowego (`taskScheduler.schedule`,
    `SchedulingConfigurer`, np. IVR DTMF) - tylko adnotacji `@Scheduled`.
-5. Dowód startu pełnego kontekstu na dev/prod: patrz raport/PROGRESS (S8) - `ContactCenterApplicationIT` nie jest
-   wykonywany przez surefire.
+5. ~~Dowód startu pełnego kontekstu na dev/prod~~ - rozwiązane w BE-227: `FullApplicationContextStartupTest`
+   (profil prod, rola bez BYPASSRLS, uruchamiany w `mvn verify`); martwy `ContactCenterApplicationIT` usunięty.
+
+**Dialer i routing: blokada per kampania / per kolejka (BE-173).** Obie pętle (`pollAvailableAgents`, plus ścieżki
+event-driven `onAgentStatusChanged`/`onContactQueued`) mogą chodzić na wielu instancjach równolegle dla RÓŻNYCH
+kampanii/kolejek, nigdy dla tej samej. Dwa różne mechanizmy, bo różne są granice transakcji:
+
+| | Dialer (kampania) | Routing (kolejka) |
+|---|---|---|
+| Mechanizm | `pg_try_advisory_xact_lock(int, int)`: key1 = `AdvisoryLockKeys.NAMESPACE_DIALER_CAMPAIGN` (0x43430173), key2 = `hashtext(campaignId)` | ShedLock programowy (`RoutingQueueLock`, `LockingTaskExecutor`), nazwa `RoutingQueue_<queueId>` (49 znaków, limit 64), atLeast 0, atMost `routing.queue-lock.at-most-for-ms` (PT2M) |
+| Dlaczego | Przydział to krótka transakcja (agent nadal wolny + `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING`); blokada zwalnia się z commitem, ZANIM ruszy telefonia; brak wycieku przy awarii; zgodne z PgBouncer (BE-181) | Przebieg routingu świadomie NIE jest jedną transakcją (każdy przydział = krótka transakcja, patrz uwaga w `RoutingServiceImpl#routeContact`); advisory xact lock wymagałby transakcji na cały przebieg (blokady per agent z BE-156 trzymane przez całą pętlę = ryzyko deadlocku), advisory sesyjny odpada przy PgBouncer |
+| Poziom | kampania. Blokada kampanii to USZEREGOWANIE i ochrona przed zbędną pracą, NIE mechanizm poprawności: poprawność dają `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING` + blokada per agent (ten sam klucz co `assignIfQueued`, BE-156, ale `assignIfQueued` bierze ją tylko przy limicie async, a routing PHONE wcale: szereguje dialer × dialer i dialer × przydział async, NIE dialer × routing PHONE = otwarty P0) z ponowną weryfikacją „agent wolny" i zapisem `dialing_agent_id` (V151; niezmiennik: ważne tylko przy `DIALING`, pilnują go zapisy Java, trigger i `CHECK`); token Redis `dialer:agent:<id>` (TTL 60 s) to dodatkowy pas bezpieczeństwa i ogranicza zbędne zapytania | kolejka (nie tenant: ticket wymaga równoległości różnych kolejek) |
+| Oczekiwanie | krótkie, ograniczone: `dialer.campaign-lock.wait-ms` (500 ms, retry co 25 ms; sekcja krytyczna to ms, bo nie obejmuje telefonii); po upływie przebieg pomijany, agent wolny do następnego wyzwalacza | pętla pollingu: brak; ścieżka event-driven (nowy kontakt, pętla po evencie): do `routing.queue-lock.wait-ms` (2 s) |
+| Metryka | `scheduler.lock.skipped{type=dialer}` | `scheduler.lock.skipped{type=routing}` |
+
+Klucze advisory: dotychczasowe użycia to wyłącznie forma jednoargumentowa `bigint` (`hashtextextended(<tekst>, 0)`:
+limit async agenta `tenantId:agentId` w `ContactRepository`, dedup e-mail w `EmailMessageRepository`). Forma
+dwuargumentowa `(int, int)` ma w PostgreSQL ODRĘBNĄ przestrzeń kluczy, więc nie koliduje z nimi (test
+`twoKeyAdvisoryLockDoesNotCollideWithBigintForm`); rejestr przestrzeni: `infrastructure/lock/AdvisoryLockKeys`. Kolizja
+32-bitowego hasha między dwiema kampaniami powoduje tylko chwilowe uszeregowanie ich przebiegów (poprawność
+gwarantują zapisy warunkowe, nie blokada).
+
+Dialer, granice transakcji: `initiateDialForAgent` NIE jest już `@Transactional`. Claim (`claimNextContact`) =
+`set_tenant_context` + agent nadal wolny (`AVAILABLE` i brak otwartego połączenia PHONE w
+`OccupiedSlot.AGENT_LOAD_STATUSES_SQL`) + blokada kampanii + `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING` ze sprawdzeniem
+liczby wierszy; commit zwalnia blokadę; dopiero potem `telephonyAdapter.initiateCall` (poza transakcją). Błąd telefonii
+oznacza kontakt `ERROR` (jak dotąd), nieoczekiwany wyjątek cofa claim (`revertDialingToPending`). Granica bezpieczeństwa:
+awaria JVM między commitem claim a zakończeniem wywołania zostawia rekord w `DIALING` (wcześniej cofała go transakcja);
+osierocone `DIALING` sprząta `OrphanedDialingReaper` (V151: `campaign_contact.dialing_agent_id`; wiersz 25 tabeli). Błąd zapisu stanu Redis po udanym `initiateCall` przenosi rekord do NO_ANSWER/NOT_REACHED (nigdy PENDING: dubel połączenia), licznik `dialer.call_state_lost`. Limit kanałów kampanii progresywnej =
+liczba wolnych agentów (jedno połączenie wychodzące na agenta; brak kolumny „max linii").
+Routing: przebieg pogrupowany po kolejkach (faza 1 bez blokady: kolejka social/ERROR; faza 2: kolejka pod blokadą);
+skrót „agent z telefonem zajęty do następnego wyzwalacza" pozostaje wspólny dla przebiegu.
+Metryki bez tagów tenantId/campaignId/queueId (kardynalność), szczegóły w logu DEBUG pominiętego przebiegu.
+
+Agent z osieroconym `DIALING` jest blokowany własną sondą do `stale-after-minutes` + interwał reapera (10 + 5 min) - świadomy kompromis. Gałąź reapera „brak kontaktu → PENDING" przy awarii między API Twilio a INSERT-em kontaktu może zdublować połączenie (brak idempotencji `initiateCall`).
+
+**Otwarte (osobny ticket P0, hard-gate „więcej niż 1 replika", obok BE-175/BE-179):** blokada per kolejka i blokada
+kampanii NIE zamykają (a) dwóch kolejek konkurujących o tego samego agenta w routingu phone oraz (b) wyścigu
+routing ↔ dialer o tego samego agenta (`assignIfQueued` dla phone nie bierze blokady per agent, a dialer nie bierze
+`RoutingQueue_*`). To stan sprzed BE-173, nie regresja; rozwiązanie: blokada per agent
+(`AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL`, już użyta przez dialer) przy KAŻDYM przydziale agenta wraz z
+weryfikacją obciążenia. Kryterium akceptacji „brak podwójnego przydziału agenta" jest więc spełnione dla dialer × dialer
+i routing × routing w obrębie jednej kolejki. Dług: wiersze `shedlock` usuniętych kolejek (`RoutingQueue_*`) nie są
+czyszczone (do BE-228). `initiateCall` nie ma klucza idempotencji: timeout HTTP PO utworzeniu połączenia po stronie Twilio
+cofa claim do PENDING i numer może zostać wybrany ponownie (zachowanie sprzed BE-173).
+
+### 4.7 Cache lokalne a wiele instancji (BE-179)
+
+Przy więcej niż jednej replice backendu każdy stan trzymany w pamięci JVM jest per instancja. Dwa przypadki
+rozwiązane w BE-179, reszta - inwentarz z oceną ryzyka.
+
+**Unieważnianie `TwilioTelephonyAdapter.clientCache` (Caffeine, max 100, TTL 15 min):**
+
+- `TenantTwilioConfigServiceImpl` (`saveConfig`, `deleteConfig` - jedyne ścieżki zapisu/rotacji/usunięcia
+  `TenantTwilioConfig`, czyli poświadczeń klienta REST; `TenantServiceImpl.updateTwilioConfig` zapisuje tylko numer i
+  callback w `tenant.config` i klienta nie dotyczy) publikuje lokalnie `TwilioConfigChangedEvent(tenantId)`.
+- Dwa niezależne listenery `@TransactionalEventListener(AFTER_COMMIT, fallbackExecution = true)` (kolejność
+  wykonania nieistotna i niegwarantowana, wyjątek w AFTER_COMMIT nie cofa commitu): adapter unieważnia wpis lokalnie
+  (działa także gdy Redis leży), `TwilioConfigInvalidationPublisher` publikuje przez `CacheInvalidationBus` na kanał
+  Redis pub/sub `cc:cache:invalidate:twilio-client`.
+- Komunikat = wyłącznie `tenantId` (UUID jako tekst); poświadczenia nigdy nie opuszczają bazy/serwisu. Zdarzenie jest
+  per tenant - masowa zmiana to N małych komunikatów, bez globalnego przeładowania.
+- Każda instancja, także nadawca, ma subskrypcję zarejestrowaną w `init()` adaptera. Echo do nadawcy jest zamierzone
+  (idempotentne; `instanceId` w payloadzie złamałby zasadę "sam tenantId").
+- **Wyścig odbudowy:** `resolveRestClient` używa atomowego `clientCache.get(key, loader)`. Caffeine wykonuje loader pod
+  blokadą klucza, a `invalidate` czeka na jego koniec, więc unieważnienie w trakcie ładowania (konfiguracja czytana
+  przed commitem) nie zostanie nadpisane późnym `put` starego klienta (`TwilioClientCacheRaceTest`). Zostaje
+  nieusuwalne okno commit -> odbiór komunikatu na innych instancjach (milisekundy), w którym inna instancja może
+  jeszcze użyć starego klienta.
+- **Odporność:** `CacheInvalidationBus.publish` nigdy nie rzuca. Awaria Redis = log WARN + licznik
+  `cc.cache.invalidation.publish.failures{channel}`, zapis konfiguracji (już zacommitowany) nie jest cofany.
+  Pub/sub jest fire-and-forget, więc TTL 15 min zostaje siatką bezpieczeństwa dla zgubionego komunikatu (także dla
+  instancji odłączonej od Redis w chwili publikacji). Metryki: `cc.cache.invalidation.published|received|
+  handler.failures`. Zły payload (nie-UUID, pusty, binarny) jest liczony i logowany jako klasa wyjątku + obcięty,
+  zsanityzowany fragment (max 64 znaki), listener działa dalej. Brak debouncingu per tenant jest świadomy:
+  unieważnienie jest idempotentne i kosztuje jedną odbudowę klienta, a debounce z przednią krawędzią mógłby połknąć
+  drugą zmianę tuż po pierwszej i zostawić stare poświadczenia.
+- **Założenie bezpieczeństwa:** Redis działa w sieci zaufanej, a ACL nie daje `PUBLISH` nieuprzywilejowanym klientom.
+  Spreparowany komunikat może co najwyżej unieważnić wpis (koszt: odbudowa klienta z bazy); nie podmieni poświadczeń.
+  Zalew komunikatów ogranicza ograniczony executor (niżej).
+- Dodanie kolejnego cache lokalnego per tenant: nowa wartość `CacheInvalidationChannel`, `bus.subscribe(...)` w
+  inicjalizacji beana (przed startem kontenera) i `bus.publish(...)` po commicie zmiany.
+
+**Kontener subskrypcji Redis (`PubSubListenerContainer`, wspólny dla BE-175):**
+
+- W spring-data-redis 3.3.5 `RedisMessageListenerContainer.start()` czeka na rejestrację pierwszej subskrypcji
+  (do 2 s) i przy nieosiągalnym Redis rzuca od razu `RedisListenerExecutionFailedException`: pierwsza próba nie jest
+  ponawiana, ponawiane są dopiero odzyskiwania po udanej subskrypcji (`recoveryInterval`). Samo uruchomienie kontenera
+  jako beana (SmartLifecycle) wywaliłoby `refresh()` kontekstu przy martwym Redis, więc kontener nie startuje
+  automatycznie (`isAutoStartup() == false`); startuje go `PubSubListenerContainerSupervisor` po zakończeniu
+  refreshu, w wątku w tle, z retry/backoffem 1 s do 30 s (`stop()` + `start()` przy każdej próbie). Aplikacja wstaje
+  więc bez Redis, a subskrypcje podnoszą się po jego powrocie (test `contextStartsWithRedisDown...`).
+  Po pierwszym sukcesie utratę i powrót połączenia obsługuje sam kontener (`recoveryInterval` 5 s).
+- Executory są ograniczone: jeden wątek trzyma subskrypcję (`redis-pubsub-subscription-`), pula 2 wątków z kolejką 256
+  wykonuje listenery (`redis-pubsub-dispatch-`). Pełna kolejka odrzuca komunikat (log co 10 s +
+  `cc.pubsub.dispatch.rejected`) - akceptowalne dla idempotentnych unieważnień z TTL jako siatką. Komunikaty NIE są
+  dostarczane w kolejności (2 wątki). **BE-175 musi przemyśleć executor i kolejność zdarzeń WebSocket** (wolumen,
+  jednowątkowa kolejność per kanał, polityka przy przepełnieniu) przed reużyciem tego beana.
+
+**`WaitTimeEstimationServiceImpl`:** lokalny `lastKnownAgentCounts` usunięto. `getQueueStats` czyta
+`availableAgents` ze współdzielonego `cache:queue:stats:{queueId}` (zapisuje go job EWT co 30 s, TTL 60 s, więc dane
+mają do ok. 60 s przy opóźnionym jobie; weryfikowane jest pole `tenantId`). Gdy wpisu brak (stan normalny: kolejka lub
+tenant nieaktywny, pierwsze 30 s kolejki, job stoi) czyta krótki cache `cache:queue:agents:{tenantId}` (TTL 15 s, w
+Redis, więc współdzielony), a dopiero gdy i jego brak - liczy z sesji agentów (SCAN `session:agent:*`) i zapisuje
+wynik do tego cache. Klucze sesji nie zawierają tenanta, więc SCAN nie da się zawęzić; zamiast tego jego
+częstotliwość spada do ok. raz na tenant na 15 s. Użycie fallbacku: `cc.ewt.stats.fallback{result=cache_hit|scan}`.
+Uzasadnienie: stan już istnieje w Redis (zero dodatkowych zapisów w ścieżce normalnej), jeden GET na żądanie jest
+tani, a wynik nie zależy od zwycięzcy blokady ShedLock.
+
+**Inwentarz stanu lokalnego (stan na BE-179):**
+
+| Miejsce | Co trzyma | Ryzyko nieaktualności per instancja | Rekomendacja |
+|---|---|---|---|
+| `TwilioTelephonyAdapter.clientCache` (Caffeine) | `TwilioRestClient` per tenant (klient REST) | było wysokie (stare poświadczenia do 15 min) | rozwiązane w BE-179 (pub/sub + TTL) |
+| `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` | liczba agentów per tenant | było wysokie (0 na instancjach bez joba) | rozwiązane w BE-179 (Redis) |
+| `@Cacheable` (`AdminMetricsServiceImpl`, 4 cache names) przez `RedisCacheManager` | metryki admina | niskie - cache współdzielony w Redis, TTL 30 s-20 min | OK |
+| `ReportsServiceImpl` (ręczny cache `StringRedisTemplate`) | raporty | niskie - Redis, TTL 5 min | OK |
+| `AgentPresenceRegistry.lastTouch` (`ConcurrentHashMap`) | throttling zapisu obecności per sesja WS | niskie - sesja WS jest związana z jedną instancją; to tylko throttle, prawda w Redis | OK |
+| `RoutingServiceImpl.passesRunning/passesDirty` | tenanci z trwającym przebiegiem backlogu | niskie - wyłącznie dedup w JVM; poprawność chroni blokada Redis/DB (BE-173) | OK |
+| `AgentPresenceSweeper.running` (`AtomicBoolean`) | reentrancja joba | niskie - per instancja z założenia; wykluczenie między instancjami przez ShedLock | OK |
+| `AgentPresenceSweeper.startedAt/redisUnhealthy/redisRecoveredAt` (`volatile`) | karencja obecności po starcie i stan zdrowia Redis tej instancji | niskie-średnie - per instancja z założenia; przy rolling deploy każda replika ma własne okno karencji (`startedAt`), stan zdrowia Redis może się chwilowo różnić między replikami | OK, świadomie per instancja |
+| `CircuitBreakerState.consecutiveFailuresByInstallation` | licznik błędów wtyczki | średnie - bezpiecznik otwiera się niezależnie na każdej instancji (próg liczony z 1/N ruchu), restart zeruje | już w zakresie BE-178 |
+| `PluginRegistryImpl`, `PluginRuntimeManagerImpl.activeHandles` | załadowane wtyczki i classloadery | wysokie - instalacja/revoke/upgrade na jednej instancji nie zmienia rejestru pozostałych do restartu (`PluginRuntimeStartupLoader` odbudowuje tylko przy starcie) | ticket BE-178 (już w planie EPIC-33) |
+| `IvrEngineServiceImpl.pending*` (5 map) | kontekst konferencji/promptów między webhookami Twilio | wysokie - kolejny webhook tego samego połączenia może trafić na inną replikę (brak sticky) i zgubić kontekst | ticket BE-177 (już w planie EPIC-33) |
+| `MockTelephonyAdapter.sessions/contactIdToCallId` | sesje atrapy telefonii | nie dotyczy produkcji (profil mock/dev) | OK |
+| `SimpleBroker` WebSocket (STOMP) | subskrypcje i dostarczanie zdarzeń WS | wysokie - zdarzenie z jobu/instancji A nie dotrze do sesji na B | BE-175 (ADR-14, opcja B: Redis pub/sub -> lokalny SimpleBroker) |
+
+Brak nowych ticketów: wszystkie ryzyka wysokie/średnie są już pokryte przez BE-175/177/178.
 
 ---
 

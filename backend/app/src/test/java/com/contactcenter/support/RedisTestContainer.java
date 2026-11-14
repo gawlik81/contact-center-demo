@@ -32,6 +32,18 @@ public final class RedisTestContainer {
         }
     }
 
+    /** Host of the shared Redis container (starts it on first use). */
+    public static synchronized String host() {
+        start();
+        return container.getHost();
+    }
+
+    /** Mapped port of the shared Redis container (starts it on first use). */
+    public static synchronized int port() {
+        start();
+        return container.getMappedPort(6379);
+    }
+
     /** New template on the shared Redis. */
     public static synchronized StringRedisTemplate stringTemplate() {
         start();

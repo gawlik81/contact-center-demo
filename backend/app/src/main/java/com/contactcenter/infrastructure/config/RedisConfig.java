@@ -18,6 +18,9 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import com.contactcenter.infrastructure.cache.PubSubListenerContainer;
+import com.contactcenter.infrastructure.cache.PubSubListenerContainerSupervisor;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -78,6 +81,25 @@ public class RedisConfig {
     @Bean
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
         return new StringRedisTemplate(connectionFactory);
+    }
+
+    /**
+     * Wspólny kontener subskrypcji Redis pub/sub (BE-179: unieważnianie cache lokalnych między instancjami;
+     * docelowo także broker WebSocket z ADR-14 / BE-175). Bez auto-startu - startuje go
+     * {@link PubSubListenerContainerSupervisor} w tle z retry, więc aplikacja wstaje także przy martwym Redis.
+     * Executory są ograniczone (patrz {@link PubSubListenerContainer}); BE-175 musi rozstrzygnąć executor i
+     * kolejność zdarzeń WS przed reużyciem.
+     */
+    @Bean
+    public PubSubListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory,
+                                                                 MeterRegistry meterRegistry) {
+        return new PubSubListenerContainer(connectionFactory, meterRegistry);
+    }
+
+    @Bean
+    public PubSubListenerContainerSupervisor pubSubListenerContainerSupervisor(
+            PubSubListenerContainer redisMessageListenerContainer) {
+        return new PubSubListenerContainerSupervisor(redisMessageListenerContainer);
     }
 
     /**

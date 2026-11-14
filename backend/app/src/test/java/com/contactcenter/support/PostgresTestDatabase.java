@@ -19,7 +19,9 @@ import java.util.UUID;
  * <p>Kontener startuje leniwie przy pierwszym użyciu i żyje do końca JVM (sprząta go Ryuk), więc
  * kolejne klasy testowe nie płacą za start bazy i {@code migrate}. Konsekwencja: dane zostają między
  * klasami/testami — testy MUSZĄ używać własnych, losowych tenantów ({@link #insertTenant}) i nie
- * zakładać pustych tabel.
+ * zakładać pustych tabel. W szczególności w bazie może istnieć SUPER_ADMIN (zakłada go
+ * {@code FullApplicationContextStartupTest} przez {@code SuperAdminBootstrapRunner}) oraz wiersze {@code shedlock} -
+ * testy nie mogą zakładać ich braku.
  *
  * <p>Domyślny użytkownik {@code cc_test} jest superuserem (omija RLS) — tak jak {@code ccapp} w demo.
  * Do testów RLS pod rolą ograniczoną: {@link #createRestrictedLoginRole}.

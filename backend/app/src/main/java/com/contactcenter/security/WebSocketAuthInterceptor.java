@@ -17,7 +17,7 @@ import org.springframework.util.StringUtils;
 /**
  * Interceptor kanału STOMP weryfikujący JWT przy nawiązaniu połączenia WebSocket.
  *
- * <p>Przechwytuje frame CONNECT i:
+ * <p>Przechwytuje frame CONNECT (oraz równoważny STOMP) i:
  * <ol>
  *   <li>Wyciąga token JWT z nagłówka {@code Authorization: Bearer <token>}
  *       lub query parametru {@code token}</li>
@@ -29,8 +29,10 @@ import org.springframework.util.StringUtils;
  * <p>Przy błędzie walidacji rzuca {@link MessagingException}, co skutkuje
  * odrzuceniem połączenia i wysłaniem STOMP ERROR frame do klienta.
  *
- * <p>Inne frame'y STOMP (SUBSCRIBE, SEND, DISCONNECT) są przepuszczane bez weryfikacji –
- * Principal jest już ustawiony w kontekście sesji.
+ * <p>Inne frame'y STOMP są tu przepuszczane – Principal jest już ustawiony w kontekście sesji.
+ * Autoryzację SUBSCRIBE i SEND (allow-list destynacji, izolacja tenantów/użytkowników, role)
+ * realizuje następny w łańcuchu {@link StompDestinationAuthorizationInterceptor} (BE-229).
+ * Ten interceptor sam NIE chroni destynacji brokera.
  */
 @Slf4j
 @Component
@@ -48,8 +50,10 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(
                 message, StompHeaderAccessor.class);
 
-        // Weryfikujemy JWT tylko przy CONNECT (pierwsze nawiązanie sesji STOMP)
-        if (accessor == null || !StompCommand.CONNECT.equals(accessor.getCommand())) {
+        // Weryfikujemy JWT przy otwarciu sesji STOMP: STOMP 1.2 dopuszcza zarówno CONNECT, jak i STOMP
+        // (StompSubProtocolHandler traktuje obie komendy tak samo) – pominięcie STOMP otwierałoby sesję bez JWT.
+        if (accessor == null || !(StompCommand.CONNECT.equals(accessor.getCommand())
+                || StompCommand.STOMP.equals(accessor.getCommand()))) {
             return message;
         }
 
@@ -89,7 +93,10 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
         // Zapisz atrybuty w sesji – dostępne w @MessageMapping przez SimpMessageHeaderAccessor
         if (accessor.getSessionAttributes() != null) {
-            accessor.getSessionAttributes().put(SESSION_ATTR_TENANT_ID, claims.tenantId().toString());
+            // SUPER_ADMIN (globalny administrator platformy) nie ma tenanta – atrybut pomijamy.
+            if (claims.tenantId() != null) {
+                accessor.getSessionAttributes().put(SESSION_ATTR_TENANT_ID, claims.tenantId().toString());
+            }
             accessor.getSessionAttributes().put(SESSION_ATTR_ROLE, claims.role());
         }
 

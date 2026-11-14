@@ -895,3 +895,34 @@ _None identified._ `REVOKE ALL ... FROM PUBLIC`, DML (bez TRUNCATE/DDL) dla `app
 
 ### Summary
 4,5/5 — poprawna, minimalna i dobrze przetestowana migracja platformowa; jedyne realne ryzyko to warunkowy GRANT dla przyszlej roli `cc_app` (do wpisania w DoD DB-083), reszta to doprecyzowania uzasadnienia i wzmocnienie testu na drift providera.
+
+---
+
+## Review: V151 (BE-173) — 2026-11-13
+
+Plik: `backend/src/main/resources/db/migration/V151__dialer_claim_agent_ownership.sql`
+
+### 🐛 Bugs / Critical Issues
+- **V151:21-23, 42 (design, M-1 w CR-BACKEND)** — kolumna celowo nie jest zerowana przy wyjściu z DIALING, a "all readers filter on status = 'DIALING'" jest prawdą tylko pod warunkiem, że każde wejście w DIALING ustawia kolumnę. Ścieżki callback/manual (`markAsDialingForCallback`, `markAsDialing`) jej nie ustawiają, więc dziedziczą starego agenta i reaper/sondy działają na złych rekordach. Albo ustawiać/zerować kolumnę na KAŻDYM wejściu/wyjściu z DIALING (zalecane), albo dodać `CHECK (status = 'DIALING' OR dialing_agent_id IS NULL)` jako twardą gwarancję (wymusiłoby to czyszczenie w każdym handlerze i wychwyciłoby regresje w testach).
+
+### ⚠️ Security Concerns
+- _None identified._ `dialing_agent_id` to identyfikator operacyjny agenta (UUID), nie dana osobowa klienta; funkcje RODO (`anonymize_customer` V096/V146, `export_customer_data`) działają na kliencie i nie wymagają zmian. Repozytorium nie ma funkcji pseudonimizacji `app_user`/agenta, którą trzeba by rozszerzyć. Funkcje archiwizacji (V138/V140/V141) mają jawne listy kolumn, więc nowa kolumna ich nie psuje (i słusznie nie trafia do archiwum). Tabela ma RLS (V112, FORCE); nowe indeksy zaczynają się od `tenant_id`.
+
+### 🏗️ Architecture / Pattern Violations
+- Reguła "brak przeciążania kolumn" (CLAUDE.md): spełniona — nowa, opisowo nazwana kolumna `dialing_agent_id` (nie recykling `customer_id` itp.). OK. Zastrzeżenie: semantyka "ważna tylko gdy status=DIALING" to właśnie ukryty kontrakt, który doprowadził do M-1 (patrz wyżej).
+- Brak FK: uzasadnienie (agent soft-deleted, wartość przejściowa) jest rozsądne; tabela jest partycjonowana LIST po `campaign_id` z jedną partycją default, a FK do `app_user` dodawałby blokadę/koszt na gorącej ścieżce zapisu. Akceptowalne; kolumna `UUID` bez `NOT NULL` jest poprawna (NULL = callback/manual).
+- **V151:25-31 vs V148:52-68 (should-fix)** — V148 opisuje pełną procedurę ręczną dla dużego wolumenu (`CREATE INDEX ... ON ONLY contact` + `CREATE INDEX CONCURRENTLY` per partycja + `ALTER INDEX ... ATTACH PARTITION`, ze wskazaniem, że `create_contact_partition` dziedziczy indeks). V151 mówi tylko "run the CONCURRENTLY variant manually first" — bez `ON ONLY`/ATTACH. `CREATE INDEX CONCURRENTLY` na tabeli partycjonowanej kończy się błędem, więc DBA nie ma tu działającej instrukcji. Skopiować procedurę z V148 dla `idx_contact_agent_phone_load`. Zwykły `CREATE INDEX` w transakcji Flyway (SHARE lock na `contact` + każdą partycję, `lock_timeout 10s`) jest spójny z V148 i akceptowalny przy predykacie częściowym, ale dla `contact` to druga taka migracja z rzędu — wolumen warto zgłosić do bramki wdrożeniowej.
+
+### 🔧 Improvements & Suggestions
+- **V151:23 (komentarz) i `ProgressiveDialerCampaignLockIntegrationTest.java:563`** — migracja odsyła do nieistniejącej klasy `ProgressiveDialerClaimIndexIntegrationTest` ("EXPLAIN proof"). Test EXPLAIN istnieje, ale jako `agentFreeProbeUsesV151Indexes` w `ProgressiveDialerCampaignLockIntegrationTest`. Poprawić odwołanie (nie edytować zastosowanej migracji po wdrożeniu — V151 jest jeszcze niezacommitowana, więc komentarz można poprawić teraz).
+- **Nadmiar indeksów na `contact`**: `idx_contact_agent_phone_load (tenant_id, agent_id) WHERE ... IN (QUEUED,ASSIGNED,ACTIVE,ON_HOLD)` jest nadzbiorem po statusach względem `idx_contact_open_async_count` (V148, `(tenant_id, agent_id, queue_id)`, bez QUEUED) i prefiksem po kolumnach. Dwa indeksy tego samego rodzaju na najgorętszej tabeli = podwójny koszt zapisu przy każdej zmianie statusu. Uzasadnione zapytaniem sondy (bez `queue_id`, z QUEUED) i udokumentowane, ale warto zanotować w backlogu (DB-088) możliwość konsolidacji do jednego indeksu `(tenant_id, agent_id) INCLUDE/queue` po zmierzeniu.
+- `idx_campaign_contact_dialing_agent`: partial `WHERE status = 'DIALING'` używa tylko stałej tekstowej (IMMUTABLE), bez `NOW()`/rzutowań `::DATE` — zgodne z regułą. Zawiera wyłącznie rekordy w locie, więc koszt marginalny. OK.
+- Idempotencja: `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `COMMENT` jest powtarzalne; rollback opisany. `SET LOCAL lock_timeout` w transakcji Flyway — poprawnie. `ADD COLUMN` nullable bez DEFAULT to operacja metadanych (brak przepisywania tabeli), choć na partycjonowanej bierze krótki ACCESS EXCLUSIVE chroniony `lock_timeout`.
+- Nazwa pliku `V151__dialer_claim_agent_ownership.sql` zgodna z konwencją; numer kolejny po V150.
+
+### ✅ Positive Observations
+- Wyczerpujący komentarz uzasadniający każdy element (S1/S3), jawny rollback, spójność predykatu indeksu z `OccupiedSlot.AGENT_LOAD_STATUSES_SQL` (identyczna lista literałów, planner może udowodnić implikację) i dowód EXPLAIN w teście.
+- Świadome zachowanie reguły "nowa kolumna zamiast przeciążenia" oraz rozpoznanie, że `campaign_contact` ma jedną partycję default (mały koszt `CREATE INDEX`).
+
+### Summary
+⭐⭐⭐⭐ (4/5) — migracja jest poprawna technicznie (idempotentna, RLS-neutralna, bez funkcji mutowalnych w predykatach), ale wymaga doprecyzowania runbooka CONCURRENTLY (parytet z V148), poprawienia martwego odwołania do testu oraz decyzji o czyszczeniu kolumny (M-1), bo "brak zerowania" jest źródłem błędu na ścieżkach callback/manual.

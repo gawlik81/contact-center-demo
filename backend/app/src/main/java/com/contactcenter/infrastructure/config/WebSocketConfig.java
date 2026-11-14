@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.config;
 
+import com.contactcenter.security.StompDestinationAuthorizationInterceptor;
 import com.contactcenter.security.WebSocketAuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +19,14 @@ import java.util.List;
  *
  * <p>Architektura messagingu WebSocket (BE-012):
  * <pre>
- * Destinations:
- *   /topic/tenant/{tenantId}/supervisor  – broadcast do supervisorów tenanta
- *   /topic/tenant/{tenantId}/agents      – broadcast do agentów tenanta
- *   /user/{userId}/events                – unicast do konkretnego agenta/supervisora
+ * Destinations (SUBSCRIBE dozwolone wyłącznie wg allow-listy BE-229):
+ *   /topic/tenant/{tenantId}/supervisor  – broadcast do supervisorów tenanta (SUPERVISOR/ADMIN; niesie też SUPERVISOR_METRICS)
+ *   /topic/tenant/{tenantId}/agents      – broadcast do użytkowników tenanta (także AGENT)
+ *   /topic/user/{userId}/events          – unicast do konkretnego użytkownika (tylko on sam)
  *
  * App destinations (klient → serwer):
- *   /app/ping                            – heartbeat (klient → serwer → /user/{userId}/events)
+ *   /app/ping                            – heartbeat/obecność (odpowiedź PONG @SendToUser trafia pod /user/..., której
+ * FE nie subskrybuje – martwy kod, dług)
  * </pre>
  *
  * <p>Autentykacja: JWT weryfikowany przy frame CONNECT przez {@link WebSocketAuthInterceptor}.
@@ -39,6 +41,7 @@ import java.util.List;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthInterceptor webSocketAuthInterceptor;
+    private final StompDestinationAuthorizationInterceptor destinationAuthorizationInterceptor;
 
     /** Dozwolone origins WebSocket – analogicznie do CORS w SecurityConfig. */
     @Value("${websocket.allowed-origins:http://localhost:4200,http://localhost:3000}")
@@ -54,14 +57,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * <p>Destinations:
      * <ul>
      *   <li>{@code /topic} – publish-subscribe (broadcast do grup użytkowników)</li>
-     *   <li>{@code /user} – point-to-point (unicast do konkretnego użytkownika)</li>
+     *   <li>{@code /user} – prefiks brokera wymagany przez {@code @SendToUser} (PONG); klient nie może go subskrybować (allow-lista BE-229)</li>
      * </ul>
      *
      * <p>Application destination prefix {@code /app} – wiadomości z tym prefixem
      * trafiają do {@code @MessageMapping} metod w kontrolerach.
      *
-     * <p>User destination prefix {@code /user} – Spring STOMP automatycznie tłumaczy
-     * {@code /user/queue/...} na {@code /user/{sessionId}/queue/...} dla danej sesji.
+     * <p>User destination prefix {@code /user} – używany tylko przez {@code @SendToUser} (PONG);
+     * unicast domenowy idzie przez {@code /topic/user/{userId}/events} (broadcaster).
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -72,7 +75,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setApplicationDestinationPrefixes("/app");
 
         // Prefix dla wiadomości unicast do konkretnego użytkownika
-        // Spring STOMP resolve'uje /user/{userId}/events
+        // używane wyłącznie przez @SendToUser (PONG), którego FE nie odbiera
         registry.setUserDestinationPrefix("/user");
 
         log.info("[WebSocket] Message broker skonfigurowany: /topic, /user | app prefix: /app");
@@ -98,7 +101,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * ponieważ {@code sockjs-client} nie jest zależnością projektu frontend.
      *
      * <p>Oba endpointy używają tych samych interceptorów (WebSocketAuthInterceptor), brokera STOMP
-     * i destinations ({@code /user/events}, {@code /topic/tenant/{id}/supervisor}).
+     * i destinations ({@code /topic/user/{id}/events}, {@code /topic/tenant/{id}/supervisor}).
      * Oba są publiczne w SecurityConfig (autentykacja na poziomie STOMP CONNECT frame + JWT).
      */
     @Override
@@ -122,13 +125,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     // =========================================================================
 
     /**
-     * Rejestruje {@link WebSocketAuthInterceptor} na kanale wejściowym.
+     * Rejestruje interceptory uwierzytelnienia i autoryzacji destynacji na kanale wejściowym.
      *
-     * <p>Interceptor przechwytuje frame CONNECT i weryfikuje JWT,
-     * ustawiając {@link com.contactcenter.security.StompPrincipal} dla sesji.
+     * <p>{@link WebSocketAuthInterceptor} weryfikuje JWT przy CONNECT/STOMP i ustawia
+     * {@link com.contactcenter.security.StompPrincipal}; {@link StompDestinationAuthorizationInterceptor}
+     * (BE-229) autoryzuje SUBSCRIBE i SEND (allow-list) oraz stosuje default-deny komend. Obie reakcje działają
+     * na różnych ramkach, więc kolejność nie jest warunkiem poprawności (auth jest pierwszy dla czytelności).
      */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(webSocketAuthInterceptor);
+        // Auth (CONNECT/STOMP) przed autoryzacją SUBSCRIBE/SEND (BE-229) – dla czytelności, nie z konieczności.
+        registration.interceptors(webSocketAuthInterceptor, destinationAuthorizationInterceptor);
     }
 }

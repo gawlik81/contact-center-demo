@@ -239,7 +239,11 @@ class ContactReleaseIntegrationTest {
         ctor.setAccessible(true);
         return ctor.newInstance(engine, queueService, mock(CustomerService.class), rabbitTemplate,
                 queueAssignmentService, mock(UserService.class), mock(WebSocketEventBroadcaster.class),
-                contactService, contactEventService, mock(SocialDefaultQueueResolver.class), exclusionStore);
+                contactService, contactEventService, mock(SocialDefaultQueueResolver.class), exclusionStore,
+                new com.contactcenter.domain.routing.RoutingQueueLock(
+                        com.contactcenter.support.NoOpLockProvider.executor(),
+                        new com.contactcenter.infrastructure.lock.LockSkipMetrics(
+                                new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), 0, 50, 60_000));
     }
 
     private void deliver(Object routing, Object message) throws Exception {

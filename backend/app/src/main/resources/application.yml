@@ -569,6 +569,14 @@ dialer:
   # fixedDelay (nie fixedRate) – kolejna iteracja startuje PO zakończeniu poprzedniej.
   # Nadpisywalne przez DIALER_AGENT_POLL_INTERVAL_MS ENV var.
   agent-poll-interval-ms: ${DIALER_AGENT_POLL_INTERVAL_MS:30000}
+  # BE-173: per-campaign claim lock (pg_try_advisory_xact_lock); bounded wait when another instance holds it
+  campaign-lock:
+    wait-ms: ${DIALER_CAMPAIGN_LOCK_WAIT_MS:500}
+    retry-interval-ms: ${DIALER_CAMPAIGN_LOCK_RETRY_INTERVAL_MS:25}
+  # BE-173 review S3: reaper of DIALING records of the progressive dialer without a live call (OrphanedDialingReaper)
+  dialing-reaper:
+    interval-ms: ${DIALER_DIALING_REAPER_INTERVAL_MS:300000}
+    stale-after-minutes: ${DIALER_DIALING_REAPER_STALE_AFTER_MINUTES:10}
   # Częstotliwość sprawdzania wygasłych ring timeout (ms).
   # Job skanuje Redis co N ms w poszukiwaniu połączeń bez dialer:timeout:{callSid}.
   # Nadpisywalne przez DIALER_RING_TIMEOUT_CHECK_INTERVAL_MS ENV var.
@@ -608,6 +616,13 @@ agent:
 # BE-160 / BE-156: how long an agent who returned an async contact to the queue is excluded from receiving it again
 routing:
   release-exclusion-ttl: 5m
+  # BE-173: cross-instance lock per queue (ShedLock RoutingQueue_<queueId>)
+  queue-lock:
+    # how long an event-driven routing step waits for a queue held by another instance (the 30 s poll never waits)
+    wait-ms: ${ROUTING_QUEUE_LOCK_WAIT_MS:2000}
+    retry-interval-ms: ${ROUTING_QUEUE_LOCK_RETRY_INTERVAL_MS:50}
+    # crash safety net only (lock row is released after the pass); not a run-time limit
+    at-most-for-ms: ${ROUTING_QUEUE_LOCK_AT_MOST_FOR_MS:120000}
 
 # =============================================================================
 # ShedLock - blokady rozproszone jobow @Scheduled (BE-171/BE-172)
@@ -618,6 +633,6 @@ routing:
 #   shedlock.etl-liveness.at-most-for / .at-least-for        (PT3M / PT48S)
 #   shedlock.callback-executor.*   (PT3M / PT48S)      shedlock.ring-timeout.*       (PT30S / PT4S)
 #   shedlock.window-activator.*    (PT3M / PT48S)      shedlock.break-activator.*    (PT90S / PT24S)
-#   shedlock.presence-sweeper.*    (PT90S / PT24S)
+#   shedlock.presence-sweeper.*    (PT90S / PT24S)     shedlock.dialing-reaper.*     (PT15M / PT4M)
 # Polling e-mail uzywa blokady programowej per skrzynka: at-least = 0,8 x email.poll-delay-ms, at-most = max(3 x delay, 5 min).
 # =============================================================================

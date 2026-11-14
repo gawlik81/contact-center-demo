@@ -5,6 +5,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.infrastructure.lock.LockSkipMetrics;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -92,6 +94,12 @@ class ProgressiveDialerServiceTest {
     @Mock
     private TenantTwilioConfigService tenantTwilioConfigService;
 
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
+    @Mock
+    private LockSkipMetrics lockSkipMetrics;
+
     @InjectMocks
     private ProgressiveDialerServiceImpl dialerService;
 
@@ -111,6 +119,14 @@ class ProgressiveDialerServiceTest {
 
         // Stub JdbcTemplate.execute (setTenantContextInJdbc)
         when(jdbcTemplate.execute(anyString(), any(PreparedStatementCallback.class))).thenReturn(null);
+
+        // BE-173: claim - blokada kampanii wolna, agent nadal wolny, warunkowy DIALING zmienia 1 wiersz
+        when(jdbcTemplate.queryForObject(contains("pg_try_advisory_xact_lock"), eq(Boolean.class), any(), any()))
+                .thenReturn(true);
+        when(jdbcTemplate.queryForObject(contains("FROM app_user"), eq(Boolean.class), any(), any()))
+                .thenReturn(true);
+        when(jdbcTemplate.update(contains("SET status = 'DIALING'"), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
 
         // BE-081: domyślnie agent jest kwalifikowany (allAgents=false, ale w zbiorze eligible)
         when(campaignAssignmentRepository.resolveEligibleAgentIds(eq(CAMPAIGN_ID), eq(TENANT_ID)))
@@ -204,9 +220,12 @@ class ProgressiveDialerServiceTest {
             // Kontakt oznaczony jako DIALING
             verify(jdbcTemplate).update(
                     contains("SET status = 'DIALING'"),
+                    eq(AGENT_ID.toString()),
                     eq(RECORD_ID.toString()),
                     eq(CAMPAIGN_ID.toString()),
-                    eq(TENANT_ID.toString())
+                    eq(TENANT_ID.toString()),
+                    eq(TENANT_ID.toString()),
+                    eq(AGENT_ID.toString())
             );
         }
 

@@ -1,6 +1,10 @@
 package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
+import com.contactcenter.infrastructure.cache.CacheInvalidationBus;
+import com.contactcenter.infrastructure.cache.CacheInvalidationChannel;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
@@ -44,7 +48,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -169,6 +172,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    */
   private Cache<UUID, TwilioRestClient> clientCache;
 
+  private CacheInvalidationBus cacheInvalidationBus;
+
   /**
    * Współdzielony klient HTTP do wywołań REST Twilio (konfiguracja numerów).
    * Inicjowany w {@link #init()} – jeden egzemplarz na cały czas życia beana, aby uniknąć
@@ -203,6 +208,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .build();
 
     httpClient = java.net.http.HttpClient.newHttpClient();
+
+    if (cacheInvalidationBus != null) {
+      cacheInvalidationBus.subscribe(CacheInvalidationChannel.TWILIO_CLIENT, this::invalidateClient);
+    } else {
+      log.warn("[TwilioAdapter] Brak CacheInvalidationBus - unieważnianie cache klientów Twilio między "
+          + "instancjami wyłączone, zmiana konfiguracji dotrze do innych instancji dopiero po TTL (15 min).");
+    }
 
     log.info("[TwilioAdapter] Zainicjalizowany z per-tenant TwilioRestClient cache (max=100, ttl=15min). " +
              "accountSid={}..., phoneNumber={}",
@@ -2651,13 +2663,10 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     if (tenantId == null) {
       return buildGlobalClient();
     }
-    TwilioRestClient cached = clientCache.getIfPresent(tenantId);
-    if (cached != null) {
-      return cached;
-    }
-    TwilioRestClient client = buildClientForTenant(tenantId);
-    clientCache.put(tenantId, client);
-    return client;
+    // Atomic load: Caffeine runs the loader under the key's lock and invalidate(key) waits for it, so an
+    // invalidation arriving during the load (config read before the commit) cannot be overwritten by a late put
+    // of the old client (BE-179). The loader only reads the config and builds the client, no remote calls.
+    return clientCache.get(tenantId, this::buildClientForTenant);
   }
 
   private TwilioRestClient buildClientForTenant(UUID tenantId) {
@@ -2722,15 +2731,28 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   /**
-   * Inwaliduje cache TwilioRestClient po zmianie konfiguracji tenanta.
+   * Inwaliduje lokalnie cache TwilioRestClient po zmianie konfiguracji tenanta - dopiero po commicie
+   * transakcji zapisu (wcześniej równoległe żądanie mogłoby odbudować klienta na starych poświadczeniach).
+   * Pozostałe instancje dostają unieważnienie przez Redis pub/sub (BE-179), por. {@link #invalidateClient}.
+   * Lokalne unieważnienie nie zależy od Redis, więc działa także przy jego awarii.
    */
-  @EventListener
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
   public void onTwilioConfigChanged(TwilioConfigChangedEvent event) {
+    invalidateClient(event.tenantId());
+  }
+
+  /** Usuwa klienta tenanta z cache lokalnego (idempotentne; wołane też z kanału Redis pub/sub). */
+  void invalidateClient(UUID tenantId) {
     if (clientCache != null) {
-      clientCache.invalidate(event.tenantId());
-      log.info("[TwilioAdapter] Cache TwilioRestClient zinwalidowany dla tenant={}",
-              event.tenantId());
+      clientCache.invalidate(tenantId);
+      log.info("[TwilioAdapter] Cache TwilioRestClient zinwalidowany dla tenant={}", tenantId);
     }
+  }
+
+  /** Opcjonalna szyna unieważnień (brak w testach jednostkowych) - subskrypcja w {@link #init()}. */
+  @Autowired(required = false)
+  public void setCacheInvalidationBus(CacheInvalidationBus cacheInvalidationBus) {
+    this.cacheInvalidationBus = cacheInvalidationBus;
   }
 
   private String buildStatusCallbackUrl(UUID tenantId) {

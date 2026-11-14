@@ -465,6 +465,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
                     """
                     UPDATE campaign_contact
                     SET status = ?,
+                        dialing_agent_id = NULL,
                         next_attempt_at = ?,
                         disposition_code = ?,
                         updated_at = NOW()
@@ -484,6 +485,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
                     """
                     UPDATE campaign_contact
                     SET status = ?,
+                        dialing_agent_id = NULL,
                         next_attempt_at = ?,
                         updated_at = NOW()
                     WHERE record_id = ?::uuid
@@ -501,6 +503,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
                     """
                     UPDATE campaign_contact
                     SET status = ?,
+                        dialing_agent_id = NULL,
                         disposition_code = ?,
                         updated_at = NOW()
                     WHERE record_id = ?::uuid
@@ -518,6 +521,7 @@ class DialerCallbackHandlerImpl implements DialerCallbackHandler {
                     """
                     UPDATE campaign_contact
                     SET status = ?,
+                        dialing_agent_id = NULL,
                         updated_at = NOW()
                     WHERE record_id = ?::uuid
                       AND campaign_id = ?::uuid

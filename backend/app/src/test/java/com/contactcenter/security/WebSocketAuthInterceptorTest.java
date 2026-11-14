@@ -100,6 +100,17 @@ class WebSocketAuthInterceptorTest {
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
+    private Message<?> buildOpeningMessage(StompCommand command, String authHeaderValue) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
+        accessor.setSessionAttributes(new HashMap<>());
+        accessor.setSessionId("test-session-id");
+        if (authHeaderValue != null) {
+            accessor.addNativeHeader("Authorization", authHeaderValue);
+        }
+        accessor.setLeaveMutable(true);
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+    }
+
     private Message<?> buildNonConnectMessage(StompCommand command) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
         accessor.setSessionId("test-session-id");
@@ -149,6 +160,53 @@ class WebSocketAuthInterceptorTest {
             Message<?> message = buildNonConnectMessage(StompCommand.DISCONNECT);
             Message<?> result = interceptor.preSend(message, channel);
             assertThat(result).isSameAs(message);
+        }
+    }
+
+    // =========================================================================
+    // BE-229 (CR M1, S-NPE): komenda STOMP oraz SUPER_ADMIN bez tenanta
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Komenda STOMP (alias CONNECT) i SUPER_ADMIN bez tenanta")
+    class StompAliasAndNullTenantTest {
+
+        @Test
+        @DisplayName("Ramka STOMP bez tokenu -> MessagingException (nie omija uwierzytelnienia)")
+        void stompCommandWithoutTokenRejected() {
+            Message<?> message = buildOpeningMessage(StompCommand.STOMP, null);
+
+            assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                    .isInstanceOf(MessagingException.class)
+                    .hasMessageContaining("Brak tokenu");
+        }
+
+        @Test
+        @DisplayName("Ramka STOMP z poprawnym tokenem ustawia StompPrincipal")
+        void stompCommandWithValidTokenSetsPrincipal() {
+            when(jwtParser.parse(anyString())).thenReturn(
+                    new JwtClaims(TENANT_ID, USER_ID, ROLE, "u", Instant.now().plusSeconds(60)));
+            Message<?> message = buildOpeningMessage(StompCommand.STOMP, "Bearer t");
+
+            interceptor.preSend(message, channel);
+
+            assertThat(StompHeaderAccessor.wrap(message).getUser()).isInstanceOf(StompPrincipal.class);
+        }
+
+        @Test
+        @DisplayName("SUPER_ADMIN bez tenanta: brak NPE, principal z null tenantem, atrybut tenantId nieustawiony")
+        void superAdminWithoutTenantConnects() {
+            when(jwtParser.parse(anyString())).thenReturn(
+                    new JwtClaims(null, USER_ID, "SUPER_ADMIN", "u", Instant.now().plusSeconds(60)));
+            Message<?> message = buildOpeningMessage(StompCommand.CONNECT, "Bearer t");
+
+            interceptor.preSend(message, channel);
+
+            StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+            StompPrincipal principal = (StompPrincipal) accessor.getUser();
+            assertThat(principal.getTenantId()).isNull();
+            assertThat(principal.getRole()).isEqualTo("SUPER_ADMIN");
+            assertThat(accessor.getSessionAttributes()).doesNotContainKey("tenantId").containsEntry("role", "SUPER_ADMIN");
         }
     }
 

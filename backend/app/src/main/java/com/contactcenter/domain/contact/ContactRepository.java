@@ -1209,8 +1209,8 @@ class ContactRepository extends TenantAwareRepository {
         log.warn("[ContactRepo] assignIfQueued: limit ustawiony, ale brak queueId - pomijam: contactId={}", contactId);
         return AssignmentResult.CONTACT_UNAVAILABLE;
       }
-      jdbcTemplate.queryForRowSet("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
-          tenantId + ":" + agentId);
+      jdbcTemplate.queryForRowSet(com.contactcenter.infrastructure.lock.AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL,
+          com.contactcenter.infrastructure.lock.AdvisoryLockKeys.agentAssignmentKey(tenantId, agentId));
       long open = countOpenAsyncContactsByAgents(tenantId, queueId, List.of(agentId))
           .getOrDefault(agentId, 0L);
       if (open >= maxAsyncPerAgent) {

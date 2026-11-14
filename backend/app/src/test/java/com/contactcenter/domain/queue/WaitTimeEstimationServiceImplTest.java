@@ -16,6 +16,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -68,6 +71,7 @@ class WaitTimeEstimationServiceImplTest {
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
     @Mock private ValueOperations<String, Object> valueOps;
+    @Spy private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks
     private WaitTimeEstimationServiceImpl service;

@@ -34,10 +34,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -71,6 +73,8 @@ class RoutingServiceImpl implements RoutingService {
     private final ContactEventService contactEventService;
     private final SocialDefaultQueueResolver socialDefaultQueueResolver;
     private final ReleaseExclusionStore releaseExclusionStore;
+    /** BE-173: cross-instance exclusion per queue (agent selection + conditional write of one queue). */
+    private final RoutingQueueLock queueLock;
 
     /** Upper bound of engine re-asks within one routeContact when chosen agents turn out to be at their limit. */
     private static final int MAX_ROUTING_ATTEMPTS = 10;
@@ -193,7 +197,15 @@ class RoutingServiceImpl implements RoutingService {
                 event.tenantId(), null, null, "SYSTEM");
         TenantContext.restore(snapshot);
         try {
-            routeContact(event.contactId(), event.queueId(), event.tenantId());
+            // BE-173: one routing decision per queue at a time across instances. Busy for longer than the bounded
+            // wait -> the contact stays QUEUED and is picked up by the holder's pass / the next trigger / the poll.
+            if (event.queueId() == null) {
+                routeContact(event.contactId(), event.queueId(), event.tenantId());
+            } else if (!queueLock.runLocked(event.queueId(), queueLock.defaultWait(),
+                    () -> routeContact(event.contactId(), event.queueId(), event.tenantId()))) {
+                log.info("[RoutingService] Kolejka {} zajęta przez inną instancję - kontakt {} zostaje QUEUED do "
+                        + "następnego przebiegu", event.queueId(), event.contactId());
+            }
         } catch (Exception e) {
             log.error("[RoutingService] Błąd podczas routingu kontaktu z eventu RabbitMQ: " +
                     "contactId={}, error={}", event.contactId(), e.getMessage(), e);
@@ -249,7 +261,8 @@ class RoutingServiceImpl implements RoutingService {
     }
 
     /**
-     * Tenants with a backlog pass running right now (single JVM; multi-instance coordination is BE-172, EPIC-33).
+     * Tenants with a backlog pass running right now IN THIS JVM (cheap coalescing of triggers). Exclusion BETWEEN
+     * instances is per queue ({@link RoutingQueueLock}, BE-173), not per tenant.
      */
     private final Set<UUID> passesRunning = ConcurrentHashMap.newKeySet();
 
@@ -277,7 +290,8 @@ class RoutingServiceImpl implements RoutingService {
                 boolean announceAtInfo = !fromPoll;
                 do {
                     passesDirty.remove(tenantId);
-                    runRetryPass(tenantId, availableAgentId, announceAtInfo);
+                    runRetryPass(tenantId, availableAgentId, announceAtInfo,
+                            fromPoll ? java.time.Duration.ZERO : queueLock.defaultWait());
                     announceAtInfo = false;
                 } while (passesDirty.contains(tenantId));
             } finally {
@@ -290,7 +304,8 @@ class RoutingServiceImpl implements RoutingService {
         }
     }
 
-    private void runRetryPass(UUID tenantId, UUID availableAgentId, boolean announceAtInfo) {
+    private void runRetryPass(UUID tenantId, UUID availableAgentId, boolean announceAtInfo,
+                              java.time.Duration queueLockWait) {
         log.atLevel(announceAtInfo ? Level.INFO : Level.DEBUG)
                 .log("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: "
                         + "agentId={}, tenantId={}", availableAgentId, tenantId);
@@ -317,11 +332,10 @@ class RoutingServiceImpl implements RoutingService {
                     ? socialDefaultQueueResolver.resolve(tenantId)
                     : Optional.empty();
 
-            boolean phoneAssigned = false;
+            // BE-173, phase 1 (no lock): settle the queue of every contact and group by queue (first-appearance
+            // order). Social default-queue resolution and the ERROR path are per contact and conditional writes.
+            Map<UUID, List<Contact>> byQueue = new LinkedHashMap<>();
             for (Contact contact : queuedContacts) {
-                if (phoneAssigned && !ContactChannels.isAsync(contact.getChannel())) {
-                    continue; // phone path: the agent that took a call is busy until the next trigger
-                }
                 // Kontakty OUTBOUND z kampanii mają agentId ustawiony przez dialer w momencie
                 // inicjowania połączenia. RoutingService nie powinien ich dotykać – agent jest
                 // już przypisany, a połączenie czeka na odebranie przez klienta.
@@ -358,29 +372,23 @@ class RoutingServiceImpl implements RoutingService {
                     }
                     continue;
                 }
+                byQueue.computeIfAbsent(contact.getQueueId(), q -> new ArrayList<>()).add(contact);
+            }
 
-                try {
-                    Optional<UUID> agentId = routeContact(
-                            contact.getContactId(),
-                            contact.getQueueId(),
-                            tenantId
-                    );
-
-                    if (agentId.isPresent()) {
-                        log.info("[RoutingService] Oczekujący kontakt przydzielony: contactId={}, agentId={}",
-                                contact.getContactId(), agentId.get());
-                        // Telefon: jeden agent = jeden kontakt naraz - kolejne kontakty TELEFONICZNE pomijamy, ale
-                        // async leżące za nim w liście nadal przydzielamy (brak zagłodzenia, BE-156 review).
-                        // Async (BE-156): agent zostaje AVAILABLE; kolejne kontakty przydzielamy dalej,
-                        // a limit slotów egzekwuje silnik routingu i atomowy zapis.
-                        if (!ContactChannels.isAsync(contact.getChannel())) {
-                            phoneAssigned = true;
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("[RoutingService] Błąd routingu oczekującego kontaktu: contactId={}, error={}",
-                            contact.getContactId(), e.getMessage(), e);
-                    // Kontynuuj z kolejnym kontaktem – jeden błąd nie blokuje pozostałych
+            // BE-173, phase 2: each queue under its own cross-instance lock. The "phone agent is busy until the next
+            // trigger" shortcut stays pass-wide (shared across queues), exactly as before.
+            AtomicBoolean phoneAssigned = new AtomicBoolean(false);
+            // ONE wait budget for the whole pass (not per queue): N busy queues must not hold this thread - and the
+            // tenant's coalescing slot - for N x wait. Later queues get what is left (at least one attempt each).
+            long deadlineNanos = System.nanoTime() + queueLockWait.toNanos();
+            for (Map.Entry<UUID, List<Contact>> queueContacts : byQueue.entrySet()) {
+                java.time.Duration remaining = java.time.Duration.ofNanos(
+                        Math.max(0L, deadlineNanos - System.nanoTime()));
+                boolean ran = queueLock.runLocked(queueContacts.getKey(), remaining,
+                        () -> routeQueueContacts(queueContacts.getValue(), tenantId, phoneAssigned));
+                if (!ran) {
+                    log.debug("[RoutingService] Kolejka {} zajęta przez inną instancję - pomijam {} kontaktów " +
+                            "w tym przebiegu", queueContacts.getKey(), queueContacts.getValue().size());
                 }
             }
         } catch (Exception e) {
@@ -390,6 +398,38 @@ class RoutingServiceImpl implements RoutingService {
         } finally {
             broadcastQueueStateToAgents(tenantId);
             TenantContext.clear();
+        }
+    }
+
+    /** Routes the backlog of ONE queue; the caller holds the queue lock (BE-173). Per-contact errors do not stop it. */
+    private void routeQueueContacts(List<Contact> contacts, UUID tenantId, AtomicBoolean phoneAssigned) {
+        for (Contact contact : contacts) {
+            if (phoneAssigned.get() && !ContactChannels.isAsync(contact.getChannel())) {
+                continue; // phone path: the agent that took a call is busy until the next trigger
+            }
+            try {
+                Optional<UUID> agentId = routeContact(
+                        contact.getContactId(),
+                        contact.getQueueId(),
+                        tenantId
+                );
+
+                if (agentId.isPresent()) {
+                    log.info("[RoutingService] Oczekujący kontakt przydzielony: contactId={}, agentId={}",
+                            contact.getContactId(), agentId.get());
+                    // Telefon: jeden agent = jeden kontakt naraz - kolejne kontakty TELEFONICZNE pomijamy, ale
+                    // async leżące za nim w liście nadal przydzielamy (brak zagłodzenia, BE-156 review).
+                    // Async (BE-156): agent zostaje AVAILABLE; kolejne kontakty przydzielamy dalej,
+                    // a limit slotów egzekwuje silnik routingu i atomowy zapis.
+                    if (!ContactChannels.isAsync(contact.getChannel())) {
+                        phoneAssigned.set(true);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("[RoutingService] Błąd routingu oczekującego kontaktu: contactId={}, error={}",
+                        contact.getContactId(), e.getMessage(), e);
+                // Kontynuuj z kolejnym kontaktem – jeden błąd nie blokuje pozostałych
+            }
         }
     }
 
@@ -528,6 +568,11 @@ class RoutingServiceImpl implements RoutingService {
      *
      * <p>Używa {@code fixedDelay} – kolejna iteracja startuje PO zakończeniu poprzedniej
      * (ochrona przed nakładaniem się przy wolnych tenantach).
+     *
+     * <p>BE-173: celowo BEZ {@code @SchedulerLock} (klasa T) - metoda może chodzić na wielu instancjach naraz, a
+     * wzajemne wykluczanie jest per KOLEJKA ({@link RoutingQueueLock}, ShedLock {@code RoutingQueue_<queueId>}) wewnątrz
+     * przebiegu. Przebieg z pollingu nie czeka na zajętą kolejkę (następny za 30 s), przebiegi event-driven czekają
+     * krótko (routing.queue-lock.wait-ms).
      */
     @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
     public void pollAvailableAgents() {

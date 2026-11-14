@@ -159,7 +159,6 @@ Angular SPA  <--STOMP over native WebSocket (/ws-native)-->  Spring Boot (WebSoc
                             /topic/user/{userId}/events
                             /topic/tenant/{tenantId}/agents
                             /topic/tenant/{tenantId}/supervisor
-                            /topic/tenant/{tenantId}/queue/{queueId}
 ```
 
 Agent presence, queue depths, and real-time dashboard metrics are maintained in Redis (and
@@ -770,9 +769,10 @@ Auth: WebSocketAuthInterceptor validates the JWT on STOMP CONNECT and builds a
 
 Subscriptions (server -> client):
   /topic/user/{userId}/events            # per-agent: assignments, call state, notifications
-  /topic/tenant/{tenantId}/agents         # supervisor: agent presence/status changes
+  /topic/tenant/{tenantId}/agents         # tenant-wide broadcast, also for AGENT role: presence/status changes, CALL_INCOMING
   /topic/tenant/{tenantId}/supervisor     # supervisor: live KPI/dashboard updates
-  /topic/tenant/{tenantId}/queue/{queueId} # queue depth / wait-time updates
+  (Not existing: /topic/tenant/{id}/queue/{queueId} — QUEUE_WAIT_UPDATE goes through .../supervisor. SUBSCRIBE is
+   allow-listed per principal, see §6.4; KPI metrics travel on .../supervisor as SUPERVISOR_METRICS.)
 
 Representative WsEvent types (server -> client):
   CONTACT_ASSIGNED     { contactId, channel, customerId, customerName, remoteAddress }
@@ -903,6 +903,16 @@ Current public prefixes: `/actuator/health`, `/api-docs`, `/swagger-ui`, `/api/a
 `/ws` and `/ws-native` are public at the HTTP-upgrade level (`SecurityConfig`), but
 `WebSocketAuthInterceptor` validates the JWT on the STOMP `CONNECT` frame and builds a
 `StompPrincipal(userId, tenantId, role)`; a missing/invalid JWT rejects the CONNECT.
+
+**SUBSCRIBE/SEND authorization (BE-229).** `StompDestinationAuthorizationInterceptor` (registered after the auth
+interceptor) enforces an allow-list from the CONNECT principal only (client headers are ignored): SUBSCRIBE
+`/topic/user/{ownUserId}/events`, `/topic/tenant/{ownTenantId}/agents`, `/topic/tenant/{ownTenantId}/supervisor`
+(SUPERVISOR/ADMIN only), exact lowercase-UUID regex; everything else (wildcards, foreign user/tenant, `/user/**`, `/app/**`)
+-> ERROR frame + session closed, WARN log and counter `ws.stomp.rejected{command,reason}`. SEND is allowed only to
+`/app/ping` (legacy `/app/agent/status` has no handler and is dropped silently); SEND to `/topic/**` is rejected.
+The command set is default-deny (CONNECT/STOMP via JWT; SUBSCRIBE, UNSUBSCRIBE, SEND, ACK, NACK, DISCONNECT; BEGIN/COMMIT/ABORT rejected).
+Role and tenant are frozen at CONNECT for the lifetime of the session (known debt: no session revocation on logout/role change).
+A new destination must be added to this allow-list (and its tests) together with `WebSocketEventBroadcasterImpl`.
 
 ### 6.5 Data Protection
 
@@ -1198,11 +1208,24 @@ since `@Scheduled` methods run outside the normal request thread and filter chai
 **Distributed locks (ShedLock, BE-171/BE-172).** Every `@Scheduled` method runs on every backend instance, so with
 more than one replica the singleton jobs are serialized through the platform table `shedlock` (V149, no RLS, no
 `tenant_id`) using `@SchedulerLock` (Spring AOP advisor around the method, DB-clock based `usingDbTime()`; configuration
-in `infrastructure/config/ShedLockConfig`). All 24 `@Scheduled` methods are classified as S (singleton, ShedLock), I
-(per instance) or T (shardable per tenant/campaign/queue, BE-173): 22 are S, 2 are T (dialer/routing agent polling,
-still unlocked until BE-173), none is I. Lock names follow `<Class>_<method>`; e-mail polling takes one lock per tenant
+in `infrastructure/config/ShedLockConfig`). All 25 `@Scheduled` methods are classified as S (singleton, ShedLock), I
+(per instance) or T (shardable per tenant/campaign/queue, BE-173): 23 are S, 2 are T (dialer/routing agent polling,
+deliberately without `@SchedulerLock`: per-campaign / per-queue exclusion since BE-173, see below), none is I. Lock names follow `<Class>_<method>`; e-mail polling takes one lock per tenant
 mailbox (`EmailPolling_pollInbox_<tenantId>`). `lockAtMostFor` is a crash safety net, not a run-time limit, so every
 job must stay idempotent when a lock expires mid-run; `lockAtLeastFor` caps the cross-instance cadence and must stay below the job interval (~0.75-0.8x for short intervals; 10 min for the daily crons, to absorb JVM clock skew between nodes). Details, per-job values and the idempotency audit:
+**Per-campaign / per-queue exclusion (BE-173).** The dialer and routing loops may run on several instances at once, for
+DIFFERENT campaigns/queues, never for the same one. Dialer: `pg_try_advisory_xact_lock(namespace, hashtext(campaignId))`
+(two-int form, key space disjoint from the existing `bigint` advisory locks; registry in `infrastructure/lock/AdvisoryLockKeys`)
+taken in the SHORT claim transaction (agent still free + contact `FOR UPDATE SKIP LOCKED` -> conditional `DIALING`); it is
+released at commit, BEFORE the telephony call, and is PgBouncer-transaction-mode safe. The campaign lock orders work and avoids redundant effort; correctness comes from `SKIP LOCKED`, the conditional
+`DIALING` write, the per-agent advisory lock (same key as `assignIfQueued`) with a re-check of "agent still free"
+(`campaign_contact.dialing_agent_id`, V151) and the Redis `SET NX dialer:agent:<id>` token (60 s). Orphaned `DIALING`
+records are reaped by `OrphanedDialingReaper`. Open (separate P0 ticket): two queues / routing vs dialer contending
+for the same agent. Routing: ShedLock `RoutingQueue_<queueId>` (programmatic,
+`RoutingQueueLock`) around the queue's "pick agent + conditional write" step, because the routing pass is deliberately not one
+transaction. A pass that finds the lock busy is skipped and counted in the Micrometer counter `scheduler.lock.skipped`
+(tag `type=dialer|routing`, no tenant/campaign/queue tags - unbounded cardinality).
+
 `documentation/tech/04-backend.md` §4.6. The manual ETL trigger takes the same lock as the scheduled contact cycle (409 `ETL_SYNC_IN_PROGRESS` when busy). Known limits: a lock that expires mid-cycle can briefly allow two ClickHouse writers (`argMax` by write time, tracked as debt); instance-local state read by other instances (`WaitTimeEstimationServiceImpl`) is tracked in BE-179.
 
 ---
@@ -1307,6 +1330,9 @@ interface TelephonyAdapter {
 > a `SocialAdapterRegistry` — the isolation goal is achieved, but there is no single shared
 > `ChannelAdapter` Java interface spanning telephony/email/social; each channel has its own
 > adapter shape. See §3.4.
+
+> **Later ADRs:** ADR-09…ADR-13 (EPIC-28, plugins) and **ADR-14** (WebSocket delivery across backend
+> instances, EPIC-33 / BE-174, *Accepted — option B*) are recorded in §11.14.
 
 ---
 
@@ -2086,6 +2112,115 @@ the full RLS treatment from §4.1.
 **Consequences:** a single buggy or malicious plugin *version* can be globally revoked
 (ADR-11/§11.11) without per-tenant cleanup, while each tenant's choice to install/configure/
 enable it remains fully isolated and independently auditable.
+
+### ADR-14: WebSocket Delivery Across Backend Instances — Redis Pub/Sub Fan-out into the Local Simple Broker (Accepted); RabbitMQ STOMP Relay as the Escalation Path
+
+> Numbered after ADR-13 and recorded here (next to ADR-09…ADR-13); it is a platform-wide decision of EPIC-33
+> (ticket BE-174), not a plugin decision. Spike code/method/raw numbers:
+> `documentation/tech/adr-14-ws-broker-spike.md`.
+
+**Status:** **Accepted (owner, 2026-11-13) — option B.** This deviates from the default originally assumed in BE-175/BE-176
+(RabbitMQ STOMP relay); the relay option stays fully specified below as the escalation path.
+
+**Context.** `WebSocketConfig` uses `enableSimpleBroker("/topic", "/user")`: an in-memory broker per JVM.
+`WebSocketEventBroadcasterImpl` (the only user of `SimpMessagingTemplate`; verified by grep) therefore reaches only
+the sessions connected to the instance that called it, which blocks running more than one replica (§8.6 gate: more than
+1 replica only after BE-175 and BE-179). Today's destinations: `/topic/user/{userId}/events` (unicast — *not* a
+`/user/...` destination), `/topic/tenant/{tenantId}/agents`, `/topic/tenant/{tenantId}/supervisor`
+(+ `/supervisor/metrics`). Target scale (PRD NFR-P05, ADR-03): ~100 agents x ~50 tenants = **~5,000 sessions**, 2–5 instances.
+
+**Finding F-1 (existing defect, independent of the broker choice).** There is **no SUBSCRIBE authorization**:
+`WebSocketAuthInterceptor` acts only on CONNECT and the `@SubscribeMapping("/topic/...")` in `WebSocketController` is
+never invoked for broker destinations (and only logs). Reproduced in the spike with the production-equivalent
+setup (SimpleBroker + CONNECT-only auth): an `AGENT` of tenant 1 subscribed to `/topic/**`, `/topic/tenant/*/agents`
+and `/topic/user/{otherUser}/events` (Ant patterns are honoured by the simple broker) **and received tenant 2's and another
+user's events**. This is fixed independently of the broker choice in ticket **BE-229** (P0, SUBSCRIBE allow-list + SEND control; requirement R1).
+
+**Options.**
+
+| Criterion | A: `enableStompBrokerRelay` -> RabbitMQ `rabbitmq_stomp` | B: Redis pub/sub fan-out into the local SimpleBroker | C: separate WS gateway service |
+|---|---|---|---|
+| Unicast to one agent | works; `/user/queue/...` also works across instances only with `setUserDestinationBroadcast` (verified), but leaks one **durable** queue per session (below); `/topic/user.{id}.events` works | works with today's `/topic/user/{id}/events` (every instance receives it, only the owner has a session); `convertAndSendToUser` across instances not supported (unused by the app) | same as A or B inside the gateway |
+| `/topic` broadcast | native | native | native |
+| Destination names | **must change**: RabbitMQ rejects `/` inside a topic name (`'/user/…/events' is not a valid topic destination`); dots required -> FE + BE rename | unchanged | unchanged or renamed |
+| Authentication (inbound interceptor) | stays in the app (verified: CONNECT + SUBSCRIBE interceptor runs before the relay) | stays | moves/duplicates in gateway (JWT validation twice) |
+| Per-tenant subscription authorization | app allow-list is **mandatory**: the broker itself honours `#`/`*` (raw STOMP client subscribed `/topic/#` and received other tenants' events); STOMP port must never be reachable by clients | app allow-list mandatory too (simple broker honours Ant patterns, F-1) | in gateway |
+| Latency (light load, 100 msg/s) | p50 5.8 / p95 16.3 ms (+2.8 / +7.8 ms vs. local) | p50 9.7 / p95 30.5 ms (untuned Lettuce listener; same order of magnitude) | extra hop |
+| Broker restart | **all sessions dropped**; recovery 38.9 s (broker boot ~25–35 s) + reconnect storm: 11,155 closes / 500 sessions | no session drop; events lost only during the gap (at-most-once, consistent with FE-152) | gateway restarts drop sessions |
+| Resources at 500 sessions | 502 TCP conns + 502 channels, **1,004 queues/consumers**, ~10k Erlang procs, ~1 fd/session, +240–290 MB RAM, ~77 % of one core at 5.1k deliveries/s | Redis: 5 connections, ~4 MB, ~1.4 % CPU | new deployable + still needs A or B behind it |
+| Ops cost | plugin on all nodes, `cc_relay` user/vhost, TLS on 61613, `nofile` raise, memory sizing, FE rename | none new (spring-data-redis already present) | highest (new service, CI/CD, scaling) |
+| Custom code | ~config only | ~150 LOC (publisher + subscriber + metrics) | large |
+| Presence events (BE-210) | unchanged (verified) | unchanged | must move into the gateway |
+
+**Spike results** (single host, 4 vCPU, everything incl. RabbitMQ/Redis and 500 simulated clients on one machine and one
+JVM, so absolute latencies are pessimistic and tails are harness-bound; Spring Boot 3.3.5, RabbitMQ 3.13.7; 2 app instances,
+500 sessions = 10 tenants x 50, 250 per instance, each tenant 10 events/s to its topic (fan-out 50) + 100 unicasts/s, publishers alternate
+instances so ~50 % of deliveries cross instances, 60 s):
+
+| Scenario | Deliveries (expected/received) | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| Today: 1 instance, SimpleBroker (baseline) | 314,160 / 314,160 | 50.9 ms | 204.8 ms | 431.5 ms | 972 ms |
+| A: relay, 2 instances | 285,550 / 285,600 (0 lost) | 137.0 ms | 390.5 ms | 527.1 ms | 883 ms |
+| A, same-instance vs cross-instance deliveries | 142.7k / 142.9k | 137.8 / 136.0 ms | 392.7 / 388.6 ms | 525.8 / 528.2 ms | – |
+| B: Redis fan-out, 2 instances | 312,120 / 312,120 | 34.5 ms | 402.8 ms | 946.2 ms | 1,813 ms |
+| Light load (100 unicast/s): local / A / B | 3,010 / 3,130 / 3,010, 0 lost | 3.0 / 5.8 / 9.7 ms | 8.5 / 16.3 / 30.5 ms | 14.4 / 25.5 / 58.7 ms | – |
+
+Delivery A -> B for `/topic/...` (and `/user/queue/events` with `setUserDestinationBroadcast`) was confirmed, cross-tenant
+subscriptions were denied by the allow-list (cross-tenant, cross-user, `#`, `*`, `tenant.#`, legacy slash names, relay-internal
+topics), presence events (`SessionConnectedEvent` with principal, `SessionSubscribeEvent`, `SessionDisconnectEvent`, also on TCP abort) fire
+**on the instance holding the WebSocket, never on the other** — the relay only changes the app<->broker leg, the browser's
+socket still terminates in the app (so the BE-174 premise that CONNECT/DISCONNECT become visible only to the broker does not hold).
+Under A at 500 sessions: broker RAM 161 MB idle -> 201 MB (sessions, no traffic) -> 397–449 MB (under load); with the container's default
+`nofile`=1024 the broker reports `sockets_total`=832, i.e. a hard ceiling of ~830 sessions (500 sessions used 549 fds).
+Extrapolation to 5,000 sessions: ~5,000 connections, ~10,000 queues, ~100k Erlang processes, +0.4–2.9 GB RAM (0.08 MB/session idle … 0.57 MB/session
+under load) against a 1.6 GB high watermark of a 4 GB node (DEPLOYMENT §20), where hitting the watermark **blocks publishers of the business
+queues too**. Not measured beyond 500 sessions (single 4-core host shared with other workloads); to be verified in BE-184/BE-175.
+
+**Decision (accepted by the owner, 2026-11-13).** Adopt **Option B** for the current scale: keep `SimpleBroker` per instance, publish every WebSocket event once to
+a Redis pub/sub channel and have every instance re-inject it into its local broker (sessions are always local to one instance). Reasons:
+(1) no session loss when the infrastructure restarts (A: 500 sessions x ~22 reconnects each during a 35 s broker restart; Redis blips are invisible to sockets);
+(2) zero new infrastructure and no destination rename or FE change, so BE-175 shrinks and FE-155 becomes independent;
+(3) WS fan-out (~5k deliveries/s at 500 sessions, ~50k at 5,000) stays off the RabbitMQ nodes that carry routing/telephony events — under A a
+WS-induced memory alarm would stall contact routing; under B the extra Redis load is ~1 % CPU;
+(4) A's per-session cost (2 queues, 1 TCP connection, ~1 fd) and operational surface (plugin, TLS, ulimits, vhost/permissions, `/user/queue` leak) buys nothing the app uses today:
+no `convertAndSendToUser` across instances, no replay, no durable user queues;
+(5) presence (BE-210/BE-217) and the `WebSocketAuthInterceptor` stay untouched.
+**C is deferred**: it still needs A or B behind it and adds a service to deploy; revisit when WS-tier deploys dropping sessions or connection counts justify a separate tier.
+**Escalate to A** if any of: > ~10 instances or > ~20k sessions (B fans every message into every instance); a need for delivery guarantees/replay or durable per-user queues;
+total WS publish rate > ~2,000 msg/s (each instance would ingest all of it); multi-datacentre WS. If the owner prefers A now, apply the "A requirements" below.
+
+**Consequences.** At-most-once delivery (as today; resync on reconnect is FE-152/FE-155). Every instance receives every WS event (N x fan-in; trivial at
+~500 publishes/s). Redis becomes a runtime dependency of event delivery (it already is for presence, ShedLock §8.6, caches): publish failures fall back to
+local-only delivery with a metric. Rolling deployments drop sockets of the restarted instance exactly as today. `convertAndSendToUser` must not be used for cross-instance
+unicast (documented rule: unicast = `/topic/user/{id}/events` through the broadcaster).
+
+**Requirements for BE-175 (Option B).**
+- **R1 (P0, owned by BE-229, delivered in parallel with/ahead of BE-175, not part of BE-175):** SUBSCRIBE allow-list in the inbound interceptor — only `/topic/user/{ownUserId}/events`, `/topic/tenant/{ownTenantId}/agents`,
+  `/topic/tenant/{ownTenantId}/supervisor[/metrics]` (SUPERVISOR/ADMIN only), strict regex with UUIDs (no `*`, `**`, `?`, `{`, `#`); everything else (including `/app/**` and `/user/**` unless justified) -> ERROR + close;
+  negative tests (cross-tenant, cross-user, patterns, role). Replace the no-op `@SubscribeMapping`.
+- `WebSocketEventBroadcasterImpl` publishes an envelope {destination, JSON payload, tenantId, originInstance, ts} to one Redis channel (single choke point; keep method contracts and the
+  swallow-and-log error handling); a `RedisMessageListenerContainer` subscriber (reconnect/resubscribe built in) calls `SimpMessagingTemplate.convertAndSend` locally with the same content type; bounded hand-off + drop counter instead of unbounded buffering;
+  accept only the three known destination prefixes from the channel.
+- On publish failure: deliver locally and count it; no double delivery when publish succeeded. Metrics `ws.fanout.{published,received,dropped,local_fallback}`; Redis listener state in `/actuator/health`.
+- Verify Redis `client-output-buffer-limit pubsub` (default 32mb/8mb/60 s) in compose/DEPLOYMENT; channel name from config, no secrets involved.
+- Keep `/topic/**` destinations, `/app/ping`, heartbeat and `AgentPresenceEventListener` unchanged; remove the `/user` simple-broker prefix only if the PONG `@SendToUser` is deliberately dropped or moved to `/topic/user/{id}/events` (the FE does not subscribe to `/user/events` today).
+- BE-176: 2 Spring contexts + Redis (+ Postgres) Testcontainers; A->B delivery for user and tenant topics; tenant isolation negatives; events from ShedLock jobs reach sessions on every instance; Redis restart -> sessions stay connected, delivery resumes; presence events local to the holding instance.
+- Load check in BE-175/BE-184: 500 sessions at 10 events/s/tenant (this ADR's profile) and a 5,000-session extrapolation run.
+
+**A requirements (only if the owner selects the relay).** `reactor-netty-http` dependency (absent today — `enableStompBrokerRelay` fails at start with "No compatible version of Reactor Netty");
+`rabbitmq_stomp` in `enabled_plugins` on every node (compose local/local-demo via mounted `enabled_plugins`; DEPLOYMENT §20; Kubernetes statefulset config) and STOMP port 61613 reachable **only** from the app network (the broker enforces no
+destination ACL: raw STOMP `/topic/#` received other tenants); dedicated vhost (e.g. `/contact-center-ws`) and user `cc_relay` (no management tag) with least privilege — validated in the spike:
+configure `^(stomp-subscription-.*|events-user.*)$`, write `^(amq\.topic|amq\.default|stomp-subscription-.*|events-user.*)$`, read `^(amq\.topic|stomp-subscription-.*|events-user.*)$` — credentials only via `.env`/secret store
+(`websocket.relay.login/passcode`, set `setClientLogin/Passcode` and `setSystemLogin/Passcode`), never in the repo; TLS on the STOMP listener (61614) with a custom `ReactorNettyTcpClient` (`setTcpClient`), also to list several broker nodes;
+raise `nofile` for the RabbitMQ container/pods (>= 65,536; default 1024 caps at ~830 sessions) and size memory for ~0.6 MB/session or run a dedicated broker/vhost-isolated node for WS;
+rename destinations to `/topic/user.{userId}.events`, `/topic/tenant.{tenantId}.agents|supervisor|supervisor.metrics` (touch points: `WebSocketEventBroadcasterImpl`, `SupervisorMetricsService.METRICS_DESTINATION`, FE `websocket.service.ts`,
+`supervisor-metrics.service.ts`, `user-list.component.ts`, specs); for the rolling deploy rewrite legacy slash SUBSCRIBE destinations to the dotted form in the interceptor for one release (old FE builds would otherwise loop on ERROR);
+do **not** use `/user/queue/...` (RabbitMQ `/queue/` queues are durable and not auto-deleted: 500 sessions left 500 queues behind) or, if unavoidable, inject `auto-delete:true` server-side; omit `setUserDestinationBroadcast/RegistryBroadcast` when `/user` is unused (verified to work when needed);
+heartbeats are passed through to the broker (a client that stops sending heartbeats is cut by the broker with "Connection to broker closed") — FE-155/FE-164 must keep `heartbeatOutgoing` alive in background tabs, set `setSystemHeartbeatSendInterval/ReceiveInterval` (10 s used in the spike);
+broker down: every session is closed and rejected until the relay reconnects (BrokerAvailabilityEvent false/true observed on both instances, 350 `MessageDeliveryException`s in 35 s) -> health indicator on `BrokerAvailabilityEvent`, rate-limited error logging, FE reconnect backoff with jitter **before** production (fixed 1 s produced ~320 reconnects/s), and the presence grace period (90 s) must stay above the broker restart time (~35 s measured);
+presence listeners must be idempotent (duplicate `SessionDisconnectEvent`s seen); BE-176 additionally covers the broker restart.
+
+**Owner decisions and open items.** Resolved 2026-11-13: (1) option B approved as the default for BE-175/BE-176; (2) R1 is shipped as its own P0 ticket BE-229. **Still open:** (3) Is ~5,000 sessions / 2–5 instances the right design envelope, and may BE-175 acceptance include a 5,000-session test? (4) For A: dedicated RabbitMQ (vhost-isolated node) for WS acceptable?
 
 ### 11.15 Risks and Mitigations (RT-09 through RT-14)
 

@@ -7,6 +7,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implementacja {@link WaitTimeEstimationService}.
@@ -58,6 +58,12 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
     /** TTL dla kluczy statystyk kolejek – 2× interwał schedulera (60s). */
     private static final Duration QUEUE_STATS_TTL = Duration.ofSeconds(60);
 
+    /** Krótki cache fallbacku per tenant: {@code cache:queue:agents:{tenantId}} (liczba AVAILABLE). */
+    private static final String TENANT_AGENTS_FALLBACK_KEY_PREFIX = "cache:queue:agents:";
+
+    /** TTL cache fallbacku - SCAN co najwyżej raz na tenant na 15 s (patrz {@link #resolveAvailableAgents}). */
+    private static final Duration TENANT_AGENTS_FALLBACK_TTL = Duration.ofSeconds(15);
+
     /** Pattern do SCAN kluczy sesji agentów. */
     private static final String AGENT_SESSION_SCAN_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
@@ -66,14 +72,7 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
     private final ContactService contactService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final WebSocketEventBroadcaster webSocketEventBroadcaster;
-
-    /**
-     * Cache ostatnio znanych liczb dostępnych agentów per tenant.
-     * Aktualizowany przez scheduler {@link #broadcastWaitTimeUpdates()} co 30s.
-     * Odczytywany przez {@link #getQueueStats} zamiast wykonywania Redis SCAN
-     * przy każdym żądaniu HTTP GET /api/queues/{id}/stats.
-     */
-    private final ConcurrentHashMap<UUID, Integer> lastKnownAgentCounts = new ConcurrentHashMap<>();
+    private final MeterRegistry meterRegistry;
 
     // =========================================================================
     // Scheduled broadcast
@@ -142,9 +141,6 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
 
         // Liczba dostępnych agentów dla tenanta (nie filtrujemy per kolejka – MVP)
         int availableAgents = countAvailableAgents(tenantId, agentSessions);
-
-        // Zapisz do cache – używane przez getQueueStats() aby uniknąć SCAN per żądanie HTTP
-        lastKnownAgentCounts.put(tenantId, availableAgents);
 
         log.debug("[EWT] Tenant {}: {} kolejek, {} dostępnych agentów", tenantId, queues.size(), availableAgents);
 
@@ -305,7 +301,7 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
                 .orElseThrow(() -> new com.contactcenter.domain.exception.ResourceNotFoundException(
                         "Queue not found: " + queueId));
 
-        int availableAgents = lastKnownAgentCounts.getOrDefault(tenantId, 0);
+        int availableAgents = resolveAvailableAgents(tenantId, queueId);
         int waitingCount = contactService.countWaitingByQueueId(tenantId, queueId);
         double avgHandleTime = contactService.getAvgHandleTimeSeconds(tenantId, queueId);
         int estimatedWaitSeconds = calculateEwt(waitingCount, availableAgents, avgHandleTime);
@@ -319,6 +315,52 @@ class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
                 avgHandleTime,
                 Instant.now()
         );
+    }
+
+    /**
+     * Liczba dostępnych agentów dla {@code getQueueStats} bez stanu lokalnego (BE-179).
+     *
+     * <p>Źródło 1: współdzielony wpis {@code cache:queue:stats:{queueId}} (pole {@code availableAgents}),
+     * odświeżany przez job EWT co 30 s na instancji-zwycięzcy ShedLock (TTL 60 s, więc dane mają do ok. 60 s) -
+     * jeden GET, bez SCAN.
+     *
+     * <p>Źródło 2 (brak wpisu to stan normalny: kolejka/tenant nieaktywny, pierwsze 30 s kolejki, job stoi):
+     * krótki cache per tenant {@code cache:queue:agents:{tenantId}} (TTL 15 s, w Redis, więc współdzielony między
+     * instancjami). Klucze sesji {@code session:agent:{userId}} nie zawierają tenanta, więc SCAN nie da się zawęzić;
+     * zamiast tego ograniczamy jego częstotliwość do ok. raz na tenant na 15 s.
+     *
+     * <p>Źródło 3: SCAN sesji agentów ({@link #scanAgentSessions()}) + zapis wyniku do cache z pkt 2.
+     * Użycie fallbacku mierzy {@code cc.ewt.stats.fallback{result=cache_hit|scan}}.
+     */
+    private int resolveAvailableAgents(UUID tenantId, UUID queueId) {
+        try {
+            Object cached = redisTemplate.opsForValue().get(QUEUE_STATS_KEY_PREFIX + queueId);
+            if (cached instanceof Map<?, ?> stats
+                    && tenantId.toString().equals(String.valueOf(stats.get("tenantId")))
+                    && stats.get("availableAgents") instanceof Number n) {
+                return n.intValue();
+            }
+        } catch (Exception e) {
+            log.warn("[EWT] Błąd odczytu statystyk kolejki {} z Redis: {} - fallback do sesji agentów",
+                    queueId, e.getMessage());
+        }
+        String fallbackKey = TENANT_AGENTS_FALLBACK_KEY_PREFIX + tenantId;
+        try {
+            if (redisTemplate.opsForValue().get(fallbackKey) instanceof Number n) {
+                meterRegistry.counter("cc.ewt.stats.fallback", "result", "cache_hit").increment();
+                return n.intValue();
+            }
+        } catch (Exception e) {
+            log.warn("[EWT] Błąd odczytu cache fallbacku tenanta {}: {}", tenantId, e.getMessage());
+        }
+        meterRegistry.counter("cc.ewt.stats.fallback", "result", "scan").increment();
+        int count = countAvailableAgents(tenantId, scanAgentSessions());
+        try {
+            redisTemplate.opsForValue().set(fallbackKey, count, TENANT_AGENTS_FALLBACK_TTL);
+        } catch (Exception e) {
+            log.warn("[EWT] Błąd zapisu cache fallbacku tenanta {}: {}", tenantId, e.getMessage());
+        }
+        return count;
     }
 
     /**

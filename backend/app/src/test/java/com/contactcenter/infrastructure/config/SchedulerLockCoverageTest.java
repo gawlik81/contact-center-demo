@@ -45,9 +45,9 @@ class SchedulerLockCoverageTest {
             "EmailPollingServiceImpl#pollAllTenants",
             "S, programmatic per-mailbox lock (LockingTaskExecutor, EmailPolling_pollInbox_<tenantId>)",
             "ProgressiveDialerServiceImpl#pollAvailableAgents",
-            "T, per-tenant/campaign sharding - BE-173",
+            "T, per-campaign advisory xact lock in the claim transaction (BE-173, done)",
             "RoutingServiceImpl#pollAvailableAgents",
-            "T, per-tenant/queue sharding - BE-173");
+            "T, per-queue ShedLock RoutingQueue_<queueId> inside the pass (BE-173, done)");
 
     private static List<Method> scheduledMethods() throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false) {

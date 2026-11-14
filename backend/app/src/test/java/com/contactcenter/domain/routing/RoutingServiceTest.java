@@ -95,12 +95,19 @@ class RoutingServiceTest {
 
     private RoutingServiceImpl routingService;
 
+    /** Real lock class over the no-op provider (always acquired) - the lock itself is tested in BE-173 tests. */
+    private static RoutingQueueLock passThroughQueueLock() {
+        return new RoutingQueueLock(com.contactcenter.support.NoOpLockProvider.executor(),
+                new com.contactcenter.infrastructure.lock.LockSkipMetrics(
+                        new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), 0, 50, 60_000);
+    }
+
     @BeforeEach
     void setUp() {
         routingService = new RoutingServiceImpl(routingEngine, queueService,
                 customerService, rabbitTemplate, queueAssignmentService, userService,
                 broadcaster, contactService, contactEventService, socialDefaultQueueResolver,
-                releaseExclusionStore);
+                releaseExclusionStore, passThroughQueueLock());
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentService.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);

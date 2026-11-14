@@ -57,13 +57,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
 | EPIC-32 | UX i dostępność stanowiska agenta | 31 | 0 | 19 | 0 | 50 | 🔧 W toku |
-| EPIC-33 | Skalowanie poziome i pojemność platformy | 7 | 0 | 26 | 0 | 33 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 10 | 0 | 31 | 0 | 41 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **181** | **0** | **55** | **3** | **239** | |
+| **RAZEM** | | **184** | **0** | **60** | **3** | **247** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -154,8 +154,8 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-172 | ShedLock na jobach krótkiego interwału (ETL, e-mail, social, callbacki, monitory) + idempotencja (P0) | ✅ Ukończone (2026-11-13, tura 77; CR 4/5; metody T → BE-173) |
 | BE-173 | Dialer i routing: blokada na poziomie kampanii/kolejki (P0) | ✅ Ukończone (2026-11-14, tura 78; CR 3,5/5 → 4/5; V151 = DB-100 ✅; follow-upy BE-230, BE-231, BE-232) |
 | BE-174 | ADR-14: broker WebSocket dla wielu instancji (RabbitMQ STOMP relay vs alternatywa) – spike + decyzja (P0) | ✅ Ukończone (2026-11-14, tura 78; ADR-14 zaakceptowany: opcja B — Redis pub/sub → lokalny SimpleBroker; spike `documentation/tech/adr-14-ws-broker-spike.md`) |
-| BE-175 | WebSocket: przejście na broker zewnętrzny (STOMP relay) zgodnie z ADR-14 (P0) | ⬜ Do zrobienia — odblokowany (tura 78: BE-174 ✅; zakres zmieniony: opcja B wg ADR-14; bramka >1 replika: BE-175 + BE-230) |
-| BE-176 | Test między-instancyjny WebSocket: 2 instancje + wspólny broker (P0) | ⬜ Do zrobienia (tura 78: 2 konteksty + Redis/Postgres Testcontainers; zależy od BE-175) |
+| BE-175 | WebSocket: broker wielu instancji zgodnie z ADR-14 — opcja B: Redis pub/sub → lokalny SimpleBroker (wcześniej: STOMP relay) (P0) | ✅ Ukończone (2026-11-14, tura 79; CR 4/5 → 4,5/5; poprawki S-A/S-B/S-C naniesione; odblokował BE-176 ✅; follow-upy BE-241, BE-242, BE-243; 5 000 sesji → BE-184) |
+| BE-176 | Test między-instancyjny WebSocket: 2 instancje + wspólny Redis (P0) | ✅ Ukończone (2026-11-14, tura 79; `WebSocketFanoutCrossInstanceIntegrationTest`; z ODSTĘPSTWAMI: IT bez Postgresa, brak testu „SupervisorMetrics raz na interwał” na 2 instancjach → BE-243, relay Rabbit nietestowany między instancjami, 5 000 sesji → BE-184) |
 | BE-177 | IVR: stan `pendingConference*`/`pendingQueueTransfer*` z pamięci JVM do Redis (P0) | ⬜ Do zrobienia |
 | BE-178 | Wtyczki: synchronizacja `PluginRegistry`/`PluginRuntimeManager`/`CircuitBreakerState` między instancjami (P0) | ⬜ Do zrobienia |
 | BE-179 | Cache lokalne: unieważnianie `TwilioRestClient` (Caffeine) i stan `WaitTimeEstimationServiceImpl` (P0) | ✅ Ukończone (2026-11-14, tura 78; CR 3,5/5 → naprawione; Redis pub/sub `cc:cache:invalidate:twilio-client`, WaitTime w Redis) |
@@ -163,7 +163,7 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-181 | PgBouncer (transaction pooling) + budżet `max_connections`; zgodność z RLS i `set_tenant_context` (P1) | ⬜ Do zrobienia |
 | BE-182 | Flyway przy wielu instancjach: job migracji, expand/contract, test równoległego startu (P1) | ⬜ Do zrobienia |
 | BE-183 | Metryki pojemności (Micrometer/Prometheus), dashboardy i alerty nasycenia pul (P1) | ⬜ Do zrobienia |
-| BE-184 | Harness testów obciążeniowych (k6): 500 agentów WS+REST, baseline jednej instancji (P1) | ⬜ Do zrobienia |
+| BE-184 | Harness testów obciążeniowych (k6): 500 agentów WS+REST, baseline jednej instancji; od tury 79 także pomiar kosztu `preservePublishOrder`, przepustowości 1 wątku dispatchu fan-outu i test 5 000 sesji (ADR-14 pyt. 3) (P1) | ⬜ Do zrobienia |
 | BE-185 | Testy obciążeniowe: webhooki Twilio, dialer, N instancji; bramka akceptacji pojemności (P1) | ⬜ Do zrobienia |
 | BE-186 | Voicebot (FastAPI): skalowanie poziome, współbieżność i limity CPU/GPU (P1) | ⬜ Do zrobienia |
 | BE-187 | Kubernetes: Helm chart bazowy, HPA, probes i graceful shutdown (drain WS) (P1) | ⬜ Do zrobienia |
@@ -178,11 +178,19 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-227 | Naprawa martwego `ContactCenterApplicationIT` — test startu pełnego kontekstu (Testcontainers) jako dowód startu dev/prod (zależy od BE-171 ✅; Średni, M; tura 77) | ✅ Ukończone (2026-11-14, tura 78; `FullApplicationContextStartupTest`, CR 4/5) |
 | BE-228 | Obserwowalność ShedLock (metryka pominiętych/przejętych blokad) i dług `argMax` ClickHouse przy wygaśnięciu blokady (zależy od BE-171 ✅, BE-172 ✅; Niski, Should przed >1 repliką, M; tura 77) | ⬜ Do zrobienia |
 | BE-229 | Autoryzacja STOMP: allow-list SUBSCRIBE/SEND, default-deny komend, weryfikacja `STOMP` jak `CONNECT` — `StompDestinationAuthorizationInterceptor` (P0 bezpieczeństwo; wynik spike’a BE-174; tura 78) | ✅ Ukończone (2026-11-14, tura 78; CR 4/5; numer nadany i zamknięty w tej samej turze) |
-| BE-230 | Wyłączność agenta między routingiem PHONE a dialerem oraz między dwiema kolejkami: blokada per agent / CAS na `app_user` (zależy od BE-173 ✅; P0, bramka >1 replika; powiązane BE-159 ✅, BE-156 ✅; tura 78) | ⬜ Do zrobienia |
+| BE-230 | Wyłączność agenta między routingiem PHONE a dialerem oraz między dwiema kolejkami: blokada per agent (zależy od BE-173 ✅; P0, bramka >1 replika; powiązane BE-159 ✅, BE-156 ✅; tura 78) | ✅ Ukończone (2026-11-14, tura 79; bez migracji; CR 4/5 → 4,5/5; NF1 naprawiony; follow-upy BE-237…BE-240) |
 | BE-231 | Inbound PHONE `QUEUED` bez `queue_id` — ryzyko `ERROR` w passie routingu: ocena + guard wieku/filtr `findQueuedContacts` (zależy od BE-173 ✅; Średni, S; tura 78) | ⬜ Do zrobienia |
 | BE-232 | Klucz idempotencji `initiateCall` dialera (timeout po utworzeniu połączenia → ponowne wybieranie; gałąź reapera „brak kontaktu”) (zależy od BE-173 ✅; Średni, M; tura 78) | ⬜ Do zrobienia |
 | BE-233 | Sesje WS a życie tokenu: blacklista JWT przy CONNECT, zamykanie sesji po `userId`, max-lifetime (zależy od BE-229 ✅; powiązane BE-175; Should przed >1 repliką, M; tura 78) | ⬜ Do zrobienia |
-| BE-234 | Higiena kanału WS: limit `/app/ping`, alert `ws.stomp.rejected{reason=foreign_*}`, martwy PONG i prefiks `/user`, wyjątek legacy po FE-170 (zależy od BE-229 ✅; powiązane BE-183; Niski, S/M; tura 78) | ⬜ Do zrobienia |
+| BE-234 | Higiena kanału WS: limit `/app/ping`, alert `ws.stomp.rejected{reason=foreign_*}`, martwy PONG i prefiks `/user`, wyjątek legacy po FE-170 ✅ (zależy od BE-229 ✅, FE-170 ✅ — odblokowane w turze 79; powiązane BE-183; Niski, S/M; tura 78) | ⬜ Do zrobienia |
+| BE-236 | Stabilny natywny nagłówek `code` w ramce STOMP ERROR (`StompSubProtocolErrorHandler`; kody `WS_*`; zależy od BE-229 ✅; blokuje FE-171; P1, S; tura 79) | ⬜ Do zrobienia |
+| BE-237 | Rezerwacja agenta przy callbacku: okno od bramki `checkAgentVoiceFree` do INSERT-a kontaktu w `initiateCall` (zależy od BE-230 ✅; P1, M; tura 79) | ⬜ Do zrobienia |
+| BE-238 | Zawieszony DIALING po manual dialerze (catch z cofnięciem) i `AGENT_LOCK_TIMEOUT` jako 503/429 zamiast 409 (zależy od BE-230 ✅; P2, S/M; tura 79) | ⬜ Do zrobienia |
+| BE-239 | Transfer bezpośredni i outbound agenta poza blokadą wyłączności: metryka `agent.assignment.unguarded`, potem check pod lockiem albo ostrzeżenie w UI (zależy od BE-230 ✅; P2, S/M; tura 79) | ⬜ Do zrobienia |
+| BE-240 | Porządki po BE-230: EXPLAIN sondy VOICE_LOAD, cache filtra S7, martwy `markAsDialing`, `routeContact` bez `@Transactional`, `releaseSavepoint`, test pod rolą bez BYPASSRLS, macierz S1 (zależy od BE-230 ✅; P3, M; tura 79) | ⬜ Do zrobienia |
+| BE-241 | Redis dla fan-outu WS: `client-output-buffer-limit pubsub` w compose i DEPLOYMENT.md, ACL `PUBLISH` tylko `cc:ws:*`/`cc:cache:*`, alerty fan-outu (zależy od BE-175 ✅; powiązane BE-183; P1, infra, S; tura 79) | ⬜ Do zrobienia |
+| BE-242 | HMAC-SHA256 koperty fan-outu WS, obowiązkowy sekret na prod (zależy od BE-175 ✅; P1, security, M; tura 79) | ⬜ Do zrobienia |
+| BE-243 | Fan-out WS, dalsze prace: gauge kolejki dispatchu, `degraded`/`queueSize` w health, budżet bajtowy odbiorcy, test „SupervisorMetrics raz na interwał” na 2 instancjach z Postgresem, walidacja kształtu payloadu, strażnik nazw kolejek Rabbit relay (zależy od BE-175 ✅, BE-176 ✅; P2, M; tura 79) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8504,7 +8512,7 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 31/50** · ✅ 31 · 🔧 0 · ⬜ 19 · 🚫 0 (tura 78, 2026-11-14, gałąź `feature/epic33-routing-locks-and-ws-adr`, niezacommitowane: nowy ⬜ BE-235 [DECYZJA PRODUKTOWA] (kanał `/topic/tenant/{id}/agents` dostępny dla AGENT; wynik BE-229); następne wolne BE-236, FE-171, DB-101; wcześniej tura 77, 2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane: BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`, guard usuwania kolejki) i BE-196 ✅ (sprzątanie EML odpowiedzi w `RecordingRetentionJob`; indeks DB-099 ✅/V150); nowe ⬜ BE-225 (decyzja produktowa: odwrotna negacja statusów w ETL/`CustomerRepository`) i BE-226 (`findTenantIdsWithEml`); następne wolne BE-229, FE-169, DB-100; wcześniej tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
+**Ukończone 31/50** · ✅ 31 · 🔧 0 · ⬜ 19 · 🚫 0 (tura 79, 2026-11-14: bez zmian w EPIC-32; BE-235 nadal ⬜ — decyzja produktowa; nowe BE-236…BE-243 trafiły do EPIC-33; następne wolne BE-244, FE-172, DB-101; wcześniej tura 78, 2026-11-14, gałąź `feature/epic33-routing-locks-and-ws-adr`, niezacommitowane: nowy ⬜ BE-235 [DECYZJA PRODUKTOWA] (kanał `/topic/tenant/{id}/agents` dostępny dla AGENT; wynik BE-229); następne wolne BE-236, FE-171, DB-101; wcześniej tura 77, 2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane: BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`, guard usuwania kolejki) i BE-196 ✅ (sprzątanie EML odpowiedzi w `RecordingRetentionJob`; indeks DB-099 ✅/V150); nowe ⬜ BE-225 (decyzja produktowa: odwrotna negacja statusów w ETL/`CustomerRepository`) i BE-226 (`findTenantIdsWithEml`); następne wolne BE-229, FE-169, DB-100; wcześniej tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
 
 > Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200 ✅ (tura 71, 2026-11-06), BE-201…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Tura 72 (2026-11-07): BE-156 ✅, BE-159 ✅, DB-096/DB-097 ✅; nowe BE-207…BE-209 ⬜ i FE-163 ⬜. Tura 73 (2026-11-07, zgłoszenie użytkownika — „agenci-duchy”: status AVAILABLE nigdy nie wygasa po zamknięciu karty/restarcie): nowe BE-210 ⬜ (wykrywanie obecności i automatyczny OFFLINE) i BE-211 ⬜ (poziom logu pollu routingu) oraz FE-164 ⬜ w `TASKS-FRONTEND.md`; bez nowych ticketów DB (ewentualny DB-099 — DB-098 zajął w dopisku 2 ticket indeksów CDC — tylko jeśli BE-210 zdecyduje o kolumnie ostatniej aktywności). Tura 73 (dopisek, 2026-11-07): nowy BE-212 ⬜ ([BUG] fałszywy alarm lagu ETL przy braku zmian w źródle; domena ETL/DW z EPIC-10, który pozostaje ✅ 5/5 — ticket liczony tutaj jako backlog, razem z BE-211). Tura 73 (dopisek 2, 2026-11-07, gałąź `fix/routing-conditional-assignment-and-limits`, niezacommitowane): BE-211 ✅ (log pollu routingu na DEBUG) i BE-212 ✅ (lag ETL = wiek najstarszej niezsynchronizowanej zmiany, alert żywotności `checkJobLiveness`, `alertType`); CR „Review: BE-211 + BE-212 — 2026-11-07” 3,5/5 APPROVE WITH FIXES, 0 must-fix, `mvn verify` 3089 testów (0 F, 0 E, 1 pominięty); nowe BE-213 ⬜ ([BUG] P1: utrata danych ETL przy backlogu > LIMIT i wyścig `computeMax*`; domena EPIC-10), BE-214 ⬜ (cooldown alertów ETL), DB-098 ⬜ w `TASKS-DATABASE.md` (indeksy wyrażeniowe CDC) i FE-165 ⬜ w `TASKS-FRONTEND.md` (JOB_STALE/JOB_ERROR w panelu admin-metrics); BE-172 dopisano `checkJobLiveness`. Rekoncyliacja liczników (tura 73): tabela „Indeks wg EPIC” była nieaktualna (RAZEM 153/52/208 przy faktycznych 159/54/216 przed turą). Następne wolne numery: BE-215, FE-166, DB-099 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
@@ -10075,8 +10083,10 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 7/33** · ✅ 7 · 🔧 0 · ⬜ 26 · 🚫 0
+**Ukończone 10/41** · ✅ 10 · 🔧 0 · ⬜ 31 · 🚫 0
 
+> **Tura 79 (2026-11-14, gałąź `feature/epic33-ws-fanout-agent-exclusivity` (z `develop` 66f67f48), zmiany niezacommitowane; `/verify`: FE lint 0 błędów, format OK, 88 plików / 1283 testy; BE `mvn verify` 3595 testów, 0 F / 0 E / 1 pominięty (wynik agenta po poprawce NF1; końcowy `/verify` w toku, liczby do korekty przez właściciela)):** ✅ **BE-230** (wyłączność agenta przy połączeniach głosowych: per-agent advisory lock w `assignIfQueued` dla PHONE, `AGENT_BUSY`/`AGENT_LOCK_TIMEOUT`, `AgentAssignmentLock` z `lock_timeout` 500 ms w SAVEPOINT, wspólne fragmenty `OccupiedSlot.VOICE_*`, CAS manual dialera, bramka callbacku; CR 4/5 → 4,5/5; bez migracji), ✅ **BE-175** (fan-out WS: Redis pub/sub → lokalny SimpleBroker, ADR-14 opcja B; CR 4/5 → 4,5/5), ✅ **BE-176** (test między-instancyjny z odstępstwami), ✅ **FE-169** (klient WS: backoff equal jitter, stany `FORBIDDEN`/`SESSION_EXPIRED`; CR 3,5/5 → 4,5/5; AC5 w przeglądarce NIE wykonane) i ✅ **FE-170**. **Bramka „>1 replika backendu” (BE-175 + BE-230) ZAMKNIĘTA.** Przed produkcją na wielu replikach zostają BE-177 i BE-178 (stan IVR i wtyczek w JVM) oraz BE-233 i BE-228 (Should). Nowe ⬜: BE-236…BE-243 i FE-171. Liczniki EPIC-33: DB 2/5, BE 10/41, FE 2/4. Następne wolne: BE-244, FE-172, DB-101 (V152 wolna).
+>
 > **Tura 78 (2026-11-14, gałąź `feature/epic33-routing-locks-and-ws-adr` (z `develop` ace01a47), zmiany niezacommitowane; `/verify`: FE lint 0, format OK, 1247 testów / 87 plików; BE pełny `mvn verify` po scaleniu: 3503 testy, 0 F / 0 E / 1 pominięty, JDK 21):** ✅ **BE-173** (dialer: advisory xact lock per kampania + blokada per agent + `dialing_agent_id`; routing: ShedLock per kolejka `RoutingQueue_<queueId>`; nowy `OrphanedDialingReaper`; CR 3,5/5 → 4/5), ✅ **DB-100** (NOWY numer; V151 pod BE-173; CR DB 4/5), ✅ **BE-174** (ADR-14 §11.14 zaakceptowany: opcja B — Redis pub/sub → lokalny SimpleBroker; spike `documentation/tech/adr-14-ws-broker-spike.md`), ✅ **BE-179** (Redis pub/sub dla cache Twilio, WaitTime bez stanu lokalnego; CR 3,5/5), ✅ **BE-227** (`FullApplicationContextStartupTest`; CR 4/5), ✅ **BE-229** (NOWY numer, P0 bezpieczeństwo: autoryzacja STOMP; CR 4/5). Zmiana zakresu: BE-175 (opcja B zamiast relay STOMP), BE-176 (2 konteksty + Redis/Postgres). Nowe ⬜: BE-230 (P0, wyłączność agenta), BE-231, BE-232 (follow-upy BE-173), BE-233, BE-234 (follow-upy BE-229), BE-235 (decyzja produktowa; epik EPIC-32), FE-169, FE-170 (`TASKS-FRONTEND.md`). **Bramka „>1 replika backendu” po turze 78: wymaga jeszcze BE-175 i BE-230; BE-173 ✅ i BE-179 ✅ spełnione** (poprzednio: BE-175 i BE-179). Decyzje właściciela otwarte: BE-225, BE-235, obwiednia ADR-14 (pyt. 3: ok. 5 000 sesji / 2–5 instancji, test w BE-175). Liczniki EPIC-33: DB 2/5, BE 7/33, FE 0/3.
 >
 > **Tura 77 (2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane):** BE-171 ✅ i BE-172 ✅ (ShedLock 6.10.0; DB-090 ✅/V149; inwentarz 24 metody `@Scheduled` = 22 × S + 2 × T), nowe ⬜ BE-227 (martwy `ContactCenterApplicationIT`) i BE-228 (obserwowalność ShedLock + dług `argMax`); pozostaje z fazy 0 ShedLock: BE-173 (metody T). **TWARDA BRAMKA WDROŻENIOWA (tura 77, z CR BE-171/BE-172):** więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
@@ -10228,7 +10238,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Priorytet:** Must Have (P0)
 **Złożoność:** L
 **Zależy od:** BE-174 ✅
-**Status:** ⬜ Do zrobienia — ODBLOKOWANY (tura 78: BE-174 ✅; ZAKRES ZMIENIONY: opcja B wg ADR-14 zamiast relay STOMP RabbitMQ)
+**Status:** ✅ Ukończone (2026-11-14, tura 79; gałąź `feature/epic33-ws-fanout-agent-exclusivity` (z `develop` 66f67f48), niezacommitowane; zakres wg ADR-14 opcja B zamiast relay STOMP; wykonawca `backend-dev-expert` (+ `test-suite-expert`); CR „Review BE-175 + BE-176” → „Re-review BE-175 + BE-176” (2026-11-14) 4/5 → 4,5/5, 0 must-fix, poprawki S-A, S-B, S-C naniesione; `mvn verify` 3595 testów, 0 F / 0 E / 1 pominięty) — odblokował BE-176 ✅; zamknął pierwszą połowę bramki „>1 replika” (druga: BE-230 ✅)
 **Blokuje:** BE-176, BE-187, FE-155
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert`
@@ -10254,10 +10264,23 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 **Ryzyka:** (R1) rozjazd local-demo vs prod (różne brokery) — mitygacja: BE-176 uruchamia test na relay także lokalnie; (R2) `heartbeatIncoming: 0` po stronie FE (zob. FE-155); (R3) autoryzacja subskrypcji działa tylko na `inboundChannel` — upewnić się, że relay nie omija `ChannelInterceptor`.
 **Nie wchodzi w zakres:** test między-instancyjny (BE-176), zmiany FE (FE-155), klaster RabbitMQ (infrastruktura DEPLOYMENT.md).
-**Zależności:** `Zależy od` BE-174 ✅; `Blokuje` BE-176, BE-187, FE-155; powiązane: BE-229 ✅, BE-230 (druga część bramki >1 replika), BE-233, BE-179 ✅.
+**Zależności:** `Zależy od` BE-174 ✅; `Blokuje` BE-176 ✅, BE-187, FE-155; powiązane: BE-229 ✅, BE-230 ✅ (druga część bramki >1 replika, zamknięta w turze 79), BE-241, BE-242, BE-243, BE-184, BE-233, BE-179 ✅.
 **Dopisek (tura 74, BE-210 ✅):** po przejściu na relay STOMP `AgentPresenceEventListener` (BE-210 ✅) przestanie widzieć CONNECT/DISCONNECT sesji — kryterium akceptacji: zdarzenia obecności zasilane z brokera (lub odnowa wyłącznie przez `/app/ping` z FE-164 ✅), test regresji karencji 90 s przy brokerze zewnętrznym. Powiązane: BE-210, BE-217, FE-155.
 **Dopisek (tura 77, BE-171 ✅/BE-172 ✅):** TWARDA BRAMKA WDROŻENIOWA — ten ticket ją zamyka (razem z BE-179): więcej niż 1 replika backendu dopiero po BE-175 (broker współdzielony) i BE-179 — joby publikujące WS przez `SimpleBroker` (`SupervisorMetricsService`, `WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor`; pośrednio `AgentBreakActivator`, `AgentPresenceSweeper`) dostarczą zdarzenia tylko sesjom na replice-zwycięzcy blokady ShedLock; `WaitTimeEstimationServiceImpl.lastKnownAgentCounts` jest lokalny (BE-179). Wdrożenie: migracja V149 przed nową wersją aplikacji; rolling deploy ze starą wersją bez ShedLock może chwilowo dublować joby.
 **Dopisek (tura 78, BE-174 ✅ — ZAKRES ZMIENIONY, opcja B wg ADR-14 §11.14):** zamiast relay STOMP na RabbitMQ: `WebSocketEventBroadcasterImpl` publikuje KOPERTĘ zdarzenia na kanał Redis, subskrybent na KAŻDEJ instancji wykonuje lokalne `convertAndSend` do własnego `SimpleBroker` (broker prosty zostaje; brak pluginu STOMP, brak zmian `docker-compose`). Wymagania z ADR-14 (a–c) i doprecyzowania ticketu (d–g): (a) reużycie `RedisMessageListenerContainer`/`PubSubListenerContainer` z BE-179 ✅ (`PubSubListenerContainerSupervisor`, bez autostartu, recovery 5 s) z rozstrzygnięciem EXECUTORA (dziś ograniczona pula 2 wątków + kolejka 256 — dla fan-outu WS zwymiarować/oddzielić) i KOLEJNOŚCI dostarczania zdarzeń na jedną sesję; (b) metryki `ws.fanout.*` (opublikowane, dostarczone lokalnie, odrzucone, opóźnienie); (c) destynacje BEZ ZMIAN (`/topic/...`, `/user/...`) — brak zmian FE; (d) [doprecyzowanie] autoryzacja subskrypcji z BE-229 ✅ działa na `inboundChannel` instancji i nie może być omijana przez fan-out (koperta powinna nieść `tenantId`; test izolacji tenantów); (e) [doprecyzowanie] utrata Redis nie zrywa sesji WS na instancji (zdarzenia między instancjami wstrzymane do powrotu Redis) — test; (f) test 5 000 sesji / 2–5 instancji z pyt. 3 ADR (obwiednia — decyzja właściciela otwarta); (g) kryterium „`enableSimpleBroker` nieobecny w `prod`” z oryginału NIE obowiązuje. Zachować: obecność agenta (`AgentPresenceEventListener`, BE-210 ✅) widzi CONNECT/DISCONNECT lokalnie — przy opcji B nie wymaga zdarzeń brokera (dopisek tury 74 w tym ticketcie nieaktualny co do relay). **Bramka „>1 replika backendu” po turze 78:** wymaga jeszcze BE-175 (broker współdzielony, opcja B wg ADR-14) i BE-230 (wyłączność agenta routing PHONE ↔ dialer ↔ dwie kolejki); BE-173 ✅ i BE-179 ✅ spełnione. Powiązane: BE-176, BE-179 ✅, BE-229 ✅, BE-233, BE-234, FE-155.
+**Kryteria akceptacji wg opcji B (tura 79; zastępują nieaktualne kryteria relay STOMP powyżej, które zostają jako zapis historyczny):**
+- [x] Koperta zdarzenia publikowana na kanał Redis `cc:ws:fanout:<env>`; subskrybent na KAŻDEJ instancji wykonuje lokalne `convertAndSend` do własnego SimpleBrokera; destynacje bez zmian (brak zmian FE)
+- [x] Wszystkie dotychczasowe zdarzenia WS docierają do klienta przy pojedynczej instancji (istniejące testy WS zielone)
+- [x] Walidacja odbiorcy: allow-lista destynacji (`StompDestinations`, wspólna z BE-229) i tenant; user-topic wymaga lokalnej sesji i zgodnego tenanta; sfałszowane koperty odrzucane (metryki `ws.fanout.*`)
+- [x] Utrata Redis nie zrywa sesji WS; po powrocie Redis fan-out wznawia się bez restartu aplikacji (`PubSubListenerContainerSupervisor` z BE-179 ✅); `WebSocketFanoutHealthIndicator`
+- [x] Kolejność dostarczania per sesja (`setPreservePublishOrder(true)`), budżet bajtowy publishera 32 MiB, drain przy shutdown
+- [x] Bramka `WebSocketOncePerWindowGate` (Redis `SET NX`, klucz `ws:once:<env>:…`) dla okresowego `QUEUE_AGENT_UPDATE` z pollu routingu (poprawki S-A, S-B, S-C z re-review)
+- [x] RabbitMQ relay (`RabbitToWebSocketRelay`, competing consumers) bez zmian
+- [x] Test między-instancyjny (BE-176 ✅)
+- [x] `mvn verify -pl app` zielone (JDK 21)
+- [ ] Przepustowość 500 sesji / 10 zdarzeń/s/tenant oraz test 5 000 sesji (ADR-14 pyt. 3) — NIE wykonane w tym tickecie; przeniesione do BE-184 (pytanie 3 czeka na decyzję właściciela)
+- [ ] Weryfikacja ręczna na local-demo (przebudowa `cc-backend`, ustawienie `WEBSOCKET_FANOUT_ENV`) — NIE wykonana; akcja po merge (zob. PROGRESS.md)
+**Notatka wykonania (2026-11-14, tura 79):** klasy `WebSocketFanoutPublisher`, `WebSocketFanoutSubscriber`, `WebSocketLocalDispatcher`, `WebSocketFanoutEnvelope`, `WebSocketFanoutMetrics`, `WebSocketFanoutProperties`, `WebSocketFanoutHealthIndicator`, `WebSocketFanoutConfig`; `StompDestinations` jako wspólna allow-lista z BE-229. Kanał `cc:ws:fanout:<env>` (środowisko z `WEBSOCKET_FANOUT_ENV`; domyślnie pierwszy aktywny profil — dwa środowiska z tym samym profilem na wspólnym Redis wymagają jawnej wartości, opis w DEPLOYMENT.md). Pozostałe uwagi z re-review → BE-241 (limit bufora pub/sub, ACL, alerty), BE-242 (HMAC koperty), BE-243 (gauge dispatchu, `degraded`/`queueSize`, budżet bajtowy odbiorcy, walidacja payloadu), BE-184 (koszt `preservePublishOrder`, przepustowość 1 wątku dispatchu, 5 000 sesji).
 
 ### BE-176 – Test między-instancyjny WebSocket: 2 instancje backendu + wspólny broker (Testcontainers)
 
@@ -10265,7 +10288,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Priorytet:** Must Have (P0)
 **Złożoność:** M
 **Zależy od:** BE-175, BE-171 ✅
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone (2026-11-14, tura 79; gałąź `feature/epic33-ws-fanout-agent-exclusivity`, niezacommitowane; wykonawca `test-suite-expert`; `WebSocketFanoutCrossInstanceIntegrationTest`; CR „Review BE-175 + BE-176” → „Re-review BE-175 + BE-176” 4,5/5; z ODSTĘPSTWAMI wypisanymi w „Notatce wykonania”)
 **Blokuje:** brak
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `test-suite-expert`
@@ -10273,18 +10296,19 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Opis:** Dowód, że zdarzenia WS przechodzą między instancjami. Test uruchamia 2 konteksty Spring (różne porty) na wspólnym Postgres/Redis/RabbitMQ (Testcontainers), łączy klientów STOMP z różnymi instancjami i sprawdza dostarczenie zdarzeń.
 
 **Kryteria akceptacji:**
-- [ ] Zdarzenie wysłane przez instancję A (`WebSocketEventBroadcaster`) dociera do sesji agenta podpiętej do instancji B (`/user/...` i `/topic/...`)
-- [ ] Zdarzenie dla agenta bez sesji nie powoduje błędu; po reconnect agent nie dostaje zdarzeń „z przeszłości” (świadoma semantyka: bez odtwarzania, zob. FE-152)
-- [ ] Zdarzenia nie wyciekają między tenantami
-- [ ] `SupervisorMetricsService` publikuje raz na interwał mimo 2 instancji (współpraca z BE-171/BE-172)
-- [ ] Test odporności: restart brokera w trakcie testu → sesje wracają do dostarczania w limicie czasowym
-- [ ] Test uruchamiany w `mvn verify -pl app` (lub osobnym profilu `-Pmulti-instance` z uzasadnieniem czasu)
+- [x] Zdarzenie wysłane przez instancję A (`WebSocketEventBroadcaster`) dociera do sesji agenta podpiętej do instancji B (`/user/...` i `/topic/...`) — user topic i tenant topics
+- [x] Zdarzenie dla agenta bez sesji nie powoduje błędu; po reconnect agent nie dostaje zdarzeń „z przeszłości” (świadoma semantyka: bez odtwarzania, zob. FE-152)
+- [x] Zdarzenia nie wyciekają między tenantami (sfałszowane koperty odrzucane)
+- [ ] `SupervisorMetricsService` publikuje raz na interwał mimo 2 instancji (współpraca z BE-171/BE-172) — ODSTĘPSTWO: NIE wykonane; test na 2 instancjach z Postgresem i wspólnym ShedLockiem → BE-243; w IT pokryta jest bramka „raz na okno” dla pollu routingu (`WebSocketOncePerWindowGate`)
+- [x] Test odporności: awaria i powrót Redis w trakcie testu → fan-out wznawia się w limicie czasowym, sesje nie są zrywane (zamiast „restart brokera”, opcja B)
+- [x] Test uruchamiany w zwykłym `mvn verify -pl app` (bez osobnego profilu)
 
 **Ryzyka:** (R1) czas i niestabilność testów z Testcontainers + 2 kontekstami; (R2) konkurencja portów.
 **Nie wchodzi w zakres:** obciążenie (BE-184), testy FE.
-**Zależności:** `Zależy od` BE-175, BE-171 ✅; `Blokuje` brak.
+**Zależności:** `Zależy od` BE-175 ✅, BE-171 ✅; `Blokuje` brak; powiązane: BE-243 (dopełnienie odstępstw), BE-184 (5 000 sesji).
 **Dopisek (tura 77, BE-171 ✅):** zależność od BE-171 spełniona (ShedLock; singleton publikacji metryk WS). Pozostaje BE-175. Test między-instancyjny powinien objąć także joby publikujące przez broker (zob. bramka wdrożeniowa w BE-175).
 **Dopisek (tura 78, ADR-14 ✅ opcja B; BE-174 ✅):** test dostosowany do opcji B — 2 konteksty Spring (różne porty) na wspólnych kontenerach **Postgres + Redis** (Testcontainers); RabbitMQ potrzebny tylko, jeśli kontekst go wymaga do startu (np. `RabbitToWebSocketRelay`), NIE jako broker STOMP. Asercje: zdarzenie z instancji A (`WebSocketEventBroadcaster` → kanał Redis) dociera do sesji na instancji B (`/user/...` i `/topic/...`); brak wycieku między tenantami; restart/utrata Redis w trakcie testu → po powrocie fan-out wznawia się bez restartu aplikacji (zamiast „restart brokera zrywa sesje”); korzystać z `PubSubListenerContainerSupervisor` z BE-179 ✅ i infrastruktury `FullApplicationContextStartupTest` z BE-227 ✅ (kontenery `support/RabbitMqTestContainer`, `support/ClickHouseTestContainer`). Test z BE-229 ✅ (`StompSubscribeAuthorizationE2ETest`) pokrywa autoryzację na jednej instancji; tu — między instancjami. Powiązane: BE-175 (zakres zmieniony), BE-229 ✅, BE-174 ✅.
+**Notatka wykonania (2026-11-14, tura 79):** `WebSocketFanoutCrossInstanceIntegrationTest` — 2–3 konteksty Spring na wspólnym Redis (Testcontainers), prawdziwy STOMP + JWT, `TcpForwarder` do symulacji awarii Redis. **Kryteria ZAMKNIĘTE:** (1) A→B dla user topic i tenant topics; (2) brak odtwarzania zdarzeń po reconnect; (3) brak wycieku między tenantami; (4) sfałszowane koperty odrzucane; (5) awaria i powrót Redis; (6) `websocket.fanout.enabled=false`; (7) „raz na okno” dla okresowego snapshotu z pollu routingu; (8) test uruchamiany w zwykłym `verify`. **ODSTĘPSTWA (nie zamknięte):** (a) IT bez Postgresa (konteksty nie współdzielą bazy); (b) brak testu „`SupervisorMetricsService` publikuje raz na interwał” na 2 instancjach (wymaga Postgresa i wspólnego ShedLocka) → BE-243; (c) relay RabbitMQ (`RabbitToWebSocketRelay`) nie testowany między instancjami; (d) test 5 000 sesji przeniesiony do BE-184 (ADR-14 pyt. 3 czeka na właściciela).
 
 ### BE-177 – IVR: stan `pendingConference*`/`pendingQueueTransfer*` z pamięci JVM do Redis (klucz po CallSid)
 
@@ -10502,10 +10526,14 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 - [ ] Wynik baseline 1 instancji zapisany w tickecie: maksymalna liczba agentów przy p95 REST < 500 ms (propozycja progu) i 0% błędów; wskazany pierwszy nasycony zasób (metryki z BE-183)
 - [ ] Instrukcja uruchomienia (`loadtest/README.md`), zasoby generatora, bezpieczne środowisko (zakaz uruchamiania na produkcji i local-demo z danymi użytkownika)
 - [ ] Uruchomienie nie wymaga zmian kodu produkcyjnego poza BE-183
+- [ ] (tura 79) Pomiar kosztu `setPreservePublishOrder(true)` w fan-oucie WS (BE-175 ✅): przepustowość i opóźnienie p50/p95 z opcją i bez, przy tenantach z ≥ 1000 sesji
+- [ ] (tura 79) Pomiar przepustowości jednego wątku dispatchu fan-outu (`WebSocketLocalDispatcher`) i punktu nasycenia kolejki; wynik wskazuje, czy potrzebny jest filtr „brak lokalnych subskrybentów” przed parsowaniem payloadu
+- [ ] (tura 79) Test 5 000 sesji / 2–5 instancji (przeniesiony z BE-175/BE-176; ADR-14 pytanie 3 — obwiednia — wciąż czeka na decyzję właściciela, test nie startuje bez niej)
 
 **Ryzyka:** (R1) generator obciążenia sam jest wąskim gardłem (rozproszenie k6); (R2) dane syntetyczne nie odzwierciedlają rozkładu produkcyjnego.
 **Nie wchodzi w zakres:** webhooki Twilio i dialer (BE-185), strojenie (osobne tickety po wynikach).
-**Zależności:** `Zależy od` BE-183; `Blokuje` BE-185; powiązane: BE-175, BE-171.
+**Zależności:** `Zależy od` BE-183; `Blokuje` BE-185; powiązane: BE-175 ✅, BE-176 ✅, BE-171 ✅, BE-243.
+**Dopisek (tura 79, BE-175 ✅/BE-176 ✅):** do harnessu dochodzą trzy pomiary fan-outu opisane w kryteriach (koszt `preservePublishOrder`, przepustowość 1 wątku dispatchu, 5 000 sesji). Obwiednia 5 000 sesji zależy od odpowiedzi właściciela na pytanie 3 z ADR-14 (otwarte).
 
 ### BE-185 – Testy obciążeniowe: webhooki Twilio, dialer, N instancji; bramka akceptacji pojemności
 
@@ -10561,7 +10589,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Infrastructure (DevOps)
 **Priorytet:** Should Have (P1)
 **Złożoność:** L
-**Zależy od:** BE-175, BE-171 ✅, BE-182
+**Zależy od:** BE-175 ✅, BE-171 ✅, BE-182
 **Status:** ⬜ Do zrobienia
 **Blokuje:** BE-191, BE-194
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
@@ -10831,7 +10859,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Złożoność:** M
 **Zależy od:** brak (luka wykryta w spike’u BE-174 ✅; powiązane: BE-175)
 **Status:** ✅ Ukończone (2026-11-14, tura 78; gałąź `feature/epic33-routing-locks-and-ws-adr` (z `develop` ace01a47), niezacommitowane; numer BE-229 nadany i zamknięty w tej samej turze; wykonawca `backend-dev-expert` (+ `test-suite-expert`); CR „Review: BE-229” w `CR-BACKEND.md` 4/5, must-fix (komenda `STOMP` omijająca JWT) i should-fixy naprawione; testy: 74+ jednostkowych interceptora, e2e `StompSubscribeAuthorizationE2ETest` (rejestr subskrypcji brokera, sentinel, kontrola mutacyjna — bez interceptora testy padają); pełny `mvn verify` po scaleniu wszystkich zmian tury 78: 3503 testy, 0 F / 0 E / 1 pominięty (JDK 21))
-**Blokuje:** BE-233, BE-234, BE-235, FE-169, FE-170 (follow-upy); powiązane: BE-174 ✅, BE-175, BE-183
+**Blokuje:** BE-233, BE-234, BE-235, FE-169, FE-170 (follow-upy), BE-236 (kod w ERROR, tura 79); powiązane: BE-174 ✅, BE-175, BE-183
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (wynik spike’a BE-174; bezpieczeństwo WS jest warunkiem wielu instancji i brokera współdzielonego)
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -10855,6 +10883,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Nie wchodzi w zakres:** blacklista JWT i zamykanie sesji po wylogowaniu (BE-233), rate-limit `/app/ping` i alerty (BE-234), zawężenie payloadu kanału agentów (BE-235), broker wielu instancji (BE-175).
 **Zależności:** `Zależy od` brak; `Blokuje` BE-233, BE-234, BE-235, FE-169, FE-170; powiązane: BE-174 ✅, BE-175, BE-183, BE-217.
 **Notatka wykonania (2026-11-14, tura 78):** zob. „Zrealizowano”. Wzorce: allow-list regexem UUID zamiast prefiksów (brak wildcardów), default-deny dla komend STOMP. Zmiana kontraktu dla klientów: nieautoryzowane ramki kończą sesję (FE-169).
+**Dopisek (tura 79):** FE-169 ✅ i FE-170 ✅ zamknięte. FE-169 klasyfikuje ERROR po tekście nagłówka `message` (z `TODO(BE-236)`); stabilny nagłówek `code` dostarczy BE-236, a FE-171 usunie fallback. FE-170 ✅ odblokował usunięcie wyjątku legacy `/app/agent/status` (BE-234).
 
 ### BE-230 – Wyłączność agenta między routingiem PHONE a dialerem oraz między dwiema kolejkami (blokada per agent / CAS na `app_user`)
 
@@ -10862,7 +10891,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Priorytet:** Must Have (P0; bramka „>1 replika backendu”)
 **Złożoność:** M
 **Zależy od:** BE-173 ✅
-**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 78; wynik CR BE-173)
+**Status:** ✅ Ukończone (2026-11-14, tura 79; gałąź `feature/epic33-ws-fanout-agent-exclusivity` (z `develop` 66f67f48), niezacommitowane; bez migracji — V152 i DB-101 pozostają wolne; wykonawca `backend-dev-expert` (+ `test-suite-expert`); CR „Review BE-230” 4/5 → „Re-review BE-230” 4,5/5, NF1 (CAS manual dialera) naprawiony; `mvn verify` 3595 testów, 0 F / 0 E / 1 pominięty (wynik agenta po NF1; końcowy `/verify` w toku); założony 2026-11-14, tura 78; wynik CR BE-173) — zamknął drugą połowę bramki „>1 replika” (pierwsza: BE-175 ✅)
 **Blokuje:** zamknięcie bramki „>1 replika backendu” (wraz z BE-175); powiązane: BE-159 ✅, BE-156 ✅, BE-173 ✅, BE-231, BE-232
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -10875,16 +10904,17 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 - Test wyścigu: routing PHONE vs dialer na jednym agencie oraz dwie kolejki PHONE z jednym wspólnym agentem (≥ 100 iteracji, test kontrolny bez blokady → podwójny przydział).
 
 **Kryteria akceptacji:**
-- [ ] Dwa równoległe przydziały tego samego agenta (routing PHONE ↔ dialer, kolejka A ↔ kolejka B) kończą się dokładnie jednym sukcesem (test wyścigu ≥ 100 iteracji, 2 konteksty/instancje)
-- [ ] Test kontrolny bez blokady wykazuje podwójny przydział (dowód, że test wykrywa błąd)
-- [ ] Brak deadlocków przy jednoczesnych przydziałach (test + kolejność blokad opisana w kodzie)
-- [ ] Metryka konkurencji o agenta (licznik pominiętych przydziałów) — surowy licznik, dashboard w BE-183
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Dwa równoległe przydziały tego samego agenta (routing PHONE ↔ dialer, kolejka A ↔ kolejka B) kończą się dokładnie jednym sukcesem (testy wyścigu ×100: `AgentVoiceExclusivityIntegrationTest`, `AgentVoiceExclusivityDialerRaceIntegrationTest`; ODSTĘPSTWO: współbieżne wątki/połączenia na wspólnym Postgresie w jednej JVM, nie osobne konteksty Spring — blokada leży w bazie, więc dowód obejmuje też wiele instancji)
+- [x] Test kontrolny bez blokady wykazuje podwójny przydział (dowód, że test wykrywa błąd): `VoiceAssignmentHarness#assignCheckWithoutLock` — ten sam check i UPDATE bez locka z hookiem między nimi dowodzi, że lock jest konieczny
+- [x] Brak deadlocków przy jednoczesnych przydziałach (test + kolejność blokad opisana w kodzie; kruche założenie „jedna blokada agenta na transakcję” przy `routeContact` → BE-240)
+- [x] Metryka konkurencji o agenta — `agent.assignment.contention{source}` i `agent.assignment.skipped{source,reason}` (surowe liczniki, dashboard w BE-183)
+- [x] `mvn verify -pl app` zielone (JDK 21) — 3595 testów, 0 F / 0 E / 1 pominięty (wynik agenta; końcowy `/verify` w toku)
 
 **Ryzyka:** (R1) zmiana ścieżki gorącej `assignIfQueued` dla PHONE (opóźnienie przydziału); (R2) wzajemna kolejność blokad (kampania/kolejka → agent) musi być stała.
 **Nie wchodzi w zakres:** klucz idempotencji `initiateCall` (BE-232), inbound PHONE bez `queue_id` (BE-231), limity per tenant (BE-195).
-**Zależności:** `Zależy od` BE-173 ✅; `Blokuje` zamknięcie bramki „>1 replika” (z BE-175); powiązane: BE-159 ✅, BE-156 ✅, DB-100 ✅, BE-181.
-**Dopisek (bramka):** **Bramka „>1 replika backendu” po turze 78: wymaga jeszcze BE-175 (broker współdzielony, opcja B ADR-14) i BE-230; BE-173 ✅ i BE-179 ✅ spełnione.**
+**Zależności:** `Zależy od` BE-173 ✅; `Blokuje` zamknięcie bramki „>1 replika” (z BE-175 ✅) — zamknięta; follow-upy: BE-237, BE-238, BE-239, BE-240; powiązane: BE-159 ✅, BE-156 ✅, DB-100 ✅, BE-181.
+**Dopisek (bramka, tura 79):** **Bramka „>1 replika backendu” (BE-175 + BE-230) jest ZAMKNIĘTA.** Do produkcji na wielu replikach zostają jeszcze BE-177 i BE-178 (stan IVR i wtyczek w pamięci JVM) oraz BE-233 i BE-228 (Should). Okno callbacku (BE-237) nie zależy od liczby replik (występuje także przy jednej), więc nie jest częścią bramki, ale blokuje uznanie wyłączności agenta za domkniętą dla ścieżki callbacku.
+**Notatka wykonania (2026-11-14, tura 79):** zrealizowano: (1) `ContactRepository#assignIfQueued` dla PHONE bierze per-agent advisory lock (`AGENT_ASSIGNMENT_LOCK_SQL`) i pod nim sprawdza obciążenie głosowe (check VOICE_LOAD); wyniki `AssignmentResult.AGENT_BUSY` i `AGENT_LOCK_TIMEOUT`; (2) `AgentAssignmentLock` ustawia `lock_timeout` 500 ms wewnątrz SAVEPOINT i przywraca poprzednią wartość; (3) wspólne fragmenty SQL w `OccupiedSlot.VOICE_*` (jedno źródło predykatu; test spójności routingu, dialera, zapytania wsadowego); (4) filtr wsadowy agentów z obciążeniem głosowym w `DefaultRoutingEngine` (fail-open); (5) manual dialer `markAsDialingForAgent`: CAS na statusie rekordu, odpowiedzi 409 `AGENT_BUSY`, `RECORD_UNAVAILABLE`, `AGENT_LOCK_TIMEOUT`; (6) bramka callbacku `checkAgentVoiceFree`; (7) transfer bezpośredni świadomie z `exclusiveVoice=false`; (8) metryki `agent.assignment.contention{source}` i `agent.assignment.skipped{source,reason}`; (9) testy wyścigów ×100 z kontrolą „check bez locka”. **Follow-upy z CR:** BE-237 (rezerwacja agenta przy callbacku — „BE-230b”), BE-238 (zawieszony DIALING po manual, 503/429 — „BE-230c”), BE-239 (transfer/outbound poza blokadą — „BE-230d”), BE-240 (porządki — „BE-230e”: S4 EXPLAIN, NF4 cache filtra, martwy `markAsDialing`, `@Transactional` na `routeContact`, `releaseSavepoint`, macierz S1 12 scenariuszy).
 
 ### BE-231 – Inbound PHONE `QUEUED` bez `queue_id` (kolejka ustawiana później przez IVR): ryzyko `ERROR` w przebiegu routingu
 
@@ -10961,7 +10991,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Hardening / Refactor (Backend, WebSocket)
 **Priorytet:** Niski
 **Złożoność:** S/M
-**Zależy od:** BE-229 ✅
+**Zależy od:** BE-229 ✅; dla pkt 4 także FE-170 ✅ (odblokowane w turze 79)
 **Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 78; wynik BE-229)
 **Blokuje:** brak; powiązane: BE-183 (alert), BE-217 (PONG), FE-170 (po nim usunięcie wyjątku legacy), BE-229 ✅
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
@@ -10973,12 +11003,246 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 - [ ] Limit `/app/ping` per sesja z testem (nadmiar odrzucony, normalny ruch 1/30 s nietknięty; `ws.stomp.rejected{reason=rate_limit}`)
 - [ ] Alert/reguła dla `ws.stomp.rejected{reason=foreign_*}` (spięte z BE-183, jeśli dashboard istnieje)
 - [ ] Martwy PONG i prefiks `/user` usunięte; testy WS zielone, brak regresji obecności (BE-210 ✅)
-- [ ] Po FE-170: wyjątek `/app/agent/status` usunięty z allow-listy; test negatywny
+- [ ] Po FE-170 ✅ (zamknięty w turze 79 — warunek spełniony, usunięcie możliwe od zaraz): wyjątek `/app/agent/status` usunięty z allow-listy; test negatywny
 - [ ] `mvn verify -pl app` zielone (JDK 21)
 
 **Ryzyka:** (R1) zbyt niski limit pinga uderza w legalne odnowienia obecności (ping po `visibilitychange`/`online`/`focus`, FE-164 ✅); (R2) usunięcie `/user` wymaga pewności, że żaden klient go nie używa (grep FE).
 **Nie wchodzi w zakres:** blacklista JWT (BE-233), zawężenie payloadu (BE-235).
-**Zależności:** `Zależy od` BE-229 ✅; `Blokuje` brak; powiązane: BE-183, BE-217, FE-170, BE-210 ✅.
+**Zależności:** `Zależy od` BE-229 ✅, FE-170 ✅ (pkt 4); `Blokuje` brak; powiązane: BE-183, BE-217, BE-210 ✅, BE-236.
+**Dopisek (tura 79):** FE-170 ✅ usunął publish `/app/agent/status` w kliencie (CR OK) — tym samym odblokowuje usunięcie tymczasowego wyjątku legacy `/app/agent/status` z allow-listy `StompDestinationAuthorizationInterceptor` (kryterium 4 jest teraz wykonalne). Status ticketu bez zmian (⬜).
+
+### BE-236 – Stabilny natywny nagłówek `code` w ramce STOMP ERROR (kontrakt BE ↔ FE zamiast dopasowania po tekście `message`)
+
+**Typ:** Feature / Hardening (Backend, WebSocket)
+**Priorytet:** P1 (Should Have)
+**Złożoność:** S
+**Zależy od:** BE-229 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-FRONTEND.md „Review: FE-169 + FE-170” i „Re-review: FE-169 + FE-170”, 2026-11-14, punkt „klasyfikacja / BE-236”)
+**Blokuje:** FE-171; powiązane: FE-169 ✅, BE-229 ✅, BE-233, BE-234
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Po BE-229 odrzucona ramka STOMP kończy się ramką `ERROR` i zamknięciem sesji, ale powód widać tylko w tekście nagłówka `message`. FE-169 ✅ klasyfikuje ERROR po podciągach tego tekstu (z `TODO(BE-236)`; szeroki podciąg „claim” — nit N5 z re-review). Ticket wprowadza stabilny, natywny nagłówek `code` w ramce ERROR, żeby FE nie zależało od brzmienia komunikatów.
+
+**Zakres:**
+- `StompSubProtocolErrorHandler` rejestrowany przez `registry.setErrorHandler(...)` w `WebSocketConfig`; handler rozpakowuje `MessageDeliveryException` (przyczyna z interceptorów `WebSocketAuthInterceptor` i `StompDestinationAuthorizationInterceptor`) i dopisuje nagłówek `code`.
+- Zbiór kodów: `WS_FORBIDDEN` (destynacja niedozwolona dla roli/tenanta), `WS_NO_SESSION`, `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL` (domyślny dla nieznanych wyjątków; bez wycieku szczegółów).
+- Nagłówek `message` zostaje bez zmian (kompatybilność wsteczna na okres przejściowy do FE-171).
+- Dokumentacja kontraktu (`ARCHITECTURE.md` §5.3/§6.4 lub `documentation/tech/04-backend.md`).
+
+**Kryteria akceptacji:**
+- [ ] Każde odrzucenie z `StompDestinationAuthorizationInterceptor` i `WebSocketAuthInterceptor` zwraca ramkę ERROR z nagłówkiem `code` z powyższego zbioru
+- [ ] Wyjątek spoza zbioru → `WS_INTERNAL`, bez szczegółów wewnętrznych w ramce
+- [ ] Testy kontraktowe (e2e na prawdziwym STOMP, np. rozszerzenie `StompSubscribeAuthorizationE2ETest`): po jednym przypadku na każdy kod, asercja na `headers['code']`
+- [ ] Nagłówek `message` niezmieniony (test regresji)
+- [ ] Kontrakt opisany w dokumentacji (lista kodów i ich znaczenie)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) `MessageDeliveryException` opakowuje przyczynę na różnych poziomach — rozpakowanie musi być odporne (pętla po `getCause()`); (R2) ujawnienie szczegółów w `message` — nie rozszerzać.
+**Nie wchodzi w zakres:** zmiany FE (FE-171), blacklista JWT (BE-233), limit `/app/ping` (BE-234).
+**Zależności:** `Zależy od` BE-229 ✅; `Blokuje` FE-171; powiązane: FE-169 ✅.
+
+### BE-237 – Rezerwacja agenta przy callbacku: okno od bramki do INSERT-a kontaktu w `initiateCall` trwa pełny RTT Twilio
+
+**Typ:** Bug / Hardening (Backend, współbieżność)
+**Priorytet:** P1 (Should Have)
+**Złożoność:** M
+**Zależy od:** BE-230 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-230”, 2026-11-14, pkt 2 — „BE-230b”)
+**Blokuje:** uznanie wyłączności agenta za domkniętą dla ścieżki callbacku; powiązane: BE-230 ✅, BE-239, BE-240, DB-101 (tylko jeśli wybrany wariant z nową tabelą)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Bramka `checkAgentVoiceFree` w `ScheduledCallbackExecutor` zwalnia lock agenta przy commicie, PRZED `markAsDialingForCallback`, `resolveCallbackFromNumber` i `initiateCall`. W `TwilioTelephonyAdapter.initiateCall` wiersz `contact` powstaje dopiero po REST do Twilio, więc okno to pełny RTT (setki ms do kilku s). W tym czasie routing lub dialer widzą agenta jako wolnego (DIALING callbacku ma celowo `dialing_agent_id = NULL`, a callback poza kampanią nie ma `campaign_contact`) — efekt: połączenie przychodzące i oddzwonienie na jednym agencie, czyli to, co BE-230 miał wykluczyć. Prawdopodobieństwo średnio-niskie, skutek wysoki.
+
+**Zakres (propozycja bez migracji i bez przeciążania kolumn):**
+- Wiersz `scheduled_callback` jest już w statusie `PROCESSING` z `agent_id` zanim bramka ruszy (`updateStatusIfPending`); dodać trzecią część predykatu `OccupiedSlot.VOICE_LOAD_CONDITION_SQL`: `EXISTS (SELECT 1 FROM scheduled_callback s WHERE s.tenant_id = ? AND s.agent_id = ? AND s.status = 'PROCESSING' AND s.updated_at > NOW() - interval '2 minutes')` (indeks `idx_scheduled_callback_agent_status (tenant_id, agent_id, status)` z V032).
+- Wykluczenie własnego `callback_id` w bramce callbacku (callback nie blokuje sam siebie).
+- TTL na `updated_at` oraz reset zawieszonych `PROCESSING` (job/reaper), żeby awaria nie blokowała agenta na stałe.
+- Rozszerzenie macierzy spójności predykatu (S1) o scenariusze callbacku; ponowny log INFO na każdy tick ponowienia zniżyć do DEBUG po pierwszym razie.
+- Alternatywa (jeśli predykat okaże się niewystarczający): nowa kolumna/tabela rezerwacji — wymaga osobnego ticketu DB (DB-101).
+
+**Kryteria akceptacji:**
+- [ ] Callback w oknie `PROCESSING` blokuje przydział tego agenta w routingu i dialerze (`AGENT_BUSY`), a callback nie blokuje sam siebie
+- [ ] Zawieszony `PROCESSING` starszy niż TTL przestaje blokować agenta i jest resetowany (test z czasem)
+- [ ] Test wyścigu callback × routing (×100) na prawdziwym Postgresie, z kontrolą „bez rezerwacji → podwójny przydział”
+- [ ] Macierz spójności predykatu obejmuje scenariusze callbacku; brak regresji w pozostałych 12 scenariuszach
+- [ ] Brak nowej migracji (albo jawne uzasadnienie i DB-101)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) rozszerzenie predykatu na ścieżce gorącej (sonda po `scheduled_callback`) — sprawdzić EXPLAIN razem z BE-240; (R2) zbyt długi TTL blokuje agenta po awarii, zbyt krótki nie pokrywa RTT Twilio.
+**Nie wchodzi w zakres:** transfer bezpośredni i outbound agenta (BE-239), zawieszony DIALING po manual (BE-238).
+**Zależności:** `Zależy od` BE-230 ✅; `Blokuje` jw.; powiązane: BE-240, BE-239.
+
+### BE-238 – Zawieszony DIALING po manual dialerze (cofnięcie przy wyjątku i awarii Redis) oraz `AGENT_LOCK_TIMEOUT` jako 503/429
+
+**Typ:** Bug (Backend, dialer)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** S/M
+**Zależy od:** BE-230 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-230”, 2026-11-14, NF2 — „BE-230c”)
+**Blokuje:** brak; powiązane: BE-230 ✅, BE-232, BE-240
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Po BE-230 rekord manual dialera ma `dialing_agent_id`, więc zawieszony `DIALING` blokuje agenta w całym routingu głosowym do ok. 15 min (stale 10 min + interwał reapera 5 min). Ścieżki: (a) wyjątek inny niż `TelephonyException` po bramce — łapany jest tylko `TelephonyException` (`markRecordAsError`); (b) awaria Redis w `saveCallState`/`scheduleNoAnswerTimeout` po udanym `initiateCall` (webhook hangup nie znajdzie klucza). Dodatkowo `AGENT_LOCK_TIMEOUT` jest mapowany na `InvalidOperationException` (409), a semantycznie to 503/429 z `Retry-After`.
+
+**Zakres:** `catch` z cofnięciem `DIALING` przy wyjątku innym niż `TelephonyException` i przy awarii Redis w `saveCallState`; aktualizacja Javadoc `OrphanedDialingReaper` (manual w zakresie); mapowanie `AGENT_LOCK_TIMEOUT` na 503 lub 429 + `Retry-After` w `DialerController`/`GlobalExceptionHandler`; metryka reapera dla rekordów manual; test jednostkowy serwisu i MockMvc kontrolera ścieżki manual (mapowanie `AGENT_BUSY`/`RECORD_UNAVAILABLE`/`AGENT_LOCK_TIMEOUT`, metryki `SOURCE_MANUAL`).
+
+**Kryteria akceptacji:**
+- [ ] Wyjątek runtime po bramce i awaria Redis w `saveCallState` cofają rekord z `DIALING` (agent wolny natychmiast, nie po ok. 15 min); testy dla obu ścieżek
+- [ ] `AGENT_LOCK_TIMEOUT` zwraca 503 lub 429 (decyzja w notatce) z `Retry-After`; `AGENT_BUSY` i `RECORD_UNAVAILABLE` nadal 409
+- [ ] Metryka reapera dla rekordów manual; Javadoc reapera zaktualizowany
+- [ ] Testy serwisu i kontrolera ścieżki manual (w tym metryki `SOURCE_MANUAL`)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) cofnięcie `DIALING` po udanym `initiateCall` może zdublować połączenie — cofać tylko gdy nie ma śladu połączenia (powiązane BE-232, klucz idempotencji).
+**Nie wchodzi w zakres:** idempotencja `initiateCall` (BE-232), rezerwacja callbacku (BE-237).
+**Zależności:** `Zależy od` BE-230 ✅; `Blokuje` brak; powiązane: BE-232, BE-240.
+
+### BE-239 – Transfer bezpośredni i outbound agenta poza blokadą wyłączności: metryka `agent.assignment.unguarded`, potem check pod lockiem albo ostrzeżenie w UI
+
+**Typ:** Hardening (Backend, współbieżność)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** S/M
+**Zależy od:** BE-230 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Review BE-230” pkt 1 oraz „Re-review BE-230”, 2026-11-14 — „BE-230d”)
+**Blokuje:** brak; powiązane: BE-230 ✅, BE-237, BE-240
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `angular-frontend-expert` jeśli wariant z ostrzeżeniem w UI)
+
+**Opis:** BE-230 świadomie zostawił poza blokadą wyłączności: transfer bezpośredni (`assignQueuedContactForTransfer` → `exclusiveVoice=false`) oraz outbound agenta (kontakt tworzony przy `initiateCall` po REST do Twilio; okno setek ms). Stan „sprzed BE-230, nie regresja”, wypisany w `documentation/tech/04-backend.md` §4.6. Ticket zaczyna od tanich pomiarów, potem zamyka lukę.
+
+**Zakres:** (1) metryka `agent.assignment.unguarded{source=transfer|outbound}` (surowy licznik; dashboard w BE-183); (2) po zebraniu danych — sprawdzenie obciążenia głosowego pod blokadą agenta przed INSERT-em kontaktu albo ostrzeżenie w UI agenta przy próbie wykonania połączenia, gdy agent ma otwarte połączenie.
+
+**Kryteria akceptacji:**
+- [ ] Metryka `agent.assignment.unguarded{source}` inkrementowana na ścieżkach transferu i outbound; test jednostkowy
+- [ ] Decyzja (w notatce) i implementacja wariantu: check pod lockiem albo ostrzeżenie w UI; test wyścigu dla wybranego wariantu
+- [ ] `documentation/tech/04-backend.md` §4.6 zaktualizowane (lista ścieżek poza blokadą)
+- [ ] `mvn verify -pl app` zielone (JDK 21); przy wariancie UI — lint 0 błędów, format OK, `npm test` zielone
+
+**Ryzyka:** (R1) blokada na outbound agenta wydłuża ścieżkę gorącą; (R2) transfer bezpośredni celowo bez wyłączności (decyzja zgodna ze ścieżką nowego adaptera) — zmiana wymaga uzgodnienia semantyki.
+**Nie wchodzi w zakres:** callback (BE-237).
+**Zależności:** `Zależy od` BE-230 ✅; `Blokuje` brak; powiązane: BE-183, BE-237.
+
+### BE-240 – Porządki po BE-230: EXPLAIN sondy VOICE_LOAD, cache filtra S7, martwy kod, `@Transactional` na `routeContact`, `releaseSavepoint`, test pod rolą bez BYPASSRLS, macierz S1
+
+**Typ:** Refactor / Performance / Testing (Backend)
+**Priorytet:** P3 (Could Have)
+**Złożoność:** M
+**Zależy od:** BE-230 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Review BE-230” (S4) i „Re-review BE-230”, 2026-11-14 — NF4, „BE-230e”)
+**Blokuje:** brak; powiązane: BE-230 ✅, BE-237, BE-238
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `db-schema-architect` dla EXPLAIN)
+
+**Opis:** Zbiór drobnych, niezależnych poprawek z CR BE-230, bez wpływu na bramkę „>1 replika”.
+
+**Zakres:**
+- `EXPLAIN (ANALYZE, BUFFERS)` sondy VOICE_LOAD na danych prod-like (wiele partycji `contact`); ewentualne zawężenie po `started_at`.
+- Cache filtra S7 (zbiór zajętych agentów) na czas przebiegu: dziś jedno zapytanie na wywołanie `findBestAgent` (w `runRetryPass` na każdy zakolejkowany kontakt, w `routeContact` do 1+10 razy) — NF4.
+- Usunięcie martwego `ProgressiveDialerService#markRecordAsDialing` i `CampaignContactRepository#markAsDialing` (omijają wyłączność; tylko test repozytorium je woła).
+- `routeContact` bez `@Transactional` (dziś nieczynne dzięki self-invocation; kruche założenie „jedna blokada agenta na transakcję” — przy wywołaniu przez proxy możliwy deadlock A→B/B→A): usunąć adnotację lub `propagation = NOT_SUPPORTED`.
+- `releaseSavepoint` po `rollback(savepoint)` w `AgentAssignmentLock`; asercja `if (con.getAutoCommit()) throw new IllegalStateException(...)`.
+- Test wyścigu dialera pod rolą bez BYPASSRLS (dziś `AgentVoiceExclusivityDialerRaceIntegrationTest` na superuserze).
+- Poprawka macierzy S1: 12 scenariuszy (nie 14) i martwa gałąź `channel IS NULL` (kolumna `contact.channel NOT NULL`, V007); latch zamiast `Thread.sleep(300)` w `manualClaimSeesAnInFlightRoutingAssignment`.
+
+**Kryteria akceptacji:**
+- [ ] Wynik `EXPLAIN (ANALYZE, BUFFERS)` sondy zapisany w tickecie (czas, liczba przeszukanych partycji); decyzja o zawężeniu po `started_at`
+- [ ] Filtr S7 liczony raz na przebieg (test: liczba zapytań na przebieg niezależna od liczby kontaktów w kolejce)
+- [ ] Martwy kod usunięty; brak wywołań w produkcji i testach (grep)
+- [ ] `routeContact` bez aktywnego `@Transactional`; test dowodzi braku trzymania wielu locków agentów
+- [ ] `releaseSavepoint` po rollbacku i asercja autocommit; testy `AgentAssignmentLock` zielone
+- [ ] Test wyścigu dialera pod rolą bez BYPASSRLS
+- [ ] Macierz S1 poprawiona do 12 scenariuszy; brak `Thread.sleep(300)` w teście manualnym
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) cache filtra S7 może zwracać nieaktualny zbiór w trakcie długiego przebiegu — akceptowalne, bo strażnik pod lockiem i tak weryfikuje.
+**Nie wchodzi w zakres:** rezerwacja callbacku (BE-237), zawieszony DIALING (BE-238).
+**Zależności:** `Zależy od` BE-230 ✅; `Blokuje` brak.
+
+### BE-241 – Redis dla fan-outu WS: `client-output-buffer-limit pubsub`, ACL `PUBLISH`, alerty fan-outu
+
+**Typ:** Infrastructure (Backend / DevOps)
+**Priorytet:** P1 (Should Have)
+**Złożoność:** S
+**Zależy od:** BE-175 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-175 + BE-176”, 2026-11-14, F2)
+**Blokuje:** brak; powiązane: BE-183 (alerty/dashboardy), BE-175 ✅, BE-242
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert`
+
+**Opis:** Fan-out WS (BE-175 ✅) opiera się na Redis pub/sub. Wolny subskrybent może rozdąć bufor wyjściowy Redis, a każdy z dostępem do Redis może publikować na kanały `cc:ws:*`. `docker-compose*.yml` i `DEPLOYMENT.md` nie zawierają jeszcze zabezpieczeń (luka operacyjna z re-review).
+
+**Zakres:** `--client-output-buffer-limit "pubsub 64mb 16mb 60"` (lub świadoma, opisana zgoda na domyślne) w `docker-compose.yml` i `docker-compose.local-demo.yml` oraz w `DEPLOYMENT.md`; ACL Redis: `PUBLISH` tylko na kanały `cc:ws:*` i `cc:cache:*`; reguły alertów na `ws.fanout.dropped{reason=redis_unavailable}` i przejścia stanu `listening` (spięte z BE-183); opis `WEBSOCKET_FANOUT_ENV` w `DEPLOYMENT.md`, jeśli niekompletny.
+
+**Kryteria akceptacji:**
+- [ ] Oba pliki compose ustawiają `client-output-buffer-limit pubsub` (wartości w notatce); Redis startuje z flagą (sprawdzenie `CONFIG GET client-output-buffer-limit`)
+- [ ] `DEPLOYMENT.md` opisuje limit bufora, ACL `PUBLISH` (`cc:ws:*`, `cc:cache:*`) i `WEBSOCKET_FANOUT_ENV`
+- [ ] Reguły alertów dla `ws.fanout.dropped{reason=redis_unavailable}` i przejść `listening` (konfiguracja lub spec w BE-183, jeśli dashboardy jeszcze nie istnieją)
+- [ ] Aplikacja działa z ACL (publikacja i subskrypcja fan-outu i cache na local-demo)
+
+**Ryzyka:** (R1) zbyt restrykcyjny ACL blokuje ShedLock/cache/Rabbit relay — przetestować pełny start na local-demo; (R2) nie edytować `.env.local-demo` (sekrety poza repo).
+**Nie wchodzi w zakres:** HMAC koperty (BE-242), gauge kolejki dispatchu (BE-243).
+**Zależności:** `Zależy od` BE-175 ✅; `Blokuje` brak; powiązane: BE-183.
+
+### BE-242 – HMAC-SHA256 koperty fan-outu WS z obowiązkowym sekretem na prod
+
+**Typ:** Security (Backend, WebSocket)
+**Priorytet:** P1 (Should Have)
+**Złożoność:** M
+**Zależy od:** BE-175 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-175 + BE-176”, 2026-11-14, F3)
+**Blokuje:** brak; powiązane: BE-241, BE-243, BE-233
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Walidacja odbiorcy (allow-lista, tenant, lokalna sesja) chroni przed błędem nadawcy, ale napastnik z dostępem do Redis może sfałszować kopertę z poprawnym tenantem. HMAC koperty jest jedynym realnym zabezpieczeniem na tę ścieżkę (po jego wprowadzeniu dopuszczenie `null` tenanta w unicaście staje się nieistotne).
+
+**Zakres:** podpis HMAC-SHA256 koperty (`WebSocketFanoutPublisher`) i weryfikacja w `WebSocketFanoutSubscriber` (porównanie w stałym czasie); sekret z konfiguracji (`websocket.fanout.hmac-secret`/zmienna środowiskowa); na profilu `prod` start aplikacji zakończony błędem, gdy sekret brakuje lub jest za krótki; metryka `ws.fanout.rejected{reason=bad_signature}`; wsparcie rotacji (dwa sekrety na czas przejścia) — opisać w `DEPLOYMENT.md`.
+
+**Kryteria akceptacji:**
+- [ ] Koperta bez poprawnego podpisu jest odrzucana i liczona (`reason=bad_signature`); test jednostkowy i IT (rozszerzenie `WebSocketFanoutCrossInstanceIntegrationTest`)
+- [ ] Na profilu `prod` brak sekretu (lub krótszy niż minimum) blokuje start; `FullApplicationContextStartupTest` zaktualizowany
+- [ ] Rotacja sekretu bez utraty zdarzeń (test z dwoma sekretami)
+- [ ] `DEPLOYMENT.md` opisuje generowanie i rotację sekretu; sekret nie trafia do repo ani do `.env.local-demo` z repo
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) rolling deploy ze starą wersją bez podpisu — wymagany tryb przejściowy (akceptuj bez podpisu na czas migracji, wyłączalny flagą); (R2) koszt CPU HMAC przy dużym ruchu — zmierzyć w BE-184.
+**Nie wchodzi w zakres:** ACL Redis i bufory (BE-241).
+**Zależności:** `Zależy od` BE-175 ✅; `Blokuje` brak.
+
+### BE-243 – Fan-out WS, dalsze prace: gauge dispatchu, health `degraded`, budżet bajtowy odbiorcy, test „SupervisorMetrics raz na interwał”, walidacja payloadu, strażnik nazw kolejek Rabbit relay
+
+**Typ:** Hardening / Testing (Backend, WebSocket)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** M
+**Zależy od:** BE-175 ✅, BE-176 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Review BE-175 + BE-176” i „Re-review BE-175 + BE-176”, 2026-11-14: F5/N5/S6, F6, S4)
+**Blokuje:** brak; powiązane: BE-175 ✅, BE-176 ✅, BE-183, BE-184, BE-241, BE-242
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Zbiorcze domknięcie uwag z review BE-175/BE-176 i odstępstw BE-176.
+
+**Zakres:**
+- Gauge kolejki dispatchu i przejść `listening`; `degraded`/`queueSize` w `WebSocketFanoutHealthIndicator`.
+- Budżet bajtowy po stronie odbiorcy (lub niższy `max-message-bytes`): dziś tylko kolejka 2048 × 256 KiB = do 512 MiB w najgorszym razie.
+- Test „`SupervisorMetricsService` publikuje raz na interwał” na 2 instancjach z Postgresem i wspólnym ShedLockiem (odstępstwo BE-176).
+- Walidacja kształtu payloadu koperty po stronie odbiorcy; wymuszenie tenanta po stronie nadawcy dla USER_EVENTS i `tenant_missing` po stronie odbiorcy (N-B); `no_local_session` liczone jako `ignored`, nie `dropped` (N-D).
+- Test-strażnik stałych nazw kolejek relay RabbitMQ (zmiana nazwy cicho zrywa relay) i test PONG z `preservePublishOrder` (N-C).
+
+**Kryteria akceptacji:**
+- [ ] Gauge dispatchu i metryka przejść `listening` widoczne w `/actuator/prometheus`; health pokazuje `degraded` i `queueSize` przy nasyceniu
+- [ ] Odbiorca ma budżet bajtowy lub niższy limit wiadomości; test przekroczenia
+- [ ] IT „SupervisorMetrics raz na interwał” na 2 instancjach z Postgresem i wspólnym ShedLockiem zielony
+- [ ] Walidacja kształtu payloadu i tenanta USER_EVENTS z testami negatywnymi
+- [ ] Test-strażnik nazw kolejek Rabbit relay
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) IT z Postgresem wydłuża `verify` — rozważyć tag/profil z uzasadnieniem; (R2) część punktów ma sens dopiero po wynikach BE-184 (przepustowość dispatchu).
+**Nie wchodzi w zakres:** HMAC (BE-242), konfiguracja Redis (BE-241), pomiary obciążeniowe (BE-184).
+**Zależności:** `Zależy od` BE-175 ✅, BE-176 ✅; `Blokuje` brak.
 
 ---
 

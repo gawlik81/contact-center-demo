@@ -153,7 +153,11 @@ class Db090ShedlockMigrationTest {
                     + NOW + " THEN locked_at + cast(? as interval) ELSE " + NOW
                     + " END WHERE name = ? AND locked_by = ?", "0 milliseconds", "0 milliseconds", name, "A"))
                     .isEqualTo(1);
-            // 5. po zwolnieniu druga instancja moze zalozyc blokade
+            // 5. po zwolnieniu druga instancja moze zalozyc blokade.
+            // lock_until to timestamp(3): Postgres ZAOKRAGLA (nie obcina) do ms, wiec zwolnienie moze
+            // zapisac chwile do 0,5 ms w przyszlosci; bez odstepu szybki runner (CI) trafia w
+            // lock_until > NOW i dostaje 0 wierszy. 2 ms > polowa ms usuwa ten wyscig.
+            sess.execute("SELECT pg_sleep(0.002)");
             assertThat(sess.update(insert, name, "60000 milliseconds", "B", "60000 milliseconds", "B", name))
                     .isEqualTo(1);
             s.execute("RESET TimeZone");

@@ -63,6 +63,7 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
     const tenantId = this.auth.currentTenantId();
     if (!tenantId) return;
 
+    // Terminal rejections are not retried silently: the notice stays, polling-based pages carry on.
     if (this.wsService.connectionState() === 'DISCONNECTED') {
       this.wsService.connect();
     }

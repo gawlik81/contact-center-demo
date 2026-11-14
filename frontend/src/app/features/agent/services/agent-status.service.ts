@@ -269,7 +269,7 @@ export class AgentStatusService {
   }
 
   /**
-   * Sends an HTTP PATCH to update the agent status and notifies supervisors via WebSocket.
+   * Sends an HTTP PATCH to update the agent status (REST only; the server broadcasts the change).
    * Returns an Observable<void> that completes on success or errors on failure.
    * Callers should subscribe and handle errors independently.
    * `silent` suppresses the error toasts (for changes the agent did not ask for).
@@ -290,8 +290,6 @@ export class AgentStatusService {
         tap(() => {
           this.statusSeq++;
           this.applyStatus(status);
-          // Notify backend via WebSocket so supervisors get real-time update
-          this.ws.publish('/app/agent/status', { status });
           this.isChanging.set(false);
         }),
         catchError(() => {

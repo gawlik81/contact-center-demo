@@ -23,7 +23,13 @@
 
 <!-- WebSocket disconnection banner -->
 @if (isOffline()) {
-  <app-ws-banner [reconnecting]="isReconnecting()" />
+  <app-ws-banner
+    [reconnecting]="isReconnecting()"
+    [rejection]="wsRejection()"
+    [busy]="wsResuming()"
+    (retry)="onWsRetry()"
+    (signIn)="authService.logout()"
+  />
 }
 
 <div class="desktop">

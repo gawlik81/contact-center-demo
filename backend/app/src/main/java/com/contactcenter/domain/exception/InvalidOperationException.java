@@ -21,11 +21,26 @@ package com.contactcenter.domain.exception;
  */
 public class InvalidOperationException extends RuntimeException {
 
+    private final String errorCode;
+
     public InvalidOperationException(String message) {
         super(message);
+        this.errorCode = null;
+    }
+
+    /** @param errorCode machine-readable code exposed as the {@code error} property of the problem+json body */
+    public InvalidOperationException(String errorCode, String message) {
+        super(message);
+        this.errorCode = errorCode;
+    }
+
+    /** Machine-readable error code, or {@code null} when none was given. */
+    public String getErrorCode() {
+        return errorCode;
     }
 
     public InvalidOperationException(String message, Throwable cause) {
         super(message, cause);
+        this.errorCode = null;
     }
 }

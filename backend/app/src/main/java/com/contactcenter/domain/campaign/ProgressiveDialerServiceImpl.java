@@ -5,11 +5,13 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.contact.OccupiedSlot;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.infrastructure.lock.AdvisoryLockKeys;
+import com.contactcenter.infrastructure.lock.AgentAssignmentLock;
 import com.contactcenter.infrastructure.lock.LockSkipMetrics;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -54,17 +56,17 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
     private static final int AGENT_LOCK_TTL_SECONDS   = 60;
     private static final int CALL_STATE_TTL_SECONDS   = 1800; // 30 minut – chroni przed wygaśnięciem klucza w trakcie dłuższej rozmowy
 
-    /** Params: agent_id, tenant_id. See {@link #isAgentStillFree}. */
+    /**
+     * "Agent still free" probe, one row with two booleans. Params: {@code agent_id, tenant_id} (availability), then
+     * {@link OccupiedSlot#voiceLoadParams} (voice load). BE-230 S1: the voice-load half is
+     * {@link OccupiedSlot#VOICE_LOAD_CONDITION_SQL} itself - the SAME fragment routing uses at assignment time, so the
+     * two writers cannot drift apart. Availability (app_user status) is dialer-only: routing takes the status from
+     * the Redis session. See {@link #agentFreeOutcome}.
+     */
     static final String AGENT_STILL_FREE_SQL =
-            "SELECT EXISTS (SELECT 1 FROM app_user u WHERE u.user_id = p.agent_id AND u.tenant_id = p.tenant_id"
-                    + " AND u.status = 'AVAILABLE' AND u.is_deleted = FALSE)"
-                    + " AND NOT EXISTS (SELECT 1 FROM contact c WHERE c.agent_id = p.agent_id"
-                    + " AND c.tenant_id = p.tenant_id AND c.status IN ("
-                    + com.contactcenter.domain.contact.OccupiedSlot.AGENT_LOAD_STATUSES_SQL + ")"
-                    + " AND (c.channel = 'PHONE' OR c.channel IS NULL))"
-                    + " AND NOT EXISTS (SELECT 1 FROM campaign_contact d WHERE d.tenant_id = p.tenant_id"
-                    + " AND d.dialing_agent_id = p.agent_id AND d.status = 'DIALING')"
-                    + " FROM (SELECT ?::uuid AS agent_id, ?::uuid AS tenant_id) p";
+            "SELECT EXISTS (SELECT 1 FROM app_user u WHERE u.user_id = ?::uuid AND u.tenant_id = ?::uuid"
+                    + " AND u.status = 'AVAILABLE' AND u.is_deleted = FALSE) AS available,"
+                    + " " + OccupiedSlot.VOICE_LOAD_CONDITION_SQL + " AS voice_busy";
 
     // Domyślna strefa czasowa kampanii
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
@@ -83,6 +85,10 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
 
     @Value("${dialer.campaign-lock.retry-interval-ms:25}")
     private long campaignLockRetryIntervalMs = 25;
+
+    /** BE-230 S5: bound on waiting for the per-agent advisory lock in the claim (stuck holder = agent skipped). */
+    @Value("${agent-assignment.lock-timeout-ms:500}")
+    private long agentLockTimeoutMs = 500;
 
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
@@ -334,7 +340,25 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
                     continue;
                 }
                 case AGENT_NOT_FREE -> {
-                    log.debug("[Dialer] Agent {} nie jest już wolny (status/połączenie) – nie dzwonię", agentId);
+                    // BE-230: REAL contention only (agent taken by routing / another dialer between trigger and claim)
+                    lockSkipMetrics.recordAgentContention(LockSkipMetrics.SOURCE_DIALER);
+                    log.debug("[Dialer] Agent {} ma już połączenie głosowe/DIALING – nie dzwonię", agentId);
+                    releaseAgentLock(agentId);
+                    return;
+                }
+                case AGENT_UNAVAILABLE -> {
+                    // BE-230 S6: status change is not contention - separate tag, so the contention counter stays clean
+                    lockSkipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_DIALER,
+                            LockSkipMetrics.REASON_STATUS_CHANGED);
+                    log.debug("[Dialer] Agent {} nie jest już AVAILABLE – nie dzwonię", agentId);
+                    releaseAgentLock(agentId);
+                    return;
+                }
+                case AGENT_LOCK_TIMEOUT -> {
+                    lockSkipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_DIALER,
+                            LockSkipMetrics.REASON_LOCK_TIMEOUT);
+                    log.warn("[Dialer] Lock agenta {} niedostępny w {} ms – pomijam (następny wyzwalacz spróbuje ponownie)",
+                            agentId, agentLockTimeoutMs);
                     releaseAgentLock(agentId);
                     return;
                 }
@@ -430,7 +454,16 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
     // =========================================================================
 
     /** Wynik przydziału kontaktu w {@link #claimNextContact}. */
-    enum ClaimOutcome { CLAIMED, LOCK_BUSY, AGENT_NOT_FREE, NO_CONTACT, SKIPPED, INTERRUPTED }
+    enum ClaimOutcome {
+        CLAIMED, LOCK_BUSY,
+        /** The agent already holds a voice contact / DIALING record - real contention (BE-230). */
+        AGENT_NOT_FREE,
+        /** The agent is no longer AVAILABLE (status changed between trigger and claim) - not contention (BE-230 S6). */
+        AGENT_UNAVAILABLE,
+        /** The per-agent lock was not obtained within the lock timeout (BE-230 S5). */
+        AGENT_LOCK_TIMEOUT,
+        NO_CONTACT, SKIPPED, INTERRUPTED
+    }
 
     /** Wynik claim; {@code recordId}/{@code phone} tylko dla {@link ClaimOutcome#CLAIMED}. */
     record ClaimResult(ClaimOutcome outcome, UUID recordId, String phone) {
@@ -447,10 +480,10 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
      *   <li>{@code pg_try_advisory_xact_lock(NAMESPACE_DIALER_CAMPAIGN, hash(campaignId))}: USZEREGOWANIE przydziałów
      *       jednej kampanii i ochrona przed zbędną pracą - NIE mechanizm poprawności (tę dają punkty 2-4). Brak
      *       blokady = {@link ClaimOutcome#LOCK_BUSY}, wołający czeka krótko ({@code dialer.campaign-lock.wait-ms})</li>
-     *   <li>blokada per agent ({@code AdvisoryLockKeys#AGENT_ASSIGNMENT_LOCK_SQL}, ten sam klucz co
-     *       {@code ContactRepository#assignIfQueued}; UWAGA: {@code assignIfQueued} bierze ją tylko przy limicie async,
-     *       a routing PHONE nie bierze jej wcale - blokada szereguje więc dialer x dialer i dialer x przydział async,
-     *       NIE dialer x routing telefoniczny; to otwarty ticket P0) + ponowna weryfikacja POD blokadami: agent {@code AVAILABLE},
+     *   <li>blokada per agent ({@code AgentAssignmentLock}, z limitem czekania; ten sam klucz co
+     *       {@code ContactRepository#assignIfQueued}; od BE-230 bierze ją także routing PHONE, więc szereguje
+     *       dialer x dialer, dialer x routing (każda kolejka) i dialer x przydział async; kolejność blokad:
+     *       kampania -> agent, jedna blokada agenta na transakcję) + ponowna weryfikacja POD blokadami: agent {@code AVAILABLE},
      *       bez otwartego połączenia PHONE i bez własnego rekordu w DIALING ({@code dialing_agent_id}, V151)</li>
      *   <li>{@code FOR UPDATE SKIP LOCKED}</li>
      *   <li>{@code UPDATE ... SET status='DIALING', dialing_agent_id=:agent WHERE status IN (PENDING, NO_ANSWER) AND
@@ -458,7 +491,8 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
      *       przydziału agenta, niezależny od Redis. Token Redis {@code dialer:agent:*} (TTL 60 s) jest dodatkowym
      *       pasem bezpieczeństwa.</li>
      * </ol>
-     * Poza zakresem (osobny ticket P0): ten sam agent wybierany równolegle przez routing PHONE - patrz 04-backend.md §4.6.
+     * Wyłączność agenta względem routingu PHONE: BE-230 (ten sam predykat: {@code OccupiedSlot#VOICE_LOAD_EXISTS_SQL}
+     * w {@code ContactRepository#assignIfQueued}) - patrz 04-backend.md §4.6.
      * {@code dialing_agent_id} jest ważne tylko przy statusie DIALING (niezmiennik V151: trigger + CHECK + zapisy Java).
      */
     ClaimResult claimNextContact(UUID campaignId, UUID tenantId, UUID agentId) {
@@ -472,10 +506,13 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
 
         // Per-agent lock (the same key as ContactRepository#assignIfQueued, BE-156): the "agent still free" check
         // and the conditional DIALING write below are one serialised step per agent, independent of Redis.
-        jdbcTemplate.queryForRowSet(AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL,
-                AdvisoryLockKeys.agentAssignmentKey(tenantId, agentId));
-        if (!isAgentStillFree(agentId, tenantId)) {
-            return ClaimResult.of(ClaimOutcome.AGENT_NOT_FREE);
+        // Bounded wait (BE-230 S5): a stuck holder must not park the dialer thread.
+        if (!AgentAssignmentLock.tryAcquire(jdbcTemplate, tenantId, agentId, agentLockTimeoutMs)) {
+            return ClaimResult.of(ClaimOutcome.AGENT_LOCK_TIMEOUT);
+        }
+        ClaimOutcome notFree = agentFreeOutcome(agentId, tenantId);
+        if (notFree != null) {
+            return ClaimResult.of(notFree);
         }
 
         // Pobierz następny kontakt z pessimistic lock
@@ -520,15 +557,31 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
         }
     }
 
+    /** Positional parameters of {@link #AGENT_STILL_FREE_SQL}: availability (agent, tenant), then the voice-load ones. */
+    static Object[] agentStillFreeParams(UUID agentId, UUID tenantId) {
+        Object[] voiceParams = OccupiedSlot.voiceLoadParams(agentId, tenantId);
+        Object[] params = new Object[2 + voiceParams.length];
+        params[0] = agentId.toString();
+        params[1] = tenantId.toString();
+        System.arraycopy(voiceParams, 0, params, 2, voiceParams.length);
+        return params;
+    }
+
     /**
-     * Agent nadal wolny: status AVAILABLE i brak otwartego połączenia telefonicznego (QUEUED/ASSIGNED/ACTIVE/ON_HOLD
-     * z kanałem PHONE - wychodzące połączenie agenta jest wstawiane jako QUEUED z agent_id, patrz
-     * {@code OccupiedSlot}). Kontakty async (e-mail/czat) NIE blokują agenta - tak jak przed BE-173.
+     * Agent nadal wolny: status AVAILABLE i brak obciążenia głosowego ({@link OccupiedSlot#VOICE_LOAD_CONDITION_SQL}:
+     * otwarte połączenie PHONE QUEUED/ASSIGNED/ACTIVE/ON_HOLD - wychodzące połączenie agenta jest wstawiane jako QUEUED
+     * z agent_id - albo rekord w DIALING). Kontakty async (e-mail/czat) NIE blokują agenta - tak jak przed BE-173.
+     *
+     * @return {@code null} = agent wolny; {@link ClaimOutcome#AGENT_NOT_FREE} (obciążenie głosowe - prawdziwa
+     *         konkurencja, ma pierwszeństwo także gdy status też się zmienił) albo
+     *         {@link ClaimOutcome#AGENT_UNAVAILABLE} (sam status)
      */
-    private boolean isAgentStillFree(UUID agentId, UUID tenantId) {
-        Boolean free = jdbcTemplate.queryForObject(AGENT_STILL_FREE_SQL, Boolean.class,
-                agentId.toString(), tenantId.toString());
-        return Boolean.TRUE.equals(free);
+    private ClaimOutcome agentFreeOutcome(UUID agentId, UUID tenantId) {
+        Map<String, Object> row = jdbcTemplate.queryForMap(AGENT_STILL_FREE_SQL, agentStillFreeParams(agentId, tenantId));
+        if (Boolean.TRUE.equals(row.get("voice_busy"))) {
+            return ClaimOutcome.AGENT_NOT_FREE;
+        }
+        return Boolean.TRUE.equals(row.get("available")) ? null : ClaimOutcome.AGENT_UNAVAILABLE;
     }
 
     /** Executes {@code work} in its own short transaction (set_tenant_context and advisory xact locks are tx-local). */
@@ -914,6 +967,21 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
     @Override
     public void markRecordAsDialing(UUID recordId, UUID campaignId, UUID tenantId) {
         campaignContactRepository.markAsDialing(recordId, campaignId, tenantId);
+    }
+
+    @Transactional
+    @Override
+    public AgentGate markRecordAsDialingForAgent(UUID recordId, UUID campaignId, UUID tenantId, UUID agentId) {
+        AgentGate gate = campaignContactRepository.markAsDialingForAgent(recordId, campaignId, tenantId, agentId);
+        switch (gate) {
+            case BUSY -> lockSkipMetrics.recordAgentContention(LockSkipMetrics.SOURCE_MANUAL);
+            case LOCK_TIMEOUT -> lockSkipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_MANUAL,
+                    LockSkipMetrics.REASON_LOCK_TIMEOUT);
+            case RECORD_UNAVAILABLE -> lockSkipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_MANUAL,
+                    LockSkipMetrics.REASON_STATUS_CHANGED);
+            case FREE -> { /* claimed */ }
+        }
+        return gate;
     }
 
     @Transactional

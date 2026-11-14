@@ -569,6 +569,9 @@ public class GlobalExceptionHandler {
         problem.setTitle("Niedozwolona operacja");
         problem.setDetail(ex.getMessage());
         problem.setProperty("timestamp", Instant.now());
+        if (ex.getErrorCode() != null) {
+            problem.setProperty("error", ex.getErrorCode());
+        }
 
         log.warn("[API] Niedozwolona operacja domenowa: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);

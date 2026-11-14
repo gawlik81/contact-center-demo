@@ -92,13 +92,9 @@ public class StompDestinationAuthorizationInterceptor implements ChannelIntercep
             StompCommand.CONNECT, StompCommand.STOMP, StompCommand.SUBSCRIBE, StompCommand.UNSUBSCRIBE,
             StompCommand.SEND, StompCommand.ACK, StompCommand.NACK, StompCommand.DISCONNECT);
 
-    private static final String UUID_REGEX =
-            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-
-    private static final Pattern USER_EVENTS =
-            Pattern.compile("/topic/user/(" + UUID_REGEX + ")/events");
-    private static final Pattern TENANT_TOPIC =
-            Pattern.compile("/topic/tenant/(" + UUID_REGEX + ")/(agents|supervisor)");
+    // Patterns live in StompDestinations: the cross-instance fan-out (BE-175) validates against the same allow-list.
+    private static final Pattern USER_EVENTS = StompDestinations.USER_EVENTS;
+    private static final Pattern TENANT_TOPIC = StompDestinations.TENANT_TOPIC;
 
     private static final String DEST_PING = "/app/ping";
     private static final String DEST_LEGACY_AGENT_STATUS = "/app/agent/status";

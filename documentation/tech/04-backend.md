@@ -1202,6 +1202,12 @@ wersja w property `shedlock.version` w `backend/pom.xml`), tabela platformowa `s
 > reset kontaktu do QUEUED mimo żywej sesji). Pośrednio (zdarzenie przez RabbitMQ do konsumenta WS, który też
 > wypuszcza je przez własny `SimpleBroker`): `AgentBreakActivator`, `AgentPresenceSweeper`. Do czasu BE-175/BE-179
 > produkcja i compose zostają przy JEDNEJ instancji.
+>
+> **Status (2026-11-14):** część WebSocket bramki zamknięta przez BE-175 (fan-out Redis do lokalnego brokera każdej
+> repliki, §4.8); BE-179 gotowy. BE-175 i BE-230 (wyłączność agenta: routing PHONE, dialer, dwie kolejki, manual dialer, pod blokadą per agent) są
+> zrobione, więc bramka >1 repliki jest zamknięta. Pozostałe okna (bramka callbacku bez rezerwacji, outbound agenta i
+> transfer bezpośredni poza blokadą, §4.6) nie zależą od liczby replik - występują też przy jednej instancji - i są
+> opisane jako follow-upy BE-230b-d (nazwy robocze; finalne numery nada aktualizacja TASKS).
 
 **Konfiguracja** (`infrastructure/config/ShedLockConfig.java`):
 
@@ -1339,7 +1345,7 @@ kampanii/kolejek, nigdy dla tej samej. Dwa różne mechanizmy, bo różne są gr
 |---|---|---|
 | Mechanizm | `pg_try_advisory_xact_lock(int, int)`: key1 = `AdvisoryLockKeys.NAMESPACE_DIALER_CAMPAIGN` (0x43430173), key2 = `hashtext(campaignId)` | ShedLock programowy (`RoutingQueueLock`, `LockingTaskExecutor`), nazwa `RoutingQueue_<queueId>` (49 znaków, limit 64), atLeast 0, atMost `routing.queue-lock.at-most-for-ms` (PT2M) |
 | Dlaczego | Przydział to krótka transakcja (agent nadal wolny + `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING`); blokada zwalnia się z commitem, ZANIM ruszy telefonia; brak wycieku przy awarii; zgodne z PgBouncer (BE-181) | Przebieg routingu świadomie NIE jest jedną transakcją (każdy przydział = krótka transakcja, patrz uwaga w `RoutingServiceImpl#routeContact`); advisory xact lock wymagałby transakcji na cały przebieg (blokady per agent z BE-156 trzymane przez całą pętlę = ryzyko deadlocku), advisory sesyjny odpada przy PgBouncer |
-| Poziom | kampania. Blokada kampanii to USZEREGOWANIE i ochrona przed zbędną pracą, NIE mechanizm poprawności: poprawność dają `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING` + blokada per agent (ten sam klucz co `assignIfQueued`, BE-156, ale `assignIfQueued` bierze ją tylko przy limicie async, a routing PHONE wcale: szereguje dialer × dialer i dialer × przydział async, NIE dialer × routing PHONE = otwarty P0) z ponowną weryfikacją „agent wolny" i zapisem `dialing_agent_id` (V151; niezmiennik: ważne tylko przy `DIALING`, pilnują go zapisy Java, trigger i `CHECK`); token Redis `dialer:agent:<id>` (TTL 60 s) to dodatkowy pas bezpieczeństwa i ogranicza zbędne zapytania | kolejka (nie tenant: ticket wymaga równoległości różnych kolejek) |
+| Poziom | kampania. Blokada kampanii to USZEREGOWANIE i ochrona przed zbędną pracą, NIE mechanizm poprawności: poprawność dają `FOR UPDATE SKIP LOCKED` + warunkowy `DIALING` + blokada per agent (ten sam klucz co `assignIfQueued`; od BE-230 bierze ją także routing PHONE, więc szereguje też dialer × routing i kolejka A × kolejka B) z ponowną weryfikacją „agent wolny" i zapisem `dialing_agent_id` (V151; niezmiennik: ważne tylko przy `DIALING`, pilnują go zapisy Java, trigger i `CHECK`); token Redis `dialer:agent:<id>` (TTL 60 s) to dodatkowy pas bezpieczeństwa i ogranicza zbędne zapytania | kolejka (nie tenant: ticket wymaga równoległości różnych kolejek) |
 | Oczekiwanie | krótkie, ograniczone: `dialer.campaign-lock.wait-ms` (500 ms, retry co 25 ms; sekcja krytyczna to ms, bo nie obejmuje telefonii); po upływie przebieg pomijany, agent wolny do następnego wyzwalacza | pętla pollingu: brak; ścieżka event-driven (nowy kontakt, pętla po evencie): do `routing.queue-lock.wait-ms` (2 s) |
 | Metryka | `scheduler.lock.skipped{type=dialer}` | `scheduler.lock.skipped{type=routing}` |
 
@@ -1364,13 +1370,77 @@ Metryki bez tagów tenantId/campaignId/queueId (kardynalność), szczegóły w l
 
 Agent z osieroconym `DIALING` jest blokowany własną sondą do `stale-after-minutes` + interwał reapera (10 + 5 min) - świadomy kompromis. Gałąź reapera „brak kontaktu → PENDING" przy awarii między API Twilio a INSERT-em kontaktu może zdublować połączenie (brak idempotencji `initiateCall`).
 
-**Otwarte (osobny ticket P0, hard-gate „więcej niż 1 replika", obok BE-175/BE-179):** blokada per kolejka i blokada
-kampanii NIE zamykają (a) dwóch kolejek konkurujących o tego samego agenta w routingu phone oraz (b) wyścigu
-routing ↔ dialer o tego samego agenta (`assignIfQueued` dla phone nie bierze blokady per agent, a dialer nie bierze
-`RoutingQueue_*`). To stan sprzed BE-173, nie regresja; rozwiązanie: blokada per agent
-(`AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL`, już użyta przez dialer) przy KAŻDYM przydziale agenta wraz z
-weryfikacją obciążenia. Kryterium akceptacji „brak podwójnego przydziału agenta" jest więc spełnione dla dialer × dialer
-i routing × routing w obrębie jednej kolejki. Dług: wiersze `shedlock` usuniętych kolejek (`RoutingQueue_*`) nie są
+**Wyłączność agenta: routing PHONE × dialer × kolejka A × kolejka B (BE-230).** Blokada kolejki i kampanii nie
+chroni agenta współdzielonego między nimi, więc KAŻDY przydział głosowy bierze ten sam `pg_advisory_xact_lock` per agent
+(`AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL`, klucz `tenantId:agentId`) i ponownie weryfikuje obciążenie POD blokadą,
+w tej samej transakcji co zapis: `ContactRepository#assignIfQueued(..., exclusiveVoice=true)` (ustawiane w
+`ContactServiceImpl#assignQueuedContact` dla kanału PHONE i legacy bez kanału) oraz `claimNextContact` dialera. Wspólny
+predykat: `OccupiedSlot.VOICE_LOAD_EXISTS_SQL` (otwarty kontakt PHONE `QUEUED/ASSIGNED/ACTIVE/ON_HOLD` lub rekord
+`campaign_contact` w `DIALING` z `dialing_agent_id`). Wynik `AssignmentResult.AGENT_BUSY` = routing wyklucza agenta
+w przebiegu i pyta silnik o kolejnego (jak `AGENT_AT_LIMIT`); kontakt zostaje `QUEUED`. Wybrano advisory lock, a nie CAS
+na `app_user`: brak nowej kolumny/migracji, brak blokady wiersza `app_user` (rywalizują o nią zmiany statusu, logowania
+i FK z `contact.agent_id`), blokada transakcyjna = bezpieczna z PgBouncer (BE-181), a obciążenie jest już liczone z
+`contact`/`campaign_contact` (DB-100); CAS na `status` nie widziałby zresztą `ASSIGNED` w `contact`. Kolejność blokad
+(stała): ShedLock kolejki | advisory kampanii -> advisory agenta; transakcja trzyma co najwyżej JEDNĄ blokadę agenta
+(krótka transakcja na przydział), więc cykl oczekiwania jest niemożliwy. Jeden źródłowy predykat (S1): fragment `OccupiedSlot.VOICE_LOAD_CONDITION_SQL` buduje `VOICE_LOAD_EXISTS_SQL` (routing),
+`ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL` (dialer; dodatkowo status `AVAILABLE` z `app_user`, którego routing nie
+sprawdza, bo status bierze z sesji Redis) i wsadowy `VOICE_LOAD_AGENTS_SQL` silnika routingu; zgodność na macierzy stanów
+pilnuje `AgentVoiceExclusivityGatesIntegrationTest`. Poprawność wymaga izolacji READ COMMITTED (domyślnej; nic w aplikacji jej
+nie podnosi): sonda obciążenia po blokadzie dostaje świeży snapshot i widzi commit poprzedniego posiadacza blokady - przy
+REPEATABLE READ snapshot byłby zamrożony przed blokadą i wyłączność cicho by się zepsuła.
+
+*Ograniczony czas oczekiwania (S5).* Blokada agenta jest pobierana z `lock_timeout` (`agent-assignment.lock-timeout-ms`,
+domyślnie 500 ms, spójnie z `dialer.campaign-lock.wait-ms`) w SAVEPOINT (`AgentAssignmentLock`): `55P03` nie zatruwa
+transakcji, wołający dostaje `AGENT_LOCK_TIMEOUT` (routing: agent pominięty jak przy `AGENT_BUSY`; dialer:
+`ClaimOutcome.AGENT_LOCK_TIMEOUT`; callback wraca do `PENDING`; manual: 409) i nic nie jest zapisane. `lock_timeout` jest
+przywracany zaraz po pobraniu, więc nie wycieka na blokady wierszy kolejnych zapisów.
+
+*Metryki.* `agent.assignment.contention{source=routing|dialer|callback|manual}` = WYŁĄCZNIE prawdziwa konkurencja (agent ma już
+połączenie głosowe / `DIALING`). `agent.assignment.skipped{source, reason=status_changed|lock_timeout}` = pominięcie z innego
+powodu (zmiana statusu agenta między wyzwalaczem a claimem w dialerze; zawieszona blokada). Dashboard: BE-183.
+
+*Tani filtr w silniku (S7).* `DefaultRoutingEngine` dla kontaktów głosowych odrzuca (jednym zapytaniem wsadowym,
+`ContactService#findAgentIdsWithVoiceLoad`) agentów z obciążeniem głosowym, w tym sticky; jest to optymalizacja z fail-open,
+gwarancją pozostaje blokada + sprawdzenie przy zapisie. Bez niego agent z dzwoniącym `ASSIGNED`, wciąż `AVAILABLE` w Redis,
+byłby wybierany raz po raz (transakcja + blokada na próbę, do `MAX_ROUTING_ATTEMPTS`).
+
+*Ścieżki objęte wyłącznością:* routing PHONE (każda kolejka, w tym ponowienia i polling), dialer progresywny, przydział z
+limitem async (ta sama blokada), manual dialer `POST /api/dialer/manual/call` (P1: blokada + sprawdzenie +
+`dialing_agent_id` w jednej transakcji = ten sam claim co dialer; agent z połączeniem lub `DIALING` dostaje 409).
+
+*Ścieżki POZA blokadą (pełna lista; wszystkie to stan sprzed BE-230, nie regresja):*
+1. **Transfer bezpośredni do agenta** (`TwilioTelephonyAdapter`: INSERT od razu `ASSIGNED`; starszy adapter / ponowna
+   dostawa: `RoutingServiceImpl#onDirectAgentAssignment` -> `ContactService#assignQueuedContactForTransfer`, `exclusiveVoice=false`).
+   Świadoma decyzja (S3): cel wybrał człowiek, a klient jest już w konferencji agenta - odmowa `AGENT_BUSY` zostawiłaby go na
+   `QUEUED` bez agenta; obie ścieżki jednego transferu zachowują się teraz tak samo. Agent docelowy może dostać drugi kontakt
+   głosowy także sekwencyjnie. Follow-up: kontrola/ostrzeżenie w UI przed transferem do zajętego agenta albo sprawdzenie pod blokadą.
+2. **Połączenie wychodzące inicjowane przez agenta** (INSERT `QUEUED` + `agent_id` po `initiateCall` w adapterze telefonii).
+   Zapis jest widziany jako obciążenie przez pozostałe ścieżki, ale sam nie bierze blokady; okno wyścigu = od decyzji do
+   commitu INSERT-a (setki ms przy wywołaniu Twilio przed INSERT-em).
+3. **Callback agenta (`ScheduledCallbackExecutor`) - tylko częściowo (P1).** Przed inicjacją idzie bramka
+   `CampaignContactRepository#checkAgentVoiceFree` (blokada agenta + sprawdzenie; zajęty/lock timeout -> callback wraca do
+   `PENDING`), więc callback nie wystartuje na agencie z dzwoniącym lub trwającym połączeniem. Okno od zwolnienia blokady do
+   INSERT-a kontaktu w `initiateCall` zostaje: DIALING callbacku ma `dialing_agent_id = NULL` CELOWO (BE-173 M-1: reaper
+   cofnąłby go do `PENDING` z błędnym `attempt_count`, test `CampaignContactDialingAgentIntegrationTest`), a callback
+   nie-kampanijny nie ma w ogóle rekordu `campaign_contact`. Domknięcie wymaga widocznej rezerwacji agenta (nowa kolumna
+   z nazwą opisową, nie przeciążanie `dialing_agent_id`, + obsługa w reaperze) = migracja i decyzja projektowa -> osobny ticket.
+4. **Okno „INSERT kontaktu po claimie"** dialera/manual: między commitem claimu a INSERT-em kontaktu agenta chroni go rekord
+   `DIALING` z `dialing_agent_id` (widoczny w predykacie), więc to nie jest dziura; dziurą jest tylko to, czego rekord
+   nie obejmuje (pkt 2 i 3).
+5. **Predictive:** brak (kampanie PREDICTIVE wykluczone z `dialPass`). **IVR:** wstawia `QUEUED` bez agenta i idzie przez
+   routing (objęty). `acceptIfAssigned` (ASSIGNED -> ACTIVE) nie zwiększa obciążenia, a reset `ASSIGNED -> QUEUED` je zwalnia.
+
+*Wydajność (S4, follow-up, nie zrobione).* Sonda obciążenia dotyka wszystkich partycji `contact` (brak `started_at`) i
+wykonuje się w sekcji krytycznej per agent; plan z indeksem `idx_contact_agent_phone_load` potwierdzony tylko `EXPLAIN` na małej
+bazie dev. Do zrobienia: `EXPLAIN (ANALYZE, BUFFERS)` na danych zbliżonych do produkcji (wiele partycji) i ewentualne
+ograniczenie `started_at >= now() - interval`.
+
+Testy: `AgentVoiceExclusivityIntegrationTest`, `AgentVoiceExclusivityDialerRaceIntegrationTest`,
+`AgentVoiceExclusivityGatesIntegrationTest`, `AgentAssignmentLockIntegrationTest` (prawdziwy Postgres, x100 + kontrole).
+Kontrola „check bez locka" (ten sam check i UPDATE, bariera między nimi, bez advisory locka) daje podwójny przydział w
+każdej iteracji - to ona dowodzi, że blokada jest konieczna; kontrola „bez checku i locka" tylko sprawdza, że asercja
+niezmiennika potrafi się odpalić.
+Dług: wiersze `shedlock` usuniętych kolejek (`RoutingQueue_*`) nie są
 czyszczone (do BE-228). `initiateCall` nie ma klucza idempotencji: timeout HTTP PO utworzeniu połączenia po stronie Twilio
 cofa claim do PENDING i numer może zostać wybrany ponownie (zachowanie sprzed BE-173).
 
@@ -1424,8 +1494,8 @@ rozwiązane w BE-179, reszta - inwentarz z oceną ryzyka.
 - Executory są ograniczone: jeden wątek trzyma subskrypcję (`redis-pubsub-subscription-`), pula 2 wątków z kolejką 256
   wykonuje listenery (`redis-pubsub-dispatch-`). Pełna kolejka odrzuca komunikat (log co 10 s +
   `cc.pubsub.dispatch.rejected`) - akceptowalne dla idempotentnych unieważnień z TTL jako siatką. Komunikaty NIE są
-  dostarczane w kolejności (2 wątki). **BE-175 musi przemyśleć executor i kolejność zdarzeń WebSocket** (wolumen,
-  jednowątkowa kolejność per kanał, polityka przy przepełnieniu) przed reużyciem tego beana.
+  dostarczane w kolejności (2 wątki). Dlatego fan-out WebSocket (BE-175, §4.8) NIE reużywa tego beana, tylko tworzy
+  własną instancję tej samej klasy z jednym wątkiem dispatchu i większą kolejką (ten bean jest `@Primary`).
 
 **`WaitTimeEstimationServiceImpl`:** lokalny `lastKnownAgentCounts` usunięto. `getQueueStats` czyta
 `availableAgents` ze współdzielonego `cache:queue:stats:{queueId}` (zapisuje go job EWT co 30 s, TTL 60 s, więc dane
@@ -1453,9 +1523,137 @@ tani, a wynik nie zależy od zwycięzcy blokady ShedLock.
 | `PluginRegistryImpl`, `PluginRuntimeManagerImpl.activeHandles` | załadowane wtyczki i classloadery | wysokie - instalacja/revoke/upgrade na jednej instancji nie zmienia rejestru pozostałych do restartu (`PluginRuntimeStartupLoader` odbudowuje tylko przy starcie) | ticket BE-178 (już w planie EPIC-33) |
 | `IvrEngineServiceImpl.pending*` (5 map) | kontekst konferencji/promptów między webhookami Twilio | wysokie - kolejny webhook tego samego połączenia może trafić na inną replikę (brak sticky) i zgubić kontekst | ticket BE-177 (już w planie EPIC-33) |
 | `MockTelephonyAdapter.sessions/contactIdToCallId` | sesje atrapy telefonii | nie dotyczy produkcji (profil mock/dev) | OK |
-| `SimpleBroker` WebSocket (STOMP) | subskrypcje i dostarczanie zdarzeń WS | wysokie - zdarzenie z jobu/instancji A nie dotrze do sesji na B | BE-175 (ADR-14, opcja B: Redis pub/sub -> lokalny SimpleBroker) |
+| `SimpleBroker` WebSocket (STOMP) | subskrypcje i dostarczanie zdarzeń WS | było wysokie (zdarzenie z jobu/instancji A nie docierało do sesji na B) | rozwiązane w BE-175 (ADR-14, opcja B: Redis pub/sub -> lokalny SimpleBroker, §4.8) |
 
 Brak nowych ticketów: wszystkie ryzyka wysokie/średnie są już pokryte przez BE-175/177/178.
+
+### 4.8 Fan-out zdarzeń WebSocket między instancjami (BE-175, ADR-14 opcja B)
+
+Każda instancja ma własny `SimpleBroker` (sesje WS są zawsze lokalne). Zdarzenie opublikowane przez
+`WebSocketEventBroadcaster` (jedyny punkt wejścia; `RabbitToWebSocketRelay`, `SupervisorMetricsService`,
+`WaitTimeEstimationServiceImpl`, `ContactAssignmentMonitor` itd. wołają wyłącznie jego) trafia do sesji na KAŻDEJ
+instancji. Destynacje (`/topic/user/{id}/events`, `/topic/tenant/{id}/agents|supervisor`) i frontend bez zmian.
+
+```
+broadcaster.sendToX(...)                                  (WebSocketEventBroadcasterImpl: try/catch, nie rzuca)
+ -> WebSocketFanoutPublisher.publish(dest, tenantId, event)
+      1. walidacja dest (StompDestinations) + zgodność tenanta; IllegalArgumentException = błąd programisty
+      2. serializacja RAZ konwerterem SimpMessagingTemplate (ten sam JSON co przed BE-175)
+      3. WebSocketLocalDispatcher.deliver -> lokalny SimpleBroker (synchronicznie, niezależnie od Redis)
+      4. (fanout.enabled) koperta {v,src,dest,tenantId,ts,payload} -> kolejka 4096 -> JEDEN wątek -> Redis PUBLISH
+Redis kanał cc:ws:fanout (websocket.fanout.channel)
+ -> wsFanoutListenerContainer (1 wątek dispatchu, kolejka 8192) -> WebSocketFanoutSubscriber.onMessage
+      rozmiar -> JSON -> wersja -> src == własny? ignoruj -> dest w allow-liście -> tenant koperty == tenant dest
+      -> WebSocketLocalDispatcher.deliver -> lokalny SimpleBroker
+```
+
+**Dlaczego tak.**
+- *Lokalna dostawa przed Redis, echo własnej koperty ignorowane (`src`)*: brak duplikatu lokalnie i działanie przy
+  martwym Redis. Wywołujący nigdy nie czeka na Redis (komenda ma timeout 2 s): odbiorcy to konsumenci RabbitMQ, joby i
+  wątki żądań.
+- *Jeden wątek publikujący i jeden wątek dispatchu + `setPreservePublishOrder(true)`*: model wątków Springa:
+  `brokerChannel` jest SYNCHRONICZNY (`ExecutorSubscribableChannel` bez executora - `SimpleBroker` wykonuje się w
+  wątku nadawcy: lokalnie wątek wywołujący, zdalnie jedyny wątek dispatchu), a do przetasowania dochodzi dopiero na
+  wielowątkowym `clientOutboundChannel` (zapis do sesji). Stąd: 1 wątek publikujący -> 1 połączenie Redis -> 1 wątek
+  dispatchu zachowuje kolejność jednego nadawcy do wejścia brokera odbiorcy, a `WebSocketConfig` włącza
+  `registry.setPreservePublishOrder(true)` (dekorator `OrderedMessageChannelDecorator` na `clientOutboundChannel`,
+  kolejność per sesja), co daje kolejność end-to-end do klienta (test `noDuplicatesAndOrderPreservedEndToEnd`: 40
+  zdarzeń, 3 sesje na 2 instancjach, dokładna kolejność). Koszt dekoratora do zmierzenia w BE-184 (razem z
+  przepustowością jednego wątku dispatchu: instancja odbiorcza wykonuje całą pracę `SimpleBroker` na jednym wątku -
+  wąskie gardło szeregowe przy tenantach z setkami sesji na `/agents`). Między różnymi nadawcami kolejność nie jest
+  określona (competing consumers, zegary). Wspólny kontener BE-179 (2 wątki dispatchu) przestawiałby zdarzenia, dlatego
+  fan-out ma własną instancję `PubSubListenerContainer` (`WebSocketFanoutConfig`) z tym samym cyklem życia (bez
+  autostartu, `PubSubListenerContainerSupervisor`, recovery 5 s).
+- *Koperta niesie JSON gotowy do wysłania*: odbiorca nie deserializuje zdarzenia, tylko przekazuje bajty do brokera
+  (`MESSAGE` frame identyczny z lokalnym).
+- *RabbitMQ relay bez zmian*: kolejki `cc.queue.ws-relay-*` mają stałe nazwy (competing consumers), więc zdarzenie
+  konsumuje jedna instancja i dopiero ona rozsyła je przez Redis. Kolejki per instancja zdublowałyby dostawę.
+- *Duplikaty z jobów `@Scheduled` bez locka (review M1)*: "raz" dotyczy zdarzeń z Rabbita i jobów z ShedLock. Jedyny
+  job publikujący na WS bez `@SchedulerLock` to `RoutingServiceImpl#pollAvailableAgents` (klasa T; przegląd wszystkich
+  `@Scheduled` korzystających z broadcastera: `SupervisorMetricsService`, `ContactAssignmentMonitor`,
+  `WaitTimeEstimationServiceImpl` mają ShedLock). Jego snapshot `QUEUE_AGENT_UPDATE` szedłby z N instancji do każdej
+  sesji N razy, więc poll publikuje przez `WebSocketEventBroadcaster#sendToTenantAgentsOncePerWindow`: bramka
+  `WebSocketOncePerWindowGate` (Redis `SET NX PX`, klucz `ws:once:queue-agent-update:{tenantId}`, okno = 0,8 x
+  `dialer.agent-poll-interval-ms`) przepuszcza jedną instancję na okno klastra, pozostałe nie budują nawet snapshotu
+  (oszczędzają zapytanie). Wybór: najtańszy poprawny - bez nowego ShedLocka i bez zmiany semantyki jobu; snapshot jest
+  idempotentny, a bramka stosuje się WYŁĄCZNIE do pollu (zdarzeniowe aktualizacje zawsze wychodzą, bo
+  stłumione byłoby utracone). Redis niedostępny = fail open (i tak lokalnie). Alternatywa "nie broadcastuj przy pustej
+  kolejce" odrzucona: poll jest siatką bezpieczeństwa także dla czyszczenia sidebaru.
+
+**Środowiska na wspólnym Redis.** Kanał (`cc:ws:fanout:<env>`) i klucze bramki (`ws:once:<env>:...`) niosą segment
+środowiska. Domyślnie to pierwszy aktywny profil, więc dwa środowiska z tym samym profilem (np. staging i prod na
+profilu `prod`) na jednym Redis MUSZĄ mieć różne `WEBSOCKET_FANOUT_ENV`, inaczej wymieniają zdarzenia WS i tłumią sobie
+snapshoty. Bramka raz-na-okno przy błędzie Redis wchodzi w backoff (`publish-backoff-ms`) i przy
+`websocket.fanout.enabled=false` jest pomijana, żeby nie blokować wątku `@Scheduled` na timeoucie komendy (2 s).
+Unicast: koperta MUSI nieść tenant (nadawca bez tenanta dostarcza tylko lokalnie, `dropped{publish,tenant_missing}`;
+odbiorca dropuje `tenant_missing` i `principal_unknown`); brak lokalnej sesji to `ignored{no_local_session}`.
+Przebieg routingu wymuszony koalescencją (`passesDirty`) w trakcie pollu publikuje snapshot bezpośrednio, tylko pierwszy
+przebieg pollu przechodzi przez bramkę.
+
+**Zamykanie.** `@PreDestroy` publishera dopycha zakolejkowane koperty (`awaitTermination` ok. 2 s, potem `shutdownNow`),
+kontener dispatchu robi to samo; zdarzenia po zamknięciu liczone jako `shutdown`, nie `publish_queue_full`.
+
+**Odporność (Redis niedostępny).** Aplikacja startuje (supervisor), sesje WS nie są zrywane, zdarzenia dochodzą do
+sesji instancji publikującej. Pierwszy nieudany PUBLISH uruchamia backoff `websocket.fanout.publish-backoff-ms`
+(2 s): w tym czasie zdarzenia nie są wysyłane do Redis, tylko liczone (`ws.fanout.dropped{direction=publish,
+reason=redis_unavailable}`, WARN co 10 s). Po powrocie Redis subskrypcja podnosi się sama (recovery kontenera), a
+publikacja wznawia po backoffie. Zdarzeń z przerwy NIE odtwarzamy (at-most-once, FE-152 przeładowuje stan po
+reconnect). Pełna kolejka publikacji (`publish_queue_full`) i pełna kolejka dispatchu (`dispatch_queue_full`) też
+odrzucają z licznikiem.
+
+**Konfiguracja** (`websocket.fanout.*`, patrz `application.yml`): `enabled` (domyślnie `true`; `false` = tylko
+dostawa lokalna, poprawne wyłącznie dla jednej repliki), `channel` + `environment` (kanał = `<channel>:<środowisko>`, domyślnie pierwszy aktywny profil, `WEBSOCKET_FANOUT_ENV`),
+`instance-id` (opcjonalny prefiks; losowy sufiks per proces jest ZAWSZE doklejany, więc repliki ze wspólną konfiguracją
+nie ignorują siebie nawzajem),
+`max-message-bytes` (262144; nadawca nie rozsyła większych - dostarcza lokalnie i liczy `oversize`, odbiorca odrzuca),
+`publish-queue-capacity`, `publish-queue-max-bytes` (budżet bajtowy kolejki publikacji, 32 MiB; same sztuki x 256 KiB to
+~1 GiB), `dispatch-queue-capacity` (2048; worst case 512 MiB przy zdarzeniach o maksymalnym rozmiarze, typowo ~2 MiB;
+budżetu bajtowego po stronie odbiorcy nie ma, bo kolejka należy do executora kontenera - do rozważenia w BE-184),
+`publish-backoff-ms`. Limit `max-message-bytes` zostaje 256 KiB (nie 64 KiB): snapshot `QUEUE_AGENT_UPDATE` dużej
+kolejki (setki kontaktów x ~200 B) łatwo przekracza 64 KiB, a przekroczenie = cicha utrata synchronizacji między
+instancjami; rozmiary mierzy histogram `ws.fanout.envelope.bytes{direction}`.
+
+**Metryki:** `ws.fanout.published{topic}`, `received{topic}`, `delivered{origin=local|remote}`,
+`dropped{direction,reason}` (powody: `oversize`, `redis_unavailable`, `publish_queue_full`, `publish_queue_bytes`,
+`shutdown`, `invalid_destination`, `malformed`, `unsupported_version`, `tenant_mismatch`, `no_local_session`,
+`delivery_error`, `dispatch_queue_full`), `ignored{reason=self}` (własne koperty; przy N>1 repliki skok albo
+"wszystko ignorowane" = zdublowane id), `coalesced{key}` (bramka okna), `envelope.bytes{direction}`, `lag` (timer;
+zawiera skew zegarów między hostami), gauge `ws.fanout.publish.queue.size`. Zdrowie: komponent
+`webSocketFanout` w `/actuator/health` (zawsze UP; `listening=false` = tryb lokalny/zdegradowany - instancja nie jest
+wyjmowana z rotacji, bo nadal obsługuje swoje sesje).
+
+**TenantContext.** Ścieżka nie korzysta z bazy ani RLS. `TenantContext` jest `InheritableThreadLocal`, więc wątki
+robocze fan-outu (tworzone leniwie z dowolnego wątku wywołującego) czyszczą odziedziczony kontekst przy starcie
+(publisher) i na początku `onMessage` (subscriber); nic nie jest ustawiane, więc nie ma `restore`.
+
+**Izolacja tenantów i zaufanie do kanału.** Odbiorca stosuje tę samą allow-listę destynacji co SUBSCRIBE
+(`StompDestinations`); dla tematów tenanta wymaga zgodności tenanta koperty z tenantem destynacji. Dla
+`/topic/user/{id}/events` wymaga lokalnej sesji użytkownika w `SimpUserRegistry` (brak = drop `no_local_session`,
+czyli też optymalizacja N x fan-in) i zgodności tenanta koperty z tenantem principala sesji (`StompPrincipal`;
+`null` w kopercie nie da się zweryfikować i przechodzi). Podpis HMAC koperty NIE jest zrobiony (follow-up). Kto ma `PUBLISH` na Redis, może wstrzyknąć poprawne zdarzenie w dozwoloną destynację
+(założenie: sieć zaufana + hasło, jak w BE-179). Nie stosować `convertAndSendToUser` do unicastu między instancjami
+(regułą jest `/topic/user/{id}/events` przez broadcaster).
+
+**Kryteria BE-176 - co zamknięto, a czego nie.**
+- ZAMKNIĘTE: A -> B dla `/user/...` (tj. `/topic/user/{id}/events`) i `/topic/...`; zdarzenie dla agenta bez sesji bez
+  błędu i bez odtwarzania po reconnect; brak wycieku między tenantami; awaria/powrót Redis bez restartu aplikacji
+  (zamiast "restart brokera" z oryginału: opcja B nie ma brokera STOMP); test w zwykłym `mvn verify` (ok. 45 s);
+  2 konteksty Spring na wspólnym Redis (Testcontainers); nowe: raz-na-okno dla snapshotu z pollu bez locka (M1) na
+  2 instancjach.
+- NIE ZAMKNIĘTE / odstępstwa: (1) "SupervisorMetricsService publikuje raz na interwał mimo 2 instancji" - brak testu
+  na 2 instancjach ze współdzielonym ShedLockiem (wymaga Postgresa i dwóch pełnych kontekstów; ShedLock jobów jest
+  pokryty testami BE-171/BE-172, a fan-out go nie zmienia); (2) IT nie używa Postgresa (fan-out go nie dotyka;
+  Postgres + Redis + RabbitMQ w jednym pełnym kontekście pokrywa tylko `FullApplicationContextStartupTest`, jedna
+  instancja); (3) RabbitMQ w IT niepotrzebny (kontekst slice nie ma relay) - relay nie jest testowany między
+  instancjami; (4) 5000 sesji i obciążenie (BE-184).
+
+**Testy.** `WebSocketFanoutPublisherTest`, `WebSocketFanoutSubscriberTest`, `StompDestinationsTest` (jednostkowe);
+`WebSocketFanoutPropertiesTest`, `WebSocketOncePerWindowGateTest`, `RoutingServiceTest` (poll vs zdarzenie),
+`WebSocketFanoutCrossInstanceIntegrationTest` (BE-176: 2-3 konteksty Spring na wspólnym Redis z Testcontainers, prawdziwy
+Tomcat/STOMP/`WebSocketConfig`; dostawa A->B dla trzech tematów, brak duplikatów i kolejność, izolacja tenantów,
+sfałszowane koperty, brak odtwarzania, `enabled=false`, awaria Redis przez `TcpForwarder`: start instancji przy
+martwym Redis, degradacja, powrót bez restartu, brak zdarzeń z przeszłości); `FullApplicationContextStartupTest`
+sprawdza beany fan-outu w pełnym kontekście prod (Postgres + Redis + RabbitMQ).
 
 ---
 

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.routing;
 
+import com.contactcenter.domain.contact.ContactChannels;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.user.UserService;
 import lombok.RequiredArgsConstructor;
@@ -129,6 +130,12 @@ class DefaultRoutingEngine implements RoutingEngine {
             availableAgents = filterAgentsUnderAsyncLimit(request, availableAgents);
         }
 
+        // 3c. BE-230 S7: voice contacts skip agents that already hold a voice load (open PHONE contact / DIALING
+        // record) - a cheap batch pre-filter; the per-agent lock + re-check at write time stays the guarantee
+        if (isVoiceRequest(request) && !availableAgents.isEmpty()) {
+            availableAgents = filterAgentsWithoutVoiceLoad(request, availableAgents);
+        }
+
         if (availableAgents.isEmpty()) {
             log.debug("[RoutingEngine] Brak dostępnych agentów dla tenant={}", request.tenantId());
             return Optional.empty();
@@ -201,6 +208,12 @@ class DefaultRoutingEngine implements RoutingEngine {
                 return Optional.empty();
             }
 
+            // BE-230 S7: sticky agent already on a voice call / being dialled is skipped (fallback to the strategy)
+            if (isVoiceRequest(request) && filterAgentsWithoutVoiceLoad(request, List.of(session)).isEmpty()) {
+                log.debug("[RoutingEngine] Sticky agent ma już połączenie głosowe: agentId={}", preferredAgentId);
+                return Optional.empty();
+            }
+
             return Optional.of(RoutingResult.sticky(preferredAgentId));
 
         } catch (Exception e) {
@@ -247,6 +260,51 @@ class DefaultRoutingEngine implements RoutingEngine {
         log.debug("[RoutingEngine] Po filtrze limitu async ({}): {}/{} agentów, queue={}",
                 limit, underLimit.size(), agents.size(), request.queueId());
         return underLimit;
+    }
+
+    // =========================================================================
+    // BE-230 S7: wyłączność głosowa agenta - tani filtr wsadowy
+    // =========================================================================
+
+    /** Voice contact = anything that is not async (a legacy contact without a channel counts as PHONE). */
+    private static boolean isVoiceRequest(RoutingRequest request) {
+        return !ContactChannels.isAsync(request.contactChannel());
+    }
+
+    /**
+     * Drops agents that already hold a voice load (an open PHONE contact or a DIALING dialer record) in ONE batch
+     * query. Without it an agent with a ringing ASSIGNED call, still AVAILABLE in the Redis session, would be picked
+     * again and again, every attempt costing a transaction + agent lock before {@code AGENT_BUSY}.
+     *
+     * <p>Fail-open on a query error: the lock + re-check in {@code ContactRepository#assignIfQueued} is the
+     * authoritative guard, this filter only saves pointless attempts.
+     */
+    private List<AgentSessionData> filterAgentsWithoutVoiceLoad(RoutingRequest request,
+                                                                List<AgentSessionData> agents) {
+        Set<UUID> busy;
+        try {
+            busy = contactService.findAgentIdsWithVoiceLoad(request.tenantId(),
+                    agents.stream().map(AgentSessionData::agentId).toList());
+        } catch (Exception e) {
+            long now = System.currentTimeMillis();
+            long last = lastCountFailureWarnAt.get();
+            if (now - last >= COUNT_FAILURE_WARN_INTERVAL_MS && lastCountFailureWarnAt.compareAndSet(last, now)) {
+                log.warn("[RoutingEngine] Błąd sprawdzania obciążenia głosowego agentów (queue={}): {} - pomijam filtr " +
+                        "(kolejne błędy w ciągu {} s tylko na DEBUG)", request.queueId(), e.getMessage(),
+                        COUNT_FAILURE_WARN_INTERVAL_MS / 1000);
+            } else {
+                log.debug("[RoutingEngine] Błąd sprawdzania obciążenia głosowego (queue={}): {}",
+                        request.queueId(), e.getMessage());
+            }
+            return agents;
+        }
+        if (busy == null || busy.isEmpty()) {
+            return agents;
+        }
+        List<AgentSessionData> free = agents.stream().filter(a -> !busy.contains(a.agentId())).toList();
+        log.debug("[RoutingEngine] Po filtrze obciążenia głosowego: {}/{} agentów, queue={}",
+                free.size(), agents.size(), request.queueId());
+        return free;
     }
 
     // =========================================================================

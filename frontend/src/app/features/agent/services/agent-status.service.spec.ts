@@ -111,6 +111,13 @@ describe('AgentStatusService lifecycle (FE-134)', () => {
     expect(req.cancelled).toBe(true);
   });
 
+  it('changes status over REST only and publishes nothing on the WebSocket (FE-170)', () => {
+    service.changeStatus('BREAK').subscribe();
+    http.expectOne('/api/users/me/status').flush(null);
+    expect(service.currentStatus()).toBe('BREAK');
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('blocks a second changeStatus() while one is in flight (isChanging)', () => {
     service.changeStatus('BREAK').subscribe();
     expect(service.isChanging()).toBe(true);

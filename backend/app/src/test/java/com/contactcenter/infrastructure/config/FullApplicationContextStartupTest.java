@@ -1,6 +1,16 @@
 package com.contactcenter.infrastructure.config;
 
 import com.contactcenter.app.ContactCenterApplication;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.websocket.WebSocketEvent;
+import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
+import com.contactcenter.infrastructure.cache.PubSubListenerContainer;
+import com.contactcenter.infrastructure.websocket.WebSocketFanoutEnvelope;
+import com.contactcenter.infrastructure.websocket.WebSocketFanoutHealthIndicator;
+import com.contactcenter.infrastructure.websocket.WebSocketFanoutPublisher;
+import com.contactcenter.infrastructure.websocket.WebSocketFanoutSubscriber;
+import com.contactcenter.security.JwtService;
 import com.contactcenter.support.ClickHouseTestContainer;
 import com.contactcenter.support.PostgresTestDatabase;
 import com.contactcenter.support.RabbitMqTestContainer;
@@ -32,7 +42,28 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.ReflectionUtils;
 
+import org.springframework.boot.actuate.health.Status;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.messaging.converter.StringMessageConverter;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler;
+import org.springframework.messaging.simp.stomp.StompFrameHandler;
+import org.springframework.messaging.simp.stomp.StompHeaders;
+import org.springframework.messaging.simp.stomp.StompSession;
+import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
+import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.web.socket.WebSocketHttpHeaders;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.messaging.WebSocketStompClient;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -275,6 +306,90 @@ class FullApplicationContextStartupTest {
         ResponseEntity<String> response = rest.getForEntity("/actuator/health", String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).contains("\"status\":\"UP\"");
+    }
+
+    @Autowired
+    private JwtService jwtService;
+    @Autowired
+    private WebSocketEventBroadcaster broadcaster;
+    @Autowired
+    private SimpleBrokerMessageHandler brokerHandler;
+    @Autowired
+    private WebSocketFanoutHealthIndicator fanoutHealth;
+    @LocalServerPort
+    private int serverPort;
+
+    @Test
+    @DisplayName("BE-175: fan-out WS w pelnym kontekscie - beany, subskrypcja Redis, zdarzenie od innej instancji i z broadcastera docieraja do sesji z prawdziwym JWT dokladnie raz")
+    void webSocketFanoutWorksInFullContext() throws Exception {
+        assertThat(context.getBean(WebSocketFanoutPublisher.class)).isNotNull();
+        assertThat(context.getBean(WebSocketFanoutSubscriber.class)).isNotNull();
+        // two Redis listener containers: the shared one (cache invalidation, @Primary) and the WS fan-out one
+        assertThat(context.getBeansOfType(PubSubListenerContainer.class)).containsOnlyKeys(
+                "redisMessageListenerContainer", "wsFanoutListenerContainer");
+        // the cache-invalidation bus must hold the shared (primary) container, not the WS one
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(
+                context.getBean(com.contactcenter.infrastructure.cache.CacheInvalidationBus.class), "listenerContainer"))
+                .isSameAs(context.getBean("redisMessageListenerContainer"));
+        PubSubListenerContainer wsContainer = context.getBean("wsFanoutListenerContainer", PubSubListenerContainer.class);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30)).until(wsContainer::isListening);
+        assertThat(fanoutHealth.health().getStatus()).isEqualTo(Status.UP);
+        assertThat(fanoutHealth.health().getDetails()).containsEntry("listening", true);
+
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        String token = jwtService.issueAccessToken(AppUser.builder().id(user).tenantId(tenant)
+                .email("fanout-" + user + "@example.invalid").role(UserRole.AGENT).build(), "fanout-test", true);
+        WebSocketStompClient stomp = new WebSocketStompClient(new StandardWebSocketClient());
+        // frames carry content-type application/json; StringMessageConverter accepts only text/plain by default
+        stomp.setMessageConverter(new StringMessageConverter() {
+            @Override
+            protected boolean supportsMimeType(org.springframework.messaging.MessageHeaders headers) {
+                return true;
+            }
+        });
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.initialize();
+        stomp.setTaskScheduler(scheduler);
+        StompHeaders connect = new StompHeaders();
+        connect.add("Authorization", "Bearer " + token);
+        StompSession session = stomp.connectAsync("ws://localhost:" + serverPort + "/ws-native",
+                new WebSocketHttpHeaders(), connect, new StompSessionHandlerAdapter() { }).get(15, TimeUnit.SECONDS);
+        try {
+            LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+            String agentsTopic = "/topic/tenant/" + tenant + "/agents";
+            session.subscribe(agentsTopic, new StompFrameHandler() {
+                @Override
+                public Type getPayloadType(StompHeaders headers) {
+                    return String.class;
+                }
+
+                @Override
+                public void handleFrame(StompHeaders headers, Object payload) {
+                    received.add((String) payload);
+                }
+            });
+            SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+            accessor.setDestination(agentsTopic);
+            var probe = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(
+                    () -> !brokerHandler.getSubscriptionRegistry().findSubscriptions(probe).isEmpty());
+
+            // an event published by ANOTHER instance reaches the session (through the real Redis channel)
+            String remote = "{\"eventType\":\"REMOTE\",\"payload\":null}";
+            RedisTestContainer.stringTemplate().convertAndSend(
+                    context.getBean(com.contactcenter.infrastructure.websocket.WebSocketFanoutProperties.class).effectiveChannel(),
+                    new WebSocketFanoutEnvelope(1, "some-other-instance", agentsTopic, tenant,
+                            System.currentTimeMillis(), remote).toJson());
+            assertThat(received.poll(15, TimeUnit.SECONDS)).isEqualTo(remote);
+
+            // an event from this instance's broadcaster: delivered locally, echo from Redis ignored -> exactly once
+            broadcaster.sendToTenantAgents(tenant, WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 5, 1));
+            assertThat(received.poll(15, TimeUnit.SECONDS)).contains("QUEUE_UPDATE");
+            assertThat(received.poll(1, TimeUnit.SECONDS)).as("brak duplikatu (echo wlasnej koperty)").isNull();
+        } finally {
+            session.disconnect();
+        }
     }
 
     private static boolean hasSchedulerLockMethod(Class<?> type) {

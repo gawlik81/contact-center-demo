@@ -4,10 +4,13 @@ import com.contactcenter.domain.repository.TenantAwareRepository;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
+import com.contactcenter.domain.contact.OccupiedSlot;
+import com.contactcenter.infrastructure.lock.AgentAssignmentLock;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.stereotype.Repository;
@@ -42,6 +45,10 @@ class CampaignContactRepository extends TenantAwareRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+
+    /** BE-230 S5: bound on waiting for the per-agent advisory lock (see {@code AgentAssignmentLock}). */
+    @Value("${agent-assignment.lock-timeout-ms:500}")
+    private long agentLockTimeoutMs = 500;
 
     public CampaignContactRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
@@ -333,6 +340,71 @@ class CampaignContactRepository extends TenantAwareRepository {
                 campaignId.toString(),
                 tenantId.toString()
         );
+    }
+
+    /**
+     * BE-230 P1 (callback executor): is the agent free of voice load RIGHT NOW? The per-agent advisory lock is taken
+     * first (bounded wait), so a routing / dialer claim that already passed its own check and is about to write
+     * finishes (commits) before the load is read - the read is never stale against an in-flight claimer.
+     *
+     * <p><strong>Limit of this gate:</strong> a callback leaves NO visible reservation (its DIALING record has
+     * {@code dialing_agent_id = NULL} by design, BE-173 M-1; a non-campaign callback has no campaign record at all)
+     * until {@code initiateCall} inserts the contact, so a claim in that gap still sees the agent as free. See
+     * 04-backend.md section 4.6 "paths outside the lock".
+     */
+    @Transactional
+    public AgentGate checkAgentVoiceFree(UUID tenantId, UUID agentId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+        if (!AgentAssignmentLock.tryAcquire(jdbcTemplate, tenantId, agentId, agentLockTimeoutMs)) {
+            return AgentGate.LOCK_TIMEOUT;
+        }
+        return OccupiedSlot.hasVoiceLoad(jdbcTemplate, tenantId, agentId) ? AgentGate.BUSY : AgentGate.FREE;
+    }
+
+    /**
+     * BE-230 P1 (manual dialer): per-agent lock + voice-load check + DIALING write with
+     * {@code dialing_agent_id = agentId} in ONE transaction - exactly the progressive dialer's claim
+     * ({@code ProgressiveDialerServiceImpl#claimNextContact}), so the agent is visible as "dialling" to routing and
+     * the progressive dialer from this commit on (the manual dial IS a claim for that agent; unlike a callback it
+     * increments {@code attempt_count}, so the reaper's give-back of a never-placed call is correct for it).
+     * Cleared by the existing DIALING exits ({@code DialerCallbackHandler}, {@code markAsError}, reaper).
+     *
+     * <p>The UPDATE is a compare-and-set on the source status ({@code PENDING / NO_ANSWER / FAILED} - the statuses the
+     * manual dialer endpoint accepts), so two agents racing for one record cannot both claim it (NF1): the loser
+     * changes 0 rows and gets {@link AgentGate#RECORD_UNAVAILABLE}.
+     *
+     * @return {@link AgentGate#FREE} = the record is now DIALING for the agent; otherwise nothing was written
+     */
+    @Transactional
+    public AgentGate markAsDialingForAgent(UUID recordId, UUID campaignId, UUID tenantId, UUID agentId) {
+        AgentGate gate = checkAgentVoiceFree(tenantId, agentId);
+        if (gate != AgentGate.FREE) {
+            return gate;
+        }
+        int rows = jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'DIALING',
+                    dialing_agent_id = ?::uuid,
+                    last_attempt_at = NOW(),
+                    next_attempt_at = NULL,
+                    attempt_count = attempt_count + 1,
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                  AND status IN ('PENDING', 'NO_ANSWER', 'FAILED')
+                """,
+                agentId.toString(),
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+                if (rows == 0) {
+            return AgentGate.RECORD_UNAVAILABLE;
+        }
+        return AgentGate.FREE;
     }
 
     /**

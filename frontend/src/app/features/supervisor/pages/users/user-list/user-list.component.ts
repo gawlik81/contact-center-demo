@@ -159,16 +159,13 @@ export class UserListComponent implements OnInit {
   }
 
   /**
-   * Falls back to polling every 30 s while the WebSocket is disconnected or
-   * in error state. Switches off automatically once WS reconnects.
+   * Falls back to polling every 30 s while the WebSocket is disconnected, in error
+   * state or terminally rejected (FORBIDDEN / SESSION_EXPIRED). Switches off automatically once WS reconnects.
    */
   private initPollingFallback(): void {
     timer(POLLING_INTERVAL_MS, POLLING_INTERVAL_MS)
       .pipe(
-        filter(() => {
-          const state = this.ws.connectionState();
-          return state === 'DISCONNECTED' || state === 'ERROR';
-        }),
+        filter(() => this.ws.isDown()),
         switchMap(() =>
           this.userService.getUsers(this.buildFilterParams()).pipe(catchError(() => of(null))),
         ),

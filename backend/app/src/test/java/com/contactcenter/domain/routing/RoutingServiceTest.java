@@ -678,7 +678,8 @@ class RoutingServiceTest {
         void directAssignmentLostRaceSkipsEvent() {
             Contact contact = buildContact();
             when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(contactService.assignQueuedContact(eq(contact), eq(AGENT_ID), any(), any())).thenReturn(AssignmentResult.CONTACT_UNAVAILABLE);
+            when(contactService.assignQueuedContactForTransfer(eq(contact), eq(AGENT_ID)))
+                    .thenReturn(AssignmentResult.CONTACT_UNAVAILABLE);
 
             routingService.onDirectAgentAssignment(directMessage());
 
@@ -691,7 +692,8 @@ class RoutingServiceTest {
         void directAssignmentWinPublishesEvent() {
             Contact contact = buildContact();
             when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(contactService.assignQueuedContact(eq(contact), eq(AGENT_ID), any(), any())).thenAnswer(inv -> assignWins(inv));
+            when(contactService.assignQueuedContactForTransfer(eq(contact), eq(AGENT_ID)))
+                    .thenAnswer(inv -> assignWins(inv));
 
             routingService.onDirectAgentAssignment(directMessage());
 
@@ -700,6 +702,24 @@ class RoutingServiceTest {
                     eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.assigned"), published.capture());
             assertThat(published.getValue().agentId()).isEqualTo(AGENT_ID);
             assertThat(published.getValue().strategy()).isEqualTo("DIRECT_TRANSFER");
+        }
+
+        @Test
+        @DisplayName("BE-230 S3: stary adapter (kontakt QUEUED) - przydzial transferu idzie sciezka BEZ wylacznosci glosowej, "
+                + "nie przez assignQueuedContact (ten wymuszalby AGENT_BUSY i porzucal klienta w konferencji)")
+        void directAssignmentUsesTheTransferPathWithoutVoiceExclusivity() {
+            Contact contact = buildContact();
+            contact.setChannel("PHONE");
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.assignQueuedContactForTransfer(eq(contact), eq(AGENT_ID)))
+                    .thenAnswer(inv -> assignWins(inv));
+
+            routingService.onDirectAgentAssignment(directMessage());
+
+            verify(contactService).assignQueuedContactForTransfer(contact, AGENT_ID);
+            verify(contactService, never()).assignQueuedContact(any(), any(), any(), any());
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.assigned"),
+                    any(ContactAssignedEvent.class));
         }
     }
 
@@ -756,6 +776,66 @@ class RoutingServiceTest {
         }
 
         @Test
+        @DisplayName("BE-230: 10 kolejnych AGENT_BUSY -> pusty wynik, kontakt PHONE zostaje QUEUED, brak contact.assigned, 10 razy licznik konkurencji")
+        void tenConsecutiveAgentBusyLeavesPhoneContactQueued() {
+            var meters = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+            RoutingServiceImpl service = serviceWithMeters(meters);
+            Contact phone = buildContact();
+            phone.setChannel("PHONE");
+            stubQueue();
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(phone));
+            // a misbehaving engine that keeps offering a busy agent despite the exclusions
+            when(routingEngine.findBestAgent(any()))
+                    .thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
+            when(contactService.assignQueuedContact(any(), any(), any(), any()))
+                    .thenReturn(AssignmentResult.AGENT_BUSY);
+
+            Optional<UUID> result = service.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
+
+            assertThat(result).isEmpty();
+            assertThat(phone.getStatus()).isEqualTo("QUEUED");
+            assertThat(phone.getAgentId()).isNull();
+            verify(contactService, times(10)).assignQueuedContact(any(), any(), any(), any());
+            verify(rabbitTemplate, never()).convertAndSend(anyString(), eq("contact.assigned"), any(Object.class));
+            assertThat(meters.find(com.contactcenter.infrastructure.lock.LockSkipMetrics.METRIC_AGENT_CONTENTION)
+                    .tag("source", "routing").counter().count()).isEqualTo(10.0);
+        }
+
+        @Test
+        @DisplayName("BE-230 S5: AGENT_LOCK_TIMEOUT -> agent pominiety jak AGENT_BUSY, ale licznik skipped{reason=lock_timeout}, nie contention")
+        void lockTimeoutSkipsAgentAndCountsSeparately() {
+            var meters = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+            RoutingServiceImpl service = serviceWithMeters(meters);
+            UUID otherAgent = UUID.fromString("77777777-7777-7777-7777-777777777777");
+            Contact phone = buildContact();
+            phone.setChannel("PHONE");
+            stubQueue();
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(phone));
+            when(routingEngine.findBestAgent(any()))
+                    .thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")))
+                    .thenReturn(Optional.of(RoutingResult.of(otherAgent, "FIRST_AVAILABLE")));
+            when(contactService.assignQueuedContact(any(), eq(AGENT_ID), any(), any()))
+                    .thenReturn(AssignmentResult.AGENT_LOCK_TIMEOUT);
+            when(contactService.assignQueuedContact(any(), eq(otherAgent), any(), any()))
+                    .thenAnswer(inv -> assignWins(inv));
+
+            assertThat(service.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID)).contains(otherAgent);
+
+            assertThat(meters.find(com.contactcenter.infrastructure.lock.LockSkipMetrics.METRIC_AGENT_SKIPPED)
+                    .tag("source", "routing").tag("reason", "lock_timeout").counter().count()).isEqualTo(1.0);
+            assertThat(meters.find(com.contactcenter.infrastructure.lock.LockSkipMetrics.METRIC_AGENT_CONTENTION)
+                    .tag("source", "routing").counter().count()).isZero();
+        }
+
+        private RoutingServiceImpl serviceWithMeters(io.micrometer.core.instrument.simple.SimpleMeterRegistry meters) {
+            return new RoutingServiceImpl(routingEngine, queueService, customerService,
+                    rabbitTemplate, queueAssignmentService, userService, broadcaster, contactService,
+                    contactEventService, socialDefaultQueueResolver, releaseExclusionStore,
+                    new RoutingQueueLock(com.contactcenter.support.NoOpLockProvider.executor(),
+                            new com.contactcenter.infrastructure.lock.LockSkipMetrics(meters), 0, 50, 60_000));
+        }
+
+        @Test
         @DisplayName("ponowne pytanie silnika po AGENT_AT_LIMIT jest oznaczone jako retryRound i wyklucza agenta")
         void retryRoundMarksRequestAndExcludesAgent() {
             Contact email = buildContact();
@@ -778,6 +858,39 @@ class RoutingServiceTest {
         }
 
         @Test
+        @DisplayName("BE-230: AGENT_BUSY (agent zajety glosowo przez inna sciezke) -> agent wykluczony, kolejny agent "
+                + "dostaje kontakt, licznik konkurencji +1")
+        void agentBusyExcludesAgentRetriesWithNextAndCountsContention() {
+            var meters = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+            RoutingServiceImpl service = new RoutingServiceImpl(routingEngine, queueService, customerService,
+                    rabbitTemplate, queueAssignmentService, userService, broadcaster, contactService,
+                    contactEventService, socialDefaultQueueResolver, releaseExclusionStore,
+                    new RoutingQueueLock(com.contactcenter.support.NoOpLockProvider.executor(),
+                            new com.contactcenter.infrastructure.lock.LockSkipMetrics(meters), 0, 50, 60_000));
+            UUID otherAgent = UUID.fromString("77777777-7777-7777-7777-777777777777");
+            Contact phone = buildContact();
+            phone.setChannel("PHONE");
+            stubQueue();
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(phone));
+            when(routingEngine.findBestAgent(any()))
+                    .thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")))
+                    .thenReturn(Optional.of(RoutingResult.of(otherAgent, "FIRST_AVAILABLE")));
+            when(contactService.assignQueuedContact(any(), eq(AGENT_ID), any(), any()))
+                    .thenReturn(AssignmentResult.AGENT_BUSY);
+            when(contactService.assignQueuedContact(any(), eq(otherAgent), any(), any()))
+                    .thenReturn(AssignmentResult.ASSIGNED);
+
+            Optional<UUID> result = service.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
+
+            assertThat(result).contains(otherAgent);
+            ArgumentCaptor<RoutingRequest> captor = ArgumentCaptor.forClass(RoutingRequest.class);
+            verify(routingEngine, times(2)).findBestAgent(captor.capture());
+            assertThat(captor.getAllValues().get(1).excludedAgentIds()).containsExactly(AGENT_ID);
+            assertThat(meters.find(com.contactcenter.infrastructure.lock.LockSkipMetrics.METRIC_AGENT_CONTENTION)
+                    .tag("source", "routing").counter().count()).isEqualTo(1.0);
+        }
+
+        @Test
         @DisplayName("poll: jeden przebieg backlogu na tenant, nie na agenta")
         void pollRunsOnePassPerTenant() {
             UUID otherTenant = UUID.fromString("99999999-9999-9999-9999-999999999999");
@@ -794,6 +907,50 @@ class RoutingServiceTest {
             verify(contactService, times(1)).findQueuedContacts(TENANT_ID);
             verify(contactService, times(1)).findQueuedContacts(otherTenant);
         }
+
+        @Test
+        @DisplayName("BE-175 M1: snapshot kolejki z pollu idzie przez bramke raz-na-okno, ze zdarzenia bez niej")
+        void pollSnapshotIsCoalescedWhileEventDrivenOneIsNot() {
+            when(userService.findAvailableAgents()).thenReturn(List.of(
+                    com.contactcenter.domain.user.AppUser.builder().id(AGENT_ID).tenantId(TENANT_ID).build()));
+            when(contactService.findQueuedContacts(any())).thenReturn(List.of());
+            org.springframework.test.util.ReflectionTestUtils.setField(routingService, "pollIntervalMs", 30_000L);
+
+            routingService.pollAvailableAgents();
+
+            verify(broadcaster).sendToTenantAgentsOncePerWindow(eq(TENANT_ID), eq("queue-agent-update"),
+                    eq(java.time.Duration.ofMillis(24_000)), any());
+            verify(broadcaster, org.mockito.Mockito.never()).sendToTenantAgents(any(), any());
+
+            routingService.onAgentAvailabilityRefreshed(
+                    new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID));
+
+            verify(broadcaster).sendToTenantAgents(eq(TENANT_ID), any());
+        }
+
+        @Test
+        @DisplayName("BE-175 S-A: przebieg wymuszony koalescencja (dirty) w trakcie pollu publikuje snapshot bezposrednio, nie przez bramke")
+        void coalescedContinuationPassPublishesDirectly() {
+            when(userService.findAvailableAgents()).thenReturn(List.of(
+                    com.contactcenter.domain.user.AppUser.builder().id(AGENT_ID).tenantId(TENANT_ID).build()));
+            org.springframework.test.util.ReflectionTestUtils.setField(routingService, "pollIntervalMs", 30_000L);
+            // an event arrives while the poll pass is running: it only marks the tenant dirty
+            when(contactService.findQueuedContacts(any())).thenAnswer(inv -> {
+                if (inv.getMock() != null && !Boolean.TRUE.equals(dirtyOnce.getAndSet(true))) {
+                    routingService.onAgentAvailabilityRefreshed(
+                            new com.contactcenter.domain.user.AgentAvailabilityRefreshedEvent(AGENT_ID, TENANT_ID));
+                }
+                return List.of();
+            });
+
+            routingService.pollAvailableAgents();
+
+            verify(contactService, times(2)).findQueuedContacts(TENANT_ID);
+            verify(broadcaster, times(1)).sendToTenantAgentsOncePerWindow(eq(TENANT_ID), anyString(), any(), any());
+            verify(broadcaster, times(1)).sendToTenantAgents(eq(TENANT_ID), any());
+        }
+
+        private final java.util.concurrent.atomic.AtomicBoolean dirtyOnce = new java.util.concurrent.atomic.AtomicBoolean();
 
         @Test
         @DisplayName("BE-211: przebieg z pollu przy pustej kolejce nie loguje INFO")

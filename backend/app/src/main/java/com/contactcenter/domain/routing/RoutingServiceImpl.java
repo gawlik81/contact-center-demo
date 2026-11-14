@@ -76,6 +76,10 @@ class RoutingServiceImpl implements RoutingService {
     /** BE-173: cross-instance exclusion per queue (agent selection + conditional write of one queue). */
     private final RoutingQueueLock queueLock;
 
+    /** Poll interval of {@link #pollAvailableAgents} (BE-175: window of the once-per-interval snapshot gate). */
+    @org.springframework.beans.factory.annotation.Value("${dialer.agent-poll-interval-ms:30000}")
+    private long pollIntervalMs;
+
     /** Upper bound of engine re-asks within one routeContact when chosen agents turn out to be at their limit. */
     private static final int MAX_ROUTING_ATTEMPTS = 10;
 
@@ -148,7 +152,8 @@ class RoutingServiceImpl implements RoutingService {
             // async limit (BE-156). Anything but ASSIGNED: no contact.assigned, the agent stays free.
             AssignmentResult assignment = assignContactToAgent(contact, agentId, tenantId,
                     queueId, request.maxConcurrentAsyncPerAgent());
-            if (assignment == AssignmentResult.AGENT_AT_LIMIT) {
+            if (isAgentRejection(assignment)) {
+                recordAgentRejection(assignment);
                 Set<UUID> excluded = new HashSet<>(request.excludedAgentIds());
                 excluded.add(agentId);
                 request = request.withExcludedAgents(excluded);
@@ -280,6 +285,9 @@ class RoutingServiceImpl implements RoutingService {
      * "dirty" flag are continuations and always announce at DEBUG. Coalescing behaviour is unchanged.
      */
     private void retryQueuedContacts(UUID tenantId, UUID availableAgentId, boolean fromPoll) {
+        // BE-175: only the poll's own (first) pass may pass through the once-per-window snapshot gate; passes forced by
+        // the "dirty" flag (an event arrived meanwhile) are event-driven and must publish their snapshot directly.
+        boolean firstPass = true;
         while (true) {
             if (!passesRunning.add(tenantId)) {
                 passesDirty.add(tenantId);
@@ -291,7 +299,8 @@ class RoutingServiceImpl implements RoutingService {
                 do {
                     passesDirty.remove(tenantId);
                     runRetryPass(tenantId, availableAgentId, announceAtInfo,
-                            fromPoll ? java.time.Duration.ZERO : queueLock.defaultWait());
+                            fromPoll ? java.time.Duration.ZERO : queueLock.defaultWait(), fromPoll && firstPass);
+                    firstPass = false;
                     announceAtInfo = false;
                 } while (passesDirty.contains(tenantId));
             } finally {
@@ -305,7 +314,7 @@ class RoutingServiceImpl implements RoutingService {
     }
 
     private void runRetryPass(UUID tenantId, UUID availableAgentId, boolean announceAtInfo,
-                              java.time.Duration queueLockWait) {
+                              java.time.Duration queueLockWait, boolean fromPoll) {
         log.atLevel(announceAtInfo ? Level.INFO : Level.DEBUG)
                 .log("[RoutingService] Agent AVAILABLE, próbuję routować oczekujące kontakty: "
                         + "agentId={}, tenantId={}", availableAgentId, tenantId);
@@ -396,7 +405,7 @@ class RoutingServiceImpl implements RoutingService {
                     tenantId, e.getMessage(), e);
             throw new RuntimeException("Błąd retry routingu dla tenanta " + tenantId, e);
         } finally {
-            broadcastQueueStateToAgents(tenantId);
+            broadcastQueueStateToAgents(tenantId, fromPoll);
             TenantContext.clear();
         }
     }
@@ -510,14 +519,20 @@ class RoutingServiceImpl implements RoutingService {
             // contact (message from an older adapter / retried delivery) is still assigned here conditionally.
             boolean insertedAssigned = "ASSIGNED".equals(contact.getStatus())
                     && message.agentId().equals(contact.getAgentId());
-            if (!insertedAssigned
-                    && assignContactToAgent(contact, message.agentId(), message.tenantId(), null, null)
-                    != AssignmentResult.ASSIGNED) {
-                // BE-159: the contact was claimed by another path first (e.g. a routing pass picked the
-                // freshly inserted QUEUED contact) - no contact.assigned, nothing else to do.
-                log.warn("[RoutingService] Bezpośrednie przypisanie pominięte – kontakt nie jest już " +
-                        "QUEUED bez agenta: contactId={}, agentId={}", message.contactId(), message.agentId());
-                return;
+            if (!insertedAssigned) {
+                // BE-230 S3: WITHOUT voice exclusivity, exactly like the adapter's direct INSERT as ASSIGNED - the
+                // target agent was chosen by a human and the customer is already in their conference, so an
+                // AGENT_BUSY refusal would strand the customer on a QUEUED contact (the two paths of one
+                // transfer must behave the same). Only CONTACT_UNAVAILABLE is possible here.
+                AssignmentResult transfer = contactService.assignQueuedContactForTransfer(contact, message.agentId());
+                if (transfer != AssignmentResult.ASSIGNED) {
+                    // BE-159: the contact was claimed by another path first (e.g. a routing pass picked the
+                    // freshly inserted QUEUED contact) - no contact.assigned, nothing else to do.
+                    log.warn("[RoutingService] Bezpośrednie przypisanie pominięte ({}) – kontakt nie jest już " +
+                            "QUEUED bez agenta: contactId={}, agentId={}", transfer, message.contactId(),
+                            message.agentId());
+                    return;
+                }
             }
             // Nie wywołujemy closeQueue() — dla direct transfer do agenta etap QUEUE
             // nie jest tworzony (transferToAgentViaConference nie wywołuje openQueue()),
@@ -605,6 +620,22 @@ class RoutingServiceImpl implements RoutingService {
     // Metody pomocnicze
     // =========================================================================
 
+    /** The chosen agent cannot take this contact (limit / voice load / lock timeout): exclude them and ask again. */
+    private static boolean isAgentRejection(AssignmentResult assignment) {
+        return assignment == AssignmentResult.AGENT_AT_LIMIT
+                || assignment == AssignmentResult.AGENT_BUSY
+                || assignment == AssignmentResult.AGENT_LOCK_TIMEOUT;
+    }
+
+    /** BE-230: metrics of a rejection - real contention vs a stuck per-agent lock; the async limit is not counted. */
+    private void recordAgentRejection(AssignmentResult assignment) {
+        switch (assignment) {
+            case AGENT_BUSY -> queueLock.recordAgentContention();   // another path (queue / dialer) took the agent
+            case AGENT_LOCK_TIMEOUT -> queueLock.recordAgentLockTimeout();
+            default -> { /* AGENT_AT_LIMIT: ordinary BE-156 limit, not an exclusivity event */ }
+        }
+    }
+
     /**
      * Aktualizuje kontakt – przypisuje agenta i ustawia status ASSIGNED.
      *
@@ -616,12 +647,14 @@ class RoutingServiceImpl implements RoutingService {
      * <p>BE-159: zapis jest warunkowy ({@code WHERE status='QUEUED' AND agent_id IS NULL}); wynik inny niż
      * {@code ASSIGNED} oznacza brak przydziału i caller MUSI pominąć kontakt (bez efektów ubocznych).
      * BE-156: {@code maxAsyncPerAgent != null} dodatkowo egzekwuje atomowo limit otwartych kontaktów async agenta.
+     * BE-230: kontakt PHONE wymusza wyłączność głosową agenta ({@code AGENT_BUSY}); transfer bezpośredni idzie
+     * osobną metodą serwisu bez wyłączności ({@code assignQueuedContactForTransfer}).
      *
      * @param contact          encja kontaktu
      * @param agentId          UUID wybranego agenta
      * @param tenantId         UUID tenanta
-     * @param queueId          kolejka tego przebiegu routingu (jawnie, nie z encji) lub null (transfer bezpośredni)
-     * @param maxAsyncPerAgent limit kontaktów async agenta w kolejce lub null (telefon / transfer bezpośredni)
+     * @param queueId          kolejka tego przebiegu routingu (jawnie, nie z encji)
+     * @param maxAsyncPerAgent limit kontaktów async agenta w kolejce lub null (telefon)
      * @return wynik przydziału
      */
     private AssignmentResult assignContactToAgent(Contact contact, UUID agentId, UUID tenantId,
@@ -679,29 +712,43 @@ class RoutingServiceImpl implements RoutingService {
      * @param tenantId UUID of the tenant whose agents should receive the update
      */
     private void broadcastQueueStateToAgents(UUID tenantId) {
+        broadcastQueueStateToAgents(tenantId, false);
+    }
+
+    /**
+     * BE-175 (review M1): the unlocked 30 s poll runs on EVERY instance and, with the cross-instance WebSocket fan-out,
+     * each instance's snapshot would reach every session - so a poll-triggered snapshot is published at most once
+     * per ~interval cluster-wide ({@code fromPoll}); event-driven ones always go out (they run on one instance).
+     */
+    private void broadcastQueueStateToAgents(UUID tenantId, boolean fromPoll) {
         try {
-            List<QueuedContactView> views =
-                    contactService.findQueuedContactsForAgentView(tenantId);
-
-            List<WebSocketEvent.QueueItemDto> items = views.stream()
-                    .map(v -> new WebSocketEvent.QueueItemDto(
-                            v.contactId().toString(),
-                            ContactChannels.toAgentDesktopType(v.channel()),
-                            v.customerName(),
-                            v.remoteAddress(),
-                            v.queuedAt(),
-                            v.queueName(),
-                            0
-                    ))
-                    .toList();
-
-            broadcaster.sendToTenantAgents(tenantId, WebSocketEvent.queueAgentUpdate(tenantId, items));
-            log.debug("[RoutingService] Queue update sent to agents: tenantId={}, items={}",
-                    tenantId, items.size());
+            if (fromPoll) {
+                broadcaster.sendToTenantAgentsOncePerWindow(tenantId, "queue-agent-update",
+                        java.time.Duration.ofMillis(pollIntervalMs * 8 / 10), () -> buildQueueUpdate(tenantId));
+                return;
+            }
+            broadcaster.sendToTenantAgents(tenantId, buildQueueUpdate(tenantId));
+            log.debug("[RoutingService] Queue update sent to agents: tenantId={}", tenantId);
         } catch (Exception e) {
             log.warn("[RoutingService] Failed to broadcast queue update to agents: tenantId={}, error={}",
                     tenantId, e.getMessage());
         }
+    }
+
+    private WebSocketEvent buildQueueUpdate(UUID tenantId) {
+        List<QueuedContactView> views = contactService.findQueuedContactsForAgentView(tenantId);
+        List<WebSocketEvent.QueueItemDto> items = views.stream()
+                .map(v -> new WebSocketEvent.QueueItemDto(
+                        v.contactId().toString(),
+                        ContactChannels.toAgentDesktopType(v.channel()),
+                        v.customerName(),
+                        v.remoteAddress(),
+                        v.queuedAt(),
+                        v.queueName(),
+                        0
+                ))
+                .toList();
+        return WebSocketEvent.queueAgentUpdate(tenantId, items);
     }
 
     /**

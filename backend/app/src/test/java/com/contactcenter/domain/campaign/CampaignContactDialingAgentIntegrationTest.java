@@ -21,6 +21,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -120,8 +121,9 @@ class CampaignContactDialingAgentIntegrationTest {
         assertThat(column(id, "status")).isEqualTo("DIALING");
         assertThat(column(id, "dialing_agent_id")).as("callback dial has no dialer owner").isNull();
 
-        Boolean free = superJdbc.queryForObject(ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL, Boolean.class,
-                agentA.toString(), tenantId.toString());
+        Map<String, Object> probe = superJdbc.queryForMap(ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL,
+                ProgressiveDialerServiceImpl.agentStillFreeParams(agentA, tenantId));
+        Boolean free = Boolean.TRUE.equals(probe.get("available")) && !Boolean.TRUE.equals(probe.get("voice_busy"));
         assertThat(free).as("agent A is not blocked by somebody else's callback dial").isTrue();
 
         superJdbc.update("UPDATE campaign_contact SET updated_at = NOW() - INTERVAL '30 minutes' WHERE record_id = ?", id);

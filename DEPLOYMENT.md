@@ -693,6 +693,8 @@ REDIS_PORT=6379
 REDIS_PASSWORD=<min-20-znakow-losowe-haslo>
 REDIS_DATABASE=0
 REDIS_SSL_ENABLED=false
+# Fan-out WebSocket (BE-175): przy WSPÓLNYM Redis różne środowiska MUSZĄ mieć różne wartości (domyślnie: pierwszy profil)
+WEBSOCKET_FANOUT_ENV=prod
 REDIS_POOL_MAX_ACTIVE=16
 REDIS_POOL_MAX_IDLE=16
 REDIS_POOL_MIN_IDLE=4

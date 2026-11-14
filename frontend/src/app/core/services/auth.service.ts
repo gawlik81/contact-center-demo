@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, throwError } from 'rxjs';
+import { Observable, tap, catchError, throwError, defer, shareReplay } from 'rxjs';
 import { TokenService } from './token.service';
 import { JwtPayload, UserRole } from '../models/jwt-payload.model';
 import { environment } from '../../../environments/environment';
@@ -95,15 +95,37 @@ export class AuthService {
     );
   }
 
+  private refreshInFlight$: Observable<AuthTokens> | null = null;
+
+  /**
+   * Single-flight: concurrent callers (HTTP interceptor on 401, WebSocket on a token ERROR) share one
+   * POST /auth/refresh, so a rotated refresh token is never presented twice.
+   */
   refresh(): Observable<AuthTokens> {
-    const refreshToken = this.tokenService.getRefreshToken();
-    return this.http.post<AuthTokens>(`${environment.apiUrl}/auth/refresh`, { refreshToken }).pipe(
-      tap((tokens) => this.handleTokens(tokens)),
-      catchError((err) => {
-        this.logout();
-        return throwError(() => err);
-      }),
-    );
+    // Lazy: the token is read and the shared request is created at SUBSCRIBE time, so a caller that
+    // never subscribes leaves nothing behind. The slot is cleared as soon as the request settles,
+    // before the result reaches subscribers, so a call right after completion starts a new POST.
+    return defer(() => {
+      if (!this.refreshInFlight$) {
+        this.refreshInFlight$ = defer(() =>
+          this.http.post<AuthTokens>(`${environment.apiUrl}/auth/refresh`, {
+            refreshToken: this.tokenService.getRefreshToken(),
+          }),
+        ).pipe(
+          tap((tokens) => {
+            this.refreshInFlight$ = null;
+            this.handleTokens(tokens);
+          }),
+          catchError((err) => {
+            this.refreshInFlight$ = null;
+            this.logout();
+            return throwError(() => err);
+          }),
+          shareReplay({ bufferSize: 1, refCount: false }),
+        );
+      }
+      return this.refreshInFlight$;
+    });
   }
 
   logout(): void {

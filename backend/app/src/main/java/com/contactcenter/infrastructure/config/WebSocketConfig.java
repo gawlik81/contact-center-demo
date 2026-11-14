@@ -71,6 +71,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // In-memory broker dla /topic (broadcast) i /user (unicast)
         registry.enableSimpleBroker("/topic", "/user");
 
+        // BE-175 (review S7): brokerChannel is synchronous (SimpleBroker runs on the publishing thread); messages can
+        // only be reordered on the multi-threaded clientOutboundChannel. Preserve the publish order up to the client
+        // (per session) - with the single publisher/dispatch threads of the fan-out this gives end-to-end order
+        // for one sender. Cost: Spring's OrderedMessageChannelDecorator (per-session queueing), to be measured in BE-184.
+        registry.setPreservePublishOrder(true);
+
         // Prefix dla wiadomości kierowanych do @MessageMapping
         registry.setApplicationDestinationPrefixes("/app");
 

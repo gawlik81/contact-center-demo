@@ -60,6 +60,16 @@ public class RoutingQueueLock {
         return defaultWait;
     }
 
+    /** BE-230: counts a routing assignment rejected because the agent was already taken by another path. */
+    public void recordAgentContention() {
+        skipMetrics.recordAgentContention(LockSkipMetrics.SOURCE_ROUTING);
+    }
+
+    /** BE-230 S5: counts a routing assignment that skipped an agent because the per-agent lock timed out. */
+    public void recordAgentLockTimeout() {
+        skipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_ROUTING, LockSkipMetrics.REASON_LOCK_TIMEOUT);
+    }
+
     /**
      * Runs {@code task} while holding the lock of {@code queueId}.
      *

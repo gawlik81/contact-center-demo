@@ -170,6 +170,18 @@ public interface ProgressiveDialerService {
     void markRecordAsDialing(UUID recordId, UUID campaignId, UUID tenantId);
 
     /**
+     * BE-230 P1: DIALING for the manual dialer under the agent's exclusivity - per-agent advisory lock, voice-load
+     * check and the {@code dialing_agent_id} write in one transaction (the same gate as the progressive dialer's claim).
+     * Replaces {@link #markRecordAsDialing} on the manual path.
+     *
+     * @return {@link AgentGate#FREE} = the record is DIALING for the agent; {@link AgentGate#BUSY} = the agent already
+     *         holds a voice contact / DIALING record; {@link AgentGate#LOCK_TIMEOUT} = the agent lock stayed held
+     *         beyond the lock timeout; {@link AgentGate#RECORD_UNAVAILABLE} = the record is no longer PENDING / NO_ANSWER /
+     *         FAILED (claimed by someone else). Anything but FREE: nothing was written.
+     */
+    AgentGate markRecordAsDialingForAgent(UUID recordId, UUID campaignId, UUID tenantId, UUID agentId);
+
+    /**
      * Oznacza rekord campaign_contact jako ERROR (trwały błąd techniczny adaptera telefonii).
      *
      * @param recordId   UUID rekordu

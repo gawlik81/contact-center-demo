@@ -6,6 +6,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.infrastructure.lock.LockSkipMetrics;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +66,9 @@ class ScheduledCallbackExecutorTest {
     @Mock
     private ValueOperations<String, String> valueOps;
 
+    @Mock
+    private LockSkipMetrics lockSkipMetrics;
+
     @InjectMocks
     private ScheduledCallbackExecutor executor;
 
@@ -86,6 +90,9 @@ class ScheduledCallbackExecutorTest {
 
         // Redis – domyślnie skonfigurowane ValueOperations
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+
+        // BE-230 P1: by default the agent holds no voice load
+        when(campaignContactRepository.checkAgentVoiceFree(any(), any())).thenReturn(AgentGate.FREE);
     }
 
     @AfterEach
@@ -251,6 +258,61 @@ class ScheduledCallbackExecutorTest {
     }
 
     // =========================================================================
+    // BE-230 P1: agent AVAILABLE per status, ale z obciążeniem głosowym (lock + check) -> PENDING
+    // =========================================================================
+
+    private void givenDueAgentCallbackWithAvailableAgent(ScheduledCallback callback) {
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt())).thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING"))).thenReturn(1);
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID)).thenReturn(java.util.Optional.of(
+                AppUser.builder().id(AGENT_ID).tenantId(TENANT_ID).status(AppUser.UserStatus.AVAILABLE).build()));
+    }
+
+    @Test
+    @DisplayName("BE-230: agent AVAILABLE, ale z otwartym połączeniem głosowym → callback wraca do PENDING, kampania nietknięta")
+    void executeScheduledCallbacks_agentHoldsVoiceLoad_callbackRevertedToPending() {
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
+        givenDueAgentCallbackWithAvailableAgent(callback);
+        when(campaignContactRepository.checkAgentVoiceFree(TENANT_ID, AGENT_ID)).thenReturn(AgentGate.BUSY);
+
+        executor.executeScheduledCallbacks();
+
+        verifyNoInteractions(telephonyAdapter);
+        verify(campaignContactRepository, never()).markAsDialingForCallback(any(), any(), any());
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "PENDING", TENANT_ID);
+        verify(lockSkipMetrics).recordAgentContention(LockSkipMetrics.SOURCE_CALLBACK);
+    }
+
+    @Test
+    @DisplayName("BE-230 S5: lock agenta niedostępny w limicie czasu → callback wraca do PENDING, metryka lock_timeout")
+    void executeScheduledCallbacks_agentLockTimeout_callbackRevertedToPending() {
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
+        givenDueAgentCallbackWithAvailableAgent(callback);
+        when(campaignContactRepository.checkAgentVoiceFree(TENANT_ID, AGENT_ID)).thenReturn(AgentGate.LOCK_TIMEOUT);
+
+        executor.executeScheduledCallbacks();
+
+        verifyNoInteractions(telephonyAdapter);
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "PENDING", TENANT_ID);
+        verify(lockSkipMetrics).recordAgentSkipped(LockSkipMetrics.SOURCE_CALLBACK, LockSkipMetrics.REASON_LOCK_TIMEOUT);
+        verify(lockSkipMetrics, never()).recordAgentContention(any());
+    }
+
+    @Test
+    @DisplayName("BE-230: callback bez przypisanego agenta nie przechodzi przez bramkę wyłączności")
+    void executeScheduledCallbacks_callbackWithoutAgent_gateNotConsulted() {
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, null, "+48123456789");
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt())).thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING"))).thenReturn(1);
+
+        executor.executeScheduledCallbacks();
+
+        verify(campaignContactRepository, never()).checkAgentVoiceFree(any(), any());
+    }
+
+    // =========================================================================
     // Test 6: Agent sticky BREAK → brak initiateCall, status wraca do PENDING
     // =========================================================================
 
@@ -379,8 +441,10 @@ class ScheduledCallbackExecutorTest {
         // when
         executor.executeScheduledCallbacks();
 
-        // then – brak interakcji z campaignContactRepository
-        verifyNoInteractions(campaignContactRepository);
+        // then – brak zapisu DIALING w campaign_contact (BE-230: jedyna interakcja to bramka wyłączności agenta)
+        verify(campaignContactRepository).checkAgentVoiceFree(TENANT_ID, AGENT_ID);
+        verify(campaignContactRepository, never()).markAsDialingForCallback(any(), any(), any());
+        verifyNoMoreInteractions(campaignContactRepository);
 
         // Redis: brak kluczy dialer:callback-attempt (nie kampanijny)
         verify(valueOps, never()).set(contains("dialer:callback-attempt:"), any(), anyLong(), any());

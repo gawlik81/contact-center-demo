@@ -38,6 +38,7 @@ public class CacheInvalidationBus {
     private final MeterRegistry meterRegistry;
 
     public CacheInvalidationBus(StringRedisTemplate redis,
+                                @org.springframework.beans.factory.annotation.Qualifier("redisMessageListenerContainer")
                                 RedisMessageListenerContainer listenerContainer,
                                 MeterRegistry meterRegistry) {
         this.redis = redis;

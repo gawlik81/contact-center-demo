@@ -1,8 +1,22 @@
 <!-- WS disconnection banner -->
 @if (wsService.connectionState() !== 'CONNECTED') {
-  <div class="ws-banner" role="alert" aria-live="assertive">
+  <div
+    class="ws-banner"
+    [attr.role]="wsService.isTerminal() ? 'alert' : 'status'"
+    [attr.aria-live]="wsService.isTerminal() ? 'assertive' : 'polite'"
+  >
     <span class="ws-banner__icon" aria-hidden="true">⚠</span>
-    {{ 'supervisor.dashboard.wsDisconnected' | transloco }}
+    @switch (wsService.connectionState()) {
+      @case ('FORBIDDEN') {
+        {{ 'agent.desktop.wsForbidden' | transloco }}
+      }
+      @case ('SESSION_EXPIRED') {
+        {{ 'agent.desktop.wsSessionExpired' | transloco }}
+      }
+      @default {
+        {{ 'supervisor.dashboard.wsDisconnected' | transloco }}
+      }
+    }
   </div>
 }
 

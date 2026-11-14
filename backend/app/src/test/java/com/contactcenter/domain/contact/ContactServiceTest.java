@@ -1662,6 +1662,83 @@ class ContactServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("assignQueuedContact - wylacznosc glosowa (BE-230)")
+    class AssignQueuedContactVoiceExclusivityTests {
+
+        @Test
+        @DisplayName("kontakt PHONE (i legacy bez kanalu) -> repozytorium dostaje exclusiveVoice=true; EMAIL/CHAT -> false")
+        void passesVoiceExclusivityByChannel() {
+            UUID queue = UUID.randomUUID();
+            when(contactRepository.assignIfQueued(any(), any(), any(), any(), any(), any(), eq(true)))
+                    .thenReturn(AssignmentResult.AGENT_BUSY);
+            when(contactRepository.assignIfQueued(any(), any(), any(), any(), any(), any(), eq(false)))
+                    .thenReturn(AssignmentResult.ASSIGNED);
+
+            Contact phone = buildContact(CONTACT_ID, "QUEUED");
+            Contact legacy = buildContact(CONTACT_ID, "QUEUED");
+            legacy.setChannel(null);
+            Contact email = buildContact(CONTACT_ID, "QUEUED");
+            email.setChannel("EMAIL");
+            Contact chat = buildContact(CONTACT_ID, "QUEUED");
+            chat.setChannel("CHAT");
+
+            assertThat(contactService.assignQueuedContact(phone, AGENT_ID, queue, null))
+                    .isEqualTo(AssignmentResult.AGENT_BUSY);
+            assertThat(contactService.assignQueuedContact(legacy, AGENT_ID, queue, null))
+                    .isEqualTo(AssignmentResult.AGENT_BUSY);
+            assertThat(contactService.assignQueuedContact(email, AGENT_ID, queue, 3))
+                    .isEqualTo(AssignmentResult.ASSIGNED);
+            assertThat(contactService.assignQueuedContact(chat, AGENT_ID, queue, 3))
+                    .isEqualTo(AssignmentResult.ASSIGNED);
+        }
+
+        @Test
+        @DisplayName("BE-230 S3: assignQueuedContactForTransfer -> exclusiveVoice=false takze dla PHONE, bez limitu i kolejki; sukces aktualizuje encje")
+        void transferAssignmentBypassesVoiceExclusivity() {
+            when(contactRepository.assignIfQueued(any(), any(), any(), any(), isNull(), isNull(), eq(false)))
+                    .thenReturn(AssignmentResult.ASSIGNED);
+            Contact phone = buildContact(CONTACT_ID, "QUEUED");
+            phone.setAgentId(null);
+
+            assertThat(contactService.assignQueuedContactForTransfer(phone, AGENT_ID))
+                    .isEqualTo(AssignmentResult.ASSIGNED);
+
+            verify(contactRepository, never()).assignIfQueued(any(), any(), any(), any(), any(), any(), eq(true));
+            assertThat(phone.getStatus()).isEqualTo("ASSIGNED");
+            assertThat(phone.getAgentId()).isEqualTo(AGENT_ID);
+        }
+
+        @Test
+        @DisplayName("BE-230 S5: AGENT_LOCK_TIMEOUT nie zmienia encji w pamieci")
+        void lockTimeoutLeavesEntityUntouched() {
+            when(contactRepository.assignIfQueued(any(), any(), any(), any(), any(), any(), eq(true)))
+                    .thenReturn(AssignmentResult.AGENT_LOCK_TIMEOUT);
+            Contact phone = buildContact(CONTACT_ID, "QUEUED");
+            phone.setAgentId(null);
+
+            assertThat(contactService.assignQueuedContact(phone, AGENT_ID, UUID.randomUUID(), null))
+                    .isEqualTo(AssignmentResult.AGENT_LOCK_TIMEOUT);
+
+            assertThat(phone.getStatus()).isEqualTo("QUEUED");
+            assertThat(phone.getAgentId()).isNull();
+        }
+
+        @Test
+        @DisplayName("AGENT_BUSY nie zmienia encji w pamieci (kontakt zostaje QUEUED)")
+        void agentBusyLeavesEntityUntouched() {
+            when(contactRepository.assignIfQueued(any(), any(), any(), any(), any(), any(), eq(true)))
+                    .thenReturn(AssignmentResult.AGENT_BUSY);
+            Contact phone = buildContact(CONTACT_ID, "QUEUED");
+            phone.setAgentId(null);
+
+            contactService.assignQueuedContact(phone, AGENT_ID, UUID.randomUUID(), null);
+
+            assertThat(phone.getStatus()).isEqualTo("QUEUED");
+            assertThat(phone.getAgentId()).isNull();
+        }
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

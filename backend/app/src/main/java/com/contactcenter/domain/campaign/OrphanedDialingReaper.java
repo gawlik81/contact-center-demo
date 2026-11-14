@@ -25,9 +25,11 @@ import java.util.UUID;
  * so a JVM crash / SIGTERM (rolling deploy) between the two leaves the record {@code DIALING} for good: it is never
  * dialled again, campaign counters are inflated and the GDPR guard (409) refuses to anonymise that customer.
  *
- * <p>Scope: ONLY records the progressive dialer claimed ({@code dialing_agent_id IS NOT NULL}, V151) whose
+ * <p>Scope: ONLY records claimed for an agent ({@code dialing_agent_id IS NOT NULL}, V151) - the progressive dialer's
+ * claim and, since BE-230, the manual dialer's claim ({@code markAsDialingForAgent}) - whose
  * {@code updated_at} is older than {@code dialer.dialing-reaper.stale-after-minutes} (default 10 min, far above the
- * 30 s ring timeout). Callback / manual dials also use DIALING and are left to their own flows.
+ * 30 s ring timeout). Callback dials also use DIALING (with
+ * {@code dialing_agent_id = NULL}) and are left to their own flow.
  * For every such record, in this order:
  * <ol>
  *   <li>a linked contact is still OPEN (QUEUED/ASSIGNED/ACTIVE/ON_HOLD) - a live call: untouched;</li>

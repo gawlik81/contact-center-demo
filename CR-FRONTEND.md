@@ -3086,3 +3086,95 @@ _Brak._
 
 ### Summary
 **4/5 — APPROVE (brak must-fix).** Poprawna, zgodna z BE-223 i kryteriami implementacja; do dopracowania: testy scenariuszy aria-live (wiele tabel, param `table`, blad pollingu), spojnosc N min z zegarem klienta oraz ogloszenie nowej tabeli juz zastalej.
+
+---
+
+## Review: FE-169 + FE-170 — 2026-11-14
+
+Zakres: `core/services/websocket.service.ts` (+spec), `agent-status.service.ts` (+spec), `ws-banner` (input `rejection`), `agent-desktop` (isOffline / wsRejection), `public/i18n/{pl,en,de,uk}.json`. Porownane z `StompDestinationAuthorizationInterceptor`, `WebSocketAuthInterceptor`, `JwtParser`.
+Wyniki: `npm run lint` 0 bledow (10 warningow no-console, istniejace), `npm run format:check` OK, `npm test` 87 plikow / 1259 testow zielone.
+
+### Must-fix
+- **M1 `websocket.service.ts` (callbacki `onWebSocketClose`/`onStompError`/`onConnect` w `connect()`, ok. l.150-180)** Callbacki konfiguracji Client nie sa zwiazane z konkretnym klientem — czytaja `this.client`. `disconnect()` robi `deactivate()` i `client = null`; zamkniecie gniazda starego klienta przychodzi asynchronicznie i wywoluje `onWebSocketClose` (stompjs wola callback takze po `deactivate()`). Jesli w miedzyczasie `connect()` utworzyl NOWEGO klienta (wylogowanie → szybkie logowanie, zmiana roli, `agent-shell` destroy/init), stare zdarzenie: ustawia `DISCONNECTED` i `scheduleReconnect()` na NOWYM `this.client` → `deactivate()` zdrowego polaczenia + reconnect po backoffie (wczesniej skutek byl tylko kosmetyczny). Fix: w `connect()` zlap `const client = new Client(...)` i w kazdym callbacku `if (this.client !== client) return;` (albo generacja/epoka).
+- **M2 `websocket.service.ts:connect()` + `scheduleReconnect()` (l.185, 262)** `connect()` nie wola `clearReconnectTimer()`. W oknie backoffu klient jest zdeaktywowany (`active=false`), wiec guard `if (this.client?.active) return` nie zadziala, a `supervisor-dashboard.component.ts:66` wola `connect()` dokladnie gdy stan == `DISCONNECTED` (czyli w backoffie). Powstaje nowy Client, stary timer (do 30 s) nadal trzyma `reconnectTimer !== null`, wiec `scheduleReconnect()` nowego klienta wraca na pierwszej linii — jesli nowy klient padnie w tym oknie, nie wroci nigdy (stan DISCONNECTED na stale). Fix: `clearReconnectTimer()` na poczatku `connect()` (+ test: drop → connect() → drop → oczekiwany activate).
+- **M3 `features/supervisor/pages/users/user-list/user-list.component.ts:169` (+ `supervisor-dashboard.component.html:2`)** Nowe stany terminalne FORBIDDEN/SESSION_EXPIRED nie sa uwzglednione: polling fallback filtruje tylko `DISCONNECTED`/`ERROR`, wiec po terminalnym odrzuceniu supervisor nie ma ani WS, ani pollingu (dane stoja). Dashboard pokazuje generyczny „Disconnected” dla kazdego != CONNECTED i `connect()` odpala tylko dla `DISCONNECTED` (nie wznowi z FORBIDDEN). Fix: wspolny helper/computed `isDown`/`isTerminal` w serwisie, uzyc w obu miejscach; grep po wszystkich uzyciach `connectionState()` przy zmianie unii typu.
+
+### Should-fix
+- **S1 `websocket.service.ts:handleStompError` (TOKEN) → `this.auth.refresh()`** Omija single-flight z `TokenRefreshService`/`auth.interceptor`. Rownolegle 401 z HTTP i ERROR z WS = dwa `POST /auth/refresh` z tym samym refresh tokenem; przy rotacji drugi dostaje 401 → `auth.refresh()` robi `logout()` → agent wylogowany przez wyscig. Fix: wspolna metoda w `AuthService`/`TokenRefreshService` (shareReplay w trakcie lotu), z niej korzysta interceptor i WS.
+- **S2 `handleStompError` (async refresh vs `disconnect()`/`connect()`)** Subskrypcja `refresh()` nie jest anulowana w `disconnect()`. Scenariusz: ERROR TOKEN → refresh w locie → logout/disconnect → login/connect (nowy Client) → stary refresh sie konczy: `next` sprawdza tylko `!this.client` (nowy klient jest non-null) → `scheduleReconnect(true)` zdeaktywuje i zrestartuje nowego klienta, a `error` → `halt('SESSION_EXPIRED')` ubije nowa sesje. Fix: trzymaj `Subscription`/epoke i anuluj w `disconnect()`/`connect()`; w `next`/`error` porownuj z epoka.
+- **S3 `handleStompError` (OTHER) l.~254** Przejsciowy ERROR ustawia tylko `ERROR` i liczy na to, ze serwer zamknie sesje (potem `onWebSocketClose` → reconnect). Spring po ERROR nie gwarantuje zamkniecia gniazda; jesli zostanie otwarte, klient zostaje w `ERROR` bez timera (stompjs z `reconnectDelay:0` tez sie nie podniesie). Fix: w galezi OTHER wywolac `scheduleReconnect()` bezposrednio (idempotentne dzieki guardowi na timerze). Do potwierdzenia w przegladarce (AC5 nie wykonane — patrz nizej).
+- **S4 backoff vs wake/online (`listenForWake`)** `online`/`visibilitychange` nie przyspieszaja reconnectu. Po powrocie sieci agent moze czekac do 30 s (wczesniej ≤1 s) — dla stanowiska kontaktowego to regresja czasu odzyskania. Fix: na `online` (i widocznosc) jesli jest timer backoffu — `clearReconnectTimer()`, `reconnectAttempt = 0`, natychmiastowe `scheduleReconnect(true)`.
+- **S5 `handleStompError` (TOKEN), stan UI** W galezi TOKEN `halted=true` blokuje `onWebSocketClose`, wiec `connectionState` zostaje `CONNECTED`/`CONNECTING` na czas refreshu (przy wolnej sieci sekundy–timeout) mimo martwego polaczenia. Ustaw `DISCONNECTED` (lub `CONNECTING`) przed refreshem.
+- **S6 `ws-banner.component.html:1` aria-live** `role="alert" aria-live="assertive"` + tresc przelaczana miedzy „Laczenie…”/„Utracono polaczenie” przy kazdym cyklu backoffu = czytnik ekranu przerywa agentowi co kilkanascie sekund (przy starym 1 s bylo gorzej, ale problem pozostaje). Fix: `role="status"`/polite dla stanow przejsciowych, `alert` tylko dla `rejection` (terminalne). Dodatkowo oba terminalne komunikaty sa bez akcji: dla SESSION_EXPIRED brak przycisku „Zaloguj ponownie” (w praktyce `auth.refresh()` robi `logout()`, wiec nawigacja nastapi — potwierdz), dla FORBIDDEN tylko tekst „odswiez strone”; ticket opisywal wymuszenie odswiezenia profilu `GET /users/me` zamiast ślepego reconnectu — niezrealizowane (przynajmniej przycisk „Sprobuj ponownie” → `ws.connect()` po refreshu profilu).
+- **S7 Testy (`websocket.service.spec.ts`)** Poprawne: fake timers + `Math.random` = 0 (deterministyczny jitter), okno 60 s > 5 s, reset po `onConnect`, brak stackowania timerow, anulowanie w `disconnect()`. Luki: (a) `activate`/`deactivate` zamockowane — nigdy nie testujemy realnego stompjs (callback `onWebSocketClose` wywolywany przez wlasne `deactivate()`, `activate()` w stanie DEACTIVATING); (b) `refresh = of({})` emituje synchronicznie, wiec test TOKEN nie trafia w okno „refresh w locie” (close przychodzi przed/po resolve) — brak testow dla S2, M1, M2, S3; (c) brak testu terminalnego → `connect()` wznawia (stan i `halted`), brak testu AC3 (AGENT nie subskrybuje `/supervisor`; `registerTopic` robi to dopiero `SupervisorMetricsService` — warto test kontraktowy), (d) brak testow `ws-banner` dla `rejection` (spec nie ruszony) i `agent-desktop` (`isOffline`/`wsRejection`). Test `jitter` ma asercje 15000 dla attempt 5 z random=0 — OK.
+- **S8 AC5 FE-169** „Weryfikacja w przegladarce na local-demo” (sztuczna zabroniona subskrypcja → jeden ERROR, brak petli) — brak sladu wykonania; wymagane zwlaszcza dla S3 i dla klasyfikacji po tekscie (patrz nizej).
+
+### Klasyfikacja po tekscie `message` — analiza (pkt 1)
+Rzeczywiste teksty backendu:
+- `StompDestinationAuthorizationInterceptor.reject()` — JEDEN tekst „Brak uprawnień do wskazanej destynacji STOMP” dla wszystkich sciezek: SUBSCRIBE (no_principal, no_destination, foreign_user/tenant, insufficient_role, destination_not_allowed), SEND (no_principal, destination_not_allowed), default-deny komend (BEGIN/COMMIT/ABORT, server-only, brak komendy). Wszystkie → „uprawnie” → FORBIDDEN. Poprawne, takze dla SUPER_ADMIN bez tenanta (foreign_tenant). Ale `no_principal` (sesja bez zaufanego principala) to de facto blad sesji, nie roli — klient pokaze „brak uprawnien” zamiast prob odnowienia.
+- `WebSocketAuthInterceptor` — „Brak tokenu uwierzytelniającego. …” oraz „Nieprawidłowy token JWT: …” (+ `JwtParser`: „Token JWT wygasł”, „Nieprawidłowy podpis tokenu JWT”, „Brak wymaganego claim '…' w tokenie JWT”) → wszystkie zawieraja „token” → TOKEN. OK. Dziura: `JwtParser.extractUuid*`: „Nieprawidłowy format UUID w claim '…'” bez „token” → OTHER → petla reconnectow ze zlym tokenem bez refreshu/zatrzymania (rzadkie, ale to ten sam brak kontraktu).
+- Kruchosc: (1) zalezy od jezyka i brzmienia (zmiana tekstu/i18n backendu cicho psuje klienta — test FE trzyma kopie tekstu, wiec nie wykryje rozjazdu z BE); (2) kolejnosc sprawdzen: dowolny tekst jjwt doklejony w „Nieprawidłowy token JWT: <e.getMessage()>” zawierajacy „uprawnie” bylby FORBIDDEN; (3) „token” jako szeroki podciag moze zlapac przejsciowe bledy brokera/kanalu wspominajace token; (4) zalezy od tego, czy Spring faktycznie wystawia tekst naszego wyjatku w naglowku `message` — przy opakowaniu w `MessageDeliveryException` ("Failed to send message to ExecutorSubscribableChannel…") klasyfikacja zwroci OTHER i petla 1 req/s (teraz backoff) wroci; trzeba potwierdzic wywolaniem na zywym BE (S8). Przejsciowe bledy (broker/Redis/transient) zostaja OTHER → retry — to jest bezpieczny kierunek; ryzyko jest odwrotne (terminal tam, gdzie powinien byc retry) tylko przez pkt 2/3.
+- **Follow-up BE (propozycja, np. BE-236):** stabilny kod w natywnym naglowku ERROR: `registry.setErrorHandler(new StompSubProtocolErrorHandler() {...})` z nadpisana `handleClientMessageProcessingError` — rozpakowac `MessageDeliveryException`, mapowac wlasne wyjatki (`StompRejectedException(code)`) na `accessor.setNativeHeader("code", …)`; kody: `WS_FORBIDDEN` (SUBSCRIBE/SEND/komenda), `WS_NO_SESSION` (no_principal), `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL` (reszta/transient). `message` zostaje czytelny dla czlowieka. FE: `classifyStompError` czyta `headers['code']` jako zrodlo prawdy, podciagi tylko jako fallback na okres przejsciowy; osobny kod dla wygaslego tokenu pozwala od razu odswiezyc, a dla `WS_TOKEN_INVALID` nie ma sensu refreshowac. Dopisac test kontraktowy BE (kod w ramce) i FE (kody ↔ klasy).
+
+### Pozostale uwagi
+- **FE-170** — usuniecie `ws.publish('/app/agent/status')` + komentarza poprawne; grep nie znajduje innych publikacji na `/app/*` poza `/app/ping`; test „REST only” dobry. Mozna zamknac; potem BE moze usunac wyjatek legacy. Pozostal `ws` w `agent-status.service` — sprawdzic czy wstrzykniecie nadal potrzebne (subskrypcje zdarzen) — nit.
+- **i18n** — klucze `wsForbidden`/`wsSessionExpired` w pl/en/de/uk, parytet OK, diakrytyki poprawne (uk: „Сесія закінчилась” — ok). Nit: pl „Utracono połączenie – próba reconnect” (istniejace) miesza jezyki.
+- **Nit** `RECONNECT_*`/`computeReconnectDelay` wyeksportowane i gotowe do reuse przez FE-155 — dobrze; upewnic sie w FE-155, ze nie powstaje drugi timer. `reconnectAttempt++` zuzywane tez przy sciezce `immediate` — nieszkodliwe.
+- **Nit** `halt()` robi `void this.client?.deactivate()` bez czyszczenia `this.client` — po terminalnym stanie `connect()` dziala tylko dzieki temu, ze `active=false`; warto jawny test.
+
+### ✅ Pozytywne
+- Czysta, czysto testowalna funkcja `computeReconnectDelay` (injectable `random`), equal jitter zgodny ze spec, pulap 30 s.
+- Jeden timer + guard `reconnectTimer !== null` przeciw podwojnemu `onWebSocketClose`; sprawdzenie `this.client !== client || this.halted` w timerze.
+- `beforeConnect` czyta swiezy token przy kazdej probie; jednorazowy refresh na outage (`tokenRefreshTried` resetowany po sukcesie) — brak petli refreshy.
+- Bezpieczny kierunek klasyfikacji: nieznany ERROR = retry z backoffem; log tylko naglowka `message`, nie calej ramki (bez wyciekania body).
+- Rozdzielenie typow stanow (transport vs terminal) + komentarz kontraktu; i18n w 4 jezykach.
+
+### Summary
+**3.5/5 — APPROVE WITH FIXES (3 must-fix).** Sam algorytm backoffu i klasyfikacja sa poprawne i dobrze przetestowane na poziomie jednostkowym, ale izolacja cyklu zycia klienta (callbacki niezwiazane z instancja, timer nieczyszczony w `connect()`, refresh poza single-flight) zostawia realne wyscigi, a nowe stany terminalne psuja polling fallback u supervisora.
+
+---
+
+## Re-review: FE-169 + FE-170 — 2026-11-14
+
+Wyniki: `npm run lint` 0 bledow (10 warningow no-console, istniejace), `npm run format:check` OK, `npm test` 87 plikow / 1273 testy zielone (+14).
+
+### Status punktow z poprzedniego review
+| Punkt | Status | Uwagi |
+|---|---|---|
+| M1 callbacki niezwiazane z klientem | zamkniety | `if (this.client !== client) return;` w onConnect/onDisconnect/onStompError/onWebSocketError/onWebSocketClose; test „late close of a replaced client”. |
+| M2 `connect()` nie czyscil timera | zamkniety | `clearReconnectTimer()` + `cancelRefresh()` na poczatku `connect()`; test. |
+| M3 polling/dashboard a stany terminalne | zamkniety (uwaga N4) | `isDown`/`isTerminal` w serwisie, `user-list` uzywa `ws.isDown()`; dashboard ma tekst i role dla terminalnych. |
+| S1 refresh single-flight | czesciowo (dziala, ale bez testow, N1/N2) | Interceptor (`auth.interceptor.ts:76`), guard i WS ida przez ten sam `authService.refresh()`. |
+| S2 refresh vs disconnect/connect | zamkniety | `refreshSub` anulowany w `connect()`/`disconnect()`/przed nowym refreshem; test. Anulowanie subskrypcji nie przerywa HTTP (refCount:false) — poprawnie. |
+| S3 OTHER polega na close | zamkniety | `scheduleReconnect()` wprost; test. |
+| S4 wake podczas backoffu | zamkniety | tylko `online`/`visibilitychange` (nie `focus`), nie z `halted`/terminal, reset attempt; testy. Nit: kazdy powrot na karte w czasie awarii serwera zeruje backoff (akcja uzytkownika). |
+| S5 stan podczas refreshu | zamkniety | `DISCONNECTED` przed refreshem; test. |
+| S6 aria-live + akcje | zamkniety | role/aria-live zaleznie od `rejection`, przyciski retry/signIn, `retry`→`resumeAfterRejection()`, `signIn`→`logout()`. Nit: `min-height: 1.75rem` (28 px) to maly cel dotykowy. |
+| S7 testy | czesciowo | Dodane: M1, M2, S2–S5, wake x3, resume z terminala, `isDown`, AC3, banner, agent-desktop. Nadal: realny stompjs zamockowany; BRAK testow single-flight w `auth.service.spec.ts`/`auth.interceptor.spec.ts` (bez zmian); brak testu `resumeAfterRejection`. |
+| S8 AC5 przegladarka | otwarty | Brak sladu weryfikacji na local-demo (realny ERROR z BE). |
+| klasyfikacja / BE-236 | czesciowo | „claim” → TOKEN zamyka dziure UUID; `TODO(BE-236)`. Ticket BE na naglowek `code` nadal do zalozenia. |
+
+### Analiza S1 (`auth.service.ts:98-120`)
+- Kolejnosc `tap → catchError → finalize → shareReplay({refCount:false})` jest poprawna. `logout()` leci raz na lot (catchError zrodla, przed multicastem). `finalize` zeruje `refreshInFlight$`, wiec kolejne `refresh()` tworzy swiezy request. Po bledzie shareReplay sie resetuje, ale pole jest juz wyczyszczone — nowi wolajacy nie dostaja starej referencji.
+- Wyscig finalize vs nowy refresh: `finalize` biegnie po dostarczeniu `next/complete`, wiec handler `next` wolajacy `refresh()` synchronicznie w tym samym stosie dostalby jeszcze stary obserwabl. Handlery (retry HTTP, `scheduleReconnect`) sa asynchroniczne — brak realnego wplywu, ale warto zerowac pole w `tap`/`catchError`.
+- **N1 (should-fix)** `refreshInFlight$` ustawiane przy WYWOLANIU, a request startuje przy pierwszej subskrypcji; `refreshToken` czytany przy wywolaniu. Wolajacy bez subskrypcji zostawia pole na stale i kolejne `refresh()` zwroci obserwabl ze STARYM tokenem. Dzis wszyscy subskrybuja od razu, wiec to ryzyko, nie aktywny blad. Fix: `defer(() => http.post(...))` z odczytem tokenu wewnatrz.
+- **N2 (should-fix)** Brak testow: 2 rownolegle `refresh()` → 1 POST i 1 `handleTokens`; blad → 1 `logout()`; wywolanie po zakonczeniu → nowy POST; interceptor 401 + WS rownolegle. Istniejace testy `refresh()` (spec l.238–270) i interceptora przechodza — brak regresji.
+- Interceptor nadal wola `authService.logout()` we wlasnym `catchError` obok logout z `refresh()` (podwojny logout, wzorzec sprzed zmiany; drugi no-op po wyczyszczeniu tokenow). Nit.
+
+### `resumeAfterRejection()`
+- Nie omija guardow `connect()`: po `halt()` klient nieaktywny → powstaje nowy; gdy aktywny → return. Wielokrotne klikniecie: kazde robi osobny `GET /users/me` (brak debounce/disabled), ale koncza sie jednym aktywnym klientem, a po pierwszym `connect()` stan = CONNECTING i baner znika. Brak petli.
+- **N3 (should-fix, maly)** Galaz `error: () => this.connect()` nie sprawdza sesji: przy 401 interceptor robi `logout()`, a callback i tak otwiera WS (zamknie go dopiero `disconnect()` z niszczenia shella). Fix: laczyc w `error` tylko gdy `auth` ma sesje; przycisk disabled w trakcie GET. Brak testu `resumeAfterRejection`.
+
+### Nowe uwagi
+- **N4 (nit)** `supervisor-dashboard.component.html` uzywa kluczy `agent.desktop.wsForbidden/wsSessionExpired` (cross-feature); dashboard dla terminala nie ma akcji ponowienia, a KPI zalezne od WS nie maja pollingu — tylko komunikat.
+- **N5 (nit)** „claim” to szeroki podciag; usunac razem z fallbackiem po BE-236.
+- **N6 (nit)** `agent-desktop.component.ts`: `isOffline` duplikuje `ws.isDown()` (z wyjatkiem CONNECTING — komentarz „same rule” jest nieprecyzyjny); `onWsRetry` wstawiona miedzy pola.
+- i18n `wsRetry`/`wsSignIn` w 4 jezykach, parytet OK.
+
+### ✅ Pozytywne
+- Closure-guard klienta i anulowanie refreshu to minimalne, czyste rozwiazanie wyscigow; kazdy ma test regresyjny.
+- Reuse `refresh()` w jednym miejscu zamiast osobnego mechanizmu w WS.
+- Polityka aria-live: polite dla przejsciowych, alert tylko dla wymagajacych akcji; test na atrybuty.
+
+### Summary
+**4.5/5 — APPROVE (brak must-fix).** M1–M3 i S2–S6 domkniete poprawnie i z testami; S1 dziala, ale single-flight nie ma wlasnych testow i ma lenisty-capture tokenu (N1/N2), a AC5 (realny ERROR z BE w przegladarce) pozostaje otwarty.

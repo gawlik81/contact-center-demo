@@ -7,6 +7,7 @@ import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
+import com.contactcenter.infrastructure.lock.LockSkipMetrics;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +57,7 @@ class ScheduledCallbackExecutor {
     private final TenantTwilioConfigService tenantTwilioConfigService;
     private final CampaignContactRepository campaignContactRepository;
     private final StringRedisTemplate redisTemplate;
+    private final LockSkipMetrics lockSkipMetrics;
 
     @Value("${dialer.callback-executor.batch-size:50}")
     private int batchSize;
@@ -165,6 +167,24 @@ class ScheduledCallbackExecutor {
             if (!agentAvailable) {
                 log.info("[CallbackExecutor] Agent {} niedostępny – cofam callback {} do PENDING",
                         callback.getAgentId(), callback.getCallbackId());
+                callbackRepository.updateStatus(callback.getCallbackId(), "PENDING", callback.getTenantId());
+                return;
+            }
+
+            // BE-230 P1: the agent is AVAILABLE per status, but may still hold a voice contact (ringing ASSIGNED,
+            // outbound QUEUED) or a DIALING record - checked under the per-agent lock shared with routing / dialer.
+            // Busy or lock timeout: the callback goes back to PENDING and is retried on the next tick.
+            AgentGate gate = campaignContactRepository.checkAgentVoiceFree(callback.getTenantId(),
+                    callback.getAgentId());
+            if (gate != AgentGate.FREE) {
+                if (gate == AgentGate.BUSY) {
+                    lockSkipMetrics.recordAgentContention(LockSkipMetrics.SOURCE_CALLBACK);
+                } else {
+                    lockSkipMetrics.recordAgentSkipped(LockSkipMetrics.SOURCE_CALLBACK,
+                            LockSkipMetrics.REASON_LOCK_TIMEOUT);
+                }
+                log.info("[CallbackExecutor] Agent {} ma połączenie głosowe / lock niedostępny ({}) – cofam callback {} do PENDING",
+                        callback.getAgentId(), gate, callback.getCallbackId());
                 callbackRepository.updateStatus(callback.getCallbackId(), "PENDING", callback.getTenantId());
                 return;
             }

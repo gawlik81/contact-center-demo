@@ -22,6 +22,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -482,10 +483,30 @@ public interface ContactService {
      * @param maxAsyncPerAgent  limit of open async contacts of the agent in {@code queueId}
      *                          ({@code queue.max_concurrent_contacts_per_agent}); {@code null} = no limit (phone)
      * @return {@code ASSIGNED} = this caller won the contact; {@code CONTACT_UNAVAILABLE} = already assigned / no
-     *         longer QUEUED; {@code AGENT_AT_LIMIT} = agent is full (contact stays QUEUED, try another agent).
+     *         longer QUEUED; {@code AGENT_AT_LIMIT} = agent is full (contact stays QUEUED, try another agent);
+     *         {@code AGENT_BUSY} (BE-230, voice contacts only) = the agent already holds a voice contact / DIALING
+     *         dialer record - checked under the per-agent advisory lock shared with the dialer;
+     *         {@code AGENT_LOCK_TIMEOUT} (BE-230) = that lock stayed held beyond the lock timeout (agent skipped).
      *         Anything but ASSIGNED: publish nothing, keep the agent free.
      */
     AssignmentResult assignQueuedContact(Contact contact, UUID agentId, UUID queueId, Integer maxAsyncPerAgent);
+
+    /**
+     * BE-230 S3: conditional assignment of a QUEUED contact to the agent a HUMAN chose (direct transfer; message from
+     * an older telephony adapter or a retried delivery). Same {@code WHERE status='QUEUED' AND agent_id IS NULL}
+     * guard as {@link #assignQueuedContact}, but deliberately WITHOUT voice exclusivity: the customer is already in the
+     * target agent's conference, so refusing the assignment would strand them on a QUEUED contact; this is the same
+     * decision as the adapter's direct INSERT as {@code ASSIGNED} (see 04-backend.md section 4.6, "paths outside the lock").
+     *
+     * @return {@code ASSIGNED} or {@code CONTACT_UNAVAILABLE} (never {@code AGENT_BUSY} / {@code AGENT_LOCK_TIMEOUT})
+     */
+    AssignmentResult assignQueuedContactForTransfer(Contact contact, UUID agentId);
+
+    /**
+     * BE-230 S7: which of {@code agentIds} hold a voice load (an open PHONE contact or a DIALING dialer record).
+     * One batch query; a routing PRE-FILTER only (no agent lock), the lock at write time is the guarantee.
+     */
+    Set<UUID> findAgentIdsWithVoiceLoad(UUID tenantId, Collection<UUID> agentIds);
 
     /**
      * BE-156: number of open ASYNC contacts (EMAIL/CHAT/SOCIAL*; ASSIGNED/ACTIVE/ON_HOLD) per agent in one queue.

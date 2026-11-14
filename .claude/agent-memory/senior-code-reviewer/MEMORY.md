@@ -22,3 +22,4 @@
 - [EPIC-32 phase 2 review (FE-119/120/126)](project_epic32_phase2_review.md) — 4/5 (2026-10-23): stale add-break validation, confirm-dialog no spec, KPI de@1366 unmeasured
 - [FE-132/FE-133 tabs review](project_fe132_fe133_tabs_review.md) — 3/5 (2026-10-29): hangup skips ACW, dialog state race, Delete repeat, focus steal, remount announcement
 - [BE-210/FE-164 presence review](project_be210_fe164_presence_review.md) — 2026-11-08: BE 3.5/5 (Redis flush mass-OFFLINE must-fix), FE 4/5
+- [BE-175/176 WS fan-out review](project_be175_be176_ws_fanout_review.md) — 4/5 (2026-11-14): routing poll duplicates, instance-id collision, no HMAC, brokerChannel is synchronous

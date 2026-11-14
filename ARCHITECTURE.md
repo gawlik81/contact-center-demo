@@ -790,9 +790,24 @@ only without an ACTIVE/ON_HOLD PHONE contact after agent.presence.busy-orphan-ti
 flush restarts the grace period. The client also resyncs its own status via GET /users/me
 every 60 s and never auto-restores AVAILABLE after a reconnect.
 
-Internal relay: RabbitToWebSocketRelay consumes cc.queue.call-events and republishes to
-the relevant /topic/... destinations; some services (SupervisorMetricsService,
-WaitTimeEstimationService) publish directly via SimpMessagingTemplate.
+Internal relay: RabbitToWebSocketRelay consumes the cc.queue.ws-relay-* queues (fixed names = one shared queue
+per event group, competing consumers: each Rabbit event is handled by exactly ONE instance) and passes it to
+WebSocketEventBroadcaster. All publishers (the relay, SupervisorMetricsService, WaitTimeEstimationService,
+ContactAssignmentMonitor, ...) go through WebSocketEventBroadcaster - it is the only user of the broker template.
+
+Multi-instance delivery (BE-175, ADR-14 option B, §11.14): every instance keeps its own in-memory SimpleBroker;
+WebSocketEventBroadcasterImpl -> WebSocketFanoutPublisher delivers the event to the local broker and publishes an
+envelope to the Redis channel cc:ws:fanout:<environment>; WebSocketFanoutSubscriber on every OTHER instance validates it and hands
+it to its local broker. Destinations and the frontend are unchanged.
+
+   publisher instance A                         Redis pub/sub                    instance B (and C ...)
+   broadcaster.sendToX(...)                   channel cc:ws:fanout
+     |- serialize once (messaging converter)        |                         WebSocketFanoutSubscriber (1 ordered thread)
+     |- local SimpleBroker.send  --> sessions on A  |                          |- size / JSON / version checks
+     '- envelope {v,src,dest,tenantId,ts,payload}  |                          |- src == own id?  ignore (no duplicate)
+         -> 1 ordered publisher thread -- PUBLISH ->'-- every instance ------>|- dest in the SUBSCRIBE allow-list (§6.4)
+                                                                              |- tenant topics: envelope tenant == dest tenant
+                                                                              '- local SimpleBroker.send --> sessions on B
 ```
 
 ### 5.4 Voicebot API (internal network only)
@@ -913,6 +928,16 @@ interceptor) enforces an allow-list from the CONNECT principal only (client head
 The command set is default-deny (CONNECT/STOMP via JWT; SUBSCRIBE, UNSUBSCRIBE, SEND, ACK, NACK, DISCONNECT; BEGIN/COMMIT/ABORT rejected).
 Role and tenant are frozen at CONNECT for the lifetime of the session (known debt: no session revocation on logout/role change).
 A new destination must be added to this allow-list (and its tests) together with `WebSocketEventBroadcasterImpl`.
+
+**Cross-instance fan-out is not trusted blindly (BE-175).** The allow-list lives in one class, `StompDestinations`
+(shared by the SUBSCRIBE interceptor and the fan-out): the receiver of a Redis envelope accepts only the three
+broadcast destination shapes, requires for `/topic/tenant/{id}/...` that the envelope's `tenantId` equals the tenant in
+the destination, enforces a size limit (`websocket.fanout.max-message-bytes`, default 256 KiB) and a format version,
+and ignores envelopes carrying its own instance id. Anything else is dropped and counted
+(`ws.fanout.dropped{direction=receive,reason}`), never logged with payload. Client SUBSCRIBE authorization still runs on
+the inbound channel of the instance that holds the session, so a fan-out message cannot reach a session that could not
+subscribe to its destination. Residual trust: whoever can `PUBLISH` on Redis can inject a valid event into an allowed
+destination (Redis is on the trusted network with a password; same assumption as BE-179).
 
 ### 6.5 Data Protection
 
@@ -1205,6 +1230,8 @@ since `@Scheduled` methods run outside the normal request thread and filter chai
 
 **Deployment gate: more than one backend replica only after BE-175 (shared WebSocket broker) and BE-179.** WebSocket uses the in-memory `SimpleBroker`; with ShedLock only the lock winner publishes, so sessions on other replicas would miss the events of `SupervisorMetricsService` (metrics), `WaitTimeEstimationServiceImpl` (EWT) and `ContactAssignmentMonitor` (repeated `CONTACT_ASSIGNED`; the retry counter would still grow and reset the contact to QUEUED despite a live session), and indirectly of `AgentBreakActivator`/`AgentPresenceSweeper` status events. Production and compose stay at ONE instance until then.
 
+**Gate status (2026-11-14):** the WebSocket half of the gate is closed by BE-175 (Redis fan-out into every local broker, §5.3/§11.14) and BE-179 is done; BE-230 (agent exclusivity routing PHONE <-> dialer <-> two queues <-> manual dialer, under a per-agent advisory lock) is done as well, so the deployment gate for more than one replica is closed. The remaining windows (scheduled-callback gate without a reservation, agent outbound call and direct transfer outside the lock, listed in `documentation/tech/04-backend.md` section 4.6) do not depend on the replica count - they exist with a single instance too - and are tracked as follow-ups BE-230b-d (working names; final numbers are assigned by the TASKS update).
+
 **Distributed locks (ShedLock, BE-171/BE-172).** Every `@Scheduled` method runs on every backend instance, so with
 more than one replica the singleton jobs are serialized through the platform table `shedlock` (V149, no RLS, no
 `tenant_id`) using `@SchedulerLock` (Spring AOP advisor around the method, DB-clock based `usingDbTime()`; configuration
@@ -1220,8 +1247,10 @@ taken in the SHORT claim transaction (agent still free + contact `FOR UPDATE SKI
 released at commit, BEFORE the telephony call, and is PgBouncer-transaction-mode safe. The campaign lock orders work and avoids redundant effort; correctness comes from `SKIP LOCKED`, the conditional
 `DIALING` write, the per-agent advisory lock (same key as `assignIfQueued`) with a re-check of "agent still free"
 (`campaign_contact.dialing_agent_id`, V151) and the Redis `SET NX dialer:agent:<id>` token (60 s). Orphaned `DIALING`
-records are reaped by `OrphanedDialingReaper`. Open (separate P0 ticket): two queues / routing vs dialer contending
-for the same agent. Routing: ShedLock `RoutingQueue_<queueId>` (programmatic,
+records are reaped by `OrphanedDialingReaper`. Agent exclusivity between two queues and between routing and the dialer (BE-230): PHONE routing
+takes the same per-agent advisory lock (bounded by `agent-assignment.lock-timeout-ms`) and re-verifies the agent's voice load under it
+(one shared predicate, `OccupiedSlot.VOICE_LOAD_CONDITION_SQL`); the manual dialer takes the same claim, the callback executor a lock + check gate.
+Paths deliberately outside the lock (direct transfer, agent-initiated outbound, the callback gap) are listed in `documentation/tech/04-backend.md` section 4.6. Routing: ShedLock `RoutingQueue_<queueId>` (programmatic,
 `RoutingQueueLock`) around the queue's "pick agent + conditional write" step, because the routing pass is deliberately not one
 transaction. A pass that finds the lock busy is skipped and counted in the Micrometer counter `scheduler.lock.skipped`
 (tag `type=dialer|routing`, no tenant/campaign/queue tags - unbounded cardinality).
@@ -2221,6 +2250,41 @@ broker down: every session is closed and rejected until the relay reconnects (Br
 presence listeners must be idempotent (duplicate `SessionDisconnectEvent`s seen); BE-176 additionally covers the broker restart.
 
 **Owner decisions and open items.** Resolved 2026-11-13: (1) option B approved as the default for BE-175/BE-176; (2) R1 is shipped as its own P0 ticket BE-229. **Still open:** (3) Is ~5,000 sessions / 2–5 instances the right design envelope, and may BE-175 acceptance include a 5,000-session test? (4) For A: dedicated RabbitMQ (vhost-isolated node) for WS acceptable?
+
+**Implementation status (BE-175 ✅ / BE-176 ✅, 2026-11-14) — option B delivered.** Code: `infrastructure/websocket/*`
+(`WebSocketFanoutPublisher`, `WebSocketFanoutSubscriber`, `WebSocketLocalDispatcher`, `WebSocketFanoutMetrics`,
+`WebSocketFanoutProperties`, `WebSocketFanoutHealthIndicator`), `infrastructure/config/WebSocketFanoutConfig`,
+`security/StompDestinations`; `WebSocketEventBroadcasterImpl` is the single entry. Details in
+`documentation/tech/04-backend.md` §4.8.
+- *Container/executor (requirement (a)):* same `PubSubListenerContainer` + `PubSubListenerContainerSupervisor` pattern as
+  BE-179 (no autostart, recovery 5 s, supervisor backoff 1–30 s, so the app boots without Redis), but a **dedicated
+  instance** `wsFanoutListenerContainer` with ONE dispatch thread (the shared 2-thread container would reorder events of
+  one sender) and a larger bounded queue (8192; overflow = drop + `ws.fanout.dropped{reason=dispatch_queue_full}`), so a
+  burst of WS events cannot starve cache invalidations. The BE-179 container is `@Primary`.
+- *Duplicates from unlocked jobs (review M1):* "exactly once" holds for RabbitMQ events and ShedLock jobs. The only
+  job publishing to WebSocket without `@SchedulerLock` is `RoutingServiceImpl#pollAvailableAgents`; its periodic
+  QUEUE_AGENT_UPDATE snapshot goes through `sendToTenantAgentsOncePerWindow` (Redis `SET NX PX` gate, window = 0.8 x poll
+  interval, event-driven updates never gated), so each session gets one copy per interval.
+- *Channel/instance id (review S1/S2):* channel = `cc:ws:fanout:<environment>` (default first active profile); instance
+  id always carries a random per-process suffix. `/topic/user/{id}/events` envelopes are delivered only to users with a
+  local session, with the envelope tenant checked against the session principal. HMAC signing is a follow-up.
+- *Ordering:* `brokerChannel` is synchronous; reordering happened on `clientOutboundChannel`, now
+  `setPreservePublishOrder(true)` (per-session order end-to-end, cost to be measured in BE-184).
+- *RabbitMQ relay:* unchanged. The `cc.queue.ws-relay-*` queues have fixed names, i.e. competing consumers: each
+  event is consumed by one instance only, which publishes it through the broadcaster -> Redis -> all instances. No
+  duplicates arise, and per-instance (anonymous) queues, which WOULD multiply deliveries, were deliberately not introduced.
+- *Local delivery first:* the publishing instance delivers synchronously to its own broker (independent of Redis) and
+  the Redis hand-off is asynchronous (one ordered publisher thread, bounded queue 4096), so a hung Redis never stalls
+  RabbitMQ listeners, schedulers or request threads. After a failed publish the sender backs off
+  (`websocket.fanout.publish-backoff-ms`, 2 s) and drops/counts instead of piling up; no replay after recovery (at-most-once,
+  FE-152).
+- *Metrics:* `ws.fanout.published{topic}`, `ws.fanout.received{topic}`, `ws.fanout.delivered{origin=local|remote}`,
+  `ws.fanout.dropped{direction=publish|receive,reason}`, `ws.fanout.lag` (timer; clock skew between hosts shows up in
+  it), gauge `ws.fanout.publish.queue.size`; `/actuator/health` component `webSocketFanout` (always UP, `listening=false` =
+  local-only degraded mode). `local_fallback` from the requirements is `dropped{publish,redis_unavailable}`.
+- *Not done / open:* the 5,000-session test (open question 3 of the owner is still unanswered; BE-184), verification of
+  Redis `client-output-buffer-limit pubsub` in compose/DEPLOYMENT, and the unicast `/topic/user/{id}/events` is delivered to
+  every instance (N x fan-in, as accepted in the Decision). The `/user` simple-broker prefix stays (PONG `@SendToUser`).
 
 ### 11.15 Risks and Mitigations (RT-09 through RT-14)
 

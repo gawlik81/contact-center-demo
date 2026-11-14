@@ -1,4 +1,4 @@
-import { ApplicationRef, signal } from '@angular/core';
+import { ApplicationRef, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { TranslocoService, TranslocoTestingModule } from '@jsverse/transloco';
@@ -32,6 +32,8 @@ describe('AgentDesktopComponent ringing behaviour', () => {
   let softphone: SoftphoneService;
   let store: ContactTabStore;
   const dismissAlert = vi.fn();
+  const wsState = signal<string>('CONNECTED');
+  const registerTopic = vi.fn();
 
   const desktop = () =>
     fixture.componentInstance as unknown as {
@@ -69,6 +71,7 @@ describe('AgentDesktopComponent ringing behaviour', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    wsState.set('CONNECTED');
     TestBed.configureTestingModule({
       imports: [
         AgentDesktopComponent,
@@ -80,7 +83,13 @@ describe('AgentDesktopComponent ringing behaviour', () => {
       providers: [
         {
           provide: WebSocketService,
-          useValue: { events$: new Subject(), connectionState: signal('CONNECTED') },
+          useValue: {
+            events$: new Subject(),
+            connectionState: wsState,
+            resuming: signal(false),
+            registerTopic,
+            isDown: computed(() => wsState() !== 'CONNECTED' && wsState() !== 'CONNECTING'),
+          },
         },
         { provide: AuthService, useValue: { currentTenantId: signal('t-1') } },
         {
@@ -239,5 +248,22 @@ describe('AgentDesktopComponent ringing behaviour', () => {
     expect(el('.softphone__btn--answer')).not.toBeNull();
     expect(document.activeElement).toBe(before);
     dialog.remove();
+  });
+
+  it('isOffline / wsRejection follow the connection state (FE-169)', () => {
+    const c = fixture.componentInstance as unknown as {
+      isOffline: () => boolean;
+      wsRejection: () => string | null;
+    };
+    expect(registerTopic).not.toHaveBeenCalled(); // an agent never registers /supervisor
+    expect([c.isOffline(), c.wsRejection()]).toEqual([false, null]);
+    wsState.set('CONNECTING');
+    expect([c.isOffline(), c.wsRejection()]).toEqual([false, null]);
+    wsState.set('DISCONNECTED');
+    expect([c.isOffline(), c.wsRejection()]).toEqual([true, null]);
+    wsState.set('FORBIDDEN');
+    expect([c.isOffline(), c.wsRejection()]).toEqual([true, 'FORBIDDEN']);
+    wsState.set('SESSION_EXPIRED');
+    expect([c.isOffline(), c.wsRejection()]).toEqual([true, 'SESSION_EXPIRED']);
   });
 });

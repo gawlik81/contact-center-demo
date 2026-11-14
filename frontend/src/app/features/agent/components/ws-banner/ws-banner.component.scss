@@ -23,6 +23,33 @@
     flex: 1;
   }
 
+  // Flat-at-rest outline on the warning surface; same contrast pair as the banner text.
+  &__action {
+    flex-shrink: 0;
+    min-height: 2.75rem;
+    padding: 0.125rem 0.75rem;
+    border: 1px solid currentColor;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in oklch, currentColor 12%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: progress;
+    }
+
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+  }
+
   &__dots {
     display: inline-flex;
     gap: 2px;

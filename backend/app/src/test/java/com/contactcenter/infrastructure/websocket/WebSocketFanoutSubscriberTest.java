@@ -1,0 +1,205 @@
+package com.contactcenter.infrastructure.websocket;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import com.contactcenter.security.StompPrincipal;
+import org.springframework.data.redis.connection.DefaultMessage;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@DisplayName("WebSocketFanoutSubscriber - walidacja kopert z kanału Redis (BE-175)")
+class WebSocketFanoutSubscriberTest {
+
+    private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID USER = UUID.fromString("a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1");
+    private static final String JSON = "{\"eventType\":\"X\"}";
+
+    private WebSocketLocalDispatcher dispatcher;
+    private MeterRegistry registry;
+    private WebSocketFanoutProperties properties;
+    private WebSocketFanoutSubscriber subscriber;
+    private SimpUserRegistry userRegistry;
+
+    private void localSession(UUID user, UUID tenant) {
+        SimpUser simpUser = mock(SimpUser.class);
+        when(simpUser.getPrincipal()).thenReturn(new StompPrincipal(user, tenant, "AGENT"));
+        when(userRegistry.getUser(user.toString())).thenReturn(simpUser);
+    }
+
+    @BeforeEach
+    void setUp() {
+        dispatcher = mock(WebSocketLocalDispatcher.class);
+        registry = new SimpleMeterRegistry();
+        properties = new WebSocketFanoutProperties();
+        properties.setInstanceId("self");
+        userRegistry = mock(SimpUserRegistry.class);
+        subscriber = new WebSocketFanoutSubscriber(dispatcher, new WebSocketFanoutMetrics(registry), properties,
+                userRegistry, mock(RedisMessageListenerContainer.class));
+    }
+
+    private void receive(String body) {
+        subscriber.onMessage(new DefaultMessage(properties.effectiveChannel().getBytes(StandardCharsets.UTF_8),
+                body.getBytes(StandardCharsets.UTF_8)), null);
+    }
+
+    private static String envelope(int v, String src, String dest, UUID tenant, String payload) {
+        return new WebSocketFanoutEnvelope(v, src, dest, tenant, System.currentTimeMillis(), payload).toJson();
+    }
+
+    private double dropped(String reason) {
+        var c = registry.find(WebSocketFanoutMetrics.DROPPED).tags("direction", "receive", "reason", reason).counter();
+        return c == null ? 0 : c.count();
+    }
+
+    @Test
+    @DisplayName("rejestruje listenera na kanale z konfiguracji")
+    void registersListenerOnConfiguredChannel() {
+        RedisMessageListenerContainer container = mock(RedisMessageListenerContainer.class);
+        new WebSocketFanoutSubscriber(dispatcher, new WebSocketFanoutMetrics(registry), properties, userRegistry, container);
+        verify(container).addMessageListener(any(org.springframework.data.redis.connection.MessageListener.class),
+                eq(new org.springframework.data.redis.listener.ChannelTopic("cc:ws:fanout:default")));
+    }
+
+    @Test
+    @DisplayName("koperta z innej instancji dla kazdego z trzech tematow trafia do lokalnego brokera bajt w bajt")
+    void deliversValidEnvelopesOfAllThreeTopics() {
+        localSession(USER, TENANT);
+        String user = "/topic/user/" + USER + "/events";
+        String agents = "/topic/tenant/" + TENANT + "/agents";
+        String supervisor = "/topic/tenant/" + TENANT + "/supervisor";
+
+        receive(envelope(1, "other", user, TENANT, JSON));
+        receive(envelope(1, "other", agents, TENANT, JSON));
+        receive(envelope(1, "other", supervisor, TENANT, JSON));
+
+        verify(dispatcher).deliver(user, JSON.getBytes(StandardCharsets.UTF_8));
+        verify(dispatcher).deliver(agents, JSON.getBytes(StandardCharsets.UTF_8));
+        verify(dispatcher).deliver(supervisor, JSON.getBytes(StandardCharsets.UTF_8));
+        assertThat(registry.find(WebSocketFanoutMetrics.RECEIVED).counters()).hasSize(3);
+        assertThat(registry.find(WebSocketFanoutMetrics.DELIVERED).tag("origin", "remote").counter().count())
+                .isEqualTo(3.0);
+        assertThat(registry.find(WebSocketFanoutMetrics.LAG).timer().count()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("wlasna koperta (ten sam instanceId) jest ignorowana - brak dubla lokalnie")
+    void ignoresOwnEnvelope() {
+        receive(envelope(1, properties.resolvedInstanceId(), "/topic/tenant/" + TENANT + "/agents", TENANT, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(registry.find(WebSocketFanoutMetrics.RECEIVED).counters()).isEmpty();
+        assertThat(registry.find("ws.fanout.ignored").tag("reason", "self").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("destynacje spoza allow-listy sa odrzucane (wildcard, /user, /app, obcy prefiks, wielkie litery)")
+    void rejectsDestinationsOutsideAllowList() {
+        for (String dest : new String[] {"/topic/**", "/topic/tenant/" + TENANT + "/**", "/user/queue/x",
+                "/app/ping", "/queue/x", "/topic/tenant/" + TENANT + "/agents/extra",
+                "/topic/tenant/" + "ABCDEF01-0000-0000-0000-000000000000" + "/agents", "/topic/user/*/events", ""}) {
+            receive(envelope(1, "other", dest, TENANT, JSON));
+        }
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("invalid_destination")).isEqualTo(9.0);
+    }
+
+    @Test
+    @DisplayName("tenant w kopercie rozny od tenanta destynacji - odrzucone (izolacja tenantow)")
+    void rejectsTenantMismatch() {
+        receive(envelope(1, "other", "/topic/tenant/" + TENANT + "/agents", OTHER_TENANT, JSON));
+        receive(envelope(1, "other", "/topic/tenant/" + TENANT + "/supervisor", null, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("tenant_mismatch")).isEqualTo(2.0);
+    }
+
+    @Test
+    @DisplayName("zly JSON, brak payloadu, nieznana wersja i zbyt duza koperta sa liczone i nie psuja listenera")
+    void rejectsMalformedUnsupportedAndOversize() {
+        String agents = "/topic/tenant/" + TENANT + "/agents";
+        receive("not json\r\nFORGED");
+        receive("");
+        receive(envelope(2, "other", agents, TENANT, JSON));
+        receive(envelope(1, "other", agents, TENANT, null));
+        properties.setMaxMessageBytes(100);
+        receive(envelope(1, "other", agents, TENANT, "x".repeat(200)));
+        properties.setMaxMessageBytes(262_144);
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("malformed")).isEqualTo(2.0);
+        assertThat(dropped("unsupported_version")).isEqualTo(1.0);
+        assertThat(dropped("invalid_destination")).isEqualTo(1.0); // null payload
+        assertThat(dropped("oversize")).isEqualTo(1.0);
+
+        receive(envelope(1, "other", agents, TENANT, JSON)); // the listener survived
+        verify(dispatcher).deliver(agents, JSON.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("blad lokalnej dostawy jest liczony jako drop i nie propaguje sie")
+    void deliveryErrorIsCounted() {
+        org.mockito.Mockito.doThrow(new IllegalStateException("broker down")).when(dispatcher).deliver(anyString(), any());
+        receive(envelope(1, "other", "/topic/tenant/" + TENANT + "/agents", TENANT, JSON));
+        assertThat(dropped("delivery_error")).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("nieznane pola koperty sa ignorowane (zgodnosc w przod przy rolling deploy)")
+    void ignoresUnknownEnvelopeFields() {
+        String agents = "/topic/tenant/" + TENANT + "/agents";
+        String body = envelope(1, "other", agents, TENANT, JSON).replaceFirst("\\{", "{\"future\":42,");
+        receive(body);
+        verify(dispatcher).deliver(agents, JSON.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("unicast: brak lokalnej sesji uzytkownika - ignored no_local_session (nie dropped), broker nietkniety")
+    void userTopicWithoutLocalSessionIsDropped() {
+        receive(envelope(1, "other", "/topic/user/" + USER + "/events", TENANT, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(registry.find("ws.fanout.ignored").tag("reason", "no_local_session").counter().count()).isEqualTo(1.0);
+        assertThat(dropped("no_local_session")).isZero();
+    }
+
+    @Test
+    @DisplayName("unicast: tenant koperty rozny od tenanta sesji - tenant_mismatch; brak tenanta - tenant_missing")
+    void userTopicTenantIsCheckedAgainstSessionPrincipal() {
+        localSession(USER, TENANT);
+        String dest = "/topic/user/" + USER + "/events";
+        receive(envelope(1, "other", dest, OTHER_TENANT, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("tenant_mismatch")).isEqualTo(1.0);
+
+        receive(envelope(1, "other", dest, null, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("tenant_missing")).isEqualTo(1.0);
+
+        receive(envelope(1, "other", dest, TENANT, JSON));
+        verify(dispatcher).deliver(dest, JSON.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("unicast: sesja bez StompPrincipal/tenanta - drop principal_unknown")
+    void userTopicWithUnknownPrincipalIsDropped() {
+        SimpUser simpUser = mock(SimpUser.class);
+        when(simpUser.getPrincipal()).thenReturn(() -> "plain-principal");
+        when(userRegistry.getUser(USER.toString())).thenReturn(simpUser);
+        receive(envelope(1, "other", "/topic/user/" + USER + "/events", TENANT, JSON));
+        verify(dispatcher, never()).deliver(anyString(), any());
+        assertThat(dropped("principal_unknown")).isEqualTo(1.0);
+    }
+}

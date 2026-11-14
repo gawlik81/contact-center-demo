@@ -9,7 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import com.contactcenter.infrastructure.websocket.WebSocketFanoutPublisher;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.verify;
  * <p>Weryfikuje:
  * <ul>
  *   <li>Poprawne destination dla każdego trybu wysyłki</li>
- *   <li>Przekazanie eventu jako payload do {@link SimpMessagingTemplate}</li>
+ *   <li>Przekazanie eventu do {@link WebSocketFanoutPublisher} (BE-175: lokalny broker + Redis)</li>
  *   <li>Obsługę wyjątków – błąd wysyłki nie propaguje się do wywołującego</li>
  * </ul>
  */
@@ -41,7 +41,7 @@ class WebSocketEventBroadcasterTest {
     private static final UUID QUEUE_ID  = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     @Mock
-    private SimpMessagingTemplate messagingTemplate;
+    private WebSocketFanoutPublisher fanout;
 
     @InjectMocks
     private WebSocketEventBroadcasterImpl broadcaster;
@@ -67,12 +67,12 @@ class WebSocketEventBroadcasterTest {
     class SendToUserTest {
 
         @Test
-        @DisplayName("Wywołuje convertAndSend z poprawnym destination /topic/user/{userId}/events")
+        @DisplayName("Przekazuje do fan-outu (lokalny broker + inne instancje) z poprawnym destination /topic/user/{userId}/events")
         void shouldCallConvertAndSendToUserWithCorrectDestination() {
             broadcaster.sendToUser(USER_ID, sampleEvent);
 
             String expectedDestination = "/topic/user/" + USER_ID + "/events";
-            verify(messagingTemplate).convertAndSend(eq(expectedDestination), eq(sampleEvent));
+            verify(fanout).publish(eq(expectedDestination), eq(TENANT_ID), eq(sampleEvent));
         }
 
         @Test
@@ -82,7 +82,7 @@ class WebSocketEventBroadcasterTest {
 
             broadcaster.sendToUser(USER_ID, sampleEvent);
 
-            verify(messagingTemplate).convertAndSend(destinationCaptor.capture(), any(Object.class));
+            verify(fanout).publish(destinationCaptor.capture(), any(UUID.class), any(WebSocketEvent.class));
             assertThat(destinationCaptor.getValue()).contains(USER_ID.toString());
         }
 
@@ -90,7 +90,7 @@ class WebSocketEventBroadcasterTest {
         @DisplayName("Wyjątek przy wysyłce nie propaguje się do wywołującego")
         void shouldNotPropagateExceptionOnSendFailure() {
             doThrow(new RuntimeException("Broker niedostępny"))
-                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
+                    .when(fanout).publish(anyString(), any(), any(WebSocketEvent.class));
 
             assertThatNoException().isThrownBy(
                     () -> broadcaster.sendToUser(USER_ID, sampleEvent)
@@ -107,12 +107,12 @@ class WebSocketEventBroadcasterTest {
     class SendToTenantSupervisorsTest {
 
         @Test
-        @DisplayName("Wywołuje convertAndSend z destination /topic/tenant/{tenantId}/supervisor")
+        @DisplayName("Przekazuje do fan-outu (lokalny broker + inne instancje) z destination /topic/tenant/{tenantId}/supervisor")
         void shouldCallConvertAndSendWithSupervisorDestination() {
             broadcaster.sendToTenantSupervisors(TENANT_ID, sampleEvent);
 
             String expectedDestination = "/topic/tenant/" + TENANT_ID + "/supervisor";
-            verify(messagingTemplate).convertAndSend(eq(expectedDestination), eq(sampleEvent));
+            verify(fanout).publish(eq(expectedDestination), eq(TENANT_ID), eq(sampleEvent));
         }
 
         @Test
@@ -120,7 +120,7 @@ class WebSocketEventBroadcasterTest {
         void shouldEmbedTenantIdInDestination() {
             ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
             broadcaster.sendToTenantSupervisors(TENANT_ID, sampleEvent);
-            verify(messagingTemplate).convertAndSend(destinationCaptor.capture(), any(Object.class));
+            verify(fanout).publish(destinationCaptor.capture(), any(UUID.class), any(WebSocketEvent.class));
             assertThat(destinationCaptor.getValue()).contains(TENANT_ID.toString());
         }
 
@@ -128,7 +128,7 @@ class WebSocketEventBroadcasterTest {
         @DisplayName("Wyjątek przy wysyłce nie propaguje się do wywołującego")
         void shouldNotPropagateExceptionOnSendFailure() {
             doThrow(new RuntimeException("Broker niedostępny"))
-                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
+                    .when(fanout).publish(anyString(), any(), any(WebSocketEvent.class));
 
             assertThatNoException().isThrownBy(
                     () -> broadcaster.sendToTenantSupervisors(TENANT_ID, sampleEvent)
@@ -145,12 +145,12 @@ class WebSocketEventBroadcasterTest {
     class SendToTenantAgentsTest {
 
         @Test
-        @DisplayName("Wywołuje convertAndSend z destination /topic/tenant/{tenantId}/agents")
+        @DisplayName("Przekazuje do fan-outu (lokalny broker + inne instancje) z destination /topic/tenant/{tenantId}/agents")
         void shouldCallConvertAndSendWithAgentsDestination() {
             broadcaster.sendToTenantAgents(TENANT_ID, sampleEvent);
 
             String expectedDestination = "/topic/tenant/" + TENANT_ID + "/agents";
-            verify(messagingTemplate).convertAndSend(eq(expectedDestination), eq(sampleEvent));
+            verify(fanout).publish(eq(expectedDestination), eq(TENANT_ID), eq(sampleEvent));
         }
 
         @Test
@@ -160,7 +160,7 @@ class WebSocketEventBroadcasterTest {
 
             broadcaster.sendToTenantAgents(TENANT_ID, sampleEvent);
 
-            verify(messagingTemplate).convertAndSend(destinationCaptor.capture(), any(Object.class));
+            verify(fanout).publish(destinationCaptor.capture(), any(UUID.class), any(WebSocketEvent.class));
             assertThat(destinationCaptor.getValue())
                     .endsWith("/agents")
                     .doesNotEndWith("/supervisor");
@@ -170,7 +170,7 @@ class WebSocketEventBroadcasterTest {
         @DisplayName("Wyjątek przy wysyłce nie propaguje się do wywołującego")
         void shouldNotPropagateExceptionOnSendFailure() {
             doThrow(new RuntimeException("Broker niedostępny"))
-                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
+                    .when(fanout).publish(anyString(), any(), any(WebSocketEvent.class));
 
             assertThatNoException().isThrownBy(
                     () -> broadcaster.sendToTenantAgents(TENANT_ID, sampleEvent)

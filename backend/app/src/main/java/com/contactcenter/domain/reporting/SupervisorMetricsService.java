@@ -539,15 +539,8 @@ class SupervisorMetricsService {
                 Instant.now()
         );
         try {
-            // Używamy bezpośrednio SimpMessagingTemplate przez broadcaster
-            // WebSocketEventBroadcaster nie ma dedykowanej metody dla /supervisor/metrics,
-            // dlatego przekazujemy event na dokładny destination przez sendToTenantSupervisors.
-            // Uwaga: sendToTenantSupervisors wysyła na /topic/tenant/{id}/supervisor,
-            // a metryki trafiają na /topic/tenant/{id}/supervisor/metrics – różne sub-topici.
-            // Używamy własnej wysyłki przez SimpMessagingTemplate wstrzykniętego pośrednio.
-            // W architekturze projektu WebSocketEventBroadcaster owrapowuje SimpMessagingTemplate,
-            // ale nie udostępnia go publicznie. Wysyłamy więc zdarzenie na /supervisor
-            // z eventType=SUPERVISOR_METRICS, aby frontend mógł odfiltrować po typie.
+            // Metryki idą tym samym tematem co pozostałe zdarzenia supervisora (/supervisor, eventType=SUPERVISOR_METRICS);
+            // od BE-175 broadcaster rozsyła je do sesji na wszystkich instancjach (job ma ShedLock, więc raz na interwał).
             webSocketEventBroadcaster.sendToTenantSupervisors(tenantId, event);
             log.trace("[SupervisorMetrics] Metryki wysłane do tenanta {}: agenci={}, kolejki={}",
                     tenantId, payload.agents().size(), payload.queues().size());

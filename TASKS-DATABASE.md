@@ -4627,7 +4627,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 
@@ -4766,6 +4766,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Nie wchodzi w zakres:** klucz idempotencji `initiateCall` (BE-232), wyłączność agenta routing PHONE ↔ dialer (BE-230).
 **Zależności:** `Zależy od` BE-173 ✅ (realizowany razem); `Blokuje` brak; powiązane: BE-230, BE-232, DB-088, DB-097 ✅.
 **Notatka wykonania (2026-11-14, tura 78):** migracja V151 dostarczona w ramach BE-173; ticket DB założony wstecznie w turze 78 i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). Najwyższa V po turze 78 = V151 (niezastosowana na żywej bazie do restartu backendu).
+**Dopisek (tura 79):** BE-230 ✅ działa bez migracji i opiera się na `idx_contact_agent_phone_load` z V151 (sonda VOICE_LOAD pod lockiem agenta). `EXPLAIN (ANALYZE, BUFFERS)` tej sondy na danych prod-like (wiele partycji `contact`) i ewentualne zawężenie po `started_at` → BE-240 (ewentualne zmiany indeksu → osobny ticket DB, numer DB-101). Konsolidacja z `idx_contact_open_async_count` nadal w DB-088. Liczniki DB bez zmian: 90/7/3 = 100.
 
 ---
 

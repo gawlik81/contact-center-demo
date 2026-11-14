@@ -1,6 +1,8 @@
 package com.contactcenter.domain.websocket;
 
+import java.time.Duration;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Serwis odpowiedzialny za rozgłaszanie eventów WebSocket do klientów STOMP.
@@ -53,4 +55,21 @@ public interface WebSocketEventBroadcaster {
      * @param event    event do wysłania
      */
     void sendToTenantAgents(UUID tenantId, WebSocketEvent event);
+
+    /**
+     * Idempotent PERIODIC snapshot published by a job that runs on EVERY instance (no ShedLock): with the cross-instance
+     * fan-out (BE-175) N instances would deliver N copies to every session. Cluster-wide, roughly one instance per
+     * {@code window} (up to ~1.25x with unsynchronised pollers: the window is shorter than the poll interval) passes the gate for the given {@code key} and tenant and publishes; the others skip (and do not
+     * even build the event). Redis outage = fail open (publish), because then the event is local-only anyway.
+     * Never use for event-driven (non-idempotent) updates: a suppressed event would be lost.
+     *
+     * <p>The default implementation (no gate) always publishes.
+     *
+     * @return {@code true} if this call published
+     */
+    default boolean sendToTenantAgentsOncePerWindow(UUID tenantId, String key, Duration window,
+                                                    Supplier<WebSocketEvent> event) {
+        sendToTenantAgents(tenantId, event.get());
+        return true;
+    }
 }

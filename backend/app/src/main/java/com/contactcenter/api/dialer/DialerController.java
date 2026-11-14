@@ -15,6 +15,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.campaign.AgentGate;
 import com.contactcenter.domain.campaign.Campaign;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.campaign.ScheduledCallback;
@@ -745,7 +746,7 @@ public class DialerController {
             @ApiResponse(responseCode = "400", description = "Błąd walidacji – brakujące pola"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień – tylko AGENT"),
             @ApiResponse(responseCode = "404", description = "Kampania lub rekord nie istnieje"),
-            @ApiResponse(responseCode = "409", description = "Kampania nie jest MANUAL/RUNNING lub rekord nie jest PENDING")
+            @ApiResponse(responseCode = "409", description = "Kampania nie jest MANUAL/RUNNING, rekord nie jest PENDING albo agent ma już połączenie głosowe / trwające wybieranie (error=AGENT_BUSY) albo rekord zajęty przez innego agenta (error=RECORD_UNAVAILABLE)")
         }
     )
     public ResponseEntity<ManualCallResponse> initiateManualCall(
@@ -792,8 +793,22 @@ public class DialerController {
                     "Rekord " + request.recordId() + " nie ma numeru telefonu");
         }
 
-        // Oznacz rekord jako DIALING
-        progressiveDialerService.markRecordAsDialing(request.recordId(), request.campaignId(), tenantId);
+        // BE-230 P1: DIALING pod wyłącznością agenta (lock per agent + sprawdzenie obciążenia głosowego +
+        // dialing_agent_id w jednej transakcji, jak claim dialera progresywnego). Agent z otwartym połączeniem
+        // głosowym albo rekordem DIALING nie może zainicjować kolejnego.
+        AgentGate gate = progressiveDialerService.markRecordAsDialingForAgent(
+                request.recordId(), request.campaignId(), tenantId, agentId);
+        if (gate != AgentGate.FREE) {
+            throw switch (gate) {
+                case BUSY -> new InvalidOperationException("AGENT_BUSY",
+                        "Masz już aktywne połączenie głosowe lub trwające wybieranie – zakończ je przed kolejnym");
+                case RECORD_UNAVAILABLE -> new InvalidOperationException("RECORD_UNAVAILABLE",
+                        "Rekord " + request.recordId() + " nie jest już dostępny do wydzwonienia "
+                                + "(został zajęty przez innego agenta lub zmienił status)");
+                default -> new InvalidOperationException("AGENT_LOCK_TIMEOUT",
+                        "Nie udało się zarezerwować agenta do połączenia (system zajęty) – spróbuj ponownie za chwilę");
+            };
+        }
 
         // Inicjuj połączenie przez TelephonyAdapter
         CallSession session;

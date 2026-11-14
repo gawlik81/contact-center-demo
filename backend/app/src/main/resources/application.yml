@@ -251,6 +251,23 @@ websocket:
   # Dozwolone origins dla WebSocket/SockJS handshake
   # Analogicznie do cors.allowed-origins; nadpisywalne przez ENV var (prod: domena SPA)
   allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000}
+  # BE-175 / ADR-14 opcja B: fan-out zdarzeń WS między instancjami (Redis pub/sub -> lokalny SimpleBroker).
+  # enabled=false => zdarzenia tylko do sesji instancji publikującej (poprawne wyłącznie dla 1 repliki).
+  fanout:
+    enabled: ${WEBSOCKET_FANOUT_ENABLED:true}
+    channel: ${WEBSOCKET_FANOUT_CHANNEL:cc:ws:fanout}
+    # sufiks środowiska kanału (dev/staging na wspólnym Redis nie wymieniają zdarzeń); domyślnie pierwszy aktywny profil
+    environment: ${WEBSOCKET_FANOUT_ENV:${spring.profiles.active:default}}
+    # opcjonalny prefiks id instancji; losowy sufiks per proces jest ZAWSZE doklejany
+    instance-id: ${WEBSOCKET_FANOUT_INSTANCE_ID:}
+    # limit rozmiaru koperty (B): nadawca nie rozsyła większych, odbiorca je odrzuca
+    max-message-bytes: ${WEBSOCKET_FANOUT_MAX_MESSAGE_BYTES:262144}
+    publish-queue-capacity: ${WEBSOCKET_FANOUT_PUBLISH_QUEUE:4096}
+    dispatch-queue-capacity: ${WEBSOCKET_FANOUT_DISPATCH_QUEUE:2048}
+    # budżet bajtowy kolejki publikacji (sztuki x max-message-bytes byłyby ~1 GiB)
+    publish-queue-max-bytes: ${WEBSOCKET_FANOUT_PUBLISH_QUEUE_MAX_BYTES:33554432}
+    # przerwa w próbach publikacji po błędzie Redis (zdarzenia w tym czasie: tylko lokalnie, licznik dropped)
+    publish-backoff-ms: ${WEBSOCKET_FANOUT_PUBLISH_BACKOFF_MS:2000}
 
 # =============================================================================
 # Telephony – konfiguracja adaptera VoIP (BE-009)
@@ -612,6 +629,12 @@ agent:
       # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
       # fixedDelay: co 30s po zakończeniu poprzedniego cyklu.
       interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:30000}
+
+# BE-230 S5: bounded wait for the per-agent assignment advisory lock (routing PHONE / dialer / manual dialer /
+# callback executor). A holder keeps it for a few ms; a timeout means a stuck transaction - the agent is skipped
+# (AGENT_LOCK_TIMEOUT, metric agent.assignment.skipped{reason=lock_timeout}) instead of parking the thread.
+agent-assignment:
+  lock-timeout-ms: ${AGENT_ASSIGNMENT_LOCK_TIMEOUT_MS:500}
 
 # BE-160 / BE-156: how long an agent who returned an async contact to the queue is excluded from receiving it again
 routing:

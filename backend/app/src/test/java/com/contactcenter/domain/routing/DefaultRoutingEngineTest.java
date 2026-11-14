@@ -511,7 +511,7 @@ class DefaultRoutingEngineTest {
             Optional<RoutingResult> result = engine.findBestAgent(limited(strategy, "PHONE", null, null));
 
             assertThat(result).isPresent();
-            verifyNoInteractions(contactService);
+            verify(contactService, never()).countOpenAsyncContactsByAgents(any(), any(), anyList());
         }
 
         @Test
@@ -554,6 +554,102 @@ class DefaultRoutingEngineTest {
                     .thenThrow(new RuntimeException("db down"));
 
             assertThat(engine.findBestAgent(limited("FIRST_AVAILABLE", "EMAIL", null, 1))).isPresent();
+        }
+    }
+
+    // =========================================================================
+    // BE-230 S7: tani filtr wsadowy obciazenia glosowego
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Filtr obciazenia glosowego agentow - BE-230 S7")
+    class VoiceLoadFilter {
+
+        private RoutingRequest voice(String strategy, String channel, UUID preferred) {
+            return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, List.of(), preferred, channel, null);
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.ValueSource(strings = {"FIRST_AVAILABLE", "ROUND_ROBIN", "SKILL_BASED"})
+        @DisplayName("agent z polaczeniem glosowym / DIALING nie dostaje kontaktu PHONE - wybierany jest wolny (kazda strategia)")
+        void busyAgentIsSkippedInEveryStrategy(String strategy) {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            lenient().when(userService.countActiveContactsByAgentIds(eq(TENANT_ID), anyList())).thenReturn(List.of());
+            when(contactService.findAgentIdsWithVoiceLoad(eq(TENANT_ID), anyCollection())).thenReturn(Set.of(AGENT_A));
+
+            Optional<RoutingResult> result = engine.findBestAgent(voice(strategy, "PHONE", null));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+        }
+
+        @Test
+        @DisplayName("wszyscy kandydaci zajeci glosowo -> brak agenta bez zadnej proby zapisu (kontakt zostaje QUEUED)")
+        void allCandidatesBusyYieldsEmpty() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            when(contactService.findAgentIdsWithVoiceLoad(eq(TENANT_ID), anyCollection()))
+                    .thenReturn(Set.of(AGENT_A, AGENT_B));
+
+            assertThat(engine.findBestAgent(voice("FIRST_AVAILABLE", "PHONE", null))).isEmpty();
+        }
+
+        @Test
+        @DisplayName("jedno zapytanie wsadowe dla wszystkich kandydatow (nie N+1)")
+        void singleBatchQueryForAllCandidates() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B, AGENT_C));
+            when(contactService.findAgentIdsWithVoiceLoad(eq(TENANT_ID), anyCollection())).thenReturn(Set.of());
+
+            engine.findBestAgent(voice("FIRST_AVAILABLE", "PHONE", null));
+
+            verify(contactService, times(1)).findAgentIdsWithVoiceLoad(eq(TENANT_ID),
+                    argThat(ids -> ids.size() == 3));
+        }
+
+        @Test
+        @DisplayName("kontakt legacy bez kanalu traktowany jak PHONE (filtr dziala)")
+        void legacyContactWithoutChannelIsVoice() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            when(contactService.findAgentIdsWithVoiceLoad(eq(TENANT_ID), anyCollection())).thenReturn(Set.of(AGENT_A));
+
+            assertThat(engine.findBestAgent(voice("FIRST_AVAILABLE", null, null)).orElseThrow().agentId())
+                    .isEqualTo(AGENT_B);
+        }
+
+        @Test
+        @DisplayName("kontakt async (EMAIL/CHAT): obciazenie glosowe w ogole nie jest sprawdzane")
+        void asyncContactIsNotFilteredByVoiceLoad() {
+            stubScan(TENANT_ID, List.of(AGENT_A));
+
+            assertThat(engine.findBestAgent(voice("FIRST_AVAILABLE", "EMAIL", null))).isPresent();
+            assertThat(engine.findBestAgent(voice("FIRST_AVAILABLE", "CHAT", null))).isPresent();
+
+            verify(contactService, never()).findAgentIdsWithVoiceLoad(any(), any());
+        }
+
+        @Test
+        @DisplayName("sticky agent z polaczeniem glosowym jest pomijany, fallback na strategie")
+        void stickyAgentWithVoiceLoadIsSkipped() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            when(valueOps.get(DefaultRoutingEngine.AGENT_SESSION_KEY_PREFIX + AGENT_A))
+                    .thenReturn(Map.of("tenantId", TENANT_ID.toString(), "userId", AGENT_A.toString(),
+                            "status", "AVAILABLE"));
+            when(contactService.findAgentIdsWithVoiceLoad(eq(TENANT_ID), anyCollection())).thenReturn(Set.of(AGENT_A));
+
+            Optional<RoutingResult> result = engine.findBestAgent(voice("FIRST_AVAILABLE", "PHONE", AGENT_A));
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+            assertThat(result.get().isSticky()).isFalse();
+        }
+
+        @Test
+        @DisplayName("blad zapytania: fail-open (blokada + re-check przy zapisie jest straznikiem)")
+        void queryFailureFailsOpen() {
+            stubScan(TENANT_ID, List.of(AGENT_A));
+            when(contactService.findAgentIdsWithVoiceLoad(any(), anyCollection()))
+                    .thenThrow(new RuntimeException("db down"));
+
+            assertThat(engine.findBestAgent(voice("FIRST_AVAILABLE", "PHONE", null))).isPresent();
         }
     }
 

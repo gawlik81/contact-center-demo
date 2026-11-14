@@ -24,6 +24,7 @@ public class PubSubListenerContainerSupervisor implements SmartLifecycle {
 
     private final RedisMessageListenerContainer container;
     private final long initialDelayMs;
+    private final String name;
     private final AtomicBoolean running = new AtomicBoolean();
     private volatile Thread thread;
 
@@ -32,8 +33,15 @@ public class PubSubListenerContainerSupervisor implements SmartLifecycle {
     }
 
     public PubSubListenerContainerSupervisor(RedisMessageListenerContainer container, long initialDelayMs) {
+        this(container, initialDelayMs, "redis-pubsub");
+    }
+
+    /** @param name container name used in the supervisor thread name and in the log lines (two containers exist) */
+    public PubSubListenerContainerSupervisor(RedisMessageListenerContainer container, long initialDelayMs,
+                                             String name) {
         this.container = container;
         this.initialDelayMs = initialDelayMs;
+        this.name = name;
     }
 
     @Override
@@ -41,7 +49,7 @@ public class PubSubListenerContainerSupervisor implements SmartLifecycle {
         if (!running.compareAndSet(false, true)) {
             return;
         }
-        Thread t = new Thread(this::startWithRetry, "redis-pubsub-supervisor");
+        Thread t = new Thread(this::startWithRetry, name + "-supervisor");
         t.setDaemon(true);
         thread = t;
         t.start();
@@ -57,11 +65,11 @@ public class PubSubListenerContainerSupervisor implements SmartLifecycle {
                     container.stop();
                 }
                 container.start();
-                log.info("[PubSub] Kontener subskrypcji Redis uruchomiony (próba {})", attempt);
+                log.info("[PubSub] Kontener subskrypcji Redis '{}' uruchomiony (próba {})", name, attempt);
                 return;
             } catch (Exception e) {
-                log.warn("[PubSub] Start kontenera subskrypcji Redis nieudany (próba {}): {}. Ponowię za {} ms; "
-                        + "cache lokalne odświeżą się po TTL.", attempt, e.toString(), delay);
+                log.warn("[PubSub] Start kontenera subskrypcji Redis '{}' nieudany (próba {}): {}. Ponowię za {} ms.",
+                        name, attempt, e.toString(), delay);
             }
             try {
                 Thread.sleep(delay);

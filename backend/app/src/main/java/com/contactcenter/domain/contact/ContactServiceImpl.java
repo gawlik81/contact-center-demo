@@ -66,6 +66,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1654,15 +1655,32 @@ class ContactServiceImpl implements ContactService {
     @Transactional
     public AssignmentResult assignQueuedContact(Contact contact, UUID agentId, UUID queueId,
                                                 Integer maxAsyncPerAgent) {
+        return assign(contact, agentId, queueId, maxAsyncPerAgent, !ContactChannels.isAsync(contact.getChannel()));
+    }
+
+    @Override
+    @Transactional
+    public AssignmentResult assignQueuedContactForTransfer(Contact contact, UUID agentId) {
+        return assign(contact, agentId, null, null, false);
+    }
+
+    private AssignmentResult assign(Contact contact, UUID agentId, UUID queueId, Integer maxAsyncPerAgent,
+                                    boolean exclusiveVoice) {
         AssignmentResult result = contactRepository.assignIfQueued(
                 contact.getContactId(), contact.getTenantId(), contact.getStartedAt(), agentId,
-                queueId, maxAsyncPerAgent);
+                queueId, maxAsyncPerAgent, exclusiveVoice);
         if (result == AssignmentResult.ASSIGNED) {
             contact.setAgentId(agentId);
             contact.setStatus("ASSIGNED");
             contact.setAssignedAt(Instant.now());
         }
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> findAgentIdsWithVoiceLoad(UUID tenantId, Collection<UUID> agentIds) {
+        return contactRepository.findAgentIdsWithVoiceLoad(tenantId, agentIds);
     }
 
     @Override

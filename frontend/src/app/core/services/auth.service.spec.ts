@@ -261,6 +261,44 @@ describe('AuthService', () => {
       expect(service.currentRole()).toBe('AGENT');
     });
 
+    it('shares one POST between concurrent refresh() callers (single-flight)', async () => {
+      const a = firstValueFrom(service.refresh());
+      const b = firstValueFrom(service.refresh());
+      httpMock.expectOne('/api/auth/refresh').flush(MOCK_TOKENS);
+      expect(await a).toEqual(MOCK_TOKENS);
+      expect(await b).toEqual(MOCK_TOKENS);
+    });
+
+    it('a failure logs out once for all concurrent callers', async () => {
+      const logoutSpy = vi.spyOn(service, 'logout');
+      const a = firstValueFrom(service.refresh());
+      const b = firstValueFrom(service.refresh());
+      httpMock
+        .expectOne('/api/auth/refresh')
+        .flush({ message: 'Expired' }, { status: 401, statusText: 'Unauthorized' });
+      await expect(a).rejects.toThrow();
+      await expect(b).rejects.toThrow();
+      expect(logoutSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('a refresh() right after completion starts a new POST', async () => {
+      const first = firstValueFrom(service.refresh());
+      httpMock.expectOne('/api/auth/refresh').flush(MOCK_TOKENS);
+      await first;
+      const second = firstValueFrom(service.refresh());
+      httpMock.expectOne('/api/auth/refresh').flush(MOCK_TOKENS);
+      await second;
+    });
+
+    it('an unsubscribed refresh() leaves nothing behind and reads the token on subscribe', () => {
+      service.refresh(); // never subscribed
+      tokenService.setRefreshToken('newer-token');
+      service.refresh().subscribe();
+      const req = httpMock.expectOne('/api/auth/refresh');
+      expect(req.request.body).toEqual({ refreshToken: 'newer-token' });
+      req.flush(MOCK_TOKENS);
+    });
+
     it('should call logout() and rethrow when refresh fails', async () => {
       const navigateSpy = vi.spyOn(router, 'navigate');
 

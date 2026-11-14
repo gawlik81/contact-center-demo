@@ -123,8 +123,11 @@ class ProgressiveDialerServiceTest {
         // BE-173: claim - blokada kampanii wolna, agent nadal wolny, warunkowy DIALING zmienia 1 wiersz
         when(jdbcTemplate.queryForObject(contains("pg_try_advisory_xact_lock"), eq(Boolean.class), any(), any()))
                 .thenReturn(true);
-        when(jdbcTemplate.queryForObject(contains("FROM app_user"), eq(Boolean.class), any(), any()))
-                .thenReturn(true);
+        // BE-230: per-agent lock acquired (AgentAssignmentLock runs through a ConnectionCallback) and the probe says
+        // "AVAILABLE, no voice load" (one row: available + voice_busy)
+        when(jdbcTemplate.execute(any(org.springframework.jdbc.core.ConnectionCallback.class))).thenReturn(true);
+        when(jdbcTemplate.queryForMap(contains("FROM app_user"), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Map.of("available", true, "voice_busy", false));
         when(jdbcTemplate.update(contains("SET status = 'DIALING'"), any(), any(), any(), any(), any(), any()))
                 .thenReturn(1);
 
@@ -352,5 +355,49 @@ class ProgressiveDialerServiceTest {
         assertThat(methodExists)
                 .as("Metoda isCalledTooRecently powinna być usunięta – next_attempt_at jest autorytatywne")
                 .isFalse();
+    }
+
+    // =========================================================================
+    // BE-230 NF1: manual claim - metryki source=manual
+    // =========================================================================
+
+    @Test
+    @DisplayName("markRecordAsDialingForAgent: BUSY -> contention{source=manual}, bez skipped")
+    void manualClaimBusyRecordsContention() {
+        when(campaignContactRepository.markAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID))
+                .thenReturn(AgentGate.BUSY);
+
+        assertThat(dialerService.markRecordAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID))
+                .isEqualTo(AgentGate.BUSY);
+
+        verify(lockSkipMetrics).recordAgentContention(LockSkipMetrics.SOURCE_MANUAL);
+        verify(lockSkipMetrics, never()).recordAgentSkipped(any(), any());
+    }
+
+    @Test
+    @DisplayName("markRecordAsDialingForAgent: RECORD_UNAVAILABLE -> skipped{source=manual,reason=status_changed}, nie contention")
+    void manualClaimUnavailableRecordRecordsSkipNotContention() {
+        when(campaignContactRepository.markAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID))
+                .thenReturn(AgentGate.RECORD_UNAVAILABLE);
+
+        assertThat(dialerService.markRecordAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID))
+                .isEqualTo(AgentGate.RECORD_UNAVAILABLE);
+
+        verify(lockSkipMetrics).recordAgentSkipped(LockSkipMetrics.SOURCE_MANUAL,
+                LockSkipMetrics.REASON_STATUS_CHANGED);
+        verify(lockSkipMetrics, never()).recordAgentContention(any());
+    }
+
+    @Test
+    @DisplayName("markRecordAsDialingForAgent: LOCK_TIMEOUT -> skipped{source=manual,reason=lock_timeout}; FREE -> brak metryk")
+    void manualClaimLockTimeoutAndFreeMetrics() {
+        when(campaignContactRepository.markAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID))
+                .thenReturn(AgentGate.LOCK_TIMEOUT, AgentGate.FREE);
+
+        dialerService.markRecordAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID);
+        verify(lockSkipMetrics).recordAgentSkipped(LockSkipMetrics.SOURCE_MANUAL, LockSkipMetrics.REASON_LOCK_TIMEOUT);
+
+        dialerService.markRecordAsDialingForAgent(RECORD_ID, CAMPAIGN_ID, TENANT_ID, AGENT_ID);
+        verify(lockSkipMetrics, never()).recordAgentContention(any());
     }
 }

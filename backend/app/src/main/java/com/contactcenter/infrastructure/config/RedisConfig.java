@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -87,10 +88,12 @@ public class RedisConfig {
      * Wspólny kontener subskrypcji Redis pub/sub (BE-179: unieważnianie cache lokalnych między instancjami;
      * docelowo także broker WebSocket z ADR-14 / BE-175). Bez auto-startu - startuje go
      * {@link PubSubListenerContainerSupervisor} w tle z retry, więc aplikacja wstaje także przy martwym Redis.
-     * Executory są ograniczone (patrz {@link PubSubListenerContainer}); BE-175 musi rozstrzygnąć executor i
-     * kolejność zdarzeń WS przed reużyciem.
+     * Executory są ograniczone (patrz {@link PubSubListenerContainer}); kolejność zdarzeń nie jest gwarantowana
+     * (2 wątki dispatchu) - fan-out WebSocket (BE-175) ma własną instancję z 1 wątkiem
+     * ({@code WebSocketFanoutConfig#wsFanoutListenerContainer}); ten bean jest {@code @Primary}.
      */
     @Bean
+    @Primary
     public PubSubListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory,
                                                                  MeterRegistry meterRegistry) {
         return new PubSubListenerContainer(connectionFactory, meterRegistry);
@@ -99,7 +102,7 @@ public class RedisConfig {
     @Bean
     public PubSubListenerContainerSupervisor pubSubListenerContainerSupervisor(
             PubSubListenerContainer redisMessageListenerContainer) {
-        return new PubSubListenerContainerSupervisor(redisMessageListenerContainer);
+        return new PubSubListenerContainerSupervisor(redisMessageListenerContainer, 1_000, "cache-pubsub");
     }
 
     /**

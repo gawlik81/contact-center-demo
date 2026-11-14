@@ -265,8 +265,9 @@ class ProgressiveDialerCampaignLockIntegrationTest {
         CountDownLatch lockHeld = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         ExecutorService pool = Executors.newSingleThreadExecutor();
+        Future<?> holder;
         try {
-            pool.submit(() -> a.inTx(() -> {
+            holder = pool.submit(() -> a.inTx(() -> {
                 a.service.claimNextContact(campaign1, tenantId, holderAgent);
                 lockHeld.countDown();
                 awaitQuietly(release);
@@ -281,6 +282,9 @@ class ProgressiveDialerCampaignLockIntegrationTest {
             assertThat(redis).as("agent token released").doesNotContainKey("dialer:agent:" + agent);
             assertThat(countStatus(campaign1, "DIALING")).as("holder's claim is not committed yet").isZero();
             release.countDown();
+            // BE-230: wait until the holder's transaction has really committed (release only unblocks it) - otherwise
+            // the next trigger may still see the campaign lock and be skipped (flaky under load)
+            holder.get(10, TimeUnit.SECONDS);
         } finally {
             release.countDown();
             pool.shutdownNow();
@@ -563,8 +567,12 @@ class ProgressiveDialerCampaignLockIntegrationTest {
     void agentFreeProbeUsesV151Indexes() {
         UUID tenant = tenantId;
         UUID agent = insertAgent("AVAILABLE");
-        String sql = ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL
-                .replaceFirst("\\?::uuid", "'" + agent + "'::uuid").replaceFirst("\\?::uuid", "'" + tenant + "'::uuid");
+        // inline every positional parameter (agent, tenant, then the voice-load ones) so EXPLAIN sees literals
+        String inlined = ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL;
+        for (Object param : ProgressiveDialerServiceImpl.agentStillFreeParams(agent, tenant)) {
+            inlined = inlined.replaceFirst("\\?::uuid", "'" + param + "'::uuid");
+        }
+        final String sql = inlined;
         String plan = seed.execute((org.springframework.jdbc.core.ConnectionCallback<String>) con -> {
             try (var st = con.createStatement()) {
                 st.execute("SET enable_seqscan = off");

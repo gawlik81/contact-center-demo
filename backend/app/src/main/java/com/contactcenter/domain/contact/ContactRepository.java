@@ -2,9 +2,11 @@ package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.repository.TenantAwareRepository;
 import com.contactcenter.domain.routing.RoutingService;
+import com.contactcenter.infrastructure.lock.AgentAssignmentLock;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +47,15 @@ class ContactRepository extends TenantAwareRepository {
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
+
+  /**
+   * BE-230 S5: how long {@link #assignIfQueued} waits for the per-agent advisory lock before it gives the agent up
+   * ({@code AGENT_LOCK_TIMEOUT}). Holders keep the lock for a few milliseconds, so a hit means a stuck transaction;
+   * kept short (same order as {@code dialer.campaign-lock.wait-ms}) so a RabbitMQ listener / ShedLock-held pass is
+   * never parked behind it.
+   */
+  @Value("${agent-assignment.lock-timeout-ms:500}")
+  private long agentLockTimeoutMs = 500;
 
   public ContactRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
     this.jdbcTemplate = jdbcTemplate;
@@ -1143,6 +1155,28 @@ class ContactRepository extends TenantAwareRepository {
   }
 
   /**
+   * BE-230 S7: which of {@code agentIds} hold a voice load right now (an open PHONE contact or a DIALING dialer
+   * record) - ONE batch query, the same predicate fragments as {@link OccupiedSlot#VOICE_LOAD_EXISTS_SQL}.
+   * A plain read WITHOUT the agent lock: a routing pre-filter, never a guarantee.
+   */
+  @Transactional(readOnly = true)
+  public Set<UUID> findAgentIdsWithVoiceLoad(UUID tenantId, Collection<UUID> agentIds) {
+    if (agentIds == null || agentIds.isEmpty()) {
+      return Set.of();
+    }
+    setTenantContextInDb(tenantId);
+    List<?> rows = em.createNativeQuery(OccupiedSlot.VOICE_LOAD_AGENTS_SQL)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("agentIds", agentIds)
+        .getResultList();
+    Set<UUID> busy = new HashSet<>();
+    for (Object row : rows) {
+      busy.add(toPurgeUuid(row));
+    }
+    return busy;
+  }
+
+  /**
    * BE-210: true when the agent still holds a PHONE contact in progress (ACTIVE or ON_HOLD) - the call runs in
    * Twilio independently of the agent's browser, so the presence sweeper must not flip such a BUSY agent to
    * OFFLINE. Legacy rows without a channel count as PHONE (see {@code ContactChannels.DEFAULT_TYPE}).
@@ -1198,9 +1232,53 @@ class ContactRepository extends TenantAwareRepository {
   @Transactional
   public AssignmentResult assignIfQueued(UUID contactId, UUID tenantId, Instant startedAt, UUID agentId,
                                          UUID queueId, Integer maxAsyncPerAgent) {
+    return assignIfQueued(contactId, tenantId, startedAt, agentId, queueId, maxAsyncPerAgent, false);
+  }
+
+  /**
+   * Same as the 6-argument form plus <strong>voice exclusivity (BE-230)</strong>.
+   *
+   * <p>When {@code exclusiveVoice} is true (the contact is a PHONE contact) the agent's per-agent advisory lock
+   * ({@link AgentAssignmentLock}, bounded by {@code agent-assignment.lock-timeout-ms}) is taken and, UNDER it, the
+   * agent is re-verified free of voice load ({@link OccupiedSlot#VOICE_LOAD_EXISTS_SQL}: open PHONE contact or
+   * DIALING dialer record); otherwise {@link AssignmentResult#AGENT_BUSY}. A lock that stays held longer than the
+   * timeout gives {@link AssignmentResult#AGENT_LOCK_TIMEOUT} (agent skipped, nothing written). The dialer claim
+   * takes the same lock and runs the same predicate, so routing(queue A) x routing(queue B) x dialer on one agent are
+   * serialised per agent: the second path sees the first one's committed ASSIGNED / DIALING row.
+   *
+   * <p><strong>Isolation requirement:</strong> correctness relies on {@code READ COMMITTED} (the PostgreSQL and Spring
+   * default - nothing in the application raises it). Under READ COMMITTED every statement takes a fresh snapshot, so
+   * the load probe that follows the lock sees what the previous lock holder committed. Under REPEATABLE READ /
+   * SERIALIZABLE the snapshot would be fixed by the first statement of the transaction (taken BEFORE the lock) and
+   * the check would be blind to that commit - exclusivity would silently break.
+   *
+   * <p><strong>Lock order (no deadlock):</strong> outer exclusion (ShedLock of the queue / advisory lock of the
+   * campaign) -> per-agent lock, always in this order, and every transaction takes AT MOST ONE agent lock (one
+   * short transaction per assignment), so two transactions can never wait for each other in a cycle.
+   *
+   * @param exclusiveVoice true = enforce one voice contact per agent; false = async contact (limit via
+   *                       {@code maxAsyncPerAgent}, unaffected by voice load) or a deliberately unguarded path
+   *                       (direct transfer chosen by a human)
+   */
+  @Transactional
+  public AssignmentResult assignIfQueued(UUID contactId, UUID tenantId, Instant startedAt, UUID agentId,
+                                         UUID queueId, Integer maxAsyncPerAgent, boolean exclusiveVoice) {
     Objects.requireNonNull(startedAt, "startedAt (partition key, Contact.startedAt is non-null)");
     assertSameTenant(tenantId);
     setTenantContextInDb(tenantId);
+
+    if (exclusiveVoice) {
+      if (!AgentAssignmentLock.tryAcquire(jdbcTemplate, tenantId, agentId, agentLockTimeoutMs)) {
+        log.warn("[ContactRepo] assignIfQueued: lock agenta {} niedostepny w {} ms - AGENT_LOCK_TIMEOUT (contactId={})",
+            agentId, agentLockTimeoutMs, contactId);
+        return AssignmentResult.AGENT_LOCK_TIMEOUT;
+      }
+      if (OccupiedSlot.hasVoiceLoad(jdbcTemplate, tenantId, agentId)) {
+        log.debug("[ContactRepo] assignIfQueued: agent {} ma juz polaczenie glosowe/DIALING - AGENT_BUSY (contactId={})",
+            agentId, contactId);
+        return AssignmentResult.AGENT_BUSY;
+      }
+    }
 
     if (maxAsyncPerAgent != null) {
       if (queueId == null) {
@@ -1209,8 +1287,11 @@ class ContactRepository extends TenantAwareRepository {
         log.warn("[ContactRepo] assignIfQueued: limit ustawiony, ale brak queueId - pomijam: contactId={}", contactId);
         return AssignmentResult.CONTACT_UNAVAILABLE;
       }
-      jdbcTemplate.queryForRowSet(com.contactcenter.infrastructure.lock.AdvisoryLockKeys.AGENT_ASSIGNMENT_LOCK_SQL,
-          com.contactcenter.infrastructure.lock.AdvisoryLockKeys.agentAssignmentKey(tenantId, agentId));
+      if (!AgentAssignmentLock.tryAcquire(jdbcTemplate, tenantId, agentId, agentLockTimeoutMs)) {
+        log.warn("[ContactRepo] assignIfQueued: lock agenta {} niedostepny w {} ms - AGENT_LOCK_TIMEOUT (contactId={})",
+            agentId, agentLockTimeoutMs, contactId);
+        return AssignmentResult.AGENT_LOCK_TIMEOUT;
+      }
       long open = countOpenAsyncContactsByAgents(tenantId, queueId, List.of(agentId))
           .getOrDefault(agentId, 0L);
       if (open >= maxAsyncPerAgent) {

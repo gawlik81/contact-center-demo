@@ -37,6 +37,11 @@ public final class AdvisoryLockKeys {
      * Per-agent assignment lock (BE-156, shared since BE-173): blocking, {@code bigint} form, param = the text from
      * {@link #agentAssignmentKey}. Taken by {@code ContactRepository#assignIfQueued} (async limit) and by the
      * dialer claim, so both serialise on ONE key per agent. Held until the end of the surrounding transaction.
+     *
+     * <p>BE-230: since then ALSO taken by routing of PHONE contacts ({@code assignIfQueued(..., exclusiveVoice=true)}),
+     * so routing(queue A) / routing(queue B) / dialer / async limit all serialise on the same per-agent key.
+     * <strong>Lock order (fixed, deadlock-free):</strong> outer exclusion (queue ShedLock | campaign advisory lock)
+     * -> agent lock; each transaction holds at most ONE agent lock.
      */
     public static final String AGENT_ASSIGNMENT_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))";
 

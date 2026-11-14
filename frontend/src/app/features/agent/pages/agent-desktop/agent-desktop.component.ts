@@ -152,9 +152,21 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly shortcuts = AGENT_SHORTCUTS;
 
   protected readonly connectionState = this.ws.connectionState;
+  // Deliberate local copy of WebSocketService.isDown (everything except CONNECTED/CONNECTING): the
+  // desktop specs mock WebSocketService with connectionState only. Keep both rules in sync.
   protected readonly isOffline = computed(
-    () => this.connectionState() === 'DISCONNECTED' || this.connectionState() === 'ERROR',
+    () => this.connectionState() !== 'CONNECTED' && this.connectionState() !== 'CONNECTING',
   );
+  protected readonly wsResuming = this.ws.resuming;
+
+  protected onWsRetry(): void {
+    this.ws.resumeAfterRejection();
+  }
+
+  protected readonly wsRejection = computed(() => {
+    const state = this.connectionState();
+    return state === 'FORBIDDEN' || state === 'SESSION_EXPIRED' ? state : null;
+  });
   protected readonly isReconnecting = computed(() => this.connectionState() === 'CONNECTING');
 
   protected readonly tabs = this.tabStore.tabs;

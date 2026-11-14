@@ -109,7 +109,7 @@ class TwilioClientCacheCrossInstanceIntegrationTest {
 
         ctx.registerBean("meters", MeterRegistry.class, () -> meters);
         ctx.registerBean("stringRedisTemplate", StringRedisTemplate.class, () -> stringTemplate);
-        ctx.registerBean("listenerContainer", PubSubListenerContainer.class, () -> container);
+        ctx.registerBean("redisMessageListenerContainer", PubSubListenerContainer.class, () -> container);
         // production supervisor (starts the container after refresh, with retry); short backoff for the tests
         ctx.registerBean("supervisor", PubSubListenerContainerSupervisor.class,
                 () -> new PubSubListenerContainerSupervisor(container, 200));

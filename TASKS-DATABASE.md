@@ -4627,7 +4627,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 80, 2026-11-19: bez zmian w DB — BE-177, BE-178 i BE-236 ✅ zamknięte bez migracji (V151 nadal najwyższa, V152 i DB-101 wolne); DB-101 może powstać w BE-247 (S5: widok/funkcja SECURITY DEFINER do pre-checku rekoncyliacji wtyczek — decyzja właściciela) lub w BE-246 (kolumna checksum JAR) albo BE-237; wcześniej tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 

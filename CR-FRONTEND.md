@@ -3178,3 +3178,68 @@ Wyniki: `npm run lint` 0 bledow (10 warningow no-console, istniejace), `npm run 
 
 ### Summary
 **4.5/5 — APPROVE (brak must-fix).** M1–M3 i S2–S6 domkniete poprawnie i z testami; S1 dziala, ale single-flight nie ma wlasnych testow i ma lenisty-capture tokenu (N1/N2), a AC5 (realny ERROR z BE w przegladarce) pozostaje otwarty.
+
+---
+
+## Review FE-171 — 2026-11-19 (tura 80, zmiany niezacommitowane na `feature/epic33-ivr-plugins-ws-error-code`)
+
+Zakres: `frontend/src/app/core/services/websocket.service.ts` + `.spec.ts` (klasyfikacja po `headers['code']`, fallback po `message` tylko bez `code`, usuniety podciag „claim", `Object.hasOwn`). Weryfikacja zgodnosci z BE-236 (`WsErrorCode`, `StompErrorCodeHandler`, interceptory) i petli w `handleStompError`. Testow nie uruchamiano.
+
+### Must
+- _Brak._
+
+### Should
+- **S1 (`websocket.service.ts:53`) — `WS_NO_SESSION` -> `'TOKEN'` jest niezgodne z tym, kiedy backend go wysyla.** Backend wysyla `WS_NO_SESSION` wylacznie z `StompDestinationAuthorizationInterceptor` przy `no_principal`, czyli gdy SUBSCRIBE/SEND przyjdzie w sesji WS bez udanego CONNECT (blad kolejnosci ramek / klient pisze przed `CONNECTED`). Token JWT NIE wygasl i nie jest zly — wygasniecie przy CONNECT daje `WS_TOKEN_EXPIRED`, a w trakcie sesji STOMP w ogole nie jest sprawdzane. Konsekwencje przy mapowaniu na TOKEN: (1) zbedny `POST /auth/refresh` (obraca refresh-token bez powodu), (2) przy powtorce `tokenRefreshTried` nie jest zerowany (tylko w `onConnect`), wiec drugi `WS_NO_SESSION` konczy sie `halt('SESSION_EXPIRED')` i baner „sesja wygasla / zaloguj sie" — mylacy komunikat dla bledu protokolu. Petli NIE ma (refresh jednorazowy do udanego `onConnect`, potem halt), wiec to nie blocker. Poprawka: `WS_NO_SESSION: 'OTHER'` (zwykly reconnect z backoffem — nowe CONNECT i tak uwierzytelnia sesje), ewentualnie osobny rodzaj bez refreshu; zaktualizowac JSDoc (l. 43) i test `maps WS_NO_SESSION to ...`. W dokumentacji BE dopisac, ze `WS_NO_SESSION` to nie sygnal do odswiezania tokenu (BE-236 N4).
+- **S2 (`websocket.service.spec.ts`) — brak testu przeplywu przez `onStompError`.** Testy klasyfikatora sa dobre (tabela kodow, nieznany kod, `toString` vs `Object.hasOwn`, `code` ma pierwszenstwo przed `message`), ale nie ma testu, ze ramka z `code: WS_FORBIDDEN` faktycznie daje stan `FORBIDDEN` bez reconnectu, a `WS_TOKEN_EXPIRED` — jeden refresh, potem halt przy powtorce (petla: dwa kolejne bledy `TOKEN` bez `onConnect` pomiedzy). Dopisac 2 testy na serwisie z mockiem klienta (istniejacy blok `WebSocketService reconnect (FE-169)`).
+
+### Nit
+- **N1 (`websocket.service.ts:57-63`)** — `if (code)` odrzuca pusty string (przejdzie do fallbacku — OK), ale `code` z wielkosci liter/bialymi znakami (`' ws_forbidden'`) trafi do `OTHER`; backend zawsze wysyla dokladna nazwe enuma, wiec wystarczy. Dla jasnosci mozna dodac komentarz.
+- **N2 (`websocket.service.ts:210`)** — `console.error('[WS] STOMP error:', frame.headers?.['message'] ?? frame)`: przy ramce z `code` warto logowac `code` (diagnostyka: `WS_INTERNAL` ma generyczny `message` „Wewnętrzny błąd przetwarzania ramki STOMP", wiec dzis w konsoli nic z niego nie wynika).
+- **N3 (`websocket.service.ts:67-77`)** — fallback po `message` jest poprawnie zawezony (usuniety „claim", test: `"Nieprawidłowy format UUID w claim 'sub'"` -> `OTHER`, a z prefiksem „Nieprawidłowy token JWT:" -> `TOKEN`). Zdjecie fallbacku zalezy od wdrozenia BE-236 na wszystkich instancjach — zostawic `TODO(FE-171)` i dopisac date/warunek (np. „po wdrozeniu BE-236 na prod") w TASKS-FRONTEND.md zamiast niejawnego „okres przejsciowy".
+- **N4 (`WsErrorKind`)** — nieznany przyszly kod terminalny (np. `WS_RATE_LIMITED`) bedzie traktowany jak `OTHER` -> nieskonczony reconnect z backoffem do 30 s; zgodne z kontraktem BE („nieznany = WS_INTERNAL"), ale warto miec metryke/log przy trafieniu w galaz „nieznany kod".
+
+### Zgodnosc z kontraktem BE-236
+- Nazwa naglowka `code` i 6 kodow (`WS_FORBIDDEN`, `WS_NO_SESSION`, `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL`) zgodne 1:1 z `WsErrorCode`. `WS_FORBIDDEN` -> terminalny, `WS_TOKEN_*` -> jeden refresh, `WS_INTERNAL`/nieznany -> reconnect: poprawnie. Wyjatek: `WS_NO_SESSION` (S1).
+- Zalozenie fallbacku „brak `code` = stary backend" nie zawsze zachodzi: BE-236 nie dodaje `code` do ramek ERROR przechodzacych przez `handleErrorMessageToClient` (BE-236 S2 w CR-BACKEND.md) — takie ramki pojda sciezka po `message`.
+
+### Pozytywne
+- `Object.hasOwn` zamiast `in`/indeksowania zamyka wyciek z prototypu (`toString`, `constructor`) — pokryte testem; `Readonly<Record<...>>` + domyslne `OTHER` = bezpieczne dla nieznanych kodow.
+- Jasny podzial: klasyfikacja po `code` jest jedyna prawda, `message` nigdy jej nie nadpisuje (test `ignores the message text when a code is present` obejmuje 4 kombinacje).
+- Brak petli: refresh jednorazowy (`tokenRefreshTried`), `halted` blokuje plain retry w trakcie refreshu, klient-guard w closure.
+
+### Summary
+**4/5 — APPROVE (brak must-fix).** Implementacja zgodna z kontraktem poza jednym mapowaniem (`WS_NO_SESSION` -> TOKEN jest semantycznie bledne: wywoluje zbedny refresh i mylacy baner „sesja wygasla", ale bez petli); do dorobienia test przeplywu przez `onStompError`.
+
+## Re-review FE-171 — 2026-11-19 (tura 80, poprawki po pierwszej rundzie; zmiany niezacommitowane)
+
+Zakres: `frontend/src/app/core/services/websocket.service.ts` + `.spec.ts`; weryfikacja punktow z wpisu „Review FE-171” powyzej i zgodnosci z poprawionym BE-236 (`WsErrorCode`, `StompErrorCodeHandler`). Bez ponownego uruchamiania testow (pelny verify zielony wg zlecenia, FE 1295 testow).
+
+### Status punktow
+
+| Punkt | Status | Uwagi |
+|---|---|---|
+| S1 `WS_NO_SESSION` -> `TOKEN` | **Naprawione** | Mapowanie `WS_NO_SESSION: 'OTHER'`, JSDoc (l. 43-46) opisuje powod (blad kolejnosci ramek, nie tokenu); test `WS_NO_SESSION is a plain reconnect without a token refresh` (brak refresh, 1 `activate`). Zgodne z BE (N4 w CR-BACKEND, doc: „NIE sygnal do odswiezania tokenu”). |
+| S2 test przeplywu `onStompError` | **Naprawione** | 3 testy na serwisie z mockiem klienta: `WS_FORBIDDEN` (stan `FORBIDDEN`, brak reconnectu i refresh), dwa `WS_TOKEN_EXPIRED` bez `onConnect` (1 refresh, potem `SESSION_EXPIRED`, 1 `activate`), `WS_NO_SESSION` (reconnect bez refresh). Pokrywa petle, o ktora pytalem. |
+| N1 wielkosc liter/spacje | **Naprawione** | Komentarz „Exact, case-sensitive match”. |
+| N2 log `code` w `onStompError` | **Naprawione** | `console.error('[WS] STOMP error:', code ?? '(no code)', message ?? frame)`. Bez testu na log — nie wymagany. |
+| N3 warunek zdjecia fallbacku | **Naprawione** | `TODO(FE-171)` z warunkiem (po wdrozeniu BE-236 na KAZDEJ instancji, nie data). Ticket w `TASKS-FRONTEND.md` nadal mowi „po okresie przejsciowym” — przy zamknieciu ujednolicic z komentarzem. |
+| N4 nieznany kod | **Naprawione** | `warnedUnknownCodes` + `console.warn` raz na kod; test `warns once per unknown code`. |
+
+### Nowe uwagi (po poprawkach)
+
+**Must / Should** — brak.
+
+**Nit**
+- **N-1 (`websocket.service.ts` JSDoc `classifyByMessageText`, ostatnie zdanie)** — „frames from the backend's generic error path (handleErrorMessageToClient) may lack `code` even on a new backend and rely on this fallback” jest juz nieprawdziwe: BE-236 S2 zostal naprawiony i `handleErrorMessageToClient` dopisuje `WS_INTERNAL`. Usunac zdanie, zeby TODO o zdjeciu fallbacku nie sugerowalo, ze nowy backend moze wysylac ramki bez `code`.
+- **N-2 (`websocket.service.ts`, `warnedUnknownCodes`)** — Set na poziomie modulu: zywotnosc = zywotnosc strony, wartosci pochodza z serwera (nie od uzytkownika), wiec praktycznie ograniczony; ale stan modulowy utrzymuje sie miedzy testami (dzisiejsze testy uzywaja unikalnych kodow `WS_WARN_ONCE`, wiec brak interferencji). Opcjonalnie ograniczyc rozmiar (np. max 20 wpisow) lub trzymac Set w serwisie.
+- **N-3 (`websocket.service.spec.ts`)** — test `ignores the message text...` zawiera przypadek `WS_INTERNAL` + „Brak uprawnien”: dobry. Brakuje przypadku `code` pustego/`''` + `message` (powinno przejsc do fallbacku po tekscie) — drobna luka dla gałęzi `if (code)`.
+
+### Zgodnosc z kontraktem BE-236
+- 6 kodow zgodnych 1:1 z `WsErrorCode`; `WS_NO_SESSION` poprawnie jako `OTHER`. Ramki z `handleErrorMessageToClient` maja teraz `code` (`WS_INTERNAL` -> `OTHER`), wiec nie trafiaja juz niepotrzebnie w fallback po `message`.
+
+### Pozytywne (nowe)
+- Testy przeplywu sprawdzaja zachowanie obserwowalne (stan, liczba `activate`/`refresh`), nie implementacje; scenariusz „dwa wygasniecia bez `onConnect`” dowodzi braku petli refresh.
+- Komentarz przy fallbacku zapisuje warunek wycofania (wdrozenie na kazdej instancji), a nie date.
+
+### Summary
+**4.5/5 — APPROVE (brak Must/Should).** S1 i S2 domkniete poprawnie, N1-N4 wdrozone; zostaja nity: nieaktualne zdanie o `handleErrorMessageToClient` w JSDoc (N-1) i drobna luka w tescie galezi pustego `code` (N-3).

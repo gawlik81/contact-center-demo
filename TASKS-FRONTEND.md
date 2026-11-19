@@ -55,7 +55,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
 | EPIC-32 | UX i dostępność stanowiska agenta | 38 | 0 | 16 | 0 | 54 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy | 2 | 0 | 2 | 0 | 4 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 3 | 0 | 2 | 0 | 5 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | **Razem** | | **152** | **0** | **22** | **1** | **175** |
 
@@ -120,7 +120,8 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń (P1; po BE-175) — ⬜ (Do zrobienia)
 - FE-169 – WebSocket: zatrzymanie auto-reconnect po błędzie autoryzacji (ERROR z BE-229) i backoff z jitterem zamiast stałego 1 s (Średni; po BE-229 ✅; wspólny backoff z FE-155) — ✅ (Ukończone 2026-11-14, tura 79; CR 3,5/5 → 4,5/5; AC5 w przeglądarce niewykonane)
 - FE-170 – Usunięcie `ws.publish('/app/agent/status')` i mylącego komentarza w `agent-status.service.ts` (Niski; po BE-229 ✅) — ✅ (Ukończone 2026-11-14, tura 79; CR OK)
-- FE-171 – Klient WS czyta natywny nagłówek `headers['code']` ramki STOMP ERROR zamiast podciągów `message`; usunięcie fallbacku (także „claim”) po okresie przejściowym (Średni, S; po BE-236, FE-169 ✅; tura 79) — ⬜ (Do zrobienia)
+- FE-171 – Klient WS czyta natywny nagłówek `headers['code']` ramki STOMP ERROR zamiast podciągów `message`; usunięcie fallbacku (także „claim”) po okresie przejściowym (Średni, S; po BE-236, FE-169 ✅; tura 79) — ✅ (Ukończone 2026-11-19, tura 80; CR 4/5 → 4,5/5; kryterium 3 — usunięcie fallbacku — odroczone do FE-172; AC5 w przeglądarce niewykonane)
+- FE-172 – Usunięcie fallbacku po tekście `message` w `websocket.service.ts` po wdrożeniu BE-236 na wszystkich instancjach (Średni, S; po FE-171 ✅, BE-236 ✅; tura 80) — ⬜ (Do zrobienia)
 
 ---
 
@@ -5934,7 +5935,7 @@ Nie zgadywałem że działa — DTO i przepływ zweryfikowane statycznie (kod ź
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 38/54** (✅ 38 · 🔧 0 · ⬜ 16 · 🚫 0; tura 79 (2026-11-14): bez zmian w EPIC-32 FE (FE-169 ✅ i FE-170 ✅ oraz nowy FE-171 w EPIC-33); następne wolne FE-172; wcześniej tura 78 (2026-11-14): bez zmian w EPIC-32 FE (nowe FE-169 i FE-170 trafiły do EPIC-33; FE-168 leży w tej sekcji pliku, ale jego epik to EPIC-32); następne wolne FE-171; wcześniej tura 77 (2026-11-13): bez zmian FE (zamknięte BE-171/172/224/196, DB-090/099; nowe BE-225…228); następne wolne FE-169; wcześniej tura 76 (2026-11-12): FE-168 ✅ (linia żywotności ETL z pola serwera BE-223 ✅, region `aria-live`) i FE-160 ✅ (test parytetu kluczy i18n, domknięty razem z FE-168); następne wolne FE-169; wcześniej tura 75 cd. 2 (2026-11-12): FE-165 ✅, nowy FE-168 ⬜ (zależy od BE-223); następne wolne FE-169; wcześniej tura 74 dopisek 2 (2026-11-08): FE-163 ✅, FE-149 ⬜ (częściowo zrealizowane w FE-163; korekta: wcześniej błędnie ✅), nowy FE-167 ⬜; wcześniej tura 74 (2026-11-08): FE-164 ✅, nowy FE-166 ⬜; FE-165 dołożony w turze 73 (dopisek 2, 2026-11-07, wynik CR BE-212) jako ⬜ backlog; rekoncyliacja tabeli (EPIC-32 było 33/16/49 przy faktycznych 33/17/50); FE-163 dołożony w turze 72, 2026-11-07, jako ⬜ backlog; FE-164 dołożony w turze 73, 2026-11-07, jako ⬜ backlog) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149, FE-151, FE-152, FE-154, FE-158, FE-160…FE-162 oraz BE-156, BE-159, BE-165…BE-170, BE-196…BE-203 (FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ i BE-163 ✅ zamknięte w turze 69; BE-164 ✅ i FE-156 ✅ zamknięte w turze 68; BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
+**Ukończone 38/54** (✅ 38 · 🔧 0 · ⬜ 16 · 🚫 0; tura 80 (2026-11-19): bez zmian w EPIC-32 FE (FE-171 ✅ oraz nowy FE-172 w EPIC-33); następne wolne FE-173; wcześniej tura 79 (2026-11-14): bez zmian w EPIC-32 FE (FE-169 ✅ i FE-170 ✅ oraz nowy FE-171 w EPIC-33); następne wolne FE-172; wcześniej tura 78 (2026-11-14): bez zmian w EPIC-32 FE (nowe FE-169 i FE-170 trafiły do EPIC-33; FE-168 leży w tej sekcji pliku, ale jego epik to EPIC-32); następne wolne FE-171; wcześniej tura 77 (2026-11-13): bez zmian FE (zamknięte BE-171/172/224/196, DB-090/099; nowe BE-225…228); następne wolne FE-169; wcześniej tura 76 (2026-11-12): FE-168 ✅ (linia żywotności ETL z pola serwera BE-223 ✅, region `aria-live`) i FE-160 ✅ (test parytetu kluczy i18n, domknięty razem z FE-168); następne wolne FE-169; wcześniej tura 75 cd. 2 (2026-11-12): FE-165 ✅, nowy FE-168 ⬜ (zależy od BE-223); następne wolne FE-169; wcześniej tura 74 dopisek 2 (2026-11-08): FE-163 ✅, FE-149 ⬜ (częściowo zrealizowane w FE-163; korekta: wcześniej błędnie ✅), nowy FE-167 ⬜; wcześniej tura 74 (2026-11-08): FE-164 ✅, nowy FE-166 ⬜; FE-165 dołożony w turze 73 (dopisek 2, 2026-11-07, wynik CR BE-212) jako ⬜ backlog; rekoncyliacja tabeli (EPIC-32 było 33/16/49 przy faktycznych 33/17/50); FE-163 dołożony w turze 72, 2026-11-07, jako ⬜ backlog; FE-164 dołożony w turze 73, 2026-11-07, jako ⬜ backlog) — status epiku: ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia). FE-127, FE-128 i FE-129 ✅ zdjęły ostatnie blokery. **Backlog epiku pozostaje otwarty (⬜), epiku nie blokował:** FE-137…FE-140, FE-142, FE-144, FE-146, FE-149, FE-151, FE-152, FE-154, FE-158, FE-160…FE-162 oraz BE-156, BE-159, BE-165…BE-170, BE-196…BE-203 (FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ i BE-163 ✅ zamknięte w turze 69; BE-164 ✅ i FE-156 ✅ zamknięte w turze 68; BE-161 ✅, BE-162 ✅ i FE-148 ✅ zamknięte w turze 65; FE-130 ✅, FE-135 ✅, BE-153 ✅ i BE-154 ✅ zamknięte w turze 66; precedens: EPIC-30 — zamknięty z otwartymi ⬜ DB-069/BE-137). **Wynik:** audyt `/impeccable audit` 12/20 → 15/20 (niedobór 1 pkt wobec celu ≥ 16 zaakceptowany przez właściciela, R1), krytyka 17/40 → 30/40, 0 × P0/P1. **Dług weryfikacji ręcznej (niewykonany):** czytnik ekranu (m.in. `tablist` z `aria-owns`, regiony live), prawdziwe połączenie Twilio/ACW (otwarte kryterium FE-114), emulacja `prefers-reduced-motion` (→ FE-142), ekrany admina/supervisora (wymagają MFA w local-demo: podpowiedzi umiejętności, napisy ról, walidacje po zmianie języka, toasty kolejki; FE-126/FE-127/FE-128), przegląd tłumaczeń de/uk przez native speakera (dług z FE-113).
 
 > Źródło: krytyka `/impeccable critique` z 2026-10-21 (`.impeccable/critique/2026-10-21T18-41-51Z__frontend-src-app-features-agent.md`, 17/40, 2 × P0, 3 × P1), audyt `/impeccable audit` z 2026-10-22 (12/20 „Acceptable”; 4 × P1, P2, P3), review `CR-FRONTEND.md` „Review: Agent surface — hardening momentu połączenia przychodzącego” (2026-10-21, 3,5/5), `PRODUCT.md` (agent ma pierwszeństwo; WCAG 2.1 AA; pełna obsługa z klawiatury; „żaden tekst nie na sztywno w jednym języku”) i `DESIGN.md` (The Lamp Rule, The Token-Only Rule, The One Family Rule, The Flat-at-Rest Rule; `.impeccable/design.json`). Zakres wg decyzji właściciela: „Wszystko”; priorytet „Moment dzwonienia” (zrobiony — FE-114); ACW/dyspozycja ma być **stanem karty kontaktu (niemodalnym)**, nie blokującą nakładką; skróty: Ctrl+Alt+Enter odbierz, Ctrl+Alt+Backspace rozłącz/odrzuć, Ctrl+Alt+M wycisz, `?` ściąga.
 > **Zakres:** wyłącznie frontend (powierzchnia `agent` + shell). Tickety BE epiku (w `TASKS-BACKEND.md`): BE-153 (`statusSince`, tura 50) oraz z tury 51 BE-154 (zdarzenie WS nowej wiadomości), BE-155 (BUG: kanał social nie dociera do agenta), BE-156 (limit równoległych kontaktów w routingu). Pytanie o backend dla FE-122 rozstrzygnięte w briefie (2026-10-23): ACW dokańcza otwarte kontakty, bez zmian BE. Pytanie o backend dla FE-136 rozstrzygnięte w turze 52 (2026-10-23): ticket BE-157 (lista aktywnych kontaktów agenta). Tura 55 (2026-10-29): dołożony BE-160 (`POST /api/contacts/{id}/release`, ✅) — zależność FE-132 → BE-160.
@@ -7693,7 +7694,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 2/4** (✅ 2 · 🔧 0 · ⬜ 2 · 🚫 0) — status epiku: 🔧 W toku (tura 79, 2026-11-14: FE-169 ✅ i FE-170 ✅; nowy FE-171 ⬜; epik w przeważającej części backendowy/infrastrukturalny; tu tickety FE wynikające ze skalowania poziomego i z BE-229: FE-155, FE-169, FE-170 (dwa ostatnie dołożone w turze 78, 2026-11-14) i FE-171 (tura 79); tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
+**Ukończone 3/5** (✅ 3 · 🔧 0 · ⬜ 2 · 🚫 0) — status epiku: 🔧 W toku (tura 80, 2026-11-19: FE-171 ✅ (klasyfikacja po `headers['code']`, CR 4/5 → 4,5/5, kryterium 3 odroczone); nowy FE-172 ⬜ (usunięcie fallbacku po wdrożeniu BE-236); wcześniej tura 79, 2026-11-14: FE-169 ✅ i FE-170 ✅; nowy FE-171 ⬜; epik w przeważającej części backendowy/infrastrukturalny; tu tickety FE wynikające ze skalowania poziomego i z BE-229: FE-155, FE-169, FE-170 (dwa ostatnie dołożone w turze 78, 2026-11-14) i FE-171 (tura 79); tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
 
 ### FE-168 – Panel admin-metrics: linia żywotności ETL z pola serwera (BE-223) zamiast progu i zegara klienta + pominięte nity FE-165
 
@@ -7726,7 +7727,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zależności:** `Zależy od` BE-223 ✅, FE-165 ✅; `Blokuje` brak; powiązane: FE-160 ✅, BE-223 ✅.
 
 
-> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-172 (FE-156…FE-168 zajął EPIC-32 w turach 68–75; FE-169/FE-170 tura 78; FE-171 tura 79).
+> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-173 (FE-156…FE-168 zajął EPIC-32 w turach 68–75; FE-169/FE-170 tura 78; FE-171 tura 79; FE-172 tura 80).
 
 ### FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń
 
@@ -7828,10 +7829,10 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Typ:** Refactor / Hardening (frontend, WebSocket)
 **Priorytet:** Średni
 **Złożoność:** S
-**Zależy od:** BE-236, FE-169 ✅
-**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-FRONTEND.md „Review: FE-169 + FE-170” i „Re-review: FE-169 + FE-170”, 2026-11-14, punkty „klasyfikacja / BE-236” i N5)
-**Czeka na BE:** BE-236 (stabilny nagłówek `code` w ramce ERROR: `WS_FORBIDDEN`, `WS_NO_SESSION`, `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL`)
-**Blokuje:** brak
+**Zależy od:** BE-236 ✅, FE-169 ✅
+**Status:** ✅ Ukończone (2026-11-19, tura 80; gałąź `feature/epic33-ivr-plugins-ws-error-code`, niezacommitowane; wykonawca `angular-frontend-expert` + `impeccable harden`; CR „Review/Re-review: FE-171” w `CR-FRONTEND.md` 4/5 → 4,5/5, nity; `/verify`: lint 0 błędów, format OK, 88 plików / 1296 testów; Z JAWNYM ODSTĘPSTWEM: kryterium 3 (usunięcie fallbacku) odroczone → FE-172; AC5 w przeglądarce niewykonane) (założony 2026-11-14, tura 79; źródło: CR-FRONTEND.md „Review: FE-169 + FE-170” i „Re-review: FE-169 + FE-170”, 2026-11-14, punkty „klasyfikacja / BE-236” i N5)
+**Czeka na BE:** BE-236 ✅ (stabilny nagłówek `code` w ramce ERROR: `WS_FORBIDDEN`, `WS_NO_SESSION`, `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL`)
+**Blokuje:** FE-172
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (klient WS; ten sam plik `websocket.service.ts` co FE-155/FE-169)
 **Wykonawca:** `angular-frontend-expert` + `impeccable harden`
 
@@ -7840,15 +7841,43 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zakres:** w `core/services/websocket.service.ts` (`onStompError`) mapować `headers['code']` na stany `FORBIDDEN` / `SESSION_EXPIRED` / pozostałe; fallback po tekście `message` zostaje na okres przejściowy (rolling deploy ze starym backendem), po czym zostaje usunięty razem z podciągiem „claim” i `TODO(BE-236)`; testy serwisu dla każdego kodu; brak zmian tekstów i18n.
 
 **Kryteria akceptacji:**
-- [ ] `headers['code']` jest podstawą klasyfikacji: `WS_FORBIDDEN` → `FORBIDDEN`, `WS_TOKEN_EXPIRED`/`WS_TOKEN_INVALID`/`WS_TOKEN_MISSING`/`WS_NO_SESSION` → ścieżka sesji (refresh/`SESSION_EXPIRED`), `WS_INTERNAL` → zwykły reconnect z backoffem; test na każdy kod
-- [ ] Brak `code` w ramce (stary backend) → fallback po `message` zachowuje dotychczasowe zachowanie (test), dopóki fallback istnieje
+- [x] `headers['code']` jest podstawą klasyfikacji: `WS_FORBIDDEN` → `FORBIDDEN`, `WS_TOKEN_EXPIRED`/`WS_TOKEN_INVALID`/`WS_TOKEN_MISSING`/`WS_NO_SESSION` → ścieżka sesji (refresh/`SESSION_EXPIRED`), `WS_INTERNAL` → zwykły reconnect z backoffem; test na każdy kod
+- [x] Brak `code` w ramce (stary backend) → fallback po `message` zachowuje dotychczasowe zachowanie (test), dopóki fallback istnieje
 - [ ] Po okresie przejściowym fallback po tekście `message`, podciąg „claim” i `TODO(BE-236)` usunięte; grep po `frontend/src` nie znajduje podciągów komunikatów w klasyfikacji
-- [ ] Lint 0 błędów, format OK, `npm test` zielone
+- [x] Lint 0 błędów, format OK, `npm test` zielone
 - [ ] Weryfikacja w przeglądarce na local-demo: zabroniona subskrypcja → jeden ERROR z `code`, brak pętli (razem z weryfikacją FE-169 AC5)
 
 **Ryzyka:** (R1) usunięcie fallbacku przed wdrożeniem BE-236 na wszystkich instancjach → źle sklasyfikowane ERROR (pętla reconnectu); termin usunięcia ustalić po wdrożeniu BE-236.
 **Nie wchodzi w zakres:** zmiany serwera (BE-236), heartbeat i deduplikacja (FE-155).
-**Zależności:** `Zależy od` BE-236, FE-169 ✅; `Blokuje` brak; powiązane: FE-155, BE-229 ✅.
+**Zależności:** `Zależy od` BE-236 ✅, FE-169 ✅; `Blokuje` FE-172; powiązane: FE-155, BE-229 ✅, BE-236 N1.
+**Notatka wykonania (2026-11-19, tura 80):** `impeccable harden` na `core/services/websocket.service.ts`: klasyfikacja ramki STOMP ERROR po `headers['code']` — `WS_FORBIDDEN` → `FORBIDDEN`; `WS_TOKEN_*` → ścieżka sesji; `WS_NO_SESSION`, `WS_INTERNAL` i kod nieznany → `OTHER`/reconnect z backoffem; pusty `code` = brak kodu; `Object.hasOwn` na nagłówkach, jednorazowy warn nieznanego kodu (limit 32), log `code`. Fallback po `message` WYŁĄCZNIE dla ramek bez `code`; usunięty szeroki podciąg „claim”; `TODO(BE-236)` → `TODO(FE-172)`. **KRYTERIUM 3 (usunięcie fallbacku) ODROCZONE** do wdrożenia BE-236 na wszystkich instancjach (R1 ticketu) — ticket zamknięty z jawnym odstępstwem, usunięcie w FE-172. **AC5 (przeglądarka, local-demo) NIE wykonane** — zostaje `[ ]`, razem z AC5 FE-169.
+
+### FE-172 – Usunięcie fallbacku po tekście `message` w klasyfikacji ramki STOMP ERROR (`websocket.service.ts`) po wdrożeniu BE-236 na wszystkich instancjach
+
+**Typ:** Refactor / Hardening (frontend, WebSocket)
+**Priorytet:** Średni
+**Złożoność:** S
+**Zależy od:** FE-171 ✅, BE-236 ✅ (WARUNEK OPERACYJNY: BE-236 wdrożony na WSZYSTKICH instancjach backendu — brak starych replik bez nagłówka `code`)
+**Status:** ⬜ Do zrobienia (założony 2026-11-19, tura 80; źródło: odroczone kryterium 3 FE-171 oraz CR-FRONTEND.md „Review/Re-review: FE-171”)
+**Blokuje:** brak; powiązane: FE-171 ✅, BE-236 ✅ (follow-up N1 po stronie BE), FE-169 ✅, FE-155
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (klient WS; ten sam plik `websocket.service.ts`)
+**Wykonawca:** `angular-frontend-expert` + `impeccable harden`
+
+**Opis:** FE-171 ✅ klasyfikuje ramkę ERROR po `headers['code']`, ale zachował fallback po tekście `message` dla ramek bez `code` (rolling deploy ze starym backendem). Po wdrożeniu BE-236 na wszystkich instancjach fallback jest martwym kodem i utrwala zależność od brzmienia komunikatów.
+
+**Zakres:** w `core/services/websocket.service.ts` usunąć fallback po `message` i `TODO(FE-172)`; ramka bez `code` → `OTHER`/reconnect z backoffem (zachowanie bezpieczne, bez pętli); testy: usunięcie przypadków fallbacku, test „brak `code` → reconnect z backoffem”; razem z tym, po stronie BE (BE-236 N1): zastąpić echo `e.getMessage()` JWT w nagłówku `message` stałym tekstem (drobna zmiana BE w tym samym wydaniu lub osobny ticket BE nadany przy realizacji).
+
+**Kryteria akceptacji:**
+- [ ] Potwierdzone (notatka w tickecie), że BE-236 działa na wszystkich instancjach środowiska docelowego
+- [ ] Fallback po tekście `message` i `TODO(FE-172)` usunięte; grep po `frontend/src` nie znajduje podciągów komunikatów w klasyfikacji
+- [ ] Ramka ERROR bez `code` → reconnect z backoffem, bez pętli (test)
+- [ ] BE-236 N1: `message` z JWT zastąpiony stałą (test regresji po stronie BE)
+- [ ] Lint 0 błędów, format OK, `npm test` zielone
+- [ ] Weryfikacja w przeglądarce na local-demo: zabroniona subskrypcja → jeden ERROR z `code`, brak pętli (razem z AC5 FE-169/FE-171)
+
+**Ryzyka:** (R1) usunięcie fallbacku przed wdrożeniem BE-236 na wszystkich instancjach → źle sklasyfikowane ERROR (pętla reconnectu); (R2) zmiana `message` po stronie BE nie może wyprzedzać FE bez fallbacku.
+**Nie wchodzi w zakres:** heartbeat i deduplikacja (FE-155), zmiany kodów (BE-236).
+**Zależności:** `Zależy od` FE-171 ✅, BE-236 ✅; `Blokuje` brak; powiązane: FE-169 ✅, FE-155.
 
 ---
 

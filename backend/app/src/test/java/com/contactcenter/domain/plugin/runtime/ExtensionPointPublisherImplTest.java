@@ -71,6 +71,7 @@ class ExtensionPointPublisherImplTest {
     @Mock private RabbitTemplate rabbitTemplate;
     @Mock private PluginInvocationLogService pluginInvocationLogService;
     @Mock private PluginCatalogQueryService pluginCatalogQueryService;
+    @Mock private PluginRuntimeSync pluginRuntimeSync;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -89,7 +90,7 @@ class ExtensionPointPublisherImplTest {
         publisher = new ExtensionPointPublisherImpl(
                 pluginRegistry, circuitBreakerState, customerService, contactService,
                 properties, rabbitTemplate, objectMapper, pluginInvocationLogService,
-                pluginCatalogQueryService, executorService);
+                pluginCatalogQueryService, executorService, pluginRuntimeSync);
 
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(UUID.randomUUID());
@@ -620,6 +621,51 @@ class ExtensionPointPublisherImplTest {
 
             // Nie powinno rzucić wyjątku do wołającego — publikacja jest non-critical.
             publisher.publishPostContactEnd(TENANT_ID, contactEvent());
+        }
+    }
+
+    @Nested
+    @DisplayName("BE-178: instancja bez handle na ścieżkach z twardym budżetem")
+    class LazySyncOnBudgetedPaths {
+
+        @Test
+        @DisplayName("PRE_CONTACT_CONNECT bez handle: zwraca pusty wynik OD RAZU i zleca synchronizację w tle (bez ładowania synchronicznego)")
+        void preContactConnectWithoutHandlesRequestsBackgroundSync() {
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT)).thenReturn(List.of());
+
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            assertThat(result).isEqualTo(PreContactConnectResult.empty());
+            verify(pluginRuntimeSync).requestTenantSync(TENANT_ID);
+            verify(pluginRuntimeSync, never()).ensureTenantLoaded(any());
+        }
+
+        @Test
+        @DisplayName("MANUAL_ACTION bez handle: unsupported od razu + synchronizacja w tle (następne kliknięcie zadziała)")
+        void manualActionWithoutHandleRequestsBackgroundSync() {
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.MANUAL_ACTION)).thenReturn(List.of());
+
+            ManualActionResult result = publisher.publishManualAction(TENANT_ID, INSTALLATION_ID,
+                    new ManualActionRequest("open-ticket", null, null, Map.of()));
+
+            assertThat(result.success()).isFalse();
+            verify(pluginRuntimeSync).requestTenantSync(TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("PRE_CONTACT_CONNECT z handle: żadnego dodatkowego wywołania synchronizacji")
+        void preContactConnectWithHandlesDoesNotTouchSync() {
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+            when(pluginCatalogQueryService.findInstallation(any(), any())).thenReturn(Optional.empty());
+
+            publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            verify(pluginRuntimeSync, never()).requestTenantSync(any());
         }
     }
 }

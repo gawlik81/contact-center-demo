@@ -1,5 +1,6 @@
 package com.contactcenter.domain.plugin.runtime;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -93,4 +94,36 @@ public interface PluginRuntimeManager {
      * @param installationId instalacja do dezaktywacji
      */
     void unload(UUID tenantId, UUID installationId);
+
+    /**
+     * Migawka uchwytów aktywnych w tym procesie (BE-178) — wejście rekoncyliacji z DB między instancjami.
+     * Kopia: późniejsze {@code load}/{@code unload} nie zmieniają zwróconej kolekcji.
+     *
+     * @return uchwyty załadowane w tej instancji (może być pusta, nigdy {@code null})
+     */
+    Collection<PluginInstanceHandle> loadedHandles();
+
+    /**
+     * Natychmiast odwołuje (kill switch, BE-106/BE-178) wszystkie uchwyty danej wersji pluginu w tym procesie.
+     *
+     * <p>Dwufazowo: najpierw (szybko, bez czekania na pluginy) WSZYSTKIE pasujące uchwyty są usuwane z
+     * {@link PluginRegistry} i mapy aktywnych uchwytów — od tego momentu żadne wywołanie ich nie zobaczy — dopiero
+     * potem, osobno dla każdego, {@code onDeactivate} (timeout-bounded, best-effort) i zwolnienie classloadera.
+     * Wersja trafia też do lokalnego zbioru "odwołanych", więc {@code load()} będący w toku w chwili odwołania
+     * samodzielnie się wycofa. Wołać WYŁĄCZNIE po potwierdzeniu {@code REVOKED} w DB (lub z lokalnego endpointu
+     * odwołania). Faza 2 ({@code onDeactivate}) biegnie asynchronicznie i równolegle per uchwyt - metoda zwraca po
+     * fazie 1. Operacja jest nieodwracalna tak jak sam {@code REVOKED}.
+     *
+     * @param pluginVersionId odwoływana wersja pluginu
+     * @return liczba odładowanych uchwytów
+     */
+    int unloadByVersion(UUID pluginVersionId);
+
+    /**
+     * Wariant {@link #unloadByVersion} dla odwołania NIEZWERYFIKOWANEGO w DB (awaria bazy w chwili zdarzenia z innej
+     * instancji): uchwyty są zwalniane od razu (kill switch jest fail-safe), ale blokada ponownego załadowania wersji
+     * jest TYMCZASOWA ({@code tombstoneTtlMillis}) i ma ograniczony rozmiar - podrobione zdarzenie nie zablokuje wersji
+     * na stałe. Wpis wygasa WYŁĄCZNIE przez TTL (próba ładowania w tym oknie kończy się błędem i backoffem).
+     */
+    int unloadByVersionUnverified(UUID pluginVersionId, long tombstoneTtlMillis);
 }

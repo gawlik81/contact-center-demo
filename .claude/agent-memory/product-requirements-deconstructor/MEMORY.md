@@ -38,3 +38,4 @@
 - [Tura 74: BE-213/BE-210/FE-164 ✅](project_tura74_etl_presence.md) — nowe BE-215..217, FE-166, DB-098 podniesiony, 396/86/7=489, wolne BE-218/FE-167/DB-099
 - [Tura 74 dopisek 2: BE-209/FE-163 ✅, FE-149 skorygowane na ⬜](project_tura74_dopisek2.md) — nowe BE-218..220, FE-167, 398/88/7=493, wolne BE-221/FE-168/DB-099
 - [Tura 74 dopisek 3: weryfikacja local-demo, BE-221](project_tura74_dopisek3.md) — duchy=ADMIN/SUPERVISOR, 398/89/7=494, wolne BE-222/FE-168/DB-099; rekoncyliacja indeksów zakończona, BE-108/109 nie liczone
+- [Tura 80: EPIC-33 BE-177/178/236, FE-171](project_tura80_epic33.md) — 430/91/7=528, nowe BE-244..248, FE-172, wolne BE-249/FE-173/DB-101

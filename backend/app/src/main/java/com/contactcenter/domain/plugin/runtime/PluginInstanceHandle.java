@@ -41,6 +41,11 @@ import java.util.UUID;
  *                        nagłówka {@code Content-Security-Policy: connect-src} z hostów
  *                        egress ({@code http:egress:<host>}), tak by nie odpytywać ponownie
  *                        bazy/RLS dla tych samych danych, które {@code load()} już ma
+ * @param pluginVersionId wersja pluginu, z której załadowano ten uchwyt (BE-178) — pozwala odwołać
+ *                        wersję ({@code REVOKED}) bez zapytania do DB i wykryć rozbieżność wersji przy
+ *                        rekoncyliacji między instancjami; {@code null} tylko w uchwytach testowych
+ * @param loadedAtMillis  moment załadowania (epoch millis) — rekoncyliacja nie zwalnia uchwytu młodszego niż
+ *                        okres karencji (enable ładuje runtime PRZED ustawieniem flagi w DB)
  */
 public record PluginInstanceHandle(
         UUID installationId,
@@ -50,5 +55,21 @@ public record PluginInstanceHandle(
         ClassLoader classLoader,
         Path localJarPath,
         Optional<Path> uiAssetsDir,
-        List<String> grantedPermissions) {
+        List<String> grantedPermissions,
+        UUID pluginVersionId,
+        long loadedAtMillis) {
+
+    /** Konstruktor zgodny wstecz (bez wersji; moment załadowania = teraz). */
+    public PluginInstanceHandle(
+            UUID installationId,
+            UUID tenantId,
+            String pluginKey,
+            PluginEntryPoint entryPoint,
+            ClassLoader classLoader,
+            Path localJarPath,
+            Optional<Path> uiAssetsDir,
+            List<String> grantedPermissions) {
+        this(installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath, uiAssetsDir,
+                grantedPermissions, null, System.currentTimeMillis());
+    }
 }

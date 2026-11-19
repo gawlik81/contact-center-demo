@@ -5,6 +5,7 @@ import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginVersion;
 import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,13 +46,14 @@ class PluginRevokeControllerTest {
     private static final UUID INSTALLATION_B = UUID.randomUUID();
 
     @Mock private PluginCatalogQueryService pluginCatalogQueryService;
+    @Mock private PluginRuntimeSync pluginRuntimeSync;
     @Mock private PluginRuntimeManager pluginRuntimeManager;
 
     private PluginRevokeController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new PluginRevokeController(pluginCatalogQueryService, pluginRuntimeManager);
+        controller = new PluginRevokeController(pluginCatalogQueryService, pluginRuntimeManager, pluginRuntimeSync);
     }
 
     private PluginVersion revokedVersion() {
@@ -133,5 +135,22 @@ class PluginRevokeControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().deactivatedInstallationCount()).isEqualTo(1);
         verify(pluginRuntimeManager).unload(TENANT_B, INSTALLATION_B);
+    }
+
+    @Test
+    @DisplayName("BE-178: REVOKED rozgłaszane pozostałym instancjom OD RAZU po zatwierdzeniu w DB (przed pętlą po tenantach) i lokalnie odwołane")
+    void revoke_announcesToOtherInstancesBeforeSlowTenantLoop() {
+        when(pluginCatalogQueryService.revokeVersion(PLUGIN_VERSION_ID)).thenReturn(revokedVersion());
+        when(pluginCatalogQueryService.findAllEnabledAcrossTenantsByVersionId(PLUGIN_VERSION_ID))
+                .thenReturn(List.of(installation(TENANT_A, INSTALLATION_A)));
+
+        controller.revoke(PLUGIN_VERSION_ID);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(pluginCatalogQueryService, pluginRuntimeSync,
+                pluginRuntimeManager);
+        order.verify(pluginCatalogQueryService).revokeVersion(PLUGIN_VERSION_ID);
+        order.verify(pluginRuntimeSync).versionRevoked(PLUGIN_VERSION_ID);
+        order.verify(pluginRuntimeManager).unloadByVersion(PLUGIN_VERSION_ID);
+        order.verify(pluginCatalogQueryService).findAllEnabledAcrossTenantsByVersionId(PLUGIN_VERSION_ID);
     }
 }

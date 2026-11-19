@@ -2,6 +2,7 @@ package com.contactcenter.security;
 
 import com.contactcenter.security.JwtParser.JwtClaims;
 import com.contactcenter.security.JwtParser.JwtValidationException;
+import io.jsonwebtoken.ExpiredJwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
@@ -26,8 +27,9 @@ import org.springframework.util.StringUtils;
  *   <li>Zapisuje tenantId i role w atrybutach sesji (do użycia w handlerach)</li>
  * </ol>
  *
- * <p>Przy błędzie walidacji rzuca {@link MessagingException}, co skutkuje
- * odrzuceniem połączenia i wysłaniem STOMP ERROR frame do klienta.
+ * <p>Przy błędzie walidacji rzuca {@link StompRejectedException} (podklasa {@link MessagingException}) z kodem
+ * {@link WsErrorCode#WS_TOKEN_MISSING} / {@link WsErrorCode#WS_TOKEN_EXPIRED} / {@link WsErrorCode#WS_TOKEN_INVALID},
+ * co skutkuje odrzuceniem połączenia i wysłaniem STOMP ERROR frame (z nagłówkiem {@code code}, BE-236) do klienta.
  *
  * <p>Inne frame'y STOMP są tu przepuszczane – Principal jest już ustawiony w kontekście sesji.
  * Autoryzację SUBSCRIBE i SEND (allow-list destynacji, izolacja tenantów/użytkowników, role)
@@ -62,7 +64,7 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         String token = extractToken(accessor);
         if (!StringUtils.hasText(token)) {
             log.warn("[WS-Auth] Brak tokenu JWT w frame CONNECT – odrzucam połączenie");
-            throw new MessagingException(
+            throw new StompRejectedException(WsErrorCode.WS_TOKEN_MISSING,
                     "Brak tokenu uwierzytelniającego. " +
                     "Wymagany nagłówek STOMP: Authorization: Bearer <token> " +
                     "lub query parametr: token=<token>"
@@ -74,7 +76,9 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             claims = jwtParser.parse(token);
         } catch (JwtValidationException e) {
             log.warn("[WS-Auth] Nieprawidłowy token JWT – odrzucam połączenie: {}", e.getMessage());
-            throw new MessagingException("Nieprawidłowy token JWT: " + e.getMessage(), e);
+            // BE-236: wygasły token ma osobny kod (FE odświeża token i łączy ponownie), reszta = WS_TOKEN_INVALID
+            WsErrorCode code = isExpired(e) ? WsErrorCode.WS_TOKEN_EXPIRED : WsErrorCode.WS_TOKEN_INVALID;
+            throw new StompRejectedException(code, "Nieprawidłowy token JWT: " + e.getMessage(), e);
         }
 
         // Używamy ORYGINALNEGO, mutable accessora z wiadomości CONNECT.
@@ -109,6 +113,11 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /** {@code true} gdy w łańcuchu przyczyn jest {@link ExpiredJwtException} (token wygasł). */
+    private static boolean isExpired(Throwable e) {
+        return CauseChains.of(e).stream().anyMatch(ExpiredJwtException.class::isInstance);
+    }
 
     /**
      * Próbuje wyciągnąć token JWT z nagłówka STOMP {@code Authorization}

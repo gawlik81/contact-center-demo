@@ -8,6 +8,7 @@ import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -71,6 +72,7 @@ public class PluginAdminController {
     private final PluginRegistrationService pluginRegistrationService;
     private final PluginRuntimeManager pluginRuntimeManager;
     private final PluginCatalogQueryService pluginCatalogQueryService;
+    private final PluginRuntimeSync pluginRuntimeSync;
 
     // =========================================================================
     // GET — listowanie instalacji tenanta
@@ -203,6 +205,9 @@ public class PluginAdminController {
         TenantPluginInstallationDto installation = pluginRegistrationService.install(
                 tenantId, pluginVersionId, grantedPermissions, userId);
 
+        // BE-178: po commicie DB - pozostałe instancje zrekoncyliują instalację (no-op gdy enabled=false)
+        pluginRuntimeSync.installationChanged(tenantId, installation.id());
+
         return ResponseEntity.status(HttpStatus.CREATED).body(installation);
     }
 
@@ -248,6 +253,8 @@ public class PluginAdminController {
         }
 
         pluginRegistrationService.enable(tenantId, id);
+        // BE-178: DB zatwierdzona -> pozostałe instancje doładują runtime (źródło prawdy: enabled w DB)
+        pluginRuntimeSync.installationChanged(tenantId, id);
 
         return ResponseEntity.ok().build();
     }
@@ -287,6 +294,11 @@ public class PluginAdminController {
         // unload() jest no-op (loguje warn) jeśli instalacja nie była aktywna w tym węźle.
         pluginRuntimeManager.unload(tenantId, id);
         pluginRegistrationService.disable(tenantId, id);
+        // BE-178: w oknie między unload a commitem flagi leniwa/rekoncyliacyjna ścieżka tej instancji mogła
+        // przeładować wtyczkę (DB mówiła jeszcze enabled) - po commicie odładuj ponownie (idempotentne)
+        pluginRuntimeManager.unload(tenantId, id);
+        // BE-178: pozostałe instancje odładują runtime po zatwierdzeniu flagi w DB
+        pluginRuntimeSync.installationChanged(tenantId, id);
 
         return ResponseEntity.ok().build();
     }
@@ -328,6 +340,9 @@ public class PluginAdminController {
             pluginRuntimeManager.load(tenantId, targetId);
         }
         pluginRuntimeManager.unload(tenantId, id);
+        // BE-178: obie instalacje zmieniły stan w DB (target enabled, id disabled)
+        pluginRuntimeSync.installationChanged(tenantId, targetId);
+        pluginRuntimeSync.installationChanged(tenantId, id);
 
         return ResponseEntity.ok(result);
     }
@@ -375,6 +390,8 @@ public class PluginAdminController {
         }
 
         pluginRegistrationService.uninstall(tenantId, id);
+        // BE-178: wiersz usunięty -> pozostałe instancje odładują runtime
+        pluginRuntimeSync.installationChanged(tenantId, id);
 
         return ResponseEntity.noContent().build();
     }

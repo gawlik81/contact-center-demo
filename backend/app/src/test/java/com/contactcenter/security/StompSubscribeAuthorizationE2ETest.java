@@ -87,6 +87,9 @@ class StompSubscribeAuthorizationE2ETest {
                 case "agent2" -> claims(T2, AGENT2, "AGENT");
                 case "sup1" -> claims(T1, SUP1, "SUPERVISOR");
                 case "super" -> claims(null, SUPER, "SUPER_ADMIN");
+                case "expired" -> throw new JwtParser.JwtValidationException("Token JWT wygasl",
+                        new io.jsonwebtoken.ExpiredJwtException(null, null, "expired"));
+                case "boom" -> throw new IllegalStateException("secret-internal-detail jdbc:postgresql://db/secret");
                 default -> throw new JwtParser.JwtValidationException("bad token");
             });
             return parser;
@@ -370,6 +373,208 @@ class StompSubscribeAuthorizationE2ETest {
 
         assertThat(closed.await(15, TimeUnit.SECONDS)).as("polaczenie zamkniete").isTrue();
         assertThat(frames).noneMatch(f -> f.startsWith("CONNECTED"));
+    }
+
+    // ---- BE-236: kontrakt naglowka `code` w ramce ERROR (surowe ramki STOMP, niezalezne od klienta) ----
+
+    /** Surowe polaczenie WebSocket: wysyla ramki tekstem i zbiera odebrane ramki STOMP. */
+    private final class RawStomp implements AutoCloseable {
+        final BlockingQueue<String> frames = new LinkedBlockingQueue<>();
+        final CountDownLatch closed = new CountDownLatch(1);
+        final WebSocketSession ws;
+
+        RawStomp() throws Exception {
+            ws = new StandardWebSocketClient().execute(new TextWebSocketHandler() {
+                @Override
+                protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+                    frames.add(message.getPayload());
+                }
+
+                @Override
+                public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+                    closed.countDown();
+                }
+            }, "ws://localhost:" + port + "/ws-native").get(10, TimeUnit.SECONDS);
+        }
+
+        void send(String frame) throws Exception {
+            ws.sendMessage(new TextMessage(frame + "\u0000"));
+        }
+
+        void connect(String authorizationHeader) throws Exception {
+            send("CONNECT\naccept-version:1.2\nhost:localhost\n"
+                    + (authorizationHeader == null ? "" : "Authorization:" + authorizationHeader + "\n") + "\n");
+        }
+
+        /** Czeka na ramke o podanej komendzie i zwraca jej naglowki (message z odescapowanym `\c`). */
+        java.util.Map<String, String> awaitFrame(String command) throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+            while (System.nanoTime() < deadline) {
+                String frame = frames.poll(200, TimeUnit.MILLISECONDS);
+                if (frame != null && frame.startsWith(command + "\n")) {
+                    java.util.Map<String, String> headers = new java.util.HashMap<>();
+                    String head = frame.substring(command.length() + 1);
+                    head = head.substring(0, head.indexOf("\n\n") >= 0 ? head.indexOf("\n\n") : head.length());
+                    for (String line : head.split("\n")) {
+                        int idx = line.indexOf(':');
+                        if (idx > 0) {
+                            headers.putIfAbsent(line.substring(0, idx), line.substring(idx + 1).replace("\\c", ":"));
+                        }
+                    }
+                    return headers;
+                }
+            }
+            throw new AssertionError("brak ramki " + command + "; odebrane: " + frames);
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (ws.isOpen()) {
+                ws.close();
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("WS_TOKEN_MISSING: CONNECT bez tokenu; message bez zmian")
+    void errorCode_tokenMissing() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect(null);
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_TOKEN_MISSING");
+            assertThat(error.get("message")).startsWith("Brak tokenu uwierzytelniaj\u0105cego.");
+            assertThat(raw.closed.await(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("WS_TOKEN_EXPIRED: CONNECT z wygaslym tokenem; message bez zmian")
+    void errorCode_tokenExpired() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer expired");
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_TOKEN_EXPIRED");
+            assertThat(error.get("message")).isEqualTo("Nieprawid\u0142owy token JWT: Token JWT wygasl");
+        }
+    }
+
+    @Test
+    @DisplayName("WS_TOKEN_INVALID: CONNECT z nieprawidlowym tokenem; message bez zmian")
+    void errorCode_tokenInvalid() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer garbage");
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_TOKEN_INVALID");
+            assertThat(error.get("message")).isEqualTo("Nieprawid\u0142owy token JWT: bad token");
+        }
+    }
+
+    @Test
+    @DisplayName("WS_NO_SESSION: SUBSCRIBE bez wczesniejszego CONNECT (brak uwierzytelnionej sesji)")
+    void errorCode_noSession() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.send("SUBSCRIBE\nid:sub-0\ndestination:/topic/user/" + AGENT1 + "/events\n\n");
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_NO_SESSION");
+            assertThat(error).containsEntry("message", "Brak uprawnie\u0144 do wskazanej destynacji STOMP");
+            assertThat(raw.closed.await(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("WS_FORBIDDEN: SUBSCRIBE cudzego tenanta po poprawnym CONNECT; message bez zmian")
+    void errorCode_forbidden() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer agent1");
+            raw.awaitFrame("CONNECTED");
+            raw.send("SUBSCRIBE\nid:sub-0\ndestination:/topic/tenant/" + T2 + "/agents\n\n");
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_FORBIDDEN");
+            assertThat(error).containsEntry("message", "Brak uprawnie\u0144 do wskazanej destynacji STOMP");
+            assertThat(raw.closed.await(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("WS_INTERNAL: nieoczekiwany wyjatek w interceptorze -> ogolny message, bez szczegolow")
+    void errorCode_internal() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer boom");
+            var error = raw.awaitFrame("ERROR");
+            assertThat(error).containsEntry("code", "WS_INTERNAL");
+            assertThat(error.get("message")).doesNotContain("secret").doesNotContain("jdbc");
+        }
+    }
+
+    /** Zbiera zdarzenia z loggera na czas testu. */
+    private static final class LogCapture implements AutoCloseable {
+        final ch.qos.logback.classic.Logger logger;
+        final ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+
+        LogCapture(String loggerName) {
+            logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(loggerName);
+            appender.start();
+            logger.addAppender(appender);
+        }
+
+        long errors() {
+            return appender.list.stream()
+                    .filter(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR).count();
+        }
+
+        @Override
+        public void close() {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    @DisplayName("log: po WS_FORBIDDEN brak duplikatu ERROR Springa (filtr); kontrola pozytywna: bez filtra ERROR jest")
+    void springDuplicateErrorSuppressedAfterForbidden() throws Exception {
+        ch.qos.logback.classic.LoggerContext ctx =
+                (ch.qos.logback.classic.LoggerContext) org.slf4j.LoggerFactory.getILoggerFactory();
+        java.util.List<ch.qos.logback.classic.turbo.TurboFilter> ours = ctx.getTurboFilterList().stream()
+                .filter(f -> f instanceof com.contactcenter.infrastructure.logging.ExpectedStompRejectionLogFilter)
+                .toList();
+        assertThat(ours).as("filtr zarejestrowany z logback-spring.xml").hasSize(1);
+
+        try (LogCapture spring = new LogCapture("org.springframework.web.socket.messaging.StompSubProtocolHandler")) {
+            forbiddenSubscribe();
+            // log Springa powstaje PRZED wyslaniem ramki ERROR, wiec po jej odebraniu jest juz zapisany
+            assertThat(spring.errors()).as("duplikat ERROR Springa wyciszony").isZero();
+
+            // kontrola pozytywna: zdjety filtr -> ten sam scenariusz loguje ERROR Springa
+            ctx.getTurboFilterList().remove(ours.get(0));
+            try {
+                forbiddenSubscribe();
+                assertThat(spring.errors()).as("bez filtra Spring loguje ERROR").isEqualTo(1);
+            } finally {
+                ctx.addTurboFilter(ours.get(0));
+            }
+        }
+    }
+
+    private void forbiddenSubscribe() throws Exception {
+        try (RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer agent1");
+            raw.awaitFrame("CONNECTED");
+            raw.send("SUBSCRIBE\nid:sub-0\ndestination:/topic/tenant/" + T2 + "/agents\n\n");
+            assertThat(raw.awaitFrame("ERROR")).containsEntry("code", "WS_FORBIDDEN");
+            assertThat(raw.closed.await(15, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("log: po WS_INTERNAL jest ERROR (ze stack trace) z StompErrorCodeHandler - prawdziwe błędy nie giną")
+    void internalErrorIsLoggedAsError() throws Exception {
+        try (LogCapture handler = new LogCapture(StompErrorCodeHandler.class.getName());
+             RawStomp raw = new RawStomp()) {
+            raw.connect("Bearer boom");
+            assertThat(raw.awaitFrame("ERROR")).containsEntry("code", "WS_INTERNAL");
+            assertThat(handler.errors()).isEqualTo(1);
+            assertThat(handler.appender.list.get(0).getThrowableProxy()).isNotNull();
+        }
     }
 
     private double totalRejected() {

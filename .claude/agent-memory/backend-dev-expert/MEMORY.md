@@ -151,3 +151,4 @@
 - [BE-171/BE-172 ShedLock (EPIC-33)](project_be171_be172_shedlock.md) — ShedLock 6.10.0 na Spring 6.1, lockAtLeastFor ~0.8x, PROXY_METHOD blokuje bezposrednie wywolania, DelegatingDataSource w testach
 - [BE-173 blokady dialer/routing (EPIC-33)](project_be173_dialer_routing_locks.md) — advisory xact per kampania (claim tx), ShedLock per kolejka, wait-ms, osierocone DIALING
 - [BE-175/BE-176 fan-out WS miedzy instancjami (EPIC-33)](project_be175_be176_ws_fanout.md) — Redis pub/sub -> lokalny SimpleBroker, dedykowany kontener 1 watek, pulapki testow (converter JSON, args vs yml, wspolny scratchpad)
+- [BE-178 sync runtime wtyczek między instancjami](project_be178_plugin_runtime_sync.md) — Redis pub/sub podpowiedź + rekoncyliacja bez ShedLock + lazy load; CB lokalny+propagacja

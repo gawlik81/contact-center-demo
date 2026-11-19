@@ -9,6 +9,7 @@ import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +67,7 @@ class PluginAdminControllerTest {
     @Mock private PluginRegistrationService pluginRegistrationService;
     @Mock private PluginRuntimeManager pluginRuntimeManager;
     @Mock private PluginCatalogQueryService pluginCatalogQueryService;
+    @Mock private PluginRuntimeSync pluginRuntimeSync;
 
     private PluginAdminController controller;
     private MockedStatic<TenantContext> tenantContextMock;
@@ -73,7 +75,7 @@ class PluginAdminControllerTest {
     @BeforeEach
     void setUp() {
         controller = new PluginAdminController(
-                pluginRegistrationService, pluginRuntimeManager, pluginCatalogQueryService);
+                pluginRegistrationService, pluginRuntimeManager, pluginCatalogQueryService, pluginRuntimeSync);
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_ID);
         tenantContextMock.when(TenantContext::getUserId).thenReturn(USER_ID);
@@ -217,6 +219,19 @@ class PluginAdminControllerTest {
         }
 
         @Test
+        @DisplayName("BE-178: po zatwierdzeniu enabled w DB rozgłasza zmianę pozostałym instancjom")
+        void enable_announcesChangeAfterDbCommit() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, false));
+
+            controller.enable(INSTALLATION_ID);
+
+            InOrder order = inOrder(pluginRegistrationService, pluginRuntimeSync);
+            order.verify(pluginRegistrationService).enable(TENANT_ID, INSTALLATION_ID);
+            order.verify(pluginRuntimeSync).installationChanged(TENANT_ID, INSTALLATION_ID);
+        }
+
+        @Test
         @DisplayName("KRYTERIUM AKCEPTACJI (idempotentność): NIE woła load() ponownie gdy już załadowana")
         void enable_alreadyLoaded_doesNotCallLoadAgain() {
             when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
@@ -266,6 +281,19 @@ class PluginAdminControllerTest {
             InOrder order = inOrder(pluginRuntimeManager, pluginRegistrationService);
             order.verify(pluginRuntimeManager).unload(TENANT_ID, INSTALLATION_ID);
             order.verify(pluginRegistrationService).disable(TENANT_ID, INSTALLATION_ID);
+        }
+
+        @Test
+        @DisplayName("BE-178: po zatwierdzeniu disabled w DB rozgłasza zmianę pozostałym instancjom")
+        void disable_announcesChangeAfterDbCommit() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+
+            controller.disable(INSTALLATION_ID);
+
+            InOrder order = inOrder(pluginRegistrationService, pluginRuntimeSync);
+            order.verify(pluginRegistrationService).disable(TENANT_ID, INSTALLATION_ID);
+            order.verify(pluginRuntimeSync).installationChanged(TENANT_ID, INSTALLATION_ID);
         }
     }
 
@@ -365,6 +393,19 @@ class PluginAdminControllerTest {
             InOrder order = inOrder(pluginRuntimeManager, pluginRegistrationService);
             order.verify(pluginRuntimeManager).unload(TENANT_ID, INSTALLATION_ID);
             order.verify(pluginRegistrationService).uninstall(TENANT_ID, INSTALLATION_ID);
+        }
+
+        @Test
+        @DisplayName("BE-178: po usunięciu wiersza rozgłasza zmianę pozostałym instancjom")
+        void uninstall_announcesChangeAfterDbCommit() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+
+            controller.uninstall(INSTALLATION_ID);
+
+            InOrder order = inOrder(pluginRegistrationService, pluginRuntimeSync);
+            order.verify(pluginRegistrationService).uninstall(TENANT_ID, INSTALLATION_ID);
+            order.verify(pluginRuntimeSync).installationChanged(TENANT_ID, INSTALLATION_ID);
         }
 
         @Test

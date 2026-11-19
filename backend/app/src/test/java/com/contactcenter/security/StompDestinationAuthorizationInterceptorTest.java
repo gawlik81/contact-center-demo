@@ -159,9 +159,13 @@ class StompDestinationAuthorizationInterceptorTest {
     @Test
     @DisplayName("brak destynacji lub principala -> odrzucone")
     void missingDestinationOrPrincipalRejected() {
-        assertThatThrownBy(() -> subscribe(null, principal("ADMIN"))).isInstanceOf(MessagingException.class);
+        assertThatThrownBy(() -> subscribe(null, principal("ADMIN"))).isInstanceOf(MessagingException.class)
+                .isInstanceOfSatisfying(StompRejectedException.class,
+                        e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_FORBIDDEN));
         assertThatThrownBy(() -> subscribe("/topic/user/" + USER + "/events", null))
-                .isInstanceOf(MessagingException.class);
+                .isInstanceOf(MessagingException.class)
+                .isInstanceOfSatisfying(StompRejectedException.class,
+                        e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_NO_SESSION));
         assertThat(rejected("SUBSCRIBE", "no_destination")).isEqualTo(1);
         assertThat(rejected("SUBSCRIBE", "no_principal")).isEqualTo(1);
     }

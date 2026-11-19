@@ -98,6 +98,12 @@ class PluginCatalogQueryServiceImpl implements PluginCatalogQueryService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<TenantPluginInstallation> findAllEnabledForTenant(UUID tenantId) {
+        return tenantPluginInstallationRepository.findAllEnabledForTenant(tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PluginVersion> findVersionsForTenant(UUID tenantId) {
         List<PluginVersion> versions = pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(tenantId);
 

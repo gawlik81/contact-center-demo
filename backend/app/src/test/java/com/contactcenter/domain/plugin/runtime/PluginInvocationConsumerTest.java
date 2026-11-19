@@ -65,6 +65,7 @@ class PluginInvocationConsumerTest {
     @Mock private ContactService contactService;
     @Mock private PluginInvocationLogService pluginInvocationLogService;
     @Mock private PluginCatalogQueryService pluginCatalogQueryService;
+    @Mock private PluginRuntimeSync pluginRuntimeSync;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -82,7 +83,9 @@ class PluginInvocationConsumerTest {
         consumer = new PluginInvocationConsumer(
                 pluginRegistry, pluginRegistrationService, circuitBreakerState,
                 customerService, contactService, properties, objectMapper,
-                pluginInvocationLogService, pluginCatalogQueryService, executorService);
+                pluginInvocationLogService, pluginCatalogQueryService, executorService, pluginRuntimeSync);
+        org.mockito.Mockito.lenient().when(pluginRuntimeSync.ensureTenantLoaded(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(PluginRuntimeSync.EnsureResult.EMPTY);
     }
 
     @AfterEach

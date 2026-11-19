@@ -1,6 +1,7 @@
 package com.contactcenter.infrastructure.config;
 
 import com.contactcenter.security.StompDestinationAuthorizationInterceptor;
+import com.contactcenter.security.StompErrorCodeHandler;
 import com.contactcenter.security.WebSocketAuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -112,6 +113,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // BE-236: stabilny nagłówek `code` w ramce STOMP ERROR (kontrakt z FE); dotyczy obu endpointów
+        registry.setErrorHandler(new StompErrorCodeHandler());
+
         // Endpoint z SockJS – zachowany dla kompatybilności
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(allowedOrigins.toArray(String[]::new))

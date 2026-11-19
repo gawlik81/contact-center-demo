@@ -196,9 +196,59 @@ describe('computeReconnectDelay / classifyStompError (FE-169)', () => {
     expect(classifyStompError(f('Brak uprawnień do wskazanej destynacji STOMP'))).toBe('FORBIDDEN');
     expect(classifyStompError(f('Nieprawidłowy token JWT: expired'))).toBe('TOKEN');
     expect(classifyStompError(f('Brak tokenu uwierzytelniającego.'))).toBe('TOKEN');
-    expect(classifyStompError(f("Nieprawidłowy format UUID w claim 'sub'"))).toBe('TOKEN');
+    // The backend wraps JwtParser claim errors in "Nieprawidłowy token JWT: ...".
+    expect(
+      classifyStompError(f("Nieprawidłowy token JWT: Nieprawidłowy format UUID w claim 'sub'")),
+    ).toBe('TOKEN');
+    expect(classifyStompError(f("Nieprawidłowy format UUID w claim 'sub'"))).toBe('OTHER');
     expect(classifyStompError(f('Broker unavailable'))).toBe('OTHER');
     expect(classifyStompError(f())).toBe('OTHER');
+  });
+
+  describe('by native `code` header (FE-171)', () => {
+    const withCode = (code: string, message?: string): { headers: Record<string, string> } => ({
+      headers: message ? { code, message } : { code },
+    });
+
+    it.each([
+      ['WS_FORBIDDEN', 'FORBIDDEN'],
+      ['WS_TOKEN_EXPIRED', 'TOKEN'],
+      ['WS_TOKEN_INVALID', 'TOKEN'],
+      ['WS_TOKEN_MISSING', 'TOKEN'],
+      ['WS_NO_SESSION', 'OTHER'],
+      ['WS_INTERNAL', 'OTHER'],
+    ])('maps %s to %s', (code, kind) => {
+      expect(classifyStompError(withCode(code))).toBe(kind);
+    });
+
+    it('treats an unknown code as OTHER (plain reconnect)', () => {
+      expect(classifyStompError(withCode('WS_SOMETHING_NEW'))).toBe('OTHER');
+      expect(classifyStompError(withCode('toString'))).toBe('OTHER');
+    });
+
+    it('treats an empty code as absent and uses the message fallback', () => {
+      expect(classifyStompError(withCode('', 'Brak uprawnień do wskazanej destynacji'))).toBe(
+        'FORBIDDEN',
+      );
+      expect(classifyStompError(withCode('', 'Nieprawidłowy token JWT'))).toBe('TOKEN');
+    });
+
+    it('warns once per unknown code', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      classifyStompError(withCode('WS_WARN_ONCE'));
+      classifyStompError(withCode('WS_WARN_ONCE'));
+      expect(warn).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
+
+    it('ignores the message text when a code is present', () => {
+      expect(classifyStompError(withCode('WS_INTERNAL', 'Brak uprawnień'))).toBe('OTHER');
+      expect(classifyStompError(withCode('WS_FORBIDDEN', 'Nieprawidłowy token JWT'))).toBe(
+        'FORBIDDEN',
+      );
+      expect(classifyStompError(withCode('WS_TOKEN_EXPIRED', 'Brak uprawnień'))).toBe('TOKEN');
+      expect(classifyStompError(withCode('WS_UNKNOWN', 'Nieprawidłowy token JWT'))).toBe('OTHER');
+    });
   });
 });
 
@@ -297,6 +347,38 @@ describe('WebSocketService reconnect (FE-169)', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(activate).not.toHaveBeenCalled();
     expect(service.connectionState()).toBe('FORBIDDEN');
+  });
+
+  const errCode = (code: string) => client.onStompError({ headers: { code } } as never);
+
+  it('WS_FORBIDDEN stops reconnecting and exposes FORBIDDEN (FE-171)', async () => {
+    errCode('WS_FORBIDDEN');
+    drop();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(activate).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(service.connectionState()).toBe('FORBIDDEN');
+  });
+
+  it('two WS_TOKEN_EXPIRED without a connect between: one refresh, then SESSION_EXPIRED (FE-171)', async () => {
+    errCode('WS_TOKEN_EXPIRED');
+    drop();
+    await vi.advanceTimersByTimeAsync(0);
+    errCode('WS_TOKEN_EXPIRED');
+    drop();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(service.connectionState()).toBe('SESSION_EXPIRED');
+  });
+
+  it('WS_NO_SESSION is a plain reconnect without a token refresh (FE-171)', async () => {
+    errCode('WS_NO_SESSION');
+    expect(service.connectionState()).toBe('ERROR');
+    drop();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(activate).toHaveBeenCalledTimes(1);
   });
 
   it('an unrelated ERROR frame is a transient drop and is retried', async () => {

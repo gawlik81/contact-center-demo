@@ -225,7 +225,9 @@ class WebSocketAuthInterceptorTest {
 
             assertThatThrownBy(() -> interceptor.preSend(message, channel))
                     .isInstanceOf(MessagingException.class)
-                    .hasMessageContaining("Brak tokenu");
+                    .hasMessageContaining("Brak tokenu")
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_MISSING));
         }
 
         @Test
@@ -262,13 +264,16 @@ class WebSocketAuthInterceptorTest {
         @DisplayName("Wygasły token → MessagingException")
         void shouldRejectConnectWithExpiredToken() {
             when(jwtParser.parse(anyString()))
-                    .thenThrow(new JwtValidationException("Token JWT wygasł"));
+                    .thenThrow(new JwtValidationException("Token JWT wygasł",
+                            new io.jsonwebtoken.ExpiredJwtException(null, null, "expired")));
 
             Message<?> message = buildConnectMessage("Bearer expired.jwt.token", null);
 
             assertThatThrownBy(() -> interceptor.preSend(message, channel))
                     .isInstanceOf(MessagingException.class)
-                    .hasMessageContaining("Nieprawidłowy token JWT");
+                    .hasMessageContaining("Nieprawidłowy token JWT")
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_EXPIRED));
         }
 
         @Test
@@ -281,7 +286,9 @@ class WebSocketAuthInterceptorTest {
 
             assertThatThrownBy(() -> interceptor.preSend(message, channel))
                     .isInstanceOf(MessagingException.class)
-                    .hasMessageContaining("Nieprawidłowy token JWT");
+                    .hasMessageContaining("Nieprawidłowy token JWT")
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
         }
     }
 

@@ -124,8 +124,9 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
      * ta metoda ustawia kontekst jawnie przed zapytaniem, więc bezpieczna do wywołania w pętli
      * po wielu tenantach.
      *
-     * <p>Używana wyłącznie przez {@code PluginCatalogQueryServiceImpl#findAllEnabledAcrossAllTenants}
-     * (startup integration, odbudowa {@code PluginRegistry} po restarcie procesu).
+     * <p>Używana przez {@code PluginCatalogQueryServiceImpl#findAllEnabledAcrossAllTenants} (odbudowa
+     * {@code PluginRegistry} po restarcie i rekoncyliacja między instancjami, BE-178) oraz
+     * {@code PluginCatalogQueryServiceImpl#findAllEnabledForTenant} (leniwe doładowanie w ścieżce wywołania).
      */
     @Transactional(readOnly = true)
     List<TenantPluginInstallation> findAllEnabledForTenant(UUID tenantId) {

@@ -4,7 +4,7 @@ import com.contactcenter.domain.plugin.ExtensionPoint;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,7 +34,7 @@ class PluginRegistryImpl implements PluginRegistry {
             for (ExtensionPoint extensionPoint : extensionPoints) {
                 String key = key(handle.tenantId(), extensionPoint);
                 List<PluginInstanceHandle> handles =
-                        byTenantAndExtensionPoint.computeIfAbsent(key, k -> new ArrayList<>());
+                        byTenantAndExtensionPoint.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>());
                 handles.add(handle);
             }
             log.info("[PluginRegistry] Zarejestrowano instalację: tenant={}, pluginKey={}, "

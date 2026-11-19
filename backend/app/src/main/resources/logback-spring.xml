@@ -39,6 +39,9 @@
     <property name="PATTERN_FE"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS, Europe/Warsaw} [FRONTEND] %-5level [%X{tenantId}] %logger{36} - %msg%n"/>
 
+    <!-- BE-236: wycisza duplikat ERROR Springa przy oczekiwanym odrzuceniu SUBSCRIBE/SEND (patrz Javadoc filtra) -->
+    <turboFilter class="com.contactcenter.infrastructure.logging.ExpectedStompRejectionLogFilter"/>
+
     <!-- =========================================================
          Appender: CONSOLE
          ========================================================= -->

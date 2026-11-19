@@ -5,6 +5,7 @@ import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginVersion;
 import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -56,6 +57,7 @@ public class PluginRevokeController {
 
     private final PluginCatalogQueryService pluginCatalogQueryService;
     private final PluginRuntimeManager pluginRuntimeManager;
+    private final PluginRuntimeSync pluginRuntimeSync;
 
     @PostMapping("/versions/{pluginVersionId}/revoke")
     @Operation(
@@ -85,6 +87,12 @@ public class PluginRevokeController {
                 + "platform-level kill switch wywołany", pluginVersionId);
 
         PluginVersion revoked = pluginCatalogQueryService.revokeVersion(pluginVersionId);
+
+        // BE-178: status REVOKED jest zatwierdzony w DB -> NATYCHMIAST powiadom pozostałe instancje (zanim ruszy
+        // wolna pętla po tenantach poniżej) i odwołaj wersję lokalnie (dwufazowo: najpierw rejestr, potem
+        // onDeactivate). Pętla poniżej zostaje: zwraca liczbę instalacji i domyka ewentualne niezaładowane wyścigi.
+        pluginRuntimeSync.versionRevoked(pluginVersionId);
+        pluginRuntimeManager.unloadByVersion(pluginVersionId);
 
         // Cross-tenant z konieczności (patrz Javadoc PluginCatalogQueryService) — wszystkie
         // instalacje enabled=true tej wersji, niezależnie od tenanta.

@@ -520,6 +520,7 @@ Full DDL, indexes, partitioning helper functions and Mermaid ER diagrams:
 | `presence:sessions:{tenantId}:{userId}` | Sorted set | live STOMP sessions → epoch ms of last signal (CONNECTED/SUBSCRIBE/`/app/ping`); alive within `agent.presence.session-ttl-ms` (BE-210) |
 | `presence:last-seen:{tenantId}:{userId}`, `presence:closed:*`, `presence:epoch` | String | last presence signal, closed-session markers (late ping ignored), registry epoch sentinel (detects a flushed Redis) |
 | `ivr:session:{callId}` | Hash/String | voicebot conversation session state (shared with `voicebot/`) |
+| `ivr:pending:{conference\|hangup\|audio}:{tenantId}:{callSid}` | String (JSON, TTL `ivr.pending-state.ttl`, default 2 min) | IVR state handed between consecutive Twilio webhooks of one call (conference context after QUEUE_TRANSFER, hangup / play-audio prompts); read once with atomic `GETDEL`, so any instance can serve the next webhook; tenant is part of the key (a foreign `tenantId` never hits or destroys the state); value = UUIDs + prompt text AFTER variable substitution, so it may contain values collected by `COLLECT_DTMF` - treat as personal data, hence the short TTL (BE-177) |
 | Dialer de-duplication locks | String (`SET NX`) | prevents double-dialing the same `campaign_contact` record |
 | `etl:alert:{table}:{alertType}` | String (`SET NX PX`, TTL = `etl.sync.alert-cooldown-ms`, default 15 min) | cooldown slot of an `etl.lag.alert` (`alertType` = `DATA_LAG` \| `JOB_STALE` \| `JOB_ERROR`); shared by all instances, deleted on recovery (BE-214) |
 | Tenant/queue config caches | Hash/String | short-TTL caches to avoid repeated PostgreSQL reads |
@@ -928,6 +929,32 @@ interceptor) enforces an allow-list from the CONNECT principal only (client head
 The command set is default-deny (CONNECT/STOMP via JWT; SUBSCRIBE, UNSUBSCRIBE, SEND, ACK, NACK, DISCONNECT; BEGIN/COMMIT/ABORT rejected).
 Role and tenant are frozen at CONNECT for the lifetime of the session (known debt: no session revocation on logout/role change).
 A new destination must be added to this allow-list (and its tests) together with `WebSocketEventBroadcasterImpl`.
+
+**STOMP ERROR code contract (BE-236, BE <-> FE).** Every rejected frame gets an `ERROR` frame carrying a native header
+`code` (stable, do not rename; FE-171 classifies by it instead of matching the `message` text). The `message` header is
+unchanged for expected rejections. `StompErrorCodeHandler` (registered via `registry.setErrorHandler`) unwraps the cause
+chain (`MessageDeliveryException` -> ... -> `StompRejectedException`, bounded depth, cycle-safe); the interceptors throw
+`StompRejectedException(WsErrorCode, message)`.
+
+| `code` | Meaning | Source |
+|---|---|---|
+| `WS_TOKEN_MISSING` | CONNECT/STOMP without a JWT | `WebSocketAuthInterceptor` |
+| `WS_TOKEN_EXPIRED` | JWT expired (`exp`); client should refresh the token and reconnect | `WebSocketAuthInterceptor` |
+| `WS_TOKEN_INVALID` | JWT invalid (signature, issuer, claims, format) | `WebSocketAuthInterceptor` |
+| `WS_NO_SESSION` | SUBSCRIBE/SEND on a session without an authenticated principal (no prior valid CONNECT) | `StompDestinationAuthorizationInterceptor` (`no_principal`) |
+| `WS_FORBIDDEN` | destination/command not allowed for the role or tenant (all other authorization rejections) | `StompDestinationAuthorizationInterceptor` |
+| `WS_INTERNAL` | any other exception; the frame carries a generic `message` with no internal details, the cause is logged on ERROR | `StompErrorCodeHandler` |
+
+The session is closed after every ERROR frame. Unknown future codes must be treated by clients like `WS_INTERNAL`.
+Notes: `WS_TOKEN_EXPIRED` is raised only at CONNECT/STOMP (a token expiring during an open session produces no ERROR);
+`WS_NO_SESSION` is a client protocol error (SUBSCRIBE/SEND before a valid CONNECT), NOT a signal to refresh the token -
+reconnect with backoff; unparsable frames also map to `WS_INTERNAL` (logged as a rate-limited WARN without stack trace,
+1 per 10 s). ERROR frames sent by the application/broker via `handleErrorMessageToClient` get `code` too (default
+`WS_INTERNAL` when absent), so every ERROR frame carries `code`. On that path the `message` header is Spring's base behavior (application/broker-built text, not sanitized, unlike `WS_INTERNAL` from the inbound channel).
+Spring's `StompSubProtocolHandler` additionally logs an ERROR "Failed to send message to MessageChannel ..." for every
+rejected SUBSCRIBE/SEND (hard-coded level, includes the sessionId); `ExpectedStompRejectionLogFilter` (logback turbo filter, `logback-spring.xml`)
+drops only that duplicate when it ends with the fixed authorization-rejection message - the rejection stays visible as the
+interceptor's rate-limited WARN and the `ws.stomp.rejected` counter, other errors of that logger are untouched.
 
 **Cross-instance fan-out is not trusted blindly (BE-175).** The allow-list lives in one class, `StompDestinations`
 (shared by the SUBSCRIBE interceptor and the fan-out): the receiver of a Redis envelope accepts only the three
@@ -2066,6 +2093,22 @@ container-per-plugin), the SDK contract does not need to change — only `Plugin
 implementation of "how is `entryPoint.onXxx` actually invoked" would be replaced with an
 RPC call into a sidecar/container, with `PluginContext` calls proxied the same way
 `TelephonyAdapter` (ADR-05) abstracts the provider underneath a stable interface.
+
+**Addendum — several backend instances (BE-178, EPIC-33).** In-process means the runtime (`PluginRegistry`,
+`PluginRuntimeManager` handles/ClassLoaders, circuit-breaker state) is per instance. The database stays the source of
+truth (`tenant_plugin_installation.enabled`, `plugin_version.status`); every instance converges its own memory by (1)
+Redis pub/sub hints on `cc:plugin:sync:<env>` published after the DB commit (`INSTALLATION_CHANGED`, `VERSION_REVOKED`,
+`CIRCUIT_OPENED/CLOSED`; the receiver re-reads the DB, so loss/duplication/reordering is harmless), (2) a periodic
+per-instance reconciliation against the DB — deliberately without ShedLock, because it reconciles each instance's own
+memory — also run on every (re)subscription, and (3) lazy loading in the invocation path (RabbitMQ consumer; the
+latency-budgeted blocking paths only trigger a background sync). The `REVOKED` kill switch is applied on every instance in
+tens of milliseconds normally and within one reconciliation interval (default 30 s) if the event is lost. The circuit
+breaker keeps a local counter (no Redis round-trip on the 2 s `PRE_CONTACT_CONNECT` path) and propagates the OPEN/CLOSED
+state. Hardening after code review: each installation's state changes run under a per-installation lock with a fresh DB read
+inside it (a stale snapshot never resurrects a disabled plugin); event pairs (tenantId, installationId) are verified
+against the local handle; revocation requires DB confirmation (unknown version = ignored, DB outage = unload with a
+TTL-bounded block only); the slow `onDeactivate` phase of a revocation runs in parallel and the fast unload path of
+events never queues behind loads. Details: `documentation/tech/04-backend.md` §4.9.
 
 ### ADR-10: Event-Driven Extension Points Over a Generic Interceptor Chain
 

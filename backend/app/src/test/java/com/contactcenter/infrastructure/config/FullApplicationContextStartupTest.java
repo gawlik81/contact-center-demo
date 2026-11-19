@@ -264,7 +264,8 @@ class FullApplicationContextStartupTest {
     @Test
     @DisplayName("wszystkie metody @Scheduled zarejestrowały się w schedulerze (zamockowanym, więc żaden job nie ruszył)")
     void scheduledMethodsAreRegisteredButNotExecuted() {
-        // Exact: 25 @Scheduled methods in the code base (EtlSyncServiceImpl 5, the other 20 beans 1 each; all
+        // Exact: 26 @Scheduled methods in the code base (EtlSyncServiceImpl 5, the other 21 beans 1 each, incl. the
+        // per-instance plugin runtime reconciliation of BE-178; all
         // env gates - dialer/email/agent-presence/agent-breaks - are ON by default, also on prod). Beyond the
         // constant, every @Scheduled method found on the beans of the context must have been registered.
         int annotated = 0;
@@ -274,8 +275,8 @@ class FullApplicationContextStartupTest {
                     m -> m.isAnnotationPresent(org.springframework.scheduling.annotation.Scheduled.class));
             annotated += n[0];
         }
-        assertThat(annotated).as("metody @Scheduled na beanach kontekstu").isEqualTo(25);
-        assertThat(scheduledPostProcessor.getScheduledTasks()).hasSize(25);
+        assertThat(annotated).as("metody @Scheduled na beanach kontekstu").isEqualTo(26);
+        assertThat(scheduledPostProcessor.getScheduledTasks()).hasSize(26);
     }
 
     @Test
@@ -320,13 +321,26 @@ class FullApplicationContextStartupTest {
     private int serverPort;
 
     @Test
+    @DisplayName("BE-178: synchronizacja runtime wtyczek w pelnym kontekscie - beany i subskrypcja Redis kanalu plugin-sync")
+    void pluginRuntimeSyncWorksInFullContext() {
+        assertThat(context.getBean(com.contactcenter.domain.plugin.runtime.PluginRuntimeSync.class)).isNotNull();
+        com.contactcenter.domain.plugin.runtime.PluginSyncBus bus =
+                context.getBean(com.contactcenter.domain.plugin.runtime.PluginSyncBus.class);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(30)).until(bus::isListening);
+        // the bus holds the dedicated container, not the shared one used by the cache-invalidation bus
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(bus, "container"))
+                .isSameAs(context.getBean("pluginSyncListenerContainer"));
+    }
+
+    @Test
     @DisplayName("BE-175: fan-out WS w pelnym kontekscie - beany, subskrypcja Redis, zdarzenie od innej instancji i z broadcastera docieraja do sesji z prawdziwym JWT dokladnie raz")
     void webSocketFanoutWorksInFullContext() throws Exception {
         assertThat(context.getBean(WebSocketFanoutPublisher.class)).isNotNull();
         assertThat(context.getBean(WebSocketFanoutSubscriber.class)).isNotNull();
-        // two Redis listener containers: the shared one (cache invalidation, @Primary) and the WS fan-out one
+        // three Redis listener containers: the shared one (cache invalidation, @Primary), the WS fan-out one and the
+        // plugin runtime sync one (BE-178)
         assertThat(context.getBeansOfType(PubSubListenerContainer.class)).containsOnlyKeys(
-                "redisMessageListenerContainer", "wsFanoutListenerContainer");
+                "redisMessageListenerContainer", "wsFanoutListenerContainer", "pluginSyncListenerContainer");
         // the cache-invalidation bus must hold the shared (primary) container, not the WS one
         assertThat(org.springframework.test.util.ReflectionTestUtils.getField(
                 context.getBean(com.contactcenter.infrastructure.cache.CacheInvalidationBus.class), "listenerContainer"))

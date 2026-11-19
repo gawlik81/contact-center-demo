@@ -36,22 +36,59 @@ export function computeReconnectDelay(attempt: number, random: () => number = Ma
 }
 
 /**
- * Terminal STOMP ERROR classes (BE-229 / WebSocketAuthInterceptor). The backend sends ERROR with a
- * `message` header and closes the session; these texts are matched, anything else is treated as a
- * transient broker error and retried with backoff.
- *  - FORBIDDEN: "Brak uprawnień do wskazanej destynacji STOMP" (SUBSCRIBE/SEND rejected): a retry
- *    would be rejected again, so reconnecting stops.
- *  - TOKEN: "Brak tokenu..." / "Nieprawidłowy token JWT..." on CONNECT: one refresh-and-retry.
+ * Terminal STOMP ERROR classes (BE-229 / BE-236, WebSocketAuthInterceptor). The backend sends ERROR
+ * with a stable native `code` header and closes the session. The `code` decides the class; the
+ * `message` text never overrides it.
+ *  - WS_FORBIDDEN: SUBSCRIBE/SEND rejected, a retry would be rejected again: reconnecting stops.
+ *  - WS_TOKEN_EXPIRED / WS_TOKEN_INVALID / WS_TOKEN_MISSING: one refresh-and-retry.
+ *  - WS_NO_SESSION: the server got SUBSCRIBE/SEND before a successful CONNECT. A protocol-order
+ *    problem, not a token one (the token is fine), so no refresh: plain reconnect, which
+ *    authenticates the new session.
+ *  - WS_INTERNAL and any unknown code: transient, plain reconnect with backoff (no loop risk).
  */
 export type WsErrorKind = 'FORBIDDEN' | 'TOKEN' | 'OTHER';
 
+const WS_ERROR_CODE_KIND: Readonly<Record<string, WsErrorKind>> = {
+  WS_FORBIDDEN: 'FORBIDDEN',
+  WS_TOKEN_EXPIRED: 'TOKEN',
+  WS_TOKEN_INVALID: 'TOKEN',
+  WS_TOKEN_MISSING: 'TOKEN',
+  WS_NO_SESSION: 'OTHER',
+  WS_INTERNAL: 'OTHER',
+};
+
+const MAX_WARNED_UNKNOWN_CODES = 32; // bounds the set against a flood of distinct codes
+const warnedUnknownCodes = new Set<string>();
+
 export function classifyStompError(frame: { headers?: Record<string, string> }): WsErrorKind {
-  const message = (frame.headers?.['message'] ?? '').toLowerCase();
+  const code = frame.headers?.['code'];
+  // An empty `code` counts as absent and falls through to the text fallback.
+  if (code) {
+    // Exact, case-sensitive match: the backend always sends the enum name verbatim.
+    if (Object.hasOwn(WS_ERROR_CODE_KIND, code)) return WS_ERROR_CODE_KIND[code];
+    // A future terminal code would loop on backoff until the client learns it: make it visible.
+    if (warnedUnknownCodes.size < MAX_WARNED_UNKNOWN_CODES && !warnedUnknownCodes.has(code)) {
+      warnedUnknownCodes.add(code);
+      console.warn('[WS] unknown STOMP error code, treating as transient:', code);
+    }
+    return 'OTHER';
+  }
+  return classifyByMessageText(frame.headers?.['message'] ?? '');
+}
+
+/**
+ * Fallback for ERROR frames WITHOUT a `code` header (rolling deploy against a backend older than
+ * BE-236). Texts: "Brak uprawnień do wskazanej destynacji STOMP", "Brak tokenu uwierzytelniającego",
+ * "Nieprawidłowy token JWT: ..." (this one also wraps JwtParser's claim errors).
+ * TODO(FE-171): remove this fallback when BE-236 is deployed on EVERY backend instance (no old
+ * instance can answer a client any more, i.e. after the rolling deploy has finished in production).
+ * Not a date: the trigger is that deployment. Until then a frame without `code` keeps its current
+ * behaviour.
+ */
+function classifyByMessageText(text: string): WsErrorKind {
+  const message = text.toLowerCase();
   if (message.includes('uprawnie')) return 'FORBIDDEN';
-  // "claim": JwtParser's "Nieprawidłowy format UUID w claim ..." is a token problem as well.
-  // TODO(BE-236): classify by a stable `code` native header of the ERROR frame instead of message
-  // substrings (language/wording dependent); keep the substrings only as a fallback.
-  if (message.includes('token') || message.includes('claim')) return 'TOKEN';
+  if (message.includes('token')) return 'TOKEN';
   return 'OTHER';
 }
 
@@ -189,7 +226,11 @@ export class WebSocketService {
       },
       onStompError: (frame) => {
         if (this.client !== client) return;
-        console.error('[WS] STOMP error:', frame.headers?.['message'] ?? frame);
+        console.error(
+          '[WS] STOMP error:',
+          frame.headers?.['code'] ?? '(no code)',
+          frame.headers?.['message'] ?? frame,
+        );
         this.stopPresencePing();
         this.handleStompError(classifyStompError(frame));
       },

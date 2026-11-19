@@ -86,6 +86,17 @@ public interface PluginCatalogQueryService {
     List<TenantPluginInstallation> findAllEnabledAcrossAllTenants();
 
     /**
+     * Wyszukuje instalacje z {@code enabled=true} JEDNEGO tenanta (BE-178: leniwe doładowanie handle w ścieżce
+     * wywołania na instancji, która nie ma załadowanej instalacji, oraz rekoncyliacja).
+     *
+     * <p>Jedno zapytanie z kontekstem RLS ustawionym jawnie na {@code tenantId} (bez iteracji po tenantach).
+     *
+     * @param tenantId tenant, którego instalacje {@code enabled=true} zwracamy
+     * @return instalacje tenanta z {@code enabled=true} (pusta lista gdy brak)
+     */
+    List<TenantPluginInstallation> findAllEnabledForTenant(UUID tenantId);
+
+    /**
      * Pobiera wersje pluginów wgrane przez danego tenanta ({@code plugin_version.tenant_id}),
      * niezależnie od tego, czy jakikolwiek tenant je zainstalował (EPIC-28, V078).
      *

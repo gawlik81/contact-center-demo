@@ -67,6 +67,8 @@ import java.util.regex.Pattern;
  * <h2>Odrzucenie</h2>
  * Rzuca {@link MessagingException} – {@code StompSubProtocolHandler} odpowiada ramką ERROR i sesja jest
  * zamykana (tak samo jak przy błędzie CONNECT). Treść błędu nie zawiera destynacji ani identyfikatorów.
+ * Wyjątek to {@link StompRejectedException} z kodem {@link WsErrorCode#WS_FORBIDDEN} (lub {@link WsErrorCode#WS_NO_SESSION}
+ * gdy brak principala), który {@link StompErrorCodeHandler} wystawia w nagłówku {@code code} ramki ERROR (BE-236).
  * Log WARN (userId, tenantId, rola z zaufanego principala; dla {@code foreign_*} także zsanityzowana
  * destynacja), ograniczony do 1 wpisu / 10 s na powód + licznik Micrometer {@value #METRIC_REJECTED}
  * (licznik liczy wszystko, także wpisy pominięte w logu).
@@ -83,6 +85,12 @@ public class StompDestinationAuthorizationInterceptor implements ChannelIntercep
 
     /** Licznik cicho porzuconych ramek (legacy {@code /app/agent/status}); tag {@code reason}. */
     public static final String METRIC_DROPPED = "ws.stomp.dropped";
+
+    /**
+     * Treść nagłówka {@code message} ramki ERROR przy odrzuceniu (stała, bez destynacji i identyfikatorów);
+     * używana też przez {@code ExpectedStompRejectionLogFilter} do rozpoznania oczekiwanych odrzuceń w logu Springa.
+     */
+    public static final String REJECTION_MESSAGE = "Brak uprawnień do wskazanej destynacji STOMP";
 
     private static final long WARN_INTERVAL_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
     private static final int MAX_LOGGED_DESTINATION = 100;
@@ -232,7 +240,9 @@ public class StompDestinationAuthorizationInterceptor implements ChannelIntercep
                     command, reason, user != null ? user.getName() : "n/a", tenant, role,
                     accessor != null ? accessor.getSessionId() : null, dest);
         }
-        return new MessagingException("Brak uprawnień do wskazanej destynacji STOMP");
+        // BE-236: brak principala (ramka bez uwierzytelnionej sesji) = WS_NO_SESSION, reszta = WS_FORBIDDEN
+        WsErrorCode code = "no_principal".equals(reason) ? WsErrorCode.WS_NO_SESSION : WsErrorCode.WS_FORBIDDEN;
+        return new StompRejectedException(code, REJECTION_MESSAGE);
     }
 
     /** Max 1 wpis WARN na 10 s i powód (ochrona logów przed pętlą reconnectów). */

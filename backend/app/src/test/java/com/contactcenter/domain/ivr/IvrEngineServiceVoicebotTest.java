@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -69,6 +70,7 @@ class IvrEngineServiceVoicebotTest {
     @Mock private VoicebotClient voicebotClient;
     @Mock private ContactEventService contactEventService;
 
+    private final InMemoryIvrPendingStateStore pendingStateStore = new InMemoryIvrPendingStateStore();
     private IvrEngineServiceImpl ivrEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -84,7 +86,8 @@ class IvrEngineServiceVoicebotTest {
                 stringRedisTemplate,
                 taskScheduler,
                 objectMapper,
-                contactEventService
+                contactEventService,
+                pendingStateStore
         );
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
     }
@@ -321,6 +324,73 @@ class IvrEngineServiceVoicebotTest {
             verify(rabbitTemplate, atLeastOnce()).convertAndSend(
                     anyString(), anyString(), any(Object.class)
             );
+            // BE-177: ścieżka VOICEBOT zapisuje stan konferencji w magazynie (kolejka z węzła), który następny
+            // webhook nagrania zużywa jednorazowo
+            assertThat(pendingStateStore.takeConference(CALL_ID, TENANT_ID))
+                    .hasValueSatisfying(pc -> assertThat(pc.queueId()).isEqualTo(QUEUE_ID));
+            assertThat(pendingStateStore.takeConference(CALL_ID, TENANT_ID)).isEmpty();
+        }
+
+        /** Węzeł VOICEBOT z kolejką docelową + drzewo + sesja w "Redis" (usuwana po delete). */
+        private void stubSessionLifecycle(IvrNode node, boolean twimlMode, java.util.concurrent.atomic.AtomicBoolean deleted)
+                throws Exception {
+            IvrTree ivr = buildIvrTree(NODE_VOICEBOT, List.of(node, hangupNode(NODE_NEXT)));
+            lenient().when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+            lenient().when(ivrTreeRepository.findActiveByTenantId(TENANT_ID)).thenReturn(Optional.of(ivr));
+            IvrSessionData session = buildSession();
+            session.setTwimlMode(twimlMode);
+            String json = objectMapper.writeValueAsString(session);
+            lenient().when(valueOps.get("ivr:session:" + CALL_ID)).thenAnswer(inv -> deleted.get() ? null : json);
+            lenient().when(stringRedisTemplate.delete(anyString())).thenAnswer(inv -> {
+                deleted.set(true);
+                return true;
+            });
+        }
+
+        private IvrNode nodeWithQueue() {
+            return new IvrNode(NODE_VOICEBOT, IvrNodeType.VOICEBOT, null, null,
+                    List.of(new IvrOption("next", NODE_NEXT)), QUEUE_ID.toString(),
+                    0, 0, null, 0, 0, null, null, null, null);
+        }
+
+        @Test
+        @DisplayName("webhook nagrania po eskalacji: konferencja + historia (closeVoicebot ESCALATED, openQueue kolejki węzła), stan zużyty")
+        void recordingWebhook_afterEscalation_buildsConferenceAndPersistsHistory() throws Exception {
+            when(voicebotClient.processTurn(any())).thenReturn(Optional.of(buildTurnResponse(true)));
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            stubSessionLifecycle(nodeWithQueue(), true, new java.util.concurrent.atomic.AtomicBoolean());
+
+            String twiml = ivrEngineService.handleVoicebotRecordingAndBuildTwiml(
+                    CALL_ID, TENANT_ID, "https://cc.example.com", null, "3");
+
+            assertThat(twiml).contains("<Conference").contains("contact-");
+            org.mockito.ArgumentCaptor<UUID> contact = org.mockito.ArgumentCaptor.forClass(UUID.class);
+            verify(contactEventService).closeVoicebot(contact.capture(), eq(TENANT_ID), eq("ESCALATED"));
+            verify(contactEventService).openQueue(eq(contact.getValue()), eq(TENANT_ID), eq(QUEUE_ID), isNull(), any());
+            assertThat(pendingStateStore.isEmpty()).isTrue();
+        }
+
+        @Test
+        @DisplayName("webhook nagrania po FALLBACKU (RabbitMQ rzucił raz): historia i konferencja dla kolejki DOMYŚLNEJ")
+        void recordingWebhook_afterFallback_persistsHistoryForDefaultQueue() throws Exception {
+            UUID defaultQueueId = UUID.randomUUID();
+            Queue defaultQueue = new Queue();
+            defaultQueue.setQueueId(defaultQueueId);
+            defaultQueue.setTenantId(TENANT_ID);
+            defaultQueue.setName("Domyslna");
+            when(voicebotClient.processTurn(any())).thenReturn(Optional.of(buildTurnResponse(true)));
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID)).thenReturn(List.of(defaultQueue));
+            doThrow(new RuntimeException("rabbit blip")).doNothing().when(rabbitTemplate)
+                    .convertAndSend(anyString(), anyString(), any(Object.class));
+            stubSessionLifecycle(nodeWithQueue(), true, new java.util.concurrent.atomic.AtomicBoolean());
+
+            String twiml = ivrEngineService.handleVoicebotRecordingAndBuildTwiml(
+                    CALL_ID, TENANT_ID, "https://cc.example.com", null, "3");
+
+            assertThat(twiml).contains("<Conference");
+            verify(contactEventService).closeVoicebot(any(UUID.class), eq(TENANT_ID), eq("ESCALATED"));
+            verify(contactEventService).openQueue(any(UUID.class), eq(TENANT_ID), eq(defaultQueueId), isNull(), any());
         }
     }
 }

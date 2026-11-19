@@ -95,6 +95,13 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
 
+    private final PluginRuntimeSync pluginRuntimeSync;
+
+    /** Window of the rate limit of "plugin not loadable" entries in the invocation log (per installation + point). */
+    private static final long UNLOADABLE_REPORT_WINDOW_MS = 60_000;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> lastUnloadableReport =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @RabbitListener(queues = RabbitMQConfig.QUEUE_PLUGIN_INVOCATION)
     public void handleInvocation(PluginInvocationMessage message) {
         if (message == null) {
@@ -122,15 +129,66 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
         UUID tenantId = message.tenantId();
         List<PluginInstanceHandle> handles = pluginRegistry.lookup(tenantId, extensionPoint);
         if (handles.isEmpty()) {
-            log.debug("[PluginInvocationConsumer] Brak instalacji zarejestrowanych dla tenant={}, "
-                            + "extensionPoint={} – nic do zrobienia",
-                    tenantId, extensionPoint);
-            return;
+            // BE-178: instancja bez załadowanego handle (świeży start, utracone zdarzenie synchronizacji, wiadomość
+            // przejęta przez inną replikę niż ta, która zainstalowała wtyczkę) NIE znaczy "brak wtyczki" - źródłem
+            // prawdy jest DB. Doładuj leniwie (cooldown per tenant + backoff błędów chronią DB i storage),
+            // potem ponów lookup. Błąd samej DB propaguje się (retry/DLQ jak każdy błąd infrastruktury).
+            PluginRuntimeSync.EnsureResult ensured = pluginRuntimeSync.ensureTenantLoaded(tenantId);
+            handles = pluginRegistry.lookup(tenantId, extensionPoint);
+            if (handles.isEmpty()) {
+                reportUnloadableInstallations(tenantId, extensionPoint, message, ensured);
+                log.debug("[PluginInvocationConsumer] Brak instalacji zarejestrowanych dla tenant={}, "
+                                + "extensionPoint={} – nic do zrobienia",
+                        tenantId, extensionPoint);
+                return;
+            }
         }
 
         for (PluginInstanceHandle handle : handles) {
             processOneInstallation(tenantId, handle, extensionPoint, message);
         }
+    }
+
+    /**
+     * Installations that the database lists as enabled but that this instance could not load (broken JAR, failing
+     * {@code onActivate}, storage outage): a CONTROLLED outcome instead of an exception - the invocation is logged as
+     * {@code FAILED} (audit trail, the plugin code did not run so the circuit breaker is NOT touched) and the message
+     * is acknowledged. Deliberately no requeue: a permanently broken plugin would otherwise cycle the message through
+     * retries into the DLQ; fire-and-forget points are at-most-once by contract (ARCHITECTURE.md section 11.5) and the
+     * reconciliation retries the load itself. The extension point of the failed installation is unknown without its
+     * manifest, hence "may not have been delivered".
+     */
+    private void reportUnloadableInstallations(UUID tenantId, ExtensionPoint extensionPoint,
+                                               PluginInvocationMessage message,
+                                               PluginRuntimeSync.EnsureResult ensured) {
+        if (ensured.failures().isEmpty()) {
+            return;
+        }
+        Object eventPayload = deserializePayload(extensionPoint, message);
+        UUID relatedContactId = extractContactId(extensionPoint, eventPayload);
+        ensured.failures().forEach((installationId, failure) -> {
+            // only for extension points the plugin declares (empty = unknown -> report); at most one entry per
+            // (installation, extension point) per window - the result of the lazy sync is repeated for every message
+            if (!failure.extensionPoints().isEmpty() && !failure.extensionPoints().contains(extensionPoint)) {
+                return;
+            }
+            String key = installationId + ":" + extensionPoint;
+            long now = System.currentTimeMillis();
+            Long last = lastUnloadableReport.get(key);
+            if (last != null && now - last < UNLOADABLE_REPORT_WINDOW_MS) {
+                return;
+            }
+            lastUnloadableReport.put(key, now);
+            if (lastUnloadableReport.size() > 1_024) {
+                lastUnloadableReport.values().removeIf(t -> now - t >= UNLOADABLE_REPORT_WINDOW_MS);
+            }
+            log.warn("[PluginInvocationConsumer] Instalacja {} (tenant {}) niezaładowana na tej instancji: {} – "
+                    + "wywołanie {} mogło nie zostać dostarczone", installationId, tenantId, failure.reason(),
+                    extensionPoint);
+            // fixed text + exception class: never text produced by plugin code (it may echo configuration)
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint, InvocationStatus.FAILED, 0L,
+                    "Plugin niezaładowany na tej instancji: " + failure.reason(), relatedContactId, eventPayload);
+        });
     }
 
     private void processOneInstallation(

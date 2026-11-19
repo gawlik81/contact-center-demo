@@ -484,6 +484,7 @@ Pakiet: `com.contactcenter.domain.email`.
 | `IvrService` (interfejs + `IvrServiceImpl`) | CRUD + walidacja drzew |
 | `IvrCallListener` | `@RabbitListener` na `cc.queue.ivr-handler` (routing key `call.incoming`) |
 | `IvrSessionData` | stan sesji w Redis (`ivr:session:{callId}`) |
+| `IvrPendingStateStore` (interfejs) + `RedisIvrPendingStateStore` | stan krótkotrwały między webhookami Twilio tej samej rozmowy (BE-177), patrz niżej |
 
 Pakiet: `com.contactcenter.domain.ivr`.
 
@@ -508,6 +509,44 @@ Twilio webhook (call.incoming) → cc.events (routing key call.incoming)
 ```
 Typ węzła `VOICEBOT` (`IvrNodeType.VOICEBOT`) wywołuje `VoicebotClient` (sekcja 5).
 Timeout DTMF realizowany przez `TaskScheduler` z `AsyncConfig`.
+
+**Stan oczekujący między webhookami (BE-177).** Kolejny webhook Twilio (action URL) tej samej rozmowy może trafić na
+INNĄ instancję backendu, dlatego kontekst przekazywany między krokami nie jest trzymany w pamięci JVM, tylko w Redis
+(`IvrPendingStateStore`; w `IvrEngineServiceImpl` nie ma już `ConcurrentHashMap` ze stanem rozmowy):
+
+| Klucz | Zawartość (JSON) | Zapis → odczyt |
+|---|---|---|
+| `ivr:pending:conference:{tenantId}:{callSid}` | `tenantId`, `contactId`, `queueId`, `prompt` | `QUEUE_TRANSFER` (oraz fallback do domyślnej kolejki w trybie TwiML) → webhook DTMF / nagranie VOICEBOT (kieruje klienta do konferencji) |
+| `ivr:pending:hangup:{tenantId}:{callSid}` | `tenantId`, `prompt` | `HANGUP` w trybie TwiML → następny webhook (zapowiedź + `<Hangup/>`) |
+| `ivr:pending:audio:{tenantId}:{callSid}` | `tenantId`, `prompt` | `PLAY_AUDIO` w trybie TwiML → TwiML następnego węzła (zapowiedź doklejana na początku) |
+
+- **Odczyt jednorazowy:** `GETDEL` (atomowo pobierz + usuń); drugi odczyt (retry webhooka Twilio, wyścig duplikatów)
+  zwraca pusty wynik i idzie ścieżką "brak stanu". Konferencja to jeden klucz, więc nie ma stanu częściowego.
+- **TTL:** `ivr.pending-state.ttl` (ISO-8601 lub `2m`; domyślnie 2 min, jedyne źródło wartości domyślnej to
+  `RedisIvrPendingStateStore.DEFAULT_TTL`; musi być > 0). Stan jest zużywany po sekundach (action URL Twilio);
+  krótki TTL minimalizuje czas, przez jaki dane leżą jawnie w Redis, i chroni przed wyciekiem kluczy porzuconej rozmowy.
+- **Izolacja tenantów:** `tenantId` jest w KLUCZU (webhook z cudzym `tenantId` z query URL-a nie trafia w klucz i nie
+  niszczy stanu prawdziwej rozmowy) i dodatkowo w wartości; brak tenanta po którejkolwiek stronie albo niezgodna wartość
+  = pusty wynik (fail-closed, licznik `tenant_mismatch`).
+- **Dane:** UUID-y oraz tekst zapowiedzi PO podstawieniu zmiennych sesji, czyli może zawierać wartości zebrane przez
+  `COLLECT_DTMF` (np. numer klienta), jeśli drzewo osadza je w zapowiedzi. Traktować jak dane osobowe (jawny JSON,
+  bez szyfrowania) - stąd krótki TTL. Alternatywa na później: trzymać `nodeId` + zmienne sesji zamiast gotowego tekstu.
+- **Awaria Redis (wybór świadomy):** odczyt = *fail-open* (log `ERROR`, licznik `cc.ivr.pending.store.errors{op,type}`,
+  pusty wynik = dotychczasowa ścieżka "brak stanu", bez wyjątku); zapis konferencji = *fail-closed* — silnik zapisuje stan
+  PRZED publikacją kontaktu do kolejki, więc błąd uruchamia istniejący fallback do domyślnej kolejki i kontakt nie jest
+  publikowany dwa razy. Przy martwym Redis kontakt TRAFIA do agenta (fallback publikuje go do kolejki domyślnej), ale klient NIE trafia do
+  konferencji: fallback też nie ma gdzie zapisać stanu, więc klient dostaje TwiML zakończenia z `<Pause>` — to ograniczenie awarii Redis, nie zabezpieczenie kontaktu; zapis
+  zapowiedzi (hangup/audio) = *fail-open* (zapowiedź pominięta). Sesja IVR (`ivr:session:*`) leży w tym samym Redis,
+  więc jego awaria i tak zatrzymuje IVR.
+- **Błąd PO zapisie stanu:** gdy `closeIvr`/`openQueue`/RabbitMQ rzuci po udanym zapisie, `catch` usuwa klucz
+  (`discardConference`) przed fallbackiem (pomijane, gdy sam zapis się nie udał - nic nie zapisano); fallback w trybie TwiML zapisuje własny stan z kolejką domyślną (best-effort),
+  więc klient trafia do konferencji kontaktu w kolejce, do której faktycznie został przekazany. Błąd usunięcia sesji po
+  udanej publikacji nie uruchamia fallbacku (brak drugiego `contact.queued`).
+- **Pozostałe stany w pamięci JVM (inwentarz BE-177):** (1) `TaskScheduler.schedule` dla timeoutu DTMF w
+  `IvrEngineServiceImpl` (tylko tryb nie-TwiML; timer ginie przy restarcie/innej instancji - ścieżka produkcyjna Twilio
+  używa `<Gather timeout>`, więc ryzyko niskie), (2) `MockTelephonyAdapter` (`sessions`, `contactIdToCallId` - wyłącznie
+  `telephony.provider=mock`, dev/test), (3) `TwilioTelephonyAdapter.clientCache` (Caffeine, unieważnianie między
+  instancjami zrealizowane w BE-179). `static` w `domain/ivr`/`domain/telephony` nie trzyma stanu rozmowy.
 
 ---
 
@@ -1025,6 +1064,34 @@ Endpoint `/ws` i `/ws-native` są publiczne w `SecurityConfig` (HTTP upgrade), a
 `CONNECT` i tworzy `StompPrincipal(userId, tenantId, role)`. Brak/nieprawidłowy JWT
 → odmowa CONNECT.
 
+**Kontrakt kodów błędów w ramce STOMP `ERROR` (BE-236, BE <-> FE).** Każda odrzucona ramka kończy się ramką `ERROR` z
+natywnym nagłówkiem `code` (stabilny; nie zmieniać nazw — FE-171 klasyfikuje po nim zamiast po tekście `message`).
+Nagłówek `message` dla oczekiwanych odrzuceń pozostaje bez zmian. `StompErrorCodeHandler` (rejestrowany przez
+`registry.setErrorHandler(...)` w `WebSocketConfig`) rozpakowuje łańcuch przyczyn w pętli po `getCause()` (ograniczona
+głębokość, odporna na cykle); interceptory rzucają `StompRejectedException(WsErrorCode, message)`.
+
+| `code` | Znaczenie | Źródło |
+|---|---|---|
+| `WS_TOKEN_MISSING` | CONNECT/STOMP bez tokenu JWT | `WebSocketAuthInterceptor` |
+| `WS_TOKEN_EXPIRED` | token JWT wygasł (`exp`); klient powinien odświeżyć token i połączyć się ponownie | `WebSocketAuthInterceptor` |
+| `WS_TOKEN_INVALID` | token JWT nieprawidłowy (podpis, issuer, claims, format) | `WebSocketAuthInterceptor` |
+| `WS_NO_SESSION` | SUBSCRIBE/SEND w sesji bez uwierzytelnionego principala (brak wcześniejszego poprawnego CONNECT) | `StompDestinationAuthorizationInterceptor` (`no_principal`) |
+| `WS_FORBIDDEN` | destynacja/komenda niedozwolona dla roli lub tenanta (pozostałe odrzucenia autoryzacji) | `StompDestinationAuthorizationInterceptor` |
+| `WS_INTERNAL` | każdy inny wyjątek; ramka ma ogólny `message` bez szczegółów wewnętrznych, przyczyna logowana na ERROR | `StompErrorCodeHandler` |
+
+Po każdej ramce ERROR sesja jest zamykana. Klient traktuje nieznany (przyszły) kod jak `WS_INTERNAL`.
+Uwagi: `WS_TOKEN_EXPIRED` jest zgłaszany WYŁĄCZNIE przy CONNECT/STOMP (wygaśnięcie tokenu w trakcie otwartej sesji nie
+generuje żadnego ERROR); `WS_NO_SESSION` to błąd protokołu klienta (SUBSCRIBE/SEND przed poprawnym CONNECT), a NIE sygnał
+do odświeżenia tokenu — klient łączy się ponownie z backoffem; ramki nieparsowalne też dostają `WS_INTERNAL` (log: WARN bez
+stack trace, max 1 / 10 s); ramki ERROR wysyłane przez aplikację/broker (`handleErrorMessageToClient`) również dostają
+`code` (domyślnie `WS_INTERNAL`, gdy brak), więc KAŻDA ramka ERROR ma `code`. Uwaga: dla tej ścieżki nagłówek `message` to zachowanie bazowe Springa (treść ERROR zbudowana przez aplikację/broker, NIE sanityzowana — w odróżnieniu od `WS_INTERNAL` z kanału wejściowego); aplikacja nie powinna wkładać do takich ramek szczegółów wewnętrznych. Dodatkowo Spring
+(`StompSubProtocolHandler`) przy każdym odrzuconym SUBSCRIBE/SEND loguje ERROR „Failed to send message to MessageChannel
+...” (poziom zaszyty w kodzie Springa, nie do zmiany konfiguracją); `ExpectedStompRejectionLogFilter` (logback
+`turboFilter` w `logback-spring.xml`) odrzuca WYŁĄCZNIE ten duplikat, gdy kończy się stałym komunikatem odrzucenia
+autoryzacji — odrzucenie pozostaje widoczne jako WARN interceptora (1/10 s na powód) i licznik `ws.stomp.rejected` (świadoma utrata: `sessionId` nie jest już logowany przy każdym odrzuceniu, tylko przy próbkowanym WARN);
+pozostałe błędy tego loggera nie są ruszane. Testy kontraktowe: `StompSubscribeAuthorizationE2ETest` (po jednym przypadku
+na kod, surowe ramki STOMP), `StompErrorCodeHandlerTest`.
+
 ---
 
 ## 3. Multi-tenancy
@@ -1289,8 +1356,9 @@ tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewn
 | 23 | `ProgressiveDialerServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak `@SchedulerLock` (świadomie); `pg_try_advisory_xact_lock(0x43430173, hashtext(campaignId))` per kampania w krótkiej transakcji claim | - | Redis `SET NX` per agent + warunkowy `DIALING` (`status IN (PENDING,NO_ANSWER)`, sprawdzenie liczby wierszy) + `SKIP LOCKED`; claim cofany przy błędzie po claim | zrealizowane (BE-173) |
 | 24 | `RoutingServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak `@SchedulerLock` (świadomie); ShedLock `RoutingQueue_<queueId>` (programowo, `RoutingQueueLock`) per kolejka wewnątrz przebiegu | atMost PT2M (`routing.queue-lock.at-most-for-ms`) / 0 | Przydział warunkowy (BE-159); koalescencja per tenant w JVM zostaje, między instancjami wyklucza blokada kolejki | zrealizowane (BE-173) |
 | 25 | `OrphanedDialingReaper#reapOrphanedDialing` | fixedDelay `dialer.dialing-reaper.interval-ms` (5 min) | S | `OrphanedDialingReaper_reapOrphanedDialing`; `shedlock.dialing-reaper.*` | PT15M / PT4M | Idempotentne UPDATE-y warunkowe na `status='DIALING'` starszych niż `dialer.dialing-reaper.stale-after-minutes` (10); powtórka po wygaśnięciu blokady nic nie zmienia | zrealizowane (BE-173 review S3) |
+| 26 | `PluginRuntimeSyncServiceImpl#syncTick` | fixedDelay `plugins.sync.tick-ms` (5 s); pełna rekoncyliacja co `plugins.sync.reconcile-interval-ms` (30 s) i po każdej (re)subskrypcji kanału Redis | I | brak `@SchedulerLock` (świadomie): rekoncyliuje pamięć KAŻDEJ instancji | - | Idempotentna, tylko odczyty DB + `load`/`unload` jednoinstalacyjne (single-flight per instalacja); ochrona przed nakładaniem się przebiegów `AtomicBoolean` | zrealizowane (BE-178) |
 
-Klasa **I** jest pusta: żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (jedyny taki przypadek to
+Klasa **I** zawiera jedną pozycję (#26, rekoncyliacja runtime wtyczek, BE-178 - stan w pamięci KAŻDEJ instancji, więc blokada byłaby błędem); poza nią żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (drugi taki przypadek to
 przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). Inne mechanizmy czasowe poza
 `@Scheduled`: timeouty DTMF IVR (`taskScheduler.schedule` per rozmowa, stan w pamięci JVM - BE-177).
 
@@ -1519,8 +1587,8 @@ tani, a wynik nie zależy od zwycięzcy blokady ShedLock.
 | `RoutingServiceImpl.passesRunning/passesDirty` | tenanci z trwającym przebiegiem backlogu | niskie - wyłącznie dedup w JVM; poprawność chroni blokada Redis/DB (BE-173) | OK |
 | `AgentPresenceSweeper.running` (`AtomicBoolean`) | reentrancja joba | niskie - per instancja z założenia; wykluczenie między instancjami przez ShedLock | OK |
 | `AgentPresenceSweeper.startedAt/redisUnhealthy/redisRecoveredAt` (`volatile`) | karencja obecności po starcie i stan zdrowia Redis tej instancji | niskie-średnie - per instancja z założenia; przy rolling deploy każda replika ma własne okno karencji (`startedAt`), stan zdrowia Redis może się chwilowo różnić między replikami | OK, świadomie per instancja |
-| `CircuitBreakerState.consecutiveFailuresByInstallation` | licznik błędów wtyczki | średnie - bezpiecznik otwiera się niezależnie na każdej instancji (próg liczony z 1/N ruchu), restart zeruje | już w zakresie BE-178 |
-| `PluginRegistryImpl`, `PluginRuntimeManagerImpl.activeHandles` | załadowane wtyczki i classloadery | wysokie - instalacja/revoke/upgrade na jednej instancji nie zmienia rejestru pozostałych do restartu (`PluginRuntimeStartupLoader` odbudowuje tylko przy starcie) | ticket BE-178 (już w planie EPIC-33) |
+| `CircuitBreakerState.consecutiveFailuresByInstallation` | licznik błędów wtyczki | było średnie - bezpiecznik otwierał się niezależnie na każdej instancji | rozwiązane w BE-178 (licznik lokalny + propagacja OPEN/CLOSED, §4.9) |
+| `PluginRegistryImpl`, `PluginRuntimeManagerImpl.activeHandles` | załadowane wtyczki i classloadery | było wysokie - instalacja/revoke/upgrade na jednej instancji nie zmieniały rejestru pozostałych do restartu | rozwiązane w BE-178 (zdarzenia Redis + rekoncyliacja z DB + leniwe ładowanie, §4.9) |
 | `IvrEngineServiceImpl.pending*` (5 map) | kontekst konferencji/promptów między webhookami Twilio | wysokie - kolejny webhook tego samego połączenia może trafić na inną replikę (brak sticky) i zgubić kontekst | ticket BE-177 (już w planie EPIC-33) |
 | `MockTelephonyAdapter.sessions/contactIdToCallId` | sesje atrapy telefonii | nie dotyczy produkcji (profil mock/dev) | OK |
 | `SimpleBroker` WebSocket (STOMP) | subskrypcje i dostarczanie zdarzeń WS | było wysokie (zdarzenie z jobu/instancji A nie docierało do sesji na B) | rozwiązane w BE-175 (ADR-14, opcja B: Redis pub/sub -> lokalny SimpleBroker, §4.8) |
@@ -1654,6 +1722,93 @@ Tomcat/STOMP/`WebSocketConfig`; dostawa A->B dla trzech tematów, brak duplikat�
 sfałszowane koperty, brak odtwarzania, `enabled=false`, awaria Redis przez `TcpForwarder`: start instancji przy
 martwym Redis, degradacja, powrót bez restartu, brak zdarzeń z przeszłości); `FullApplicationContextStartupTest`
 sprawdza beany fan-outu w pełnym kontekście prod (Postgres + Redis + RabbitMQ).
+
+### 4.9 Synchronizacja runtime wtyczek między instancjami (BE-178, ADR-09)
+
+Wtyczki działają in-process (ADR-09), więc `PluginRegistryImpl`, `PluginRuntimeManagerImpl.activeHandles` (classloadery!)
+i `CircuitBreakerState` są stanem KAŻDEJ instancji. Przed BE-178 instalacja/odwołanie na instancji A nie zmieniały B do
+restartu. **Źródło prawdy to DB** (`tenant_plugin_installation.enabled`, `plugin_version.status`); instancje
+zbiegają do niej trzema niezależnymi mechanizmami, więc żadna pojedyncza awaria nie zostawia instancji nieaktualnej na stałe.
+
+```
+admin (instancja A)                     Redis cc:plugin:sync:<env>                 instancja B
+ enable/disable/rollback/uninstall  ->  INSTALLATION_CHANGED{tenant,installation} -> reconcileInstallation(DB) -> load/unload/reload
+ revoke                             ->  VERSION_REVOKED{pluginVersionId}          -> (weryfikacja w DB) unloadByVersion
+ licznik błędów >= 5                ->  CIRCUIT_OPENED / CIRCUIT_CLOSED           -> CircuitBreakerState.applyRemote
+okresowo, na KAŻDEJ instancji (syncTick co 5 s, pełny przebieg co 30 s i po (re)subskrypcji): DB -> load/unload/reload
+leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
+```
+
+- **Zdarzenia** (`PluginSyncBus`, `PluginSyncEnvelope`): kanał z sufiksem środowiska (`plugins.sync.channel` +
+  `PLUGINS_SYNC_ENV`), id instancji z losowym sufiksem, ignorowanie własnych zdarzeń, limit rozmiaru, walidacja kształtu,
+  metryki `plugin.sync.{published,received,ignored,dropped,lag,publish.failures}`. Koperta niesie WYŁĄCZNIE identyfikatory
+  (tenant, instalacja, wersja) - nigdy konfigurację ani uprawnienia. Zdarzenie to PODPOWIEDŹ: odbiorca zawsze czyta DB
+  (stan, nie delta), więc zgubienie, duplikat i zmiana kolejności nie psują stanu. Dedykowany kontener pub/sub
+  (`pluginSyncListenerContainer`, 1 wątek, supervisor z backoffem - aplikacja startuje bez Redis); publikacja po commicie DB
+  w kontrolerach (`PluginAdminController`, `PluginRevokeController`), nigdy nie rzuca (awaria Redis = log + licznik).
+- **Rekoncyliacja** (`PluginRuntimeSyncServiceImpl#syncTick`): `@Scheduled` na KAŻDEJ instancji, **świadomie bez ShedLock**
+  (klasa I w tabeli §4.6 - ShedLock uruchomiłby ją na jednej instancji, a rekoncyliowany jest stan pamięci każdej).
+  Bezpieczna na wielu instancjach: tylko odczyty DB + `load`/`unload` jednej instalacji (single-flight, striped locks).
+  Uruchamia się też natychmiast po (re)subskrypcji kanału (zdarzenia z czasu awarii Redis przepadły, DB nie). Koszt: jedno
+  zapytanie per tenant co 30 s per instancja (`findAllEnabledAcrossAllTenants`; pre-check bez pełnego skanu - follow-up, wymaga
+  obejścia RLS niezgodnego z CLAUDE.md). Karencja `plugins.sync.unload-grace-ms` (60 s) chroni WYŁĄCZNIE handle załadowane poza
+  serwisem synchronizacji (admin `enable` ładuje runtime PRZED flagą w DB); handle załadowany przez rekoncyliację/leniwą ścieżkę
+  (DB mówiła `enabled`) jest zwalniany bez karencji. Odwołana wersja zawsze bez karencji.
+- **Wyścigi (po CR BE-178):** każda zmiana stanu JEDNEJ instalacji (zdarzenie, rekoncyliacja, leniwe ładowanie) biegnie pod
+  blokadą per instalacja i czyta DB WEWNĄTRZ sekcji krytycznej tuż przed działaniem; ładuje tylko gdy instalacja nadal
+  `enabled` (nieaktualna migawka/zdarzenie nie wskrzesi wyłączonej wtyczki). `PluginAdminController#disable` odładowuje
+  ponownie PO commicie flagi. Trzy niezależne wykonawcy: zdarzenia (szybka ścieżka: tylko unload), bulk (ładowania,
+  przebieg okresowy, synchronizacja w tle) i odwołania - disable nie stoi za wolnym ładowaniem. Faza 2 odwołania
+  (`onDeactivate`) biegnie równolegle per uchwyt (pula `plugin-dispose`). Publikacja zdarzeń: `afterCommit`, gdy aktywna
+  transakcja (egzekwowane w `PluginRuntimeSyncServiceImpl`, nie konwencją wołających).
+- **Walidacja zdarzeń:** para (tenantId, installationId) musi zgadzać się z lokalnym handle (inaczej `plugin.sync.ignored
+  {reason=tenant_mismatch}`); zdarzenia obwodu dla instalacji niezaładowanej są ignorowane; `VERSION_REVOKED` dla wersji
+  nieistniejącej w DB jest ignorowane (nie jest potwierdzeniem); przy awarii DB odładowanie jest fail-safe, ale blokada
+  ponownego ładowania wersji to wpis z TTL 120 s (zbiór ograniczony do 256 wpisów tymczasowych) - trwałe wpisy tylko po
+  potwierdzeniu `REVOKED` w DB lub z lokalnego endpointu. `load()` wycofujące się po odwołaniu bezwarunkowo wyrejestrowuje
+  uchwyt (brak "ducha" w `PluginRegistry`).
+- **Kill switch (`REVOKED`)**: `VERSION_REVOKED` obsługiwany na osobnym wątku (nigdy za wolnym `load`), po tanim
+  potwierdzeniu `REVOKED` w DB (podrobiony komunikat nie wyłączy wtyczek; awaria weryfikacji = odwołanie stosowane mimo to).
+  `unloadByVersion` jest dwufazowe: najpierw wyrejestrowanie WSZYSTKICH uchwytów wersji (od tej chwili nikt ich nie wywoła),
+  potem `onDeactivate` (do 10 s/wtyczkę). Lokalny zbiór odwołanych wersji zamyka wyścig z `load()` w toku.
+  **Opóźnienie:** zwykle dziesiątki ms (pub/sub); przy zgubionym zdarzeniu lub awarii Redis - najbliższy `syncTick`
+  (`reconcile-interval-ms`, domyślnie 30 s). Zmiana kolejności w `unload()` (wyrejestrowanie PRZED `onDeactivate`) sprawia, że
+  `disable`/`uninstall` też są skuteczne natychmiast, a nie po `onDeactivate`.
+- **Circuit breaker - decyzja: licznik LOKALNY + propagacja stanu.** `isOpen` jest na ścieżce krytycznej
+  (`PRE_CONTACT_CONNECT`, 2 s) i pozostaje odczytem pamięci. Instancja, której licznik osiągnie próg (5), publikuje
+  `CIRCUIT_OPENED`; pozostałe otwierają obwód lokalnie. Pierwszy `SUCCESS` po otwarciu publikuje `CIRCUIT_CLOSED`. Zmiana
+  instalacji przez administratora resetuje obwód na wszystkich instancjach. Odrzucone: licznik w Redis (round-trip na każde
+  wywołanie, także udane, i awaria Redis i tak wymusza licznik lokalny). Stan NIE jest odtwarzany z `health_status=DEGRADED`
+  (obwód nie ma half-open, więc restart jest dziś jedyną drogą odblokowania - adopcja z DB odebrałaby ją; zob. follow-up).
+- **`PluginInvocationConsumer`** (RabbitMQ): pusty `PluginRegistry.lookup` NIE znaczy "brak wtyczki". Konsument woła
+  `ensureTenantLoaded(tenantId)` (leniwe doładowanie z DB: jedno zapytanie per tenant na `lazy-sync-cooldown-ms`,
+  współbieżni wołający czekają na pierwszego, nieudana instalacja nie jest ponawiana przez `failed-load-backoff-ms`), potem
+  ponawia lookup. Wynik: sukces; albo instalacja `enabled`, ale niezaładowalna -> kontrolowany wpis `FAILED` w
+  `plugin_invocation_log` i ack (bez requeue - zepsuta wtyczka nie może krążyć retry -> DLQ; punkty fire-and-forget są
+  at-most-once, a rekoncyliacja ponawia ładowanie; wpis jest JEDEN na (instalacja, punkt) na 60 s, tylko dla punktów
+  deklarowanych w manifeście wtyczki, a `reason` to stały tekst + klasa wyjątku, nigdy tekst z kodu wtyczki); awaria samej DB propaguje się (retry/DLQ jak każdy błąd infrastruktury).
+  Ścieżki z twardym budżetem (`PRE_CONTACT_CONNECT`, `MANUAL_ACTION`) NIE ładują synchronicznie - zlecają
+  `requestTenantSync` w tle (to samo cooldown); bieżące wywołanie idzie bez wtyczki, następne ją widzi.
+- **Izolacja tenantów:** klucze rejestru zawierają `tenantId`; każda jednostka pracy dotykająca wierszy tenanta przechodzi
+  przez `withTenant` (zapisuje i PRZYWRACA kontekst wołającego - konsument RabbitMQ nie traci swojego `TenantContext`).
+- **Inne zmiany:** `PluginRegistryImpl` na `CopyOnWriteArrayList` (zdarzenia z innych wątków czytają i zapisują rejestr
+  współbieżnie); `PluginRuntimeManagerImpl.load()` jest idempotentne (zwraca istniejący uchwyt) i szeregowane per instalacja;
+  `lifecycleExecutor` ograniczony (`plugins.lifecycle.max-threads`, domyślnie 16, kolejka 64) zamiast `newCachedThreadPool`
+  (reszta budżetu zasobów: BE-180).
+- **Follow-upy (poza zakresem):** kwarantanna timeoutów `onActivate` (ograniczona pula 16 + wiszące `onActivate` może zająć
+  wszystkie wątki), HMAC koperty kanału (wspólnie z BE-175), half-open/TTL obwodu, propagacja zmiany `installationConfig`
+  (rewizja instalacji), pre-check kosztu rekoncyliacji O(tenanci) (BE-180/BE-178c), lock per `installationId` zamiast 64
+  pasków.
+- **Ograniczenia znane:** (1) rolling deploy ze starą wersją (bez BE-178) - stara instancja nie nasłuchuje kanału i nie
+  rekoncyliuje do restartu; (2) `PluginAssetController` (publiczny, bez JWT) czyta tylko lokalny `findActiveHandle`, więc
+  na instancji, która jeszcze nie zrekoncyliowała, zwraca 404 do najbliższego `syncTick`; (3) każda instancja trzyma
+  własny cache JAR-ów na dysku i własne classloadery (pamięć x liczba instancji - zob. BE-180).
+- **Testy:** `PluginRuntimeSyncCrossInstanceIntegrationTest` (dwa-trzy konteksty Springa, wspólny Redis z Testcontainers,
+  wspólna "baza" i prawdziwe classloadery): włączenie/wyłączenie A -> B, odwołanie wersji A -> B w <= 5 s, instancja
+  startująca po instalacji, zgubione zdarzenie naprawione rekoncyliacją, otwarcie/zamknięcie obwodu, wywołanie RabbitMQ
+  na instancji bez handle (sukces) i z niezaładowalną instalacją (kontrolowany `FAILED`, bez burzy ładowań); testy
+  jednostkowe `PluginSyncBusTest`, `PluginRuntimeSyncServiceImplTest`, `PluginRuntimeManagerImplSyncTest`,
+  `CircuitBreakerStatePropagationTest`, `PluginInvocationConsumerLazyLoadTest`.
 
 ---
 

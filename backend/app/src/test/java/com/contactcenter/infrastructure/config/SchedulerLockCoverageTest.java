@@ -47,7 +47,10 @@ class SchedulerLockCoverageTest {
             "ProgressiveDialerServiceImpl#pollAvailableAgents",
             "T, per-campaign advisory xact lock in the claim transaction (BE-173, done)",
             "RoutingServiceImpl#pollAvailableAgents",
-            "T, per-queue ShedLock RoutingQueue_<queueId> inside the pass (BE-173, done)");
+            "T, per-queue ShedLock RoutingQueue_<queueId> inside the pass (BE-173, done)",
+            "PluginRuntimeSyncServiceImpl#syncTick",
+            "I, reconciles the in-memory plugin runtime of EACH instance against the DB (BE-178) - a lock would leave "
+                    + "all but one instance stale");
 
     private static List<Method> scheduledMethods() throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false) {

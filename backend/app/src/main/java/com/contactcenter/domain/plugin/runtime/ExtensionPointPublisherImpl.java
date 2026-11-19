@@ -91,6 +91,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
 
+    private final PluginRuntimeSync pluginRuntimeSync;
+
     // =========================================================================
     // PRE_CONTACT_CONNECT — blocking
     // =========================================================================
@@ -98,6 +100,11 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     @Override
     public PreContactConnectResult publishPreContactConnect(UUID tenantId, ContactEvent event) {
         List<PluginInstanceHandle> handles = pluginRegistry.lookup(tenantId, ExtensionPoint.PRE_CONTACT_CONNECT);
+        if (handles.isEmpty()) {
+            // BE-178: ścieżka z twardym budżetem 2 s - nie ładujemy synchronicznie; w tle (z cooldownem) sprawdź w DB,
+            // czy ten tenant ma wtyczki, których ta instancja jeszcze nie ma. Bieżące wywołanie idzie bez wtyczki.
+            pluginRuntimeSync.requestTenantSync(tenantId);
+        }
         long timeoutMs = properties.effectivePreContactConnectTimeoutMs();
 
         for (PluginInstanceHandle handle : handles) {
@@ -129,6 +136,7 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
                 .orElse(null);
 
         if (handle == null) {
+            pluginRuntimeSync.requestTenantSync(tenantId); // BE-178: doładowanie w tle, następne kliknięcie zadziała
             log.warn("[ExtensionPointPublisher] publishManualAction: instalacja nieaktywna/nieznaleziona "
                             + "dla MANUAL_ACTION: tenant={}, installation={}",
                     tenantId, installationId);

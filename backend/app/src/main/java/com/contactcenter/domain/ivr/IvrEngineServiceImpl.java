@@ -30,7 +30,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -42,26 +41,6 @@ class IvrEngineServiceImpl implements IvrEngineService {
     private static final Duration SESSION_TTL = Duration.ofMinutes(30);
     private static final Duration TTS_TTL = Duration.ofHours(24);
     private static final String ROUTING_KEY_CONTACT_QUEUED = "contact.queued";
-
-    /**
-     * Tymczasowy kontekst konferencji dla klienta czekającego w kolejce.
-     * Wypełniany przez executeQueueTransfer, odczytywany przez handleDtmfAndBuildTwiml.
-     * Klucz: callId. Wartość: contactId przekazany do konferencji Twilio.
-     */
-    private final ConcurrentHashMap<String, UUID> pendingConferenceContactId = new ConcurrentHashMap<>();
-
-    /**
-     * Tymczasowy kontekst konferencji – queueId dla klienta czekającego w kolejce.
-     * Wypełniany przez executeQueueTransfer, odczytywany przez handleDtmfAndBuildTwiml.
-     * Klucz: callId. Wartość: queueId kolejki, do której przypisano kontakt.
-     */
-    private final ConcurrentHashMap<String, UUID> pendingConferenceQueueId = new ConcurrentHashMap<>();
-
-    private final Map<String, String> pendingQueueTransferPrompt = new ConcurrentHashMap<>();
-
-    private final Map<String, String> pendingHangupPrompt = new ConcurrentHashMap<>();
-
-    private final Map<String, String> pendingPlayAudioPrompt = new ConcurrentHashMap<>();
 
     @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
@@ -76,6 +55,8 @@ class IvrEngineServiceImpl implements IvrEngineService {
     private final TaskScheduler taskScheduler;
     private final ObjectMapper objectMapper;
     private final ContactEventService contactEventService;
+    /** Stan między webhookami Twilio (BE-177) - Redis, współdzielony między instancjami; nie pamięć JVM. */
+    private final IvrPendingStateStore pendingStateStore;
 
     /**
      * Opcjonalne właściwości Twilio – wstrzykiwane gdy Twilio jest dostępne w kontekście.
@@ -454,17 +435,16 @@ class IvrEngineServiceImpl implements IvrEngineService {
         IvrSessionData session = loadSession(callId);
         if (session == null) {
             // Sesja usunięta przez QUEUE_TRANSFER – sprawdź czy klient powinien czekać w konferencji
-            UUID conferencContactId = pendingConferenceContactId.remove(callId);
-            UUID conferenceQueueId = pendingConferenceQueueId.remove(callId);
-            if (conferencContactId != null) {
+            Optional<IvrPendingStateStore.PendingConference> conference = pendingStateStore.takeConference(callId, tenantId);
+            if (conference.isPresent()) {
+                IvrPendingStateStore.PendingConference pc = conference.get();
                 log.info("[IVR] QUEUE_TRANSFER zakończony – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
-                    callId, conferencContactId, conferenceQueueId);
-                String queueTransferPrompt = pendingQueueTransferPrompt.remove(callId);
-                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl, queueTransferPrompt);
+                    callId, pc.contactId(), pc.queueId());
+                return buildWaitInConferenceTwiml(pc.contactId(), pc.queueId(), tenantId, baseUrl, pc.prompt());
             }
-            String hangupPrompt = pendingHangupPrompt.remove(callId);
-            if (hangupPrompt != null) {
-                return buildHangupTwiml(hangupPrompt);
+            Optional<String> hangupPrompt = pendingStateStore.takeHangupPrompt(callId, tenantId);
+            if (hangupPrompt.isPresent()) {
+                return buildHangupTwiml(hangupPrompt.get());
             }
             return buildCompletedTwiml();
         }
@@ -561,9 +541,11 @@ class IvrEngineServiceImpl implements IvrEngineService {
 
         if (updatedSession == null) {
             // Sesja usunięta przez QUEUE_TRANSFER lub HANGUP
-            UUID pendingContactId = pendingConferenceContactId.remove(callId);
-            UUID pendingQueueId = pendingConferenceQueueId.remove(callId);
-            if (pendingContactId != null) {
+            Optional<IvrPendingStateStore.PendingConference> pendingConference =
+                    pendingStateStore.takeConference(callId, tenantId);
+            if (pendingConference.isPresent()) {
+                UUID pendingContactId = pendingConference.get().contactId();
+                UUID pendingQueueId = pendingConference.get().queueId();
                 log.info("[IVR] VOICEBOT QUEUE_TRANSFER – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
                         callId, pendingContactId, pendingQueueId);
                 contactEventService.closeVoicebot(pendingContactId, tenantId, "ESCALATED");
@@ -684,7 +666,7 @@ class IvrEngineServiceImpl implements IvrEngineService {
             // wywołaniu, currentNode wskazuje już na następny węzeł. Ten case jest safety net.
             default -> buildFallbackTwiml();
         };
-        String audioPrefix = pendingPlayAudioPrompt.remove(callId);
+        String audioPrefix = pendingStateStore.takeAudioPrompt(callId, tenantId).orElse(null);
         if (audioPrefix != null && !audioPrefix.isBlank()) {
             twiml = twiml.replace("<Response>",
                 "<Response><Say language=\"pl-PL\">" + escapeXml(audioPrefix) + "</Say>");
@@ -1145,7 +1127,7 @@ class IvrEngineServiceImpl implements IvrEngineService {
                 if (session.isTwimlMode() && nextOpt != null
                         && nextOpt.nextNodeId() != null && !nextOpt.nextNodeId().isBlank()) {
                     if (node.prompt() != null && !node.prompt().isBlank()) {
-                        pendingPlayAudioPrompt.put(callId, resolveVariables(node.prompt(), session));
+                        pendingStateStore.saveAudioPrompt(callId, session.getTenantId(), resolveVariables(node.prompt(), session));
                     }
                     IvrTree ivr2 = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
                     if (ivr2 == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
@@ -1312,6 +1294,7 @@ class IvrEngineServiceImpl implements IvrEngineService {
             return;
         }
 
+        boolean conferenceStateSaved = false;
         try {
             UUID queueId = UUID.fromString(node.queueId());
 
@@ -1351,6 +1334,16 @@ class IvrEngineServiceImpl implements IvrEngineService {
                 }
             }
 
+            // Zapisz contactId, queueId i prompt dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji.
+            // Stan w Redis (BE-177), zapis PRZED efektami ubocznymi (zdarzenia kontaktu, publikacja do kolejki):
+            // gdy Redis niedostępny, wyjątek trafia do catch poniżej i uruchamia fallback do domyślnej kolejki
+            // zamiast cichego osierocenia kontaktu.
+            if (contactId != null) {
+                pendingStateStore.saveConference(callId, session.getTenantId(), contactId, queueId,
+                        resolveVariables(node.prompt() != null ? node.prompt() : "", session));
+                conferenceStateSaved = true;
+            }
+
             if (contactId != null) {
                 contactEventService.closeIvr(contactId, session.getTenantId());
                 String queueName = queueOpt.map(q -> q.getName()).orElse(null);
@@ -1367,21 +1360,28 @@ class IvrEngineServiceImpl implements IvrEngineService {
             log.info("[IVR] Przekazano do kolejki: callId={}, queueId={}, contactId={}",
                     callId, queueId, contactId);
 
-            // Zapisz contactId, queueId i prompt dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
-            if (contactId != null) {
-                pendingConferenceContactId.put(callId, contactId);
-                pendingConferenceQueueId.put(callId, queueId);
-                pendingQueueTransferPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
+            // Usuń sesję IVR – IVR przepływ zakończony. Osobny try: błąd Redis przy usuwaniu sesji PO udanej
+            // publikacji nie może uruchomić fallbacku (drugi contact.queued); sesję wyczyści TTL.
+            try {
+                deleteSession(callId);
+            } catch (Exception deleteEx) {
+                log.warn("[IVR] Nie usunieto sesji po QUEUE_TRANSFER (TTL ja wyczysci): callId={}, error={}",
+                        callId, deleteEx.getMessage());
             }
-
-            // Usuń sesję IVR – IVR przepływ zakończony
-            deleteSession(callId);
 
         } catch (IllegalArgumentException e) {
             log.error("[IVR] Nieprawidłowy format queueId: queueId={}, callId={}", node.queueId(), callId);
+            if (conferenceStateSaved) {
+                pendingStateStore.discardConference(callId, session.getTenantId());
+            }
             fallbackToDefaultQueue(callId, session.getTenantId());
         } catch (Exception e) {
             log.error("[IVR] Błąd QUEUE_TRANSFER: callId={}, error={}", callId, e.getMessage(), e);
+            // Wyjątek mógł wystąpić PO zapisie stanu konferencji (closeIvr/openQueue/RabbitMQ): stan wskazuje
+            // kolejkę docelową, a fallback przekaże kontakt do domyślnej - usuń, fallback zapisze własny.
+            if (conferenceStateSaved) { // gdy sam zapis się nie udał, nic nie zapisano - nie ma czego usuwać
+                pendingStateStore.discardConference(callId, session.getTenantId());
+            }
             fallbackToDefaultQueue(callId, session.getTenantId());
         }
     }
@@ -1396,7 +1396,8 @@ class IvrEngineServiceImpl implements IvrEngineService {
         }
 
         if (session.isTwimlMode()) {
-            pendingHangupPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
+            pendingStateStore.saveHangupPrompt(callId, session.getTenantId(),
+                    resolveVariables(node.prompt() != null ? node.prompt() : "", session));
         } else {
             try {
                 telephonyAdapter.hangupCall(callId);
@@ -1757,6 +1758,19 @@ class IvrEngineServiceImpl implements IvrEngineService {
 
                 log.info("[IVR] Fallback: przekazano do kolejki: callId={}, queueId={}",
                         callId, defaultQueue.get().getQueueId());
+
+                // Klient w trybie TwiML ma trafić do konferencji także po fallbacku (inaczej dostałby tylko
+                // TwiML zakończenia z Pause i agent łączyłby się z pustą konferencją). Best-effort: przy martwym
+                // Redis zostaje dotychczasowe zachowanie (TwiML zakończenia).
+                if (contactId != null && sessionForFallback != null && sessionForFallback.isTwimlMode()) {
+                    try {
+                        pendingStateStore.saveConference(callId, tenantId, contactId,
+                                defaultQueue.get().getQueueId(), "");
+                    } catch (IvrPendingStateUnavailableException storeEx) {
+                        log.error("[IVR] Fallback: brak stanu konferencji (Redis niedostepny) - klient nie trafi do konferencji: callId={}",
+                                callId);
+                    }
+                }
             } else {
                 log.error("[IVR] Fallback: brak aktywnej kolejki dla tenanta={}, callId={}", tenantId, callId);
                 // Rozłącz połączenie jako ostateczność

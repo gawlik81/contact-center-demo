@@ -64,6 +64,7 @@ class IvrEngineServiceTest {
     @Mock private TaskScheduler taskScheduler;
     @Mock private ContactEventService contactEventService;
 
+    private final InMemoryIvrPendingStateStore pendingStateStore = new InMemoryIvrPendingStateStore();
     private IvrEngineServiceImpl ivrEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -79,7 +80,8 @@ class IvrEngineServiceTest {
                 stringRedisTemplate,
                 taskScheduler,
                 objectMapper,
-                contactEventService
+                contactEventService,
+                pendingStateStore
         );
         // Domyślny mock dla ValueOperations
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
@@ -339,6 +341,149 @@ class IvrEngineServiceTest {
                     eq("contact.queued"),
                     any(ContactQueuedMessage.class)
             );
+        }
+    }
+
+    // =========================================================================
+    // Stan oczekujący między webhookami (BE-177) – magazyn zamiast ConcurrentHashMap
+    // =========================================================================
+
+    @Nested
+    @DisplayName("stan oczekujący (IvrPendingStateStore, BE-177)")
+    class PendingState {
+
+        private static final String BASE_URL = "https://cc.example.com";
+
+        @Test
+        @DisplayName("QUEUE_TRANSFER zapisuje stan konferencji, a webhook DTMF zwraca TwiML konferencji jednorazowo")
+        void queueTransfer_storesConferenceStateConsumedOnceByNextWebhook() {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    "Prosze czekac", null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+
+            ivrEngineService.executeNode(CALL_ID, queueNode, session);
+
+            String twiml = ivrEngineService.handleDtmfAndBuildTwiml(CALL_ID, "", TENANT_ID, BASE_URL);
+            assertThat(twiml).contains("<Conference").contains("contact-").contains("Prosze czekac");
+            assertThat(pendingStateStore.isEmpty()).isTrue();
+
+            // drugi webhook (retry Twilio) - stan zużyty, ścieżka "brak stanu" bez wyjątku
+            String retry = ivrEngineService.handleDtmfAndBuildTwiml(CALL_ID, "", TENANT_ID, BASE_URL);
+            assertThat(retry).doesNotContain("<Conference");
+        }
+
+        @Test
+        @DisplayName("niedostępny magazyn przy zapisie konferencji -> fallback do domyślnej kolejki, bez wyjątku i bez podwójnej publikacji")
+        void queueTransfer_whenStoreUnavailable_fallsBackBeforeAnySideEffect() {
+            IvrPendingStateStore failing = mock(IvrPendingStateStore.class);
+            doThrow(new IvrPendingStateUnavailableException("redis down", new RuntimeException()))
+                    .when(failing).saveConference(any(), any(), any(), any(), any());
+            IvrEngineServiceImpl engine = new IvrEngineServiceImpl(ivrTreeRepository, ivrAudioRepository,
+                    queueService, contactService, telephonyAdapter, rabbitTemplate, stringRedisTemplate,
+                    taskScheduler, objectMapper, contactEventService, failing);
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID)).thenReturn(List.of(buildQueue()));
+
+            assertThatCode(() -> engine.executeNode(CALL_ID, queueNode, session)).doesNotThrowAnyException();
+            verify(failing, never()).discardConference(any(), any()); // nic nie zapisano - nie ma czego usuwać
+
+            // jedyna publikacja pochodzi z fallbacku (zapis stanu był PRZED publikacją z węzła)
+            verify(rabbitTemplate, times(1)).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(ContactQueuedMessage.class));
+        }
+
+        @Test
+        @DisplayName("PRAWDZIWA awaria odczytu Redis (wyjątek z GETDEL) -> ścieżka 'brak stanu' (TwiML zakończenia), bez wyjątku")
+        void handleDtmf_whenRedisReadThrows_returnsCompletedTwiml() {
+            StringRedisTemplate brokenRedis = mock(StringRedisTemplate.class);
+            @SuppressWarnings("unchecked")
+            ValueOperations<String, String> brokenOps = mock(ValueOperations.class);
+            when(brokenRedis.opsForValue()).thenReturn(brokenOps);
+            when(brokenOps.getAndDelete(anyString())).thenThrow(new RuntimeException("redis down"));
+            IvrPendingStateStore real = new RedisIvrPendingStateStore(brokenRedis,
+                    new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), Duration.ofMinutes(2));
+            IvrEngineServiceImpl engine = new IvrEngineServiceImpl(ivrTreeRepository, ivrAudioRepository,
+                    queueService, contactService, telephonyAdapter, rabbitTemplate, stringRedisTemplate,
+                    taskScheduler, objectMapper, contactEventService, real);
+
+            String twiml = engine.handleDtmfAndBuildTwiml(CALL_ID, "", TENANT_ID, BASE_URL);
+
+            assertThat(twiml).contains("<Response>").doesNotContain("<Conference");
+            verify(brokenOps, atLeastOnce()).getAndDelete(anyString());
+        }
+
+        @Test
+        @DisplayName("RabbitMQ rzuca PO zapisie stanu: stan konferencji nie zostaje (brak kolejki docelowej w stanie)")
+        void queueTransfer_whenRabbitThrowsAfterSave_discardsConferenceState() {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID)).thenReturn(List.of(buildQueue()));
+            doThrow(new RuntimeException("rabbit down")).when(rabbitTemplate)
+                    .convertAndSend(anyString(), anyString(), any(Object.class));
+
+            assertThatCode(() -> ivrEngineService.executeNode(CALL_ID, queueNode, session)).doesNotThrowAnyException();
+
+            assertThat(pendingStateStore.takeConference(CALL_ID, TENANT_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("błąd po zapisie + sesja TwiML: fallback zapisuje konferencję z kolejką DOMYŚLNĄ (klient trafia do konferencji)")
+        void queueTransfer_whenFailureAfterSave_fallbackStoresConferenceForDefaultQueue() throws Exception {
+            UUID defaultQueueId = UUID.randomUUID();
+            Queue defaultQueue = Queue.builder().queueId(defaultQueueId).tenantId(TENANT_ID)
+                    .name("Domyslna").routingStrategy("ROUND_ROBIN").active(true).build();
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            session.setTwimlMode(true);
+            when(valueOps.get("ivr:session:" + CALL_ID)).thenReturn(objectMapper.writeValueAsString(session));
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID)).thenReturn(List.of(defaultQueue));
+            // pierwsza publikacja (kolejka docelowa) rzuca, druga (fallback) przechodzi
+            doThrow(new RuntimeException("rabbit blip")).doNothing().when(rabbitTemplate)
+                    .convertAndSend(anyString(), anyString(), any(Object.class));
+
+            ivrEngineService.executeNode(CALL_ID, queueNode, session);
+
+            assertThat(pendingStateStore.takeConference(CALL_ID, TENANT_ID))
+                    .hasValueSatisfying(pc -> assertThat(pc.queueId()).isEqualTo(defaultQueueId));
+        }
+
+        @Test
+        @DisplayName("błąd usunięcia sesji PO publikacji nie uruchamia fallbacku (jedna publikacja contact.queued)")
+        void queueTransfer_whenDeleteSessionFailsAfterPublish_doesNotPublishTwice() {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(buildQueue()));
+            when(stringRedisTemplate.delete(anyString())).thenThrow(new RuntimeException("redis down"));
+
+            assertThatCode(() -> ivrEngineService.executeNode(CALL_ID, queueNode, session)).doesNotThrowAnyException();
+
+            verify(rabbitTemplate, times(1)).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(ContactQueuedMessage.class));
+            assertThat(pendingStateStore.takeConference(CALL_ID, TENANT_ID)).isPresent();
+        }
+
+        @Test
+        @DisplayName("HANGUP w trybie TwiML zapisuje zapowiedź w magazynie i zwraca ją przy następnym webhooku")
+        void hangupInTwimlMode_storesPromptConsumedByNextWebhook() {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_HANGUP, TENANT_ID);
+            session.setTwimlMode(true);
+            IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
+                    "Do widzenia", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
+
+            ivrEngineService.executeNode(CALL_ID, hangupNode, session);
+
+            String twiml = ivrEngineService.handleDtmfAndBuildTwiml(CALL_ID, "", TENANT_ID, BASE_URL);
+            assertThat(twiml).contains("Do widzenia").contains("<Hangup/>");
+            verify(telephonyAdapter, never()).hangupCall(CALL_ID);
         }
     }
 

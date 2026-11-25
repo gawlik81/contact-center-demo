@@ -118,9 +118,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 **EPIC-33 – Skalowanie poziome i pojemność platformy**
 
 - FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń (P1; po BE-175) — ⬜ (Do zrobienia)
-- FE-169 – WebSocket: zatrzymanie auto-reconnect po błędzie autoryzacji (ERROR z BE-229) i backoff z jitterem zamiast stałego 1 s (Średni; po BE-229 ✅; wspólny backoff z FE-155) — ✅ (Ukończone 2026-11-14, tura 79; CR 3,5/5 → 4,5/5; AC5 w przeglądarce niewykonane)
+- FE-169 – WebSocket: zatrzymanie auto-reconnect po błędzie autoryzacji (ERROR z BE-229) i backoff z jitterem zamiast stałego 1 s (Średni; po BE-229 ✅; wspólny backoff z FE-155) — ✅ (Ukończone 2026-11-14, tura 79; CR 3,5/5 → 4,5/5; AC5 w przeglądarce zweryfikowane 2026-11-25)
 - FE-170 – Usunięcie `ws.publish('/app/agent/status')` i mylącego komentarza w `agent-status.service.ts` (Niski; po BE-229 ✅) — ✅ (Ukończone 2026-11-14, tura 79; CR OK)
-- FE-171 – Klient WS czyta natywny nagłówek `headers['code']` ramki STOMP ERROR zamiast podciągów `message`; usunięcie fallbacku (także „claim”) po okresie przejściowym (Średni, S; po BE-236, FE-169 ✅; tura 79) — ✅ (Ukończone 2026-11-19, tura 80; CR 4/5 → 4,5/5; kryterium 3 — usunięcie fallbacku — odroczone do FE-172; AC5 w przeglądarce niewykonane)
+- FE-171 – Klient WS czyta natywny nagłówek `headers['code']` ramki STOMP ERROR zamiast podciągów `message`; usunięcie fallbacku (także „claim”) po okresie przejściowym (Średni, S; po BE-236, FE-169 ✅; tura 79) — ✅ (Ukończone 2026-11-19, tura 80; CR 4/5 → 4,5/5; kryterium 3 — usunięcie fallbacku — odroczone do FE-172; AC5 w przeglądarce zweryfikowane 2026-11-25)
 - FE-172 – Usunięcie fallbacku po tekście `message` w `websocket.service.ts` po wdrożeniu BE-236 na wszystkich instancjach (Średni, S; po FE-171 ✅, BE-236 ✅; tura 80) — ⬜ (Do zrobienia)
 
 ---
@@ -7771,7 +7771,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Średni
 **Złożoność:** S
 **Zależy od:** BE-229 ✅ (kontrakt: odrzucenie ramki STOMP → ramka `ERROR` + zamknięcie sesji przez serwer)
-**Status:** ✅ Ukończone (2026-11-14, tura 79; gałąź `feature/epic33-ws-fanout-agent-exclusivity` (z `develop` 66f67f48), niezacommitowane; wykonawca `angular-frontend-expert` + `impeccable harden` na `websocket.service.ts` i `ws-banner`; CR „Review: FE-169 + FE-170” 3,5/5 → „Re-review: FE-169 + FE-170” 4,5/5, poprawki N1–N3 naniesione; lint 0 błędów, format OK, 88 plików / 1283 testy; kryterium 5 (weryfikacja w przeglądarce) NIE wykonane; założony 2026-11-14, tura 78; wynik BE-229 / CR „Review: BE-229”)
+**Status:** ✅ Ukończone (2026-11-14, tura 79; gałąź `feature/epic33-ws-fanout-agent-exclusivity` (z `develop` 66f67f48), niezacommitowane; wykonawca `angular-frontend-expert` + `impeccable harden` na `websocket.service.ts` i `ws-banner`; CR „Review: FE-169 + FE-170” 3,5/5 → „Re-review: FE-169 + FE-170” 4,5/5, poprawki N1–N3 naniesione; lint 0 błędów, format OK, 88 plików / 1283 testy; kryterium 5 (weryfikacja w przeglądarce) zweryfikowane 2026-11-25 (wspólnie z FE-171 AC5); założony 2026-11-14, tura 78; wynik BE-229 / CR „Review: BE-229”)
 **Czeka na BE:** brak (BE-229 ✅)
 **Blokuje:** brak; powiązane: FE-155 (backoff z jitterem — wspólna implementacja), BE-229 ✅, BE-175, BE-233
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (klient WS po zmianach serwera BE-229/BE-175; ten sam plik `websocket.service.ts` co FE-155; EPIC-32 jest zamknięty i dotyczy UX stanowiska agenta)
@@ -7790,12 +7790,12 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - [x] Zerwanie sieci (bez ERROR) → reconnect z backoffem wykładniczym + jitter, maks. 30 s, reset po sukcesie (test z fałszywym zegarem; wspólny z FE-155)
 - [x] Klient roli AGENT nie subskrybuje kanału supervisora (test serwisu/komponentu) — brak odrzuceń `ws.stomp.rejected{reason=foreign_*}` w normalnym użyciu
 - [x] Nowe teksty w 4 językach (parytet kluczy i18n), lint 0 błędów, format OK, `npm test` zielone (88 plików / 1283 testy)
-- [ ] Weryfikacja w przeglądarce na local-demo: sztuczna próba zabronionej subskrypcji → jeden ERROR, brak pętli — NIE wykonane (wymaga przebudowy `cc-backend` z BE-229; akcja po merge, razem z weryfikacją BE-229)
+- [x] Weryfikacja w przeglądarce na local-demo: sztuczna próba zabronionej subskrypcji → jeden ERROR, brak pętli (zweryfikowane 2026-11-25, local-demo z develop 1586d3c3; wspólna weryfikacja z FE-171 AC5)
 
 **Ryzyka:** (R1) błędna klasyfikacja ERROR (zbyt szeroko → klient nie wraca po chwilowym błędzie brokera); (R2) rozjazd z FE-155 (dwa mechanizmy backoffu).
 **Nie wchodzi w zakres:** zmiany serwera (BE-229 ✅, BE-233), heartbeat i deduplikacja zdarzeń (FE-155).
 **Zależności:** `Zależy od` BE-229 ✅; `Blokuje` brak; follow-up: FE-171 (po BE-236); powiązane: FE-155, FE-170 ✅, BE-233, BE-234, BE-236.
-**Notatka wykonania (2026-11-14, tura 79):** `impeccable harden` na `core/services/websocket.service.ts` i komponencie `ws-banner`. (1) Backoff z equal jitter: 0,5–1 s, kolejne kroki rosną do 30 s, reset po sukcesie. (2) Stany `FORBIDDEN` i `SESSION_EXPIRED` po ramce ERROR z BE-229; klasyfikacja po tekście nagłówka `message` z `TODO(BE-236)` (stabilny nagłówek `code` → BE-236, usunięcie fallbacku → FE-171). (3) Jednorazowy refresh tokenu przy wygaśnięciu; `isDown` i `isTerminal`; guard klienta w closure (spóźnione callbacki zastąpionego klienta ignorowane); wake z `online` i `visibilitychange`; `resumeAfterRejection`. (4) `ws-banner` z akcjami retry i signIn oraz a11y (aria-live zależnie od rodzaju stanu); teksty i18n pl/en/de/uk. (5) `AuthService.refresh()` jako single-flight, wspólny z interceptorem. Poprawki z re-review N1–N3 naniesione. **Niewykonane:** kryterium 5 (weryfikacja w przeglądarce na local-demo z prawdziwym ERROR z BE) — zostaje `[ ]`.
+**Notatka wykonania (2026-11-14, tura 79):** `impeccable harden` na `core/services/websocket.service.ts` i komponencie `ws-banner`. (1) Backoff z equal jitter: 0,5–1 s, kolejne kroki rosną do 30 s, reset po sukcesie. (2) Stany `FORBIDDEN` i `SESSION_EXPIRED` po ramce ERROR z BE-229; klasyfikacja po tekście nagłówka `message` z `TODO(BE-236)` (stabilny nagłówek `code` → BE-236, usunięcie fallbacku → FE-171). (3) Jednorazowy refresh tokenu przy wygaśnięciu; `isDown` i `isTerminal`; guard klienta w closure (spóźnione callbacki zastąpionego klienta ignorowane); wake z `online` i `visibilitychange`; `resumeAfterRejection`. (4) `ws-banner` z akcjami retry i signIn oraz a11y (aria-live zależnie od rodzaju stanu); teksty i18n pl/en/de/uk. (5) `AuthService.refresh()` jako single-flight, wspólny z interceptorem. Poprawki z re-review N1–N3 naniesione. **Weryfikacja w przeglądarce (kryterium 5):** wykonana 2026-11-25 na local-demo z develop 1586d3c3, wspólnie z FE-171 AC5 — jeden ERROR `WS_FORBIDDEN`, stan terminalny, brak pętli reconnectu (szczegóły: PROGRESS.md, tura 80, dopisek 2026-11-25).
 
 ### FE-170 – Usunięcie `ws.publish('/app/agent/status')` i mylącego komentarza w `agent-status.service.ts`
 
@@ -7830,7 +7830,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Priorytet:** Średni
 **Złożoność:** S
 **Zależy od:** BE-236 ✅, FE-169 ✅
-**Status:** ✅ Ukończone (2026-11-19, tura 80; gałąź `feature/epic33-ivr-plugins-ws-error-code`, niezacommitowane; wykonawca `angular-frontend-expert` + `impeccable harden`; CR „Review/Re-review: FE-171” w `CR-FRONTEND.md` 4/5 → 4,5/5, nity; `/verify`: lint 0 błędów, format OK, 88 plików / 1296 testów; Z JAWNYM ODSTĘPSTWEM: kryterium 3 (usunięcie fallbacku) odroczone → FE-172; AC5 w przeglądarce niewykonane) (założony 2026-11-14, tura 79; źródło: CR-FRONTEND.md „Review: FE-169 + FE-170” i „Re-review: FE-169 + FE-170”, 2026-11-14, punkty „klasyfikacja / BE-236” i N5)
+**Status:** ✅ Ukończone (2026-11-19, tura 80; gałąź `feature/epic33-ivr-plugins-ws-error-code`, niezacommitowane; wykonawca `angular-frontend-expert` + `impeccable harden`; CR „Review/Re-review: FE-171” w `CR-FRONTEND.md` 4/5 → 4,5/5, nity; `/verify`: lint 0 błędów, format OK, 88 plików / 1296 testów; Z JAWNYM ODSTĘPSTWEM: kryterium 3 (usunięcie fallbacku) odroczone → FE-172; AC5 w przeglądarce zweryfikowane 2026-11-25) (założony 2026-11-14, tura 79; źródło: CR-FRONTEND.md „Review: FE-169 + FE-170” i „Re-review: FE-169 + FE-170”, 2026-11-14, punkty „klasyfikacja / BE-236” i N5)
 **Czeka na BE:** BE-236 ✅ (stabilny nagłówek `code` w ramce ERROR: `WS_FORBIDDEN`, `WS_NO_SESSION`, `WS_TOKEN_MISSING`, `WS_TOKEN_EXPIRED`, `WS_TOKEN_INVALID`, `WS_INTERNAL`)
 **Blokuje:** FE-172
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (klient WS; ten sam plik `websocket.service.ts` co FE-155/FE-169)
@@ -7845,12 +7845,12 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 - [x] Brak `code` w ramce (stary backend) → fallback po `message` zachowuje dotychczasowe zachowanie (test), dopóki fallback istnieje
 - [ ] Po okresie przejściowym fallback po tekście `message`, podciąg „claim” i `TODO(BE-236)` usunięte; grep po `frontend/src` nie znajduje podciągów komunikatów w klasyfikacji
 - [x] Lint 0 błędów, format OK, `npm test` zielone
-- [ ] Weryfikacja w przeglądarce na local-demo: zabroniona subskrypcja → jeden ERROR z `code`, brak pętli (razem z weryfikacją FE-169 AC5)
+- [x] Weryfikacja w przeglądarce na local-demo: zabroniona subskrypcja → jeden ERROR z `code`, brak pętli (razem z weryfikacją FE-169 AC5) (zweryfikowane 2026-11-25, local-demo z develop 1586d3c3)
 
 **Ryzyka:** (R1) usunięcie fallbacku przed wdrożeniem BE-236 na wszystkich instancjach → źle sklasyfikowane ERROR (pętla reconnectu); termin usunięcia ustalić po wdrożeniu BE-236.
 **Nie wchodzi w zakres:** zmiany serwera (BE-236), heartbeat i deduplikacja (FE-155).
 **Zależności:** `Zależy od` BE-236 ✅, FE-169 ✅; `Blokuje` FE-172; powiązane: FE-155, BE-229 ✅, BE-236 N1.
-**Notatka wykonania (2026-11-19, tura 80):** `impeccable harden` na `core/services/websocket.service.ts`: klasyfikacja ramki STOMP ERROR po `headers['code']` — `WS_FORBIDDEN` → `FORBIDDEN`; `WS_TOKEN_*` → ścieżka sesji; `WS_NO_SESSION`, `WS_INTERNAL` i kod nieznany → `OTHER`/reconnect z backoffem; pusty `code` = brak kodu; `Object.hasOwn` na nagłówkach, jednorazowy warn nieznanego kodu (limit 32), log `code`. Fallback po `message` WYŁĄCZNIE dla ramek bez `code`; usunięty szeroki podciąg „claim”; `TODO(BE-236)` → `TODO(FE-172)`. **KRYTERIUM 3 (usunięcie fallbacku) ODROCZONE** do wdrożenia BE-236 na wszystkich instancjach (R1 ticketu) — ticket zamknięty z jawnym odstępstwem, usunięcie w FE-172. **AC5 (przeglądarka, local-demo) NIE wykonane** — zostaje `[ ]`, razem z AC5 FE-169.
+**Notatka wykonania (2026-11-19, tura 80):** `impeccable harden` na `core/services/websocket.service.ts`: klasyfikacja ramki STOMP ERROR po `headers['code']` — `WS_FORBIDDEN` → `FORBIDDEN`; `WS_TOKEN_*` → ścieżka sesji; `WS_NO_SESSION`, `WS_INTERNAL` i kod nieznany → `OTHER`/reconnect z backoffem; pusty `code` = brak kodu; `Object.hasOwn` na nagłówkach, jednorazowy warn nieznanego kodu (limit 32), log `code`. Fallback po `message` WYŁĄCZNIE dla ramek bez `code`; usunięty szeroki podciąg „claim”; `TODO(BE-236)` → `TODO(FE-172)`. **KRYTERIUM 3 (usunięcie fallbacku) ODROCZONE** do wdrożenia BE-236 na wszystkich instancjach (R1 ticketu) — ticket zamknięty z jawnym odstępstwem, usunięcie w FE-172. **AC5 (przeglądarka, local-demo)** zweryfikowane 2026-11-25 (razem z AC5 FE-169; local-demo z develop 1586d3c3).
 
 ### FE-172 – Usunięcie fallbacku po tekście `message` w klasyfikacji ramki STOMP ERROR (`websocket.service.ts`) po wdrożeniu BE-236 na wszystkich instancjach
 

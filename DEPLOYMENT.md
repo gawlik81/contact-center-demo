@@ -695,6 +695,11 @@ REDIS_DATABASE=0
 REDIS_SSL_ENABLED=false
 # Fan-out WebSocket (BE-175): przy WSPÓLNYM Redis różne środowiska MUSZĄ mieć różne wartości (domyślnie: pierwszy profil)
 WEBSOCKET_FANOUT_ENV=prod
+# Zamykanie sesji WS po logout/dezaktywacji/zmianie roli na wszystkich instancjach (BE-233): jw., różne wartości dla środowisk na wspólnym Redis
+WEBSOCKET_SESSION_ENV=prod
+# Twardy limit życia sesji WS (ISO-8601; 0 = brak, zostaje wygaśnięcie tokenu) i rozproszenie reconnectów
+WEBSOCKET_SESSION_MAX_LIFETIME=PT12H
+WEBSOCKET_SESSION_CLOSE_JITTER=PT30S
 REDIS_POOL_MAX_ACTIVE=16
 REDIS_POOL_MAX_IDLE=16
 REDIS_POOL_MIN_IDLE=4

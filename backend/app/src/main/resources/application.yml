@@ -268,6 +268,24 @@ websocket:
     publish-queue-max-bytes: ${WEBSOCKET_FANOUT_PUBLISH_QUEUE_MAX_BYTES:33554432}
     # przerwa w próbach publikacji po błędzie Redis (zdarzenia w tym czasie: tylko lokalnie, licznik dropped)
     publish-backoff-ms: ${WEBSOCKET_FANOUT_PUBLISH_BACKOFF_MS:2000}
+  # BE-233: życie sesji WS a życie tokenu. Zamknięcie sesji = ramka STOMP ERROR (code WS_TOKEN_INVALID/WS_TOKEN_EXPIRED) +
+  # zamknięcie transportu; klient odświeża token i łączy się ponownie (FE-169/FE-171).
+  session:
+    # twardy limit życia jednej sesji (ISO-8601, np. PT12H); 0 = brak limitu (obowiązuje tylko wygaśnięcie tokenu)
+    max-lifetime: ${WEBSOCKET_SESSION_MAX_LIFETIME:PT12H}
+    # zamknij sesję, gdy wygaśnie token użyty przy CONNECT (principal ustawiany raz, przy CONNECT)
+    close-at-token-expiry: ${WEBSOCKET_SESSION_CLOSE_AT_TOKEN_EXPIRY:true}
+    token-expiry-grace: ${WEBSOCKET_SESSION_TOKEN_EXPIRY_GRACE:PT0S}
+    # losowe opóźnienie (per sesja) dodawane do terminu zamknięcia - rozprasza reconnecty
+    close-jitter: ${WEBSOCKET_SESSION_CLOSE_JITTER:PT30S}
+    sweep-interval-ms: ${WEBSOCKET_SESSION_SWEEP_INTERVAL_MS:5000}
+    # kanał Redis zamykania sesji użytkownika na wszystkich instancjach (logout/dezaktywacja/zmiana roli)
+    control:
+      enabled: ${WEBSOCKET_SESSION_CONTROL_ENABLED:true}
+      channel: ${WEBSOCKET_SESSION_CONTROL_CHANNEL:cc:ws:session-control}
+      # sufiks środowiska kanału; domyślnie pierwszy aktywny profil (środowiska na wspólnym Redis MUSZĄ się różnić)
+      environment: ${WEBSOCKET_SESSION_ENV:${spring.profiles.active:default}}
+      instance-id: ${WEBSOCKET_SESSION_INSTANCE_ID:}
 
 # =============================================================================
 # Wtyczki (EPIC-28) – synchronizacja runtime między instancjami (BE-178, ADR-09)
@@ -686,6 +704,7 @@ routing:
 #   shedlock.callback-executor.*   (PT3M / PT48S)      shedlock.ring-timeout.*       (PT30S / PT4S)
 #   shedlock.window-activator.*    (PT3M / PT48S)      shedlock.break-activator.*    (PT90S / PT24S)
 #   shedlock.presence-sweeper.*    (PT90S / PT24S)     shedlock.dialing-reaper.*     (PT15M / PT4M)
+#   shedlock.cleanup.cron / shedlock.cleanup.retention-days  (BE-228: sprzatanie osieroconych wierszy RoutingQueue_* i EmailPolling_pollInbox_*; 0 45 3 * * * / 7)
 # Polling e-mail uzywa blokady programowej per skrzynka: at-least = 0,8 x email.poll-delay-ms, at-most = max(3 x delay, 5 min).
 # =============================================================================
 

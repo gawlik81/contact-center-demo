@@ -50,8 +50,12 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
     /**
      * INSERT do ClickHouse. Brak ON CONFLICT – deduplikacja przez ReplacingMergeTree.
      *
-     * <p>Kolumna {@code updated_at} używana jako wersja przez ReplacingMergeTree –
-     * zawsze ustawiamy NOW() przy zapisie (etl_synced_at w semantyce PostgresDwWriter).
+     * <p>Kolumna {@code updated_at} jest WERSJĄ wiersza dla ReplacingMergeTree i {@code argMax} (widoki V003).
+     * Od BE-228 niesie wersję ZE ŹRÓDŁA ({@code COALESCE(updated_at, created_at)} wiersza w PostgreSQL, zob.
+     * {@link ContactDwRow#sourceUpdatedAt()}), a nie zegar zapisu: dzięki temu o zwycięstwie decyduje czas zmiany
+     * w źródle, nie kolejność zapisu. Wygaśnięcie blokady ShedLock w trakcie przebiegu ETL (dwa równoległe writery)
+     * nie może już sprawić, że starszy zapis z późniejszym {@code now()} przegra z nowszym. Gdy wersji brak
+     * ({@code null}, np. test/stary kod) używany jest zegar zapisu jak dawniej.
      * Schemat ClickHouse (V001) nigdy nie zawierał PII klienta – brak kolumny
      * {@code remote_address} (numer CLI / e-mail); od BE-141 {@link ContactDwRow}
      * też już go nie niesie, więc ten writer nie wymagał zmiany zachowania.
@@ -119,6 +123,15 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
     }
 
     /**
+     * Wersja wiersza dla kolumny {@code updated_at}: wersja ze źródła albo (fallback) zegar zapisu. ClickHouse
+     * {@code DateTime64(3)} obcina do milisekund - dwie zmiany tego samego wiersza w tej samej milisekundzie mają
+     * remis wersji (świadome, znane ograniczenie; zob. {@code dw/README.md}).
+     */
+    static Timestamp versionOf(Instant sourceUpdatedAt) {
+        return Timestamp.from(sourceUpdatedAt != null ? sourceUpdatedAt : Instant.now());
+    }
+
+    /**
      * Wykonuje batch INSERT wierszy do {@code contacts_dw} w ClickHouse.
      *
      * <p>Deduplikacja po (tenant_id, contact_id) realizowana asynchronicznie przez
@@ -164,8 +177,8 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
                 } else {
                     ps.setNull(12, java.sql.Types.INTEGER);
                 }
-                // updated_at – ClickHouse JDBC nie obsługuje now64() w VALUES prepared statement
-                ps.setTimestamp(13, Timestamp.from(Instant.now()));
+                // updated_at = kolumna WERSJI (ReplacingMergeTree/argMax): wersja ze źródła (BE-228), nie zegar zapisu
+                ps.setTimestamp(13, versionOf(row.sourceUpdatedAt()));
             });
 
             log.debug("[ClickHouseDwWriter] INSERT zakończony sukcesem: {} wierszy", rows.size());
@@ -206,7 +219,7 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
                 ps.setTimestamp(7, row.lastAttemptAt() != null ? Timestamp.from(row.lastAttemptAt()) : null);
                 ps.setString(8, row.campaignType() != null ? row.campaignType() : "");
                 ps.setString(9, row.dialerType() != null ? row.dialerType() : "");
-                ps.setTimestamp(10, Timestamp.from(Instant.now()));
+                ps.setTimestamp(10, versionOf(row.sourceUpdatedAt()));
             });
 
             log.debug("[ClickHouseDwWriter] INSERT campaigns_dw zakończony: {} wierszy", rows.size());

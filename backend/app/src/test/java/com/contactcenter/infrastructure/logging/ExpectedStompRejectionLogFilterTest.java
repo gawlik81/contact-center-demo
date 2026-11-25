@@ -44,4 +44,15 @@ class ExpectedStompRejectionLogFilterTest {
         assertThat(filter.decide(null, handlerLogger, Level.DEBUG, EXPECTED, null, null)).isEqualTo(FilterReply.NEUTRAL);
         assertThat(filter.decide(null, handlerLogger, Level.ERROR, null, null, null)).isEqualTo(FilterReply.NEUTRAL);
     }
+
+    @Test
+    @DisplayName("BE-233: odrzucenie CONNECT z tokenem z blacklisty / bez weryfikacji blacklisty tez jest wyciszane")
+    void connectRejectionsAreDenied() {
+        for (String message : new String[]{com.contactcenter.security.WebSocketAuthInterceptor.BLACKLISTED_MESSAGE,
+                com.contactcenter.security.WebSocketAuthInterceptor.UNVERIFIABLE_MESSAGE}) {
+            assertThat(filter.decide(null, handlerLogger, Level.ERROR,
+                    ExpectedStompRejectionLogFilter.SPRING_PREFIX + "abc123:" + message, null, null))
+                    .isEqualTo(FilterReply.DENY);
+        }
+    }
 }

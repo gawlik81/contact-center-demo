@@ -29,13 +29,13 @@ public final class UserServiceTestSupport {
                 .createSharedEntityManager(emf)).getRepository(AppUserRepository.class);
         ctx.registerBean("userService", UserServiceImpl.class, () -> new UserServiceImpl(
                 users, mock(PasswordEncoder.class), mock(TenantResourceLimitService.class),
-                rabbit, redis, contactService, eventPublisher));
+                rabbit, redis, contactService, eventPublisher, mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)));
     }
 
     /** Plain (unproxied) real {@code UserServiceImpl} with mocked collaborators other than Redis/RabbitMQ. */
     public static UserService create(RabbitTemplate rabbit, RedisTemplate<String, Object> redis) {
         return new UserServiceImpl(mock(AppUserRepository.class), mock(PasswordEncoder.class),
                 mock(TenantResourceLimitService.class), rabbit, redis, mock(ContactService.class),
-                mock(ApplicationEventPublisher.class));
+                mock(ApplicationEventPublisher.class), mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class));
     }
 }

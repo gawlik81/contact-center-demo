@@ -13,6 +13,8 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.websocket.SessionCloseReason;
+import com.contactcenter.domain.websocket.WebSocketSessionTerminator;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +71,7 @@ class AuthServiceImpl implements AuthService {
     private final LoginRateLimiter loginRateLimiter;
     private final UserService userService;
     private final PendingLoginTracker pendingLoginTracker;
+    private final WebSocketSessionTerminator webSocketSessionTerminator;
 
     // =========================================================================
     // Login
@@ -229,6 +232,15 @@ class AuthServiceImpl implements AuthService {
             throw new DisabledException("Konto użytkownika jest nieaktywne");
         }
 
+        // BE-233: użytkownicy nieaktywnego tenanta nie odnawiają tokenów (updateTenant(INACTIVE) nie dezaktywuje
+        // kont, więc sam status tenanta musi blokować refresh - inaczej zamknięta sesja WS wracałaby od razu).
+        // Koszt: jeden odczyt tenanta na refresh (~1 / 15 min / użytkownika), już robiony w getTenantName().
+        if (user.getTenantId() != null && tenantService.findTenantEntity(user.getTenantId())
+                .map(t -> t.getStatus() == Tenant.TenantStatus.INACTIVE).orElse(false)) {
+            log.warn("[Auth] Próba refresh użytkownika nieaktywnego tenanta: userId={}", user.getId());
+            throw new DisabledException("Tenant jest nieaktywny");
+        }
+
         // Unieważnij stary refresh token
         refreshToken.setRevoked(true);
         refreshTokenRepository.save(refreshToken);
@@ -275,6 +287,9 @@ class AuthServiceImpl implements AuthService {
         setAgentOfflineOnLogout();
         clearPendingLoginOfCurrentUser();
 
+        // Krok 4 (BE-233): zamknij sesje WebSocket użytkownika na wszystkich instancjach (po commicie)
+        closeWebSocketSessionsOfCaller(accessToken, SessionCloseReason.LOGOUT);
+
         log.info("[Auth] Logout wykonany pomyślnie");
     }
 
@@ -291,7 +306,32 @@ class AuthServiceImpl implements AuthService {
         int count = refreshTokenRepository.revokeAllByUserId(userId);
         setAgentOfflineOnLogout();
         clearPendingLogin(userId);
+        closeWebSocketSessionsOfCaller(accessToken, SessionCloseReason.LOGOUT);
         log.info("[Auth] Logout ze wszystkich urządzeń: userId={}, unieważniono {} tokenów", userId, count);
+    }
+
+    /**
+     * BE-233: zamyka sesje WebSocket zalogowanego użytkownika (para tenant/user z tokenu, a gdy token już wygasł -
+     * z kontekstu żądania). Best-effort: wylogowanie nie może przez to zawieść.
+     */
+    private void closeWebSocketSessionsOfCaller(String accessToken, SessionCloseReason reason) {
+        try {
+            UUID userId;
+            UUID tenantId;
+            JwtClaims claims = accessToken == null || accessToken.isBlank() ? null : jwtParser.parseQuiet(accessToken);
+            if (claims != null) {
+                userId = claims.userId();
+                tenantId = claims.tenantId();
+            } else {
+                userId = TenantContext.getUserIdOrNull();
+                tenantId = TenantContext.getTenantIdOrNull();
+            }
+            if (userId != null) {
+                webSocketSessionTerminator.closeUserSessions(tenantId, userId, reason);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[Auth] Nie udało się zlecić zamknięcia sesji WebSocket: {}", e.toString());
+        }
     }
 
     private void clearPendingLoginOfCurrentUser() {
@@ -555,6 +595,10 @@ class AuthServiceImpl implements AuthService {
 
         target.setPasswordResetRequired(true);
         appUserRepository.save(target);
+
+        // BE-233: wszystkie refresh tokeny unieważnione - otwarte sesje WebSocket użytkownika też się kończą
+        webSocketSessionTerminator.closeUserSessions(target.getTenantId(), targetUserId,
+                SessionCloseReason.PASSWORD_RESET);
     }
 
     // =========================================================================

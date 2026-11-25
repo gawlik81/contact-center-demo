@@ -186,9 +186,11 @@ class FullApplicationContextStartupTest {
     }
 
     @Test
-    @DisplayName("LockProvider to JdbcTemplateLockProvider, a LockingTaskExecutor jest dostępny")
-    void lockProviderIsJdbcTemplateLockProvider() {
-        assertThat(lockProvider).isInstanceOf(JdbcTemplateLockProvider.class);
+    @DisplayName("LockProvider to MeteredLockProvider (BE-228) opakowujący JdbcTemplateLockProvider, a LockingTaskExecutor jest dostępny")
+    void lockProviderIsMeteredJdbcTemplateLockProvider() {
+        assertThat(lockProvider).isInstanceOf(com.contactcenter.infrastructure.lock.MeteredLockProvider.class);
+        assertThat(((com.contactcenter.infrastructure.lock.MeteredLockProvider) lockProvider).delegate())
+                .isInstanceOf(JdbcTemplateLockProvider.class);
         assertThat(lockingTaskExecutor).isNotNull();
     }
 
@@ -221,7 +223,7 @@ class FullApplicationContextStartupTest {
                 "ContactAssignmentMonitor", "DialerCallbackHandlerImpl", "EtlSyncServiceImpl",
                 "OrphanedDialingReaper", "PartitionMaintenanceJob", "PartitionReclaimJob", "PendingAttachmentSweepJob",
                 "RecordingRetentionJob", "RefreshTokenCleanupJob", "RetentionEvaluationJob",
-                "ScheduledCallbackExecutor", "SocialIntegrationServiceImpl", "SupervisorMetricsService",
+                "ScheduledCallbackExecutor", "ShedLockOrphanCleanupJob", "SocialIntegrationServiceImpl", "SupervisorMetricsService",
                 "WaitTimeEstimationServiceImpl");
     }
 
@@ -264,8 +266,9 @@ class FullApplicationContextStartupTest {
     @Test
     @DisplayName("wszystkie metody @Scheduled zarejestrowały się w schedulerze (zamockowanym, więc żaden job nie ruszył)")
     void scheduledMethodsAreRegisteredButNotExecuted() {
-        // Exact: 26 @Scheduled methods in the code base (EtlSyncServiceImpl 5, the other 21 beans 1 each, incl. the
-        // per-instance plugin runtime reconciliation of BE-178; all
+        // Exact: 28 @Scheduled methods in the code base (EtlSyncServiceImpl 5, the other 23 beans 1 each, incl. the
+        // per-instance plugin runtime reconciliation of BE-178, the WS session sweep of BE-233 and
+        // ShedLockOrphanCleanupJob of BE-228; all
         // env gates - dialer/email/agent-presence/agent-breaks - are ON by default, also on prod). Beyond the
         // constant, every @Scheduled method found on the beans of the context must have been registered.
         int annotated = 0;
@@ -275,8 +278,8 @@ class FullApplicationContextStartupTest {
                     m -> m.isAnnotationPresent(org.springframework.scheduling.annotation.Scheduled.class));
             annotated += n[0];
         }
-        assertThat(annotated).as("metody @Scheduled na beanach kontekstu").isEqualTo(26);
-        assertThat(scheduledPostProcessor.getScheduledTasks()).hasSize(26);
+        assertThat(annotated).as("metody @Scheduled na beanach kontekstu").isEqualTo(28);
+        assertThat(scheduledPostProcessor.getScheduledTasks()).hasSize(28);
     }
 
     @Test
@@ -337,10 +340,11 @@ class FullApplicationContextStartupTest {
     void webSocketFanoutWorksInFullContext() throws Exception {
         assertThat(context.getBean(WebSocketFanoutPublisher.class)).isNotNull();
         assertThat(context.getBean(WebSocketFanoutSubscriber.class)).isNotNull();
-        // three Redis listener containers: the shared one (cache invalidation, @Primary), the WS fan-out one and the
+        // four Redis listener containers (BE-233: + wsSessionControlListenerContainer): the shared one (cache invalidation, @Primary), the WS fan-out one and the
         // plugin runtime sync one (BE-178)
         assertThat(context.getBeansOfType(PubSubListenerContainer.class)).containsOnlyKeys(
-                "redisMessageListenerContainer", "wsFanoutListenerContainer", "pluginSyncListenerContainer");
+                "redisMessageListenerContainer", "wsFanoutListenerContainer", "pluginSyncListenerContainer",
+                "wsSessionControlListenerContainer");
         // the cache-invalidation bus must hold the shared (primary) container, not the WS one
         assertThat(org.springframework.test.util.ReflectionTestUtils.getField(
                 context.getBean(com.contactcenter.infrastructure.cache.CacheInvalidationBus.class), "listenerContainer"))

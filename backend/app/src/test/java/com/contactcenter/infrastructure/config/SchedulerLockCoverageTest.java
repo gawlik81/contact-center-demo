@@ -50,7 +50,10 @@ class SchedulerLockCoverageTest {
             "T, per-queue ShedLock RoutingQueue_<queueId> inside the pass (BE-173, done)",
             "PluginRuntimeSyncServiceImpl#syncTick",
             "I, reconciles the in-memory plugin runtime of EACH instance against the DB (BE-178) - a lock would leave "
-                    + "all but one instance stale");
+                    + "all but one instance stale",
+            "WebSocketSessionCloser#sweep",
+            "I, closes the WebSocket sessions held in the LOCAL registry of EACH instance (BE-233) - a lock would leave "
+                    + "the sessions of all but one instance open past their deadline");
 
     private static List<Method> scheduledMethods() throws ClassNotFoundException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false) {

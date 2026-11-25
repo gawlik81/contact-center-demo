@@ -106,7 +106,8 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
             WebSocketController.class, WebSocketEventBroadcasterImpl.class, WebSocketFanoutProperties.class,
             WebSocketFanoutMetrics.class, WebSocketLocalDispatcher.class, WebSocketFanoutPublisher.class,
             WebSocketFanoutSubscriber.class, WebSocketFanoutConfig.class,
-            com.contactcenter.infrastructure.websocket.WebSocketOncePerWindowGate.class})
+            com.contactcenter.infrastructure.websocket.WebSocketOncePerWindowGate.class,
+            com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.class, com.contactcenter.infrastructure.websocket.WebSocketSessionProperties.class})
     static class InstanceApp {
 
         /** Token format {@code ROLE|tenantUuid|userUuid}. */
@@ -120,6 +121,11 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
                         Instant.now().plusSeconds(600));
             });
             return parser;
+        }
+
+        @Bean
+        com.contactcenter.security.TokenBlacklistService tokenBlacklistService() {
+            return Mockito.mock(com.contactcenter.security.TokenBlacklistService.class);
         }
 
         @Bean

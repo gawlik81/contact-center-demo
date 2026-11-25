@@ -94,6 +94,7 @@ class AuthServiceTest {
     @Mock private LoginRateLimiter      loginRateLimiter;
     @Mock private UserService           userService;
     @Mock private PendingLoginTracker   pendingLoginTracker;
+    @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
 
     private AuthService authService;
 
@@ -102,7 +103,8 @@ class AuthServiceTest {
         authService = new AuthServiceImpl(
                 authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService,
-                passwordEncoder, loginRateLimiter, userService, pendingLoginTracker
+                passwordEncoder, loginRateLimiter, userService, pendingLoginTracker,
+                webSocketSessionTerminator
         );
 
         // Wspólne defaulty
@@ -342,6 +344,37 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("BE-233: refresh uzytkownika nieaktywnego tenanta jest odrzucony (DisabledException), refresh token nietkniety")
+        void refresh_inactiveTenant_isRejected() {
+            AppUser user = buildUser(false, false, true);
+            RefreshToken existing = buildRefreshToken(false);
+            Tenant inactive = Tenant.builder().id(TENANT_ID).name("T")
+                    .status(Tenant.TenantStatus.INACTIVE).build();
+            when(refreshTokenRepository.findByToken(REFRESH_TOKEN)).thenReturn(Optional.of(existing));
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(inactive));
+
+            assertThatThrownBy(() -> authService.refresh(new RefreshRequest(REFRESH_TOKEN)))
+                    .isInstanceOf(org.springframework.security.authentication.DisabledException.class);
+
+            assertThat(existing.isRevoked()).isFalse();
+            verify(refreshTokenRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("BE-233: refresh uzytkownika aktywnego tenanta dziala")
+        void refresh_activeTenant_works() {
+            AppUser user = buildUser(false, false, true);
+            RefreshToken existing = buildRefreshToken(false);
+            Tenant active = Tenant.builder().id(TENANT_ID).name("T").status(Tenant.TenantStatus.ACTIVE).build();
+            when(refreshTokenRepository.findByToken(REFRESH_TOKEN)).thenReturn(Optional.of(existing));
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(active));
+
+            assertThat(authService.refresh(new RefreshRequest(REFRESH_TOKEN)).accessToken()).isEqualTo(ACCESS_TOKEN);
+        }
+
+        @Test
         @DisplayName("nowy access token NIE ma mfaVerified=true (wymagana ponowna weryfikacja MFA)")
         void refresh_mfaUser_newTokenHasMfaVerifiedFalse() {
             AppUser user = buildUser(true, false, true);
@@ -421,6 +454,50 @@ class AuthServiceTest {
             authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
 
             verify(tokenBlacklistService).blacklist(eq(ACCESS_TOKEN), any(Instant.class));
+            verify(refreshTokenRepository).revokeByToken(REFRESH_TOKEN);
+        }
+
+        @Test
+        @DisplayName("BE-233: zamyka sesje WebSocket pary tenant/user z tokenu (LOGOUT)")
+        void logout_closesWebSocketSessionsOfTokenOwner() {
+            when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(
+                    new JwtParser.JwtClaims(TENANT_ID, USER_ID, "AGENT", USER_EMAIL,
+                            Instant.now().plusSeconds(300)));
+
+            authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
+
+            verify(webSocketSessionTerminator).closeUserSessions(TENANT_ID, USER_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.LOGOUT);
+        }
+
+        @Test
+        @DisplayName("BE-233: token juz wygasly (parseQuiet=null) -> para z TenantContext")
+        void logout_expiredTokenFallsBackToTenantContext() {
+            when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(null);
+            TenantContext.setTenantId(TENANT_ID);
+            TenantContext.setUserId(USER_ID);
+            TenantContext.setUserRole("SUPERVISOR");
+            try {
+                authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
+            } finally {
+                TenantContext.clear();
+            }
+
+            verify(webSocketSessionTerminator).closeUserSessions(TENANT_ID, USER_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.LOGOUT);
+        }
+
+        @Test
+        @DisplayName("BE-233: blad terminatora nie przerywa wylogowania")
+        void logout_terminatorFailureDoesNotBreakLogout() {
+            when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(
+                    new JwtParser.JwtClaims(TENANT_ID, USER_ID, "SUPERVISOR", USER_EMAIL,
+                            Instant.now().plusSeconds(300)));
+            org.mockito.Mockito.doThrow(new IllegalStateException("x")).when(webSocketSessionTerminator)
+                    .closeUserSessions(any(), any(), any());
+
+            org.assertj.core.api.Assertions.assertThatCode(
+                    () -> authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN))).doesNotThrowAnyException();
             verify(refreshTokenRepository).revokeByToken(REFRESH_TOKEN);
         }
 

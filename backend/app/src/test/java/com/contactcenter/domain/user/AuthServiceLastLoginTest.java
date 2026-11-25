@@ -67,6 +67,7 @@ class AuthServiceLastLoginTest {
     @Mock private LoginRateLimiter loginRateLimiter;
     @Mock private UserService userService;
     @Mock private PendingLoginTracker pendingLoginTracker;
+    @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
 
     private AuthService authService;
 
@@ -74,7 +75,8 @@ class AuthServiceLastLoginTest {
     void setUp() {
         authService = new AuthServiceImpl(authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService, passwordEncoder,
-                loginRateLimiter, userService, pendingLoginTracker);
+                loginRateLimiter, userService, pendingLoginTracker,
+                webSocketSessionTerminator);
         when(jwtService.issueAccessToken(any(), any(), anyBoolean())).thenReturn("access");
         when(jwtService.generateRefreshTokenValue()).thenReturn("refresh");
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);

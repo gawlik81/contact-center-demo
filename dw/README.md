@@ -62,11 +62,18 @@ starsza wersja kontaktu mogłaby wygrać z nowszą. Od BE-172 cykle ETL (`run*Sy
 trigger `POST /api/admin/etl/trigger` bierze tę samą blokadę (409 `ETL_SYNC_IN_PROGRESS`, gdy cykl trwa), więc w
 normalnej pracy jest jeden writer na tabelę.
 
-**Dług (jawny):** blokada ma `lockAtMostFor` (domyślnie 10 min). Jeśli cykl potrwa dłużej lub instancja się zawiesi i
-blokada wygaśnie, drugi węzeł może zapisać nowszą wersję wiersza, zanim pierwszy dopisze starszą - starsza z
-późniejszym `updated_at = now()` wygra `argMax`. Test `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na
-PostgreSQL (`ON CONFLICT`), nie semantyki `argMax` w ClickHouse. Możliwe rozwiązania (osobny ticket): `updated_at` z
-kolumny źródłowej zamiast `Instant.now()` albo `KeepAliveLockProvider` dla ETL.
+**Dług rozwiązany (BE-228):** wersją wiersza (`updated_at`) jest czas zmiany ZE ŹRÓDŁA (`COALESCE(updated_at,
+created_at)` z PostgreSQL: `ContactDwRow#sourceUpdatedAt` / `CampaignDwRow#sourceUpdatedAt`), a nie zegar zapisu.
+Wygaśnięcie blokady ShedLock w trakcie cyklu (dwóch writerów) nie odwraca więc wyniku `argMax`: wolniejszy writer ze
+STARSZĄ wersją źródła przegrywa z nowszą bez względu na kolejność zapisu (test `ClickHouseDwDedupIntegrationTest`).
+Ograniczenia: (0) wersja źródłowa to `NOW()` triggera = START transakcji, nie commit: późniejszy commit nakładającej się
+transakcji może dostać STARSZĄ wersję i po BE-228 trwale przegrać w `argMax` (ta sama dziura co kursor CDC, BE-216);
+(a) `DateTime64(3)` obcina do ms (remis wersji przy dwóch zmianach w tej samej milisekundzie; poszerzenie do
+`DateTime64(6)` wymaga migracji DW); (b) przy wdrożeniu wiersz zapisany starym kodem ma wersję = zegar aplikacji, nowy =
+zegar bazy, więc przy wyprzedzaniu zegara hosta aplikacji o δ zmiany źródła w ciągu δ (i w oknie ~jednego cyklu ETL)
+mogą przegrać aż do następnej zmiany wiersza (ms przy NTP, sekundy w dev/demo); (c) wymiary `agent_dim`/`queue_dim`
+zostają na `snapshot_at = now()` (pełny snapshot co cykl, samoleczy się); (d) `PostgresDwWriter` nadal „ostatni zapis
+wygrywa”. Follow-upy: `DateTime64(6)`, warunkowy upsert w `PostgresDwWriter`.
 
 ## Korekta zawyżonych danych historycznych (BE-215)
 

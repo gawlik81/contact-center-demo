@@ -66,6 +66,10 @@ public class StompErrorCodeHandler extends StompSubProtocolErrorHandler {
             sanitizeMessage = true;
             if (clientMessage == null) {
                 warnBadFrame(ex);
+            } else if (isExpectedRejection(ex)) {
+                // oczekiwane odrzucenie z kodem WS_INTERNAL (np. blacklista niedostępna przy CONNECT, BE-233):
+                // interceptor loguje je sam, z ograniczeniem częstotliwości - bez ERROR + stack trace na każdą ramkę
+                log.debug("[WS-Error] Odrzucenie ramki -> {}", code);
             } else {
                 log.error("[WS-Error] Nieoczekiwany błąd przetwarzania ramki STOMP -> {}", code, ex);
             }
@@ -106,6 +110,10 @@ public class StompErrorCodeHandler extends StompSubProtocolErrorHandler {
             log.warn("[WS-Error] Nieparsowalna ramka STOMP od klienta -> WS_INTERNAL (log ograniczony do 1/10 s): {}: {}",
                     ex.getClass().getSimpleName(), StompDestinationAuthorizationInterceptor.sanitize(ex.getMessage()));
         }
+    }
+
+    private static boolean isExpectedRejection(@Nullable Throwable ex) {
+        return CauseChains.of(ex).stream().anyMatch(StompRejectedException.class::isInstance);
     }
 
     /** Pierwszy {@link StompRejectedException} w łańcuchu przyczyn lub {@link WsErrorCode#WS_INTERNAL}. */

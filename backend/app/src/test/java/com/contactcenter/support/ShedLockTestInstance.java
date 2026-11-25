@@ -55,7 +55,7 @@ public final class ShedLockTestInstance {
 
     /** Programmatic executor over the production provider configuration, for tests without Spring. */
     public static LockingTaskExecutor executor(DataSource dataSource) {
-        LockProvider provider = new ShedLockConfig().lockProvider(dataSource);
+        LockProvider provider = ShedLockConfig.jdbcLockProvider(dataSource);
         return new DefaultLockingTaskExecutor(provider);
     }
 

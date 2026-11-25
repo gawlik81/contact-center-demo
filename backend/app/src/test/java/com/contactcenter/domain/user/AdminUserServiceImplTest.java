@@ -57,12 +57,13 @@ class AdminUserServiceImplTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private TenantResourceLimitService tenantResourceLimitService;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
 
     private AdminUserServiceImpl adminUserService;
 
     @BeforeEach
     void setUp() {
-        adminUserService = new AdminUserServiceImpl(appUserRepository, passwordEncoder, tenantResourceLimitService, refreshTokenRepository);
+        adminUserService = new AdminUserServiceImpl(appUserRepository, passwordEncoder, tenantResourceLimitService, refreshTokenRepository, webSocketSessionTerminator);
         TenantContext.setUserId(CALLER_ID);
     }
 
@@ -233,6 +234,49 @@ class AdminUserServiceImplTest {
             var response = adminUserService.updateUser(USER_ID, request);
 
             assertThat(response.role()).isEqualTo(UserRole.SUPERVISOR);
+        }
+
+        private AppUser existingUser(UserRole role, boolean active) {
+            AppUser existing = AppUser.builder()
+                    .id(USER_ID).tenantId(TENANT_ID).email("agent@example.com").passwordHash("$2a$12$hash")
+                    .role(role).active(active).status(UserStatus.ACTIVE).deleted(false).build();
+            when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(existing));
+            when(appUserRepository.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+            return existing;
+        }
+
+        @Test
+        @DisplayName("BE-233: zmiana roli zamyka sesje WebSocket uzytkownika (ROLE_CHANGED)")
+        void roleChangeClosesWebSocketSessions() {
+            existingUser(UserRole.SUPERVISOR, true);
+
+            adminUserService.updateUser(USER_ID, new AdminUpdateUserRequest(null, null, null, UserRole.AGENT, null, null));
+
+            verify(webSocketSessionTerminator).closeUserSessions(TENANT_ID, USER_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.ROLE_CHANGED);
+        }
+
+        @Test
+        @DisplayName("BE-233: dezaktywacja zamyka sesje (DEACTIVATED), takze gdy rola zmieniona jednoczesnie")
+        void deactivationClosesWebSocketSessions() {
+            existingUser(UserRole.SUPERVISOR, true);
+
+            adminUserService.updateUser(USER_ID, new AdminUpdateUserRequest(null, null, null, UserRole.AGENT, null, false));
+
+            verify(webSocketSessionTerminator).closeUserSessions(TENANT_ID, USER_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.DEACTIVATED);
+            verify(webSocketSessionTerminator, never()).closeUserSessions(any(), any(),
+                    org.mockito.ArgumentMatchers.eq(com.contactcenter.domain.websocket.SessionCloseReason.ROLE_CHANGED));
+        }
+
+        @Test
+        @DisplayName("BE-233: ta sama rola, to samo active, edycja nazwy -> sesje nietkniete")
+        void unrelatedUpdateKeepsSessions() {
+            existingUser(UserRole.AGENT, true);
+
+            adminUserService.updateUser(USER_ID, new AdminUpdateUserRequest("Jan", null, null, UserRole.AGENT, null, true));
+
+            verify(webSocketSessionTerminator, never()).closeUserSessions(any(), any(), any());
         }
     }
 

@@ -57,6 +57,9 @@ class TenantServiceTest {
     @Mock
     private RetentionPolicyService retentionPolicyService;
 
+    @Mock
+    private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
+
     @InjectMocks
     private TenantServiceImpl tenantService;
 
@@ -368,6 +371,9 @@ class TenantServiceTest {
             // then – tenant zapisany jako INACTIVE, użytkownicy zablokowania jednym bulk UPDATE
             verify(tenantRepository).save(argThat(t -> t.getStatus() == TenantStatus.INACTIVE));
             verify(userService).deactivateAllUsersByTenantId(TENANT_ID);
+            // BE-233: sesje WebSocket tenanta zamykane po dezaktywacji
+            verify(webSocketSessionTerminator).closeTenantSessions(TENANT_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.TENANT_DEACTIVATED);
         }
 
         @Test
@@ -383,6 +389,7 @@ class TenantServiceTest {
             // then – nie zapisuje tenanta ani użytkowników
             verify(tenantRepository, never()).save(any());
             verify(userService, never()).deactivateAllUsersByTenantId(any());
+            verify(webSocketSessionTerminator, never()).closeTenantSessions(any(), any());
         }
 
         @Test
@@ -404,6 +411,32 @@ class TenantServiceTest {
     @Nested
     @DisplayName("updateTenant()")
     class UpdateTenant {
+
+        @Test
+        @DisplayName("BE-233: ACTIVE->INACTIVE przez updateTenant zamyka sesje WS tenanta")
+        void shouldCloseSessionsWhenTenantBecomesInactive() {
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+            when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            tenantService.updateTenant(TENANT_ID, new UpdateTenantRequest(null, TenantStatus.INACTIVE, null));
+
+            verify(webSocketSessionTerminator).closeTenantSessions(TENANT_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.TENANT_DEACTIVATED);
+        }
+
+        @Test
+        @DisplayName("BE-233: INACTIVE->INACTIVE, INACTIVE->ACTIVE i ACTIVE->ACTIVE nie zamykaja sesji")
+        void shouldNotCloseSessionsWithoutActiveToInactiveTransition() {
+            when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            activeTenant.setStatus(TenantStatus.INACTIVE);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
+            tenantService.updateTenant(TENANT_ID, new UpdateTenantRequest(null, TenantStatus.INACTIVE, null));
+            tenantService.updateTenant(TENANT_ID, new UpdateTenantRequest(null, TenantStatus.ACTIVE, null));
+            tenantService.updateTenant(TENANT_ID, new UpdateTenantRequest(null, TenantStatus.ACTIVE, null));
+
+            verify(webSocketSessionTerminator, never()).closeTenantSessions(any(), any());
+        }
 
         @Test
         @DisplayName("powinien zaktualizować nazwę tenanta gdy nowa nazwa jest unikalna")

@@ -77,7 +77,8 @@ class StompSubscribeAuthorizationE2ETest {
             WebSocketServletAutoConfiguration.class, WebMvcAutoConfiguration.class,
             JacksonAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class})
     @Import({WebSocketConfig.class, WebSocketAuthInterceptor.class,
-            StompDestinationAuthorizationInterceptor.class, WebSocketController.class})
+            StompDestinationAuthorizationInterceptor.class, WebSocketController.class,
+            com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.class, com.contactcenter.infrastructure.websocket.WebSocketSessionProperties.class})
     static class TestApp {
         @Bean
         JwtParser jwtParser() {
@@ -97,6 +98,11 @@ class StompSubscribeAuthorizationE2ETest {
 
         private static JwtParser.JwtClaims claims(UUID tenant, UUID user, String role) {
             return new JwtParser.JwtClaims(tenant, user, role, user.toString(), Instant.now().plusSeconds(600));
+        }
+
+        @Bean
+        TokenBlacklistService tokenBlacklistService() {
+            return Mockito.mock(TokenBlacklistService.class);
         }
 
         @Bean

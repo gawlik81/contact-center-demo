@@ -1249,6 +1249,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     int attemptCount = rs.getInt("attempt_count");
                     UUID recordId = recordIdStr != null ? UUID.fromString(recordIdStr) : null;
 
+                    Instant effectiveUpdatedAt = rs.getTimestamp("effective_updated_at").toInstant();
                     CampaignDwRow row = new CampaignDwRow(
                             campaignIdStr != null ? UUID.fromString(campaignIdStr) : null,
                             tenantIdStr != null ? UUID.fromString(tenantIdStr) : null,
@@ -1258,9 +1259,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
                             attemptCount,
                             lastAttemptTs != null ? lastAttemptTs.toInstant() : null,
                             rs.getString("campaign_type"),
-                            rs.getString("dialer_type")
+                            rs.getString("dialer_type"),
+                            effectiveUpdatedAt
                     );
-                    return new CdcRow<>(row, rs.getTimestamp("effective_updated_at").toInstant(), recordId);
+                    return new CdcRow<>(row, effectiveUpdatedAt, recordId);
                 },
                 Timestamp.from(marker),
                 upperBound,
@@ -1417,7 +1419,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
     // RowMapper
     // =========================================================================
 
-    private static class ContactDwRowMapper implements RowMapper<CdcRow<ContactDwRow>> {
+    static class ContactDwRowMapper implements RowMapper<CdcRow<ContactDwRow>> {
 
         @Override
         public CdcRow<ContactDwRow> mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -1435,6 +1437,7 @@ class EtlSyncServiceImpl implements EtlSyncService {
             boolean durationNull = rs.wasNull();
 
             UUID contactId = contactIdStr != null ? UUID.fromString(contactIdStr) : null;
+            Instant effectiveUpdatedAt = rs.getTimestamp("effective_updated_at").toInstant();
             ContactDwRow row = new ContactDwRow(
                     contactId,
                     tenantIdStr != null ? UUID.fromString(tenantIdStr) : null,
@@ -1448,9 +1451,10 @@ class EtlSyncServiceImpl implements EtlSyncService {
                     durationNull ? null : durationSec,
                     startedTs != null ? startedTs.toInstant() : null,
                     endedTs != null ? endedTs.toInstant() : null,
-                    queuedTs != null ? queuedTs.toInstant() : null
+                    queuedTs != null ? queuedTs.toInstant() : null,
+                    effectiveUpdatedAt
             );
-            return new CdcRow<>(row, rs.getTimestamp("effective_updated_at").toInstant(), contactId);
+            return new CdcRow<>(row, effectiveUpdatedAt, contactId);
         }
     }
 }

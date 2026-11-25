@@ -12,6 +12,8 @@ import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.retention.RetentionPolicyService;
 import com.contactcenter.domain.user.UserService;
+import com.contactcenter.domain.websocket.SessionCloseReason;
+import com.contactcenter.domain.websocket.WebSocketSessionTerminator;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.security.TenantContext;
@@ -48,6 +50,9 @@ import java.util.UUID;
 class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
+
+    /** BE-233: zamyka sesje WebSocket tenanta (na wszystkich instancjach) po jego dezaktywacji. */
+    private final WebSocketSessionTerminator webSocketSessionTerminator;
 
     /**
      * Zależność wstrzykiwana zwykłym polem finalnym (bez {@code @Autowired @Lazy}) — mimo że
@@ -282,7 +287,9 @@ class TenantServiceImpl implements TenantService {
 
         // Zmiana statusu
         boolean statusChanged = false;
+        boolean becameInactive = false;
         if (request.status() != null) {
+            becameInactive = tenant.getStatus() != TenantStatus.INACTIVE && request.status() == TenantStatus.INACTIVE;
             log.info("[TenantService] Zmiana statusu tenanta id={}: {} -> {}",
                     tenantId, tenant.getStatus(), request.status());
             tenant.setStatus(request.status());
@@ -301,6 +308,14 @@ class TenantServiceImpl implements TenantService {
         // Inwaliduj cache metryk admin gdy zmienił się status tenanta
         if (statusChanged) {
             adminMetricsService.evictGlobalMetricsCache();
+            // BE-233: tylko faktyczne przejście na INACTIVE (INACTIVE->INACTIVE nie wywołuje burzy reconnectów).
+            // Refresh tokenu użytkowników tego tenanta jest odrzucany (AuthServiceImpl#refresh), więc klient po
+            // zamknięciu sesji WS przejdzie w SESSION_EXPIRED. Uwaga: to NIE blokuje ponownego logowania hasłem
+            // (login nie sprawdza statusu tenanta) ani reconnectu WS starym, ważnym tokenem - wspólna bramka statusu
+            // tenanta w login/refresh/CONNECT jest w zakresie BE-249.
+            if (becameInactive) {
+                webSocketSessionTerminator.closeTenantSessions(tenantId, SessionCloseReason.TENANT_DEACTIVATED);
+            }
         }
 
         log.info("[TenantService] Tenant zaktualizowany: id={}", saved.getId());
@@ -351,6 +366,9 @@ class TenantServiceImpl implements TenantService {
 
         // Inwaliduj cache metryk admin – tenant zmienił status na INACTIVE
         adminMetricsService.evictGlobalMetricsCache();
+
+        // BE-233: otwarte sesje WebSocket użytkowników tenanta kończą się (na wszystkich instancjach, po commicie)
+        webSocketSessionTerminator.closeTenantSessions(tenantId, SessionCloseReason.TENANT_DEACTIVATED);
     }
 
     /**

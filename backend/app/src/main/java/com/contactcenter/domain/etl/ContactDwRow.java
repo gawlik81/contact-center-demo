@@ -28,6 +28,10 @@ import java.util.UUID;
  * @param startedAt       czas rozpoczęcia
  * @param endedAt         czas zakończenia (nullable)
  * @param queuedAt        czas trafienia do kolejki
+ * @param sourceUpdatedAt wersja wiersza w źródle ({@code COALESCE(updated_at, created_at)}) - w ClickHouse
+ *                        staje się kolumną wersji {@code updated_at} ({@code ReplacingMergeTree}/{@code argMax}), więc
+ *                        nowsza wersja wygrywa NIEZALEŻNIE od kolejności zapisu (BE-228); {@code null} = wersja z
+ *                        zegara zapisu (zachowanie sprzed BE-228)
  */
 public record ContactDwRow(
         UUID contactId,
@@ -42,5 +46,14 @@ public record ContactDwRow(
         Integer durationSec,
         Instant startedAt,
         Instant endedAt,
-        Instant queuedAt
-) {}
+        Instant queuedAt,
+        Instant sourceUpdatedAt
+) {
+    /** Konstruktor bez wersji źródłowej ({@code sourceUpdatedAt = null}) - zgodność wsteczna. */
+    public ContactDwRow(UUID contactId, UUID tenantId, UUID agentId, UUID queueId, UUID campaignId, String channel,
+                        String direction, String status, String dispositionCode, Integer durationSec,
+                        Instant startedAt, Instant endedAt, Instant queuedAt) {
+        this(contactId, tenantId, agentId, queueId, campaignId, channel, direction, status, dispositionCode,
+                durationSec, startedAt, endedAt, queuedAt, null);
+    }
+}

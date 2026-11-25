@@ -562,33 +562,136 @@ class ProgressiveDialerCampaignLockIntegrationTest {
         }
     }
 
+    /**
+     * BE-248. The previous version asserted "the plan mentions ANY partition child of the V151 index" on EMPTY tables
+     * with {@code enable_seqscan = off}. On empty partitions every candidate index costs the same (the pre-existing
+     * {@code (tenant_id, agent_id, started_at)} index and the V151 index both show {@code cost=0.12..8.15}); V151 wins
+     * by a hair (the status qualifier is implied by its predicate and drops out of the filter), so which index is
+     * chosen is an arbitrary tie that moves with statistics and with whatever the other test classes left in the
+     * shared per-JVM PostgreSQL (autovacuum/ANALYZE timing, leaked partitions). The same query is therefore checked
+     * on REALISTIC data inside a transaction that is always rolled back (the rows and the {@code pg_statistic} rows
+     * vanish; {@code pg_class.reltuples/relpages} and ~20k dead tuples do NOT, so after the rollback the test runs
+     * {@code VACUUM ANALYZE} on both tables to hand the shared database back clean): an agent with 10 000 closed contacts and ONE open one, an ANALYZE, and the
+     * assertion is made on the partition that actually holds the rows - there the V151 index is cheaper by an order
+     * of magnitude, not by a tie-break. A negative control drops the V151 indexes in the same transaction: the plan
+     * must lose the index and get several times more expensive, so the assertion cannot pass by accident.
+     */
     @Test
-    @DisplayName("EXPLAIN: sondy 'agent wolny' i 'agent już dzwoni' używają indeksów z V151")
+    @DisplayName("EXPLAIN: sondy 'agent wolny' i 'agent już dzwoni' używają indeksów z V151 (realistyczne dane, ANALYZE, kontrola negatywna)")
     void agentFreeProbeUsesV151Indexes() {
-        UUID tenant = tenantId;
         UUID agent = insertAgent("AVAILABLE");
         // inline every positional parameter (agent, tenant, then the voice-load ones) so EXPLAIN sees literals
         String inlined = ProgressiveDialerServiceImpl.AGENT_STILL_FREE_SQL;
-        for (Object param : ProgressiveDialerServiceImpl.agentStillFreeParams(agent, tenant)) {
+        for (Object param : ProgressiveDialerServiceImpl.agentStillFreeParams(agent, tenantId)) {
             inlined = inlined.replaceFirst("\\?::uuid", "'" + param + "'::uuid");
         }
         final String sql = inlined;
-        String plan = seed.execute((org.springframework.jdbc.core.ConnectionCallback<String>) con -> {
+
+        record Probe(String planWith, String planWithout, String contactPartition, String contactIndex,
+                     String campaignPartition, String campaignIndex) {
+        }
+        Probe probe = seed.execute((org.springframework.jdbc.core.ConnectionCallback<Probe>) con -> {
+            con.setAutoCommit(false);
             try (var st = con.createStatement()) {
-                st.execute("SET enable_seqscan = off");
-                var rs = st.executeQuery("EXPLAIN " + sql);
-                StringBuilder sb = new StringBuilder();
-                while (rs.next()) {
-                    sb.append(rs.getString(1)).append('\n');
+                // closed history of the agent (the heap the old, non-partial indexes would have to walk) + ONE open
+                // contact and ONE DIALING record (what the probes look for)
+                st.execute("INSERT INTO contact (tenant_id, agent_id, channel, direction, status) SELECT '"
+                        + tenantId + "'::uuid, '" + agent + "'::uuid, 'PHONE', 'INBOUND', 'COMPLETED'"
+                        + " FROM generate_series(1, 10000)");
+                st.execute("INSERT INTO contact (tenant_id, agent_id, channel, direction, status) VALUES ('"
+                        + tenantId + "', '" + agent + "', 'PHONE', 'OUTBOUND', 'QUEUED')");
+                st.execute("INSERT INTO campaign_contact (campaign_id, tenant_id, phone, status) SELECT '"
+                        + campaign1 + "'::uuid, '" + tenantId + "'::uuid, '+4860' || (1000000 + g), 'COMPLETED'"
+                        + " FROM generate_series(1, 10000) g");
+                st.execute("INSERT INTO campaign_contact (campaign_id, tenant_id, phone, status, dialing_agent_id)"
+                        + " VALUES ('" + campaign1 + "', '" + tenantId + "', '+48500000001', 'DIALING', '" + agent + "')");
+                st.execute("ANALYZE contact");
+                st.execute("ANALYZE campaign_contact");
+
+                String contactPartition = scalar(st, "SELECT tableoid::regclass::text FROM contact WHERE tenant_id = '"
+                        + tenantId + "' AND agent_id = '" + agent + "' LIMIT 1");
+                String campaignPartition = scalar(st, "SELECT tableoid::regclass::text FROM campaign_contact"
+                        + " WHERE tenant_id = '" + tenantId + "' AND dialing_agent_id = '" + agent + "' LIMIT 1");
+                String contactIndex = partitionChildIndex(st, "idx_contact_agent_phone_load", contactPartition);
+                String campaignIndex = partitionChildIndex(st, "idx_campaign_contact_dialing_agent", campaignPartition);
+
+                String planWith = explain(st, sql);
+                // negative control: the same query on the same data WITHOUT the V151 indexes (undone by the rollback)
+                st.execute("DROP INDEX idx_contact_agent_phone_load");
+                st.execute("DROP INDEX idx_campaign_contact_dialing_agent");
+                String planWithout = explain(st, sql);
+                return new Probe(planWith, planWithout, contactPartition, contactIndex, campaignPartition,
+                        campaignIndex);
+            } finally {
+                con.rollback();
+                con.setAutoCommit(true);
+                // outside the transaction (VACUUM cannot run in one): reclaim the dead tuples of the rolled back inserts
+                // and refresh pg_class.reltuples/relpages, which a rollback does not undo
+                try (var st = con.createStatement()) {
+                    st.execute("VACUUM ANALYZE contact");
+                    st.execute("VACUUM ANALYZE campaign_contact");
                 }
-                st.execute("RESET enable_seqscan");
-                return sb.toString();
             }
         });
-        assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(seed, plan, "idx_contact_agent_phone_load"))
-                .as(plan).isTrue();
-        assertThat(PostgresTestDatabase.explainUsesIndexOrItsPartitionChildren(seed, plan,
-                "idx_campaign_contact_dialing_agent")).as(plan).isTrue();
+
+        assertThat(probe.planWith())
+                .as("sonda wolnego agenta czyta otwarte kontakty przez częściowy indeks V151 na partycji z danymi")
+                .containsPattern("Index (Only )?Scan using " + java.util.regex.Pattern.quote(probe.contactIndex())
+                        + " on " + java.util.regex.Pattern.quote(probe.contactPartition()))
+                .as("... a nie sekwencyjnie")
+                .doesNotContain("Seq Scan on " + probe.contactPartition());
+        assertThat(probe.planWith())
+                .as("sonda 'agent już dzwoni' używa częściowego indeksu V151 kampanii na partycji z danymi")
+                .containsPattern("Index (Only )?Scan using " + java.util.regex.Pattern.quote(probe.campaignIndex())
+                        + " on " + java.util.regex.Pattern.quote(probe.campaignPartition()))
+                .doesNotContain("Seq Scan on " + probe.campaignPartition());
+        assertThat(probe.planWithout())
+                .as("kontrola negatywna: bez indeksów V151 plan ich nie używa")
+                .doesNotContain(probe.contactIndex()).doesNotContain(probe.campaignIndex());
+        double costWith = nodeCost(probe.planWith(), probe.contactPartition());
+        double costWithout = nodeCost(probe.planWithout(), probe.contactPartition());
+        assertThat(costWithout)
+                .as("kontrola negatywna: bez V151 odczyt partycji z danymi jest wielokrotnie droższy (indeks jest opłacalny, "
+                        + "nie tylko możliwy)\nZ:\n" + probe.planWith() + "\nBEZ:\n" + probe.planWithout())
+                .isGreaterThan(costWith * 3);
+    }
+
+    private static String scalar(java.sql.Statement st, String sql) throws java.sql.SQLException {
+        try (var rs = st.executeQuery(sql)) {
+            if (!rs.next()) {
+                throw new IllegalStateException("no row for: " + sql);
+            }
+            return rs.getString(1);
+        }
+    }
+
+    /** Name of the physical index that the partitioned index {@code parentIndex} has on {@code partition}. */
+    private static String partitionChildIndex(java.sql.Statement st, String parentIndex, String partition)
+            throws java.sql.SQLException {
+        return scalar(st, "SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid"
+                + " JOIN pg_index x ON x.indexrelid = c.oid"
+                + " WHERE i.inhparent = '" + parentIndex + "'::regclass AND x.indrelid = '" + partition + "'::regclass");
+    }
+
+    private static String explain(java.sql.Statement st, String sql) throws java.sql.SQLException {
+        StringBuilder sb = new StringBuilder();
+        try (var rs = st.executeQuery("EXPLAIN " + sql)) {
+            while (rs.next()) {
+                sb.append(rs.getString(1)).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Upper cost estimate of the plan node that reads {@code partition} ({@code ... on <partition> ... cost=a..b}). */
+    private static double nodeCost(String plan, String partition) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\\son " + java.util.regex.Pattern.quote(partition) + "\\s[^\\n]*?cost=[\\d.]+\\.\\.([\\d.]+)")
+                .matcher(plan);
+        if (!m.find()) {
+            throw new IllegalStateException("no node for " + partition + " in plan: " + plan);
+        }
+        return Double.parseDouble(m.group(1));
     }
 
     @Test

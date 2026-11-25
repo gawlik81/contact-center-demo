@@ -7,6 +7,8 @@ import com.contactcenter.api.user.dto.UserResponse;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
+import com.contactcenter.domain.websocket.SessionCloseReason;
+import com.contactcenter.domain.websocket.WebSocketSessionTerminator;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +53,7 @@ class AdminUserServiceImpl implements AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final TenantResourceLimitService tenantResourceLimitService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final WebSocketSessionTerminator webSocketSessionTerminator;
 
     // =========================================================================
     // Lista użytkowników (cross-tenant)
@@ -240,6 +243,8 @@ class AdminUserServiceImpl implements AdminUserService {
                 user.setEmail(newEmail);
             }
         }
+        boolean roleChanged = request.role() != null && !request.role().equals(user.getRole());
+        boolean deactivated = Boolean.FALSE.equals(request.active()) && user.isActive();
         if (request.role() != null) {
             user.setRole(request.role());
         }
@@ -251,6 +256,15 @@ class AdminUserServiceImpl implements AdminUserService {
         }
 
         AppUser saved = appUserRepository.save(user);
+
+        // BE-233: dezaktywacja / zmiana roli kończy otwarte sesje WebSocket (na wszystkich instancjach, po commicie)
+        if (deactivated) {
+            webSocketSessionTerminator.closeUserSessions(saved.getTenantId(), saved.getId(),
+                    SessionCloseReason.DEACTIVATED);
+        } else if (roleChanged) {
+            webSocketSessionTerminator.closeUserSessions(saved.getTenantId(), saved.getId(),
+                    SessionCloseReason.ROLE_CHANGED);
+        }
         log.info("[AdminUserService] Zaktualizowano użytkownika przez Admina: userId={}, tenantId={}",
                 saved.getId(), saved.getTenantId());
 
@@ -287,6 +301,7 @@ class AdminUserServiceImpl implements AdminUserService {
         user.setDeleted(true);
         user.setActive(false);
         appUserRepository.save(user);
+        webSocketSessionTerminator.closeUserSessions(user.getTenantId(), userId, SessionCloseReason.DEACTIVATED);
 
         log.info("[AdminUserService] Usunięto użytkownika przez Admina (soft delete): userId={}, tenantId={}",
                 userId, user.getTenantId());
@@ -328,6 +343,7 @@ class AdminUserServiceImpl implements AdminUserService {
 
         user.setPasswordResetRequired(true);
         appUserRepository.save(user);
+        webSocketSessionTerminator.closeUserSessions(user.getTenantId(), userId, SessionCloseReason.PASSWORD_RESET);
 
         log.info("[AdminUserService] Wymuszono zmianę hasła przez Admina: userId={}, tenantId={}",
                 userId, user.getTenantId());

@@ -141,8 +141,8 @@ class ShedLockProviderIntegrationTest {
     @DisplayName("po lockAtMostFor blokada się zwalnia (symulacja padniętej instancji, która nie zwolniła blokady)")
     void lockIsReleasedAfterLockAtMostFor() {
         String name = uniqueName();
-        LockProvider providerA = new ShedLockConfig().lockProvider(poolA);
-        LockProvider providerB = new ShedLockConfig().lockProvider(poolB);
+        LockProvider providerA = ShedLockConfig.jdbcLockProvider(poolA);
+        LockProvider providerB = ShedLockConfig.jdbcLockProvider(poolB);
 
         // instance A takes the lock and "crashes" - it never calls unlock()
         Optional<SimpleLock> held = providerA.lock(config(name, Duration.ofSeconds(2), Duration.ZERO));
@@ -180,7 +180,7 @@ class ShedLockProviderIntegrationTest {
     @DisplayName("usingDbTime: lock_until liczone zegarem bazy (UTC), niezależnie od strefy/zegara JVM")
     void lockUntilUsesDatabaseClock() {
         String name = uniqueName();
-        LockProvider provider = new ShedLockConfig().lockProvider(poolA);
+        LockProvider provider = ShedLockConfig.jdbcLockProvider(poolA);
 
         Optional<SimpleLock> lock = provider.lock(config(name, Duration.ofMinutes(10), Duration.ZERO));
         assertThat(lock).isPresent();
@@ -207,8 +207,8 @@ class ShedLockProviderIntegrationTest {
             assertThat(new JdbcTemplate(warsaw).queryForObject("SHOW TimeZone", String.class))
                     .isEqualTo("Europe/Warsaw");
             String name = uniqueName();
-            LockProvider warsawProvider = new ShedLockConfig().lockProvider(warsaw);
-            LockProvider utcProvider = new ShedLockConfig().lockProvider(poolB);
+            LockProvider warsawProvider = ShedLockConfig.jdbcLockProvider(warsaw);
+            LockProvider utcProvider = ShedLockConfig.jdbcLockProvider(poolB);
 
             Optional<SimpleLock> lock = warsawProvider.lock(config(name, Duration.ofMinutes(10), Duration.ZERO));
             assertThat(lock).isPresent();
@@ -230,7 +230,7 @@ class ShedLockProviderIntegrationTest {
     @DisplayName("locked_by = host:pid:uuid (unikalne per start JVM)")
     void lockedByContainsPid() {
         String name = uniqueName();
-        LockProvider provider = new ShedLockConfig().lockProvider(poolA);
+        LockProvider provider = ShedLockConfig.jdbcLockProvider(poolA);
         Optional<SimpleLock> lock = provider.lock(config(name, Duration.ofMinutes(1), Duration.ZERO));
         assertThat(lock).isPresent();
         try {

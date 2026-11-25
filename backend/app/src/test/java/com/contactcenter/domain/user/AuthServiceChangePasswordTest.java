@@ -71,7 +71,8 @@ class AuthServiceChangePasswordTest {
                 tokenBlacklistService, mfaService,
                 appUserRepository, refreshTokenRepository,
                 tenantService, passwordEncoder, loginRateLimiter, userService,
-                mock(com.contactcenter.security.PendingLoginTracker.class)
+                mock(com.contactcenter.security.PendingLoginTracker.class),
+                mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)
         );
     }
 

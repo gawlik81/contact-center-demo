@@ -28,13 +28,20 @@ public class ExpectedStompRejectionLogFilter extends TurboFilter {
     static final String HANDLER_LOGGER = "org.springframework.web.socket.messaging.StompSubProtocolHandler";
     static final String SPRING_PREFIX = "Failed to send message to MessageChannel in session ";
 
+    /** Stałe komunikaty oczekiwanych odrzuceń: autoryzacja destynacji oraz CONNECT z tokenem z blacklisty / bez możliwości weryfikacji blacklisty (BE-233; sygnał niesie licznik/log interceptora, a nie duplikat Springa). */
+    private static boolean isExpectedRejectionText(String format) {
+        return format.endsWith(StompDestinationAuthorizationInterceptor.REJECTION_MESSAGE)
+                || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.BLACKLISTED_MESSAGE)
+                || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.UNVERIFIABLE_MESSAGE);
+    }
+
     @Override
     public FilterReply decide(Marker marker, Logger logger, Level level, String format, Object[] params, Throwable t) {
         if (Level.ERROR.equals(level)
                 && format != null
                 && HANDLER_LOGGER.equals(logger.getName())
                 && format.startsWith(SPRING_PREFIX)
-                && format.endsWith(StompDestinationAuthorizationInterceptor.REJECTION_MESSAGE)) {
+                && isExpectedRejectionText(format)) {
             return FilterReply.DENY;
         }
         return FilterReply.NEUTRAL;

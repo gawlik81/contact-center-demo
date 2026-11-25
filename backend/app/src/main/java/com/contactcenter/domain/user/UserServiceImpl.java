@@ -7,6 +7,8 @@ import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.websocket.SessionCloseReason;
+import com.contactcenter.domain.websocket.WebSocketSessionTerminator;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
@@ -77,6 +79,7 @@ class UserServiceImpl implements UserService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ContactService contactService;
     private final ApplicationEventPublisher eventPublisher;
+    private final WebSocketSessionTerminator webSocketSessionTerminator;
 
     // =========================================================================
     // Tworzenie użytkownika
@@ -304,6 +307,9 @@ class UserServiceImpl implements UserService {
         if (updated == 0) {
             throw new EntityNotFoundException("Użytkownik nie istnieje: " + userId);
         }
+
+        // BE-233: usunięte konto nie może trzymać otwartej sesji WebSocket
+        webSocketSessionTerminator.closeUserSessions(user.getTenantId(), userId, SessionCloseReason.DEACTIVATED);
 
         log.info("[UserService] Soft delete użytkownika: userId={}, tenantId={}, deletedBy={}",
                 userId, tenantId, requestingUserId);

@@ -1092,6 +1092,35 @@ autoryzacji — odrzucenie pozostaje widoczne jako WARN interceptora (1/10 s na 
 pozostałe błędy tego loggera nie są ruszane. Testy kontraktowe: `StompSubscribeAuthorizationE2ETest` (po jednym przypadku
 na kod, surowe ramki STOMP), `StompErrorCodeHandlerTest`.
 
+**Życie sesji WS a życie tokenu (BE-233).** Principal jest ustawiany raz, przy CONNECT, więc sesja żyła do rozłączenia
+niezależnie od ważności tokenu. Teraz:
+
+- **Blacklista JWT przy CONNECT/STOMP** (`WebSocketAuthInterceptor` + `TokenBlacklistService`, jak `JwtAuthFilter`):
+  token z blacklisty = ERROR `WS_TOKEN_INVALID` (FE: jedna próba refresh, po logout/dezaktywacji refresh się nie powiedzie
+  -> `SESSION_EXPIRED`, brak pętli). Redis niedostępny = fail-closed, ERROR `WS_INTERNAL` (FE: reconnect z backoffem).
+- **Rejestr sesji po `userId`** (`WebSocketSessionRegistry`, lokalny per instancja; wpis przy CONNECT, usunięcie przy
+  `SessionDisconnectEvent` — publikowanym także przy zamknięciu transportu). Gauge `ws.sessions.active` (bez tagów).
+- **Zamykanie sesji użytkownika/tenanta na WSZYSTKICH instancjach** (`WebSocketSessionTerminator` ->
+  `WebSocketSessionTerminatorImpl`): po commicie transakcji najpierw zamyka sesje lokalnie (działa bez Redis), potem
+  publikuje kopertę `CLOSE_USER {tenantId,userId,reason}` / `CLOSE_TENANT {tenantId}` na kanał Redis
+  `cc:ws:session-control:<env>` (`WebSocketSessionControlBus`, wzorzec BE-175/BE-178: id instancji, limit rozmiaru,
+  walidacja kształtu, metryki `ws.session.control.*`). Odbiorca dopasowuje PARĘ tenant/user z koperty do principala
+  sesji (obcy tenant = nic nie zamyka). Wywołania: `AuthServiceImpl.logout/logoutAll/forcePasswordReset`,
+  `AdminUserServiceImpl.updateUser` (zmiana roli, `active=false`) / `deleteUser` / `forcePasswordReset`,
+  `UserServiceImpl.deleteUser`, `TenantServiceImpl.deactivateTenant` oraz `updateTenant` ze statusem INACTIVE.
+- **Zamknięcie** = ramka `ERROR` z `code` (`WebSocketSessionCloser` wysyła ją przez `clientOutboundChannel`; Spring zamyka
+  transport po wychodzącym ERROR): `WS_TOKEN_INVALID` dla logout/dezaktywacji/zmiany roli/resetu hasła/dezaktywacji
+  tenanta (FE odświeża token: po zmianie roli dostaje token z nową rolą i łączy się ponownie, po logout/dezaktywacji
+  refresh jest odrzucony), `WS_TOKEN_EXPIRED` dla terminu życia. Treść ramki ogólna, bez powodu i identyfikatorów.
+- **Maksymalny czas życia sesji**: termin = wcześniejszy z `exp` tokenu z CONNECT i twardego limitu; jeden współdzielony
+  `@Scheduled` (bez ShedLock — każda instancja zamyka SWOJE sesje) co `websocket.session.sweep-interval-ms`.
+  Konfiguracja `websocket.session.*` (`WEBSOCKET_SESSION_MAX_LIFETIME` domyślnie PT12H, `..._CLOSE_AT_TOKEN_EXPIRY`
+  true, `..._TOKEN_EXPIRY_GRACE` PT0S, `..._CLOSE_JITTER` PT30S, `..._SWEEP_INTERVAL_MS` 5000) oraz
+  `websocket.session.control.*` (`WEBSOCKET_SESSION_CONTROL_ENABLED`, `..._CHANNEL`, `WEBSOCKET_SESSION_ENV`,
+  `..._INSTANCE_ID`).
+- Ograniczenia: utrata koperty (Redis down) zostawia sesje INNYCH instancji do `exp` tokenu / limitu; stary, jeszcze
+  ważny access token po zmianie roli/dezaktywacji nadal otwiera nową sesję WS (tak samo jak wywołania HTTP) do swojego `exp`.
+
 ---
 
 ## 3. Multi-tenancy
@@ -1278,7 +1307,8 @@ wersja w property `shedlock.version` w `backend/pom.xml`), tabela platformowa `s
 
 **Konfiguracja** (`infrastructure/config/ShedLockConfig.java`):
 
-- `JdbcTemplateLockProvider` z `usingDbTime()` - czas blokady liczy zegar bazy (UTC), więc rozjazd zegarów instancji nie
+- `JdbcTemplateLockProvider` z `usingDbTime()` opakowany w `MeteredLockProvider` (BE-228, metryki: sekcja „Obserwowalność
+  blokad (BE-228)” niżej) - czas blokady liczy zegar bazy (UTC), więc rozjazd zegarów instancji nie
   skraca ani nie wydłuża blokady. Kolumny `shedlock.lock_until/locked_at` są celowo `TIMESTAMP` bez strefy
   (provider zapisuje `timezone('utc', CURRENT_TIMESTAMP)`) - nie zmieniać typów.
 - `@EnableSchedulerLock(interceptMode = PROXY_METHOD, order = HIGHEST_PRECEDENCE, proxyTargetClass = true)`:
@@ -1325,9 +1355,9 @@ wersja w property `shedlock.version` w `backend/pom.xml`), tabela platformowa `s
 - Rolling deploy: instancje starej wersji (bez ShedLock) nie biorą blokad - w oknie wdrożenia joby mogą wykonać się
   podwójnie; przed wdrożeniem V149 musi być zastosowana.
 
-**Klasyfikacja WSZYSTKICH metod `@Scheduled`** (weryfikacja: `grep -rnE '^\s*@Scheduled\b' backend/app/src/main` = 25 wierszy
+**Klasyfikacja WSZYSTKICH metod `@Scheduled`** (weryfikacja: `grep -rnE '^\s*@Scheduled\b' backend/app/src/main` = 28 wierszy
 tabeli). S = singleton globalny (ShedLock), I = per instancja (bez blokady, świadomie), T = shardowalny per
-tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewnątrz przebiegu, patrz „Dialer i routing" niżej). Podsumowanie: **S = 23, I = 0, T = 2**.
+tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewnątrz przebiegu, patrz „Dialer i routing" niżej). Podsumowanie: **S = 24, I = 2, T = 2**.
 
 | # | Metoda | Harmonogram | Kl. | Blokada / klucze property | atMost / atLeast | Idempotencja przy wygaśnięciu blokady w trakcie przebiegu | Stan |
 |---|--------|-------------|-----|---------------------------|------------------|-----------------------------------------------------------|------|
@@ -1338,7 +1368,7 @@ tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewn
 | 5 | `PartitionReclaimJob#runReclaimJob` | cron niedz. 03:00 UTC | S | `PartitionReclaimJob_runReclaimJob` | PT1H / PT10M | `DROP TABLE IF EXISTS` + strażnik niepustych partycji (BE-145) | zrealizowane (BE-171) |
 | 6 | `RetentionEvaluationJob#runEvaluationJob` | cron 01:00 UTC | S | `RetentionEvaluationJob_runEvaluationJob` | PT2H / PT10M | Cutoffy liczone na nowo, DELETE-y po cutoffie idempotentne; brak własnej serializacji (tylko `retention_purge_log` RUNNING) - drugi przebieg dubluje co najwyżej wpisy logu, nie dane. Uwaga: auto-purge startuje przez `purgeAsync` (`@Async`) i PRZEŻYWA blokadę (zwalniana po powrocie z `runForAllActiveTenants`); ochroną przed równoległym purge jest własna serializacja EPIC-30, nie ShedLock | zrealizowane (BE-171) |
 | 7 | `PartitionMaintenanceJob#ensureFuturePartitions` | cron 00:30 UTC | S | `PartitionMaintenanceJob_ensureFuturePartitions` | PT30M / PT10M | Funkcje `create_*_partition` z `IF NOT EXISTS` | zrealizowane (BE-171) |
-| 8 | `EtlSyncServiceImpl#runContactSync` | fixedDelay `etl.sync.fixed-delay-ms` (60 s) | S | `EtlSyncServiceImpl_runContactSync`; `shedlock.etl.at-most-for` / `.at-least-for` | PT10M / PT48S | Upsert DW po kluczu (ON CONFLICT / ReplacingMergeTree), znacznik przesuwany monotonicznie (BE-213) - drugi przebieg czyta te same batche, nie duplikuje i nie cofa znacznika (test `EtlSyncShedLockIntegrationTest`). ClickHouse: `argMax` po `updated_at = now()` zakłada jednego writera - wygaśnięcie blokady = chwilowo dwóch (dług S6 niżej). Ręczny trigger (`POST /api/admin/etl/trigger`) bierze TĘ SAMĄ blokadę (`EtlSyncService.LOCK_CONTACT_SYNC`, `lockAtLeastFor=0`) i przy zajętej zwraca 409 `ETL_SYNC_IN_PROGRESS` | zrealizowane (BE-172) |
+| 8 | `EtlSyncServiceImpl#runContactSync` | fixedDelay `etl.sync.fixed-delay-ms` (60 s) | S | `EtlSyncServiceImpl_runContactSync`; `shedlock.etl.at-most-for` / `.at-least-for` | PT10M / PT48S | Upsert DW po kluczu (ON CONFLICT / ReplacingMergeTree), znacznik przesuwany monotonicznie (BE-213) - drugi przebieg czyta te same batche, nie duplikuje i nie cofa znacznika (test `EtlSyncShedLockIntegrationTest`). ClickHouse: od BE-228 wersją wiersza (`updated_at`) jest czas zmiany ZE ŹRÓDŁA, nie zegar zapisu - wygaśnięcie blokady (dwóch writerów) nie odwraca wyniku `argMax` (sekcja „Obserwowalność blokad (BE-228)” niżej). Ręczny trigger (`POST /api/admin/etl/trigger`) bierze TĘ SAMĄ blokadę (`EtlSyncService.LOCK_CONTACT_SYNC`, `lockAtLeastFor=0`) i przy zajętej zwraca 409 `ETL_SYNC_IN_PROGRESS` | zrealizowane (BE-172) |
 | 9 | `EtlSyncServiceImpl#runCampaignContactSync` | j.w. | S | `EtlSyncServiceImpl_runCampaignContactSync`; klucze j.w. | PT10M / PT48S | j.w. | zrealizowane (BE-172) |
 | 10 | `EtlSyncServiceImpl#runAgentDimSync` | j.w. | S | `EtlSyncServiceImpl_runAgentDimSync`; klucze j.w. | PT10M / PT48S | Pełny snapshot wymiaru, ReplacingMergeTree(snapshot_at) - idempotentny | zrealizowane (BE-172) |
 | 11 | `EtlSyncServiceImpl#runQueueDimSync` | j.w. | S | `EtlSyncServiceImpl_runQueueDimSync`; klucze j.w. | PT10M / PT48S | j.w. | zrealizowane (BE-172) |
@@ -1357,8 +1387,10 @@ tenant/kampania/kolejka (BE-173, zrealizowane: blokada per kampania/kolejka wewn
 | 24 | `RoutingServiceImpl#pollAvailableAgents` | fixedDelay `dialer.agent-poll-interval-ms` (30 s) | T | brak `@SchedulerLock` (świadomie); ShedLock `RoutingQueue_<queueId>` (programowo, `RoutingQueueLock`) per kolejka wewnątrz przebiegu | atMost PT2M (`routing.queue-lock.at-most-for-ms`) / 0 | Przydział warunkowy (BE-159); koalescencja per tenant w JVM zostaje, między instancjami wyklucza blokada kolejki | zrealizowane (BE-173) |
 | 25 | `OrphanedDialingReaper#reapOrphanedDialing` | fixedDelay `dialer.dialing-reaper.interval-ms` (5 min) | S | `OrphanedDialingReaper_reapOrphanedDialing`; `shedlock.dialing-reaper.*` | PT15M / PT4M | Idempotentne UPDATE-y warunkowe na `status='DIALING'` starszych niż `dialer.dialing-reaper.stale-after-minutes` (10); powtórka po wygaśnięciu blokady nic nie zmienia | zrealizowane (BE-173 review S3) |
 | 26 | `PluginRuntimeSyncServiceImpl#syncTick` | fixedDelay `plugins.sync.tick-ms` (5 s); pełna rekoncyliacja co `plugins.sync.reconcile-interval-ms` (30 s) i po każdej (re)subskrypcji kanału Redis | I | brak `@SchedulerLock` (świadomie): rekoncyliuje pamięć KAŻDEJ instancji | - | Idempotentna, tylko odczyty DB + `load`/`unload` jednoinstalacyjne (single-flight per instalacja); ochrona przed nakładaniem się przebiegów `AtomicBoolean` | zrealizowane (BE-178) |
+| 27 | `WebSocketSessionCloser#sweep` | fixedDelay `websocket.session.sweep-interval-ms` (5 s) | I | brak `@SchedulerLock` (świadomie): zamyka sesje WS trzymane przez KAŻDĄ instancję (rejestr lokalny) | - | Idempotentna: wpisy są atomowo zdejmowane z rejestru (`takeExpired`), więc sesja jest zamykana raz; ramka `ERROR` + zamknięcie transportu | zrealizowane (BE-233) |
+| 28 | `ShedLockOrphanCleanupJob#run` | cron 03:45 UTC (`shedlock.cleanup.cron`) | S | `ShedLockOrphanCleanupJob_run` | PT10M / PT5M | Pojedynczy `DELETE` wierszy `shedlock` rodzin dynamicznych (`RoutingQueue_*`, `EmailPolling_pollInbox_*`) z `lock_until` starszym niż `shedlock.cleanup.retention-days` (7); powtórka nic nie zmienia | zrealizowane (BE-228) |
 
-Klasa **I** zawiera jedną pozycję (#26, rekoncyliacja runtime wtyczek, BE-178 - stan w pamięci KAŻDEJ instancji, więc blokada byłaby błędem); poza nią żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (drugi taki przypadek to
+Klasa **I** zawiera dwie pozycje (#26, rekoncyliacja runtime wtyczek, BE-178, oraz #27, zamykanie sesji WS po terminie życia, BE-233 - stan w pamięci KAŻDEJ instancji, więc blokada byłaby błędem); poza nią żadna metoda `@Scheduled` nie wymaga wykonywania na każdej instancji (drugi taki przypadek to
 przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). Inne mechanizmy czasowe poza
 `@Scheduled`: timeouty DTMF IVR (`taskScheduler.schedule` per rozmowa, stan w pamięci JVM - BE-177).
 
@@ -1388,22 +1420,85 @@ przebieg startowy `AgentPresenceSweeper#onApplicationReady`, nie `@Scheduled`). 
 
 **Otwarte kwestie / dług:**
 
-1. **ClickHouse `argMax` vs dwóch writerów (S6, dług jawny).** Widoki BE-215 deduplikują po `updated_at`, które
-   `ClickHouseDwWriter` ustawia jako `Instant.now()` w chwili zapisu. Gdy `lockAtMostFor` wygaśnie w trakcie cyklu i
-   drugi węzeł zapisze nowszą wersję wiersza przed wolniejszym pierwszym, starsza wersja zapisana później wygra
-   `argMax`. Zapas `PT10M`, monotoniczny znacznik i idempotentne upserty zmniejszają, ale nie eliminują ryzyka; test
-   `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na PostgreSQL (`ON CONFLICT`), NIE semantyki `argMax`
-   ClickHouse. Do rozważenia w osobnym tickecie: `updated_at` w DW z kolumny źródłowej zamiast `now()`
-   albo `KeepAliveLockProvider` dla ETL. Wpis także w `dw/README.md`.
+1. ~~ClickHouse `argMax` vs dwóch writerów (S6)~~ - rozwiązane w BE-228 (sekcja „Obserwowalność blokad (BE-228)” niżej).
 2. ~~`WaitTimeEstimationServiceImpl.lastKnownAgentCounts`~~ - usunięte w BE-179 (patrz §4.7). Joby klasy T (dialer/routing) - zrealizowane w BE-173 (sekcja niżej).
-3. **Brak metryki/alertu „job pominięty, bo blokada trzymana" i „blokada przejęta po wygaśnięciu".** Przy
-   `throwUnexpectedException=false` (domyślnie) awaria DB przy zakładaniu blokady jest tylko logiem ERROR providera,
-   a job po prostu nie startuje na żadnej instancji. Licznik Micrometer wymagałby własnego wrappera nad
-   `LockProvider` - świadomie odłożone (dług).
+3. ~~Brak metryki/alertu „job pominięty / blokada przejęta po wygaśnięciu”~~ - rozwiązane w BE-228 (niżej).
 4. Skan `SchedulerLockCoverageTest` nie widzi schedulingu programowego (`taskScheduler.schedule`,
    `SchedulingConfigurer`, np. IVR DTMF) - tylko adnotacji `@Scheduled`.
 5. ~~Dowód startu pełnego kontekstu na dev/prod~~ - rozwiązane w BE-227: `FullApplicationContextStartupTest`
    (profil prod, rola bez BYPASSRLS, uruchamiany w `mvn verify`); martwy `ContactCenterApplicationIT` usunięty.
+
+**Obserwowalność blokad (BE-228).** `MeteredLockProvider` (`infrastructure/lock`) dekoruje `JdbcTemplateLockProvider`.
+Zachowanie względem gołego providera jest prawie takie samo: provider budowany jest z `throwUnexpectedException=true`
+wyłącznie po to, by dekorator WIDZIAŁ błędy, które goły provider połyka. Dekorator mapuje na „blokada niezałożona”
+(+ licznik + log ERROR) dokładnie `DataIntegrityViolation`, `UncategorizedSQL` i `TransactionSystem` (zweryfikowane w
+źródłach ShedLock 6.10.0: tyle połyka goły provider i przy INSERT, i przy UPDATE); pozostałe wyjątki - także
+`BadSqlGrammar`, którego goły provider przy UPDATE nie połykał - lecą dalej jak dotąd. Dwie świadome różnice: (1) po
+nieudanym INSERT goły provider zapamiętywał „wiersz istnieje” i szedł do UPDATE nieistniejącego wiersza, tu kolejna
+próba robi INSERT ponownie (przejściowy błąd INSERT nie zostawia blokady niedostępnej do wyrzucenia wpisu z cache);
+(2) pełny stack trace w logu ERROR tylko raz na minutę na typ blokady (retry co 50 ms w `RoutingQueueLock` dawało do 40
+wpisów na wywołanie), reszta na DEBUG - wolumen niesie licznik. Ograniczenia pomiaru: `expired` jest emitowane dopiero, gdy job się
+zakończy (job zawieszony na zawsze nie wyemituje nic - pokrywa to alert „brak `acquired`”); `not_taken` nie odróżnia „nikt nie przejął” od „przejął inny wątek TEJ SAMEJ JVM” (identyczny
+`locked_by`).
+
+| Metryka | Tagi | Znaczenie |
+|---|---|---|
+| `scheduler.lock.attempts` | `lock`, `result` = `acquired` / `busy` / `error` | każde `LockProvider#lock`; `busy` = pominięty przebieg (blokada trzymana gdzie indziej), `error` = awaria providera (DB niedostępna, zły SQL) |
+| `scheduler.lock.expired` | `lock`, `outcome` = `taken_over` / `not_taken` / `unknown` | job trwał dłużej niż `lockAtMostFor`; `taken_over` = potwierdzone nakładanie się (wiersz ma już innego `locked_by`); wykrywane u pierwotnego właściciela przy `unlock` (jedyny moment, gdy znane są oba fakty bez dodatkowego zapytania na każdą próbę) |
+
+Tag `lock` to **typ blokady**, nie nazwa: końcowy UUID jest odcinany (`RoutingQueue_<queueId>` → `RoutingQueue`,
+`EmailPolling_pollInbox_<tenantId>` → `EmailPolling_pollInbox`), brak tagu tenanta/kolejki; strażnik kardynalności:
+powyżej 100 typów nowe trafiają do `other`. Log strukturalny: `provider_error`, `lock_expired_while_running` (ERROR),
+`lock_busy` (DEBUG).
+
+*Relacja do `scheduler.lock.skipped{type=dialer|routing}` (BE-173) - nie duplikat, inny poziom:* `skipped` liczy
+PRZEBIEGI pominięte na poziomie dialera/routingu (dialer używa advisory xact lock, NIE ShedLock - `attempts` go nie
+widzi; routing liczy po wyczerpaniu `routing.queue-lock.wait-ms`). `attempts{lock=RoutingQueue,result=busy}` liczy
+PRÓBY (pętla retry co 50 ms daje wiele prób na jeden pominięty przebieg), więc do alertu o pominiętych przebiegach
+routingu służy `skipped{type=routing}`, a dla jobów `@Scheduled` - `attempts{result=busy}` (jedna próba = jeden przebieg).
+
+*Reguły alertów (BE-183 jeszcze nie istnieje - w repo nie ma konfiguracji alertów/Prometheusa; do przeniesienia 1:1):*
+- `increase(scheduler_lock_attempts_total{result="error"}[5m]) > 0` - warning; `> 3` przez 10 min - critical (joby nie są wykonywane);
+- `increase(scheduler_lock_expired_total{outcome="taken_over"}[1h]) > 0` - warning: job przekroczył `lockAtMostFor` i inna instancja go powtórzyła (podnieść `lockAtMostFor` albo skrócić job);
+- `increase(scheduler_lock_attempts_total{result="busy",lock=~"EtlSyncServiceImpl_run.*"}[30m]) > 0` przy JEDNEJ replice - sygnał osieroconej blokady (przy N replikach `busy` jest normalne);
+- brak sukcesu: `increase(scheduler_lock_attempts_total{result="acquired",lock="X"}[<3 interwały joba>]) == 0` - job nie startuje na żadnej instancji.
+
+*Dług S6 (`argMax` ClickHouse) - rozwiązany wersją ze źródła, nie `KeepAliveLockProvider`.* `ContactDwRow` i
+`CampaignDwRow` niosą `sourceUpdatedAt` (`COALESCE(updated_at, created_at)` wiersza źródłowego, już wcześniej liczone
+jako znacznik CDC), a `ClickHouseDwWriter` zapisuje je jako kolumnę wersji `updated_at`. O zwycięstwie decyduje więc
+czas ZMIANY w źródle, nie kolejność zapisu: wolniejszy writer po wygaśnięciu blokady nie wygra z nowszą wersją (test
+`ClickHouseDwDedupIntegrationTest#lateWriterWithOlderSourceVersionDoesNotOverrideNewer` na prawdziwym ClickHouse, z
+kontrolą pokazującą, że bez wersji źródłowej spóźniony writer wygrywa). Dlaczego nie `KeepAliveLockProvider`: nie
+eliminuje problemu (zawieszona instancja lub utrata połączenia z DB i tak pozwala blokadzie wygasnąć), wymaga puli
+wątków i zarządzania cyklem życia, a przedłużanie blokady to drugie, ukryte źródło prawdy o „kto jest właścicielem”.
+Ograniczenia (świadome): (0) wersja źródłowa to `NOW()` triggera, czyli START transakcji, nie commit: przy dwóch
+nakładających się transakcjach na tym samym wierszu późniejszy commit może dostać STARSZĄ wersję (B startuje t0, A startuje
+t1>t0 i commituje, B robi UPDATE -> `updated_at = t0 < t1`) - po BE-228 to trwała przegrana w `argMax` (ta sama dziura co
+kursor CDC, BE-216); opcja na później: monotoniczna wersja (`clock_timestamp()` w triggerze albo licznik); (a) `DateTime64(3)` obcina do ms - dwie zmiany tego samego wiersza w tej samej milisekundzie
+mają remis wersji (praktycznie nieosiągalne; poszerzenie do `DateTime64(6)` = migracja DW, osobny ticket); (b) okno
+przejściowe przy wdrożeniu: wiersz zapisany przez STARY kod ma wersję = ZEGAR APLIKACJI przy zapisie, nowy = zegar bazy;
+gdy zegar hosta aplikacji wyprzedza bazę o δ, każda zmiana źródła w ciągu δ po ostatnim zapisie starym kodem (oraz zmiana
+zaszła między odczytem a zapisem, rząd jednego cyklu ETL) przegrywa aż do następnej zmiany wiersza; przy NTP to ms, w
+dev/demo (osobne hosty) może być sekundy - znane ograniczenie; (N6) `PostgresDwWriter` zostaje przy „ostatni zapis
+wygrywa” (`ON CONFLICT DO UPDATE` bez warunku wersji); (c) tabele wymiarów (`agent_dim`, `queue_dim`) zostają na `snapshot_at = now()` - to pełny snapshot odświeżany
+co cykl, więc ewentualna odwrócona kolejność dwóch zapisów samoleczy się w następnym cyklu. Follow-upy: `DateTime64(6)`
+(migracja DW) i warunkowy upsert w `PostgresDwWriter` (`WHERE excluded.<wersja> >= dw.<wersja>`).
+
+*Sprzątanie wierszy `shedlock` (BE-228).* Nazwy dynamiczne zostawiały wiersz na zawsze po usuniętej lub nieaktywnej
+kolejce/skrzynce. `ShedLockOrphanCleanupJob` (wiersz 28 tabeli) kasuje raz dziennie wiersze rodzin dynamicznych
+(`RoutingQueue_%`, `EmailPolling_pollInbox_%`) z `lock_until` starszym niż `shedlock.cleanup.retention-days` (7).
+Kryterium wyłącznie czasowe, bez złączenia z `routing_queue` (RLS wymagałby kontekstu tenanta; żywa kolejka sama
+odtworzy wiersz INSERT-em). Po usunięciu czyszczony jest cache providera („wiersz istnieje”) - bez tego zapamiętany
+wiersz byłby tylko UPDATE-owany i blokada byłaby „zajęta” do wyrzucenia wpisu z cache. Migracja nie jest potrzebna: V149
+daje `DELETE` roli aplikacyjnej.
+
+*Wariant do decyzji właściciela (NIE zaimplementowany): ponowienie dziennego crona po awarii instancji.* Cron dzienny +
+awaria instancji w trakcie przebiegu = przebieg dnia przepada (inne instancje pominęły go przez `lockAtLeastFor`).
+Wariant: job zapisuje „ostatni udany przebieg” (np. `cron_log`), a dodatkowy lekki `@Scheduled` co 15-30 min (pod
+ShedLock) uruchamia go ponownie, jeśli dziś nie ma wpisu sukcesu i minął czas crona. Koszt: potrzebna idempotencja każdego
+joba na PONOWNE uruchomienie tego samego dnia (jest dla większości z tabeli), nowa tabela/kolumna stanu (migracja) i
+decyzja, które joby (retencja, partycje) mają być nadrabiane. Alternatywa bez zmian w kodzie: alert „brak `acquired`
+dla joba w ciągu doby” + ręczny trigger.
 
 **Dialer i routing: blokada per kampania / per kolejka (BE-173).** Obie pętle (`pollAvailableAgents`, plus ścieżki
 event-driven `onAgentStatusChanged`/`onContactQueued`) mogą chodzić na wielu instancjach równolegle dla RÓŻNYCH

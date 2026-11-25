@@ -97,7 +97,8 @@ class AuthServiceLastLoginIntegrationTest {
                             authenticationManager, jwtService, mock(JwtParser.class),
                             mock(TokenBlacklistService.class), mock(MfaService.class), users, tokens,
                             tenantService, passwordEncoder, mock(LoginRateLimiter.class),
-                            mock(UserService.class), mock(PendingLoginTracker.class)));
+                            mock(UserService.class), mock(PendingLoginTracker.class),
+                            mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)));
                 });
         authService = ctx.getBean(AuthService.class);
     }

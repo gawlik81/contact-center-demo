@@ -152,3 +152,6 @@
 - [BE-173 blokady dialer/routing (EPIC-33)](project_be173_dialer_routing_locks.md) — advisory xact per kampania (claim tx), ShedLock per kolejka, wait-ms, osierocone DIALING
 - [BE-175/BE-176 fan-out WS miedzy instancjami (EPIC-33)](project_be175_be176_ws_fanout.md) — Redis pub/sub -> lokalny SimpleBroker, dedykowany kontener 1 watek, pulapki testow (converter JSON, args vs yml, wspolny scratchpad)
 - [BE-178 sync runtime wtyczek między instancjami](project_be178_plugin_runtime_sync.md) — Redis pub/sub podpowiedź + rekoncyliacja bez ShedLock + lazy load; CB lokalny+propagacja
+- [BE-233 sesje WS a życie tokenu](project_be233_ws_session_lifecycle.md) — ERROR przez clientOutboundChannel zamyka transport; rejestr synchronized; Closer vs interceptor (cykl beanów); UNLOCKED_BY_DESIGN
+- [BE-228 obserwowalnosc ShedLock + argMax ze zrodla](project_be228_shedlock_observability.md) — MeteredLockProvider, sprzatanie shedlock, wersja DW ze zrodla
+- [Test EXPLAIN: remis kosztow na pustych tabelach](feedback_explain_test_tie_on_empty_partitions.md) — dane realistyczne+ANALYZE w tx z rollbackiem, kontrola negatywna (BE-248)

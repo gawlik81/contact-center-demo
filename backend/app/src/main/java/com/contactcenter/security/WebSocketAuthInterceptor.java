@@ -3,6 +3,7 @@ package com.contactcenter.security;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import com.contactcenter.security.JwtParser.JwtValidationException;
 import io.jsonwebtoken.ExpiredJwtException;
+import com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
@@ -23,8 +24,13 @@ import org.springframework.util.StringUtils;
  *   <li>Wyciąga token JWT z nagłówka {@code Authorization: Bearer <token>}
  *       lub query parametru {@code token}</li>
  *   <li>Waliduje token przez {@link JwtParser} (podpis RS256, exp, iss, claims)</li>
+ *   <li>Sprawdza blacklistę tokenów (logout/revoke, BE-233) - jak {@link JwtAuthFilter} dla HTTP; token z
+ *       blacklisty jest odrzucany z {@link WsErrorCode#WS_TOKEN_INVALID} (FE: jedna próba refresh, potem
+ *       SESSION_EXPIRED). Błąd Redis = odrzucenie ({@link WsErrorCode#WS_INTERNAL}, FE: reconnect z backoffem) -
+ *       fail-closed</li>
  *   <li>Ustawia {@link StompPrincipal} jako principal sesji WebSocket</li>
  *   <li>Zapisuje tenantId i role w atrybutach sesji (do użycia w handlerach)</li>
+ *   <li>Rejestruje sesję w {@link WebSocketSessionRegistry} (po userId; zamykanie sesji i termin życia, BE-233)</li>
  * </ol>
  *
  * <p>Przy błędzie walidacji rzuca {@link StompRejectedException} (podklasa {@link MessagingException}) z kodem
@@ -45,7 +51,17 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
     private static final String SESSION_ATTR_TENANT_ID = "tenantId";
     private static final String SESSION_ATTR_ROLE = "role";
 
+    /** Stałe komunikaty odrzucenia (nagłówek {@code message}); {@code ExpectedStompRejectionLogFilter} wycisza po nich duplikat ERROR Springa. */
+    public static final String BLACKLISTED_MESSAGE = "Token został unieważniony";
+    public static final String UNVERIFIABLE_MESSAGE = "Nie można zweryfikować tokenu";
+
+    private static final long LOG_INTERVAL_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+    private final java.util.concurrent.atomic.AtomicLong lastBlacklistErrorLog =
+            new java.util.concurrent.atomic.AtomicLong(System.nanoTime() - LOG_INTERVAL_NANOS);
+
     private final JwtParser jwtParser;
+    private final TokenBlacklistService tokenBlacklistService;
+    private final WebSocketSessionRegistry sessionRegistry;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -81,6 +97,9 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             throw new StompRejectedException(code, "Nieprawidłowy token JWT: " + e.getMessage(), e);
         }
 
+        // BE-233: ten sam warunek co w JwtAuthFilter (HTTP); po wylogowaniu token nie otwiera nowej sesji WS.
+        checkNotBlacklisted(token, claims);
+
         // Używamy ORYGINALNEGO, mutable accessora z wiadomości CONNECT.
         // Frames CONNECT przychodzące przez kanał wejściowy są zawsze mutable –
         // mutacja oryginalnego accessora (nie tworzenie nowej wiadomości) jest wymagana,
@@ -104,6 +123,20 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             accessor.getSessionAttributes().put(SESSION_ATTR_ROLE, claims.role());
         }
 
+        // BE-233: rejestr sesji po userId; termin życia = exp tokenu z CONNECT i/lub twardy limit.
+        if (accessor.getSessionId() != null) {
+            sessionRegistry.register(accessor.getSessionId(), claims.userId(), claims.tenantId(), claims.expiresAt());
+            // Wyścig CONNECT <-> logout: logout (blacklista + commit + zamknięcie sesji użytkownika) mógł przebiec MIĘDZY
+            // pierwszym sprawdzeniem a rejestracją i nie widzieć tej sesji. Drugie sprawdzenie PO rejestracji domyka
+            // okno: albo zamknięcie zobaczy wpis, albo my zobaczymy blacklistę (koszt: drugi O(1) GET w Redis).
+            try {
+                checkNotBlacklisted(token, claims);
+            } catch (StompRejectedException e) {
+                sessionRegistry.unregister(accessor.getSessionId());
+                throw e;
+            }
+        }
+
         log.info("[WS-Auth] Autoryzacja WebSocket: userId={}, tenantId={}, role={}",
                 claims.userId(), claims.tenantId(), claims.role());
 
@@ -113,6 +146,32 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /**
+     * Odrzuca token z blacklisty. Kod {@link WsErrorCode#WS_TOKEN_INVALID}: FE odświeża token raz (po logout/
+     * dezaktywacji refresh się nie powiedzie -> SESSION_EXPIRED). Redis niedostępny = odrzucenie z
+     * {@link WsErrorCode#WS_INTERNAL} (nie można stwierdzić, że token nie jest unieważniony); komunikat bez
+     * szczegółów wyjątku.
+     */
+    private void checkNotBlacklisted(String token, JwtClaims claims) {
+        boolean blacklisted;
+        try {
+            blacklisted = tokenBlacklistService.isBlacklisted(token);
+        } catch (RuntimeException e) {
+            // przy awarii Redis każdy agent próbuje reconnectu w pętli: log ograniczony do 1 / 10 s
+            long now = System.nanoTime();
+            long prev = lastBlacklistErrorLog.get();
+            if (now - prev >= LOG_INTERVAL_NANOS && lastBlacklistErrorLog.compareAndSet(prev, now)) {
+                log.error("[WS-Auth] Nie można sprawdzić blacklisty JWT (Redis) - odrzucam połączenia "
+                        + "(log co 10 s): {}", e.toString());
+            }
+            throw new StompRejectedException(WsErrorCode.WS_INTERNAL, UNVERIFIABLE_MESSAGE);
+        }
+        if (blacklisted) {
+            log.debug("[WS-Auth] Token na blackliście - odrzucam połączenie: userId={}", claims.userId());
+            throw new StompRejectedException(WsErrorCode.WS_TOKEN_INVALID, BLACKLISTED_MESSAGE);
+        }
+    }
 
     /** {@code true} gdy w łańcuchu przyczyn jest {@link ExpiredJwtException} (token wygasł). */
     private static boolean isExpired(Throwable e) {

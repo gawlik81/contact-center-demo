@@ -62,11 +62,14 @@ starsza wersja kontaktu mogłaby wygrać z nowszą. Od BE-172 cykle ETL (`run*Sy
 trigger `POST /api/admin/etl/trigger` bierze tę samą blokadę (409 `ETL_SYNC_IN_PROGRESS`, gdy cykl trwa), więc w
 normalnej pracy jest jeden writer na tabelę.
 
-**Dług (jawny):** blokada ma `lockAtMostFor` (domyślnie 10 min). Jeśli cykl potrwa dłużej lub instancja się zawiesi i
-blokada wygaśnie, drugi węzeł może zapisać nowszą wersję wiersza, zanim pierwszy dopisze starszą - starsza z
-późniejszym `updated_at = now()` wygra `argMax`. Test `EtlSyncShedLockIntegrationTest` dowodzi braku duplikatów na
-PostgreSQL (`ON CONFLICT`), nie semantyki `argMax` w ClickHouse. Możliwe rozwiązania (osobny ticket): `updated_at` z
-kolumny źródłowej zamiast `Instant.now()` albo `KeepAliveLockProvider` dla ETL.
+**Dług rozwiązany (BE-228):** wersją wiersza (`updated_at`) jest czas zmiany ZE ŹRÓDŁA (`COALESCE(updated_at,
+created_at)` z PostgreSQL: `ContactDwRow#sourceUpdatedAt` / `CampaignDwRow#sourceUpdatedAt`), a nie zegar zapisu.
+Wygaśnięcie blokady ShedLock w trakcie cyklu (dwóch writerów) nie odwraca więc wyniku `argMax`: wolniejszy writer ze
+STARSZĄ wersją źródła przegrywa z nowszą bez względu na kolejność zapisu (test `ClickHouseDwDedupIntegrationTest`).
+Ograniczenia: `DateTime64(3)` obcina do ms (remis wersji przy dwóch zmianach w tej samej milisekundzie; poszerzenie do
+`DateTime64(6)` wymaga migracji DW); przy wdrożeniu wiersz zapisany starym kodem z `now()` może przez jeden cykl mieć
+wersję wyższą niż bardzo świeża zmiana źródła (ustępuje przy następnej zmianie); wymiary `agent_dim`/`queue_dim` zostają
+na `snapshot_at = now()` (pełny snapshot co cykl, samoleczy się).
 
 ## Korekta zawyżonych danych historycznych (BE-215)
 

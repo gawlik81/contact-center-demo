@@ -230,6 +230,68 @@ class ClickHouseDwDedupIntegrationTest {
         assertThat(((Number) stats.get("avg_attempts")).doubleValue()).isEqualTo(1.0);
     }
 
+    @Test
+    @Order(8)
+    @DisplayName("BE-228: spóźniony writer (po wygaśnięciu blokady) zapisuje STARSZĄ wersję po nowszej - nowsza wersja źródła wygrywa w v_contacts_current")
+    void lateWriterWithOlderSourceVersionDoesNotOverrideNewer() {
+        UUID tenant = UUID.randomUUID();
+        UUID agent = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        Instant older = START.plusSeconds(10);
+        Instant newer = START.plusSeconds(20);
+
+        // writer B (took over the expired lock) writes the NEWER source version first ...
+        writer.upsert(List.of(versioned(tenant, agent, contactId, "COMPLETED", newer)));
+        // ... then the slow writer A, which still holds the batch with the OLDER version, writes it LATER
+        writer.upsert(List.of(versioned(tenant, agent, contactId, "ACTIVE", older)));
+
+        assertThat(jdbc.queryForObject("SELECT count() FROM contacts_dw WHERE contact_id = ?", Long.class,
+                contactId.toString())).as("kontrola: obie wersje są fizycznie w tabeli (przed merge)").isEqualTo(2L);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM v_contacts_current WHERE tenant_id = ? AND contact_id = ?", String.class,
+                tenant.toString(), contactId.toString()))
+                .as("wygrywa wersja o nowszym czasie ZMIANY w źródle, nie ta zapisana później").isEqualTo("COMPLETED");
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("BE-228 kontrola: bez wersji ze źródła (zegar zapisu, zachowanie sprzed BE-228) spóźniony writer WYGRYWA - dlatego wersja pochodzi ze źródła")
+    void withoutSourceVersionTheLateWriterWins() throws InterruptedException {
+        UUID tenant = UUID.randomUUID();
+        UUID agent = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+
+        writer.upsert(List.of(versioned(tenant, agent, contactId, "COMPLETED", null)));
+        Thread.sleep(5);
+        writer.upsert(List.of(versioned(tenant, agent, contactId, "ACTIVE", null)));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM v_contacts_current WHERE tenant_id = ? AND contact_id = ?", String.class,
+                tenant.toString(), contactId.toString())).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("BE-228: to samo dla campaigns_dw - starsza wersja rekordu zapisana później nie wygrywa w v_campaign_conversion")
+    void lateCampaignWriterWithOlderSourceVersionDoesNotOverrideNewer() {
+        UUID tenant = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        UUID record = UUID.randomUUID();
+        Instant older = START.plusSeconds(30);
+        Instant newer = START.plusSeconds(40);
+
+        writer.upsertCampaigns(List.of(new CampaignDwRow(campaign, tenant, record, "COMPLETED", "", 3, null,
+                "OUTBOUND", "PROGRESSIVE", newer)));
+        writer.upsertCampaigns(List.of(new CampaignDwRow(campaign, tenant, record, "PENDING", "", 1, null,
+                "OUTBOUND", "PROGRESSIVE", older)));
+
+        Map<String, Object> stats = jdbc.queryForMap(
+                "SELECT total_records, pending, completed FROM v_campaign_conversion WHERE campaign_id = ?",
+                campaign.toString());
+        assertThat(((Number) stats.get("completed")).longValue()).isEqualTo(1L);
+        assertThat(((Number) stats.get("pending")).longValue()).isZero();
+    }
+
     // ---------------------------------------------------------------------------------------------
 
     private static Map<String, Object> agentKpi(UUID tenant, UUID agent) {
@@ -249,6 +311,12 @@ class ClickHouseDwDedupIntegrationTest {
                                         Integer durationSec, Instant startedAt) {
         return new ContactDwRow(contactId, tenant, agent, null, null, "PHONE", "INBOUND", status, "",
                 durationSec, startedAt, null, null);
+    }
+
+    private static ContactDwRow versioned(UUID tenant, UUID agent, UUID contactId, String status,
+                                          Instant sourceUpdatedAt) {
+        return new ContactDwRow(contactId, tenant, agent, null, null, "PHONE", "INBOUND", status, "",
+                null, START, null, null, sourceUpdatedAt);
     }
 
     private static CampaignDwRow campaignRow(UUID tenant, UUID campaign, UUID record, String status, int attempts) {

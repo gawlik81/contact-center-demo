@@ -100,7 +100,8 @@ class UserStatusSinceIntegrationTest {
                     c.registerBean("userService", UserServiceImpl.class, () -> new UserServiceImpl(
                             users, mock(PasswordEncoder.class),
                             mock(com.contactcenter.domain.tenant.TenantResourceLimitService.class),
-                            rabbit, redis, mock(ContactService.class), eventPublisher));
+                            rabbit, redis, mock(ContactService.class), eventPublisher,
+                            mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)));
                 });
         userService = ctx.getBean(UserService.class);
     }

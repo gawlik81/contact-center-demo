@@ -59,6 +59,7 @@ class UserServiceTest {
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private ValueOperations<String, Object> valueOperations;
     @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
+    @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -386,6 +387,9 @@ class UserServiceTest {
                     .doesNotThrowAnyException();
 
             verify(appUserRepository).softDeleteUser(USER_ID, TENANT_ID);
+            // BE-233: usuniete konto traci otwarte sesje WebSocket
+            verify(webSocketSessionTerminator).closeUserSessions(TENANT_ID, USER_ID,
+                    com.contactcenter.domain.websocket.SessionCloseReason.DEACTIVATED);
         }
 
         @Test

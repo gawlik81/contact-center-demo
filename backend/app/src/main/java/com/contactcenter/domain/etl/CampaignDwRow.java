@@ -21,6 +21,8 @@ import java.util.UUID;
  * @param lastAttemptAt czas ostatniej próby (nullable)
  * @param campaignType  typ kampanii z tabeli campaign (OUTBOUND_VOICE, OUTBOUND_EMAIL)
  * @param dialerType    typ dialera z tabeli campaign (PROGRESSIVE, PREDICTIVE, MANUAL)
+ * @param sourceUpdatedAt wersja wiersza w źródle ({@code COALESCE(cc.updated_at, cc.created_at)}); w ClickHouse kolumna
+ *                      wersji {@code updated_at} (BE-228); {@code null} = wersja z zegara zapisu
  */
 public record CampaignDwRow(
         UUID campaignId,
@@ -31,5 +33,13 @@ public record CampaignDwRow(
         int attemptCount,
         Instant lastAttemptAt,
         String campaignType,
-        String dialerType
-) {}
+        String dialerType,
+        Instant sourceUpdatedAt
+) {
+    /** Konstruktor bez wersji źródłowej ({@code sourceUpdatedAt = null}) - zgodność wsteczna. */
+    public CampaignDwRow(UUID campaignId, UUID tenantId, UUID recordId, String status, String dispositionCode,
+                         int attemptCount, Instant lastAttemptAt, String campaignType, String dialerType) {
+        this(campaignId, tenantId, recordId, status, dispositionCode, attemptCount, lastAttemptAt, campaignType,
+                dialerType, null);
+    }
+}

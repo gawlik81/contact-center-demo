@@ -31,6 +31,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -59,6 +62,12 @@ class WebSocketAuthInterceptorTest {
 
     @Mock
     private JwtParser jwtParser;
+
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry sessionRegistry;
 
     @InjectMocks
     private WebSocketAuthInterceptor interceptor;
@@ -377,6 +386,101 @@ class WebSocketAuthInterceptorTest {
             assertThat(resultAccessor.getSessionAttributes())
                     .containsEntry("tenantId", TENANT_ID.toString())
                     .containsEntry("role", ROLE);
+        }
+    }
+
+    // =========================================================================
+    // BE-233: blacklista JWT przy CONNECT/STOMP i rejestr sesji
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-233: blacklista i rejestr sesji")
+    class BlacklistAndRegistryTest {
+
+        private JwtClaims claims;
+
+        @BeforeEach
+        void setUp() {
+            claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com",
+                    Instant.parse("2030-01-01T00:00:00Z"));
+        }
+
+        @Test
+        @DisplayName("CONNECT z tokenem z blacklisty -> WS_TOKEN_INVALID, bez Principala i bez wpisu w rejestrze")
+        void blacklistedTokenIsRejectedOnConnect() {
+            when(jwtParser.parse("revoked.jwt")).thenReturn(claims);
+            when(tokenBlacklistService.isBlacklisted("revoked.jwt")).thenReturn(true);
+            Message<?> message = buildConnectMessage("Bearer revoked.jwt", null);
+
+            assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
+            assertThat(StompHeaderAccessor.wrap(message).getUser()).isNull();
+            verifyNoInteractions(sessionRegistry);
+        }
+
+        @Test
+        @DisplayName("Ramka STOMP (zamiast CONNECT) z tokenem z blacklisty tez jest odrzucana")
+        void blacklistedTokenIsRejectedOnStompFrame() {
+            when(jwtParser.parse("revoked.jwt")).thenReturn(claims);
+            when(tokenBlacklistService.isBlacklisted("revoked.jwt")).thenReturn(true);
+            Message<?> message = buildOpeningMessage(StompCommand.STOMP, "Bearer revoked.jwt");
+
+            assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
+            verifyNoInteractions(sessionRegistry);
+        }
+
+        @Test
+        @DisplayName("Blacklista niedostepna (Redis) -> fail-closed: WS_INTERNAL, komunikat bez szczegolow wyjatku")
+        void blacklistFailureIsFailClosed() {
+            when(jwtParser.parse("valid.jwt")).thenReturn(claims);
+            when(tokenBlacklistService.isBlacklisted("valid.jwt"))
+                    .thenThrow(new IllegalStateException("redis://secret-host:6379 down"));
+            Message<?> message = buildConnectMessage("Bearer valid.jwt", null);
+
+            assertThatThrownBy(() -> interceptor.preSend(message, channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class, e -> {
+                        assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_INTERNAL);
+                        assertThat(e.getMessage()).doesNotContain("secret-host");
+                    });
+            verifyNoInteractions(sessionRegistry);
+        }
+
+        @Test
+        @DisplayName("Poprawny CONNECT rejestruje sesje (sessionId, user, tenant, exp tokenu)")
+        void validConnectRegistersSession() {
+            when(jwtParser.parse("valid.jwt")).thenReturn(claims);
+
+            interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel);
+
+            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, claims.expiresAt());
+        }
+
+        @Test
+        @DisplayName("Wyscig CONNECT<->logout: blacklista pojawia sie MIEDZY sprawdzeniem a register -> sesja wyrejestrowana, WS_TOKEN_INVALID")
+        void blacklistAppearingAfterRegisterUnregistersSession() {
+            when(jwtParser.parse("racy.jwt")).thenReturn(claims);
+            when(tokenBlacklistService.isBlacklisted("racy.jwt")).thenReturn(false, true);
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer racy.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
+
+            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, claims.expiresAt());
+            verify(sessionRegistry).unregister("test-session-id");
+        }
+
+        @Test
+        @DisplayName("Odrzucony CONNECT (zly token) nie rejestruje sesji")
+        void rejectedConnectIsNotRegistered() {
+            when(jwtParser.parse("bad.jwt")).thenThrow(new JwtValidationException("bad"));
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer bad.jwt", null), channel))
+                    .isInstanceOf(StompRejectedException.class);
+            verify(sessionRegistry, never()).register(anyString(), org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
     }
 }

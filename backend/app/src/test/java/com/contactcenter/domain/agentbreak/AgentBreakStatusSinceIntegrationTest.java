@@ -83,7 +83,8 @@ class AgentBreakStatusSinceIntegrationTest {
                     return ctor.newInstance(users, mock(PasswordEncoder.class),
                             mock(TenantResourceLimitService.class), mock(RabbitTemplate.class), redis,
                             mock(ContactService.class),
-                            mock(org.springframework.context.ApplicationEventPublisher.class));
+                            mock(org.springframework.context.ApplicationEventPublisher.class),
+                            mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class));
                 } catch (ReflectiveOperationException e) {
                     throw new IllegalStateException(e);
                 }

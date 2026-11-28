@@ -695,11 +695,19 @@ REDIS_DATABASE=0
 REDIS_SSL_ENABLED=false
 # Fan-out WebSocket (BE-175): przy WSPÓLNYM Redis różne środowiska MUSZĄ mieć różne wartości (domyślnie: pierwszy profil)
 WEBSOCKET_FANOUT_ENV=prod
-# Zamykanie sesji WS po logout/dezaktywacji/zmianie roli na wszystkich instancjach (BE-233): jw., różne wartości dla środowisk na wspólnym Redis
+# Zamykanie sesji WS po logout/dezaktywacji/zmianie roli na wszystkich instancjach (BE-233): jw., różne wartości dla środowisk na wspólnym Redis.
+# Od BE-249 (N5) na profilu prod zmienna jest WYMAGANA (brak wartości domyślnej): bez niej backend nie wystartuje.
 WEBSOCKET_SESSION_ENV=prod
 # Twardy limit życia sesji WS (ISO-8601; 0 = brak, zostaje wygaśnięcie tokenu) i rozproszenie reconnectów
 WEBSOCKET_SESSION_MAX_LIFETIME=PT12H
 WEBSOCKET_SESSION_CLOSE_JITTER=PT30S
+# Sekret HMAC kopert na kanałach Redis cc:ws:* (BE-242/BE-249) — WYMAGANY na profilu prod, min. 32 bajty; brak lub
+# za krótki = backend NIE wystartuje. Generowanie i rotacja: sekcja "Kanały Redis cc:ws:* — HMAC, rotacja, ACL" niżej.
+WEBSOCKET_HMAC_SECRET=<wynik: openssl rand -base64 48>
+# Tylko podczas rotacji sekretu (poza nią zostaw puste):
+WEBSOCKET_HMAC_PREVIOUS_SECRET=
+# Tylko podczas wdrożenia z wersji bez podpisu (rolling deploy); domyślnie false:
+WEBSOCKET_HMAC_ACCEPT_UNSIGNED=false
 REDIS_POOL_MAX_ACTIVE=16
 REDIS_POOL_MAX_IDLE=16
 REDIS_POOL_MIN_IDLE=4
@@ -755,6 +763,9 @@ openssl rand -base64 32
 # JWT Secret (min. 64 znaki)
 openssl rand -base64 64
 
+# Sekret HMAC kanałów Redis cc:ws:* (WEBSOCKET_HMAC_SECRET, min. 32 bajty; to polecenie daje 64 znaki)
+openssl rand -base64 48
+
 # Weryfikacja przed startem — sprawdź czy zmienne są wypełnione
 grep -E "^(DB_PASSWORD|REDIS_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET|MINIO_ACCESS_KEY|MINIO_SECRET_KEY)=" .env.prod | \
   awk -F= '{if ($2=="<"||length($2)<10) print "UWAGA: "$1" jest puste lub za krótkie!"}'
@@ -764,6 +775,99 @@ grep -E "^(DB_PASSWORD|REDIS_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET|MINIO_ACCESS_
 # Zabezpiecz plik — dostępny tylko dla root
 chmod 600 .env.prod
 ```
+
+### Kanały Redis cc:ws:* — HMAC, rotacja, ACL (BE-242, BE-249)
+
+Instancje backendu wymieniają się przez Redis pub/sub dwoma rodzajami kopert: zdarzeniami WebSocket (`cc:ws:fanout:<env>`,
+BE-175) i poleceniami zamknięcia sesji po logout/dezaktywacji/zmianie roli (`cc:ws:session-control:<env>`, BE-233).
+Napastnik z dostępem do `PUBLISH` w Redis mógłby sfałszować kopertę z poprawnym tenantem, więc **każda koperta jest
+podpisana HMAC-SHA256**: jeden wspólny sekret dla wszystkich kanałów `cc:ws:*`, nazwa kanału jest częścią podpisanych
+danych (koperty nie da się przenieść z jednego kanału na drugi), porównanie w stałym czasie, podpis obejmuje też czas
+publikacji. **Powtórki (replay).** Okno świeżości (`WEBSOCKET_HMAC_MAX_AGE`, domyślnie 5 min, twarda górna granica 15 min)
+jedynie ODCINA bardzo stare koperty; przed powtórką w oknie chroni co innego: (1) odbiorca pamięta podpisy ostatnich
+kopert i drugą kopię tego samego podpisu odrzuca (`reason=replay`, `ws_session_control_dropped_total`,
+`ws_fanout_dropped_total`), (2) zamknięcie z koperty obejmuje wyłącznie sesje zarejestrowane do czasu publikacji koperty
+(+ `websocket.session.control.replay-tolerance`, domyślnie 5 s), więc powtórzona koperta nie zamknie sesji powstałych po
+ponownym logowaniu ani po reaktywacji tenanta. Napastnik z dostępem do Redis i sekretem nadal może podpisać NOWĄ kopertę —
+dlatego sekret i `REDIS_PASSWORD` są jedyną barierą (ACL: BE-241).
+
+| Zmienna | Znaczenie |
+|---|---|
+| `WEBSOCKET_HMAC_SECRET` | bieżący sekret; **wymagany na prod**, min. 32 bajty (UTF-8). Backend podpisuje nim zawsze |
+| `WEBSOCKET_HMAC_PREVIOUS_SECRET` | drugi sekret akceptowany przy weryfikacji (tylko na czas rotacji) |
+| `WEBSOCKET_HMAC_ACCEPT_UNSIGNED` | `true` = tryb przejściowy: koperty BEZ podpisu są akceptowane (do rolling deploy z wersji bez podpisu); koperty ze ZŁYM podpisem są odrzucane zawsze |
+| `WEBSOCKET_HMAC_MIN_SECRET_BYTES` | minimalna długość; nie da się jej obniżyć poniżej 32 (twarda podłoga w kodzie) |
+
+**Generowanie** (na serwerze, wartość wklej do `.env.prod`; nie commituj jej i nie wypisuj w logach):
+
+```bash
+openssl rand -base64 48
+```
+
+**Start na prod.** Profil `prod` ustawia `websocket.hmac.required=true`: brak `WEBSOCKET_HMAC_SECRET` albo sekret krótszy niż
+32 bajty kończy start aplikacji błędem z nazwą zmiennej. Profile `dev`/`test` nie wymagają sekretu (podpisywanie jest wtedy
+wyłączone). To samo dotyczy `WEBSOCKET_SESSION_ENV` (jawna nazwa środowiska kanału sterowania sesjami, bez wartości domyślnej na prod).
+
+**Zegary (NTP).** Znacznik unieważnienia porównuje `iat` tokenu (zegar instancji wystawiającej) z czasem zdarzenia (zegar
+instancji obsługującej zmianę), a podpis koperty niesie czas publikacji. Wszystkie hosty backendu MUSZĄ mieć zsynchronizowany
+czas (NTP/chrony, dryf < 1 s): przy większym dryfie świeżo zalogowany użytkownik może być chwilowo odrzucany po
+`logoutAll`/zmianie roli, a koperty z hosta z dryfem > okno świeżości dostają `stale_signature`.
+
+**Metryki** (`/actuator/prometheus`): `ws_channel_signature_rejected_total{channel,reason}` z `reason` =
+`bad_signature` | `missing_signature` | `stale_signature` (alert: każdy przyrost `bad_signature` to próba fałszerstwa albo
+niespójna konfiguracja sekretu), `ws_channel_signature_unsigned_accepted_total{channel}` (tryb przejściowy; po wdrożeniu
+powinien być 0), gauge `ws_channel_accept_unsigned` (**1 = tryb przejściowy włączony** — alert, gdy równe 1 poza oknem
+wdrożenia: zapomniane `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=true` na stałe wyłącza ochronę przed fałszerstwem),
+`ws_sessions_close_abandoned_total` (alarm: zamknięcie sesji nie dochodzi do klienta mimo wielu prób; sesja NIE jest
+porzucana, ponawianie trwa co 60 s) oraz dla kanału fan-out także `ws_fanout_dropped_total{direction="receive",reason}`.
+
+**Wdrożenie z wersji bez podpisu (rolling deploy).** Stara wersja nie podpisuje, więc nowa musi chwilowo akceptować koperty
+bez podpisu: (1) ustaw `WEBSOCKET_HMAC_SECRET` oraz `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=true` i wdróż kolejne instancje;
+(2) gdy wszystkie są nowe i `ws_channel_signature_unsigned_accepted_total` przestaje rosnąć, ustaw
+`WEBSOCKET_HMAC_ACCEPT_UNSIGNED=false` i wdróż ponownie. Uwaga: nowa wersja wysyła nowe typy kopert sterujących
+(`CLOSE_SESSION`, `CLOSE_USER_EXCEPT_SESSION`) i powód `PASSWORD_CHANGED`; stara instancja policzy je jako `malformed`
+(sesje na niej wygasną najpóźniej z tokenem) — dotyczy tylko okna rolling deploy.
+
+**Rotacja sekretu bez utraty zdarzeń** (3 kolejne rolling deploye; „poprzedni” oznacza tu „drugi akceptowany”):
+
+1. akceptuj nowy sekret obok starego: `WEBSOCKET_HMAC_SECRET=<STARY>`, `WEBSOCKET_HMAC_PREVIOUS_SECRET=<NOWY>`;
+2. przełącz podpisywanie: `WEBSOCKET_HMAC_SECRET=<NOWY>`, `WEBSOCKET_HMAC_PREVIOUS_SECRET=<STARY>` (instancje z kroku 1 i 2
+   wymieniają zdarzenia w obie strony — sprawdzone testem integracyjnym);
+3. po wdrożeniu wszystkich instancji usuń stary: `WEBSOCKET_HMAC_PREVIOUS_SECRET=` (puste).
+
+Nie wolno od razu zamienić `SECRET` na nowy na wszystkich instancjach bez kroku 1: instancje jeszcze niezaktualizowane
+odrzuciłyby koperty podpisane nowym sekretem (`bad_signature`), a zdarzenia WebSocket byłyby tracone.
+
+**Redis ACL dla kanałów `cc:ws:*` (zalecenie, poza zakresem BE-242; realizuje BE-241).** HMAC chroni autentyczność kopert,
+ale nie przed zalewaniem kanału ani czytaniem ruchu. Zalecana separacja ról w Redis 6+: osobny użytkownik aplikacji z
+uprawnieniem `PUBLISH`/`SUBSCRIBE` wyłącznie na `cc:ws:*`, `cc:plugin:*` i potrzebne klucze (`~jwt:blacklist:*`,
+`~ws:*`, `~session:*`, ...), bez `+@dangerous` i bez `PSUBSCRIBE *`, np.:
+
+```
+ACL SETUSER cc-app on >HASLO ~* &cc:ws:* &cc:plugin:* +@all -@dangerous -@admin
+```
+
+`REDIS_PASSWORD` pozostaje jedyną barierą wstępu — nie zapisuj go w repozytorium (patrz BE-241 po komplet reguł i limity buforów
+klientów pub/sub).
+
+**Demo lokalne (`docker-compose.local-demo.yml`)** działa na `SPRING_PROFILES_ACTIVE=prod`, więc też wymaga sekretu:
+dopisz `WEBSOCKET_HMAC_SECRET=<openssl rand -base64 48>` do `.env.local-demo` (plik jest śledzony w git z wartościami
+zastępczymi — lokalne sekrety trzymasz tylko w working tree i NIE dodajesz ich do commita). Compose przekazuje
+zmienną do kontenera backendu (`WEBSOCKET_HMAC_SECRET: ${WEBSOCKET_HMAC_SECRET:-}`) i ustawia
+`WEBSOCKET_SESSION_ENV` (domyślnie `local-demo`); uruchamiaj zawsze z `--env-file .env.local-demo`.
+
+**Jednorazowy skutek wdrożenia (release notes, BE-249).** Access tokeny wystawione przed wdrożeniem nie mają claimu `sid`,
+a rodziny refresh tokenów powstają dopiero przy kolejnym logowaniu/odświeżeniu (migracja V152 nadaje aktywnym tokenom
+rodzinę = ich id). W oknie do TTL access tokenu (15 min): (1) wylogowanie lub samodzielna zmiana hasła takim tokenem zamyka
+sesje WS wszystkich urządzeń użytkownika (nie tylko bieżącego) i użytkownik łączy się ponownie po odświeżeniu tokenu;
+(2) znacznik per urządzenie nie obejmuje tokenów bez `sid` (wygasają z `exp`). Nie wymaga działań operatora.
+
+**Znaczniki unieważnienia tokenów (Redis).** Logout, dezaktywacja, zmiana roli, reset i zmiana hasła zapisują w Redis
+znacznik „unieważnione od” (`ws:revoked-since:{userId}` albo `ws:revoked-since:sid:{sid}`, TTL = czas życia access tokenu
++ 1 min); token wystawiony PRZED znacznikiem jest odrzucany zarówno przy CONNECT WebSocket, jak i w `JwtAuthFilter`. Przy
+awarii Redis ścieżka HTTP zachowuje się jak przy blackliście JWT (żądanie bez uwierzytelnienia → 401), a CONNECT jest
+odrzucany (`WS_INTERNAL`, fail-closed). Status tenanta (`INACTIVE`) blokuje login, refresh, CONNECT i HTTP przez lokalny
+cache 30 s na instancję (`TENANT_STATUS_GATE_TTL`), więc reaktywacja na innej instancji jest widoczna po najwyżej 30 s.
 
 ---
 
@@ -1731,6 +1835,9 @@ APP_BASE_URL=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK
 CORS_ALLOWED_ORIGINS=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK,http://localhost:4200,http://localhost:3000
 WEBSOCKET_ALLOWED_ORIGINS=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK,http://localhost:4200,http://localhost:3000
 SPRING_PROFILES_ACTIVE=prod
+# BE-242/BE-249: sekret HMAC kanałów Redis cc:ws:* — WYMAGANY na profilu prod (min. 32 bajty), inaczej backend nie wystartuje.
+# Wygeneruj: openssl rand -base64 48   (szczegóły i rotacja: sekcja "Kanały Redis cc:ws:* — HMAC, rotacja, ACL")
+WEBSOCKET_HMAC_SECRET=<wynik: openssl rand -base64 48>
 SERVER_PORT=8080
 LOG_PATH=/var/log/contact-center
 LOG_FILE=/var/log/contact-center/app.log

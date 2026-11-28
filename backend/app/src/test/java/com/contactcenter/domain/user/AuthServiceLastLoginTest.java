@@ -68,6 +68,7 @@ class AuthServiceLastLoginTest {
     @Mock private UserService userService;
     @Mock private PendingLoginTracker pendingLoginTracker;
     @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
+    @Mock private com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate;
 
     private AuthService authService;
 
@@ -76,8 +77,8 @@ class AuthServiceLastLoginTest {
         authService = new AuthServiceImpl(authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService, passwordEncoder,
                 loginRateLimiter, userService, pendingLoginTracker,
-                webSocketSessionTerminator);
-        when(jwtService.issueAccessToken(any(), any(), anyBoolean())).thenReturn("access");
+                webSocketSessionTerminator, tenantStatusGate);
+        when(jwtService.issueAccessToken(any(), any(), anyBoolean(), any())).thenReturn("access");
         when(jwtService.generateRefreshTokenValue()).thenReturn("refresh");
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
         when(tenantService.findTenantEntity(TENANT_ID))

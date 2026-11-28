@@ -72,7 +72,8 @@ class AuthServiceChangePasswordTest {
                 appUserRepository, refreshTokenRepository,
                 tenantService, passwordEncoder, loginRateLimiter, userService,
                 mock(com.contactcenter.security.PendingLoginTracker.class),
-                mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)
+                mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class),
+                mock(com.contactcenter.domain.tenant.TenantStatusGate.class)
         );
     }
 
@@ -110,7 +111,7 @@ class AuthServiceChangePasswordTest {
             when(passwordEncoder.matches("OldPass1", oldHash)).thenReturn(true);
             when(passwordEncoder.encode("NewPass2")).thenReturn(newHash);
             when(refreshTokenRepository.revokeAllByUserId(USER_ID)).thenReturn(2);
-            when(jwtService.issueAccessToken(any(AppUser.class), anyString(), anyBoolean()))
+            when(jwtService.issueAccessToken(any(AppUser.class), anyString(), anyBoolean(), any()))
                     .thenReturn("new.access.token");
             when(jwtService.generateRefreshTokenValue()).thenReturn("new-refresh-token-uuid");
             when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
@@ -145,7 +146,7 @@ class AuthServiceChangePasswordTest {
             when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
             when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$newHash");
             when(refreshTokenRepository.revokeAllByUserId(any())).thenReturn(0);
-            when(jwtService.issueAccessToken(any(), anyString(), anyBoolean())).thenReturn("token");
+            when(jwtService.issueAccessToken(any(), anyString(), anyBoolean(), any())).thenReturn("token");
             when(jwtService.generateRefreshTokenValue()).thenReturn("refresh-uuid");
             when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
             when(jwtService.refreshTokenExpiresAt()).thenReturn(java.time.Instant.now().plusSeconds(604800));

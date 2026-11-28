@@ -51,6 +51,8 @@ public class JwtParser {
     public static final String CLAIM_TENANT_ID = "tenant_id";
     public static final String CLAIM_USER_ID   = "user_id";
     public static final String CLAIM_ROLE      = "role";
+    /** BE-249: identyfikator sesji logowania (rodziny refresh tokenów); opcjonalny. */
+    public static final String CLAIM_SESSION_ID = "sid";
 
     private final JwtProperties jwtProperties;
     private final ResourceLoader resourceLoader = new DefaultResourceLoader();
@@ -129,7 +131,10 @@ public class JwtParser {
                     ? claims.getExpiration().toInstant()
                     : null;
 
-            return new JwtClaims(tenantId, userId, role, claims.getSubject(), expiry);
+            Instant issuedAt = claims.getIssuedAt() != null ? claims.getIssuedAt().toInstant() : null;
+            UUID sessionId = extractOptionalUuid(claims, CLAIM_SESSION_ID);
+
+            return new JwtClaims(tenantId, userId, role, claims.getSubject(), expiry, issuedAt, sessionId);
 
         } catch (ExpiredJwtException e) {
             log.debug("[JWT] Token wygasł: {}", e.getMessage());
@@ -254,14 +259,23 @@ public class JwtParser {
      * @param role     rola użytkownika z claim {@code role} (może być null)
      * @param subject  claim {@code sub} – zwykle email użytkownika
      * @param expiresAt czas wygaśnięcia tokenu z claim {@code exp} (może być null dla tokenów bez exp)
+     * @param issuedAt  claim {@code iat} (sekundy; null gdy brak) - porównywany ze znacznikiem "unieważnione od" (BE-249)
+     * @param sessionId claim {@code sid} = identyfikator sesji logowania/urządzenia (null dla tokenów sprzed BE-249)
      */
     public record JwtClaims(
             UUID tenantId,
             UUID userId,
             String role,
             String subject,
-            Instant expiresAt
-    ) {}
+            Instant expiresAt,
+            Instant issuedAt,
+            UUID sessionId
+    ) {
+        /** Claims without {@code iat}/{@code sid} (tokens issued before BE-249, tests). */
+        public JwtClaims(UUID tenantId, UUID userId, String role, String subject, Instant expiresAt) {
+            this(tenantId, userId, role, subject, expiresAt, null, null);
+        }
+    }
 
     /**
      * Wyjątek rzucany gdy token JWT jest nieprawidłowy.

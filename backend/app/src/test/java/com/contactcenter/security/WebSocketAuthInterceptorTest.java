@@ -26,10 +26,12 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -68,6 +70,16 @@ class WebSocketAuthInterceptorTest {
 
     @Mock
     private com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry sessionRegistry;
+
+    @Mock
+    private TokenRevocationService tokenRevocationService;
+
+    @Mock
+    private com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate;
+
+    @org.mockito.Spy
+    private io.micrometer.core.instrument.MeterRegistry meters =
+            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
 
     @InjectMocks
     private WebSocketAuthInterceptor interceptor;
@@ -455,7 +467,7 @@ class WebSocketAuthInterceptorTest {
 
             interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel);
 
-            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, claims.expiresAt());
+            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, null, claims.expiresAt());
         }
 
         @Test
@@ -463,12 +475,13 @@ class WebSocketAuthInterceptorTest {
         void blacklistAppearingAfterRegisterUnregistersSession() {
             when(jwtParser.parse("racy.jwt")).thenReturn(claims);
             when(tokenBlacklistService.isBlacklisted("racy.jwt")).thenReturn(false, true);
+            when(sessionRegistry.register(anyString(), any(), any(), any(), any())).thenReturn(registeredEntry());
 
             assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer racy.jwt", null), channel))
                     .isInstanceOfSatisfying(StompRejectedException.class,
                             e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
 
-            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, claims.expiresAt());
+            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, null, claims.expiresAt());
             verify(sessionRegistry).unregister("test-session-id");
         }
 
@@ -479,8 +492,161 @@ class WebSocketAuthInterceptorTest {
 
             assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer bad.jwt", null), channel))
                     .isInstanceOf(StompRejectedException.class);
-            verify(sessionRegistry, never()).register(anyString(), org.mockito.ArgumentMatchers.any(),
-                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+            verify(sessionRegistry, never()).register(anyString(), any(), any(), any(), any());
+        }
+    }
+
+    private static com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.Entry registeredEntry() {
+        return new com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.Entry(
+                "test-session-id", USER_ID, TENANT_ID, null, null, null);
+    }
+
+    private double rejectedCount(WsErrorCode code) {
+        var c = meters.find(WebSocketAuthInterceptor.METRIC_CONNECT_REJECTED).tag("code", code.name()).counter();
+        return c == null ? 0 : c.count();
+    }
+
+    @Nested
+    @DisplayName("BE-249: znacznik 'unieważnione od', bramka statusu tenanta, metryka odrzuconych CONNECT")
+    class RevocationMarkerAndTenantGateTest {
+
+        private final UUID sid = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        private final Instant iat = Instant.parse("2026-11-26T10:00:00Z");
+        private JwtClaims claims;
+
+        @BeforeEach
+        void setUp() {
+            claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com", Instant.parse("2030-01-01T00:00:00Z"),
+                    iat, sid);
+            org.mockito.Mockito.lenient().when(jwtParser.parse("valid.jwt")).thenReturn(claims);
+        }
+
+        @Test
+        @DisplayName("Token wystawiony przed znacznikiem -> WS_TOKEN_INVALID (bez nowego kodu), brak rejestracji, licznik")
+        void tokenIssuedBeforeMarkerIsRejected() {
+            when(tokenRevocationService.isRevoked(USER_ID, sid, iat)).thenReturn(true);
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
+
+            verifyNoInteractions(sessionRegistry);
+            assertThat(rejectedCount(WsErrorCode.WS_TOKEN_INVALID)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Awaria Redis przy znaczniku -> fail-closed WS_INTERNAL, komunikat bez szczegolow, licznik")
+        void markerCheckFailureIsFailClosed() {
+            when(tokenRevocationService.isRevoked(any(), any(), any()))
+                    .thenThrow(new IllegalStateException("redis://secret-host:6379 down"));
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class, e -> {
+                        assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_INTERNAL);
+                        assertThat(e.getMessage()).doesNotContain("secret-host");
+                    });
+
+            verifyNoInteractions(sessionRegistry);
+            assertThat(rejectedCount(WsErrorCode.WS_INTERNAL)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Tenant nieaktywny -> WS_TOKEN_INVALID z komunikatem bramki, bez rejestracji")
+        void inactiveTenantIsRejected() {
+            when(tenantStatusGate.isBlocked(TENANT_ID)).thenReturn(true);
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class, e -> {
+                        assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID);
+                        assertThat(e.getMessage()).contains(WebSocketAuthInterceptor.TENANT_INACTIVE_MESSAGE);
+                    });
+            verifyNoInteractions(sessionRegistry);
+        }
+
+        @Test
+        @DisplayName("Awaria bazy przy sprawdzaniu tenanta -> fail-closed WS_INTERNAL")
+        void tenantGateFailureIsFailClosed() {
+            when(tenantStatusGate.isBlocked(TENANT_ID)).thenThrow(new IllegalStateException("db down"));
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_INTERNAL));
+        }
+
+        @Test
+        @DisplayName("SUPER_ADMIN (tenantId null) laczy sie; bramka dostaje null i nie blokuje")
+        void superAdminWithoutTenantPassesTheGate() {
+            JwtClaims superAdmin = new JwtClaims(null, USER_ID, "SUPER_ADMIN", "root@test.com",
+                    Instant.parse("2030-01-01T00:00:00Z"), iat, null);
+            when(jwtParser.parse("root.jwt")).thenReturn(superAdmin);
+
+            interceptor.preSend(buildConnectMessage("Bearer root.jwt", null), channel);
+
+            verify(tenantStatusGate).isBlocked(null);
+            verify(sessionRegistry).register("test-session-id", USER_ID, null, null, superAdmin.expiresAt());
+        }
+
+        @Test
+        @DisplayName("sid z tokenu trafia do rejestru (identyfikacja urzadzenia przy wylogowaniu)")
+        void sidIsStoredInRegistry() {
+            when(sessionRegistry.register(anyString(), any(), any(), any(), any())).thenReturn(registeredEntry());
+
+            interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel);
+
+            verify(sessionRegistry).register("test-session-id", USER_ID, TENANT_ID, sid, claims.expiresAt());
+        }
+
+        @Test
+        @DisplayName("Znacznik pojawia sie MIEDZY sprawdzeniem a register (wyscig z wylogowaniem) -> wyrejestrowanie")
+        void markerAppearingAfterRegisterUnregistersSession() {
+            when(tokenRevocationService.isRevoked(USER_ID, sid, iat)).thenReturn(false, true);
+            when(sessionRegistry.register(anyString(), any(), any(), any(), any())).thenReturn(registeredEntry());
+
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer valid.jwt", null), channel))
+                    .isInstanceOfSatisfying(StompRejectedException.class,
+                            e -> assertThat(e.getCode()).isEqualTo(WsErrorCode.WS_TOKEN_INVALID));
+
+            verify(sessionRegistry).unregister("test-session-id");
+        }
+
+        @Test
+        @DisplayName("R5: register() == null (rozlaczenie wyprzedzilo CONNECT) nie psuje CONNECT i nie robi drugiego sprawdzenia")
+        void nullRegisterResultDoesNotBreakConnect() {
+            when(sessionRegistry.register(anyString(), any(), any(), any(), any())).thenReturn(null);
+
+            Message<?> message = buildConnectMessage("Bearer valid.jwt", null);
+            Message<?> result = interceptor.preSend(message, channel);
+
+            assertThat(result).isSameAs(message);
+            verify(tokenRevocationService, org.mockito.Mockito.times(1)).isRevoked(USER_ID, sid, iat);
+            verify(sessionRegistry, never()).unregister(anyString());
+        }
+
+        @Test
+        @DisplayName("R6: liczniki ws.connect.rejected{code} sa rejestrowane z wartoscia 0 od startu (alert dziala od pierwszego scrape)")
+        void rejectionCountersExistFromStartup() {
+            interceptor.registerRejectionCounters();
+
+            for (WsErrorCode code : List.of(WsErrorCode.WS_TOKEN_MISSING, WsErrorCode.WS_TOKEN_EXPIRED,
+                    WsErrorCode.WS_TOKEN_INVALID, WsErrorCode.WS_INTERNAL)) {
+                assertThat(meters.find(WebSocketAuthInterceptor.METRIC_CONNECT_REJECTED).tag("code", code.name())
+                        .counter()).as(code.name()).isNotNull();
+                assertThat(rejectedCount(code)).isZero();
+            }
+        }
+
+        @Test
+        @DisplayName("R6: ws.connect.rejected{code} liczy kazdy kod osobno (MISSING, INVALID, EXPIRED)")
+        void rejectedConnectsAreCountedPerCode() {
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage(null, null), channel))
+                    .isInstanceOf(StompRejectedException.class);
+            when(jwtParser.parse("bad.jwt")).thenThrow(new JwtValidationException("bad"));
+            assertThatThrownBy(() -> interceptor.preSend(buildConnectMessage("Bearer bad.jwt", null), channel))
+                    .isInstanceOf(StompRejectedException.class);
+
+            assertThat(rejectedCount(WsErrorCode.WS_TOKEN_MISSING)).isEqualTo(1);
+            assertThat(rejectedCount(WsErrorCode.WS_TOKEN_INVALID)).isEqualTo(1);
+            assertThat(rejectedCount(WsErrorCode.WS_INTERNAL)).isZero();
         }
     }
 }

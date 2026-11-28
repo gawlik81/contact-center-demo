@@ -29,8 +29,16 @@ import java.util.UUID;
  * {@link TenantService#getAllTenants()}, {@link TenantService#findTenantEntity(UUID)},
  * {@link TenantService#updateTenantConfig(UUID, java.util.Map)}).
  */
+// (see the class comment above: the repository is deliberately not tenant-aware; BE-249 findStatusById reads only the
+// `status` column of the tenant table, which has no tenant_id/RLS - the tenant IS the row)
 @Repository
 interface TenantRepository extends JpaRepository<Tenant, UUID> {
+
+    /**
+     * Sam status tenanta (bez ładowania encji z JSONB {@code config}) - dla {@link TenantStatusGate} (BE-249).
+     */
+    @Query("SELECT t.status FROM Tenant t WHERE t.id = :id")
+    Optional<Tenant.TenantStatus> findStatusById(@Param("id") UUID id);
 
     /**
      * Sprawdza unikalność nazwy tenanta (case-insensitive).

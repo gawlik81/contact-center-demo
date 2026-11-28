@@ -3,7 +3,7 @@ import { Subject, Subscription, take } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { Client, IMessage, StompConfig } from '@stomp/stompjs';
 import { environment } from '../../../environments/environment';
-import { AuthService } from './auth.service';
+import { AuthService, isRefreshTransient } from './auth.service';
 import { WsEvent } from '../../features/agent/models/ws-event.model';
 
 /**
@@ -34,6 +34,31 @@ export function computeReconnectDelay(attempt: number, random: () => number = Ma
   const ceiling = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** attempt);
   return Math.round(ceiling / 2 + random() * (ceiling / 2));
 }
+
+/**
+ * After a server-side session close with a token code the client refreshes and reconnects. The
+ * reconnect is spread over [0, TOKEN_RECONNECT_JITTER_MS) so that a mass close (tenant deactivated,
+ * deploy, a fleet of tokens expiring together) does not become a reconnect storm (FE-173).
+ */
+export const TOKEN_RECONNECT_JITTER_MS = 3000;
+
+export function computeTokenReconnectDelay(random: () => number = Math.random): number {
+  return Math.round(random() * TOKEN_RECONNECT_JITTER_MS);
+}
+
+/**
+ * Loop guard (FE-173): a connection must have lived this long for the next token ERROR to earn a
+ * new refresh. A close right after a refresh+reconnect (server keeps rejecting the session, e.g. the
+ * 12 h hard limit) ends in SESSION_EXPIRED instead of an endless refresh cycle.
+ */
+export const STABLE_CONNECTION_MS = 30000;
+
+/**
+ * Hard cap on consecutive failed session renewals (the refresh itself kept failing transiently:
+ * network, timeout, 408/429/5xx). After this many the client gives up with SESSION_EXPIRED (banner)
+ * instead of cycling forever; a reconnect is never attempted with a token known to be expired.
+ */
+export const MAX_RENEWAL_ATTEMPTS = 5;
 
 /**
  * Terminal STOMP ERROR classes (BE-229 / BE-236, WebSocketAuthInterceptor). The backend sends ERROR
@@ -115,6 +140,13 @@ export class WebSocketService {
   /** True while resumeAfterRejection() waits for the profile; the banner disables its button. */
   readonly resuming = signal(false);
 
+  /**
+   * True while the client silently renews the session after a token close (refresh + reconnect).
+   * The link is down meanwhile (connectionState DISCONNECTED, consumers poll), but the UI must not
+   * show a "disconnected" banner for what is a routine, seconds-long handover (every ~15 min).
+   */
+  readonly renewingSession = signal(false);
+
   /** Terminal rejection: automatic reconnect is off until connect() is called again. */
   readonly isTerminal = computed(() => {
     const state = this.connectionState();
@@ -141,10 +173,14 @@ export class WebSocketService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set by a terminal ERROR: the close that follows must not schedule a reconnect. */
   private halted = false;
-  /** One token refresh per outage; reset by a successful connect. */
+  /** One token refresh per outage; re-armed only by a connection that stayed up (loop guard). */
   private tokenRefreshTried = false;
+  /** When the current connection came up; null while there is none. */
+  private connectedAt: number | null = null;
   /** In-flight token refresh of a TOKEN error; cancelled by connect()/disconnect(). */
   private refreshSub: Subscription | null = null;
+  /** Jitter/backoff wait before the (next) renewal refresh; cancelled with refreshSub. */
+  private renewTimer: ReturnType<typeof setTimeout> | null = null;
   /** The wake that arrived is a network/visibility one (not a bare focus): retry a pending backoff. */
   private wakeRetries = false;
 
@@ -194,6 +230,8 @@ export class WebSocketService {
     this.reconnectAttempt = 0;
     this.halted = false;
     this.tokenRefreshTried = false;
+    this.connectedAt = null;
+    this.renewingSession.set(false);
 
     const config: StompConfig = {
       brokerURL: wsUrl,
@@ -212,7 +250,8 @@ export class WebSocketService {
       onConnect: () => {
         if (this.client !== client) return;
         this.reconnectAttempt = 0;
-        this.tokenRefreshTried = false;
+        this.connectedAt = Date.now();
+        this.renewingSession.set(false);
         this.connectionState.set('CONNECTED');
         this.subscribeToUserEvents();
         this.resubscribeExtraTopics();
@@ -221,6 +260,7 @@ export class WebSocketService {
       },
       onDisconnect: () => {
         if (this.client !== client) return;
+        this.noteConnectionEnded();
         this.stopPresencePing();
         this.connectionState.set('DISCONNECTED');
       },
@@ -237,12 +277,14 @@ export class WebSocketService {
       onWebSocketError: (event) => {
         if (this.client !== client) return;
         console.error('[WS] WebSocket error:', event);
+        this.noteConnectionEnded();
         this.stopPresencePing();
         this.connectionState.set('ERROR');
       },
       onWebSocketClose: () => {
         // A late close of a replaced client (logout -> login) must not touch the new one.
         if (this.client !== client) return;
+        this.noteConnectionEnded();
         this.stopPresencePing();
         if (this.halted) return;
         const state = this.connectionState();
@@ -263,6 +305,7 @@ export class WebSocketService {
     this.clearReconnectTimer();
     this.cancelRefresh();
     this.halted = false;
+    this.renewingSession.set(false);
     this.stopPresencePing();
     this.stopListeningForWake();
     if (this.client) {
@@ -334,7 +377,7 @@ export class WebSocketService {
 
   /**
    * Terminal errors stop the reconnect loop (the server rejected the session for a reason a retry
-   * cannot fix); a token error gets one refresh-and-retry; anything else is a plain drop.
+   * cannot fix); a token error gets one silent renewal (refresh, then reconnect); anything else is a plain drop.
    */
   private handleStompError(kind: WsErrorKind): void {
     if (kind === 'FORBIDDEN') {
@@ -342,30 +385,17 @@ export class WebSocketService {
       return;
     }
     if (kind === 'TOKEN') {
+      this.noteConnectionEnded();
       if (this.tokenRefreshTried) {
         this.halt('SESSION_EXPIRED');
         return;
       }
       this.tokenRefreshTried = true;
       this.halted = true; // the close that follows must not schedule a plain retry
+      this.renewingSession.set(true);
       this.connectionState.set('DISCONNECTED'); // the link is dead while the refresh runs
       this.cancelRefresh();
-      // Shared single-flight refresh (AuthService): no second POST /auth/refresh next to the HTTP
-      // interceptor's. Cancelled by connect()/disconnect(), so a late answer never touches a new session.
-      this.refreshSub = this.auth
-        .refresh()
-        .pipe(take(1))
-        .subscribe({
-          next: () => {
-            this.refreshSub = null;
-            this.halted = false;
-            this.scheduleReconnect(true);
-          },
-          error: () => {
-            this.refreshSub = null;
-            this.halt('SESSION_EXPIRED');
-          },
-        });
+      this.renewSession(0);
       return;
     }
     this.connectionState.set('ERROR');
@@ -373,8 +403,59 @@ export class WebSocketService {
     this.scheduleReconnect();
   }
 
+  /**
+   * Silent session renewal: wait (jitter first, so a mass close does not become a refresh storm;
+   * backoff on later attempts), refresh, then reconnect. The reconnect happens only after a
+   * successful refresh. Shared single-flight refresh (AuthService): no second POST /auth/refresh next
+   * to the HTTP interceptor's. Cancelled by connect()/disconnect(), so a late answer never touches a
+   * new session.
+   */
+  private renewSession(attempt: number): void {
+    const delay = attempt === 0 ? computeTokenReconnectDelay() : computeReconnectDelay(attempt - 1);
+    this.renewTimer = setTimeout(() => {
+      this.renewTimer = null;
+      this.refreshSub = this.auth
+        .refresh()
+        .pipe(take(1))
+        .subscribe({
+          next: () => {
+            this.refreshSub = null;
+            this.halted = false;
+            this.scheduleReconnect(0);
+          },
+          error: (err: unknown) => {
+            this.refreshSub = null;
+            if (isRefreshTransient(err) && attempt + 1 < MAX_RENEWAL_ATTEMPTS) {
+              // The server gave no verdict (network/timeout/408/429/5xx) and AuthService kept the
+              // session: show the offline banner, back off and refresh again.
+              this.renewingSession.set(false);
+              this.connectionState.set('ERROR');
+              this.renewSession(attempt + 1);
+              return;
+            }
+            // Out of attempts, or a denial: for a denial AuthService has already shown the notice
+            // and logged out (isRefreshDenied); after exhausting retries the SESSION_EXPIRED banner
+            // is the message and the session is left as it is.
+            this.halt('SESSION_EXPIRED');
+          },
+        });
+    }, delay);
+  }
+
+  /**
+   * Called whenever a connection ends. A connection that lived at least STABLE_CONNECTION_MS earns a
+   * fresh refresh budget; the loop guard therefore only ever measures the CURRENT connection.
+   */
+  private noteConnectionEnded(): void {
+    if (this.connectedAt !== null && Date.now() - this.connectedAt >= STABLE_CONNECTION_MS) {
+      this.tokenRefreshTried = false;
+    }
+    this.connectedAt = null;
+  }
+
   private halt(state: 'FORBIDDEN' | 'SESSION_EXPIRED'): void {
     this.halted = true;
+    this.renewingSession.set(false);
     this.clearReconnectTimer();
     this.connectionState.set(state);
     void this.client?.deactivate();
@@ -382,13 +463,13 @@ export class WebSocketService {
 
   /**
    * One timer, one delay function: deactivate the dead client (stompjs would otherwise sit active
-   * without a loop) and activate it again after backoff with jitter. `immediate` skips the delay
-   * (token just refreshed).
+   * without a loop) and activate it again after backoff with jitter. `delayOverride` replaces the
+   * backoff delay (0 = at once, or the short token-reconnect jitter).
    */
-  private scheduleReconnect(immediate = false): void {
+  private scheduleReconnect(delayOverride?: number): void {
     const client = this.client;
     if (!client || this.reconnectTimer !== null) return;
-    const delay = immediate ? 0 : computeReconnectDelay(this.reconnectAttempt);
+    const delay = delayOverride ?? computeReconnectDelay(this.reconnectAttempt);
     this.reconnectAttempt++;
     const deactivated = client.deactivate();
     this.reconnectTimer = setTimeout(() => {
@@ -403,6 +484,10 @@ export class WebSocketService {
   private cancelRefresh(): void {
     this.refreshSub?.unsubscribe();
     this.refreshSub = null;
+    if (this.renewTimer !== null) {
+      clearTimeout(this.renewTimer);
+      this.renewTimer = null;
+    }
   }
 
   private clearReconnectTimer(): void {
@@ -436,7 +521,7 @@ export class WebSocketService {
         if (retryNow && this.reconnectTimer !== null && !this.halted && !this.isTerminal()) {
           this.clearReconnectTimer();
           this.reconnectAttempt = 0;
-          this.scheduleReconnect(true);
+          this.scheduleReconnect(0);
         }
         this.publish(PRESENCE_PING_DESTINATION, {});
         this._onWakeCallbacks.forEach((cb) => cb());

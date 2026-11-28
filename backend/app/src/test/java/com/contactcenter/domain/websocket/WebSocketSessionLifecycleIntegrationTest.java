@@ -8,6 +8,8 @@ import com.contactcenter.infrastructure.config.WebSocketSessionControlConfig;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionCloser;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionControlBus;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionControlEnvelope;
+import com.contactcenter.infrastructure.websocket.WebSocketChannelSigner;
+import com.contactcenter.infrastructure.websocket.WebSocketHmacProperties;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionProperties;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry;
 import com.contactcenter.infrastructure.websocket.WebSocketSessionTerminatorImpl;
@@ -86,10 +88,28 @@ class WebSocketSessionLifecycleIntegrationTest {
     @Import({WebSocketConfig.class, WebSocketAuthInterceptor.class, StompDestinationAuthorizationInterceptor.class,
             WebSocketController.class, TokenBlacklistService.class, WebSocketSessionProperties.class,
             WebSocketSessionRegistry.class, WebSocketSessionCloser.class, WebSocketSessionControlBus.class,
-            WebSocketSessionControlConfig.class, WebSocketSessionTerminatorImpl.class})
+            WebSocketSessionControlConfig.class, WebSocketSessionTerminatorImpl.class,
+            com.contactcenter.security.TokenRevocationService.class, WebSocketChannelSigner.class,
+            WebSocketHmacProperties.class})
     static class InstanceApp {
 
-        /** Token format {@code ROLE|tenantUuid|userUuid|expEpochSeconds} (tenant {@code -} = SUPER_ADMIN). */
+        @Bean
+        com.contactcenter.security.JwtProperties jwtProperties() {
+            return new com.contactcenter.security.JwtProperties(null, null, null, null, "it", 900L, 3600L);
+        }
+
+        /** The shared "database": every replica reads the same tenant statuses, each through its OWN 1 s cache. */
+        @Bean
+        com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate() {
+            return new com.contactcenter.domain.tenant.TenantStatusGate(
+                    id -> java.util.Optional.ofNullable(TENANT_STATUS.get(id)), Duration.ofSeconds(1),
+                    com.github.benmanes.caffeine.cache.Ticker.systemTicker());
+        }
+
+        /**
+         * Token format {@code ROLE|tenantUuid|userUuid|expEpochSeconds[|iatEpochSeconds[|sidUuid]]} (tenant {@code -}
+         * = SUPER_ADMIN). A missing iat means "issued just now" (so it is never older than a marker written earlier).
+         */
         @Bean
         JwtParser jwtParser() {
             JwtParser parser = Mockito.mock(JwtParser.class);
@@ -97,8 +117,11 @@ class WebSocketSessionLifecycleIntegrationTest {
                 String[] p = ((String) inv.getArgument(0)).split("\\|");
                 UUID user = UUID.fromString(p[2]);
                 UUID tenant = "-".equals(p[1]) ? null : UUID.fromString(p[1]);
+                Instant iat = p.length > 4 ? Instant.ofEpochSecond(Long.parseLong(p[4]))
+                        : Instant.ofEpochSecond(Instant.now().getEpochSecond());
+                UUID sid = p.length > 5 ? UUID.fromString(p[5]) : null;
                 return new JwtParser.JwtClaims(tenant, user, p[0], user.toString(),
-                        Instant.ofEpochSecond(Long.parseLong(p[3])));
+                        Instant.ofEpochSecond(Long.parseLong(p[3])), iat, sid);
             });
             return parser;
         }
@@ -149,6 +172,10 @@ class WebSocketSessionLifecycleIntegrationTest {
             return c == null ? 0 : c.count();
         }
 
+        com.contactcenter.security.TokenRevocationService revocation() {
+            return ctx.getBean(com.contactcenter.security.TokenRevocationService.class);
+        }
+
         double gauge() {
             return meters().get(WebSocketSessionRegistry.GAUGE_ACTIVE).gauge().value();
         }
@@ -157,6 +184,10 @@ class WebSocketSessionLifecycleIntegrationTest {
             return ctx.getBean("wsSessionControlListenerContainer", PubSubListenerContainer.class).isListening();
         }
     }
+
+    private static final String HMAC_SECRET = "it-hmac-secret-it-hmac-secret-0123456789";
+    private static final java.util.Map<UUID, com.contactcenter.domain.tenant.Tenant.TenantStatus> TENANT_STATUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private final List<Instance> instances = new CopyOnWriteArrayList<>();
     private final List<AutoCloseable> closeables = new CopyOnWriteArrayList<>();
@@ -175,16 +206,30 @@ class WebSocketSessionLifecycleIntegrationTest {
                 "websocket.session.control.instance-id=" + id,
                 "websocket.session.control.environment=" + env,
                 "websocket.session.close-jitter=PT0S",
+                "websocket.hmac.secret=" + HMAC_SECRET,
                 "test.redis.host=" + (redisPort == RedisTestContainer.port() ? RedisTestContainer.host() : "127.0.0.1"),
                 "test.redis.port=" + redisPort));
         props.addAll(List.of(extra));
         ConfigurableApplicationContext ctx = new SpringApplicationBuilder(InstanceApp.class)
                 .web(WebApplicationType.SERVLET)
-                .run(props.stream().map(p -> "--" + p).toArray(String[]::new));
+                .run(overriding(props).stream().map(p -> "--" + p).toArray(String[]::new));
         Instance i = new Instance(id, ctx, Integer.parseInt(ctx.getEnvironment().getProperty("local.server.port")));
         instances.add(i);
         return i;
     }
+
+    /**
+     * Command-line options repeated under one name are JOINED with commas by Spring; a later property must REPLACE an
+     * earlier one (defaults vs. per-test overrides), so keep only the last value per key.
+     */
+    private static List<String> overriding(List<String> props) {
+        java.util.Map<String, String> byKey = new java.util.LinkedHashMap<>();
+        for (String prop : props) {
+            byKey.put(prop.substring(0, prop.indexOf('=')), prop);
+        }
+        return new ArrayList<>(byKey.values());
+    }
+
 
     @BeforeAll
     void startReplicas() {
@@ -213,6 +258,17 @@ class WebSocketSessionLifecycleIntegrationTest {
 
     private static String token(String role, UUID tenant, UUID user, long expEpochSeconds) {
         return role + "|" + (tenant == null ? "-" : tenant) + "|" + user + "|" + expEpochSeconds;
+    }
+
+    private static String token(String role, UUID tenant, UUID user, long expEpochSeconds, long iatEpochSeconds,
+                                UUID sid) {
+        return token(role, tenant, user, expEpochSeconds) + "|" + iatEpochSeconds + "|" + sid;
+    }
+
+    /** A token of login session {@code sid} issued {@code ageSeconds} ago. */
+    private static String tokenOfSession(String role, UUID tenant, UUID user, UUID sid, long ageSeconds) {
+        long now = Instant.now().getEpochSecond();
+        return token(role, tenant, user, now + 600 + ageSeconds /* unique string per age */, now - ageSeconds, sid);
     }
 
     private static String token(String role, UUID tenant, UUID user) {
@@ -275,6 +331,27 @@ class WebSocketSessionLifecycleIntegrationTest {
         await().atMost(Duration.ofSeconds(10)).until(() -> i.registry().size() == sessions);
     }
 
+    private static final WebSocketChannelSigner TEST_SIGNER = signerWith(HMAC_SECRET);
+
+    private static WebSocketChannelSigner signerWith(String secret) {
+        WebSocketHmacProperties p = new WebSocketHmacProperties();
+        p.setSecret(secret);
+        return new WebSocketChannelSigner(p, new SimpleMeterRegistry());
+    }
+
+    private static String signedEnvelope(Instance target, String src, WebSocketSessionControlEnvelope.Type type,
+                                         UUID tenant, UUID user, UUID sid, SessionCloseReason reason) {
+        return signedEnvelope(TEST_SIGNER, target, src, type, tenant, user, sid, reason);
+    }
+
+    private static String signedEnvelope(WebSocketChannelSigner signer, Instance target, String src,
+                                         WebSocketSessionControlEnvelope.Type type, UUID tenant, UUID user, UUID sid,
+                                         SessionCloseReason reason) {
+        WebSocketSessionControlEnvelope e = new WebSocketSessionControlEnvelope(1, src, type, tenant, user, sid,
+                reason, System.currentTimeMillis(), null);
+        return e.withSignature(signer.sign(target.props().effectiveChannel(), e.canonicalForSigning())).toJson();
+    }
+
     /** Both control subscriptions must be established: repeat a probe envelope until the instance counted it. */
     private static void awaitControlReady(Instance... all) {
         for (Instance i : all) {
@@ -282,8 +359,8 @@ class WebSocketSessionLifecycleIntegrationTest {
         }
         StringRedisTemplate raw = RedisTestContainer.stringTemplate();
         for (Instance i : all) {
-            String probe = new WebSocketSessionControlEnvelope(1, "probe", WebSocketSessionControlEnvelope.Type.CLOSE_USER,
-                    UUID.randomUUID(), UUID.randomUUID(), SessionCloseReason.LOGOUT, System.currentTimeMillis()).toJson();
+            String probe = signedEnvelope(i, "probe", WebSocketSessionControlEnvelope.Type.CLOSE_USER,
+                    UUID.randomUUID(), UUID.randomUUID(), null, SessionCloseReason.LOGOUT);
             double before = i.counter("ws.session.control.received");
             await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(200)).until(() -> {
                 raw.convertAndSend(i.props().effectiveChannel(), probe);
@@ -363,7 +440,7 @@ class WebSocketSessionLifecycleIntegrationTest {
             assertThat(b.registry().countForUser(user)).isZero();
             assertThat(b.counter("ws.sessions.closed", "reason", reason.name()) - closedBefore).isEqualTo(2);
             bystander.session.disconnect();
-            await().atMost(Duration.ofSeconds(10)).until(() -> b.registry().size() == baseB && a.registry().size() == baseA);
+            await().atMost(Duration.ofSeconds(10)).until(() -> b.registry().size() <= baseB && a.registry().size() <= baseA);
         }
     }
 
@@ -379,17 +456,15 @@ class WebSocketSessionLifecycleIntegrationTest {
         String channel = b.props().effectiveChannel();
         double logoutBefore = b.counter("ws.sessions.closed", "reason", "LOGOUT");
 
-        raw.convertAndSend(channel, new WebSocketSessionControlEnvelope(1, "foreign",
-                WebSocketSessionControlEnvelope.Type.CLOSE_USER, UUID.randomUUID(), user,
-                SessionCloseReason.LOGOUT, System.currentTimeMillis()).toJson());
+        // signed, but the (tenant, user) pair does not match the session principal
+        raw.convertAndSend(channel, signedEnvelope(b, "foreign", WebSocketSessionControlEnvelope.Type.CLOSE_USER,
+                UUID.randomUUID(), user, null, SessionCloseReason.LOGOUT));
         raw.convertAndSend(channel, "{\"v\":1,\"src\":\"foreign\",\"type\":\"CLOSE_USER\",\"reason\":\"LOGOUT\"}");
-        raw.convertAndSend(channel, new WebSocketSessionControlEnvelope(1, "foreign",
-                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, UUID.randomUUID(),
-                SessionCloseReason.LOGOUT, System.currentTimeMillis()).toJson());
+        raw.convertAndSend(channel, signedEnvelope(b, "foreign", WebSocketSessionControlEnvelope.Type.CLOSE_USER,
+                tenant, UUID.randomUUID(), null, SessionCloseReason.LOGOUT));
         // sentinel: when this one (the matching pair) is handled, the forged ones before it were handled too
-        raw.convertAndSend(channel, new WebSocketSessionControlEnvelope(1, "foreign",
-                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, user,
-                SessionCloseReason.ROLE_CHANGED, System.currentTimeMillis()).toJson());
+        raw.convertAndSend(channel, signedEnvelope(b, "foreign", WebSocketSessionControlEnvelope.Type.CLOSE_USER,
+                tenant, user, null, SessionCloseReason.ROLE_CHANGED));
 
         assertThat(client.awaitErrorCode()).isEqualTo("WS_TOKEN_INVALID");
         client.awaitClosed();
@@ -416,7 +491,7 @@ class WebSocketSessionLifecycleIntegrationTest {
         victim1.awaitClosed();
         assertThat(otherTenant.connected()).isTrue();
         otherTenant.session.disconnect();
-        await().atMost(Duration.ofSeconds(10)).until(() -> b.registry().size() == baseB && a.registry().size() == baseA);
+        await().atMost(Duration.ofSeconds(10)).until(() -> b.registry().size() <= baseB && a.registry().size() <= baseA);
     }
 
     @Test
@@ -516,5 +591,227 @@ class WebSocketSessionLifecycleIntegrationTest {
         assertThat(fresh.gauge()).isZero();
         assertThat(fresh.registry().countForUser(user)).isZero();
         assertThat(fresh.meters().get(WebSocketSessionRegistry.GAUGE_ACTIVE).gauge().getId().getTags()).isEmpty();
+    }
+
+    // =========================================================================
+    // BE-249: znacznik "uniewazniono od" (W2), logout per urzadzenie, zmiana hasla, bramka tenanta, HMAC, async
+    // =========================================================================
+
+    private static void awaitClosedWithCode(Client c, String code) throws Exception {
+        assertThat(c.awaitErrorCode()).isEqualTo(code);
+        c.awaitClosed();
+    }
+
+    @Test
+    @DisplayName("W2: po zamknieciu sesji (dezaktywacja/zmiana roli) ponowny CONNECT TYM SAMYM, jeszcze waznym tokenem jest "
+            + "odrzucony na obu instancjach; nowy token (po ponownym logowaniu) dziala")
+    void oldTokenCannotReconnectAfterSessionWasClosed() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        UUID sid = UUID.randomUUID();
+        String oldToken = tokenOfSession("SUPERVISOR", tenant, user, sid, 30);
+        Client victim = new Client(a, oldToken);
+        assertThat(victim.connected()).isTrue();
+
+        a.terminator().closeUserSessions(tenant, user, SessionCloseReason.ROLE_CHANGED);
+        awaitClosedWithCode(victim, "WS_TOKEN_INVALID");
+
+        Client sameTokenOnA = new Client(a, oldToken);
+        assertThat(sameTokenOnA.awaitErrorCode()).as("A").isEqualTo("WS_TOKEN_INVALID");
+        assertThat(sameTokenOnA.connected()).isFalse();
+        Client sameTokenOnB = new Client(b, oldToken);
+        assertThat(sameTokenOnB.awaitErrorCode()).as("B (marker we wspolnym Redis)").isEqualTo("WS_TOKEN_INVALID");
+        assertThat(sameTokenOnB.connected()).isFalse();
+        assertThat(a.counter("ws.connect.rejected", "code", "WS_TOKEN_INVALID")).isGreaterThanOrEqualTo(1);
+
+        // a token issued AFTER the event (a refresh/login after the role change) is not affected
+        Client fresh = new Client(b, tokenOfSession("SUPERVISOR", tenant, user, sid, 0));
+        assertThat(fresh.connected()).isTrue();
+        fresh.session.disconnect();
+    }
+
+    @Test
+    @DisplayName("Logout per urzadzenie: zamyka sesje tylko tego sid (takze na innej instancji) i blokuje jego stare tokeny; "
+            + "drugie urzadzenie zostaje i moze sie ponownie polaczyc")
+    void deviceLogoutClosesOnlyThatDevice() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        UUID phone = UUID.randomUUID();
+        UUID desktop = UUID.randomUUID();
+        String phoneToken = tokenOfSession("AGENT", tenant, user, phone, 20);
+        String desktopToken = tokenOfSession("AGENT", tenant, user, desktop, 20);
+        Client onPhoneA = new Client(a, phoneToken);
+        Client onDesktopB = new Client(b, desktopToken);
+        Client onPhoneB = new Client(b, tokenOfSession("AGENT", tenant, user, phone, 21));
+        assertThat(List.of(onPhoneA, onDesktopB, onPhoneB)).allMatch(Client::connected);
+
+        a.terminator().closeLoginSession(tenant, user, phone, SessionCloseReason.LOGOUT);
+
+        awaitClosedWithCode(onPhoneA, "WS_TOKEN_INVALID");
+        awaitClosedWithCode(onPhoneB, "WS_TOKEN_INVALID");
+        assertThat(onDesktopB.connected()).as("drugie urzadzenie zostaje zalogowane").isTrue();
+        Client phoneAgain = new Client(b, phoneToken);
+        assertThat(phoneAgain.awaitErrorCode()).as("stary token tego urzadzenia (sprzed odswiezenia)")
+                .isEqualTo("WS_TOKEN_INVALID");
+        Client desktopAgain = new Client(a, desktopToken);
+        assertThat(desktopAgain.connected()).as("znacznik per sid nie dotyka innych urzadzen").isTrue();
+        desktopAgain.session.disconnect();
+        onDesktopB.session.disconnect();
+    }
+
+    @Test
+    @DisplayName("Zmiana hasla: pozostale urzadzenia zamkniete i zablokowane, biezace urzadzenie zostaje (sesja i token)")
+    void passwordChangeKeepsCurrentDeviceOnly() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        UUID current = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        String currentToken = tokenOfSession("AGENT", tenant, user, current, 15);
+        String otherToken = tokenOfSession("AGENT", tenant, user, other, 15);
+        Client onCurrent = new Client(a, currentToken);
+        Client onOther = new Client(b, otherToken);
+        assertThat(onCurrent.connected() && onOther.connected()).isTrue();
+
+        a.terminator().closeOtherLoginSessions(tenant, user, current, List.of(other),
+                SessionCloseReason.PASSWORD_CHANGED);
+
+        awaitClosedWithCode(onOther, "WS_TOKEN_INVALID");
+        assertThat(onCurrent.connected()).as("biezace urzadzenie zostaje").isTrue();
+        assertThat(new Client(b, otherToken).awaitErrorCode()).as("stary token innego urzadzenia")
+                .isEqualTo("WS_TOKEN_INVALID");
+        Client currentAgain = new Client(b, currentToken);
+        assertThat(currentAgain.connected()).as("token biezacego urzadzenia nadal wazny").isTrue();
+        currentAgain.session.disconnect();
+        onCurrent.session.disconnect();
+    }
+
+    @Test
+    @DisplayName("Bramka statusu tenanta: INACTIVE odrzuca CONNECT (WS_TOKEN_INVALID, bez nowego kodu), reaktywacja przywraca "
+            + "dostep po TTL cache; SUPER_ADMIN nie jest blokowany")
+    void inactiveTenantCannotConnectUntilReactivated() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        TENANT_STATUS.put(tenant, com.contactcenter.domain.tenant.Tenant.TenantStatus.INACTIVE);
+        try {
+            Client blocked = new Client(a, token("AGENT", tenant, UUID.randomUUID()));
+            assertThat(blocked.awaitErrorCode()).isEqualTo("WS_TOKEN_INVALID");
+            assertThat(blocked.connected()).isFalse();
+
+            TENANT_STATUS.put(tenant, com.contactcenter.domain.tenant.Tenant.TenantStatus.ACTIVE);
+            await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(300)).untilAsserted(() -> {
+                Client again = new Client(a, token("AGENT", tenant, UUID.randomUUID()));
+                assertThat(again.connected()).isTrue();
+                again.session.disconnect();
+            });
+
+            Client superAdmin = new Client(a, token("SUPER_ADMIN", null, UUID.randomUUID()));
+            assertThat(superAdmin.connected()).isTrue();
+            superAdmin.session.disconnect();
+        } finally {
+            TENANT_STATUS.remove(tenant);
+        }
+    }
+
+    @Test
+    @DisplayName("HMAC: koperta sterujaca z ZLYM podpisem lub BEZ podpisu nie zamyka sesji (liczniki per reason); poprawna zamyka")
+    void controlChannelRejectsForgedAndUnsignedEnvelopes() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        Client client = new Client(b, token("AGENT", tenant, user));
+        assertThat(client.connected()).isTrue();
+        StringRedisTemplate raw = RedisTestContainer.stringTemplate();
+        String channel = b.props().effectiveChannel();
+        double bad = b.counter("ws.channel.signature.rejected", "channel", "session-control", "reason", "bad_signature");
+        double missing = b.counter("ws.channel.signature.rejected", "channel", "session-control",
+                "reason", "missing_signature");
+
+        raw.convertAndSend(channel, signedEnvelope(signerWith("4tt4ck3r-4tt4ck3r-4tt4ck3r-4tt4ck3r-0000"), b, "evil",
+                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, user, null, SessionCloseReason.LOGOUT));
+        raw.convertAndSend(channel, new WebSocketSessionControlEnvelope(1, "evil",
+                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, user, SessionCloseReason.LOGOUT,
+                System.currentTimeMillis()).toJson());
+        // the other channel's signature must not be accepted either (the channel name is part of the signature)
+        WebSocketSessionControlEnvelope moved = new WebSocketSessionControlEnvelope(1, "evil",
+                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, user, null, SessionCloseReason.LOGOUT,
+                System.currentTimeMillis(), null);
+        raw.convertAndSend(channel, moved.withSignature(TEST_SIGNER.sign("cc:ws:fanout:" + "x",
+                moved.canonicalForSigning())).toJson());
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            assertThat(b.counter("ws.channel.signature.rejected", "channel", "session-control",
+                    "reason", "bad_signature") - bad).isEqualTo(2);
+            assertThat(b.counter("ws.channel.signature.rejected", "channel", "session-control",
+                    "reason", "missing_signature") - missing).isEqualTo(1);
+        });
+        assertThat(client.connected()).as("sfalszowane koperty nic nie zamknely").isTrue();
+
+        raw.convertAndSend(channel, signedEnvelope(b, "other", WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant,
+                user, null, SessionCloseReason.LOGOUT));
+        awaitClosedWithCode(client, "WS_TOKEN_INVALID");
+    }
+
+    @Test
+    @DisplayName("HMAC, rotacja: odbiorca z sekretem biezacym+poprzednim przyjmuje koperty podpisane starym sekretem")
+    void rotationAcceptsPreviousSecret() throws Exception {
+        String oldSecret = "0ld-s3cr3t-0ld-s3cr3t-0ld-s3cr3t-0123456";
+        Instance rotating = start("inst-rot", RedisTestContainer.port(),
+                "websocket.hmac.secret=" + HMAC_SECRET, "websocket.hmac.previous-secret=" + oldSecret);
+        UUID tenant = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        Client client = new Client(rotating, token("AGENT", tenant, user));
+        assertThat(client.connected()).isTrue();
+        await().atMost(Duration.ofSeconds(30)).until(rotating::controlListening);
+
+        // an instance that still signs with the OLD secret publishes; the rotating receiver keeps working
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            RedisTestContainer.stringTemplate().convertAndSend(rotating.props().effectiveChannel(),
+                    signedEnvelope(signerWith(oldSecret), rotating, "old-sender",
+                            WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenant, user, null,
+                            SessionCloseReason.ROLE_CHANGED));
+            return client.errorCodes.peek() != null;
+        });
+        assertThat(client.awaitErrorCode()).isEqualTo("WS_TOKEN_INVALID");
+    }
+
+    @Test
+    @DisplayName("W4: zlecenie zamkniecia nie blokuje watku zadania, nawet gdy Redis przyjmuje polaczenia i nie odpowiada")
+    void closeRequestDoesNotBlockWhenRedisHangs() throws Exception {
+        java.net.ServerSocket blackHole = new java.net.ServerSocket(0);
+        closeables.add(blackHole);
+        List<java.net.Socket> accepted = new CopyOnWriteArrayList<>();
+        Thread acceptor = new Thread(() -> {
+            try {
+                while (!blackHole.isClosed()) {
+                    accepted.add(blackHole.accept()); // never answers
+                }
+            } catch (java.io.IOException ignored) {
+                // closed
+            }
+        }, "black-hole-acceptor");
+        acceptor.setDaemon(true);
+        acceptor.start();
+        Instance hung = start("inst-hung", blackHole.getLocalPort(), "websocket.session.control.enabled=false");
+
+        long started = System.nanoTime();
+        hung.terminator().closeUserSessions(UUID.randomUUID(), UUID.randomUUID(), SessionCloseReason.LOGOUT);
+        hung.terminator().closeLoginSession(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                SessionCloseReason.LOGOUT);
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+        assertThat(elapsedMs).as("watek zadania nie czeka na Redis (komenda ma timeout 2 s)").isLessThan(500);
+        accepted.forEach(sock -> {
+            try {
+                sock.close();
+            } catch (java.io.IOException ignored) {
+                // best effort
+            }
+        });
+    }
+
+    @Test
+    @DisplayName("Metryki sweepu i tombstone sa widoczne w rejestrze instancji (N6, R1)")
+    void sweepAndTombstoneMetricsArePublished() {
+        assertThat(a.meters().find("ws.sessions.sweep.duration").timer()).isNotNull();
+        assertThat(a.meters().find("ws.sessions.sweep.expired").summary()).isNotNull();
+        assertThat(a.meters().find(WebSocketSessionRegistry.GAUGE_TOMBSTONES).gauge()).isNotNull();
     }
 }

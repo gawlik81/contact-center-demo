@@ -268,6 +268,19 @@ websocket:
     publish-queue-max-bytes: ${WEBSOCKET_FANOUT_PUBLISH_QUEUE_MAX_BYTES:33554432}
     # przerwa w próbach publikacji po błędzie Redis (zdarzenia w tym czasie: tylko lokalnie, licznik dropped)
     publish-backoff-ms: ${WEBSOCKET_FANOUT_PUBLISH_BACKOFF_MS:2000}
+  # BE-242/BE-249: HMAC-SHA256 kopert na kanałach Redis cc:ws:* (fan-out BE-175 + sterowanie sesjami BE-233; jeden sekret,
+  # nazwa kanału w podpisie). Pusty sekret = podpisywanie wyłączone (dev/test); na profilu prod sekret jest WYMAGANY
+  # (application-prod.yml: required=true) i musi mieć min. min-secret-bytes bajtów. Opis, generowanie i rotacja: DEPLOYMENT.md.
+  hmac:
+    secret: ${WEBSOCKET_HMAC_SECRET:}
+    # poprzedni sekret akceptowany przy weryfikacji na czas rotacji (podpisujemy zawsze bieżącym)
+    previous-secret: ${WEBSOCKET_HMAC_PREVIOUS_SECRET:}
+    min-secret-bytes: ${WEBSOCKET_HMAC_MIN_SECRET_BYTES:32}
+    required: ${WEBSOCKET_HMAC_REQUIRED:false}
+    # tryb przejściowy (rolling deploy z wersji bez podpisu): akceptuj koperty BEZ podpisu; zły podpis zawsze odrzucany
+    accept-unsigned: ${WEBSOCKET_HMAC_ACCEPT_UNSIGNED:false}
+    # okno świeżości podpisanej koperty (ochrona przed powtórką); porównanie z podpisanym ts
+    max-age: ${WEBSOCKET_HMAC_MAX_AGE:PT5M}
   # BE-233: życie sesji WS a życie tokenu. Zamknięcie sesji = ramka STOMP ERROR (code WS_TOKEN_INVALID/WS_TOKEN_EXPIRED) +
   # zamknięcie transportu; klient odświeża token i łączy się ponownie (FE-169/FE-171).
   session:
@@ -279,6 +292,10 @@ websocket:
     # losowe opóźnienie (per sesja) dodawane do terminu zamknięcia - rozprasza reconnecty
     close-jitter: ${WEBSOCKET_SESSION_CLOSE_JITTER:PT30S}
     sweep-interval-ms: ${WEBSOCKET_SESSION_SWEEP_INTERVAL_MS:5000}
+    # BE-249: ponowienia zamknięcia, które nie dotarło do kanału klienta: min(base * 2^n, max), po max-attempts porzucenie
+    close-retry-base: ${WEBSOCKET_SESSION_CLOSE_RETRY_BASE:PT5S}
+    close-retry-max: ${WEBSOCKET_SESSION_CLOSE_RETRY_MAX:PT60S}
+    close-max-attempts: ${WEBSOCKET_SESSION_CLOSE_MAX_ATTEMPTS:10}
     # kanał Redis zamykania sesji użytkownika na wszystkich instancjach (logout/dezaktywacja/zmiana roli)
     control:
       enabled: ${WEBSOCKET_SESSION_CONTROL_ENABLED:true}
@@ -286,6 +303,17 @@ websocket:
       # sufiks środowiska kanału; domyślnie pierwszy aktywny profil (środowiska na wspólnym Redis MUSZĄ się różnić)
       environment: ${WEBSOCKET_SESSION_ENV:${spring.profiles.active:default}}
       instance-id: ${WEBSOCKET_SESSION_INSTANCE_ID:}
+      # BE-249: asynchroniczna publikacja (znacznik unieważnienia + koperta) poza wątkiem żądania i transakcją
+      publish-threads: ${WEBSOCKET_SESSION_PUBLISH_THREADS:2}
+      publish-queue-capacity: ${WEBSOCKET_SESSION_PUBLISH_QUEUE:1000}
+
+# =============================================================================
+# BE-249: wspólna bramka statusu tenanta (login, refresh, CONNECT WebSocket, filtr HTTP). Lokalny cache Caffeine per
+# instancja; reaktywacja/dezaktywacja widoczna na pozostałych instancjach po najwyżej tym czasie.
+# =============================================================================
+tenant:
+  status-gate:
+    ttl: ${TENANT_STATUS_GATE_TTL:PT30S}
 
 # =============================================================================
 # Wtyczki (EPIC-28) – synchronizacja runtime między instancjami (BE-178, ADR-09)

@@ -16,6 +16,11 @@ import java.util.UUID;
  * <p>Operacje wymagają transakcji dla metod @Modifying
  * (zarządzane przez warstwę serwisową z @Transactional).
  */
+/**
+ * Deliberately NOT a {@code TenantAwareRepository} (BE-249 review A1): {@code refresh_token} is a global technical table
+ * without RLS, used by login/refresh BEFORE any tenant context exists, and {@code tenant_id} is NULL for SUPER_ADMIN.
+ * Queries are scoped by {@code user_id} (a globally unique UUID taken from a signed token or the verified user row).
+ */
 @Repository
 interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
@@ -29,6 +34,11 @@ interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.userId = :userId AND rt.revoked = false")
     int revokeAllByUserId(@Param("userId") UUID userId);
+
+    /** BE-249 (N-S3): revokes a token by value ONLY when it belongs to {@code userId} (logout must not revoke foreign tokens). */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.token = :token AND rt.userId = :userId")
+    int revokeByTokenAndUserId(@Param("token") String token, @Param("userId") UUID userId);
 
     /**
      * Unieważnij konkretny token po jego wartości.
@@ -57,6 +67,22 @@ interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
     @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff "
             + "OR (rt.revoked = true AND rt.createdAt < :cutoff)")
     int deleteExpiredAndRevoked(@Param("cutoff") Instant cutoff);
+
+    /** BE-249: revokes the active tokens of one login session (device logout). */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.userId = :userId "
+            + "AND COALESCE(rt.sessionId, rt.id) = :sessionId AND rt.revoked = false")
+    int revokeBySessionId(@Param("userId") UUID userId, @Param("sessionId") UUID sessionId);
+
+    /**
+     * BE-249: distinct login sessions of the user with a still-active refresh token other than
+     * {@code keepSessionId} - the sessions whose access tokens get a per-session revocation marker.
+     */
+    @Query("SELECT DISTINCT COALESCE(rt.sessionId, rt.id) FROM RefreshToken rt WHERE rt.userId = :userId "
+            + "AND rt.revoked = false AND rt.expiresAt > :now AND COALESCE(rt.sessionId, rt.id) <> :keepSessionId")
+    java.util.List<UUID> findActiveSessionIdsExcept(@Param("userId") UUID userId,
+                                                    @Param("keepSessionId") UUID keepSessionId,
+                                                    @Param("now") Instant now);
 
     /** Policz aktywne tokeny użytkownika (do monitoringu/audit). */
     @Query("SELECT COUNT(rt) FROM RefreshToken rt WHERE rt.userId = :userId AND rt.revoked = false AND rt.expiresAt > :now")

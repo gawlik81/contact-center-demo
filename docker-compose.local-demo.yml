@@ -13,6 +13,16 @@ services:
     env_file: .env.local-demo
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # BE-242/BE-249: sekret HMAC kopert kanalow Redis cc:ws:* - WYMAGANY na profilu prod (min. 32 bajty).
+      # Wartosc dopisz do .env.local-demo (generowanie: openssl rand -base64 48; DEPLOYMENT.md). Puste = start
+      # backendu konczy sie bledem z jasnym komunikatem.
+      WEBSOCKET_HMAC_SECRET: ${WEBSOCKET_HMAC_SECRET:-}
+      # Podczas rotacji sekretu: poprzedni sekret (akceptowany przy weryfikacji); poza rotacja pusty.
+      WEBSOCKET_HMAC_PREVIOUS_SECRET: ${WEBSOCKET_HMAC_PREVIOUS_SECRET:-}
+      # Tryb przejsciowy rolling deploy (akceptuj koperty bez podpisu); domyslnie wylaczony.
+      WEBSOCKET_HMAC_ACCEPT_UNSIGNED: ${WEBSOCKET_HMAC_ACCEPT_UNSIGNED:-false}
+      # N5: jawny sufiks srodowiska kanalu sterowania sesjami WS (wymagany na prod, bez domyslnej wartosci w aplikacji)
+      WEBSOCKET_SESSION_ENV: ${WEBSOCKET_SESSION_ENV:-local-demo}
     depends_on:
       postgres:
         condition: service_healthy

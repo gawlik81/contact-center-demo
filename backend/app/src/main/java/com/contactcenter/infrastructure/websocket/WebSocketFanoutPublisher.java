@@ -48,6 +48,7 @@ public class WebSocketFanoutPublisher {
     private final StringRedisTemplate redis;
     private final WebSocketFanoutProperties properties;
     private final WebSocketFanoutMetrics metrics;
+    private final WebSocketChannelSigner signer;
     private final String instanceId;
     private final ThreadPoolExecutor publisherExecutor;
     private final BlockingQueue<Runnable> publishQueue;
@@ -59,11 +60,12 @@ public class WebSocketFanoutPublisher {
 
     public WebSocketFanoutPublisher(WebSocketLocalDispatcher dispatcher, StringRedisTemplate redis,
                                     WebSocketFanoutProperties properties, WebSocketFanoutMetrics metrics,
-                                    MeterRegistry meterRegistry) {
+                                    MeterRegistry meterRegistry, WebSocketChannelSigner signer) {
         this.dispatcher = dispatcher;
         this.redis = redis;
         this.properties = properties;
         this.metrics = metrics;
+        this.signer = signer;
         this.instanceId = properties.resolvedInstanceId();
         this.publishQueue = new ArrayBlockingQueue<>(properties.getPublishQueueCapacity());
         CustomizableThreadFactory threads = new CustomizableThreadFactory("ws-fanout-publisher-") {
@@ -119,8 +121,11 @@ public class WebSocketFanoutPublisher {
             metrics.dropped("publish", "redis_unavailable");
             return;
         }
-        String envelope = new WebSocketFanoutEnvelope(WebSocketFanoutEnvelope.VERSION, instanceId, destination,
-                tenantId, System.currentTimeMillis(), new String(json, StandardCharsets.UTF_8)).toJson();
+        WebSocketFanoutEnvelope unsigned = new WebSocketFanoutEnvelope(WebSocketFanoutEnvelope.VERSION, instanceId,
+                destination, tenantId, System.currentTimeMillis(), new String(json, StandardCharsets.UTF_8));
+        // BE-242: HMAC over the channel name and every field (null = signing off: dev/test without a secret)
+        String envelope = unsigned.withSignature(
+                signer.sign(properties.effectiveChannel(), unsigned.canonicalForSigning())).toJson();
         int envelopeBytes = envelope.getBytes(StandardCharsets.UTF_8).length;
         metrics.envelopeBytes("publish", envelopeBytes);
         if (envelopeBytes > properties.getMaxMessageBytes()) {

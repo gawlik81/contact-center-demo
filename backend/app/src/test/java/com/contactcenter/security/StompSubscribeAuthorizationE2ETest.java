@@ -106,6 +106,16 @@ class StompSubscribeAuthorizationE2ETest {
         }
 
         @Bean
+        TokenRevocationService tokenRevocationService() {
+            return Mockito.mock(TokenRevocationService.class);
+        }
+
+        @Bean
+        com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate() {
+            return Mockito.mock(com.contactcenter.domain.tenant.TenantStatusGate.class);
+        }
+
+        @Bean
         AgentPresenceRegistry agentPresenceRegistry() {
             return Mockito.mock(AgentPresenceRegistry.class);
         }

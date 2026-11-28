@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Client } from '@stomp/stompjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from './auth.service';
@@ -13,6 +14,10 @@ import {
   WebSocketService,
   classifyStompError,
   computeReconnectDelay,
+  computeTokenReconnectDelay,
+  MAX_RENEWAL_ATTEMPTS,
+  STABLE_CONNECTION_MS,
+  TOKEN_RECONNECT_JITTER_MS,
 } from './websocket.service';
 
 describe('WebSocketService presence ping (FE-164)', () => {
@@ -363,7 +368,7 @@ describe('WebSocketService reconnect (FE-169)', () => {
   it('two WS_TOKEN_EXPIRED without a connect between: one refresh, then SESSION_EXPIRED (FE-171)', async () => {
     errCode('WS_TOKEN_EXPIRED');
     drop();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1);
     errCode('WS_TOKEN_EXPIRED');
     drop();
     await vi.advanceTimersByTimeAsync(60000);
@@ -392,7 +397,7 @@ describe('WebSocketService reconnect (FE-169)', () => {
   it('a token ERROR refreshes the token once and reconnects at once', async () => {
     err('Nieprawidłowy token JWT: expired');
     drop();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1);
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(activate).toHaveBeenCalledTimes(1);
   });
@@ -400,7 +405,7 @@ describe('WebSocketService reconnect (FE-169)', () => {
   it('a second token ERROR without a successful connect gives up: SESSION_EXPIRED', async () => {
     err('Nieprawidłowy token JWT: expired');
     drop();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1);
     err('Nieprawidłowy token JWT: expired');
     drop();
     await vi.advanceTimersByTimeAsync(60000);
@@ -463,7 +468,7 @@ describe('WebSocketService reconnect (FE-169)', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(activate).not.toHaveBeenCalled();
     pending.next({});
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1);
     expect(activate).toHaveBeenCalledTimes(1);
   });
 
@@ -480,6 +485,201 @@ describe('WebSocketService reconnect (FE-169)', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(activate).not.toHaveBeenCalled();
     expect(service.connectionState()).toBe('CONNECTING');
+  });
+
+  describe('server-closed session (FE-173)', () => {
+    const connected = () => client.onConnect({} as never);
+
+    it('WS_TOKEN_EXPIRED renews silently: refresh, no terminal state, banner flag on then off', async () => {
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      expect(service.renewingSession()).toBe(true);
+      expect(service.isTerminal()).toBe(false);
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(activate).toHaveBeenCalledTimes(1);
+      connected();
+      expect(service.renewingSession()).toBe(false);
+      expect(service.connectionState()).toBe('CONNECTED');
+    });
+
+    it('the jitter window is [0, TOKEN_RECONNECT_JITTER_MS); the reconnect follows the refresh', async () => {
+      vi.mocked(Math.random).mockReturnValue(0.5);
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(TOKEN_RECONNECT_JITTER_MS / 2 - 1);
+      expect(refresh).not.toHaveBeenCalled();
+      expect(activate).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(activate).toHaveBeenCalledTimes(1);
+      expect(computeTokenReconnectDelay(() => 0)).toBe(0);
+      expect(computeTokenReconnectDelay(() => 0.999)).toBeLessThan(TOKEN_RECONNECT_JITTER_MS);
+    });
+
+    it('WS_TOKEN_INVALID with a refused refresh ends in SESSION_EXPIRED, once, without a loop', async () => {
+      refresh.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+      connected();
+      errCode('WS_TOKEN_INVALID');
+      drop();
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(activate).not.toHaveBeenCalled();
+      expect(service.connectionState()).toBe('SESSION_EXPIRED');
+      expect(service.renewingSession()).toBe(false);
+    });
+
+    it('a transient refresh failure does NOT end the session: refresh is retried after a backoff, reconnect only after it succeeds', async () => {
+      refresh.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(service.isTerminal()).toBe(false);
+      expect(service.renewingSession()).toBe(false); // offline banner may show now
+      expect(activate).not.toHaveBeenCalled(); // never reconnect with a known-expired token
+      await vi.advanceTimersByTimeAsync(500); // backoff (random = 0): 500 ms
+      expect(refresh).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('hard cap: after MAX_RENEWAL_ATTEMPTS failed renewals the client gives up with SESSION_EXPIRED', async () => {
+      refresh.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 429 })));
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+      expect(refresh).toHaveBeenCalledTimes(MAX_RENEWAL_ATTEMPTS);
+      expect(activate).not.toHaveBeenCalled();
+      expect(service.connectionState()).toBe('SESSION_EXPIRED');
+    });
+
+    it('R4: the refresh itself is jittered, so a mass close does not send a refresh storm', async () => {
+      vi.mocked(Math.random).mockReturnValue(0.5);
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(TOKEN_RECONNECT_JITTER_MS / 2 - 1);
+      expect(refresh).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('R2: a connection that died young does not count as stable for the next handshake', async () => {
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      connected();
+      await vi.advanceTimersByTimeAsync(1000);
+      drop(); // plain drop after 1 s
+      await vi.advanceTimersByTimeAsync(STABLE_CONNECTION_MS * 2); // long backoff/idle time
+      errCode('WS_TOKEN_EXPIRED'); // the next handshake is rejected
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(service.connectionState()).toBe('SESSION_EXPIRED');
+    });
+
+    it('R2: a long-lived connection that dropped plainly keeps its refresh budget', async () => {
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      connected();
+      await vi.advanceTimersByTimeAsync(STABLE_CONNECTION_MS + 1);
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      errCode('WS_TOKEN_EXPIRED');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it('N2: disconnect() during the jitter wait cancels the refresh and clears the flag', async () => {
+      vi.mocked(Math.random).mockReturnValue(0.5);
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      expect(service.renewingSession()).toBe(true);
+      service.disconnect();
+      expect(service.renewingSession()).toBe(false);
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(refresh).not.toHaveBeenCalled();
+      expect(activate).not.toHaveBeenCalled();
+    });
+
+    it('N2: disconnect() while the refresh is in flight unsubscribes it and never reconnects', async () => {
+      const pending = new Subject<unknown>();
+      refresh.mockReturnValue(pending);
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(pending.observed).toBe(true);
+      service.disconnect();
+      expect(pending.observed).toBe(false);
+      expect(service.renewingSession()).toBe(false);
+      pending.next({});
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(activate).not.toHaveBeenCalled();
+    });
+
+    it('N2: connect() while the refresh is in flight cancels it and clears the flag', async () => {
+      const pending = new Subject<unknown>();
+      refresh.mockReturnValue(pending);
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      await vi.advanceTimersByTimeAsync(1);
+      service.disconnect();
+      service.connect();
+      activate.mockClear();
+      expect(pending.observed).toBe(false);
+      expect(service.renewingSession()).toBe(false);
+      expect(service.connectionState()).toBe('CONNECTING');
+    });
+
+    it('N2: disconnect() (logout) during a plain backoff wait cancels the reconnect', async () => {
+      connected();
+      drop();
+      service.disconnect();
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(activate).not.toHaveBeenCalled();
+    });
+
+    it('loop guard: a close right after a refresh+reconnect gives up instead of refreshing again', async () => {
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      connected();
+      await vi.advanceTimersByTimeAsync(STABLE_CONNECTION_MS - 1000);
+      errCode('WS_TOKEN_EXPIRED'); // closed again within the window
+      drop();
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(service.connectionState()).toBe('SESSION_EXPIRED');
+    });
+
+    it('a connection that stayed up long enough earns a new refresh (every ~15 min is fine)', async () => {
+      connected();
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      connected();
+      await vi.advanceTimersByTimeAsync(STABLE_CONNECTION_MS + 1);
+      errCode('WS_TOKEN_EXPIRED');
+      drop();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(service.isTerminal()).toBe(false);
+    });
+
+    it('a transient ERROR also keeps the banner flag off (only token renewals are silent)', () => {
+      connected();
+      err('Broker unavailable');
+      expect(service.renewingSession()).toBe(false);
+    });
   });
 
   describe('wake during backoff (S4)', () => {

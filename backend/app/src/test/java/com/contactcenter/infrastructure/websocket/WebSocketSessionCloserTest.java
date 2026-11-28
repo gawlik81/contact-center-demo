@@ -48,7 +48,7 @@ class WebSocketSessionCloserTest {
             }
             return sent.add(message);
         };
-        closer = new WebSocketSessionCloser(registry, channel, meters, clock);
+        closer = new WebSocketSessionCloser(registry, channel, meters, props, clock);
     }
 
     @Test
@@ -162,8 +162,9 @@ class WebSocketSessionCloserTest {
         assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(1);
         assertThat(sent).isEmpty();
 
-        // kanal wraca do zycia: sweep (termin = "teraz") ponawia zamkniecie z kodem zalezym od powodu LOGOUT
+        // kanal wraca do zycia: po backoffie (5 s) sweep ponawia zamkniecie z kodem zaleznym od powodu LOGOUT
         failSend = false;
+        clock.advance(Duration.ofSeconds(5));
         closer.sweep();
 
         assertThat(sent).hasSize(1);
@@ -178,13 +179,15 @@ class WebSocketSessionCloserTest {
     @DisplayName("W1: kanal zwracajacy false (ramka odrzucona) tez liczy sie jako porazka i jest ponawiany")
     void rejectedFrameIsRetried() {
         MessageChannel rejecting = (message, timeout) -> false;
-        WebSocketSessionCloser c = new WebSocketSessionCloser(registry, rejecting, meters, clock);
+        WebSocketSessionCloser c = new WebSocketSessionCloser(registry, rejecting, meters, props, clock);
         registry.register("s1", USER, TENANT, null);
 
         assertThat(c.closeUser(TENANT, USER, SessionCloseReason.ROLE_CHANGED)).isZero();
 
         assertThat(registry.size()).isEqualTo(1);
-        // ponowienie przez sweep nastepuje dopiero po chwili: termin = "teraz" => juz wymagalny
+        // BE-249: ponowienie z backoffem (pierwsze po 5 s): wczesniej niewymagalne, po 5 s tak
+        assertThat(registry.takeExpired(clock.instant())).isEmpty();
+        clock.advance(Duration.ofSeconds(5));
         assertThat(registry.takeExpired(clock.instant())).hasSize(1);
     }
 
@@ -198,11 +201,126 @@ class WebSocketSessionCloserTest {
         assertThat(registry.size()).isEqualTo(1);
 
         failSend = false;
+        clock.advance(Duration.ofSeconds(5));
         closer.sweep();
 
         assertThat(sent).hasSize(1);
         assertThat(StompHeaderAccessor.wrap(sent.get(0)).getFirstNativeHeader(WsErrorCode.HEADER))
                 .isEqualTo("WS_TOKEN_EXPIRED");
         assertThat(registry.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("BE-249 R2: backoff min(5 s * 2^n, 60 s): 5, 10, 20, 40, 60, 60")
+    void backoffIsExponentialAndCapped() {
+        assertThat(closer.backoff(1)).isEqualTo(Duration.ofSeconds(5));
+        assertThat(closer.backoff(2)).isEqualTo(Duration.ofSeconds(10));
+        assertThat(closer.backoff(3)).isEqualTo(Duration.ofSeconds(20));
+        assertThat(closer.backoff(4)).isEqualTo(Duration.ofSeconds(40));
+        assertThat(closer.backoff(5)).isEqualTo(Duration.ofSeconds(60));
+        assertThat(closer.backoff(50)).as("brak przepelnienia przy duzej liczbie prob").isEqualTo(Duration.ofSeconds(60));
+    }
+
+    @Test
+    @DisplayName("BE-249 R2: kolejne porazki wydluzaja termin ponowienia, licznik prob rosnie")
+    void repeatedFailuresBackOff() {
+        registry.register("s1", USER, TENANT, null);
+        failSend = true;
+        closer.closeUser(TENANT, USER, SessionCloseReason.LOGOUT);                 // attempt 1 -> retry at +5 s
+
+        clock.advance(Duration.ofSeconds(4));
+        closer.sweep();                                                              // not due yet: nothing happens
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(1);
+
+        clock.advance(Duration.ofSeconds(1));
+        closer.sweep();                                                              // attempt 2 fails -> retry at +10 s
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(2);
+
+        clock.advance(Duration.ofSeconds(9));
+        closer.sweep();
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count())
+                .as("10 s backoff nie minal").isEqualTo(2);
+        clock.advance(Duration.ofSeconds(1));
+        closer.sweep();
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("BE-249 W1: po max-attempts sesja NIE jest porzucana (fail-open): ponawianie co closeRetryMax, metryka abandoned jako alarm, zamkniecie po powrocie kanalu")
+    void sessionStaysTrackedAfterMaxAttempts() {
+        props.setCloseMaxAttempts(3);
+        registry.register("s1", USER, TENANT, null);
+        failSend = true;
+        closer.closeUser(TENANT, USER, SessionCloseReason.LOGOUT);   // failure 1
+        for (int i = 0; i < 4; i++) {                                // failures 2..5, the last ones beyond the limit
+            clock.advance(Duration.ofSeconds(60));
+            closer.sweep();
+        }
+
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(5);
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_ABANDONED).tag("reason", "LOGOUT").counter().count())
+                .as("alarm przy kazdej porazce ponad limit").isEqualTo(3);
+        assertThat(registry.size()).as("sesja nadal sledzona").isEqualTo(1);
+
+        clock.advance(Duration.ofSeconds(59));
+        closer.sweep();
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count())
+                .as("kolejna proba dopiero po closeRetryMax (60 s)").isEqualTo(5);
+
+        failSend = false;
+        clock.advance(Duration.ofSeconds(1));
+        closer.sweep();
+        assertThat(sent).hasSize(1);
+        assertThat(registry.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("BE-249 R2: porazki jednej partii = jedno ostrzezenie (nie jedno na sesje); licznik porazek per sesja")
+    void failuresOfOneBatchAreCountedPerSession() {
+        for (int i = 0; i < 5; i++) {
+            registry.register("s" + i, USER, TENANT, null);
+        }
+        failSend = true;
+
+        assertThat(closer.closeUser(TENANT, USER, SessionCloseReason.LOGOUT)).isZero();
+
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_CLOSE_FAILURES).counter().count()).isEqualTo(5);
+        assertThat(registry.size()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("BE-249: closeLoginSession zamyka tylko sesje danego sid (i te bez sid), closeUserExceptLoginSession odwrotnie")
+    void closesByLoginSession() {
+        UUID sidA = UUID.randomUUID();
+        UUID sidB = UUID.randomUUID();
+        registry.register("a1", USER, TENANT, sidA, null);
+        registry.register("a2", USER, TENANT, sidA, null);
+        registry.register("b1", USER, TENANT, sidB, null);
+
+        assertThat(closer.closeLoginSession(TENANT, USER, sidA, SessionCloseReason.LOGOUT)).isEqualTo(2);
+        assertThat(registry.size()).isEqualTo(1);
+        assertThat(registry.countForUser(USER)).isEqualTo(1);
+
+        registry.register("a3", USER, TENANT, sidA, null);
+        assertThat(closer.closeUserExceptLoginSession(TENANT, USER, sidA, SessionCloseReason.PASSWORD_CHANGED))
+                .isEqualTo(1);
+        assertThat(sent.get(sent.size() - 1)).satisfies(m ->
+                assertThat(SimpMessageHeaderAccessor.getSessionId(m.getHeaders())).isEqualTo("b1"));
+        assertThat(registry.size()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("BE-249 N6: sweep zapisuje czas trwania, liczbe wygaslych sesji w cyklu i bledy cyklu")
+    void sweepPublishesMetrics() {
+        registry.register("s1", USER, TENANT, T0.plusSeconds(10));
+        clock.advance(Duration.ofSeconds(10));
+        closer.sweep();
+        closer.sweep();
+
+        assertThat(meters.get(WebSocketSessionCloser.METRIC_SWEEP_DURATION).timer().count()).isEqualTo(2);
+        var expired = meters.get(WebSocketSessionCloser.METRIC_SWEEP_EXPIRED).summary();
+        assertThat(expired.count()).isEqualTo(2);
+        assertThat(expired.totalAmount()).isEqualTo(1.0);
+        assertThat(meters.find(WebSocketSessionCloser.METRIC_SWEEP_ERRORS).counter()).isNull();
     }
 }

@@ -149,6 +149,11 @@ class FullApplicationContextStartupTest {
         registry.add("super-admin.email", () -> "be227-startup-test@example.invalid");
         registry.add("super-admin.password", () -> "Be227-startup-Test-Pa55word!");
 
+        // BE-242/BE-249: prod REQUIRES the HMAC secret of the cc:ws:* channels (>= 32 bytes) and an explicit
+        // WEBSOCKET_SESSION_ENV; the context must start with exactly these two supplied
+        registry.add("websocket.hmac.secret", () -> "startup-test-hmac-secret-0123456789abcdef");
+        registry.add("websocket.session.control.environment", () -> "startup-test");
+
         // prod writes the log to /var/log/... - keep the test hermetic
         registry.add("logging.file.name", () -> "target/full-context-startup-test.log");
     }
@@ -335,6 +340,19 @@ class FullApplicationContextStartupTest {
                 .isSameAs(context.getBean("pluginSyncListenerContainer"));
     }
 
+    @Autowired
+    private com.contactcenter.infrastructure.websocket.WebSocketChannelSigner hmacSigner;
+
+    @Test
+    @DisplayName("BE-242/BE-249: na prod HMAC kanalow cc:ws:* jest wymagany i aktywny, a TenantStatusGate/TokenRevocationService sa w kontekscie")
+    void webSocketHmacIsRequiredAndActiveOnProd() {
+        assertThat(environment.getProperty("websocket.hmac.required", Boolean.class)).isTrue();
+        assertThat(hmacSigner.isEnabled()).isTrue();
+        assertThat(environment.getProperty("websocket.hmac.accept-unsigned", Boolean.class)).isFalse();
+        assertThat(context.getBean(com.contactcenter.domain.tenant.TenantStatusGate.class)).isNotNull();
+        assertThat(context.getBean(com.contactcenter.security.TokenRevocationService.class)).isNotNull();
+    }
+
     @Test
     @DisplayName("BE-175: fan-out WS w pelnym kontekscie - beany, subskrypcja Redis, zdarzenie od innej instancji i z broadcastera docieraja do sesji z prawdziwym JWT dokladnie raz")
     void webSocketFanoutWorksInFullContext() throws Exception {
@@ -393,12 +411,20 @@ class FullApplicationContextStartupTest {
             org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(
                     () -> !brokerHandler.getSubscriptionRegistry().findSubscriptions(probe).isEmpty());
 
+            // BE-242: prod signs the envelopes; an UNSIGNED envelope (a forger with Redis access) is NOT delivered,
+            // and since the dispatch thread is ordered, the first frame the session sees is the signed one below
+            String channel = context.getBean(
+                    com.contactcenter.infrastructure.websocket.WebSocketFanoutProperties.class).effectiveChannel();
+            String forged = "{\"eventType\":\"FORGED\",\"payload\":null}";
+            RedisTestContainer.stringTemplate().convertAndSend(channel, new WebSocketFanoutEnvelope(1,
+                    "some-other-instance", agentsTopic, tenant, System.currentTimeMillis(), forged).toJson());
+
             // an event published by ANOTHER instance reaches the session (through the real Redis channel)
             String remote = "{\"eventType\":\"REMOTE\",\"payload\":null}";
-            RedisTestContainer.stringTemplate().convertAndSend(
-                    context.getBean(com.contactcenter.infrastructure.websocket.WebSocketFanoutProperties.class).effectiveChannel(),
-                    new WebSocketFanoutEnvelope(1, "some-other-instance", agentsTopic, tenant,
-                            System.currentTimeMillis(), remote).toJson());
+            WebSocketFanoutEnvelope unsigned = new WebSocketFanoutEnvelope(1, "some-other-instance", agentsTopic,
+                    tenant, System.currentTimeMillis(), remote);
+            RedisTestContainer.stringTemplate().convertAndSend(channel, unsigned.withSignature(
+                    hmacSigner.sign(channel, unsigned.canonicalForSigning())).toJson());
             assertThat(received.poll(15, TimeUnit.SECONDS)).isEqualTo(remote);
 
             // an event from this instance's broadcaster: delivered locally, echo from Redis ignored -> exactly once

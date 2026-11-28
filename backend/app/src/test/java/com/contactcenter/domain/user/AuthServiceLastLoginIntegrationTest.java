@@ -73,7 +73,7 @@ class AuthServiceLastLoginIntegrationTest {
         jdbc = new JdbcTemplate(pool);
 
         JwtService jwtService = mock(JwtService.class);
-        when(jwtService.issueAccessToken(any(), any(), anyBoolean())).thenReturn("access");
+        when(jwtService.issueAccessToken(any(), any(), anyBoolean(), any())).thenReturn("access");
         when(jwtService.generateRefreshTokenValue())
                 .thenAnswer(inv -> "rt-" + UUID.randomUUID() + "-" + TOKEN_SEQ.incrementAndGet());
         when(jwtService.refreshTokenExpiresAt()).thenAnswer(inv -> Instant.now().plusSeconds(3600));
@@ -98,7 +98,8 @@ class AuthServiceLastLoginIntegrationTest {
                             mock(TokenBlacklistService.class), mock(MfaService.class), users, tokens,
                             tenantService, passwordEncoder, mock(LoginRateLimiter.class),
                             mock(UserService.class), mock(PendingLoginTracker.class),
-                            mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class)));
+                            mock(com.contactcenter.domain.websocket.WebSocketSessionTerminator.class),
+                            mock(com.contactcenter.domain.tenant.TenantStatusGate.class)));
                 });
         authService = ctx.getBean(AuthService.class);
     }

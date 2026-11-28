@@ -98,6 +98,8 @@ class AgentSelfControllerTest {
 
     @MockBean private JwtParser jwtParser;
     @MockBean private TokenBlacklistService tokenBlacklistService;
+    @MockBean private com.contactcenter.security.TokenRevocationService tokenRevocationService;
+    @MockBean private com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate;
     @MockBean private UserService userService;
     @MockBean private UserDetailsServiceImpl userDetailsService;
     @MockBean private ContactService contactService;

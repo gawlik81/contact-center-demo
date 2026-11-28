@@ -13,6 +13,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.tenant.TenantStatusGate;
 import com.contactcenter.domain.websocket.SessionCloseReason;
 import com.contactcenter.domain.websocket.WebSocketSessionTerminator;
 import com.contactcenter.security.*;
@@ -72,6 +73,7 @@ class AuthServiceImpl implements AuthService {
     private final UserService userService;
     private final PendingLoginTracker pendingLoginTracker;
     private final WebSocketSessionTerminator webSocketSessionTerminator;
+    private final TenantStatusGate tenantStatusGate;
 
     // =========================================================================
     // Login
@@ -148,11 +150,17 @@ class AuthServiceImpl implements AuthService {
         AppUser user = appUserRepository.findById(userDetails.getUserId())
                 .orElseThrow(() -> new BadCredentialsException("Nieprawidłowe dane logowania"));
 
+        // BE-249: wspólna bramka statusu tenanta (login/refresh/CONNECT/HTTP). Sprawdzana PO weryfikacji hasła, żeby
+        // nie ujawniać stanu tenanta komuś, kto nie zna hasła; SUPER_ADMIN (bez tenanta) jest pomijany.
+        assertTenantActive(user);
+
         // Po udanym uwierzytelnieniu: zresetuj licznik rate limit
         loginRateLimiter.reset(ip);
 
-        String accessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled());
-        String refreshTokenValue = createRefreshToken(user);
+        // BE-249: nowe logowanie = nowa sesja logowania (rodzina refresh tokenów, claim sid)
+        UUID sessionId = UUID.randomUUID();
+        String accessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled(), sessionId);
+        String refreshTokenValue = createRefreshToken(user, sessionId);
         long ttl = jwtService.getAccessTokenTtlSeconds();
 
         // Priorytet: zmiana hasła wymagana przed weryfikacją MFA
@@ -232,11 +240,10 @@ class AuthServiceImpl implements AuthService {
             throw new DisabledException("Konto użytkownika jest nieaktywne");
         }
 
-        // BE-233: użytkownicy nieaktywnego tenanta nie odnawiają tokenów (updateTenant(INACTIVE) nie dezaktywuje
-        // kont, więc sam status tenanta musi blokować refresh - inaczej zamknięta sesja WS wracałaby od razu).
-        // Koszt: jeden odczyt tenanta na refresh (~1 / 15 min / użytkownika), już robiony w getTenantName().
-        if (user.getTenantId() != null && tenantService.findTenantEntity(user.getTenantId())
-                .map(t -> t.getStatus() == Tenant.TenantStatus.INACTIVE).orElse(false)) {
+        // BE-233/BE-249: użytkownicy nieaktywnego tenanta nie odnawiają tokenów (updateTenant(INACTIVE) nie dezaktywuje
+        // kont, więc sam status tenanta musi blokować refresh). Wspólna bramka z lokalnym cache TTL 30 s; SUPER_ADMIN
+        // (bez tenanta) pomijany bez żadnego odczytu.
+        if (tenantStatusGate.isBlocked(user.getTenantId())) {
             log.warn("[Auth] Próba refresh użytkownika nieaktywnego tenanta: userId={}", user.getId());
             throw new DisabledException("Tenant jest nieaktywny");
         }
@@ -250,8 +257,10 @@ class AuthServiceImpl implements AuthService {
         // Przy włączonym MFA klient musi ponownie zweryfikować kod TOTP przez /api/auth/mfa/verify.
         // Wcześniejszy kod używał user.isMfaEnabled() co oznaczało, że użytkownik z MFA
         // otrzymywał token z mfaVerified=true bez podania kodu TOTP – luka bezpieczeństwa.
-        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), false);
-        String newRefreshTokenValue = createRefreshToken(user);
+        // BE-249: rotacja dziedziczy rodzinę (sid) - to ona identyfikuje urządzenie, nie wartość tokenu
+        UUID sessionId = refreshToken.getSessionId() != null ? refreshToken.getSessionId() : refreshToken.getId();
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), false, sessionId);
+        String newRefreshTokenValue = createRefreshToken(user, sessionId);
 
         log.info("[Auth] Token refresh (rotation): userId={}, tenantId={}", user.getId(), user.getTenantId());
         return LoginResponse.of(newAccessToken, newRefreshTokenValue, jwtService.getAccessTokenTtlSeconds());
@@ -262,11 +271,17 @@ class AuthServiceImpl implements AuthService {
     // =========================================================================
 
     /**
-     * Wylogowuje użytkownika:
+     * Wylogowuje użytkownika Z TEGO URZĄDZENIA:
      * <ol>
      *   <li>Dodaje access token do blacklisty Redis (TTL = pozostały czas ważności)</li>
-     *   <li>Unieważnia refresh token w bazie danych</li>
+     *   <li>Unieważnia refresh token (i całą jego rodzinę) w bazie danych</li>
+     *   <li>Zamyka sesje WebSocket TEGO urządzenia i unieważnia jego tokeny wystawione przed wylogowaniem
+     *       (BE-249); inne urządzenia użytkownika zostają zalogowane - tak jak refresh tokeny</li>
      * </ol>
+     * Urządzenie identyfikuje claim {@code sid} (rodzina refresh tokenów, stała po rotacji), a gdy access token
+     * wygasł lub jest sprzed BE-249 - rodzina przekazanego refresh tokenu (tylko gdy należy do tego samego użytkownika).
+     * Gdy urządzenia nie da się ustalić, wylogowanie zamyka sesje WS wszystkich urządzeń (bezpieczniej niż zostawić
+     * otwartą sesję wylogowanego).
      *
      * @param accessToken   surowy JWT access token (z nagłówka Authorization)
      * @param logoutRequest zawiera refresh token do unieważnienia
@@ -274,27 +289,47 @@ class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public void logout(String accessToken, LogoutRequest logoutRequest) {
+        CallerIdentity caller = identifyCaller(accessToken, logoutRequest.refreshToken());
+
         // Krok 1: Blacklista access tokenu w Redis
         blacklistAccessToken(accessToken);
 
-        // Krok 2: Unieważnij refresh token w DB
-        int revoked = refreshTokenRepository.revokeByToken(logoutRequest.refreshToken());
+        // Krok 2: Unieważnij refresh token w DB (oraz resztę rodziny tego urządzenia)
+        // BE-249 (N-S3): scoped to the caller - a leaked foreign refresh token cannot be revoked through logout
+        int revoked = caller.userId() != null
+                ? refreshTokenRepository.revokeByTokenAndUserId(logoutRequest.refreshToken(), caller.userId())
+                : refreshTokenRepository.revokeByToken(logoutRequest.refreshToken());
         if (revoked == 0) {
             log.warn("[Auth] Logout: refresh token nieznany lub już unieważniony");
+        }
+        if (caller.userId() != null && caller.sessionId() != null) {
+            refreshTokenRepository.revokeBySessionId(caller.userId(), caller.sessionId());
         }
 
         // Krok 3: Jeśli wylogowuje się agent – ustaw status OFFLINE
         setAgentOfflineOnLogout();
         clearPendingLoginOfCurrentUser();
 
-        // Krok 4 (BE-233): zamknij sesje WebSocket użytkownika na wszystkich instancjach (po commicie)
-        closeWebSocketSessionsOfCaller(accessToken, SessionCloseReason.LOGOUT);
+        // Krok 4 (BE-233/BE-249): zamknij sesje WebSocket tego urządzenia na wszystkich instancjach (po commicie,
+        // asynchronicznie, razem ze znacznikiem unieważnienia tokenów tej sesji logowania)
+        try {
+            if (caller.userId() != null && caller.sessionId() != null) {
+                webSocketSessionTerminator.closeLoginSession(caller.tenantId(), caller.userId(), caller.sessionId(),
+                        SessionCloseReason.LOGOUT);
+            } else if (caller.userId() != null) {
+                webSocketSessionTerminator.closeUserSessions(caller.tenantId(), caller.userId(),
+                        SessionCloseReason.LOGOUT);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[Auth] Nie udało się zlecić zamknięcia sesji WebSocket: {}", e.toString());
+        }
 
         log.info("[Auth] Logout wykonany pomyślnie");
     }
 
     /**
-     * Wylogowuje użytkownika ze wszystkich urządzeń (unieważnia wszystkie refresh tokeny).
+     * Wylogowuje użytkownika ze wszystkich urządzeń (unieważnia wszystkie refresh tokeny, zamyka wszystkie jego sesje
+     * WebSocket i unieważnia jego access tokeny wystawione przed wylogowaniem).
      *
      * @param accessToken surowy JWT access token
      * @param userId      UUID użytkownika
@@ -302,36 +337,55 @@ class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public void logoutAll(String accessToken, UUID userId) {
+        CallerIdentity caller = identifyCaller(accessToken, null);
         blacklistAccessToken(accessToken);
         int count = refreshTokenRepository.revokeAllByUserId(userId);
         setAgentOfflineOnLogout();
         clearPendingLogin(userId);
-        closeWebSocketSessionsOfCaller(accessToken, SessionCloseReason.LOGOUT);
+        try {
+            webSocketSessionTerminator.closeUserSessions(caller.tenantId(), caller.userId() != null
+                    ? caller.userId() : userId, SessionCloseReason.LOGOUT);
+        } catch (RuntimeException e) {
+            log.warn("[Auth] Nie udało się zlecić zamknięcia sesji WebSocket: {}", e.toString());
+        }
         log.info("[Auth] Logout ze wszystkich urządzeń: userId={}, unieważniono {} tokenów", userId, count);
     }
 
+    /** Kto wylogowuje: para tenant/user (token albo kontekst żądania) i sesja logowania (sid), jeśli da się ją ustalić. */
+    private record CallerIdentity(UUID tenantId, UUID userId, UUID sessionId) {
+    }
+
     /**
-     * BE-233: zamyka sesje WebSocket zalogowanego użytkownika (para tenant/user z tokenu, a gdy token już wygasł -
-     * z kontekstu żądania). Best-effort: wylogowanie nie może przez to zawieść.
+     * Ustala wywołującego. Użytkownik/tenant: z podpisanego access tokenu, a gdy wygasł - z kontekstu żądania.
+     * Sesja logowania: claim {@code sid}; w razie braku (token sprzed BE-249 / wygasły) rodzina przekazanego refresh
+     * tokenu - ale WYŁĄCZNIE gdy należy do tego samego użytkownika (cudzy refresh token nie może wskazać cudzej sesji).
+     * Best-effort: nigdy nie rzuca.
      */
-    private void closeWebSocketSessionsOfCaller(String accessToken, SessionCloseReason reason) {
+    private CallerIdentity identifyCaller(String accessToken, String refreshTokenValue) {
+        UUID userId = null;
+        UUID tenantId = null;
+        UUID sessionId = null;
         try {
-            UUID userId;
-            UUID tenantId;
             JwtClaims claims = accessToken == null || accessToken.isBlank() ? null : jwtParser.parseQuiet(accessToken);
             if (claims != null) {
                 userId = claims.userId();
                 tenantId = claims.tenantId();
+                sessionId = claims.sessionId();
             } else {
                 userId = TenantContext.getUserIdOrNull();
                 tenantId = TenantContext.getTenantIdOrNull();
             }
-            if (userId != null) {
-                webSocketSessionTerminator.closeUserSessions(tenantId, userId, reason);
+            if (sessionId == null && userId != null && StringUtils.hasText(refreshTokenValue)) {
+                UUID owner = userId;
+                sessionId = refreshTokenRepository.findByToken(refreshTokenValue)
+                        .filter(rt -> owner.equals(rt.getUserId()))
+                        .map(rt -> rt.getSessionId() != null ? rt.getSessionId() : rt.getId())
+                        .orElse(null);
             }
         } catch (RuntimeException e) {
-            log.warn("[Auth] Nie udało się zlecić zamknięcia sesji WebSocket: {}", e.toString());
+            log.warn("[Auth] Nie udało się ustalić sesji logowania wywołującego: {}", e.toString());
         }
+        return new CallerIdentity(tenantId, userId, sessionId);
     }
 
     private void clearPendingLoginOfCurrentUser() {
@@ -452,6 +506,9 @@ class AuthServiceImpl implements AuthService {
             log.info("[MFA] MFA aktywowane dla userId={}", userId);
         }
 
+        // BE-249: nowy token zostaje w tej samej sesji logowania (sid), bo to nadal to samo urządzenie
+        UUID sessionId = sessionIdOf(oldAccessToken);
+
         // Blacklista starego access tokenu (z mfaVerified=false)
         if (oldAccessToken != null) {
             blacklistAccessToken(oldAccessToken);
@@ -464,7 +521,7 @@ class AuthServiceImpl implements AuthService {
         }
 
         // Wystaw nowy access token z mfaVerified=true
-        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), true);
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), true, sessionId);
         log.info("[MFA] Weryfikacja TOTP pomyślna: userId={}", userId);
         return newAccessToken;
     }
@@ -483,7 +540,9 @@ class AuthServiceImpl implements AuthService {
      *   <li>Zapisanie nowego hasła i wyczyszczenie flagi {@code passwordResetRequired}</li>
      *   <li>Unieważnienie starego access tokenu (blacklista Redis)</li>
      *   <li>Unieważnienie wszystkich refresh tokenów użytkownika</li>
-     *   <li>Wystawienie nowych tokenów</li>
+     *   <li>Wystawienie nowych tokenów W TEJ SAMEJ sesji logowania (sid): bieżące urządzenie zostaje zalogowane</li>
+     *   <li>BE-249: sesje WebSocket POZOSTAŁYCH urządzeń są zamykane, a ich access tokeny unieważniane znacznikiem
+     *       "unieważnione od" per sesja (po commicie, asynchronicznie)</li>
      * </ol>
      *
      * @param userId         UUID zalogowanego użytkownika (z JWT)
@@ -520,7 +579,17 @@ class AuthServiceImpl implements AuthService {
         // Unieważnij stary access token (blacklista Redis)
         blacklistAccessToken(oldAccessToken);
 
-        // Unieważnij wszystkie refresh tokeny użytkownika (wymuszamy re-login na innych urządzeniach)
+        // BE-249: bieżąca sesja logowania (sid starego tokenu; brak = token sprzed BE-249 -> nowa rodzina) i lista
+        // POZOSTAŁYCH aktywnych sesji (przed unieważnieniem refresh tokenów) - dostaną znacznik unieważnienia
+        UUID currentSessionId = sessionIdOf(oldAccessToken);
+        if (currentSessionId == null) {
+            currentSessionId = UUID.randomUUID();
+        }
+        java.util.List<UUID> otherSessionIds =
+                refreshTokenRepository.findActiveSessionIdsExcept(userId, currentSessionId, Instant.now());
+
+        // Unieważnij wszystkie refresh tokeny użytkownika (wymuszamy re-login na innych urządzeniach); bieżące
+        // urządzenie dostaje poniżej nową parę w tej samej rodzinie
         int revokedCount = refreshTokenRepository.revokeAllByUserId(userId);
         log.debug("[Auth] Zmiana hasła: unieważniono {} refresh tokenów dla userId={}", revokedCount, userId);
 
@@ -528,9 +597,18 @@ class AuthServiceImpl implements AuthService {
         user.setPasswordHash(newHash);
         user.setPasswordResetRequired(false);
 
-        // Wystaw nowe tokeny
-        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled());
-        String newRefreshTokenValue = createRefreshToken(user);
+        // Wystaw nowe tokeny (ta sama sesja logowania)
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled(),
+                currentSessionId);
+        String newRefreshTokenValue = createRefreshToken(user, currentSessionId);
+
+        // BE-249: samodzielna zmiana hasła wylogowuje POZOSTAŁE urządzenia (sesje WS + tokeny), bieżące zostaje
+        try {
+            webSocketSessionTerminator.closeOtherLoginSessions(user.getTenantId(), userId, currentSessionId,
+                    otherSessionIds, SessionCloseReason.PASSWORD_CHANGED);
+        } catch (RuntimeException e) {
+            log.warn("[Auth] Nie udało się zlecić zamknięcia sesji WebSocket pozostałych urządzeń: {}", e.toString());
+        }
 
         if (completesLogin) {
             if (user.isMfaEnabled()) {
@@ -618,13 +696,32 @@ class AuthServiceImpl implements AuthService {
                 .orElse(user.getTenantId().toString());
     }
 
-    private String createRefreshToken(AppUser user) {
+    /** Claim {@code sid} z podpisanego access tokenu; {@code null} gdy brak tokenu, claimu albo token nieważny. */
+    private UUID sessionIdOf(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return null;
+        }
+        JwtClaims claims = jwtParser.parseQuiet(accessToken);
+        return claims == null ? null : claims.sessionId();
+    }
+
+    /** BE-249: odrzuca logowanie użytkownika nieaktywnego tenanta (SUPER_ADMIN bez tenanta pomijany). */
+    private void assertTenantActive(AppUser user) {
+        if (tenantStatusGate.isBlocked(user.getTenantId())) {
+            log.warn("[Auth] Próba logowania użytkownika nieaktywnego tenanta: userId={}, tenantId={}",
+                    user.getId(), user.getTenantId());
+            throw new DisabledException("Tenant jest nieaktywny");
+        }
+    }
+
+    private String createRefreshToken(AppUser user, UUID sessionId) {
         String tokenValue = jwtService.generateRefreshTokenValue();
         Instant expiresAt = jwtService.refreshTokenExpiresAt();
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .userId(user.getId())
                 .tenantId(user.getTenantId())
+                .sessionId(sessionId)
                 .token(tokenValue)
                 .expiresAt(expiresAt)
                 .revoked(false)

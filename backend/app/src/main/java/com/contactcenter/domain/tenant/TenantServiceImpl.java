@@ -54,6 +54,9 @@ class TenantServiceImpl implements TenantService {
     /** BE-233: zamyka sesje WebSocket tenanta (na wszystkich instancjach) po jego dezaktywacji. */
     private final WebSocketSessionTerminator webSocketSessionTerminator;
 
+    /** BE-249: wspólna bramka statusu tenanta (login/refresh/CONNECT/filtr HTTP); lokalny cache TTL 30 s. */
+    private final TenantStatusGate tenantStatusGate;
+
     /**
      * Zależność wstrzykiwana zwykłym polem finalnym (bez {@code @Autowired @Lazy}) — mimo że
      * {@link #createTenant} wywołuje {@link RetentionPolicyService#seedDefaultPolicies}, brak tu
@@ -308,11 +311,14 @@ class TenantServiceImpl implements TenantService {
         // Inwaliduj cache metryk admin gdy zmienił się status tenanta
         if (statusChanged) {
             adminMetricsService.evictGlobalMetricsCache();
-            // BE-233: tylko faktyczne przejście na INACTIVE (INACTIVE->INACTIVE nie wywołuje burzy reconnectów).
-            // Refresh tokenu użytkowników tego tenanta jest odrzucany (AuthServiceImpl#refresh), więc klient po
-            // zamknięciu sesji WS przejdzie w SESSION_EXPIRED. Uwaga: to NIE blokuje ponownego logowania hasłem
-            // (login nie sprawdza statusu tenanta) ani reconnectu WS starym, ważnym tokenem - wspólna bramka statusu
-            // tenanta w login/refresh/CONNECT jest w zakresie BE-249.
+            // BE-233: only a real transition to INACTIVE closes sessions (INACTIVE -> INACTIVE must not cause a
+            // reconnect storm).
+            // BE-249: INACTIVE blocks login, refresh, WebSocket CONNECT and HTTP requests of the tenant's users through
+            // the shared TenantStatusGate (the accounts are NOT deactivated - only deactivateTenant does that). This
+            // instance drops its cache entry at once (reactivation works immediately here); other instances learn it
+            // after at most tenant.status-gate.ttl (30 s by default). Open WebSocket sessions are closed at once on
+            // all instances (below).
+            tenantStatusGate.invalidateAroundCommit(tenantId);
             if (becameInactive) {
                 webSocketSessionTerminator.closeTenantSessions(tenantId, SessionCloseReason.TENANT_DEACTIVATED);
             }
@@ -366,6 +372,8 @@ class TenantServiceImpl implements TenantService {
 
         // Inwaliduj cache metryk admin – tenant zmienił status na INACTIVE
         adminMetricsService.evictGlobalMetricsCache();
+        // BE-249: the tenant status gate (login/refresh/CONNECT/HTTP) must see INACTIVE without waiting for the TTL
+        tenantStatusGate.invalidateAroundCommit(tenantId);
 
         // BE-233: otwarte sesje WebSocket użytkowników tenanta kończą się (na wszystkich instancjach, po commicie)
         webSocketSessionTerminator.closeTenantSessions(tenantId, SessionCloseReason.TENANT_DEACTIVATED);

@@ -88,6 +88,7 @@
     }
   },
   "auth": {
+    "sessionEnded": "Sesja zakończona – zaloguj się ponownie",
     "login": {
       "title": "Logowanie",
       "emailLabel": "Adres e-mail",

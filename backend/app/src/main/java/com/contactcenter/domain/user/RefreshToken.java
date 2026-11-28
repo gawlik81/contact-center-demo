@@ -56,6 +56,13 @@ public class RefreshToken {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    /**
+     * Login-session (device) id = refresh-token family (V152, BE-249). Started by a login, INHERITED on every
+     * rotation, carried as the {@code sid} claim of the access tokens of the family.
+     */
+    @Column(name = "session_id")
+    private UUID sessionId;
+
     @Column(name = "is_revoked", nullable = false)
     private boolean revoked;
 

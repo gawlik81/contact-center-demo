@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { provideRouter } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService, AuthTokens, LoginRequest } from './auth.service';
@@ -66,6 +67,7 @@ describe('AuthService', () => {
         provideRouter([{ path: '**', children: [] }]),
         AuthService,
         TokenService,
+        { provide: TranslocoService, useValue: { translate: (k: string) => k } },
       ],
     }).compileComponents();
 

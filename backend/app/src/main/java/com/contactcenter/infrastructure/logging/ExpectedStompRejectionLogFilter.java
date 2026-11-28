@@ -32,7 +32,8 @@ public class ExpectedStompRejectionLogFilter extends TurboFilter {
     private static boolean isExpectedRejectionText(String format) {
         return format.endsWith(StompDestinationAuthorizationInterceptor.REJECTION_MESSAGE)
                 || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.BLACKLISTED_MESSAGE)
-                || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.UNVERIFIABLE_MESSAGE);
+                || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.UNVERIFIABLE_MESSAGE)
+                || format.endsWith(com.contactcenter.security.WebSocketAuthInterceptor.TENANT_INACTIVE_MESSAGE);
     }
 
     @Override

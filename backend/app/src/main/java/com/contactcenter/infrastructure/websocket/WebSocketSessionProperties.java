@@ -43,6 +43,22 @@ public class WebSocketSessionProperties {
     /** How often one instance scans its registry for sessions past their deadline. */
     private long sweepIntervalMs = 5_000;
 
+    /**
+     * Retry of a close that could not be delivered (outbound channel full): the n-th retry waits
+     * {@code min(closeRetryBase * 2^n, closeRetryMax)} (BE-249).
+     */
+    private Duration closeRetryBase = Duration.ofSeconds(5);
+
+    /** Upper bound of the retry delay. */
+    private Duration closeRetryMax = Duration.ofSeconds(60);
+
+    /**
+     * After this many failed deliveries the retries continue at {@code closeRetryMax} (the session is NEVER dropped from
+     * the registry: its transport may still be open) and {@code ws.sessions.close.abandoned} counts every further failure
+     * as an alarm.
+     */
+    private int closeMaxAttempts = 10;
+
     private final Control control = new Control();
 
     /** Redis pub/sub channel that closes the sessions of a user on every instance. */
@@ -73,6 +89,21 @@ public class WebSocketSessionProperties {
 
         /** Bounded queue of the Redis listener's single dispatch thread. */
         private int dispatchQueueCapacity = 256;
+
+        /**
+         * Async publication (BE-249): threads and queue of the executor that writes the revocation markers and
+         * publishes the control envelopes OUTSIDE the request thread and the transaction.
+         */
+        private int publishThreads = 2;
+
+        private int publishQueueCapacity = 1_000;
+
+        /**
+         * Replay protection: an envelope published at {@code ts} closes only sessions registered up to
+         * {@code ts + replayTolerance} (clock skew between hosts). A replayed old envelope therefore cannot close
+         * sessions created after it was first published (re-login, reactivated tenant).
+         */
+        private Duration replayTolerance = Duration.ofSeconds(5);
     }
 
     private final String processSuffix = UUID.randomUUID().toString().substring(0, 8);

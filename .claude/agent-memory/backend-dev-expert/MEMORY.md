@@ -155,3 +155,5 @@
 - [BE-233 sesje WS a życie tokenu](project_be233_ws_session_lifecycle.md) — ERROR przez clientOutboundChannel zamyka transport; rejestr synchronized; Closer vs interceptor (cykl beanów); UNLOCKED_BY_DESIGN
 - [BE-228 obserwowalnosc ShedLock + argMax ze zrodla](project_be228_shedlock_observability.md) — MeteredLockProvider, sprzatanie shedlock, wersja DW ze zrodla
 - [Test EXPLAIN: remis kosztow na pustych tabelach](feedback_explain_test_tie_on_empty_partitions.md) — dane realistyczne+ANALYZE w tx z rollbackiem, kontrola negatywna (BE-248)
+- [BE-249/BE-242 WS hardening (tura 82)](project_be249_be242_ws_hardening.md) — sid=rodzina refresh (V152), revoked-since, TenantStatusGate, HMAC cc:ws:*, pulapki Spring args/@InjectMocks
+- [Unieważniony token 401 nie 403](project_revoked_token_401_entrypoint.md) — authenticationEntryPoint + UnauthorizedResponseWriter, RevokedTokenReturns401MvcTest

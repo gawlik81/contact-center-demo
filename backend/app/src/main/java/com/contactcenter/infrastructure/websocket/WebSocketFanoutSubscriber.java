@@ -42,15 +42,19 @@ public class WebSocketFanoutSubscriber {
     private final WebSocketFanoutMetrics metrics;
     private final WebSocketFanoutProperties properties;
     private final SimpUserRegistry userRegistry;
+    private final WebSocketChannelSigner signer;
+    private final WebSocketReplayGuard replayGuard = new WebSocketReplayGuard(20_000);
     private final String instanceId;
 
     public WebSocketFanoutSubscriber(WebSocketLocalDispatcher dispatcher, WebSocketFanoutMetrics metrics,
                                      WebSocketFanoutProperties properties, SimpUserRegistry userRegistry,
+                                     WebSocketChannelSigner signer,
                                      @Qualifier("wsFanoutListenerContainer") RedisMessageListenerContainer container) {
         this.dispatcher = dispatcher;
         this.metrics = metrics;
         this.properties = properties;
         this.userRegistry = userRegistry;
+        this.signer = signer;
         this.instanceId = properties.resolvedInstanceId();
         try {
             container.addMessageListener(this::onMessage, new ChannelTopic(properties.effectiveChannel()));
@@ -85,6 +89,19 @@ public class WebSocketFanoutSubscriber {
             // our own publication - delivered locally by the publisher already. Counted: with N > 1 replicas a
             // sustained rate far above "1 per own publish" (or, worse, ALL envelopes ignored) signals a duplicated id.
             metrics.ignored("self");
+            return;
+        }
+        // BE-242: authenticity first (cheap, before any other field is trusted); a WRONG signature is always rejected,
+        // a missing one only when the transitional mode is off
+        WebSocketChannelSigner.Verdict verdict = signer.verify("fanout", properties.effectiveChannel(),
+                envelope.canonicalForSigning(), envelope.sig(), envelope.ts());
+        if (!verdict.isAccepted()) {
+            drop(verdict.reason(), "podpis HMAC koperty");
+            return;
+        }
+        // BE-249 W3: a signed envelope is delivered ONCE; a captured copy replayed within the freshness window is dropped
+        if (!replayGuard.firstSeen(envelope.sig())) {
+            drop("replay", "powtorzona koperta (ten sam podpis)");
             return;
         }
         StompDestinations.Parsed parsed = StompDestinations.parse(envelope.dest());

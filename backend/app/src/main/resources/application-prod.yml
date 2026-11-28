@@ -169,6 +169,20 @@ springdoc:
 # =============================================================================
 
 # =============================================================================
+# WebSocket – wymagania produkcyjne (BE-242, BE-249)
+#   WEBSOCKET_HMAC_SECRET  – WYMAGANY sekret HMAC kopert kanałów Redis cc:ws:* (min. 32 bajty); brak/za krótki = start
+#                            aplikacji kończy się błędem. Generowanie: openssl rand -base64 48  (DEPLOYMENT.md)
+#   WEBSOCKET_SESSION_ENV  – WYMAGANY jawny sufiks środowiska kanału sterowania sesjami (bez wartości domyślnej:
+#                            środowiska na wspólnym Redis nie mogą przypadkiem dzielić kanału; N5)
+# =============================================================================
+websocket:
+  hmac:
+    required: true
+  session:
+    control:
+      environment: ${WEBSOCKET_SESSION_ENV}
+
+# =============================================================================
 # Agent Breaks Activator – PROD: interwał 60s (mniejsze obciążenie DB)
 # =============================================================================
 agent:

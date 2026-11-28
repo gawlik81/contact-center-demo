@@ -88,6 +88,7 @@
     }
   },
   "auth": {
+    "sessionEnded": "Session ended – please sign in again",
     "login": {
       "title": "Sign In",
       "emailLabel": "Email address",

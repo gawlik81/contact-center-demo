@@ -60,6 +60,9 @@ class TenantServiceTest {
     @Mock
     private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
 
+    @Mock
+    private TenantStatusGate tenantStatusGate;
+
     @InjectMocks
     private TenantServiceImpl tenantService;
 

@@ -88,6 +88,7 @@
     }
   },
   "auth": {
+    "sessionEnded": "Sitzung beendet – bitte erneut anmelden",
     "login": {
       "title": "Anmelden",
       "emailLabel": "E-Mail-Adresse",

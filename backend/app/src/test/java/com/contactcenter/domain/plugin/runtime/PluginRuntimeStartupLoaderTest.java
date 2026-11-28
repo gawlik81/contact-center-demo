@@ -103,6 +103,18 @@ class PluginRuntimeStartupLoaderTest {
     }
 
     @Test
+    @DisplayName("W3 (BE-245): nieczytelne konfiguracje (np. rotacja klucza) - start NIE pada, nic nie jest ładowane, błąd jest jawny (ERROR)")
+    void unreadableInstallationsDoNotCrashStartupAndLoadNothing() {
+        when(pluginCatalogQueryService.findAllEnabledAcrossAllTenants())
+                .thenThrow(new com.contactcenter.domain.plugin.InstallationConfigUnreadableException(3, 3, 0));
+
+        org.assertj.core.api.Assertions.assertThatCode(() -> loader.reloadEnabledInstallationsOnStartup())
+                .doesNotThrowAnyException();
+
+        verify(pluginRuntimeManager, never()).load(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     @DisplayName("Pomija load() gdy instalacja jest już załadowana w tym węźle (idempotentność)")
     void skipsLoadWhenAlreadyLoaded() {
         when(pluginCatalogQueryService.findAllEnabledAcrossAllTenants())

@@ -67,7 +67,8 @@ class PluginInstallationConfigEncryptionEndToEndTest {
     @BeforeEach
     void setUp() {
         encryptedStringConverter = new EncryptedStringConverter(TEST_SECRET_BASE64);
-        installationRepository = new TenantPluginInstallationRepository(encryptedStringConverter);
+        installationRepository = new TenantPluginInstallationRepository(encryptedStringConverter,
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(installationRepository, "em", entityManager);
         service = new PluginRegistrationServiceImpl(installationRepository, pluginVersionRepository);
 
@@ -148,7 +149,8 @@ class PluginInstallationConfigEncryptionEndToEndTest {
                 installationConfigRaw,
                 null,
                 java.time.Instant.now(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                null // degraded_reason
         };
     }
 

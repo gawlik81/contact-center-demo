@@ -157,3 +157,10 @@
 - [Test EXPLAIN: remis kosztow na pustych tabelach](feedback_explain_test_tie_on_empty_partitions.md) — dane realistyczne+ANALYZE w tx z rollbackiem, kontrola negatywna (BE-248)
 - [BE-249/BE-242 WS hardening (tura 82)](project_be249_be242_ws_hardening.md) — sid=rodzina refresh (V152), revoked-since, TenantStatusGate, HMAC cc:ws:*, pulapki Spring args/@InjectMocks
 - [Unieważniony token 401 nie 403](project_revoked_token_401_entrypoint.md) — authenticationEntryPoint + UnauthorizedResponseWriter, RevokedTokenReturns401MvcTest
+- [BE-245 HMAC plugin-sync + odcisk konfiguracji (EPIC-33)](project_be245_plugin_sync_hmac_config.md) — wspolny signer z WS, installationConfigChanged, R4/R6, pulapki IT
+- [BE-246 half-open obwodu + checksum JAR + lazy load assetow (EPIC-33)](project_be246_circuit_halfopen_jar_checksum.md) — isOpen ma efekt uboczny (dzierzawa proby), checksum odmowa load, ensureInstallationLoaded
+- [BE-245 poprawki po review (tura 83)](project_be245_review_fixes_tura83.md) — kanoniczny sig+klucz guarda, reload pod jednym lockiem, DEGRADED po zlej konfiguracji
+- [BE-246 poprawki po review (tura 83)](project_be246_review_fixes_tura83.md) — Permit/tryAcquire/release, token próby, jitter TTL, verifyJarBeforeReload przed unload, limit czekających
+- [BE-244 wykonawcy sync + kwarantanna onActivate (EPIC-33)](project_be244_executors_quarantine.md) — 5 pul, rate limit assetów, unload pod lockiem, pułapki testów (ghost w kolejce, spin bytecode)
+- [BE-245 degraded_reason V153 (tura 83)](project_be245_degraded_reason_v153.md) — enum DegradedReason, CAS po reason, effectiveDegradedReason (legacy), obwod nadpisuje config, 409 kwarantanna
+- [BE-244 poprawki po review (tura 83)](project_be244_review_fixes_tura83.md) — PluginRevocation w handle/kontekscie, limity osieroconych per (tenant, wtyczka), klucz koalescencji do konca zadania, markDegradedByCircuit CAS

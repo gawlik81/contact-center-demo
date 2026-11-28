@@ -323,6 +323,16 @@ plugins:
   lifecycle:
     # limit wątków callbacków onActivate/onDeactivate (zastępuje nieograniczony cached pool; reszta budżetu: BE-180)
     max-threads: ${PLUGINS_LIFECYCLE_MAX_THREADS:16}
+    # timeout pojedynczego onActivate/onDeactivate (ms); po nim wątek wtyczki zostaje osierocony (licznik plugin.lifecycle.orphaned)
+    callback-timeout-ms: ${PLUGINS_LIFECYCLE_CALLBACK_TIMEOUT_MS:10000}
+    # BE-244: kwarantanna instalacji po timeoucie onActivate (brak ponowień w pętli); kolejny timeout tej samej wersji i
+    # konfiguracji podwaja TTL do maksimum. Nowa wersja/konfiguracja = świeża próba od razu.
+    quarantine-ttl-ms: ${PLUGINS_LIFECYCLE_QUARANTINE_TTL_MS:600000}
+    quarantine-max-ttl-ms: ${PLUGINS_LIFECYCLE_QUARANTINE_MAX_TTL_MS:3600000}
+    # BE-244 W3: limit osieroconych watkow callbackow na (tenant, wtyczka) - niezalezny od odcisku konfiguracji - oraz laczny
+    # (po jego przekroczeniu odrzucane sa tylko wtyczki, ktore juz maja sieroty); odrzucony load = kwarantanna (409)
+    max-orphans-per-plugin: ${PLUGINS_LIFECYCLE_MAX_ORPHANS_PER_PLUGIN:2}
+    max-orphans-total: ${PLUGINS_LIFECYCLE_MAX_ORPHANS_TOTAL:8}
   sync:
     # false => brak zdarzeń i rekoncyliacji (poprawne wyłącznie dla 1 repliki)
     enabled: ${PLUGINS_SYNC_ENABLED:true}
@@ -343,6 +353,26 @@ plugins:
     sync-threads: ${PLUGINS_SYNC_THREADS:2}
     sync-queue-capacity: ${PLUGINS_SYNC_QUEUE:256}
     dispatch-queue-capacity: ${PLUGINS_SYNC_DISPATCH_QUEUE:512}
+    # PluginAssetController (publiczny, bez JWT): max czas oczekiwania wątku HTTP na leniwe załadowanie instalacji
+    # niezrekoncyliowanej na tej instancji (po nim 503 + Retry-After; ładowanie trwa w tle) i limit równoległych wyszukiwań
+    asset-lazy-load-timeout-ms: ${PLUGINS_SYNC_ASSET_LAZY_TIMEOUT_MS:3000}
+    asset-lazy-load-max-inflight: ${PLUGINS_SYNC_ASSET_LAZY_MAX_INFLIGHT:8}
+    # max liczba wątków HTTP czekających na to SAMO wolne ładowanie (nadmiar od razu 503 + Retry-After)
+    asset-lazy-load-max-waiters: ${PLUGINS_SYNC_ASSET_LAZY_MAX_WAITERS:4}
+    # BE-244 W2: osobny executor leniwego ładowania assetów (nigdy wspólny z rekoncyliacją) + globalny token bucket PRZED skanem tenantów
+    asset-lazy-load-threads: ${PLUGINS_SYNC_ASSET_LAZY_THREADS:2}
+    asset-lazy-load-queue-capacity: ${PLUGINS_SYNC_ASSET_LAZY_QUEUE:16}
+    asset-lazy-load-rate-per-second: ${PLUGINS_SYNC_ASSET_LAZY_RATE_PER_SECOND:10}
+    asset-lazy-load-rate-burst: ${PLUGINS_SYNC_ASSET_LAZY_RATE_BURST:20}
+    # BE-244 R2: priorytetowy executor (re)ładowania po zdarzeniu (enable/zmiana wersji/konfiguracji) - nie czeka za reconcileAll
+    load-threads: ${PLUGINS_SYNC_LOAD_THREADS:2}
+    load-queue-capacity: ${PLUGINS_SYNC_LOAD_QUEUE:64}
+  # BE-246: po tym czasie otwarty obwód (lokalny lub zdalny) przepuszcza JEDNO próbne wywołanie (half-open);
+  # sukces zamyka obwód na wszystkich instancjach, porażka otwiera go ponownie z nowym TTL. Format: 60s, PT2M, 500 (ms)
+  circuit-breaker:
+    open-ttl: ${PLUGINS_CIRCUIT_BREAKER_OPEN_TTL:60s}
+    # jitter TTL (ułamek, [0,1)): +/- 10% rozprasza próby instancji otwartych jednym zdarzeniem
+    open-ttl-jitter: ${PLUGINS_CIRCUIT_BREAKER_OPEN_TTL_JITTER:0.1}
 
 # =============================================================================
 # Telephony – konfiguracja adaptera VoIP (BE-009)

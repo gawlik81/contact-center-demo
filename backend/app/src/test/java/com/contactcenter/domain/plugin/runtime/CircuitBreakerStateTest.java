@@ -39,7 +39,7 @@ class CircuitBreakerStateTest {
     @Test
     @DisplayName("Obwód zamknięty (isOpen=false) dla instalacji bez historii błędów")
     void isOpenFalseForUnknownInstallation() {
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isFalse();
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isFalse();
     }
 
     @Test
@@ -49,10 +49,9 @@ class CircuitBreakerStateTest {
             circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
         }
 
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isFalse();
-        verify(pluginRegistrationService, never()).updateHealthStatus(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isFalse();
+        verify(pluginRegistrationService, never()).markDegradedByCircuit(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -62,25 +61,44 @@ class CircuitBreakerStateTest {
             circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
         }
 
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isTrue();
-        verify(pluginRegistrationService).updateHealthStatus(
-                TENANT_ID, INSTALLATION_ID, TenantPluginInstallation.HealthStatus.DEGRADED,
-                CircuitBreakerState.FAILURE_THRESHOLD);
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isTrue();
+        verify(pluginRegistrationService).markDegradedByCircuit(
+                TENANT_ID, INSTALLATION_ID, CircuitBreakerState.FAILURE_THRESHOLD);
     }
 
     @Test
-    @DisplayName("Obwód otwarty wraca do HEALTHY i licznik resetuje się po pierwszym SUCCESS")
-    void closesOnFirstSuccessAfterBeingOpen() {
+    @DisplayName("Obwód otwarty wraca do HEALTHY i licznik resetuje się po udanej próbie half-open")
+    void closesOnSuccessfulProbeAfterBeingOpen() {
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong(1_000);
+        circuitBreakerState = new CircuitBreakerState(
+                pluginRegistrationService, null, java.time.Duration.ofSeconds(60), nanos::get);
         for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
             circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
         }
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isTrue();
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isTrue();
+        nanos.addAndGet(java.time.Duration.ofSeconds(61).toNanos());
+        CircuitBreakerState.Permit probe = circuitBreakerState.tryAcquire(INSTALLATION_ID);
+        assertThat(probe.isProbe()).isTrue();
+
+        circuitBreakerState.recordResult(probe, TENANT_ID, true);
+
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isFalse();
+        verify(pluginRegistrationService).clearCircuitDegraded(TENANT_ID, INSTALLATION_ID);
+        // DEGRADED written exactly once (the opening); recovery goes ONLY through the CAS (reason cleared there)
+        verify(pluginRegistrationService, org.mockito.Mockito.times(1)).markDegradedByCircuit(
+                TENANT_ID, INSTALLATION_ID, CircuitBreakerState.FAILURE_THRESHOLD);
+    }
+
+    @Test
+    @DisplayName("SUCCESS zwykłego (nie-próbnego) wywołania nie zamyka otwartego obwodu")
+    void plainSuccessDoesNotCloseAnOpenCircuit() {
+        for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+            circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
+        }
 
         circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, true);
 
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isFalse();
-        verify(pluginRegistrationService).updateHealthStatus(
-                TENANT_ID, INSTALLATION_ID, TenantPluginInstallation.HealthStatus.HEALTHY, 0);
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isTrue();
     }
 
     @Test
@@ -88,9 +106,8 @@ class CircuitBreakerStateTest {
     void successWithoutPriorFailuresDoesNotTouchDb() {
         circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, true);
 
-        verify(pluginRegistrationService, never()).updateHealthStatus(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+        verify(pluginRegistrationService, never()).markDegradedByCircuit(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -102,7 +119,7 @@ class CircuitBreakerStateTest {
             circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
         }
 
-        assertThat(circuitBreakerState.isOpen(INSTALLATION_ID)).isTrue();
-        assertThat(circuitBreakerState.isOpen(otherInstallationId)).isFalse();
+        assertThat(circuitBreakerState.isOpenReadOnly(INSTALLATION_ID)).isTrue();
+        assertThat(circuitBreakerState.isOpenReadOnly(otherInstallationId)).isFalse();
     }
 }

@@ -61,13 +61,15 @@ class TenantPluginInstallationRepositoryTest {
     @Mock
     private Query mockQuery;
 
+    private final io.micrometer.core.instrument.simple.SimpleMeterRegistry meters =
+            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
     private EncryptedStringConverter encryptedStringConverter;
     private TenantPluginInstallationRepository repository;
 
     @BeforeEach
     void setUp() {
         encryptedStringConverter = new EncryptedStringConverter(TEST_SECRET_BASE64);
-        repository = new TenantPluginInstallationRepository(encryptedStringConverter);
+        repository = new TenantPluginInstallationRepository(encryptedStringConverter, meters);
         ReflectionTestUtils.setField(repository, "em", entityManager);
         TenantContext.setTenantId(TENANT_ID);
 
@@ -199,6 +201,173 @@ class TenantPluginInstallationRepositoryTest {
         }
     }
 
+    @Nested
+    @DisplayName("findAllEnabledForTenant() – izolacja uszkodzonego wiersza (BE-245)")
+    class CorruptRowIsolation {
+
+        @Test
+        @DisplayName("jeden wiersz z niedeszyfrowalną konfiguracją jest pomijany, pozostałe instalacje nadal się zwracają")
+        void corruptRowDoesNotAbortTheList() {
+            String plaintext = "{\"k\":\"v\"}";
+            Object[] good = buildRow("{\"encrypted\":\"" + encryptedStringConverter.convertToDatabaseColumn(plaintext) + "\"}");
+            Object[] badWrapper = buildRow("{\"unexpected\":\"x\"}");
+            badWrapper[0] = UUID.randomUUID().toString();
+            Object[] good2 = buildRow("{\"encrypted\":\"" + encryptedStringConverter.convertToDatabaseColumn(plaintext) + "\"}");
+            good2[0] = UUID.randomUUID().toString();
+            List<Object[]> rows = new ArrayList<>();
+            rows.add(badWrapper);
+            rows.add(good);
+            rows.add(good2);
+            when(mockQuery.getResultList()).thenReturn(rows);
+
+            List<TenantPluginInstallation> result = repository.findAllEnabledForTenant(TENANT_ID);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getInstallationConfig()).isEqualTo(plaintext);
+            assertThat(meters.get(TenantPluginInstallationRepository.METRIC_SKIPPED).tag("reason", "format")
+                    .counter().count()).isEqualTo(1);
+        }
+
+        private List<Object[]> rowsList(Object[]... rows) {
+            return new ArrayList<>(java.util.Arrays.asList(rows));
+        }
+
+        private Object[] rowEncryptedWithOtherKey() {
+            EncryptedStringConverter otherKey = new EncryptedStringConverter(
+                    Base64.getEncoder().encodeToString("another-32-byte-secret-key-for-test!".getBytes()));
+            Object[] row = buildRow("{\"encrypted\":\"" + otherKey.convertToDatabaseColumn("{\"k\":\"v\"}") + "\"}");
+            row[0] = UUID.randomUUID().toString();
+            return row;
+        }
+
+        @Test
+        @DisplayName("W3: rotacja/zły klucz - WSZYSTKIE wiersze nieodszyfrowane -> wyjątek (nie pusta lista) + metryka decrypt")
+        void allRowsUndecryptableFailsLoudly() {
+            List<Object[]> rows = rowsList(rowEncryptedWithOtherKey(), rowEncryptedWithOtherKey(),
+                    rowEncryptedWithOtherKey());
+            when(mockQuery.getResultList()).thenReturn(rows);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findAllEnabledForTenant(TENANT_ID))
+                    .isInstanceOf(InstallationConfigUnreadableException.class)
+                    .hasMessageContaining("3 z 3")
+                    .hasMessageContaining("app.encryption.secret");
+            assertThat(meters.get(TenantPluginInstallationRepository.METRIC_SKIPPED).tag("reason", "decrypt")
+                    .counter().count()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("W3: pojedyncza instalacja, której nie da się odczytać (pominięto wszystkie, >= 1) -> wyjątek")
+        void singleRowThatIsSkippedFailsLoudly() {
+            List<Object[]> rows = rowsList(rowEncryptedWithOtherKey());
+            when(mockQuery.getResultList()).thenReturn(rows);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findAllEnabledForTenant(TENANT_ID))
+                    .isInstanceOf(InstallationConfigUnreadableException.class);
+        }
+
+        @Test
+        @DisplayName("W3: większość wierszy nieodszyfrowana (2 z 3) -> wyjątek; mniejszość (1 z 3) -> pominięcie")
+        void majorityFailsMinorityIsSkipped() {
+            String plaintext = "{\"k\":\"v\"}";
+            Object[] good = buildRow("{\"encrypted\":\"" + encryptedStringConverter.convertToDatabaseColumn(plaintext) + "\"}");
+            when(mockQuery.getResultList()).thenReturn(rowsList(
+                    rowEncryptedWithOtherKey(), rowEncryptedWithOtherKey(), good));
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.findAllEnabledForTenant(TENANT_ID))
+                    .isInstanceOf(InstallationConfigUnreadableException.class);
+
+            Object[] good2 = buildRow("{\"encrypted\":\"" + encryptedStringConverter.convertToDatabaseColumn(plaintext) + "\"}");
+            good2[0] = UUID.randomUUID().toString();
+            when(mockQuery.getResultList()).thenReturn(rowsList(
+                    rowEncryptedWithOtherKey(), good, good2));
+            assertThat(repository.findAllEnabledForTenant(TENANT_ID)).hasSize(2);
+        }
+    }
+
+    @Nested
+    @DisplayName("W2 (BE-245): warunkowe UPDATE-y health_status (CAS z rozróżnieniem przyczyny)")
+    class HealthStatusCas {
+
+        private String lastSql() {
+            ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+            verify(entityManager, org.mockito.Mockito.atLeastOnce()).createNativeQuery(sql.capture());
+            return sql.getAllValues().get(sql.getAllValues().size() - 1);
+        }
+
+        @Test
+        @DisplayName("markDegradedByConfigLoad: tylko z HEALTHY, ustawia CONFIG_LOAD_FAILED w tym samym UPDATE, nie rusza licznika")
+        void markOnlyFromHealthy() {
+            assertThat(repository.markDegradedByConfigLoad(INSTALLATION_ID, TENANT_ID)).isEqualTo(1);
+
+            assertThat(lastSql()).contains("health_status = 'HEALTHY'").contains("'DEGRADED'")
+                    .contains("degraded_reason = 'CONFIG_LOAD_FAILED'").doesNotContain("consecutive_failure_count");
+        }
+
+        @Test
+        @DisplayName("clearDegraded: z DEGRADED, czyści przyczynę; includeCircuit=false warunkuje na CONFIG_LOAD_FAILED (+ fallback legacy)")
+        void clearOnlyFromDegradedWithCauseGuard() {
+            repository.clearDegraded(INSTALLATION_ID, TENANT_ID, false);
+
+            assertThat(lastSql()).contains("health_status = 'DEGRADED'").contains("degraded_reason           = NULL")
+                    .contains(":includeCircuit = TRUE OR")
+                    .contains("degraded_reason = 'CONFIG_LOAD_FAILED'")
+                    .contains("degraded_reason IS NULL AND consecutive_failure_count < :threshold");
+            verify(mockQuery).setParameter("includeCircuit", false);
+            verify(mockQuery).setParameter("threshold", TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD);
+        }
+
+        @Test
+        @DisplayName("clearCircuitDegraded: tylko CIRCUIT_OPEN (+ fallback legacy), czyści przyczynę, nie rusza DISABLED_BY_ADMIN")
+        void clearCircuitOnlyCircuitCaused() {
+            repository.clearCircuitDegraded(INSTALLATION_ID, TENANT_ID);
+
+            assertThat(lastSql()).contains("degraded_reason = 'CIRCUIT_OPEN'")
+                    .contains("degraded_reason IS NULL AND consecutive_failure_count >= :threshold")
+                    .contains("degraded_reason           = NULL")
+                    .doesNotContain("DISABLED_BY_ADMIN");
+        }
+
+        @Test
+        @DisplayName("markDegradedByCircuit: jeden UPDATE z para (DEGRADED, CIRCUIT_OPEN) i warunkiem CAS wobec DISABLED_BY_ADMIN")
+        void markDegradedByCircuitIsConditional() {
+            repository.markDegradedByCircuit(INSTALLATION_ID, TENANT_ID, 5);
+
+            assertThat(lastSql()).contains("health_status              = 'DEGRADED'")
+                    .contains("degraded_reason            = 'CIRCUIT_OPEN'")
+                    .contains("health_status <> 'DISABLED_BY_ADMIN'");
+            verify(mockQuery).setParameter("consecutiveFailureCount", 5);
+        }
+
+        @Test
+        @DisplayName("insert: DEGRADED bez przyczyny -> IllegalArgumentException (para jak na sciezkach update), bez dotykania bazy")
+        void insertDegradedWithoutReasonIsRejected() {
+            TenantPluginInstallation installation = new TenantPluginInstallation();
+            installation.setTenantId(TENANT_ID);
+            installation.setPluginVersionId(UUID.randomUUID());
+            installation.setEnabled(true);
+            installation.setGrantedPermissions(List.of());
+            installation.setHealthStatus("DEGRADED");
+            installation.setConsecutiveFailureCount(0);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.insert(installation))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(entityManager, org.mockito.Mockito.never()).createNativeQuery(anyString());
+        }
+
+        @Test
+        @DisplayName("mapRow: degraded_reason odczytany z kolumny 11 (surowa wartość zachowana)")
+        void mapsDegradedReasonColumn() {
+            Object[] row = buildRow(null);
+            row[5] = "DEGRADED";
+            row[11] = "CONFIG_LOAD_FAILED";
+            when(mockQuery.getResultList()).thenReturn(rowsOf(row));
+
+            TenantPluginInstallation i = repository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID).orElseThrow();
+
+            assertThat(i.getDegradedReason()).isEqualTo(DegradedReason.CONFIG_LOAD_FAILED);
+            assertThat(i.effectiveDegradedReason()).isEqualTo(DegradedReason.CONFIG_LOAD_FAILED);
+        }
+    }
+
     // =========================================================================
     // Fixtures
     // =========================================================================
@@ -221,7 +390,8 @@ class TenantPluginInstallationRepositoryTest {
                 installationConfigRaw,
                 null,
                 java.time.Instant.now(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                null // degraded_reason
         };
     }
 
@@ -236,4 +406,24 @@ class TenantPluginInstallationRepositoryTest {
         rows.add(row);
         return rows;
     }
+    @Nested
+    @DisplayName("findByIdAndTenantId() - kontekst RLS z jawnego tenantId, nie z TenantContext (pętla cross-tenant, BE-246)")
+    class ExplicitTenantContext {
+
+        private static final UUID OTHER_TENANT = UUID.fromString("55555555-5555-5555-5555-555555555555");
+
+        @Test
+        @DisplayName("set_tenant_context dostaje tenantId z argumentu (nie z TenantContext), więc pętla po tenantach jest bezpieczna")
+        void setsRlsContextFromTheArgument() {
+            when(mockQuery.getResultList()).thenReturn(List.of());
+
+            Optional<TenantPluginInstallation> result =
+                    repository.findByIdAndTenantId(INSTALLATION_ID, OTHER_TENANT); // TenantContext holds TENANT_ID
+
+            assertThat(result).isEmpty();
+            verify(mockQuery, org.mockito.Mockito.atLeast(2)).setParameter("tenantId", OTHER_TENANT.toString());
+            verify(mockQuery, org.mockito.Mockito.never()).setParameter("tenantId", TENANT_ID.toString());
+        }
+    }
+
 }

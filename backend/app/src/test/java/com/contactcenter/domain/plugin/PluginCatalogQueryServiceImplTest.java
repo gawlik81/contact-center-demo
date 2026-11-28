@@ -127,6 +127,36 @@ class PluginCatalogQueryServiceImplTest {
         }
 
         @Test
+        @DisplayName("W3 (BE-245): nieczytelny tenant nie ukrywa instalacji pozostałych tenantów (wynik częściowy)")
+        void unreadableTenantDoesNotHideOthers() {
+            Tenant tenantA = Tenant.builder().id(TENANT_A).name("Tenant A").build();
+            Tenant tenantB = Tenant.builder().id(TENANT_B).name("Tenant B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(tenantA, tenantB));
+            TenantPluginInstallation installationB = installation(TENANT_B);
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_A))
+                    .thenThrow(new InstallationConfigUnreadableException(2, 2, 0));
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_B))
+                    .thenReturn(List.of(installationB));
+
+            assertThat(service.findAllEnabledAcrossAllTenants()).containsExactly(installationB);
+        }
+
+        @Test
+        @DisplayName("W3 (BE-245): nic nie da się odczytać nigdzie (rotacja klucza) -> wyjątek, nie pusta lista")
+        void nothingReadableAnywhereFailsLoudly() {
+            Tenant tenantA = Tenant.builder().id(TENANT_A).name("Tenant A").build();
+            Tenant tenantB = Tenant.builder().id(TENANT_B).name("Tenant B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(tenantA, tenantB));
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_A))
+                    .thenThrow(new InstallationConfigUnreadableException(2, 2, 0));
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_B))
+                    .thenThrow(new InstallationConfigUnreadableException(1, 1, 0));
+
+            assertThatThrownBy(() -> service.findAllEnabledAcrossAllTenants())
+                    .isInstanceOf(InstallationConfigUnreadableException.class);
+        }
+
+        @Test
         @DisplayName("brak tenantów w systemie → lista pusta, nie rzuca")
         void noTenants_returnsEmptyList() {
             when(tenantService.getAllTenants()).thenReturn(List.of());
@@ -253,6 +283,72 @@ class PluginCatalogQueryServiceImplTest {
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    @Nested
+    @DisplayName("findEnabledInstallationAcrossTenants() - pętla po tenantach (BE-246)")
+    class FindEnabledInstallationAcrossTenants {
+
+        private static final UUID TENANT_C = UUID.fromString("44444444-4444-4444-4444-444444444444");
+
+        // Justification for a unit (not Testcontainers) test: the RLS context is set INSIDE
+        // TenantPluginInstallationRepository#findByIdAndTenantId per call (verified in TenantPluginInstallationRepositoryTest
+        // with an id/tenant that differ from TenantContext), and a database-backed variant needs Docker; here the loop
+        // contract is pinned: one repository call per tenant, with that tenant's id, until the first ENABLED match.
+        @Test
+        @DisplayName("3 tenanty: instalacja tenanta C znaleziona po pominięciu A i B; zapytanie per tenant z jego id")
+        void findsInstallationOfTheThirdTenantAndQueriesEachTenantExplicitly() {
+            Tenant a = Tenant.builder().id(TENANT_A).name("A").build();
+            Tenant b = Tenant.builder().id(TENANT_B).name("B").build();
+            Tenant c = Tenant.builder().id(TENANT_C).name("C").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(a, b, c));
+            TenantPluginInstallation inC = installation(TENANT_C);
+            UUID id = inC.getId();
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(id, TENANT_A)).thenReturn(Optional.empty());
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(id, TENANT_B)).thenReturn(Optional.empty());
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(id, TENANT_C)).thenReturn(Optional.of(inC));
+
+            Optional<TenantPluginInstallation> result = service.findEnabledInstallationAcrossTenants(id);
+
+            assertThat(result).containsSame(inC);
+            org.mockito.InOrder order = org.mockito.Mockito.inOrder(tenantPluginInstallationRepository);
+            order.verify(tenantPluginInstallationRepository).findByIdAndTenantId(id, TENANT_A);
+            order.verify(tenantPluginInstallationRepository).findByIdAndTenantId(id, TENANT_B);
+            order.verify(tenantPluginInstallationRepository).findByIdAndTenantId(id, TENANT_C);
+        }
+
+        @Test
+        @DisplayName("pętla kończy się na pierwszym dopasowaniu (kolejni tenanci nie są odpytywani)")
+        void stopsAtTheFirstMatch() {
+            Tenant a = Tenant.builder().id(TENANT_A).name("A").build();
+            Tenant b = Tenant.builder().id(TENANT_B).name("B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(a, b));
+            TenantPluginInstallation inA = installation(TENANT_A);
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(inA.getId(), TENANT_A))
+                    .thenReturn(Optional.of(inA));
+
+            assertThat(service.findEnabledInstallationAcrossTenants(inA.getId())).containsSame(inA);
+
+            org.mockito.Mockito.verify(tenantPluginInstallationRepository, org.mockito.Mockito.never())
+                    .findByIdAndTenantId(inA.getId(), TENANT_B);
+        }
+
+        @Test
+        @DisplayName("wyłączona instalacja jest pomijana (enabled=false), brak dopasowania -> empty")
+        void disabledInstallationIsSkippedAndUnknownIdIsEmpty() {
+            Tenant a = Tenant.builder().id(TENANT_A).name("A").build();
+            Tenant b = Tenant.builder().id(TENANT_B).name("B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(a, b));
+            TenantPluginInstallation disabled = installation(TENANT_A);
+            disabled.setEnabled(false);
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(disabled.getId(), TENANT_A))
+                    .thenReturn(Optional.of(disabled));
+            when(tenantPluginInstallationRepository.findByIdAndTenantId(disabled.getId(), TENANT_B))
+                    .thenReturn(Optional.empty());
+
+            assertThat(service.findEnabledInstallationAcrossTenants(disabled.getId())).isEmpty();
+            assertThat(service.findEnabledInstallationAcrossTenants(UUID.randomUUID())).isEmpty();
+        }
+    }
 
     private PluginVersion buildPluginVersion(PluginVersion.PluginVersionStatus status) {
         Plugin plugin = Plugin.builder()

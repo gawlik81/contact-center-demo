@@ -1,5 +1,9 @@
 package com.contactcenter.domain.plugin.dto;
 
+import com.contactcenter.domain.plugin.DegradedReason;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +32,9 @@ import java.util.UUID;
  * @param configuredKeys            posortowane alfabetycznie nazwy kluczy aktualnie ustawionej konfiguracji
  *                                  (wartości nigdy nie są zwracane — szyfrowane write-only, BE-108).
  *                                  Pusta lista gdy konfiguracja nie była jeszcze ustawiana.
+ * @param degradedReason            przyczyna {@code DEGRADED} (CIRCUIT_OPEN / CONFIG_LOAD_FAILED); {@code null} gdy
+ *                                  {@code healthStatus != DEGRADED} (V153). Dla wiersza legacy (DEGRADED bez zapisanej
+ *                                  przyczyny) wyliczana z licznika. Do wykorzystania przez FE (bez zmian FE w BE-245)
  */
 public record TenantPluginInstallationDto(
         UUID id,
@@ -45,6 +52,10 @@ public record TenantPluginInstallationDto(
         UUID installedByUserId,
         Instant installedAt,
         Instant updatedAt,
-        List<String> configuredKeys
+        List<String> configuredKeys,
+        @Schema(description = "Cause of DEGRADED; null when healthStatus != DEGRADED",
+                nullable = true, implementation = DegradedReason.class,
+                allowableValues = {"CIRCUIT_OPEN", "CONFIG_LOAD_FAILED"})
+        DegradedReason degradedReason
 ) {
 }

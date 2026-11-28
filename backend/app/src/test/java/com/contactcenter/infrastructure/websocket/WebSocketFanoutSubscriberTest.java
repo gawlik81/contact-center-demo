@@ -337,4 +337,34 @@ class WebSocketFanoutSubscriberTest {
         verify(dispatcher, org.mockito.Mockito.times(1)).deliver(eq(AGENTS_DEST), any(byte[].class));
         assertThat(dropped("replay")).isEqualTo(2);
     }
+
+    /** Replaces the {@code sig} value of a JSON envelope (a textual variant of the SAME signature bytes). */
+    private static String withSig(String json, java.util.function.UnaryOperator<String> change) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"sig\":\"([^\"]+)\"").matcher(json);
+        if (!m.find()) {
+            throw new IllegalStateException("no sig in " + json);
+        }
+        return json.substring(0, m.start(1)) + change.apply(m.group(1)) + json.substring(m.end(1));
+    }
+
+    private static String flipUnusedBit(String sig) {
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        return sig.substring(0, sig.length() - 1) + alphabet.charAt(alphabet.indexOf(sig.charAt(sig.length() - 1)) ^ 1);
+    }
+
+    @Test
+    @DisplayName("W1: wariant tekstowy podpisu (spacja, nieistotny bit) nie omija guarda replay: dostarczona RAZ, warianty = bad_signature")
+    void signatureTextVariantsDoNotBypassReplayGuard() {
+        WebSocketChannelSigner s = signer(HMAC_SECRET, null, false);
+        WebSocketFanoutSubscriber sub = signedSubscriber(s);
+        String envelope = signedEnvelope(s, AGENTS_DEST, TENANT, "{\"a\":1}");
+
+        receiveBy(sub, envelope);
+        receiveBy(sub, withSig(envelope, sig -> sig + " "));
+        receiveBy(sub, withSig(envelope, WebSocketFanoutSubscriberTest::flipUnusedBit));
+        receiveBy(sub, envelope);
+
+        verify(dispatcher, org.mockito.Mockito.times(1)).deliver(eq(AGENTS_DEST), any(byte[].class));
+        assertThat(dropped("replay")).isEqualTo(1);
+    }
 }

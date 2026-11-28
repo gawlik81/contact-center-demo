@@ -12,6 +12,17 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Usage: {@code Handle h = locks.of(key); h.lock(); try { ... } finally { h.unlock(); }} - {@code of} registers
  * interest, {@code unlock} releases it, so every {@code of} must be followed by a lock/unlock pair.
+ *
+ * <p><strong>Lock hierarchy of the plugin runtime (BE-244 R1; always acquired in this order, never the reverse):</strong>
+ * <ol>
+ *   <li>{@code tenantLocks} (sync service: tenant-wide lazy sync / {@code ensureTenantLoaded});</li>
+ *   <li>{@code installationLocks} (sync service: event, reconciliation, lazy load of ONE installation);</li>
+ *   <li>{@code loadLocks} (runtime manager: {@code load}/{@code unload} of ONE installation).</li>
+ * </ol>
+ * The manager never calls the sync service, so there is no path back up. The kill switch
+ * ({@code unloadByVersion}) takes none of them. Callbacks of a plugin run on the lifecycle pool WITHOUT any of these
+ * locks; the caller only waits for them with a timeout, so even a callback calling back into the runtime ends in a
+ * timeout, not in a deadlock.
  */
 final class KeyedLocks {
 

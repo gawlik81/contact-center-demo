@@ -33,6 +33,15 @@ public interface PluginRuntimeSync {
     void installationChanged(UUID tenantId, UUID installationId);
 
     /**
+     * Announces that the administrator replaced the {@code installationConfig} of the installation (BE-245). To be
+     * called AFTER the database change is committed. EVERY instance, including this one, reloads the plugin
+     * ({@code onDeactivate} + {@code onActivate} with the new configuration) and resets its circuit breaker; the
+     * reconciliation compares a fingerprint of the configuration, so an instance that missed the event converges
+     * within one reconciliation interval too. Never throws.
+     */
+    void installationConfigChanged(UUID tenantId, UUID installationId);
+
+    /**
      * Announces the platform-level revocation (kill switch) of a plugin version. To be called AFTER
      * {@code plugin_version.status = REVOKED} is committed. Never throws.
      */
@@ -56,6 +65,35 @@ public interface PluginRuntimeSync {
      * current call proceeds without the plugin; the next one sees it.
      */
     void requestTenantSync(UUID tenantId);
+
+    /**
+     * Resolves an installation by its id alone and makes sure this instance has it loaded (BE-246, public
+     * {@code PluginAssetController}: the request carries no tenant). Already loaded = immediate {@code LOADED}. Otherwise
+     * the installation is looked up in the database (enabled only), loaded through the same reconciliation as events and
+     * periodic passes (so a revoked version, a disabled installation or a load inside the failure backoff end as
+     * {@code NOT_FOUND}) and the call waits at most {@code plugins.sync.asset-lazy-load-timeout-ms}; on timeout the load
+     * keeps running in the background and the result is {@code PENDING}. Unknown ids are cached negatively for
+     * {@code plugins.sync.lazy-sync-cooldown-ms} and the number of concurrent lookups is capped, so an unauthenticated
+     * caller cannot turn random ids into a scan storm. Never throws.
+     */
+    InstallationLoad ensureInstallationLoaded(UUID installationId);
+
+    enum LoadStatus { LOADED, NOT_FOUND, PENDING }
+
+    /** @param handle present exactly when {@code status == LOADED} */
+    record InstallationLoad(LoadStatus status, java.util.Optional<PluginInstanceHandle> handle) {
+        public static InstallationLoad notFound() {
+            return new InstallationLoad(LoadStatus.NOT_FOUND, java.util.Optional.empty());
+        }
+
+        public static InstallationLoad pending() {
+            return new InstallationLoad(LoadStatus.PENDING, java.util.Optional.empty());
+        }
+
+        public static InstallationLoad loaded(PluginInstanceHandle handle) {
+            return new InstallationLoad(LoadStatus.LOADED, java.util.Optional.of(handle));
+        }
+    }
 
     /**
      * @param loaded   installations loaded by this call

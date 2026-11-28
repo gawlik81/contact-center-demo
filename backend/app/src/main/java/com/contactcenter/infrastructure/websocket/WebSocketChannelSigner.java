@@ -14,7 +14,8 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * HMAC-SHA256 signing and verification of the envelopes of the {@code cc:ws:*} Redis channels (BE-242, BE-249).
+ * HMAC-SHA256 signing and verification of the envelopes of the {@code cc:ws:*} Redis channels (BE-242, BE-249) and of the
+ * plugin synchronisation channel {@code cc:plugin:sync:*} (BE-245; one secret, one mechanism, channel label {@code plugin-sync}).
  *
  * <p>An attacker who can PUBLISH to Redis could otherwise forge an envelope with a valid tenant (the receiver checks
  * the allow-list, the tenant and the local session, which protects against a sender's mistake, not against a forger).
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code prod} profile ({@code websocket.hmac.required=true}) - the constructor then fails the application start.
  *
  * <p>Metrics: {@code ws.channel.signature.rejected{channel,reason}} with reason {@code bad_signature},
- * {@code missing_signature}, {@code stale}; {@code ws.channel.signature.unsigned.accepted{channel}} for the
+ * {@code missing_signature}, {@code stale_signature}; {@code ws.channel.signature.unsigned.accepted{channel}} for the
  * transitional mode. The secrets are never logged.
  */
 @Slf4j
@@ -166,10 +167,8 @@ public class WebSocketChannelSigner {
             }
             return reject(channelLabel, Verdict.REJECTED_MISSING);
         }
-        byte[] provided;
-        try {
-            provided = Base64.getUrlDecoder().decode(signature.trim());
-        } catch (IllegalArgumentException e) {
+        byte[] provided = decodeCanonical(signature);
+        if (provided == null) {
             return reject(channelLabel, Verdict.REJECTED_BAD);
         }
         boolean valid = MessageDigest.isEqual(hmac(current, channel, canonical), provided)
@@ -182,6 +181,40 @@ public class WebSocketChannelSigner {
             return reject(channelLabel, Verdict.REJECTED_STALE);
         }
         return Verdict.ACCEPTED;
+    }
+
+    /**
+     * Strict base64url decoding: the text must be EXACTLY the canonical encoding (no padding, no surrounding
+     * whitespace, no non-zero trailing bits) of the decoded bytes. {@link Base64} alone tolerates the unused low bits of
+     * the last character and the caller must not {@code trim()}, otherwise one captured signature has many textual
+     * variants and a replay guard keyed by the text is bypassed (BE-245 review W1).
+     *
+     * @return the signature bytes, or {@code null} when the text is not the canonical encoding
+     */
+    static byte[] decodeCanonical(String signature) {
+        try {
+            byte[] bytes = Base64.getUrlDecoder().decode(signature);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes).equals(signature) ? bytes : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Canonical text of a signature (the replay-guard key): equal for every textual variant of the same bytes, so a
+     * variant cannot be a "new" signature. Input is NOT trimmed or otherwise normalised; non-canonical input is returned unchanged (it is rejected by
+     * {@link #verify} before it reaches a guard).
+     */
+    public static String canonicalSignature(String signature) {
+        if (signature == null) {
+            return null;
+        }
+        try {
+            byte[] bytes = Base64.getUrlDecoder().decode(signature);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        } catch (IllegalArgumentException e) {
+            return signature;
+        }
     }
 
     private Verdict reject(String channelLabel, Verdict verdict) {

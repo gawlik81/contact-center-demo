@@ -12,6 +12,8 @@ import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +21,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -229,6 +232,11 @@ public class PluginAdminController {
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
                     @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
                     @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje"),
+                    @ApiResponse(responseCode = "409", description = "Instalacja w kwarantannie po timeoucie "
+                            + "onActivate/onDeactivate albo wtyczka ma zbyt wiele osieroconych watkow "
+                            + "(ponów po wygaśnięciu kwarantanny, zakonczeniu watkow albo po zmianie wersji/konfiguracji)",
+                            content = @Content(mediaType = "application/problem+json",
+                                    schema = @Schema(implementation = ProblemDetail.class))),
                     @ApiResponse(responseCode = "500", description = "Aktywacja runtime nie powiodła się (onActivate/timeout/REVOKED)")
             }
     )
@@ -319,7 +327,12 @@ public class PluginAdminController {
                     @ApiResponse(responseCode = "200", description = "Rollback wykonany"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
                     @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane ADMIN)"),
-                    @ApiResponse(responseCode = "404", description = "Któraś instalacja nie istnieje dla tenanta")
+                    @ApiResponse(responseCode = "404", description = "Któraś instalacja nie istnieje dla tenanta"),
+                    @ApiResponse(responseCode = "409", description = "Instalacja docelowa w kwarantannie po timeoucie "
+                            + "onActivate/onDeactivate albo wtyczka ma zbyt wiele osieroconych watkow "
+                            + "(ponów po wygaśnięciu kwarantanny, zakonczeniu watkow albo po zmianie wersji/konfiguracji)",
+                            content = @Content(mediaType = "application/problem+json",
+                                    schema = @Schema(implementation = ProblemDetail.class)))
             }
     )
     public ResponseEntity<TenantPluginInstallationDto> rollback(
@@ -458,6 +471,15 @@ public class PluginAdminController {
                 id, tenantId, request.config().keySet());
 
         pluginRegistrationService.updateConfig(tenantId, id, request.config());
+        // BE-245: the committed configuration is applied by reloading the plugin on every instance (incl. this one)
+        // the write is already committed: a failure of the propagation must not turn a successful save into a 500
+        // (the periodic reconciliation of every instance compares configuration fingerprints and catches up)
+        try {
+            pluginRuntimeSync.installationConfigChanged(tenantId, id);
+        } catch (RuntimeException e) {
+            log.warn("[PluginAdminController] Konfiguracja instalacji {} (tenant {}) zapisana, ale propagacja zmiany "
+                    + "nieudana: {}. Rekoncyliacja z DB nadrobi.", id, tenantId, e.toString());
+        }
 
         return ResponseEntity.ok().build();
     }

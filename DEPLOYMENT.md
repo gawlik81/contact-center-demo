@@ -798,6 +798,18 @@ dlatego sekret i `REDIS_PASSWORD` są jedyną barierą (ACL: BE-241).
 | `WEBSOCKET_HMAC_ACCEPT_UNSIGNED` | `true` = tryb przejściowy: koperty BEZ podpisu są akceptowane (do rolling deploy z wersji bez podpisu); koperty ze ZŁYM podpisem są odrzucane zawsze |
 | `WEBSOCKET_HMAC_MIN_SECRET_BYTES` | minimalna długość; nie da się jej obniżyć poniżej 32 (twarda podłoga w kodzie) |
 
+**Kanał synchronizacji wtyczek (BE-245).** Ten sam sekret i ta sama zasada obejmują trzeci kanał, `cc:plugin:sync:<env>`
+(zdarzenia `INSTALLATION_CHANGED`, `VERSION_REVOKED`, `CIRCUIT_OPENED/CLOSED`; BE-178): NIE ma osobnej zmiennej —
+`WEBSOCKET_HMAC_SECRET`, `WEBSOCKET_HMAC_PREVIOUS_SECRET` (rotacja) i `WEBSOCKET_HMAC_ACCEPT_UNSIGNED` (tryb przejściowy)
+działają identycznie, a brak sekretu na prod blokuje start także dla tego kanału (jeden bean podpisujący). Bez podpisu
+każdy z dostępem do `PUBLISH` mógłby wymuszać przeładowania wtyczek wybranych tenantów. Odrzucone koperty są liczone
+metryką `ws_channel_signature_rejected_total{channel="plugin-sync",reason}` (ta sama co dla kanałów WS) oraz
+`plugin_sync_ignored_total{reason}` (`missing_signature` | `bad_signature` | `stale_signature` | `replay`); każdy przyrost
+`bad_signature` na `plugin-sync` traktuj jak próbę fałszerstwa. Zdarzenie jest tylko podpowiedzią — odrzucona (także
+omyłkowo, np. w oknie rotacji sekretu albo rolling deployu z instancją bez podpisu) koperta jest nadrabiana okresową
+rekoncyliacją z DB w <= 30 s. Kolejność wdrożenia i rotacji jest wspólna z kanałami `cc:ws:*` (poniżej); procedura rolling deployu dla kanału wtyczek
+jest w podsekcji „Rolling deploy a synchronizacja wtyczek (BE-246)” poniżej.
+
 **Generowanie** (na serwerze, wartość wklej do `.env.prod`; nie commituj jej i nie wypisuj w logach):
 
 ```bash
@@ -827,6 +839,71 @@ bez podpisu: (1) ustaw `WEBSOCKET_HMAC_SECRET` oraz `WEBSOCKET_HMAC_ACCEPT_UNSIG
 `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=false` i wdróż ponownie. Uwaga: nowa wersja wysyła nowe typy kopert sterujących
 (`CLOSE_SESSION`, `CLOSE_USER_EXCEPT_SESSION`) i powód `PASSWORD_CHANGED`; stara instancja policzy je jako `malformed`
 (sesje na niej wygasną najpóźniej z tokenem) — dotyczy tylko okna rolling deploy.
+
+**Rolling deploy kanału synchronizacji wtyczek a podpis (BE-245).** Ten krok dotyczy WYŁĄCZNIE podpisu kopert
+`cc:plugin:sync:<env>` i jest niezależny od BE-246:
+
+- **Instancja z BE-178, ale bez podpisu BE-245** publikuje koperty bez `sig`. Nowe instancje odrzucają je jako
+  `missing_signature`, dopóki `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=false`; odrzucone zdarzenie nadrabia okresowa rekoncyliacja z DB
+  w <= 30 s (`plugins.sync.reconcile-interval-ms`), więc nic nie zostaje nieaktualne na stałe.
+- **Kolejność:** (1) wdrażaj nowe instancje z `WEBSOCKET_HMAC_SECRET=<sekret>` ORAZ `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=true`
+  (nowe przyjmują koperty starych bez podpisu, stare ignorują pole `sig`); (2) gdy żadna stara instancja nie została i
+  `ws_channel_signature_unsigned_accepted_total{channel="plugin-sync"}` przestaje rosnąć, ustaw
+  `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=false` i wdróż ponownie (gauge `ws_channel_accept_unsigned` = 0). Zapomniane `true` na stałe
+  wyłącza ochronę przed fałszerstwem kanału (alert na gauge).
+
+**Rolling deploy a synchronizacja wtyczek (BE-246).** Koperta kanału `cc:plugin:sync:<env>` NIE jest wersjonowana pod
+kątem rolling deployu; zamiast tego obowiązuje procedura (zdarzenie jest tylko podpowiedzią - źródłem prawdy jest DB):
+
+- **Instancja sprzed BE-178** (bez nasłuchu kanału i bez rekoncyliacji) nie dostaje żadnych zdarzeń i nie nadrabia ich
+  sama. Jej restart (w tej samej, starej wersji) daje wyłącznie stan z chwili startu (start ładuje wszystkie włączone
+  instalacje z DB), a każda późniejsza zmiana wtyczek znów do niej nie dotrze - **restart starej wersji więc niczego trwale nie
+  naprawia:** nadal nie ma nasłuchu ani rekoncyliacji. Na czas okna wdrożenia
+  włączenie/wyłączenie/odwołanie wtyczki widać na takiej instancji z opóźnieniem; ogranicz zmiany wtyczek (zwłaszcza `REVOKED`,
+  kill switch) do czasu zakończenia wdrożenia, a instancje starej wersji **zastępuj nowymi jako pierwsze albo wyłącz je z puli
+  ruchu** (nie restartuj ich w tej samej wersji).
+- **Instancja sprzed BE-246** (z BE-178/245) nie robi half-open: obwód otwarty (po 5 błędach albo zdarzeniem z innej
+  instancji) zostaje otwarty **do restartu tej instancji** albo do zmiany instalacji przez administratora; nie przeładowuje też
+  JAR-a po zmianie checksumu w katalogu i nie ładuje leniwie zasobów UI po id. Nowe instancje zamykają obwód udaną próbą
+  i rozgłaszają `CIRCUIT_CLOSED`, ale instancja sprzed BE-246 nadal go zastosuje tylko jako zwykłe zdarzenie (zamknie obwód
+  lokalnie, jeśli go ma) - obwód otwarty lokalnie przez nią samą nie ma samoleczenia. Dla wtyczek zawodzących w trakcie okna wdrożenia
+  oczekuj, że instancje starej wersji będą pomijać wywołania do własnego restartu/wymiany.
+- **Weryfikacja po wdrożeniu:** `plugin_sync_received_total{type}` rośnie na każdej instancji po włączeniu testowej wtyczki,
+  `plugin_sync_ignored_total{reason="missing_signature"}` nie rośnie, a wtyczka wyłączona na jednej instancji znika z
+  pozostałych w <= 30 s. Dodatkowo `plugin_sync_reload_refused_total` powinno być 0 (przyrost = nowy JAR nie przeszedł
+  weryfikacji SHA-256, wtyczka dalej działa na starym uchwycie; WARN w logu ze szczegółami) oraz
+  `plugin_sync_asset_lazy_total{result="waiters_shed"}` (przyrost = wiele żądań zasobów UI na to samo wolno ładowane id; 503 + `Retry-After`).
+- **Nowe nadpisanie JAR tej samej wersji** (`overwrite=true`) jest przeładowywane przez rekoncyliację każdej instancji po
+  zmianie checksumu w katalogu (BE-246): nowy JAR jest pobierany i weryfikowany (SHA-256) PRZED wyładowaniem starego; przy
+  niezgodności stary uchwyt dalej obsługuje ruch, a kolejna próba następuje po `plugins.sync.failed-load-backoff-ms` (60 s).
+  Instancja sprzed BE-246 zachowa stary JAR do restartu.
+- **Konfiguracja:** `PLUGINS_CIRCUIT_BREAKER_OPEN_TTL` (domyślnie `60s`), `PLUGINS_CIRCUIT_BREAKER_OPEN_TTL_JITTER`
+  (domyślnie `0.1` = +/-10%, rozprasza próby instancji), `PLUGINS_SYNC_ASSET_LAZY_MAX_WAITERS` (domyślnie 4 wątki HTTP na jedno
+  wolne ładowanie).
+- **Wykonawcy synchronizacji wtyczek i kwarantanna `onActivate` (BE-244).** Nowe zmienne (wszystkie opcjonalne, wartości
+  domyślne wystarczają dla jednej-kilku replik; reszta budżetu zasobów: BE-180):
+
+  | Zmienna | Domyślnie | Znaczenie |
+  |---|---|---|
+  | `PLUGINS_SYNC_LOAD_THREADS` / `PLUGINS_SYNC_LOAD_QUEUE` | 2 / 64 | priorytetowy wykonawca (prze)ładowań po zdarzeniu (enable, zmiana wersji/konfiguracji) - nie czeka za rekoncyliacją okresową |
+  | `PLUGINS_SYNC_ASSET_LAZY_THREADS` / `PLUGINS_SYNC_ASSET_LAZY_QUEUE` | 2 / 16 | osobny wykonawca leniwego ładowania zasobów UI (publiczny endpoint), nigdy wspólny z rekoncyliacją |
+  | `PLUGINS_SYNC_ASSET_LAZY_RATE_PER_SECOND` / `PLUGINS_SYNC_ASSET_LAZY_RATE_BURST` | 10 / 20 | globalny rate limit skanów tenantów dla nieznanych id (przed skanem); nadmiar = 503 + `Retry-After` |
+  | `PLUGINS_LIFECYCLE_CALLBACK_TIMEOUT_MS` | 10000 | timeout `onActivate`/`onDeactivate`; po nim wątek wtyczki zostaje osierocony |
+  | `PLUGINS_LIFECYCLE_MAX_ORPHANS_PER_PLUGIN` / `PLUGINS_LIFECYCLE_MAX_ORPHANS_TOTAL` | 2 / 8 | limit osieroconych watkow callbackow (po timeoucie) na (tenant, wtyczka) i laczny; po przekroczeniu `load` tej wtyczki jest odrzucany (409, kwarantanna) bez dotykania puli, az sieroty sie zakoncza. Klucz limitu nie zalezy od konfiguracji wtyczki. Laczny limit dotyczy tylko wtyczek, ktore juz maja sieroty |
+  | `PLUGINS_LIFECYCLE_QUARANTINE_TTL_MS` / `PLUGINS_LIFECYCLE_QUARANTINE_MAX_TTL_MS` | 600000 / 3600000 | kwarantanna instalacji po timeoucie `onActivate` ORAZ `onDeactivate` (bez ponowień w pętli); kolejny timeout tego samego wejścia podwaja TTL do maksimum |
+
+  Walidacja: `plugins.sync.*` (stawki, liczby watkow, pojemnosci kolejek, timeouty) musi byc dodatnie - zla wartosc blokuje start aplikacji (BE-244 N3). `asset_queue_full` i `shed` zwracaja 503 + `Retry-After` (jak `rate_limited`), nie 404; `plugin_sync_reconcile_total{result="load_queue_full|coalesced"}`.
+
+  Nowe/zmienione metryki (Prometheus): `plugin_lifecycle_orphaned` (gauge: wiszące callbacki zajmujące wątki puli; alarm przy
+  `>= PLUGINS_LIFECYCLE_MAX_THREADS / 2`), `plugin_lifecycle_timeout_total{callback}` (callback wystartował i nie skończył),
+  `plugin_lifecycle_rejected_total{callback}` (przepełnienie puli - to NIE wina wtyczki), `plugin_lifecycle_quarantine_total{result="entered|rejected|orphan_limit"}`,
+  `plugin_sync_dropped_total{reason}` z nowymi powodami `load_queue_full` i `asset_queue_full` (obok `sync_queue_full`,
+  `revoke_queue_full`; każdy odrzut = WARN/ERROR w logu, a rekoncyliacja z DB nadrabia stan w <= 30 s) oraz
+  `plugin_sync_asset_lazy_total{result}` z nowymi/istotnymi wartościami `rate_limited` (przekroczony rate limit),
+  `shed` (limit RÓŻNYCH id naraz) i `negative_cache` (powtórne nieznane id). Ciągły wzrost `rate_limited`/`shed` przy
+  braku wzrostu `loaded` oznacza skanowanie losowych id publicznego endpointu - rozważ limit na brzegu (WAF/ingress).
+  Instalacja w kwarantannie zwraca przy próbie `enable`/przeładowania komunikat „w kwarantannie po timeoucie onActivate()"
+  do wygaśnięcia TTL albo do zmiany wersji/konfiguracji; restart instancji czyści kwarantannę (stan w pamięci).
 
 **Rotacja sekretu bez utraty zdarzeń** (3 kolejne rolling deploye; „poprzedni” oznacza tu „drugi akceptowany”):
 

@@ -475,6 +475,7 @@ class PluginRuntimeManagerImplTest {
                 .thenReturn(Optional.of(pluginVersion));
 
         byte[] jarBytes = Files.readAllBytes(jarPath);
+        pluginVersion.setChecksumSha256(PluginJarIntegrity.sha256Hex(jarBytes));
         lenient().when(pluginStorageService.downloadJar(pluginVersion.getJarObjectKey())).thenReturn(jarBytes);
     }
 

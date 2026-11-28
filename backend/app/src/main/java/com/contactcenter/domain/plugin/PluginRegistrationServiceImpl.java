@@ -163,22 +163,36 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
 
     @Override
     @Transactional
-    public boolean updateHealthStatus(UUID tenantId, UUID installationId, String healthStatus,
-                                       int consecutiveFailureCount) {
-        int updated = installationRepository.updateHealthStatus(
-                installationId, tenantId, healthStatus, consecutiveFailureCount);
+    public boolean markDegradedByCircuit(UUID tenantId, UUID installationId, int consecutiveFailureCount) {
+        int updated = installationRepository.markDegradedByCircuit(installationId, tenantId, consecutiveFailureCount);
 
         if (updated == 0) {
-            log.warn("[PluginRegistrationService] updateHealthStatus: instalacja nie istnieje, "
-                            + "pomijam (best-effort): tenant={}, installation={}, healthStatus={}",
-                    tenantId, installationId, healthStatus);
+            log.warn("[PluginRegistrationService] markDegradedByCircuit: instalacja nie istnieje albo wylaczona przez "
+                    + "admina, pomijam (best-effort): tenant={}, installation={}", tenantId, installationId);
             return false;
         }
 
-        log.debug("[PluginRegistrationService] updateHealthStatus: tenant={}, installation={}, "
-                        + "healthStatus={}, consecutiveFailureCount={}",
-                tenantId, installationId, healthStatus, consecutiveFailureCount);
+        log.debug("[PluginRegistrationService] markDegradedByCircuit: tenant={}, installation={}, failures={}",
+                tenantId, installationId, consecutiveFailureCount);
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean markDegradedByConfigLoad(UUID tenantId, UUID installationId) {
+        return installationRepository.markDegradedByConfigLoad(installationId, tenantId) > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean clearDegraded(UUID tenantId, UUID installationId, boolean includeCircuit) {
+        return installationRepository.clearDegraded(installationId, tenantId, includeCircuit) > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean clearCircuitDegraded(UUID tenantId, UUID installationId) {
+        return installationRepository.clearCircuitDegraded(installationId, tenantId) > 0;
     }
 
     @Override
@@ -446,7 +460,8 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 i.getInstalledByUserId(),
                 i.getInstalledAt(),
                 i.getUpdatedAt(),
-                configuredKeys
+                configuredKeys,
+                i.effectiveDegradedReason()
         );
     }
 

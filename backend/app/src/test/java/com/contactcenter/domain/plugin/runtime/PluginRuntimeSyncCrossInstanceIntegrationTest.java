@@ -13,6 +13,7 @@ import com.contactcenter.pluginsdk.model.ContactEvent;
 import com.contactcenter.support.RedisTestContainer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.contactcenter.infrastructure.websocket.WebSocketChannelSigner;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterAll;
@@ -75,6 +76,9 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
     private static final String ENV = "it-" + UUID.randomUUID().toString().substring(0, 8);
     private static final String PLUGIN_CLASS = "com.acme.SyncItPlugin";
     private static final String PLUGIN_KEY = "acme-sync-it";
+    /** SHA-256 of the generated plugin JAR (the catalog checksum the runtime verifies before loading, BE-246). */
+    private static String jarSha256;
+    private static final String HMAC_SECRET = "it-shared-hmac-secret-0123456789-abcdefghijkl";
 
     // =========================================================================
     // Shared "database" and "object storage" (static: the contexts are built by SpringApplicationBuilder)
@@ -84,6 +88,7 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         final Map<UUID, TenantPluginInstallation> installations = new ConcurrentHashMap<>();
         final Map<UUID, PluginVersion> versions = new ConcurrentHashMap<>();
         final List<UUID> findAllEnabledForTenantCalls = new CopyOnWriteArrayList<>();
+        final List<UUID> findEnabledAcrossTenantsCalls = new CopyOnWriteArrayList<>();
 
         @Override
         public Optional<PluginVersion> findVersionById(UUID pluginVersionId) {
@@ -115,6 +120,12 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         }
 
         @Override
+        public Optional<TenantPluginInstallation> findEnabledInstallationAcrossTenants(UUID installationId) {
+            findEnabledAcrossTenantsCalls.add(installationId);
+            return Optional.ofNullable(installations.get(installationId)).filter(TenantPluginInstallation::isEnabled);
+        }
+
+        @Override
         public List<TenantPluginInstallation> findAllEnabledForTenant(UUID tenantId) {
             findAllEnabledForTenantCalls.add(tenantId);
             return installations.values().stream()
@@ -141,7 +152,9 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
     @Import({PluginRegistryImpl.class, PluginRuntimeManagerImpl.class, CircuitBreakerState.class,
             PluginSyncProperties.class, PluginSyncBus.class, PluginSyncConfig.class,
             PluginRuntimeSyncServiceImpl.class, PluginRuntimeStartupLoader.class, PluginInvocationConsumer.class,
-            PluginInvocationProperties.class, PluginInvocationExecutorConfig.class})
+            PluginInvocationProperties.class, PluginInvocationExecutorConfig.class,
+            com.contactcenter.infrastructure.websocket.WebSocketChannelSigner.class,
+            com.contactcenter.infrastructure.websocket.WebSocketHmacProperties.class})
     static class InstanceApp {
 
         @Bean
@@ -182,7 +195,7 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
                 }
                 return new com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto(i.getId(), i.getTenantId(),
                         i.getPluginVersionId(), PLUGIN_KEY, "Sync IT", "1.0.0", i.isEnabled(), List.of(), "HEALTHY", 0,
-                        List.of(), List.of(), null, i.getInstalledAt(), i.getUpdatedAt(), List.of());
+                        List.of(), List.of(), null, i.getInstalledAt(), i.getUpdatedAt(), List.of(), null);
             });
             return service;
         }
@@ -275,6 +288,8 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
                 "plugins.sync.reconcile-initial-delay-ms=1000",
                 "plugins.sync.unload-grace-ms=0",
                 "plugins.sync.lazy-sync-cooldown-ms=1500",
+                // BE-245: the envelopes are signed with the shared secret (the same one as the cc:ws:* channels)
+                "websocket.hmac.secret=" + HMAC_SECRET,
                 "plugins.sync.failed-load-backoff-ms=1500",
                 "test.redis.host=" + RedisTestContainer.host(),
                 "test.redis.port=" + RedisTestContainer.port()));
@@ -296,7 +311,9 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
     void startReplicas() throws IOException {
         Path jar = RuntimeTestPluginBuilder.buildMinimalJar(PLUGIN_CLASS);
         TEMP_JARS.add(jar);
-        STORAGE.put("plugins/" + PLUGIN_KEY + "/plugin.jar", Files.readAllBytes(jar));
+        byte[] jarBytes = Files.readAllBytes(jar);
+        jarSha256 = PluginJarIntegrity.sha256Hex(jarBytes);
+        STORAGE.put("plugins/" + PLUGIN_KEY + "/plugin.jar", jarBytes);
         // the SAME configured id on both replicas: the random suffix must keep them apart
         a = start("shared-id");
         b = start("shared-id");
@@ -316,6 +333,7 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         DB.installations.clear();
         DB.versions.clear();
         DB.findAllEnabledForTenantCalls.clear();
+        DB.findEnabledAcrossTenantsCalls.clear();
         // leave the replicas empty for the next test (each test uses its own random tenant anyway)
         for (Instance i : instances) {
             i.manager().loadedHandles().forEach(h -> i.manager().unload(h.tenantId(), h.installationId()));
@@ -339,7 +357,7 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         manifest.put("entryPointClass", PLUGIN_CLASS);
         manifest.put("extensionPoints", List.of("POST_CONTACT_END"));
         DB.versions.put(versionId, PluginVersion.builder().id(versionId).plugin(plugin).version("1.0.0")
-                .jarObjectKey("plugins/" + PLUGIN_KEY + "/plugin.jar").checksumSha256("0".repeat(64))
+                .jarObjectKey("plugins/" + PLUGIN_KEY + "/plugin.jar").checksumSha256(jarSha256)
                 .manifestJson(manifest).sdkVersion("1.x").status(PluginVersion.PluginVersionStatus.VALIDATED)
                 .uploadedAt(Instant.now()).build());
         return new Fixture(tenantId, putInstallation(tenantId, versionId, enabled), versionId);
@@ -461,13 +479,11 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
             a.circuitBreaker().recordResult(f.tenantId(), f.installationId(), false);
         }
-        assertThat(a.circuitBreaker().isOpen(f.installationId())).isTrue();
+        assertThat(a.circuitBreaker().isOpenReadOnly(f.installationId())).isTrue();
 
-        await().atMost(Duration.ofSeconds(5)).until(() -> b.circuitBreaker().isOpen(f.installationId()));
-        assertThat(b.circuitBreaker().isOpen(other)).isFalse();
-
-        a.circuitBreaker().recordResult(f.tenantId(), f.installationId(), true);
-        await().atMost(Duration.ofSeconds(5)).until(() -> !b.circuitBreaker().isOpen(f.installationId()));
+        await().atMost(Duration.ofSeconds(5)).until(() -> b.circuitBreaker().isOpenReadOnly(f.installationId()));
+        assertThat(b.circuitBreaker().isOpenReadOnly(other)).isFalse();
+        // closing (a successful half-open probe -> CIRCUIT_CLOSED) is covered by the BE-246 tests below
     }
 
     @Test
@@ -498,8 +514,9 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         manifest.put("entryPointClass", "com.acme.DoesNotExist");
         manifest.put("extensionPoints", List.of("POST_CONTACT_END"));
         STORAGE.put("plugins/broken/plugin.jar", new byte[]{1, 2, 3});
+        String brokenSha = PluginJarIntegrity.sha256Hex(new byte[]{1, 2, 3});
         DB.versions.put(versionId, PluginVersion.builder().id(versionId).plugin(plugin).version("1.0.0")
-                .jarObjectKey("plugins/broken/plugin.jar").checksumSha256("0".repeat(64)).manifestJson(manifest)
+                .jarObjectKey("plugins/broken/plugin.jar").checksumSha256(brokenSha).manifestJson(manifest)
                 .sdkVersion("1.x").status(PluginVersion.PluginVersionStatus.VALIDATED).uploadedAt(Instant.now())
                 .build());
         UUID installationId = putInstallation(tenantId, versionId, true);
@@ -533,5 +550,259 @@ class PluginRuntimeSyncCrossInstanceIntegrationTest {
         DB.installations.get(f.installationId()).setEnabled(true); // flaga dopisana
         Thread.sleep(2_500);
         assertThat(graceful.manager().isLoaded(f.installationId())).isTrue();
+    }
+
+    // =========================================================================
+    // BE-245
+    // =========================================================================
+
+    private static String fingerprintOn(Instance instance, Fixture f) {
+        return instance.manager().findActiveHandle(f.installationId()).map(PluginInstanceHandle::configFingerprint)
+                .orElse("<not loaded>");
+    }
+
+    /** What {@code PluginAdminController#updateConfig} does on the instance that served the request. */
+    private void updateConfigOn(Instance instance, Fixture f, String config) {
+        DB.installations.get(f.installationId()).setInstallationConfig(config);
+        instance.sync().installationConfigChanged(f.tenantId(), f.installationId());
+    }
+
+    @Test
+    @DisplayName("BE-245 KRYTERIUM: zmiana installationConfig na A -> wtyczka przeładowana na A i na B w <= 5 s (tylko zdarzenie, B bez ticka), obwód zresetowany")
+    void configChangeOnAIsAppliedOnBWithinFiveSeconds() {
+        Fixture f = installInDatabase(false);
+        DB.installations.get(f.installationId()).setInstallationConfig("{\"endpoint\":\"old\"}");
+        enableOn(a, f);
+        await().atMost(Duration.ofSeconds(5)).until(() -> listener.sees(f.tenantId()));
+        String oldFingerprint = PluginConfigFingerprint.of("{\"endpoint\":\"old\"}");
+        assertThat(fingerprintOn(listener, f)).isEqualTo(oldFingerprint);
+        PluginInstanceHandle oldHandleOnB = listener.manager().findActiveHandle(f.installationId()).orElseThrow();
+        for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+            listener.circuitBreaker().recordResult(f.tenantId(), f.installationId(), false);
+        }
+        assertThat(listener.circuitBreaker().isOpenReadOnly(f.installationId())).isTrue();
+
+        long startedAt = System.nanoTime();
+        updateConfigOn(a, f, "{\"endpoint\":\"new\"}");
+
+        String newFingerprint = PluginConfigFingerprint.of("{\"endpoint\":\"new\"}");
+        await().atMost(Duration.ofSeconds(5)).until(() -> newFingerprint.equals(fingerprintOn(listener, f)));
+        await().atMost(Duration.ofSeconds(5)).until(() -> newFingerprint.equals(fingerprintOn(a, f)));
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofSeconds(5));
+        // a NEW handle (onDeactivate + onActivate), not the old one mutated; the circuit is closed again
+        assertThat(listener.manager().findActiveHandle(f.installationId()).orElseThrow()).isNotSameAs(oldHandleOnB);
+        assertThat(listener.circuitBreaker().isOpenReadOnly(f.installationId())).isFalse();
+        assertThat(listener.sees(f.tenantId())).isTrue();
+    }
+
+    // =========================================================================
+    // BE-246
+    // =========================================================================
+
+    private static CircuitBreakerState breaker(Instance instance) {
+        return instance.circuitBreaker();
+    }
+
+    /** {@code true} when the circuit is closed (a read without side effects: it never takes a probe lease). */
+    private static boolean closed(Instance instance, UUID installationId) {
+        return !breaker(instance).isOpenReadOnly(installationId);
+    }
+
+    @Test
+    @DisplayName("BE-246 KRYTERIUM: obwód -> half-open po TTL; nieudana próba otwiera ponownie i odnawia TTL na drugiej instancji; udana zamyka oba")
+    void circuitHalfOpensAfterTtlAndPropagatesClosedAndReopened() throws Exception {
+        Instance x = start("ttl-x", "plugins.circuit-breaker.open-ttl=2s", "plugins.circuit-breaker.open-ttl-jitter=0", "plugins.sync.tick-ms=3600000");
+        Instance y = start("ttl-y", "plugins.circuit-breaker.open-ttl=2s", "plugins.circuit-breaker.open-ttl-jitter=0", "plugins.sync.tick-ms=3600000");
+        Fixture f = installInDatabase(true);
+        x.manager().load(f.tenantId(), f.installationId());
+        y.manager().load(f.tenantId(), f.installationId());
+
+        for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+            breaker(x).recordResult(f.tenantId(), f.installationId(), false);
+        }
+        await().atMost(Duration.ofSeconds(5)).until(() -> breaker(y).isOpenReadOnly(f.installationId()));
+        assertThat(breaker(x).tryAcquire(f.installationId()).allowed()).isFalse(); // inside the TTL: still skipped
+
+        // TTL elapses on X: exactly ONE probe is let through
+        java.util.concurrent.atomic.AtomicReference<CircuitBreakerState.Permit> probeX = new java.util.concurrent.atomic.AtomicReference<>();
+        await().pollDelay(Duration.ofMillis(2100)).atMost(Duration.ofSeconds(5)).until(() -> {
+            CircuitBreakerState.Permit permit = breaker(x).tryAcquire(f.installationId());
+            probeX.set(permit);
+            return permit.isProbe();
+        });
+        assertThat(breaker(x).tryAcquire(f.installationId()).allowed()).isFalse(); // the second caller is skipped while the probe runs
+
+        // the probe FAILS: X reopens (new TTL) and Y renews its own TTL from the OPENED event
+        breaker(x).recordResult(probeX.get(), f.tenantId(), false);
+        assertThat(breaker(x).tryAcquire(f.installationId()).allowed()).isFalse();
+        Thread.sleep(1200); // Y's ORIGINAL TTL (2 s from the first open) would be over by now only without the renewal
+        assertThat(breaker(y).tryAcquire(f.installationId()).allowed()).isFalse();
+
+        // the next probe SUCCEEDS on X: CLOSED reaches Y
+        await().atMost(Duration.ofSeconds(6)).until(() -> {
+            CircuitBreakerState.Permit permit = breaker(x).tryAcquire(f.installationId());
+            probeX.set(permit);
+            return permit.isProbe();
+        });
+        breaker(x).recordResult(probeX.get(), f.tenantId(), true);
+        await().atMost(Duration.ofSeconds(5)).until(() -> closed(y, f.installationId()));
+        assertThat(closed(x, f.installationId())).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-246: obwód otwarty ZDALNIE też przechodzi w half-open; udana lokalna próba zamyka go na instancji źródłowej")
+    void remotelyOpenedCircuitHalfOpensAndItsSuccessClosesTheSource() {
+        Instance x = start("ttl-r1", "plugins.circuit-breaker.open-ttl=2s", "plugins.circuit-breaker.open-ttl-jitter=0", "plugins.sync.tick-ms=3600000");
+        Instance y = start("ttl-r2", "plugins.circuit-breaker.open-ttl=2s", "plugins.circuit-breaker.open-ttl-jitter=0", "plugins.sync.tick-ms=3600000");
+        Fixture f = installInDatabase(true);
+        x.manager().load(f.tenantId(), f.installationId());
+        y.manager().load(f.tenantId(), f.installationId());
+        for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+            breaker(x).recordResult(f.tenantId(), f.installationId(), false);
+        }
+        await().atMost(Duration.ofSeconds(5)).until(() -> breaker(y).isOpenReadOnly(f.installationId()));
+
+        // Y never counted a failure itself, yet after the TTL it may probe
+        java.util.concurrent.atomic.AtomicReference<CircuitBreakerState.Permit> probeY = new java.util.concurrent.atomic.AtomicReference<>();
+        await().pollDelay(Duration.ofMillis(2100)).atMost(Duration.ofSeconds(5)).until(() -> {
+            CircuitBreakerState.Permit permit = breaker(y).tryAcquire(f.installationId());
+            probeY.set(permit);
+            return permit.isProbe();
+        });
+        breaker(y).recordResult(probeY.get(), f.tenantId(), true);
+
+        await().atMost(Duration.ofSeconds(5)).until(() -> closed(x, f.installationId()));
+        assertThat(closed(y, f.installationId())).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-246 KRYTERIUM: nadpisanie JAR-a tej samej wersji (zgubione zdarzenie) -> okresowa rekoncyliacja przeładowuje wtyczkę")
+    void overwrittenJarOfTheSameVersionIsReloaded() throws Exception {
+        Fixture f = installInDatabase(true);
+        b.manager().load(f.tenantId(), f.installationId());
+        PluginInstanceHandle before = b.manager().findActiveHandle(f.installationId()).orElseThrow();
+        assertThat(before.jarChecksumSha256()).isEqualTo(jarSha256);
+
+        // in-place overwrite (what PluginStorageServiceImpl does): same version row, NEW object key and checksum
+        byte[] replaced = withExtraEntry(STORAGE.get("plugins/" + PLUGIN_KEY + "/plugin.jar"));
+        String newKey = "plugins/" + PLUGIN_KEY + "/plugin-v2-" + UUID.randomUUID() + ".jar";
+        STORAGE.put(newKey, replaced);
+        PluginVersion version = DB.versions.get(f.versionId());
+        version.setJarObjectKey(newKey);
+        version.setChecksumSha256(PluginJarIntegrity.sha256Hex(replaced)); // no event at all
+
+        await().atMost(Duration.ofSeconds(10)).until(() -> b.manager().findActiveHandle(f.installationId())
+                .map(h -> !h.equals(before) && PluginJarIntegrity.sha256Hex(replaced).equals(h.jarChecksumSha256()))
+                .orElse(false));
+    }
+
+    @Test
+    @DisplayName("BE-246: JAR niezgodny z checksumem z katalogu nie zostaje załadowany")
+    void jarNotMatchingCatalogChecksumIsNotLoaded() {
+        Fixture f = installInDatabase(true);
+        DB.versions.get(f.versionId()).setChecksumSha256("f".repeat(64));
+
+        assertThatThrownBy(() -> lazy.manager().load(f.tenantId(), f.installationId()))
+                .isInstanceOf(PluginActivationException.class).hasMessageContaining("checksum");
+        assertThat(lazy.manager().isLoaded(f.installationId())).isFalse();
+    }
+
+    @Test
+    @DisplayName("BE-246 KRYTERIUM: ensureInstallationLoaded (PluginAssetController) ładuje instalację niezaładowaną lokalnie; nieznana/wyłączona/odwołana -> NOT_FOUND")
+    void ensureInstallationLoadedLoadsOnlyEnabledNonRevokedInstallations() {
+        Fixture enabled = installInDatabase(true);
+        Fixture disabled = installInDatabase(false);
+        Fixture revoked = installInDatabase(true);
+        DB.versions.get(revoked.versionId()).setStatus(PluginVersion.PluginVersionStatus.REVOKED);
+        assertThat(lazy.manager().isLoaded(enabled.installationId())).isFalse();
+
+        PluginRuntimeSync.InstallationLoad loaded = lazy.sync().ensureInstallationLoaded(enabled.installationId());
+        assertThat(loaded.status()).isEqualTo(PluginRuntimeSync.LoadStatus.LOADED);
+        assertThat(loaded.handle()).isPresent();
+        assertThat(lazy.manager().isLoaded(enabled.installationId())).isTrue();
+
+        assertThat(lazy.sync().ensureInstallationLoaded(UUID.randomUUID()).status())
+                .isEqualTo(PluginRuntimeSync.LoadStatus.NOT_FOUND);
+        assertThat(lazy.sync().ensureInstallationLoaded(disabled.installationId()).status())
+                .isEqualTo(PluginRuntimeSync.LoadStatus.NOT_FOUND);
+        assertThat(lazy.sync().ensureInstallationLoaded(revoked.installationId()).status())
+                .isEqualTo(PluginRuntimeSync.LoadStatus.NOT_FOUND);
+        assertThat(lazy.manager().isLoaded(revoked.installationId())).isFalse();
+
+        // negative cache: asking again does not scan the tenants again
+        int scans = DB.findEnabledAcrossTenantsCalls.size();
+        lazy.sync().ensureInstallationLoaded(disabled.installationId());
+        assertThat(DB.findEnabledAcrossTenantsCalls).hasSize(scans);
+    }
+
+    private static byte[] withExtraEntry(byte[] jar) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(jar));
+             java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(out)) {
+            for (java.util.zip.ZipEntry e = in.getNextEntry(); e != null; e = in.getNextEntry()) {
+                zip.putNextEntry(new java.util.zip.ZipEntry(e.getName()));
+                in.transferTo(zip);
+                zip.closeEntry();
+            }
+            zip.putNextEntry(new java.util.zip.ZipEntry("META-INF/replaced.txt"));
+            zip.write("v2".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        return out.toByteArray();
+    }
+
+    @Test
+    @DisplayName("BE-245: zgubione zdarzenie zmiany konfiguracji (brak publikacji) nadrabia okresowa rekoncyliacja (odcisk konfiguracji)")
+    void lostConfigEventIsRepairedByReconciliation() {
+        Fixture f = installInDatabase(true);
+        DB.installations.get(f.installationId()).setInstallationConfig("{\"endpoint\":\"old\"}");
+        b.manager().load(f.tenantId(), f.installationId());
+        assertThat(fingerprintOn(b, f)).isEqualTo(PluginConfigFingerprint.of("{\"endpoint\":\"old\"}"));
+
+        DB.installations.get(f.installationId()).setInstallationConfig("{\"endpoint\":\"new\"}"); // no event at all
+
+        String newFingerprint = PluginConfigFingerprint.of("{\"endpoint\":\"new\"}");
+        await().atMost(Duration.ofSeconds(10)).until(() -> newFingerprint.equals(fingerprintOn(b, f)));
+    }
+
+    @Test
+    @DisplayName("BE-245 KRYTERIUM: koperta bez podpisu / ze złym podpisem jest odrzucona i policzona; podpisana (kontrola pozytywna) przechodzi")
+    void forgedEnvelopesAreRejectedAndSignedOneIsAccepted() {
+        Fixture f = installInDatabase(true); // enabled in the DB, the "listener" replica has no handle and no tick
+        assertThat(listener.sees(f.tenantId())).isFalse();
+        StringRedisTemplate redis = listener.ctx().getBean(StringRedisTemplate.class);
+        String channel = listener.ctx().getBean(PluginSyncProperties.class).effectiveChannel();
+        WebSocketChannelSigner signer = listener.ctx().getBean(WebSocketChannelSigner.class);
+        double receivedBefore = receivedCount(listener);
+        PluginSyncEnvelope unsigned = new PluginSyncEnvelope(1, "attacker", PluginSyncEnvelope.Type.INSTALLATION_CHANGED,
+                f.tenantId(), f.installationId(), null, System.currentTimeMillis());
+
+        redis.convertAndSend(channel, unsigned.toJson());                                 // no signature
+        redis.convertAndSend(channel, unsigned.withSignature("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").toJson()); // wrong
+
+        await().atMost(Duration.ofSeconds(5)).until(() -> counter(listener, "missing_signature") >= 1
+                && counter(listener, "bad_signature") >= 1);
+        assertThat(listener.sees(f.tenantId())).isFalse();
+        assertThat(listener.manager().isLoaded(f.installationId())).isFalse();
+        // not even delivered to the listener of the service (the earlier tests share this replica: compare deltas)
+        assertThat(receivedCount(listener)).isEqualTo(receivedBefore);
+
+        // positive control: the same envelope, properly signed, is acted upon
+        PluginSyncEnvelope fresh = new PluginSyncEnvelope(1, "peer", PluginSyncEnvelope.Type.INSTALLATION_CHANGED,
+                f.tenantId(), f.installationId(), null, System.currentTimeMillis());
+        redis.convertAndSend(channel, fresh.withSignature(signer.sign(channel, fresh.canonicalForSigning())).toJson());
+
+        await().atMost(Duration.ofSeconds(5)).until(() -> listener.sees(f.tenantId()));
+        assertThat(listener.manager().isLoaded(f.installationId())).isTrue();
+    }
+
+    private static double receivedCount(Instance instance) {
+        var c = instance.meters().find(PluginSyncBus.METRIC_RECEIVED).tag("type", "INSTALLATION_CHANGED").counter();
+        return c == null ? 0 : c.count();
+    }
+
+    private static double counter(Instance instance, String reason) {
+        var c = instance.meters().find(PluginSyncBus.METRIC_IGNORED).tag("reason", reason).counter();
+        return c == null ? 0 : c.count();
     }
 }

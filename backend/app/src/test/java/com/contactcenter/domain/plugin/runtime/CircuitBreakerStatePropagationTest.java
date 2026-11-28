@@ -53,7 +53,7 @@ class CircuitBreakerStatePropagationTest {
 
         verify(bus).publish(PluginSyncEnvelope.Type.CIRCUIT_OPENED, TENANT, INSTALLATION, null);
         org.mockito.Mockito.verifyNoMoreInteractions(bus);
-        assertThat(state.isOpen(INSTALLATION)).isTrue();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isTrue();
     }
 
     @Test
@@ -61,8 +61,8 @@ class CircuitBreakerStatePropagationTest {
     void remoteOpenedOpensLocally() {
         state.applyRemote(remote(PluginSyncEnvelope.Type.CIRCUIT_OPENED, INSTALLATION));
 
-        assertThat(state.isOpen(INSTALLATION)).isTrue();
-        assertThat(state.isOpen(UUID.randomUUID())).isFalse(); // inna instalacja nietknięta
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isTrue();
+        assertThat(state.isOpenReadOnly(UUID.randomUUID())).isFalse(); // inna instalacja nietknięta
         org.mockito.Mockito.verifyNoInteractions(bus, registrationService);
     }
 
@@ -74,23 +74,27 @@ class CircuitBreakerStatePropagationTest {
 
         state.applyRemote(remote(PluginSyncEnvelope.Type.CIRCUIT_CLOSED, INSTALLATION));
 
-        assertThat(state.isOpen(INSTALLATION)).isFalse();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isFalse();
         // licznik wyzerowany: do ponownego otwarcia trzeba pełnego progu
         fail(CircuitBreakerState.FAILURE_THRESHOLD - 1);
-        assertThat(state.isOpen(INSTALLATION)).isFalse();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isFalse();
     }
 
     @Test
-    @DisplayName("SUCCESS po otwarciu (własnym lub zdalnym) publikuje CIRCUIT_CLOSED; SUCCESS bez otwarcia - nie")
-    void successAfterOpenPublishesClosed() {
+    @DisplayName("udana PRÓBA po otwarciu zdalnym publikuje CIRCUIT_CLOSED; SUCCESS bez otwarcia - nie")
+    void successfulProbeAfterRemoteOpenPublishesClosed() {
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong(1_000);
+        state = new CircuitBreakerState(registrationService, bus, java.time.Duration.ofSeconds(60), nanos::get);
         state.recordResult(TENANT, INSTALLATION, true);
         verify(bus, never()).publish(eq(PluginSyncEnvelope.Type.CIRCUIT_CLOSED), any(), any(), any());
 
         state.applyRemote(remote(PluginSyncEnvelope.Type.CIRCUIT_OPENED, INSTALLATION));
-        state.recordResult(TENANT, INSTALLATION, true);
+        nanos.addAndGet(java.time.Duration.ofSeconds(61).toNanos());
+        CircuitBreakerState.Permit probe = state.tryAcquire(INSTALLATION);
+        state.recordResult(probe, TENANT, true);
 
         verify(bus).publish(PluginSyncEnvelope.Type.CIRCUIT_CLOSED, TENANT, INSTALLATION, null);
-        assertThat(state.isOpen(INSTALLATION)).isFalse();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isFalse();
     }
 
     @Test
@@ -98,11 +102,11 @@ class CircuitBreakerStatePropagationTest {
     void forgetResetsEverything() {
         fail(CircuitBreakerState.FAILURE_THRESHOLD);
         state.applyRemote(remote(PluginSyncEnvelope.Type.CIRCUIT_OPENED, INSTALLATION));
-        assertThat(state.isOpen(INSTALLATION)).isTrue();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isTrue();
 
         state.forget(INSTALLATION);
 
-        assertThat(state.isOpen(INSTALLATION)).isFalse();
+        assertThat(state.isOpenReadOnly(INSTALLATION)).isFalse();
     }
 
     @Test
@@ -112,8 +116,8 @@ class CircuitBreakerStatePropagationTest {
         for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
             local.recordResult(TENANT, INSTALLATION, false);
         }
-        assertThat(local.isOpen(INSTALLATION)).isTrue();
-        local.recordResult(TENANT, INSTALLATION, true);
-        assertThat(local.isOpen(INSTALLATION)).isFalse();
+        assertThat(local.isOpenReadOnly(INSTALLATION)).isTrue();
+        local.recordResult(TENANT, INSTALLATION, true); // a plain success does not close (only a half-open probe does)
+        assertThat(local.isOpenReadOnly(INSTALLATION)).isTrue();
     }
 }

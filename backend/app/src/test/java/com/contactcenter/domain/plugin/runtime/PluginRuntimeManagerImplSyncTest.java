@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,6 +77,7 @@ class PluginRuntimeManagerImplSyncTest {
             return bytes;
         });
         PluginVersion version = version(PluginVersion.PluginVersionStatus.VALIDATED);
+        version.setChecksumSha256(PluginJarIntegrity.sha256Hex(bytes));
         when(catalog.findVersionById(VERSION)).thenReturn(Optional.of(version));
     }
 
@@ -126,6 +128,141 @@ class PluginRuntimeManagerImplSyncTest {
         assertThat(second).isSameAs(first);
         assertThat(downloads.get()).isEqualTo(1);
         verify(registry, times(1)).register(any(), any());
+    }
+
+    @Test
+    @DisplayName("BE-246: uchwyt niesie SHA-256 JAR-a zweryfikowany względem katalogu i stat lokalnej kopii")
+    void handleCarriesVerifiedJarChecksum() throws IOException {
+        UUID id = installation(UUID.randomUUID());
+
+        PluginInstanceHandle handle = manager.load(TENANT, id);
+
+        assertThat(handle.jarChecksumSha256()).isEqualTo(PluginJarIntegrity.sha256Hex(Files.readAllBytes(jars.get(0))));
+        assertThat(handle.jarSizeBytes()).isEqualTo(Files.size(handle.localJarPath()));
+        assertThat(handle.jarStat()).isEqualTo(PluginJarIntegrity.statOf(handle.localJarPath()));
+    }
+
+    @Test
+    @DisplayName("BE-246 KRYTERIUM bezpieczeństwa: JAR niezgodny z checksumem z katalogu NIE jest ładowany (ani zapisany na dysk)")
+    void jarNotMatchingCatalogChecksumIsRefused() {
+        UUID id = installation(UUID.randomUUID());
+        PluginVersion tampered = version(PluginVersion.PluginVersionStatus.VALIDATED);
+        tampered.setChecksumSha256("f".repeat(64));
+        when(catalog.findVersionById(VERSION)).thenReturn(Optional.of(tampered));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> manager.load(TENANT, id))
+                .isInstanceOf(PluginActivationException.class)
+                .hasMessageContaining("checksum");
+
+        assertThat(manager.isLoaded(id)).isFalse();
+        verify(registry, never()).register(any(), any());
+    }
+
+    @Test
+    @DisplayName("BE-246 W3: verifyJarBeforeReload pobiera i weryfikuje JAR, a następny load() zużywa go bez ponownego pobrania")
+    void verifiedJarIsConsumedByTheNextLoad() {
+        UUID id = installation(UUID.randomUUID());
+
+        manager.verifyJarBeforeReload(TENANT, id);
+        assertThat(downloads.get()).isEqualTo(1);
+        PluginInstanceHandle handle = manager.load(TENANT, id);
+
+        assertThat(downloads.get()).as("no second download").isEqualTo(1);
+        assertThat(handle.localJarPath()).exists();
+    }
+
+    @Test
+    @DisplayName("BE-246 W3: verifyJarBeforeReload przy niezgodnym checksumie rzuca i niczego nie zostawia (ani w runtime, ani na dysku)")
+    void verifyJarBeforeReloadRefusesMismatch() {
+        UUID id = installation(UUID.randomUUID());
+        PluginVersion tampered = version(PluginVersion.PluginVersionStatus.VALIDATED);
+        tampered.setChecksumSha256("f".repeat(64));
+        when(catalog.findVersionById(VERSION)).thenReturn(Optional.of(tampered));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> manager.verifyJarBeforeReload(TENANT, id))
+                .isInstanceOf(PluginActivationException.class).hasMessageContaining("checksum");
+
+        assertThat(manager.isLoaded(id)).isFalse();
+        verify(registry, never()).register(any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<UUID, Object> preparedJars() {
+        return (Map<UUID, Object>) org.springframework.test.util.ReflectionTestUtils.getField(manager, "preparedJars");
+    }
+
+    private Path preparedPath(UUID id) {
+        Object prepared = preparedJars().get(id);
+        return (Path) org.springframework.test.util.ReflectionTestUtils.invokeMethod(prepared, "path");
+    }
+
+    @Test
+    @DisplayName("BE-246 W-A: discardPreparedJar usuwa wpis i plik przygotowany przez verify (load go nie zużył); idempotentne")
+    void discardPreparedJarRemovesEntryAndFile() {
+        UUID id = installation(UUID.randomUUID());
+        manager.verifyJarBeforeReload(TENANT, id);
+        Path prepared = preparedPath(id);
+        assertThat(prepared).exists();
+
+        manager.discardPreparedJar(id);
+        manager.discardPreparedJar(id);
+
+        assertThat(prepared).doesNotExist();
+        assertThat(preparedJars()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BE-246 W-A: verify -> load rzuca (wersja REVOKED) -> plik nadal czeka, discard (finally w sync) go sprząta")
+    void preparedJarOfFailedLoadIsCleanedByDiscard() {
+        UUID id = installation(UUID.randomUUID());
+        manager.verifyJarBeforeReload(TENANT, id);
+        Path prepared = preparedPath(id);
+        when(catalog.findVersionById(VERSION))
+                .thenReturn(Optional.of(version(PluginVersion.PluginVersionStatus.REVOKED)));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> manager.load(TENANT, id))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(prepared).as("load failed before consuming the JAR").exists();
+
+        manager.discardPreparedJar(id);
+
+        assertThat(prepared).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("BE-246 W-A: @PreDestroy sprząta wszystkie nieużyte przygotowane JAR-y")
+    void shutdownDiscardsAllPreparedJars() {
+        UUID a = installation(UUID.randomUUID());
+        manager.verifyJarBeforeReload(TENANT, a);
+        Path prepared = preparedPath(a);
+
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(manager, "discardAllPreparedJars");
+
+        assertThat(prepared).doesNotExist();
+        assertThat(preparedJars()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("BE-246 W3: JAR przygotowany dla INNEGO checksumu niż katalog w chwili load() nie jest użyty (pobranie od nowa)")
+    void stalePreparedJarIsNotUsedWhenCatalogChangedMeanwhile() throws IOException {
+        UUID id = installation(UUID.randomUUID());
+        manager.verifyJarBeforeReload(TENANT, id);
+        // the catalog moved on to another JAR between the verification and the load
+        Path other = RuntimeTestPluginBuilder.buildMinimalJar(CLASS_NAME + "Other");
+        jars.add(other);
+        byte[] otherBytes = Files.readAllBytes(other);
+        PluginVersion changed = version(PluginVersion.PluginVersionStatus.VALIDATED);
+        changed.setChecksumSha256(PluginJarIntegrity.sha256Hex(otherBytes));
+        when(catalog.findVersionById(VERSION)).thenReturn(Optional.of(changed));
+        org.mockito.Mockito.doAnswer(inv -> { // doAnswer: `when(...)` would invoke the old stub and count a download
+            downloads.incrementAndGet();
+            return otherBytes;
+        }).when(storage).downloadJar(anyString());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> manager.load(TENANT, id))
+                .isInstanceOf(PluginActivationException.class); // entry point class differs, but the JAR WAS re-downloaded
+
+        assertThat(downloads.get()).isEqualTo(2);
     }
 
     @Test

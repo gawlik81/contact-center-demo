@@ -50,6 +50,7 @@ final class PluginContextImpl implements PluginContext {
     private final DbEgressClient dbEgressClient;
     private final PluginLogger logger;
     private final PluginConfig config;
+    private final PluginRevocation revocation;
 
     /**
      * @param tenantId            tenant dla którego wykonywana jest ta inwokacja — MUSI pochodzić
@@ -68,13 +69,35 @@ final class PluginContextImpl implements PluginContext {
             String installationConfigJson,
             CustomerService customerService,
             ContactService contactService) {
+        this(tenantId, pluginKey, grantedPermissions, installationConfigJson, customerService, contactService,
+                new PluginRevocation());
+    }
+
+    /**
+     * @param revocation flag of the loaded instance this context belongs to (BE-244 W2): once it is revoked (unload,
+     *                   kill switch, timeout of a callback) EVERY method here - and every client handed out - throws,
+     *                   so an orphaned plugin thread keeping this context cannot reach the platform any more
+     */
+    PluginContextImpl(
+            UUID tenantId,
+            String pluginKey,
+            List<String> grantedPermissions,
+            String installationConfigJson,
+            CustomerService customerService,
+            ContactService contactService,
+            PluginRevocation revocation) {
+        if (revocation == null) {
+            revocation = new PluginRevocation();
+        }
+        this.revocation = revocation;
         this.tenantId = tenantId;
         this.pluginKey = pluginKey;
         this.customerService = customerService;
         this.contactService = contactService;
-        this.httpEgressClient = new PluginHttpEgressClientImpl(grantedPermissions, tenantId, pluginKey);
-        this.logger = new PluginLoggerImpl(tenantId, pluginKey);
-        this.config = new PluginConfigImpl(installationConfigJson);
+        this.httpEgressClient = new PluginHttpEgressClientImpl(grantedPermissions, tenantId, pluginKey, revocation);
+        this.logger = new PluginLoggerImpl(tenantId, pluginKey, revocation);
+        PluginConfigImpl configImpl = new PluginConfigImpl(installationConfigJson, revocation);
+        this.config = configImpl;
         // Dane połączenia DB (jdbcUrl/dbUsername/dbPassword) pochodzą z tej samej
         // installation_config co reszta konfiguracji tenanta (już odszyfrowanej w `config`) —
         // czytane stąd, żeby nie duplikować parsowania JSON-a (PluginConfigImpl).
@@ -82,13 +105,15 @@ final class PluginContextImpl implements PluginContext {
                 grantedPermissions,
                 tenantId,
                 pluginKey,
-                this.config.get("jdbcUrl").orElse(null),
-                this.config.get("dbUsername").orElse(null),
-                this.config.get("dbPassword").orElse(null));
+                configImpl.peek("jdbcUrl").orElse(null),
+                configImpl.peek("dbUsername").orElse(null),
+                configImpl.peek("dbPassword").orElse(null),
+                revocation);
     }
 
     @Override
     public CustomerView getCustomer(UUID customerId) {
+        revocation.requireActive();
         Customer customer = customerService.findById(customerId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Klient nie istnieje lub nie należy do tenanta: " + customerId));
@@ -97,6 +122,7 @@ final class PluginContextImpl implements PluginContext {
 
     @Override
     public void updateCustomerFields(UUID customerId, Map<String, Object> customFields) {
+        revocation.requireActive();
         Customer customer = customerService.findById(customerId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Klient nie istnieje lub nie należy do tenanta: " + customerId));
@@ -129,6 +155,7 @@ final class PluginContextImpl implements PluginContext {
 
     @Override
     public ContactView getContact(UUID contactId) {
+        revocation.requireActive();
         Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kontakt nie istnieje lub nie należy do tenanta: " + contactId));
@@ -137,6 +164,7 @@ final class PluginContextImpl implements PluginContext {
 
     @Override
     public void appendContactNote(UUID contactId, String note) {
+        revocation.requireActive();
         Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kontakt nie istnieje lub nie należy do tenanta: " + contactId));
@@ -152,21 +180,25 @@ final class PluginContextImpl implements PluginContext {
 
     @Override
     public HttpEgressClient httpClient() {
+        revocation.requireActive();
         return httpEgressClient;
     }
 
     @Override
     public DbEgressClient dbClient() {
+        revocation.requireActive();
         return dbEgressClient;
     }
 
     @Override
     public PluginLogger logger() {
+        revocation.requireActive();
         return logger;
     }
 
     @Override
     public PluginConfig config() {
+        revocation.requireActive();
         return config;
     }
 

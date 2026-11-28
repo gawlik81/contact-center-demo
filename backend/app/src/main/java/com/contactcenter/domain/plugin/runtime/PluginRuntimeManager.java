@@ -23,6 +23,24 @@ import java.util.UUID;
 public interface PluginRuntimeManager {
 
     /**
+     * Pobiera JAR katalogowej wersji instalacji i weryfikuje jego SHA-256 PRZED jakąkolwiek zmianą stanu runtime
+     * (BE-246 W3): wołane przed {@code unload} przy przeładowaniu, żeby niezgodny JAR zostawił stary uchwyt.
+     * Zweryfikowany JAR jest zachowany dla następnego {@link #load} tej instalacji (bez ponownego pobierania).
+     *
+     * @throws RuntimeException gdy instalacja/wersja nie istnieje, pobranie nie powiodło się albo checksum jest
+     *                          niezgodny z katalogiem - stary uchwyt pozostaje nietknięty
+     */
+    default void verifyJarBeforeReload(UUID tenantId, UUID installationId) {
+    }
+
+    /**
+     * Usuwa (wpis i plik) JAR przygotowany przez {@link #verifyJarBeforeReload}, jeśli {@link #load} go nie zużył
+     * (porażka przed pobraniem JAR-a, backoff, wyjątek). Idempotentne; no-op gdy nic nie przygotowano (BE-246 W-A).
+     */
+    default void discardPreparedJar(UUID installationId) {
+    }
+
+    /**
      * Ładuje i aktywuje jedną instalację pluginu.
      *
      * <p>Sekwencja: wczytaj {@code TenantPluginInstallation} (musi istnieć i należeć do
@@ -88,7 +106,14 @@ public interface PluginRuntimeManager {
      * blokuje unload. Usuwa wpis z {@link PluginRegistry} i z wewnętrznej mapy aktywnych
      * uchwytów tego managera, tak by żadna silna referencja do {@link PluginClassLoader} (lub
      * instancji {@code entryPoint}) nie pozostała w aplikacji — warunek niezbędny, by GC mógł
-     * odzyskać classloader.
+     * odzyskać classloader. Przed zamknięciem classloadera odwołuje flagę kontekstu ({@link PluginRevocation}), więc
+     * osierocony wątek pluginu (po timeoucie) nie ma już dostępu do API platformy (BE-244 W2).
+     *
+     * <p><strong>Niezmiennik "{@code load} startuje dopiero po zakończeniu dispose starej instancji"</strong>
+     * (detach + {@code onDeactivate} + zamknięcie classloadera pod jednym lockiem instalacji) obowiązuje dla tej
+     * ścieżki (disable, przeładowanie, unload admina). NIE obowiązuje dla ścieżki REVOKED ({@link #unloadByVersion}):
+     * tam dispose jest asynchroniczny i bez locka (kill switch nigdy nie czeka), więc {@code load} nowej wersji tej
+     * samej instalacji może ruszyć przed końcem starego {@code onDeactivate} (BE-244 R2).
      *
      * @param tenantId       tenant właściciel instalacji
      * @param installationId instalacja do dezaktywacji
@@ -112,7 +137,8 @@ public interface PluginRuntimeManager {
      * Wersja trafia też do lokalnego zbioru "odwołanych", więc {@code load()} będący w toku w chwili odwołania
      * samodzielnie się wycofa. Wołać WYŁĄCZNIE po potwierdzeniu {@code REVOKED} w DB (lub z lokalnego endpointu
      * odwołania). Faza 2 ({@code onDeactivate}) biegnie asynchronicznie i równolegle per uchwyt - metoda zwraca po
-     * fazie 1. Operacja jest nieodwracalna tak jak sam {@code REVOKED}.
+     * fazie 1. Operacja jest nieodwracalna tak jak sam {@code REVOKED}. Flaga {@link PluginRevocation} uchwytu jest
+     * ustawiana już w fazie 1, więc API platformy przestaje być dostępne dla pluginu natychmiast (BE-244 W2).
      *
      * @param pluginVersionId odwoływana wersja pluginu
      * @return liczba odładowanych uchwytów

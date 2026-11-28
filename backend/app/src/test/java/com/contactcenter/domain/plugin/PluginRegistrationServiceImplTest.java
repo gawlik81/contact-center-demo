@@ -383,6 +383,45 @@ class PluginRegistrationServiceImplTest {
         }
 
         @Test
+        @DisplayName("V153: DTO wystawia degradedReason - zapisana przyczyna, null gdy nie DEGRADED, "
+                + "fallback legacy z licznika gdy DEGRADED bez przyczyny")
+        void dtoExposesEffectiveDegradedReason() {
+            TenantPluginInstallation healthyWithStaleReason = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            healthyWithStaleReason.setDegradedReason(DegradedReason.CIRCUIT_OPEN); // ignored when not DEGRADED
+            TenantPluginInstallation config = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            config.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            config.setDegradedReason(DegradedReason.CONFIG_LOAD_FAILED);
+            config.setConsecutiveFailureCount(9); // the counter must NOT decide when the reason is present
+            TenantPluginInstallation legacyCircuit = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            legacyCircuit.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            legacyCircuit.setConsecutiveFailureCount(TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD);
+            TenantPluginInstallation legacyConfig = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            legacyConfig.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            legacyConfig.setConsecutiveFailureCount(0);
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID)).thenReturn(
+                    Optional.of(healthyWithStaleReason), Optional.of(config), Optional.of(legacyCircuit),
+                    Optional.of(legacyConfig));
+
+            assertThat(service.getInstallation(TENANT_ID, INSTALLATION_ID).degradedReason()).isNull();
+            assertThat(service.getInstallation(TENANT_ID, INSTALLATION_ID).degradedReason())
+                    .isEqualTo(DegradedReason.CONFIG_LOAD_FAILED);
+            assertThat(service.getInstallation(TENANT_ID, INSTALLATION_ID).degradedReason())
+                    .isEqualTo(DegradedReason.CIRCUIT_OPEN);
+            assertThat(service.getInstallation(TENANT_ID, INSTALLATION_ID).degradedReason())
+                    .isEqualTo(DegradedReason.CONFIG_LOAD_FAILED);
+        }
+
+        @Test
+        @DisplayName("markDegradedByCircuit: zapisuje DEGRADED + CIRCUIT_OPEN + licznik jednym wywołaniem repo; brak wiersza -> false")
+        void markDegradedByCircuitWritesPair() {
+            when(installationRepository.markDegradedByCircuit(INSTALLATION_ID, TENANT_ID, 5)).thenReturn(1);
+            when(installationRepository.markDegradedByCircuit(TARGET_INSTALLATION_ID, TENANT_ID, 5)).thenReturn(0);
+
+            assertThat(service.markDegradedByCircuit(TENANT_ID, INSTALLATION_ID, 5)).isTrue();
+            assertThat(service.markDegradedByCircuit(TENANT_ID, TARGET_INSTALLATION_ID, 5)).isFalse();
+        }
+
+        @Test
         @DisplayName("instalacja nie istnieje dla tenanta → ResourceNotFoundException (404)")
         void missingInstallation_throwsResourceNotFound() {
             when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))

@@ -114,23 +114,45 @@ public interface PluginRegistrationService {
     TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, UUID targetInstallationId);
 
     /**
-     * Aktualizuje {@code health_status}/{@code consecutive_failure_count} jednej instalacji.
+     * Circuit breaker opened: sets {@code health_status = DEGRADED}, {@code degraded_reason = CIRCUIT_OPEN} and the
+     * failure counter in ONE statement (V153). Overwrites {@code CONFIG_LOAD_FAILED} (a live plugin failing
+     * repeatedly is the fresher signal, see {@link DegradedReason}).
      *
-     * <p>Wołane wyłącznie przez {@code ExtensionPointPublisherImpl}/{@code CircuitBreakerState}
-     * (BE-102, ARCHITECTURE.md §11.7) — przejście na {@code DEGRADED} po N kolejnych
-     * {@code TIMED_OUT}/{@code FAILED} wywołaniach, lub powrót na {@code HEALTHY} po pierwszym
-     * {@code SUCCESS}. Nie rzuca przy braku instalacji (best-effort — wołający nie powinien
-     * blokować ścieżki invocation na błędzie aktualizacji metadanych zdrowia) — zamiast tego
-     * loguje ostrzeżenie i zwraca {@code false}.
+     * <p>Called by {@code CircuitBreakerState} (BE-102, ARCHITECTURE.md section 11.7). Best-effort: does not throw
+     * for a missing installation - logs a warning and returns {@code false}.
      *
-     * @param tenantId               tenant-właściciel instalacji
-     * @param installationId        instalacja, której status jest aktualizowany
-     * @param healthStatus            jedna z wartości {@code TenantPluginInstallation.HealthStatus}
-     * @param consecutiveFailureCount aktualna wartość licznika kolejnych błędów do zapisania
-     * @return {@code true} jeśli wiersz został zaktualizowany, {@code false} gdy instalacja nie
-     *         istnieje dla tego tenanta
+     * @param tenantId         tenant that owns the installation
+     * @param installationId   installation whose status is updated
+     * @param consecutiveFailureCount current value of the failure counter (a pure counter, not a cause marker)
+     * @return {@code true} when the row was updated, {@code false} when the installation does not exist for the tenant or is {@code DISABLED_BY_ADMIN} (never overwritten)
      */
-    boolean updateHealthStatus(UUID tenantId, UUID installationId, String healthStatus, int consecutiveFailureCount);
+    boolean markDegradedByCircuit(UUID tenantId, UUID installationId, int consecutiveFailureCount);
+
+    /**
+     * BE-245 W2: {@code HEALTHY -> DEGRADED} (CAS) po porażce załadowania wtyczki z nową konfiguracją. Nie nadpisuje
+     * {@code DEGRADED} obwodu ani {@code DISABLED_BY_ADMIN}; idempotentne. Ustawia {@code degraded_reason = CONFIG_LOAD_FAILED}
+     * w tym samym UPDATE-cie, nie rusza licznika błędów. Best-effort: nie rzuca przy braku instalacji.
+     *
+     * @return {@code true} gdy status faktycznie zmieniono
+     */
+    boolean markDegradedByConfigLoad(UUID tenantId, UUID installationId);
+
+    /**
+     * BE-245 W2: zdejmuje {@code DEGRADED} (CAS na przyczynie). {@code includeCircuit=false} - tylko {@code DEGRADED}
+     * po porażce ładowania/konfiguracji; {@code true} - także obwodu (po resecie obwodu przez zmianę instalacji).
+     *
+     * @return {@code true} gdy status faktycznie zdjęto
+     */
+    boolean clearDegraded(UUID tenantId, UUID installationId, boolean includeCircuit);
+
+    /**
+     * BE-245 W2: powrót obwodu na {@code HEALTHY} - zdejmuje WYŁĄCZNIE {@code DEGRADED} z przyczyną
+     * {@code CIRCUIT_OPEN} (nie rusza {@code CONFIG_LOAD_FAILED} ani {@code DISABLED_BY_ADMIN}), czyści przyczynę i
+     * zeruje zalegający licznik.
+     *
+     * @return {@code true} gdy cokolwiek zmieniono
+     */
+    boolean clearCircuitDegraded(UUID tenantId, UUID installationId);
 
     /**
      * Odinstalowuje (fizycznie usuwa) instalację pluginu (BE-106, ARCHITECTURE.md §11.11:

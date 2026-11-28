@@ -163,6 +163,17 @@ class GlobalExceptionHandlerMvcTest {
             return UUID.fromString(v).toString();
         }
 
+        @GetMapping("/plugin-quarantined")
+        String pluginQuarantined() {
+            throw new com.contactcenter.domain.plugin.runtime.PluginQuarantinedException(
+                    "Instalacja X w kwarantannie po timeoucie onActivate() (jeszcze 42 s)");
+        }
+
+        @GetMapping("/plugin-activation")
+        String pluginActivation() {
+            throw new com.contactcenter.domain.plugin.runtime.PluginActivationException("secret JAR path /x/y");
+        }
+
         @GetMapping("/boom")
         String boom() {
             throw new IllegalStateException("SQL error: table secret_table");
@@ -303,6 +314,25 @@ class GlobalExceptionHandlerMvcTest {
         ResultActions r = mockMvc.perform(get("/probe/upload-too-big"));
         assertProblem(r, 413);
         r.andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("1024"))));
+    }
+
+    @Test
+    @DisplayName("BE-244: 409 - PluginQuarantinedException (ProblemDetail z czytelnym detail zamiast 500)")
+    void pluginQuarantinedIs409() throws Exception {
+        ResultActions r = mockMvc.perform(get("/probe/plugin-quarantined"));
+        assertProblem(r, 409);
+        r.andExpect(jsonPath("$.title").value("Wtyczka w kwarantannie"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("jeszcze 42 s")))
+                .andExpect(jsonPath("$.type").value(org.hamcrest.Matchers.endsWith("plugin-quarantined")));
+    }
+
+    @Test
+    @DisplayName("BE-244: zwykły PluginActivationException nadal 500 bez wycieku szczegółów (tylko kwarantanna to 409)")
+    void plainPluginActivationStays500() throws Exception {
+        ResultActions r = mockMvc.perform(get("/probe/plugin-activation"));
+        r.andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Wewnętrzny błąd serwera"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/x/y"))));
     }
 
     @Test

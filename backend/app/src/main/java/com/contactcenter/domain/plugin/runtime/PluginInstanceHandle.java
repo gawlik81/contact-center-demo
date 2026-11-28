@@ -46,6 +46,18 @@ import java.util.UUID;
  *                        rekoncyliacji między instancjami; {@code null} tylko w uchwytach testowych
  * @param loadedAtMillis  moment załadowania (epoch millis) — rekoncyliacja nie zwalnia uchwytu młodszego niż
  *                        okres karencji (enable ładuje runtime PRZED ustawieniem flagi w DB)
+ * @param configFingerprint odcisk (SHA-256) konfiguracji instalacji widzianej przez {@code onActivate} (BE-245,
+ *                        {@link PluginConfigFingerprint}) — rekoncyliacja przeładowuje wtyczkę, gdy konfiguracja w DB
+ *                        ma inny odcisk; {@code null} = nieznany (uchwyty testowe) i wtedy konfiguracji się nie porównuje
+ * @param jarChecksumSha256 SHA-256 (hex) JAR-a, z którego załadowano uchwyt (BE-246) - zweryfikowany względem
+ *                        {@code plugin_version.checksum_sha256} PRZED załadowaniem; rekoncyliacja przeładowuje wtyczkę,
+ *                        gdy katalog ma już inny checksum (nadpisanie JAR-a tej samej wersji w miejscu);
+ *                        {@code null} = nieznany (uchwyty testowe) i wtedy checksumu się nie porównuje
+ * @param jarSizeBytes    rozmiar lokalnej kopii JAR przy ładowaniu (tani pre-check zmiany pliku; -1 = nieznany)
+ * @param jarModifiedMillis mtime lokalnej kopii JAR przy ładowaniu (jw.; -1 = nieznany)
+ * @param revocation      flaga "instancja martwa" (BE-244 W2) współdzielona z kontekstami/klientami wtyczki: ustawiana
+ *                        PRZED zamknięciem classloadera (unload, kill switch, timeout callbacku), po czym każde
+ *                        wywołanie API platformy z zachowanej referencji kontekstu rzuca {@link PluginRevokedException}
  */
 public record PluginInstanceHandle(
         UUID installationId,
@@ -57,7 +69,88 @@ public record PluginInstanceHandle(
         Optional<Path> uiAssetsDir,
         List<String> grantedPermissions,
         UUID pluginVersionId,
-        long loadedAtMillis) {
+        long loadedAtMillis,
+        String configFingerprint,
+        String jarChecksumSha256,
+        long jarSizeBytes,
+        long jarModifiedMillis,
+        PluginRevocation revocation) {
+
+    public PluginInstanceHandle {
+        if (revocation == null) {
+            revocation = new PluginRevocation();
+        }
+    }
+
+    /** Canonical constructor without an explicit revocation flag: a fresh (not revoked) one is created. */
+    public PluginInstanceHandle(
+            UUID installationId,
+            UUID tenantId,
+            String pluginKey,
+            PluginEntryPoint entryPoint,
+            ClassLoader classLoader,
+            Path localJarPath,
+            Optional<Path> uiAssetsDir,
+            List<String> grantedPermissions,
+            UUID pluginVersionId,
+            long loadedAtMillis,
+            String configFingerprint,
+            String jarChecksumSha256,
+            long jarSizeBytes,
+            long jarModifiedMillis) {
+        this(installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath, uiAssetsDir,
+                grantedPermissions, pluginVersionId, loadedAtMillis, configFingerprint, jarChecksumSha256,
+                jarSizeBytes, jarModifiedMillis, new PluginRevocation());
+    }
+
+    /** Konstruktor zgodny wstecz (bez checksumu JAR). */
+    public PluginInstanceHandle(
+            UUID installationId,
+            UUID tenantId,
+            String pluginKey,
+            PluginEntryPoint entryPoint,
+            ClassLoader classLoader,
+            Path localJarPath,
+            Optional<Path> uiAssetsDir,
+            List<String> grantedPermissions,
+            UUID pluginVersionId,
+            long loadedAtMillis,
+            String configFingerprint) {
+        this(installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath, uiAssetsDir,
+                grantedPermissions, pluginVersionId, loadedAtMillis, configFingerprint, null, -1L, -1L);
+    }
+
+    /**
+     * Without the configuration fingerprint, the JAR checksum, class loader and paths (BE-245 review N): an unsalted
+     * hash of a low-entropy configuration (a PIN, a short token) could be reversed with a dictionary if a handle were
+     * ever logged.
+     */
+    @Override
+    public String toString() {
+        return "PluginInstanceHandle[installationId=" + installationId + ", tenantId=" + tenantId + ", pluginKey="
+                + pluginKey + ", pluginVersionId=" + pluginVersionId + ", loadedAtMillis=" + loadedAtMillis + "]";
+    }
+
+    /** {@code size:mtime} lokalnej kopii JAR zapamiętane przy ładowaniu (pre-check zmiany pliku). */
+    public String jarStat() {
+        return jarSizeBytes < 0 ? null : jarSizeBytes + ":" + jarModifiedMillis;
+    }
+
+    /** Konstruktor zgodny wstecz (bez odcisku konfiguracji). */
+    public PluginInstanceHandle(
+            UUID installationId,
+            UUID tenantId,
+            String pluginKey,
+            PluginEntryPoint entryPoint,
+            ClassLoader classLoader,
+            Path localJarPath,
+            Optional<Path> uiAssetsDir,
+            List<String> grantedPermissions,
+            UUID pluginVersionId,
+            long loadedAtMillis) {
+        this(installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath, uiAssetsDir,
+                grantedPermissions, pluginVersionId, loadedAtMillis, null);
+    }
 
     /** Konstruktor zgodny wstecz (bez wersji; moment załadowania = teraz). */
     public PluginInstanceHandle(

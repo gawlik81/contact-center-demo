@@ -182,8 +182,8 @@ class ExtensionPointPublisherImplTest {
             assertThat(result.warning()).isNull();
 
             // Circuit breaker zarejestrował błąd (TIMED_OUT liczy się jak failure).
-            verify(pluginRegistrationService, never()).updateHealthStatus(
-                    any(), any(), any(), org.mockito.ArgumentMatchers.eq(1));
+            verify(pluginRegistrationService, never()).markDegradedByCircuit(
+                    any(), any(), org.mockito.ArgumentMatchers.eq(1));
             verify(pluginInvocationLogService).record(
                     eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
                     eq(InvocationStatus.TIMED_OUT), org.mockito.ArgumentMatchers.anyLong(),
@@ -666,6 +666,47 @@ class ExtensionPointPublisherImplTest {
             publisher.publishPreContactConnect(TENANT_ID, contactEvent());
 
             verify(pluginRuntimeSync, never()).requestTenantSync(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("BE-246 W1: dzierżawa próby half-open nie wycieka po niezłapanym wyjątku")
+    class HalfOpenLeaseLeakTests {
+
+        @Test
+        @DisplayName("CancellationException z Future.get po przyznaniu próby -> dzierżawa zwolniona, następny wołający próbuje od razu")
+        void cancellationAfterProbeGrantedReleasesTheLease() {
+            java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong(1_000);
+            CircuitBreakerState breaker = new CircuitBreakerState(
+                    pluginRegistrationService, null, java.time.Duration.ofSeconds(60), nanos::get);
+            for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+                breaker.recordResult(TENANT_ID, INSTALLATION_ID, false);
+            }
+            nanos.addAndGet(java.time.Duration.ofSeconds(61).toNanos());
+            ExecutorService cancelling = org.mockito.Mockito.mock(ExecutorService.class);
+            java.util.concurrent.CompletableFuture<Object> cancelled = new java.util.concurrent.CompletableFuture<>();
+            cancelled.cancel(true);
+            org.mockito.Mockito.doReturn(cancelled).when(cancelling)
+                    .submit(org.mockito.ArgumentMatchers.<java.util.concurrent.Callable<Object>>any());
+            ExtensionPointPublisherImpl leaking = new ExtensionPointPublisherImpl(
+                    pluginRegistry, breaker, customerService, contactService,
+                    properties, rabbitTemplate, objectMapper, pluginInvocationLogService,
+                    pluginCatalogQueryService, cancelling, pluginRuntimeSync);
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+
+            try {
+                leaking.publishPreContactConnect(TENANT_ID, contactEvent());
+            } catch (RuntimeException expectedCancellation) {
+                // the publisher may let it propagate: what matters is the lease
+            }
+
+            assertThat(breaker.tryAcquire(INSTALLATION_ID).isProbe())
+                    .as("the probe lease must be free again right after the exception").isTrue();
         }
     }
 }

@@ -49,6 +49,7 @@ class PluginRuntimeSyncServiceImplTest {
     @Mock private PluginCatalogQueryService catalog;
     @Mock private CircuitBreakerState circuitBreaker;
     @Mock private PluginSyncBus bus;
+    @Mock private com.contactcenter.domain.plugin.PluginRegistrationService registration;
 
     private PluginSyncProperties properties;
     private SimpleMeterRegistry meters;
@@ -61,7 +62,7 @@ class PluginRuntimeSyncServiceImplTest {
         properties.setLazySyncCooldownMs(60_000);
         properties.setFailedLoadBackoffMs(60_000);
         meters = new SimpleMeterRegistry();
-        sync = new PluginRuntimeSyncServiceImpl(manager, catalog, circuitBreaker, bus, properties, meters);
+        sync = new PluginRuntimeSyncServiceImpl(manager, catalog, circuitBreaker, bus, properties, meters, registration);
         when(manager.loadedHandles()).thenReturn(List.of());
     }
 
@@ -327,7 +328,7 @@ class PluginRuntimeSyncServiceImplTest {
         }
 
         @Test
-        @DisplayName("INSTALLATION_CHANGED: reset obwodu, szybka ścieżka, a ładowanie przechodzi na wykonawcę bulk")
+        @DisplayName("INSTALLATION_CHANGED: reset obwodu, szybka ścieżka, a ładowanie przechodzi na priorytetowego wykonawcę load (BE-244)")
         void installationChangedTriggersReconciliationAndLoad() {
             dbHas(installation(INSTALLATION, TENANT, VERSION, true), PluginVersion.PluginVersionStatus.VALIDATED);
 
@@ -350,7 +351,7 @@ class PluginRuntimeSyncServiceImplTest {
             });
             dbHas(installation(INSTALLATION, TENANT, VERSION, false), PluginVersion.PluginVersionStatus.VALIDATED);
             loaded(handle(INSTALLATION, TENANT, VERSION, System.currentTimeMillis()));
-            // two slow loads would starve a shared 2-thread pool; here they sit on the bulk executor
+            // two slow loads would starve a shared 2-thread pool; here they sit on the priority load executor
             sync.onEvent(envelope(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, slowTenant, slowInstallation, null));
             verify(manager, timeout(3_000)).load(slowTenant, slowInstallation);
 
@@ -755,6 +756,457 @@ class PluginRuntimeSyncServiceImplTest {
             sync.syncTick();
 
             org.mockito.Mockito.verifyNoInteractions(catalog);
+        }
+    }
+
+    // ----- BE-245: change of installationConfig, R6 ---------------------------------------------------------------
+
+    private static PluginInstanceHandle handleWithConfig(String config, long loadedAtMillis) {
+        return new PluginInstanceHandle(INSTALLATION, TENANT, "k", null, null, null, Optional.empty(), List.of(),
+                VERSION, loadedAtMillis, config == null ? null : PluginConfigFingerprint.of(config));
+    }
+
+    private static TenantPluginInstallation installationWithConfig(String config) {
+        TenantPluginInstallation i = installation(INSTALLATION, TENANT, VERSION, true);
+        i.setInstallationConfig(config);
+        return i;
+    }
+
+    @Nested
+    @DisplayName("BE-245: zmiana installationConfig przeładowuje wtyczkę")
+    class ConfigChange {
+
+        @Test
+        @DisplayName("odcisk konfiguracji w DB != odcisk uchwytu -> unload (onDeactivate), reset obwodu i load (onActivate z nową konfiguracją)")
+        void differentConfigReloads() {
+            dbHas(installationWithConfig("{\"k\":\"new\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+
+            sync.reconcileInstallation(TENANT, INSTALLATION, true, false);
+
+            org.mockito.InOrder order = org.mockito.Mockito.inOrder(manager, circuitBreaker);
+            order.verify(manager).unload(TENANT, INSTALLATION);
+            order.verify(circuitBreaker).forget(INSTALLATION);
+            order.verify(manager).load(TENANT, INSTALLATION);
+            assertThat(count("plugin.sync.correction", "action", "reload_config")).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("R2: ścieżka zdarzenia (allowLoad=false) NIE wyładowuje - stara instancja obsługuje ruch; unload+load wykona jedno wywołanie pod jednym lockiem na priorytetowym wykonawcy load")
+        void eventPathKeepsOldInstanceAndAsksForReload() {
+            dbHas(installationWithConfig("{\"k\":\"new\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+
+            boolean reloadNeeded = sync.reconcileInstallation(TENANT, INSTALLATION, false, false);
+
+            assertThat(reloadNeeded).isTrue();
+            verify(manager, never()).unload(any(), any());
+            verify(manager, never()).load(any(), any());
+            verify(circuitBreaker, never()).forget(INSTALLATION);
+        }
+
+        @Test
+        @DisplayName("R2: zdarzenie -> reload (unload i load) odbywa się w jednym przebiegu na priorytetowym wykonawcy load (BE-244), na tym samym wątku, bez luki na wykonawcy zdarzeń")
+        void eventReloadRunsUnloadAndLoadInOnePass() {
+            dbHas(installationWithConfig("{\"k\":\"new\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            java.util.List<String> threads = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+            org.mockito.Mockito.doAnswer(inv -> {
+                threads.add("unload:" + Thread.currentThread().getName());
+                when(manager.findActiveHandle(INSTALLATION)).thenReturn(Optional.empty());
+                return null;
+            }).when(manager).unload(TENANT, INSTALLATION);
+            org.mockito.Mockito.doAnswer(inv -> {
+                threads.add("load:" + Thread.currentThread().getName());
+                return null;
+            }).when(manager).load(TENANT, INSTALLATION);
+
+            sync.onEvent(new PluginSyncEnvelope(1, "other", PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT,
+                    INSTALLATION, null, System.currentTimeMillis()));
+
+            verify(manager, timeout(3_000)).load(TENANT, INSTALLATION);
+            assertThat(threads).hasSize(2);
+            assertThat(threads.get(0)).startsWith("unload:plugin-sync-load-");
+            assertThat(threads.get(1)).startsWith("load:plugin-sync-load-");
+        }
+
+        @Test
+        @DisplayName("ta sama konfiguracja (także null vs puste) -> nic się nie dzieje; uchwyt bez odcisku (nieznany) nie jest porównywany")
+        void sameOrUnknownConfigIsLeftAlone() {
+            dbHas(installationWithConfig(null), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("", 0L));
+            sync.reconcileInstallation(TENANT, INSTALLATION, true, false);
+
+            dbHas(installationWithConfig("{\"k\":\"v\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig(null, 0L));
+            sync.reconcileInstallation(TENANT, INSTALLATION, true, false);
+
+            verify(manager, never()).unload(any(), any());
+            verify(manager, never()).load(any(), any());
+        }
+
+        @Test
+        @DisplayName("zgubione zdarzenie: okresowa rekoncyliacja sama wykrywa zmianę konfiguracji (needsAction) i przeładowuje")
+        void reconcileAllRepairsLostConfigEvent() {
+            TenantPluginInstallation enabled = installationWithConfig("{\"k\":\"new\"}");
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(enabled));
+            dbHas(enabled, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+
+            sync.reconcileAll("periodic");
+
+            verify(manager).unload(TENANT, INSTALLATION);
+            verify(manager).load(TENANT, INSTALLATION);
+        }
+
+        @Test
+        @DisplayName("rekoncyliacja bez zmiany konfiguracji nie dotyka załadowanej wtyczki (brak niepotrzebnych przeładowań)")
+        void reconcileAllLeavesUnchangedConfigAlone() {
+            TenantPluginInstallation enabled = installationWithConfig("{\"k\":\"v\"}");
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(enabled));
+            dbHas(enabled, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"v\"}", 0L));
+
+            sync.reconcileAll("periodic");
+
+            verify(manager, never()).unload(any(), any());
+            verify(manager, never()).load(any(), any());
+        }
+
+        @Test
+        @DisplayName("installationConfigChanged poza transakcją: publikuje INSTALLATION_CHANGED i lokalnie przeładowuje (własne zdarzenie jest ignorowane)")
+        void configChangedPublishesAndReloadsLocally() {
+            dbHas(installationWithConfig("{\"k\":\"new\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            org.mockito.Mockito.doAnswer(inv -> {
+                when(manager.findActiveHandle(INSTALLATION)).thenReturn(Optional.empty()); // the handle is gone
+                return null;
+            }).when(manager).unload(TENANT, INSTALLATION);
+
+            sync.installationConfigChanged(TENANT, INSTALLATION);
+
+            verify(bus).publish(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT, INSTALLATION, null);
+            verify(circuitBreaker, org.mockito.Mockito.atLeastOnce()).forget(INSTALLATION);
+            verify(manager, timeout(3_000)).unload(TENANT, INSTALLATION);
+            verify(manager, timeout(3_000)).load(TENANT, INSTALLATION);
+        }
+
+        @Test
+        @DisplayName("installationConfigChanged w transakcji: ani publikacja, ani lokalne przeładowanie przed commitem (inaczej odczyt starej konfiguracji)")
+        void configChangedWaitsForCommit() {
+            org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+            org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(true);
+            try {
+                sync.installationConfigChanged(TENANT, INSTALLATION);
+
+                verify(bus, never()).publish(any(), any(), any(), any());
+                verify(catalog, never()).findInstallation(any(), any());
+
+                org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                        .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+
+                verify(bus).publish(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT, INSTALLATION, null);
+                verify(catalog, timeout(3_000).atLeastOnce()).findInstallation(TENANT, INSTALLATION);
+            } finally {
+                org.springframework.transaction.support.TransactionSynchronizationManager.setActualTransactionActive(false);
+                org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("R1/W2 (BE-245): nieudane ładowanie po zmianie konfiguracji jest widoczne dla admina, DEGRADED koordynowany w DB")
+    class ConfigReloadFailure {
+
+        private static final UUID NEW_VERSION = UUID.randomUUID();
+
+        @BeforeEach
+        void setUpRegistration() {
+            properties.setFailedLoadBackoffMs(0);
+            org.mockito.Mockito.doAnswer(inv -> {
+                when(manager.findActiveHandle(INSTALLATION)).thenReturn(Optional.empty());
+                return null;
+            }).when(manager).unload(TENANT, INSTALLATION);
+        }
+
+        private void failLoads() {
+            org.mockito.Mockito.doThrow(new IllegalStateException("onActivate rzucil")).when(manager)
+                    .load(TENANT, INSTALLATION);
+        }
+
+        private void reconcile() {
+            sync.reconcileInstallation(TENANT, INSTALLATION, true, false);
+        }
+
+        @Test
+        @DisplayName("W2: każda nieudana próba robi idempotentny CAS (DB jest źródłem prawdy), metryka failed raz na serię + retry")
+        void failedConfigReloadMarksDegradedByCasAndCountsStreakOnce() {
+            dbHas(installationWithConfig("{\"k\":\"bad\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+
+            reconcile(); // reload fails
+            reconcile(); // retry fails
+            reconcile(); // retry fails
+
+            verify(registration, times(3)).markDegradedByConfigLoad(TENANT, INSTALLATION);
+            assertThat(meters.find("plugin.sync.config_reload.failed").counter().count()).isEqualTo(1);
+            assertThat(meters.find("plugin.sync.config_reload.retry").counter().count()).isEqualTo(2);
+            verify(registration, never()).clearDegraded(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        @DisplayName("W2: wyścig A/B - instancja, która nadal zawodzi, ponownie oznacza DEGRADED po tym, jak inna go zdjęła")
+        void instanceThatKeepsFailingRemarksAfterAnotherClearedIt() {
+            dbHas(installationWithConfig("{\"k\":\"bad\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+
+            reconcile();
+            // (another instance clears the row here - invisible to this instance, no in-memory flag to go stale)
+            reconcile();
+
+            verify(registration, times(2)).markDegradedByConfigLoad(TENANT, INSTALLATION);
+        }
+
+        @Test
+        @DisplayName("W2: udany load po naprawie konfiguracji zdejmuje DEGRADED KAŻDEJ przyczyny (obwód został zresetowany przez reload)")
+        void successfulLoadAfterConfigFixClearsAnyCause() {
+            dbHas(installationWithConfig("{\"k\":\"bad\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+            reconcile();
+
+            org.mockito.Mockito.doReturn(null).when(manager).load(TENANT, INSTALLATION);
+            reconcile();
+
+            verify(registration).clearDegraded(TENANT, INSTALLATION, true);
+            // later, a plain load (e.g. after a restart of the handle) clears only a config-caused DEGRADED
+        }
+
+        @Test
+        @DisplayName("W2: zmiana konfiguracji przy otwartym obwodzie (handle nie załadowany) - udany load kończy się HEALTHY (includeCircuit)")
+        void configFixWithOpenCircuitEndsHealthy() {
+            dbHas(installation(INSTALLATION, TENANT, VERSION, true), PluginVersion.PluginVersionStatus.VALIDATED);
+            when(manager.findActiveHandle(INSTALLATION)).thenReturn(Optional.empty());
+
+            sync.installationConfigChanged(TENANT, INSTALLATION); // resets the circuit locally, marks the reset pending
+            reconcile();
+
+            verify(manager).load(TENANT, INSTALLATION);
+            verify(registration).clearDegraded(TENANT, INSTALLATION, true);
+        }
+
+        @Test
+        @DisplayName("W2: zwykły load (restart, leniwy load) zdejmuje tylko DEGRADED po porażce konfiguracji, nie obwodu")
+        void plainLoadClearsOnlyConfigCausedDegradation() {
+            dbHas(installation(INSTALLATION, TENANT, VERSION, true), PluginVersion.PluginVersionStatus.VALIDATED);
+            when(manager.findActiveHandle(INSTALLATION)).thenReturn(Optional.empty());
+
+            reconcile();
+
+            verify(registration).clearDegraded(TENANT, INSTALLATION, false);
+        }
+
+        @Test
+        @DisplayName("W2 (restart): załadowany, aktualny handle + DEGRADED o liczniku < progu obwodu -> jednorazowo zdjęty")
+        void staleConfigDegradedOfAlreadyLoadedHandleIsClearedOnceAfterRestart() {
+            TenantPluginInstallation row = installation(INSTALLATION, TENANT, VERSION, true);
+            row.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            row.setDegradedReason(com.contactcenter.domain.plugin.DegradedReason.CONFIG_LOAD_FAILED);
+            dbHas(row, PluginVersion.PluginVersionStatus.VALIDATED);
+            PluginInstanceHandle h = handle(INSTALLATION, TENANT, VERSION, 0L);
+            loaded(h);
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(row));
+
+            sync.reconcileAll("test");
+            sync.reconcileAll("test");
+
+            verify(registration, times(1)).clearDegraded(TENANT, INSTALLATION, false);
+        }
+
+        @Test
+        @DisplayName("W2: DEGRADED obwodu (licznik >= progu) przy załadowanym handle NIE jest zdejmowany przez rekoncyliację")
+        void circuitDegradedIsNotClearedByObservation() {
+            TenantPluginInstallation row = installation(INSTALLATION, TENANT, VERSION, true);
+            row.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            row.setDegradedReason(com.contactcenter.domain.plugin.DegradedReason.CIRCUIT_OPEN);
+            row.setConsecutiveFailureCount(TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD);
+            dbHas(row, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handle(INSTALLATION, TENANT, VERSION, 0L));
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(row));
+
+            sync.reconcileAll("test");
+
+            verify(registration, never()).clearDegraded(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        @DisplayName("V153: przyczyna rozstrzyga, nie licznik - CONFIG_LOAD_FAILED z wysokim licznikiem jest zdejmowany; "
+                + "CIRCUIT_OPEN z licznikiem 0 nie")
+        void reasonNotCounterDecidesObservation() {
+            TenantPluginInstallation config = installation(INSTALLATION, TENANT, VERSION, true);
+            config.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            config.setDegradedReason(com.contactcenter.domain.plugin.DegradedReason.CONFIG_LOAD_FAILED);
+            config.setConsecutiveFailureCount(TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD + 3);
+            dbHas(config, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handle(INSTALLATION, TENANT, VERSION, 0L));
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(config));
+
+            sync.reconcileAll("test");
+
+            verify(registration).clearDegraded(TENANT, INSTALLATION, false);
+        }
+
+        @Test
+        @DisplayName("V153 legacy: DEGRADED bez przyczyny (stara instancja) o liczniku >= progu = obwód, nie jest zdejmowany")
+        void legacyDegradedWithoutReasonAboveThresholdIsTreatedAsCircuit() {
+            TenantPluginInstallation row = installation(INSTALLATION, TENANT, VERSION, true);
+            row.setHealthStatus(TenantPluginInstallation.HealthStatus.DEGRADED);
+            row.setDegradedReason(null);
+            row.setConsecutiveFailureCount(TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD);
+            dbHas(row, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handle(INSTALLATION, TENANT, VERSION, 0L));
+            when(catalog.findAllEnabledAcrossAllTenants()).thenReturn(List.of(row));
+
+            sync.reconcileAll("test");
+
+            verify(registration, never()).clearDegraded(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        }
+
+        @Test
+        @DisplayName("N: porażka po zmianie WERSJI (po wcześniejszej porażce konfiguracji) NIE jest oznaczana jako config")
+        void failureAfterVersionChangeIsNotConfigFailure() {
+            TenantPluginInstallation withConfig = installationWithConfig("{\"k\":\"bad\"}");
+            dbHas(withConfig, PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+            reconcile(); // config failure: flagged for VERSION
+            org.mockito.Mockito.clearInvocations(registration);
+
+            // the admin switches the installation to another version while it is unloaded
+            withConfig.setPluginVersionId(NEW_VERSION);
+            when(catalog.findVersionById(NEW_VERSION))
+                    .thenReturn(Optional.of(version(NEW_VERSION, PluginVersion.PluginVersionStatus.VALIDATED)));
+            reconcile();
+
+            verify(registration, never()).markDegradedByConfigLoad(any(), any());
+        }
+
+        @Test
+        @DisplayName("porażka ładowania z innego powodu niż zmiana konfiguracji (zmiana wersji) NIE oznacza DEGRADED")
+        void failedVersionReloadDoesNotMarkDegraded() {
+            dbHas(installation(INSTALLATION, TENANT, NEW_VERSION, true), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handle(INSTALLATION, TENANT, VERSION, 0L));
+            failLoads();
+
+            reconcile();
+
+            verify(registration, never()).markDegradedByConfigLoad(any(), any());
+        }
+
+        @Test
+        @DisplayName("awaria zapisu statusu nie przerywa rekoncyliacji i jest ponawiana przy kolejnej porażce")
+        void healthWriteFailureIsContainedAndRetried() {
+            dbHas(installationWithConfig("{\"k\":\"bad\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+            when(registration.markDegradedByConfigLoad(any(), any()))
+                    .thenThrow(new IllegalStateException("db down")).thenReturn(true);
+
+            reconcile();
+            reconcile();
+
+            verify(registration, times(2)).markDegradedByConfigLoad(TENANT, INSTALLATION);
+        }
+
+        @Test
+        @DisplayName("BE-246 W-A: zweryfikowany JAR, którego load() nie zużył (porażka/backoff), jest odrzucany w finally")
+        void preparedJarIsDiscardedAfterEveryReloadAttempt() {
+            dbHas(installationWithConfig("{\"k\":\"bad\"}"), PluginVersion.PluginVersionStatus.VALIDATED);
+            loaded(handleWithConfig("{\"k\":\"old\"}", 0L));
+            failLoads();
+
+            reconcile();
+
+            verify(manager).discardPreparedJar(INSTALLATION);
+        }
+    }
+
+    /** Minimal real Spring transaction manager: lets the test exercise Spring's own afterCommit/afterCompletion phases. */
+    private static final class NoOpTransactionManager
+            extends org.springframework.transaction.support.AbstractPlatformTransactionManager {
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, org.springframework.transaction.TransactionDefinition definition) {
+        }
+
+        @Override
+        protected void doCommit(org.springframework.transaction.support.DefaultTransactionStatus status) {
+        }
+
+        @Override
+        protected void doRollback(org.springframework.transaction.support.DefaultTransactionStatus status) {
+        }
+    }
+
+    @Nested
+    @DisplayName("R6 (BE-245): wywołanie z fazy afterCommit INNEJ synchronizacji")
+    class CalledFromAnotherAfterCommit {
+
+        private final org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(new NoOpTransactionManager());
+
+        @Test
+        @DisplayName("installationChanged/versionRevoked wołane z afterCommit innej synchronizacji publikują dokładnie raz (przez afterCompletion)")
+        void publishesOnceFromNestedAfterCommit() {
+            tx.executeWithoutResult(status ->
+                    org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                            new org.springframework.transaction.support.TransactionSynchronization() {
+                                @Override
+                                public void afterCommit() {
+                                    sync.installationChanged(TENANT, INSTALLATION);
+                                    sync.versionRevoked(VERSION);
+                                }
+                            }));
+
+            verify(bus, times(1)).publish(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT, INSTALLATION, null);
+            verify(bus, times(1)).publish(PluginSyncEnvelope.Type.VERSION_REVOKED, null, null, VERSION);
+        }
+
+        @Test
+        @DisplayName("zwykła transakcja: publikacja po commicie dokładnie raz (afterCommit, afterCompletion jej nie dubluje)")
+        void publishesOnceInPlainTransaction() {
+            tx.executeWithoutResult(status -> sync.installationChanged(TENANT, INSTALLATION));
+
+            verify(bus, times(1)).publish(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT, INSTALLATION, null);
+        }
+
+        @Test
+        @DisplayName("R6/R4: publish rzucający w afterCommit - propaguje do wywołującego, ale afterCompletion nie publikuje drugi raz")
+        void throwingPublishInAfterCommitIsNotRepeatedByAfterCompletion() {
+            org.mockito.Mockito.doThrow(new IllegalStateException("redis")).when(bus)
+                    .publish(any(), any(), any(), any());
+
+            assertThatThrownBy(() -> tx.executeWithoutResult(status -> sync.installationChanged(TENANT, INSTALLATION)))
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(bus, times(1)).publish(PluginSyncEnvelope.Type.INSTALLATION_CHANGED, TENANT, INSTALLATION, null);
+        }
+
+        @Test
+        @DisplayName("rollback: nic nie jest publikowane")
+        void rollbackPublishesNothing() {
+            tx.executeWithoutResult(status -> {
+                sync.installationChanged(TENANT, INSTALLATION);
+                status.setRollbackOnly();
+            });
+
+            verify(bus, never()).publish(any(), any(), any(), any());
         }
     }
 

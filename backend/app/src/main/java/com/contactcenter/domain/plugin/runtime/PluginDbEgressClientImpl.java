@@ -46,6 +46,7 @@ final class PluginDbEgressClientImpl implements DbEgressClient {
     private final String jdbcUrl;
     private final String dbUsername;
     private final String dbPassword;
+    private final PluginRevocation revocation;
 
     /**
      * @param grantedPermissions uprawnienia zatwierdzone przy instalacji (do allow-listy egress)
@@ -63,6 +64,19 @@ final class PluginDbEgressClientImpl implements DbEgressClient {
             String jdbcUrl,
             String dbUsername,
             String dbPassword) {
+        this(grantedPermissions, tenantId, pluginKey, jdbcUrl, dbUsername, dbPassword, new PluginRevocation());
+    }
+
+    /** @param revocation set when the instance is unloaded/revoked/timed out: every call then throws (BE-244 W2) */
+    PluginDbEgressClientImpl(
+            List<String> grantedPermissions,
+            UUID tenantId,
+            String pluginKey,
+            String jdbcUrl,
+            String dbUsername,
+            String dbPassword,
+            PluginRevocation revocation) {
+        this.revocation = revocation;
         this.allowedHostPorts = extractAllowedHostPorts(grantedPermissions);
         this.tenantId = tenantId;
         this.pluginKey = pluginKey;
@@ -73,6 +87,7 @@ final class PluginDbEgressClientImpl implements DbEgressClient {
 
     @Override
     public int executeUpdate(String sql, List<Object> params) {
+        revocation.requireActive(); // before anything else: no connection for an orphan of a revoked plugin
         assertHostAllowed();
         try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUsername, dbPassword);
              PreparedStatement statement = connection.prepareStatement(sql)) {

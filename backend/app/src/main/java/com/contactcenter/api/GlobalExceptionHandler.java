@@ -6,6 +6,7 @@ import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.BusinessValidationException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.plugin.runtime.PluginQuarantinedException;
 import com.contactcenter.domain.exception.EtlSyncInProgressException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
@@ -537,6 +538,26 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         log.warn("[API] Ręczny trigger ETL odrzucony: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    /**
+     * Instalacja wtyczki w kwarantannie po timeoucie {@code onActivate} (BE-244 N2) - HTTP 409 Conflict zamiast
+     * ogolnego 500 z {@code PluginActivationException}. To stan zasobu (nie blad serwera): ponowna proba ma sens po
+     * wygasnieciu kwarantanny albo po zmianie wersji/konfiguracji. Szczegoly (pozostaly czas) w {@code detail}.
+     */
+    @ExceptionHandler(PluginQuarantinedException.class)
+    public ResponseEntity<ProblemDetail> handlePluginQuarantinedException(
+            PluginQuarantinedException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setType(URI.create(ERROR_BASE_URI + "plugin-quarantined"));
+        problem.setTitle("Wtyczka w kwarantannie");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("message", ex.getMessage()); // mirrors "detail" for the frontend interceptor
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][Plugin] Aktywacja odrzucona - kwarantanna: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 

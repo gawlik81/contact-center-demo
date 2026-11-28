@@ -164,8 +164,9 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
         if (ensured.failures().isEmpty()) {
             return;
         }
-        Object eventPayload = deserializePayload(extensionPoint, message);
-        UUID relatedContactId = extractContactId(extensionPoint, eventPayload);
+        // R4 (BE-245): the rate limit is applied BEFORE the payload is deserialized - 59 of 60 messages are dropped by
+        // it, and deserialization costs grow with the payload size
+        java.util.Map<UUID, PluginRuntimeSync.LoadFailure> toReport = new java.util.LinkedHashMap<>();
         ensured.failures().forEach((installationId, failure) -> {
             // only for extension points the plugin declares (empty = unknown -> report); at most one entry per
             // (installation, extension point) per window - the result of the lazy sync is repeated for every message
@@ -182,6 +183,14 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
             if (lastUnloadableReport.size() > 1_024) {
                 lastUnloadableReport.values().removeIf(t -> now - t >= UNLOADABLE_REPORT_WINDOW_MS);
             }
+            toReport.put(installationId, failure);
+        });
+        if (toReport.isEmpty()) {
+            return;
+        }
+        Object eventPayload = deserializePayload(extensionPoint, message);
+        UUID relatedContactId = extractContactId(extensionPoint, eventPayload);
+        toReport.forEach((installationId, failure) -> {
             log.warn("[PluginInvocationConsumer] Instalacja {} (tenant {}) niezaładowana na tej instancji: {} – "
                     + "wywołanie {} mogło nie zostać dostarczone", installationId, tenantId, failure.reason(),
                     extensionPoint);
@@ -235,7 +244,8 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
 
         // Krok 2: circuit breaker – wspólny stan w pamięci z ExtensionPointPublisherImpl, bo
         // jest indeksowany tylko po installationId, nie po ścieżce wywołania (blocking/async).
-        if (circuitBreakerState.isOpen(installationId)) {
+        CircuitBreakerState.Permit permit = circuitBreakerState.tryAcquire(installationId);
+        if (!permit.allowed()) {
             pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
                     InvocationStatus.CIRCUIT_OPEN, 0L,
                     "Circuit breaker otwarty (>= " + CircuitBreakerState.FAILURE_THRESHOLD
@@ -244,35 +254,40 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
             return;
         }
 
-        // Krok 3: wywołanie pluginu, timeout-bounded, na pluginInvocationExecutor.
-        long timeoutMs = properties.effectiveAsyncInvocationTimeoutMs();
-        long startedAtNanos = System.nanoTime();
-
         try {
-            invokeWithTimeout(tenantId, handle, extensionPoint, eventPayload, timeoutMs);
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, installationId, true);
-            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.SUCCESS, durationMs, null, relatedContactId, eventPayload);
-        } catch (TimeoutException e) {
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, installationId, false);
-            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.TIMED_OUT, durationMs, "Przekroczono timeout " + timeoutMs + "ms",
-                    relatedContactId, eventPayload);
-        } catch (ExecutionException e) {
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, installationId, false);
-            String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, eventPayload);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, installationId, false);
-            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.FAILED, durationMs, "Wątek listenera przerwany",
-                    relatedContactId, eventPayload);
+            // Krok 3: wywołanie pluginu, timeout-bounded, na pluginInvocationExecutor.
+            long timeoutMs = properties.effectiveAsyncInvocationTimeoutMs();
+            long startedAtNanos = System.nanoTime();
+
+            try {
+                invokeWithTimeout(tenantId, handle, extensionPoint, eventPayload, timeoutMs);
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, true);
+                pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                        InvocationStatus.SUCCESS, durationMs, null, relatedContactId, eventPayload);
+            } catch (TimeoutException e) {
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                        InvocationStatus.TIMED_OUT, durationMs, "Przekroczono timeout " + timeoutMs + "ms",
+                        relatedContactId, eventPayload);
+            } catch (ExecutionException e) {
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                        InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, eventPayload);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                        InvocationStatus.FAILED, durationMs, "Wątek listenera przerwany",
+                        relatedContactId, eventPayload);
+            }
+        } finally {
+            // W1 (BE-246): zwolnij próbę half-open przy KAŻDYM wyjściu bez wyniku (idempotentne po rejestracji wyniku)
+            circuitBreakerState.release(permit);
         }
     }
 
@@ -378,7 +393,8 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
                 handle.grantedPermissions(),
                 installationConfig,
                 customerService,
-                contactService);
+                contactService,
+                handle.revocation()); // BE-244 W2: shares the instance's revocation flag
     }
 
     private static ExtensionPoint parseExtensionPoint(String value) {

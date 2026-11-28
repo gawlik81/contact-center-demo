@@ -83,10 +83,22 @@ class PluginCatalogQueryServiceImpl implements PluginCatalogQueryService {
         // Iteracja po wszystkich tenantach (tabela "tenant" jest globalna, bez RLS) — zero
         // bypassu RLS na "tenant_plugin_installation" (FORCE ROW LEVEL SECURITY, V075), patrz
         // Javadoc PluginCatalogQueryService#findAllEnabledAcrossAllTenants.
+        InstallationConfigUnreadableException lastFailure = null;
+        int failedTenants = 0;
         for (Tenant tenant : tenantService.getAllTenants()) {
-            List<TenantPluginInstallation> enabledForTenant = tenantPluginInstallationRepository
-                    .findAllEnabledForTenant(tenant.getId());
-            result.addAll(enabledForTenant);
+            try {
+                result.addAll(tenantPluginInstallationRepository.findAllEnabledForTenant(tenant.getId()));
+            } catch (InstallationConfigUnreadableException e) {
+                // BE-245 W3: one tenant's unreadable configuration must not hide the other tenants' installations
+                failedTenants++;
+                lastFailure = e;
+                log.error("[PluginCatalogQueryService] Tenant {}: konfiguracje instalacji nieczytelne ({}); pomijam "
+                        + "tenanta w tym odczycie.", tenant.getId(), e.getMessage());
+            }
+        }
+        if (failedTenants > 0 && result.isEmpty()) {
+            // nothing readable anywhere while something is unreadable = systemic (key rotation): fail the pass
+            throw lastFailure;
         }
 
         log.debug("[PluginCatalogQueryService] findAllEnabledAcrossAllTenants: znaleziono={} instalacji "
@@ -94,6 +106,21 @@ class PluginCatalogQueryServiceImpl implements PluginCatalogQueryService {
                 result.size());
 
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TenantPluginInstallation> findEnabledInstallationAcrossTenants(UUID installationId) {
+        // findByIdAndTenantId sets the RLS context explicitly per call (safe in a loop over tenants)
+        for (Tenant tenant : tenantService.getAllTenants()) {
+            Optional<TenantPluginInstallation> found = tenantPluginInstallationRepository
+                    .findByIdAndTenantId(installationId, tenant.getId())
+                    .filter(TenantPluginInstallation::isEnabled);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
     }
 
     @Override

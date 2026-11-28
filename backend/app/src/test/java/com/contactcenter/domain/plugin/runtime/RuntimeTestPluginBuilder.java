@@ -192,6 +192,86 @@ final class RuntimeTestPluginBuilder {
         return writeJar(fullyQualifiedClassName, cw.toByteArray());
     }
 
+    /**
+     * Variant, którego {@code onActivate}/{@code onDeactivate} wykonują aktywne oczekiwanie (spin) przez zadany czas i
+     * IGNORUJĄ przerwanie wątku - symulacja wtyczki, której wątku nie da się zatrzymać ({@code future.cancel(true)}
+     * nic nie daje), czyli osieroconego wątku (BE-244). {@code 0} = metoda natychmiast kończy.
+     */
+    static Path buildJarThatSpins(String fullyQualifiedClassName, long activateSpinMillis,
+                                  long deactivateSpinMillis) throws IOException {
+        String internalName = fullyQualifiedClassName.replace('.', '/');
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, internalName, null,
+                "java/lang/Object", new String[]{"com/contactcenter/pluginsdk/PluginEntryPoint"});
+        writeNoArgConstructor(cw, internalName);
+        writeSpin(cw, "onActivate", "(Lcom/contactcenter/pluginsdk/PluginContext;)V", activateSpinMillis, 2);
+        writeSpin(cw, "onDeactivate", "()V", deactivateSpinMillis, 1);
+        cw.visitEnd();
+        return writeJar(fullyQualifiedClassName, cw.toByteArray());
+    }
+
+    private static void writeSpin(ClassWriter cw, String name, String descriptor, long spinMillis, int firstFreeLocal) {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, name, descriptor, null, null);
+        mv.visitCode();
+        emitSpin(mv, spinMillis, firstFreeLocal);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    private static void emitSpin(MethodVisitor mv, long spinMillis, int firstFreeLocal) {
+        if (spinMillis > 0) {
+            // long end = System.currentTimeMillis() + spinMillis; while (System.currentTimeMillis() < end) onSpinWait();
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false);
+            mv.visitLdcInsn(spinMillis);
+            mv.visitInsn(Opcodes.LADD);
+            mv.visitVarInsn(Opcodes.LSTORE, firstFreeLocal);
+            org.objectweb.asm.Label loop = new org.objectweb.asm.Label();
+            org.objectweb.asm.Label done = new org.objectweb.asm.Label();
+            mv.visitLabel(loop);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false);
+            mv.visitVarInsn(Opcodes.LLOAD, firstFreeLocal);
+            mv.visitInsn(Opcodes.LCMP);
+            mv.visitJumpInsn(Opcodes.IFGE, done);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Thread", "onSpinWait", "()V", false);
+            mv.visitJumpInsn(Opcodes.GOTO, loop);
+            mv.visitLabel(done);
+        }
+    }
+
+    /**
+     * Variant whose {@code onActivate} spins (ignoring interrupts) for {@code spinMillis} and THEN calls
+     * {@code context.getCustomer(customerId)} - the orphaned thread of a timed-out plugin using the context it kept
+     * (BE-244 W2). The call reaches the (mocked) {@code CustomerService} only if the context is still valid, so a test
+     * proves a revoked context by verifying that the service was never called. The exception of a revoked context
+     * propagates out of the thread (nothing catches it); {@code onDeactivate} is a no-op.
+     */
+    static Path buildJarThatCallsContextAfterSpin(String fullyQualifiedClassName, long spinMillis,
+                                                  String customerId) throws IOException {
+        String internalName = fullyQualifiedClassName.replace('.', '/');
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, internalName, null,
+                "java/lang/Object", new String[]{"com/contactcenter/pluginsdk/PluginEntryPoint"});
+        writeNoArgConstructor(cw, internalName);
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "onActivate",
+                "(Lcom/contactcenter/pluginsdk/PluginContext;)V", null, null);
+        mv.visitCode();
+        emitSpin(mv, spinMillis, 2);
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        mv.visitLdcInsn(customerId);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/UUID", "fromString",
+                "(Ljava/lang/String;)Ljava/util/UUID;", false);
+        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "com/contactcenter/pluginsdk/PluginContext",
+                "getCustomer", "(Ljava/util/UUID;)Lcom/contactcenter/pluginsdk/model/CustomerView;", true);
+        mv.visitInsn(Opcodes.POP);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+        writeNoOpOnDeactivate(cw);
+        cw.visitEnd();
+        return writeJar(fullyQualifiedClassName, cw.toByteArray());
+    }
+
     // =========================================================================
     // Generacja bytecode
     // =========================================================================

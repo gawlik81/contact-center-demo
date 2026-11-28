@@ -41,8 +41,16 @@ final class PluginHttpEgressClientImpl implements HttpEgressClient {
     private final Set<String> allowedHosts;
     private final UUID tenantId;
     private final String pluginKey;
+    private final PluginRevocation revocation;
 
     PluginHttpEgressClientImpl(List<String> grantedPermissions, UUID tenantId, String pluginKey) {
+        this(grantedPermissions, tenantId, pluginKey, new PluginRevocation());
+    }
+
+    /** @param revocation set when the instance is unloaded/revoked/timed out: every call then throws (BE-244 W2) */
+    PluginHttpEgressClientImpl(List<String> grantedPermissions, UUID tenantId, String pluginKey,
+                               PluginRevocation revocation) {
+        this.revocation = revocation;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
@@ -53,6 +61,7 @@ final class PluginHttpEgressClientImpl implements HttpEgressClient {
 
     @Override
     public HttpResponse get(String url, Map<String, String> headers) {
+        revocation.requireActive();
         assertHostAllowed(url);
         HttpRequest.Builder builder = HttpRequest.newBuilder(toUri(url))
                 .timeout(REQUEST_TIMEOUT)
@@ -63,6 +72,7 @@ final class PluginHttpEgressClientImpl implements HttpEgressClient {
 
     @Override
     public HttpResponse post(String url, Map<String, String> headers, byte[] body) {
+        revocation.requireActive();
         assertHostAllowed(url);
         HttpRequest.Builder builder = HttpRequest.newBuilder(toUri(url))
                 .timeout(REQUEST_TIMEOUT)

@@ -28,24 +28,34 @@ final class PluginLoggerImpl implements PluginLogger {
 
     private final UUID tenantId;
     private final String pluginKey;
+    private final PluginRevocation revocation;
 
     PluginLoggerImpl(UUID tenantId, String pluginKey) {
+        this(tenantId, pluginKey, new PluginRevocation());
+    }
+
+    /** @param revocation set when the instance is unloaded/revoked/timed out: an orphan can no longer write logs (BE-244 W2) */
+    PluginLoggerImpl(UUID tenantId, String pluginKey, PluginRevocation revocation) {
         this.tenantId = tenantId;
         this.pluginKey = pluginKey;
+        this.revocation = revocation;
     }
 
     @Override
     public void info(String message) {
+        revocation.requireActive();
         log.info("[PluginLog][tenant={}][plugin={}] {}", tenantId, pluginKey, sanitize(message));
     }
 
     @Override
     public void warn(String message) {
+        revocation.requireActive();
         log.warn("[PluginLog][tenant={}][plugin={}] {}", tenantId, pluginKey, sanitize(message));
     }
 
     @Override
     public void error(String message, Throwable throwable) {
+        revocation.requireActive();
         log.error("[PluginLog][tenant={}][plugin={}] {}", tenantId, pluginKey, sanitize(message), throwable);
     }
 

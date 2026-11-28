@@ -1,5 +1,7 @@
 package com.contactcenter.domain.plugin.runtime;
 
+import com.contactcenter.infrastructure.websocket.WebSocketChannelSigner;
+import com.contactcenter.infrastructure.websocket.WebSocketReplayGuard;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * triggered it (the DB change is already committed); it is logged (rate-limited) and counted in
  * {@code plugin.sync.publish.failures}.
  *
+ * <p><strong>Authenticity (BE-245).</strong> Every envelope is HMAC-SHA256 signed with the SAME secret and rules as the
+ * {@code cc:ws:*} channels ({@link WebSocketChannelSigner}: constant-time comparison, channel name in the signed data,
+ * freshness window, previous secret during rotation, transitional {@code accept-unsigned}, mandatory secret on prod). A
+ * missing/wrong/stale signature or a replayed signature is rejected BEFORE the envelope reaches the listener and is
+ * counted twice: {@code ws.channel.signature.rejected{channel=plugin-sync,reason}} (shared with WebSocket, BE-183) and
+ * {@code plugin.sync.ignored{reason}}. Without it anyone able to PUBLISH to Redis could force reloads of plugins.
+ *
  * <p>The subscription is registered during bean initialisation on the dedicated container
  * ({@code pluginSyncListenerContainer}); {@code PubSubListenerContainerSupervisor} starts it later with retry/backoff,
  * so the application boots without Redis.
@@ -46,6 +55,8 @@ public class PluginSyncBus {
     static final String METRIC_IGNORED = "plugin.sync.ignored";
     static final String METRIC_DROPPED = "plugin.sync.dropped";
     static final String METRIC_LAG = "plugin.sync.lag";
+    /** Value of the {@code channel} tag of the shared signature metrics. */
+    static final String SIGNATURE_CHANNEL_LABEL = "plugin-sync";
 
     private static final long WARN_INTERVAL_MILLIS = 10_000;
 
@@ -53,17 +64,21 @@ public class PluginSyncBus {
     private final PluginSyncProperties properties;
     private final MeterRegistry meters;
     private final RedisMessageListenerContainer container;
+    private final WebSocketChannelSigner signer;
+    private final WebSocketReplayGuard replayGuard = new WebSocketReplayGuard(20_000);
     private final String instanceId;
     private final AtomicLong lastWarn = new AtomicLong();
     private final Timer lag;
     private volatile Listener listener;
 
     public PluginSyncBus(StringRedisTemplate redis, PluginSyncProperties properties, MeterRegistry meters,
+                         WebSocketChannelSigner signer,
                          @Qualifier("pluginSyncListenerContainer")
                          ObjectProvider<RedisMessageListenerContainer> containerProvider) {
         this.redis = redis;
         this.properties = properties;
         this.meters = meters;
+        this.signer = signer;
         this.instanceId = properties.resolvedInstanceId();
         this.lag = Timer.builder(METRIC_LAG).description("Plugin sync lag: receive time - sender publish time")
                 .register(meters);
@@ -111,7 +126,9 @@ public class PluginSyncBus {
         try {
             PluginSyncEnvelope envelope = new PluginSyncEnvelope(PluginSyncEnvelope.VERSION, instanceId, type,
                     tenantId, installationId, pluginVersionId, System.currentTimeMillis());
-            redis.convertAndSend(properties.effectiveChannel(), envelope.toJson());
+            String signature = signer.sign(properties.effectiveChannel(), envelope.canonicalForSigning());
+            redis.convertAndSend(properties.effectiveChannel(),
+                    (signature == null ? envelope : envelope.withSignature(signature)).toJson());
             meters.counter(METRIC_PUBLISHED, "type", type.name()).increment();
             log.debug("[PluginSync] Opublikowano {}: tenant={}, installation={}, version={}", type, tenantId,
                     installationId, pluginVersionId);
@@ -147,8 +164,23 @@ public class PluginSyncBus {
             drop("invalid");
             return;
         }
+        // BE-245: authenticity before anything else is acted upon; a WRONG signature is always rejected, a missing one
+        // only when the transitional mode is off
+        WebSocketChannelSigner.Verdict verdict = signer.verify(SIGNATURE_CHANNEL_LABEL, properties.effectiveChannel(),
+                envelope.canonicalForSigning(), envelope.sig(), envelope.ts());
+        if (!verdict.isAccepted()) {
+            rejectUnauthentic(verdict.reason());
+            return;
+        }
+        // own events only AFTER the signature check (BE-245 review N): a forged envelope claiming src=<this instance>
+        // must count as bad_signature, not hide behind "self"
         if (instanceId.equals(envelope.src())) {
             meters.counter(METRIC_IGNORED, "reason", "self").increment();
+            return;
+        }
+        // a signed envelope is delivered ONCE; a captured copy replayed within the freshness window is dropped
+        if (!replayGuard.firstSeen(envelope.sig())) {
+            rejectUnauthentic("replay");
             return;
         }
         Listener target = listener;
@@ -166,6 +198,12 @@ public class PluginSyncBus {
             drop("handler_error");
             warnRateLimited("[PluginSync] Błąd obsługi zdarzenia {}: {}", envelope.type(), e.toString());
         }
+    }
+
+    private void rejectUnauthentic(String reason) {
+        meters.counter(METRIC_IGNORED, "reason", reason).increment();
+        warnRateLimited("[PluginSync] Odrzucono kopertę o nieprawidłowym podpisie HMAC: reason={} (log co 10 s, liczy "
+                + METRIC_IGNORED + " i ws.channel.signature.rejected)", reason);
     }
 
     private void drop(String reason) {

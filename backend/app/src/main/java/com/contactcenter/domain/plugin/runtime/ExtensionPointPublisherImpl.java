@@ -212,7 +212,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             UUID relatedContactId,
             Object requestPayload) {
 
-        if (circuitBreakerState.isOpen(handle.installationId())) {
+        CircuitBreakerState.Permit permit = circuitBreakerState.tryAcquire(handle.installationId());
+        if (!permit.allowed()) {
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
                     InvocationStatus.CIRCUIT_OPEN, 0L,
                     "Circuit breaker otwarty (>= " + CircuitBreakerState.FAILURE_THRESHOLD
@@ -221,46 +222,52 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             return defaultResult.get();
         }
 
-        TenantContext.Snapshot snapshot = TenantContext.snapshot();
-        long startedAtNanos = System.nanoTime();
-
-        Future<R> future = pluginInvocationExecutor.submit(() -> runOnWorkerThread(
-                snapshot, tenantId, handle, invocation));
-
         try {
-            R result = future.get(timeoutMs, TimeUnit.MILLISECONDS);
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, handle.installationId(), true);
-            recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.SUCCESS, durationMs, null, relatedContactId, requestPayload);
-            return result;
-        } catch (TimeoutException e) {
-            // "Timeout = no kill" (ARCHITECTURE.md §11.7) — JVM nie może wymusić zatrzymania
-            // wątku roboczego; best-effort interrupt, wątek może ignorować i dokończyć się jako
-            // orphaned "fire and forget" sink. Wołający NIE czeka dłużej.
-            future.cancel(true);
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
-            recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.TIMED_OUT, durationMs,
-                    "Przekroczono timeout " + timeoutMs + "ms",
-                    relatedContactId, requestPayload);
-            return defaultResult.get();
-        } catch (ExecutionException e) {
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
-            String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-            recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, requestPayload);
-            return defaultResult.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            long durationMs = elapsedMillis(startedAtNanos);
-            circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
-            recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.FAILED, durationMs, "Wątek wywołujący przerwany",
-                    relatedContactId, requestPayload);
-            return defaultResult.get();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            long startedAtNanos = System.nanoTime();
+
+            Future<R> future = pluginInvocationExecutor.submit(() -> runOnWorkerThread(
+                    snapshot, tenantId, handle, invocation));
+
+            try {
+                R result = future.get(timeoutMs, TimeUnit.MILLISECONDS);
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, true);
+                recordInvocation(tenantId, handle.installationId(), extensionPoint,
+                        InvocationStatus.SUCCESS, durationMs, null, relatedContactId, requestPayload);
+                return result;
+            } catch (TimeoutException e) {
+                // "Timeout = no kill" (ARCHITECTURE.md §11.7) — JVM nie może wymusić zatrzymania
+                // wątku roboczego; best-effort interrupt, wątek może ignorować i dokończyć się jako
+                // orphaned "fire and forget" sink. Wołający NIE czeka dłużej.
+                future.cancel(true);
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                recordInvocation(tenantId, handle.installationId(), extensionPoint,
+                        InvocationStatus.TIMED_OUT, durationMs,
+                        "Przekroczono timeout " + timeoutMs + "ms",
+                        relatedContactId, requestPayload);
+                return defaultResult.get();
+            } catch (ExecutionException e) {
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                recordInvocation(tenantId, handle.installationId(), extensionPoint,
+                        InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, requestPayload);
+                return defaultResult.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                long durationMs = elapsedMillis(startedAtNanos);
+                circuitBreakerState.recordResult(permit, tenantId, false);
+                recordInvocation(tenantId, handle.installationId(), extensionPoint,
+                        InvocationStatus.FAILED, durationMs, "Wątek wywołujący przerwany",
+                        relatedContactId, requestPayload);
+                return defaultResult.get();
+            }
+        } finally {
+            // W1 (BE-246): jakikolwiek niezłapany wyjątek (CancellationException, błąd snapshotu/submit, wyjątek z
+            // rejestracji wyniku) nie może zostawić dzierżawy próby half-open; idempotentne po zarejestrowanym wyniku
+            circuitBreakerState.release(permit);
         }
     }
 
@@ -364,7 +371,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
                 handle.grantedPermissions(),
                 installationConfig,
                 customerService,
-                contactService);
+                contactService,
+                handle.revocation()); // BE-244 W2: shares the instance's revocation flag
     }
 
     private static long elapsedMillis(long startedAtNanos) {

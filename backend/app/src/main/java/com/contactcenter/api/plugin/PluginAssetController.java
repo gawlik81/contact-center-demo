@@ -2,6 +2,7 @@ package com.contactcenter.api.plugin;
 
 import com.contactcenter.domain.plugin.runtime.PluginInstanceHandle;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,6 +16,8 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +51,12 @@ import java.util.stream.Collectors;
  * <p><strong>Lookup bez tenant context:</strong> {@code installationId} jest globalnie unikalnym
  * UUID. Ten kontroler woła {@link PluginRuntimeManager#findActiveHandle}, które przeszukuje
  * wyłącznie mapę w pamięci procesu (zero zapytań do bazy/RLS) — patrz Javadoc tej metody.
- * 404 jest zwracane identycznie dla "installationId nieznany" i "plugin nie ma żadnych zasobów
+ * Gdy instancja nie ma jeszcze uchwytu (instalacja włączona na innej instancji, rekoncyliacja jeszcze nie zaszła),
+ * kontroler woła {@link PluginRuntimeSync#ensureInstallationLoaded} (BE-246): lazy load z limitem czasu
+ * ({@code plugins.sync.asset-lazy-load-timeout-ms}) i limitem równoległych wyszukiwań; po przekroczeniu czasu 503 z
+ * {@code Retry-After}, nigdy nieograniczone blokowanie wątku HTTP.
+ *
+ * <p>404 jest zwracane identycznie dla "installationId nieznany" i "plugin nie ma żadnych zasobów
  * UI" (instalacja istnieje, ale {@code uiAssetsDir} jest {@code empty}) — z punktu widzenia tego
  * endpointu te dwa przypadki są nierozróżnialne i oba prowadzą do "nie ma nic do zaserwowania".
  *
@@ -104,6 +112,7 @@ public class PluginAssetController {
     }
 
     private final PluginRuntimeManager pluginRuntimeManager;
+    private final PluginRuntimeSync pluginRuntimeSync;
     private final UrlPathHelper urlPathHelper = new UrlPathHelper();
 
     @GetMapping("/{installationId}/**")
@@ -117,7 +126,8 @@ public class PluginAssetController {
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Plik zaserwowany"),
-                    @ApiResponse(responseCode = "404", description = "Instalacja nieznana, nieaktywna, lub brak zasobów UI/pliku")
+                    @ApiResponse(responseCode = "404", description = "Instalacja nieznana, nieaktywna, lub brak zasobów UI/pliku"),
+                    @ApiResponse(responseCode = "503", description = "Instalacja jest właśnie ładowana na tej instancji (Retry-After)")
             }
     )
     public ResponseEntity<Resource> getAsset(
@@ -126,6 +136,18 @@ public class PluginAssetController {
             HttpServletRequest request
     ) throws IOException {
         Optional<PluginInstanceHandle> handleOpt = pluginRuntimeManager.findActiveHandle(installationId);
+        if (handleOpt.isEmpty()) {
+            // BE-246: ta instancja mogla jeszcze nie zrekoncyliowac instalacji wlaczonej na innej (zdarzenie/rekoncyliacja
+            // co 30 s) - zamiast 404 sprobuj leniwego zaladowania, ograniczonego czasowo i liczbowo
+            PluginRuntimeSync.InstallationLoad load = pluginRuntimeSync.ensureInstallationLoaded(installationId);
+            if (load.status() == PluginRuntimeSync.LoadStatus.PENDING) {
+                log.debug("[PluginAssetController] Leniwe ladowanie w toku (timeout): installationId={}",
+                        installationId);
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).header(HttpHeaders.RETRY_AFTER, "2")
+                        .build();
+            }
+            handleOpt = load.handle();
+        }
         if (handleOpt.isEmpty()) {
             log.debug("[PluginAssetController] Instalacja nieaktywna/nieznana: installationId={}", installationId);
             return ResponseEntity.notFound().build();

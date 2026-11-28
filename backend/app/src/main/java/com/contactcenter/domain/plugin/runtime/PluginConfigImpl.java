@@ -29,18 +29,33 @@ final class PluginConfigImpl implements PluginConfig {
 
     private final Map<String, String> values;
 
+    private final PluginRevocation revocation;
+
     PluginConfigImpl(String installationConfigJson) {
+        this(installationConfigJson, new PluginRevocation());
+    }
+
+    /** @param revocation set when the instance is unloaded/revoked/timed out: the (decrypted) values are then unreadable (BE-244 W2) */
+    PluginConfigImpl(String installationConfigJson, PluginRevocation revocation) {
         this.values = parse(installationConfigJson);
+        this.revocation = revocation;
     }
 
     @Override
     public Optional<String> get(String key) {
+        revocation.requireActive();
         return Optional.ofNullable(values.get(key));
     }
 
     @Override
     public String getOrDefault(String key, String defaultValue) {
+        revocation.requireActive();
         return values.getOrDefault(key, defaultValue);
+    }
+
+    /** Platform-internal read (the context constructor wiring the DB client); never reachable from plugin code. */
+    Optional<String> peek(String key) {
+        return Optional.ofNullable(values.get(key));
     }
 
     private static Map<String, String> parse(String json) {

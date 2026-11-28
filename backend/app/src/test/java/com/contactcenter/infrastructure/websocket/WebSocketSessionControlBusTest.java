@@ -370,4 +370,36 @@ class WebSocketSessionControlBusTest {
 
         verify(gate).invalidate(TENANT);
     }
+
+    /** Replaces the {@code sig} value of a JSON envelope (a textual variant of the SAME signature bytes). */
+    private static String withSig(String json, java.util.function.UnaryOperator<String> change) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"sig\":\"([^\"]+)\"").matcher(json);
+        if (!m.find()) {
+            throw new IllegalStateException("no sig in " + json);
+        }
+        return json.substring(0, m.start(1)) + change.apply(m.group(1)) + json.substring(m.end(1));
+    }
+
+    private static String flipUnusedBit(String sig) {
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        return sig.substring(0, sig.length() - 1) + alphabet.charAt(alphabet.indexOf(sig.charAt(sig.length() - 1)) ^ 1);
+    }
+
+    @Test
+    @DisplayName("W1: wariant tekstowy podpisu (spacja, nieistotny bit) nie omija guarda replay: zamkniecie RAZ, warianty odrzucone")
+    void signatureTextVariantsDoNotBypassReplayGuard() {
+        WebSocketChannelSigner s = signer(SECRET, false);
+        WebSocketSessionControlBus receiver = busWith(s);
+        String envelope = signed(s, Type.CLOSE_USER, TENANT, USER, null, SessionCloseReason.LOGOUT);
+
+        receiverReceive(receiver, envelope);
+        receiverReceive(receiver, withSig(envelope, sig -> sig + " "));
+        receiverReceive(receiver, withSig(envelope, WebSocketSessionControlBusTest::flipUnusedBit));
+        receiverReceive(receiver, envelope);
+
+        verify(closer, org.mockito.Mockito.times(1)).closeUser(org.mockito.ArgumentMatchers.eq(TENANT),
+                org.mockito.ArgumentMatchers.eq(USER), org.mockito.ArgumentMatchers.eq(SessionCloseReason.LOGOUT),
+                org.mockito.ArgumentMatchers.any(java.time.Instant.class));
+        assertThat(dropped("replay")).isEqualTo(1);
+    }
 }

@@ -271,4 +271,38 @@ class WebSocketChannelSignerTest {
             return new WebSocketChannelSigner(p, m);
         }
     }
+
+    @Test
+    @DisplayName("W1: tylko KANONICZNY base64url jest podpisem - spacja/newline, nieistotny bit ostatniego znaku, padding = bad_signature; kontrola pozytywna")
+    void nonCanonicalSignatureTextIsRejected() {
+        WebSocketChannelSigner signer = signer(SECRET, null, false, false);
+        String sig = signer.sign(CHANNEL, "payload");
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        char last = sig.charAt(sig.length() - 1);
+        String sameBytes = sig.substring(0, sig.length() - 1) + alphabet.charAt(alphabet.indexOf(last) ^ 1);
+        // the premise: the JDK decoder maps the variant to the SAME bytes (otherwise the test proves nothing)
+        assertThat(java.util.Base64.getUrlDecoder().decode(sameBytes))
+                .isEqualTo(java.util.Base64.getUrlDecoder().decode(sig));
+
+        assertThat(signer.verify("fanout", CHANNEL, "payload", sig, NOW.toEpochMilli())).isEqualTo(Verdict.ACCEPTED);
+        for (String variant : new String[]{sig + " ", " " + sig, sig + "\n", sameBytes, sig + "="}) {
+            assertThat(signer.verify("fanout", CHANNEL, "payload", variant, NOW.toEpochMilli()))
+                    .as("wariant '%s'", variant).isEqualTo(Verdict.REJECTED_BAD);
+        }
+        assertThat(rejected("fanout", "bad_signature")).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("W1: klucz guarda replay = kanoniczna postac bajtow podpisu (warianty tekstowe to jeden wpis)")
+    void canonicalSignatureIsTheReplayKey() {
+        WebSocketChannelSigner signer = signer(SECRET, null, false, false);
+        String sig = signer.sign(CHANNEL, "payload");
+
+        assertThat(WebSocketChannelSigner.canonicalSignature(sig)).isEqualTo(sig);
+        assertThat(WebSocketChannelSigner.canonicalSignature(sig + "=")).isEqualTo(sig); // padding variant
+        // BE-245 N: no trim() - whitespace is NOT normalised (verify() rejects it before a guard sees it)
+        assertThat(WebSocketChannelSigner.canonicalSignature(" " + sig + "\n")).isEqualTo(" " + sig + "\n");
+        assertThat(WebSocketChannelSigner.canonicalSignature(null)).isNull();
+        assertThat(WebSocketChannelSigner.canonicalSignature("!!not-base64!!")).isEqualTo("!!not-base64!!");
+    }
 }

@@ -5,6 +5,7 @@ import com.contactcenter.infrastructure.persistence.converter.EncryptedStringCon
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,10 +56,15 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
     /** Klucz JSON pod którym przechowywany jest ciphertext Base64 w kolumnie {@code jsonb}. */
     private static final String ENCRYPTED_JSON_KEY = "encrypted";
 
-    private final EncryptedStringConverter encryptedStringConverter;
+    /** Metryka pominiętych wierszy listy "wszystkie włączone" (BE-245 W3), tag {@code reason=decrypt|format}. */
+    static final String METRIC_SKIPPED = "plugin.sync.installation.skipped";
 
-    TenantPluginInstallationRepository(EncryptedStringConverter encryptedStringConverter) {
+    private final EncryptedStringConverter encryptedStringConverter;
+    private final MeterRegistry meters;
+
+    TenantPluginInstallationRepository(EncryptedStringConverter encryptedStringConverter, MeterRegistry meters) {
         this.encryptedStringConverter = encryptedStringConverter;
+        this.meters = meters;
     }
 
     // =========================================================================
@@ -73,7 +79,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
                        health_status, consecutive_failure_count, installation_config,
-                       installed_by_user_id, installed_at, updated_at
+                       installed_by_user_id, installed_at, updated_at, degraded_reason
                 FROM tenant_plugin_installation
                 WHERE id        = CAST(:id AS uuid)
                   AND tenant_id = CAST(:tenantId AS uuid)
@@ -104,7 +110,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
                        health_status, consecutive_failure_count, installation_config,
-                       installed_by_user_id, installed_at, updated_at
+                       installed_by_user_id, installed_at, updated_at, degraded_reason
                 FROM tenant_plugin_installation
                 WHERE plugin_version_id = CAST(:pluginVersionId AS uuid)
                   AND tenant_id         = CAST(:tenantId AS uuid)
@@ -136,7 +142,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
                        health_status, consecutive_failure_count, installation_config,
-                       installed_by_user_id, installed_at, updated_at
+                       installed_by_user_id, installed_at, updated_at, degraded_reason
                 FROM tenant_plugin_installation
                 WHERE tenant_id = CAST(:tenantId AS uuid)
                   AND enabled   = TRUE
@@ -144,7 +150,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
                 .setParameter("tenantId", tenantId.toString())
                 .getResultList();
 
-        return rows.stream().map(this::mapRow).toList();
+        return mapRowsIsolated(rows);
     }
 
     /**
@@ -186,7 +192,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
                        health_status, consecutive_failure_count, installation_config,
-                       installed_by_user_id, installed_at, updated_at
+                       installed_by_user_id, installed_at, updated_at, degraded_reason
                 FROM tenant_plugin_installation
                 WHERE tenant_id = CAST(:tenantId AS uuid)
                 ORDER BY installed_at DESC
@@ -224,6 +230,11 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
     @Transactional
     TenantPluginInstallation insert(TenantPluginInstallation installation) {
         assertSameTenant(installation.getTenantId());
+        // V153 invariant: DEGRADED needs a cause (a pair check like the one on the update paths, not a silent legacy NULL)
+        if (TenantPluginInstallation.HealthStatus.DEGRADED.equals(installation.getHealthStatus())
+                && installation.getDegradedReason() == null) {
+            throw new IllegalArgumentException("degraded_reason must be set when inserting health_status = DEGRADED");
+        }
         setTenantContextInDb(installation.getTenantId());
 
         log.info("[TenantPluginInstallationRepo] INSERT instalacja: tenant={}, pluginVersion={}",
@@ -236,7 +247,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
                 INSERT INTO tenant_plugin_installation
                     (id, tenant_id, plugin_version_id, enabled, granted_permissions,
                      health_status, consecutive_failure_count, installation_config,
-                     installed_by_user_id, installed_at, updated_at)
+                     installed_by_user_id, installed_at, updated_at, degraded_reason)
                 VALUES (
                     gen_random_uuid(),
                     CAST(:tenantId AS uuid),
@@ -248,11 +259,12 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
                     CAST(:installationConfig AS jsonb),
                     CAST(:installedByUserId AS uuid),
                     NOW(),
-                    NOW()
+                    NOW(),
+                    :degradedReason
                 )
                 RETURNING id, tenant_id, plugin_version_id, enabled, granted_permissions,
                           health_status, consecutive_failure_count, installation_config,
-                          installed_by_user_id, installed_at, updated_at
+                          installed_by_user_id, installed_at, updated_at, degraded_reason
                 """)
                 .setParameter("tenantId", installation.getTenantId().toString())
                 .setParameter("pluginVersionId", installation.getPluginVersionId().toString())
@@ -260,6 +272,10 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
                 .setParameter("grantedPermissions", writeJsonList(installation.getGrantedPermissions()))
                 .setParameter("healthStatus", installation.getHealthStatus())
                 .setParameter("consecutiveFailureCount", installation.getConsecutiveFailureCount())
+                // the reason is meaningful only for DEGRADED (V153 invariant, kept by the application)
+                .setParameter("degradedReason", TenantPluginInstallation.HealthStatus.DEGRADED
+                        .equals(installation.getHealthStatus()) && installation.getDegradedReason() != null
+                        ? installation.getDegradedReason().name() : null)
                 .setParameter("installationConfig", encryptedInstallationConfig)
                 .setParameter("installedByUserId",
                         installation.getInstalledByUserId() != null
@@ -303,38 +319,164 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
     }
 
     /**
-     * Aktualizuje {@code health_status} i {@code consecutive_failure_count} jednej instalacji.
+     * SQL twin of {@link TenantPluginInstallation#effectiveDegradedReason()} == CIRCUIT_OPEN: a DEGRADED row caused by
+     * the circuit breaker. The second disjunct is the LEGACY fallback (DEGRADED written by an old instance during a
+     * rolling deploy has no reason: counter >= threshold = circuit).
+     * remove after strict CHECK migration (DB follow-up): the {@code degraded_reason IS NULL} branch.
+     * Requires the named parameter {@code :threshold}.
+     */
+    private static final String CIRCUIT_DEGRADED = """
+            (health_status = 'DEGRADED'
+             AND (degraded_reason = 'CIRCUIT_OPEN'
+                  OR (degraded_reason IS NULL AND consecutive_failure_count >= :threshold)))
+            """;
+
+    /**
+     * SQL twin of {@code effectiveDegradedReason() == CONFIG_LOAD_FAILED} (complement of {@link #CIRCUIT_DEGRADED}
+     * inside DEGRADED), including the legacy fallback. Requires {@code :threshold}.
+     * remove after strict CHECK migration (DB follow-up): the {@code degraded_reason IS NULL} branch.
+     */
+    private static final String CONFIG_DEGRADED = """
+            (health_status = 'DEGRADED'
+             AND (degraded_reason = 'CONFIG_LOAD_FAILED'
+                  OR (degraded_reason IS NULL AND consecutive_failure_count < :threshold)))
+            """;
+
+    /**
+     * The circuit breaker opened: {@code health_status = DEGRADED}, {@code degraded_reason = CIRCUIT_OPEN} and the
+     * failure counter IN ONE statement (V153 invariant). It overwrites {@code CONFIG_LOAD_FAILED} (circuit wins, see
+     * {@link DegradedReason}) but - conditional UPDATE (CAS) - NEVER {@code DISABLED_BY_ADMIN}: a delayed circuit write
+     * after the admin disabled the plugin must not resurrect it as DEGRADED.
      *
-     * <p>Wołane wyłącznie przez {@code ExtensionPointPublisherImpl}/{@code CircuitBreakerState}
-     * (BE-102, ARCHITECTURE.md §11.7) po N kolejnych {@code TIMED_OUT}/{@code FAILED} wywołaniach
-     * tej instalacji (przejście na {@code DEGRADED}) lub po pierwszym {@code SUCCESS} po serii
-     * błędów (powrót do {@code HEALTHY}, zresetowanie licznika).
+     * <p>This is the only unconditional-looking health write left; every transition back to HEALTHY goes through the
+     * {@code clear*} CAS methods (the former general {@code updateHealthStatus} was removed: one caller, and a way
+     * around the CAS).
      *
-     * @return liczba zaktualizowanych wierszy (0 = instalacja nie istnieje dla tego tenanta)
+     * @return number of updated rows (0 = the installation does not exist for this tenant or is DISABLED_BY_ADMIN)
      */
     @Transactional
-    int updateHealthStatus(UUID id, UUID tenantId, String healthStatus, int consecutiveFailureCount) {
+    int markDegradedByCircuit(UUID id, UUID tenantId, int consecutiveFailureCount) {
         assertSameTenant(tenantId);
         setTenantContextInDb(tenantId);
 
         int updated = em.createNativeQuery("""
                 UPDATE tenant_plugin_installation
-                SET health_status             = :healthStatus,
+                SET health_status              = 'DEGRADED',
+                    degraded_reason            = 'CIRCUIT_OPEN',
                     consecutive_failure_count  = :consecutiveFailureCount,
                     updated_at                 = NOW()
-                WHERE id        = CAST(:id AS uuid)
-                  AND tenant_id = CAST(:tenantId AS uuid)
+                WHERE id            = CAST(:id AS uuid)
+                  AND tenant_id     = CAST(:tenantId AS uuid)
+                  AND health_status <> 'DISABLED_BY_ADMIN'
                 """)
-                .setParameter("healthStatus", healthStatus)
                 .setParameter("consecutiveFailureCount", consecutiveFailureCount)
                 .setParameter("id", id.toString())
                 .setParameter("tenantId", tenantId.toString())
                 .executeUpdate();
 
-        log.info("[TenantPluginInstallationRepo] UPDATE healthStatus={}, failures={}: id={}, tenant={}, wierszy={}",
-                healthStatus, consecutiveFailureCount, id, tenantId, updated);
+        log.info("[TenantPluginInstallationRepo] DEGRADED(CIRCUIT_OPEN), failures={}: id={}, tenant={}, wierszy={}",
+                consecutiveFailureCount, id, tenantId, updated);
 
         return updated;
+    }
+
+    /**
+     * BE-245 W2: {@code HEALTHY -> DEGRADED(CONFIG_LOAD_FAILED)} after a failed plugin load with a new configuration.
+     * Conditional UPDATE (CAS): only from {@code HEALTHY} - never overwrites a circuit DEGRADED nor
+     * DISABLED_BY_ADMIN, idempotent. The failure counter is NOT touched (a failed load is not an invocation failure).
+     *
+     * @return {@code 1} when the status changed, {@code 0} when the row was not {@code HEALTHY} (or does not exist)
+     */
+    @Transactional
+    int markDegradedByConfigLoad(UUID id, UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        int updated = em.createNativeQuery("""
+                UPDATE tenant_plugin_installation
+                SET health_status   = 'DEGRADED',
+                    degraded_reason = 'CONFIG_LOAD_FAILED',
+                    updated_at      = NOW()
+                WHERE id            = CAST(:id AS uuid)
+                  AND tenant_id     = CAST(:tenantId AS uuid)
+                  AND health_status = 'HEALTHY'
+                """)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .executeUpdate();
+
+        if (updated > 0) {
+            log.info("[TenantPluginInstallationRepo] CAS HEALTHY->DEGRADED(CONFIG_LOAD_FAILED): id={}, tenant={}",
+                    id, tenantId);
+        }
+        return updated;
+    }
+
+    /**
+     * BE-245 W2: removes {@code DEGRADED} (conditional UPDATE, CAS on the cause) and clears the reason.
+     *
+     * @param includeCircuit {@code false} - only a DEGRADED caused by a failed load/configuration; {@code true} - also
+     *                       a circuit DEGRADED (after a circuit reset by an installation change, when the open gate
+     *                       was dropped on every instance anyway)
+     * @return {@code 1} when the status was removed, {@code 0} when there was nothing to remove
+     */
+    @Transactional
+    int clearDegraded(UUID id, UUID tenantId, boolean includeCircuit) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        int updated = em.createNativeQuery("""
+                UPDATE tenant_plugin_installation
+                SET health_status             = 'HEALTHY',
+                    degraded_reason           = NULL,
+                    consecutive_failure_count = 0,
+                    updated_at                = NOW()
+                WHERE id            = CAST(:id AS uuid)
+                  AND tenant_id     = CAST(:tenantId AS uuid)
+                  AND health_status = 'DEGRADED'
+                  AND (:includeCircuit = TRUE OR\s""" + CONFIG_DEGRADED + """
+                      )
+                """)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("includeCircuit", includeCircuit)
+                .setParameter("threshold", TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD)
+                .executeUpdate();
+
+        if (updated > 0) {
+            log.info("[TenantPluginInstallationRepo] CAS DEGRADED->HEALTHY (includeCircuit={}): id={}, tenant={}",
+                    includeCircuit, id, tenantId);
+        }
+        return updated;
+    }
+
+    /**
+     * BE-245 W2: circuit recovery. Conditional UPDATE: removes ONLY a circuit DEGRADED and resets a stray failure
+     * counter of a {@code HEALTHY} row; it does NOT touch a DEGRADED caused by a failed configuration load nor
+     * DISABLED_BY_ADMIN. The reason is cleared in the same statement.
+     *
+     * @return number of changed rows
+     */
+    @Transactional
+    int clearCircuitDegraded(UUID id, UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        return em.createNativeQuery("""
+                UPDATE tenant_plugin_installation
+                SET health_status             = 'HEALTHY',
+                    degraded_reason           = NULL,
+                    consecutive_failure_count = 0,
+                    updated_at                = NOW()
+                WHERE id        = CAST(:id AS uuid)
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                  AND (""" + CIRCUIT_DEGRADED + """
+                       OR (health_status = 'HEALTHY' AND consecutive_failure_count <> 0))
+                """)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("threshold", TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD)
+                .executeUpdate();
     }
 
     /**
@@ -375,11 +517,55 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
+     * Mapuje wiersze listy "wszystkie włączone" tak, by JEDEN uszkodzony wiersz ({@code installation_config} nie do
+     * odszyfrowania / zły format wrappera) nie przerywał całej listy - od BE-245 rekoncyliacja jest jedyną siatką
+     * bezpieczeństwa propagacji konfiguracji, a ta lista zasila ją dla WSZYSTKICH tenantów. Uszkodzony wiersz jest
+     * pomijany, głośno logowany (ERROR z id instalacji, bez treści konfiguracji) i liczony w metryce
+     * {@value #METRIC_SKIPPED}{@code {reason=decrypt|format}}.
+     *
+     * <p><strong>Awaria systemowa nie może wyglądać jak jeden uszkodzony wiersz (BE-245 W3).</strong> Rotacja/zły klucz
+     * AES psuje KAŻDY wiersz, więc gdy pominięto wszystkie wiersze (&gt;= 1) albo więcej niż połowę, metoda rzuca
+     * {@link InstallationConfigUnreadableException} zamiast zwracać (pustą/okrojoną) listę: rekoncyliacja kończy się
+     * błędem (ERROR, bez zmian w załadowanych wtyczkach), a nie "nie ma żadnej włączonej instalacji".
+     */
+    private List<TenantPluginInstallation> mapRowsIsolated(List<Object[]> rows) {
+        List<TenantPluginInstallation> result = new ArrayList<>(rows.size());
+        int skippedDecrypt = 0;
+        int skippedFormat = 0;
+        for (Object[] row : rows) {
+            try {
+                result.add(mapRow(row));
+            } catch (InstallationConfigFormatException e) {
+                skippedFormat++;
+                meters.counter(METRIC_SKIPPED, "reason", "format").increment();
+                log.error("[TenantPluginInstallationRepo] Pominięto instalację {}: uszkodzony format zaszyfrowanej "
+                        + "konfiguracji ({}). Nie będzie ładowana ani rekoncyliowana do czasu naprawy konfiguracji.",
+                        row[0], e.getMessage());
+            } catch (RuntimeException e) {
+                skippedDecrypt++;
+                meters.counter(METRIC_SKIPPED, "reason", "decrypt").increment();
+                log.error("[TenantPluginInstallationRepo] Pominięto instalację {}: nie da się odszyfrować/zmapować "
+                        + "konfiguracji ({}). Nie będzie ładowana ani rekoncyliowana do czasu naprawy.",
+                        row[0], e.toString());
+            }
+        }
+        int skipped = skippedDecrypt + skippedFormat;
+        if (skipped > 0 && (skipped == rows.size() || skipped * 2 > rows.size())) {
+            log.error("[TenantPluginInstallationRepo] Nie da się odczytać {} z {} włączonych instalacji (decrypt={}, "
+                    + "format={}) - to wygląda na awarię SYSTEMOWĄ (rotacja/zły klucz szyfrowania {}), a nie "
+                    + "pojedynczy uszkodzony wiersz. Przerywam odczyt zamiast zwracać okrojoną listę.",
+                    skipped, rows.size(), skippedDecrypt, skippedFormat, "app.encryption.secret");
+            throw new InstallationConfigUnreadableException(rows.size(), skippedDecrypt, skippedFormat);
+        }
+        return result;
+    }
+
+    /**
      * Mapuje wiersz zwrócony przez natywne zapytanie na encję {@link TenantPluginInstallation}.
      *
      * <p>Kolejność kolumn: id, tenant_id, plugin_version_id, enabled, granted_permissions,
      * health_status, consecutive_failure_count, installation_config, installed_by_user_id,
-     * installed_at, updated_at.
+     * installed_at, updated_at, degraded_reason.
      */
     private TenantPluginInstallation mapRow(Object[] row) {
         TenantPluginInstallation i = new TenantPluginInstallation();
@@ -394,6 +580,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         i.setInstalledByUserId(row[8] != null ? UUID.fromString(row[8].toString()) : null);
         i.setInstalledAt(toInstant(row[9]));
         i.setUpdatedAt(toInstant(row[10]));
+        i.setDegradedReason(row[11] != null ? DegradedReason.valueOf(row[11].toString()) : null);
         return i;
     }
 
@@ -443,13 +630,13 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         } catch (JsonProcessingException e) {
             log.error("[TenantPluginInstallationRepo] installation_config nie jest poprawnym JSON-em "
                     + "wrappera szyfrowania, nie można odszyfrować: {}", e.getMessage());
-            throw new IllegalStateException("Nieprawidłowy format zaszyfrowanej konfiguracji instalacji", e);
+            throw new InstallationConfigFormatException("Nieprawidłowy format zaszyfrowanej konfiguracji instalacji", e);
         }
         if (ciphertext == null) {
             log.error("[TenantPluginInstallationRepo] installation_config nie zawiera klucza '{}' — "
                     + "nieprawidłowy format wrappera szyfrowania", ENCRYPTED_JSON_KEY);
-            throw new IllegalStateException(
-                    "Zaszyfrowana konfiguracja instalacji nie zawiera klucza '" + ENCRYPTED_JSON_KEY + "'");
+            throw new InstallationConfigFormatException(
+                    "Zaszyfrowana konfiguracja instalacji nie zawiera klucza '" + ENCRYPTED_JSON_KEY + "'", null);
         }
         return encryptedStringConverter.convertToEntityAttribute(ciphertext);
     }

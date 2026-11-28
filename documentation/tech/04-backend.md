@@ -1902,6 +1902,102 @@ leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
   (stan, nie delta), więc zgubienie, duplikat i zmiana kolejności nie psują stanu. Dedykowany kontener pub/sub
   (`pluginSyncListenerContainer`, 1 wątek, supervisor z backoffem - aplikacja startuje bez Redis); publikacja po commicie DB
   w kontrolerach (`PluginAdminController`, `PluginRevokeController`), nigdy nie rzuca (awaria Redis = log + licznik).
+- **Podpis HMAC koperty (BE-245).** Koperta niesie pole `sig` (HMAC-SHA256, base64url) po nazwie kanału i polach
+  `v,src,type,tenantId,installationId,pluginVersionId,ts`. Mechanizm i sekret są WSPÓLNE z kanałami `cc:ws:*`
+  (`WebSocketChannelSigner`/`WebSocketHmacProperties`: `WEBSOCKET_HMAC_SECRET`, `..._PREVIOUS_SECRET` przy rotacji,
+  `..._ACCEPT_UNSIGNED` w trybie przejściowym; porównanie w stałym czasie, okno świeżości, brak sekretu na prod = brak
+  startu - jeden bean, więc kanał wtyczek nie może zostać bez ochrony). `sig` musi być KANONICZNYM base64url (bez paddingu,
+  białych znaków i niezerowych nieużywanych bitów ostatniego znaku - inaczej `bad_signature`), a klucz guarda powtórek to
+  kanoniczna postać bajtów podpisu (`WebSocketChannelSigner#canonicalSignature`) - jeden podpis ma dokładnie jeden wpis, więc
+  jego warianty tekstowe nie omijają ochrony przed powtórką (dotyczy też kanałów `cc:ws:*`). Własne zdarzenia (`self`) są
+  rozpoznawane DOPIERO po weryfikacji podpisu: sfałszowana koperta z `src` = id tej instancji liczy się jako `bad_signature`.
+  Dwie identyczne koperty tej samej instancji w tej samej milisekundzie mają identyczny podpis - druga jest `replay`
+  (zachowanie świadome: zdarzenie to podpowiedź, stan czyta się z DB). Guard jest w pamięci instancji: po restarcie jest
+  pusty (okno powtórki = okno świeżości, maks. 5 min; skutek dla wtyczek = jedna zbędna rekoncyliacja). `PluginSyncBus` weryfikuje podpis (i powtórkę
+  tego samego podpisu, `WebSocketReplayGuard`) PRZED przekazaniem koperty do serwisu; odrzucenie liczą: wspólna metryka
+  `ws.channel.signature.rejected{channel=plugin-sync,reason}` oraz `plugin.sync.ignored{reason}`
+  (`missing_signature|bad_signature|stale_signature|replay`). Odrzucona koperta jest nieszkodliwa dla spójności -
+  rekoncyliacja z DB nadrabia ją w <= 30 s.
+- **Zmiana `installationConfig` (BE-245).** `PluginAdminController#updateConfig` woła po commicie
+  `PluginRuntimeSync#installationConfigChanged`: instancja admina sama planuje rekoncyliację tej instalacji (własne zdarzenie
+  jest ignorowane jako `self`), pozostałe dostają `INSTALLATION_CHANGED`. Rozstrzyga ODCISK konfiguracji
+  (`PluginConfigFingerprint`, SHA-256 odszyfrowanego `installation_config`, zapamiętany w `PluginInstanceHandle` przy
+  `load()`): gdy odcisk w DB różni się od odcisku uchwytu, `applyDesiredState` odładowuje wtyczkę (`onDeactivate`), zeruje
+  obwód i ładuje ją od nowa (`onActivate` z nową konfiguracją; akcja `plugin.sync.correction{action=reload_config}`).
+  Odcisk jest liczony z KANONICZNEJ postaci JSON (klucze posortowane na każdym poziomie; `null`/puste/`{}`/JSON `null` to
+  jedno „brak konfiguracji"), więc inna kolejność kluczy nie wywołuje zbędnego przeładowania. Przeładowanie (unload + load)
+  wykonuje JEDNO wywołanie pod jedną blokadą instalacji na wykonawcy priorytetowym `load` (BE-244; wcześniej bulk) -
+  wykonawca zdarzeń niczego nie odładowuje, więc stara instancja obsługuje ruch do chwili podmiany (brak okna bez
+  uchwytu, także przy pełnej kolejce `load`).
+  To samo robi okresowa rekoncyliacja (`needsAction`), więc zgubione zdarzenie jest nadrabiane w <= 30 s. Odcisk, a nie
+  `updated_at`: kolumna jest przesuwana także przez aktualizacje `health_status`, a szyfrogram AES-GCM zmienia się przy
+  każdym zapisie. Brak migracji. Odcisk żyje tylko w pamięci i nie jest nigdzie wystawiany. Jeśli nowa konfiguracja
+  uniemożliwia `onActivate`, wtyczka zostaje niezaładowana na wszystkich instancjach (backoff `failed-load-backoff-ms`)
+  do poprawienia konfiguracji; ŚWIADOMIE bez automatycznego rollbacku konfiguracji, ale NIE po cichu (R1/W2, patrz
+  „Koordynacja `health_status`" niżej). Wpis w `plugin_invocation_log` świadomie NIE jest tworzony: wiersz wymaga punktu
+  rozszerzenia i statusu wywołania, a aktywacja nie jest wywołaniem. `PluginAdminController#updateConfig` zwraca 200 także
+  wtedy, gdy samo rozgłoszenie zmiany rzuci (zapis jest już zacommitowany; WARN, rekoncyliacja nadrobi).
+- **Koordynacja `health_status` w DB (BE-245 W2, V153).** `DEGRADED` ma dwie przyczyny, które nie mogą się nawzajem
+  nadpisywać, a stan w pamięci jednej instancji nie może być źródłem prawdy (wyścig A/B, restart). Przyczyna ma własną kolumnę
+  `tenant_plugin_installation.degraded_reason` (V153; enum `DegradedReason`): `CIRCUIT_OPEN` (obwód po
+  `CIRCUIT_FAILURE_THRESHOLD`=5 kolejnych błędach wywołań) albo `CONFIG_LOAD_FAILED` (porażka ładowania po zmianie
+  `installation_config`; zero nieudanych WYWOŁAŃ - wtyczka nie została załadowana). `consecutive_failure_count` jest
+  WYŁĄCZNIE licznikiem porażek (wcześniejsze kodowanie przyczyny licznikiem było przeciążoną kolumną). Niezmiennik
+  „`degraded_reason IS NOT NULL` <=> `health_status = 'DEGRADED'`" pilnuje APLIKACJA (miękki CHECK w V153 - rolling deploy):
+  KAŻDY UPDATE zmieniający `health_status` ustawia/czyści przyczynę w TYM SAMYM zapytaniu. Wszystkie zapisy to warunkowe UPDATE-y (CAS) w
+  `TenantPluginInstallationRepository`: `markDegradedByConfigLoad` (tylko `HEALTHY -> DEGRADED/CONFIG_LOAD_FAILED`, nie rusza
+  licznika; nie nadpisuje obwodu ani `DISABLED_BY_ADMIN`; idempotentne), `clearDegraded(includeCircuit)` (tylko z `DEGRADED`;
+  bez `includeCircuit` tylko przyczyna `CONFIG_LOAD_FAILED`; czyści przyczynę i licznik), `clearCircuitDegraded` (tylko
+  `DEGRADED/CIRCUIT_OPEN` + zalegający licznik `HEALTHY`; czyści przyczynę). Obwód zapisuje `DEGRADED/CIRCUIT_OPEN` przez
+  `PluginRegistrationService#markDegradedByCircuit` -> `TenantPluginInstallationRepository#markDegradedByCircuit`
+  (UPDATE pary z warunkiem `health_status <> 'DISABLED_BY_ADMIN'`: opóźniony zapis obwodu nie wskrzesza wyłączonej przez admina
+  wtyczki; ogólny `updateHealthStatus` usunięty - miał jednego wołającego i furtkę poza CAS). `insert` z `DEGRADED` bez przyczyny
+  rzuca `IllegalArgumentException` (jak niespójna para). Przejście do `HEALTHY` lub
+  `DISABLED_BY_ADMIN` zawsze zeruje przyczynę; `enable`/`disable` (`updateEnabled`) nie zmieniają statusu, więc i pary.
+  Semantyka:
+  1. **Porażka ładowania po zmianie samej konfiguracji** (flaga `configReloadInstallations` związana z wersją i checksumem JAR;
+     porażka po zmianie wersji/JAR nie jest „konfiguracyjna") -> KAŻDA nieudana próba robi CAS
+     `HEALTHY -> DEGRADED/CONFIG_LOAD_FAILED` (instancja, która nadal zawodzi, oznacza wiersz ponownie po tym, jak inna go
+     zdjęła). Metryka `plugin.sync.config_reload.failed` liczy SERIĘ raz, kolejne próby serii to
+     `plugin.sync.config_reload.retry`.
+  2. **Udane ładowanie** zdejmuje `DEGRADED/CONFIG_LOAD_FAILED` (restart, leniwy load, nowa instancja). Jeśli stan obwodu
+     został wcześniej zresetowany (zmiana instalacji przez admina / przeładowanie - bramka skasowana na każdej instancji),
+     zdejmuje `DEGRADED` KAŻDEJ przyczyny: naprawa konfiguracji przy otwartym obwodzie kończy się `HEALTHY`.
+  3. **Restart:** handle załadowany przez `PluginRuntimeStartupLoader` nie przechodzi przez `tryLoad`, więc rekoncyliacja
+     JEDNORAZOWO na handle porównuje wiersz z DB: aktualny handle + efektywna przyczyna `CONFIG_LOAD_FAILED` = nieaktualny
+     znacznik konfiguracji -> CAS go zdejmuje (jednorazowo, żeby nie „migać" z instancją, która zawodzi gdzie indziej).
+  4. **Obwód** (`CircuitBreakerState`) zapisuje `HEALTHY` wyłącznie przez `clearCircuitDegraded`: nie zdejmuje
+     `CONFIG_LOAD_FAILED`. `DEGRADED/CIRCUIT_OPEN` pozostaje widokiem administracyjnym (obwód nie czyta DB, decyzja właściciela).
+  5. Zapis DB obwodu jest best-effort (BE-246 R-A): zdarzenie `CIRCUIT_OPENED/CLOSED` jest publikowane PRZED zapisem, a wyjątek
+     DB jest łapany (WARN) - nie gubi wyniku wtyczki i nie wychodzi z listenera (duplikat wywołania).
+  **Pierwszeństwo przyczyn (zamyka dawną „znaną granicę"):** obwód NADPISUJE `CONFIG_LOAD_FAILED` przez `CIRCUIT_OPEN` (żywa
+  wtyczka, która zawodzi >= 5 razy, to świeższy i mocniejszy sygnał; zapis jest bezwarunkowy), a porażka konfiguracji NIGDY
+  nie nadpisuje `CIRCUIT_OPEN` (CAS tylko z `HEALTHY`). Po powrocie obwodu na `HEALTHY` trwająca porażka konfiguracji
+  samonaprawia widok: najbliższa nieudana próba ładowania znów robi CAS `HEALTHY -> DEGRADED/CONFIG_LOAD_FAILED`. Przyczyna
+  jest teraz jawna, więc zmiana przyczyny nie jest już efektem ubocznym kodowania licznikiem.
+  **Fallback legacy (rolling deploy):** `DEGRADED` z `degraded_reason IS NULL` (zapis starej instancji) jest interpretowany z
+  licznika (`>= CIRCUIT_FAILURE_THRESHOLD` -> `CIRCUIT_OPEN`, inaczej `CONFIG_LOAD_FAILED`) w jednym miejscu w Javie
+  (`TenantPluginInstallation#effectiveDegradedReason`) i jego bliźniaku SQL w repozytorium (`CIRCUIT_DEGRADED`/`CONFIG_DEGRADED`);
+  przyczynę ignoruje się, gdy `health_status <> 'DEGRADED'`. Oba miejsca oznaczone „remove after strict CHECK migration
+  (DB follow-up)" - po zaostrzeniu CHECK (plan w nagłówku V153) fallback usuwamy. API admina (`TenantPluginInstallationDto`)
+  wystawia `degradedReason` (nullable, wartość efektywna); frontend może pokazać przyczynę przy badge `DEGRADED`.
+- **Flapping `clearDegraded(includeCircuit=true)` vs `CONFIG_LOAD_FAILED` innej instancji (samonaprawialne).** Po resecie
+  obwodu (zmiana admina + udane ładowanie) `clearDegraded(includeCircuit=true)` zdejmuje KAŻDĄ przyczynę, także
+  `CONFIG_LOAD_FAILED` ustawione chwilę wcześniej przez INNĄ instancję, której ładowanie właśnie zawiodło. Skutek: przejściowe
+  `HEALTHY <-> DEGRADED` do następnej nieudanej próby tej instancji (<= `failed-load-backoff-ms`, 60 s), która ponownie robi CAS
+  `HEALTHY -> DEGRADED/CONFIG_LOAD_FAILED`. Świadomie bez dodatkowej koordynacji (stan konfiguracji i tak zbiega z DB);
+  precedencja obwód > konfiguracja bez zmian.
+- **Kwarantanna `onActivate` a `enable`/`rollback` (BE-244).** `PluginAdminController#enable` i `#rollback` (jedyne endpointy
+  admina wołające `PluginRuntimeManager#load`; 409 opisany w OpenAPI z ProblemDetail) przy `PluginQuarantinedException` (kwarantanna LUB limit osieroconych) zwracają
+  409 Conflict z ProblemDetail (`type=.../plugin-quarantined`, `detail` z pozostałym czasem kwarantanny albo liczbą osieroconych) zamiast ogólnego 500
+  (`GlobalExceptionHandler`); stan DB i rozgłoszenie zmiany pozostają nietknięte. Pozostałe `PluginActivationException` nadal 500.
+- **Uszkodzony `installation_config` (BE-245 W3).** Lista „wszystkie włączone" pomija pojedynczy nieczytelny wiersz (ERROR z
+  id, metryka `plugin.sync.installation.skipped{reason=decrypt|format}`), ale awaria SYSTEMOWA (rotacja/zły klucz
+  `app.encryption.secret`) nie może wyglądać jak „zero wtyczek": gdy pominięto wszystkie wiersze (>= 1) albo więcej niż
+  połowę, `InstallationConfigUnreadableException` przerywa odczyt tenanta. Odczyt cross-tenant pomija nieczytelnego tenanta
+  (wynik częściowy + ERROR), a rzuca dopiero gdy nigdzie nic nie dało się odczytać - rekoncyliacja kończy się wtedy
+  `plugin.sync.reconcile{result=error}` i nic nie zmienia w załadowanych wtyczkach; `PluginRuntimeStartupLoader` loguje ERROR
+  „NIE ZAŁADOWANO ŻADNEJ wtyczki" (start nie pada, rekoncyliacja ponawia).
 - **Rekoncyliacja** (`PluginRuntimeSyncServiceImpl#syncTick`): `@Scheduled` na KAŻDEJ instancji, **świadomie bez ShedLock**
   (klasa I w tabeli §4.6 - ShedLock uruchomiłby ją na jednej instancji, a rekoncyliowany jest stan pamięci każdej).
   Bezpieczna na wielu instancjach: tylko odczyty DB + `load`/`unload` jednej instalacji (single-flight, striped locks).
@@ -1913,10 +2009,13 @@ leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
 - **Wyścigi (po CR BE-178):** każda zmiana stanu JEDNEJ instalacji (zdarzenie, rekoncyliacja, leniwe ładowanie) biegnie pod
   blokadą per instalacja i czyta DB WEWNĄTRZ sekcji krytycznej tuż przed działaniem; ładuje tylko gdy instalacja nadal
   `enabled` (nieaktualna migawka/zdarzenie nie wskrzesi wyłączonej wtyczki). `PluginAdminController#disable` odładowuje
-  ponownie PO commicie flagi. Trzy niezależne wykonawcy: zdarzenia (szybka ścieżka: tylko unload), bulk (ładowania,
-  przebieg okresowy, synchronizacja w tle) i odwołania - disable nie stoi za wolnym ładowaniem. Faza 2 odwołania
+  ponownie PO commicie flagi. Model wykonawców - patrz „Model wykonawców (BE-244)" niżej: disable i enable nie stoją za
+  wolnym ładowaniem ani za przebiegiem okresowym. Faza 2 odwołania
   (`onDeactivate`) biegnie równolegle per uchwyt (pula `plugin-dispose`). Publikacja zdarzeń: `afterCommit`, gdy aktywna
-  transakcja (egzekwowane w `PluginRuntimeSyncServiceImpl`, nie konwencją wołających).
+  transakcja (egzekwowane w `PluginRuntimeSyncServiceImpl`, nie konwencją wołających). Wywołanie z fazy `afterCommit` INNEJ
+  synchronizacji (R6) też publikuje: Spring nie wywoła `afterCommit` świeżo zarejestrowanej synchronizacji, więc ta sama
+  akcja jest rejestrowana także na `afterCompletion(STATUS_COMMITTED)` (dokładnie raz; rollback nic nie publikuje).
+  `PluginInvocationConsumer` stosuje limit raportu `FAILED` PRZED deserializacją payloadu (R4).
 - **Walidacja zdarzeń:** para (tenantId, installationId) musi zgadzać się z lokalnym handle (inaczej `plugin.sync.ignored
   {reason=tenant_mismatch}`); zdarzenia obwodu dla instalacji niezaładowanej są ignorowane; `VERSION_REVOKED` dla wersji
   nieistniejącej w DB jest ignorowane (nie jest potwierdzeniem); przy awarii DB odładowanie jest fail-safe, ale blokada
@@ -1932,10 +2031,140 @@ leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
   `disable`/`uninstall` też są skuteczne natychmiast, a nie po `onDeactivate`.
 - **Circuit breaker - decyzja: licznik LOKALNY + propagacja stanu.** `isOpen` jest na ścieżce krytycznej
   (`PRE_CONTACT_CONNECT`, 2 s) i pozostaje odczytem pamięci. Instancja, której licznik osiągnie próg (5), publikuje
-  `CIRCUIT_OPENED`; pozostałe otwierają obwód lokalnie. Pierwszy `SUCCESS` po otwarciu publikuje `CIRCUIT_CLOSED`. Zmiana
-  instalacji przez administratora resetuje obwód na wszystkich instancjach. Odrzucone: licznik w Redis (round-trip na każde
-  wywołanie, także udane, i awaria Redis i tak wymusza licznik lokalny). Stan NIE jest odtwarzany z `health_status=DEGRADED`
-  (obwód nie ma half-open, więc restart jest dziś jedyną drogą odblokowania - adopcja z DB odebrałaby ją; zob. follow-up).
+  `CIRCUIT_OPENED`; pozostałe otwierają obwód lokalnie. Zmiana instalacji przez administratora resetuje obwód na wszystkich
+  instancjach. Odrzucone: licznik w Redis (round-trip na każde wywołanie, także udane, i awaria Redis i tak wymusza licznik
+  lokalny). Stan NIE jest odtwarzany z `health_status=DEGRADED` (decyzja właściciela, tury 80 i 83; DB to widok
+  administracyjny, po restarcie obwód startuje zamknięty).
+- **Half-open / TTL obwodu (BE-246).** Otwarty obwód - lokalny ORAZ otwarty zdalnie - po `plugins.circuit-breaker.open-ttl`
+  (`PLUGINS_CIRCUIT_BREAKER_OPEN_TTL`, domyślnie 60 s; liczone od otwarcia lokalnego albo od ostatniego `CIRCUIT_OPENED`)
+  przepuszcza JEDNO próbne wywołanie naraz na instancję. API jest jawne: `tryAcquire(id)` zwraca `Permit`
+  (`CLOSED` = zwykłe wywołanie, `PROBE` = jedyna próba z unikalnym tokenem dzierżawy, `DENIED` = pomiń jako `CIRCUIT_OPEN`);
+  `isOpenReadOnly(id)` to odczyt BEZ efektu ubocznego (health/UI). Wołający (`ExtensionPointPublisherImpl`,
+  `PluginInvocationConsumer`) rejestrują wynik przez `recordResult(permit, ...)` i w `finally` wołają `release(permit)`, więc
+  niezłapany wyjątek (np. `CancellationException`) nie zostawia dzierżawy (gdyby i to zawiodło, wygasa po kolejnym TTL).
+  Wynik liczy się WYŁĄCZNIE wywołaniu z tokenem próby: wynik starego wywołania `CLOSED` (rozpoczętego przed otwarciem obwodu)
+  nie zamyka go ani nie odnawia TTL, a wynik próby z wygasłą/zresetowaną dzierżawą jest ignorowany (brak flappingu). Udana próba
+  zamyka obwód, zeruje licznik, publikuje `CIRCUIT_CLOSED` (zamyka obwód na pozostałych instancjach) i zapisuje `HEALTHY` w DB (CAS, best-effort, po publikacji);
+  nieudana otwiera go ponownie z nowym TTL i publikuje `CIRCUIT_OPENED` (pozostałe odnawiają własny TTL). TTL każdego otwarcia
+  ma jitter (`plugins.circuit-breaker.open-ttl-jitter`, domyślnie +/-10%), żeby instancje otwarte jednym zdarzeniem nie próbowały
+  w tej samej milisekundzie; każda instancja ma własną dzierżawę, więc po TTL idzie co najwyżej N równoległych prób (N = liczba
+  instancji), nie jedna globalna. Okresowa rekoncyliacja sprząta bramki/liczniki instalacji niezaładowanych lokalnie
+  (`retainOnly`); zdarzenie `CIRCUIT_OPENED` dla instalacji niezaładowanej lokalnie jest ignorowane już przy odbiorze. Obwód otwarty zdalnie NIE czeka już na restart - zamyka go udana próba na dowolnej instancji. Half-open dotyczy
+  WYŁĄCZNIE obwodu: `REVOKED`/kill switch (wyładowanie wtyczki) i wyłączenie instalacji są bez zmian. Konsekwencja: co TTL
+  jedno realne wywołanie (także `PRE_CONTACT_CONNECT` z budżetem 2 s) trafia do wtyczki, która ostatnio zawodziła.
+- **Checksum JAR (BE-246).** `load()` liczy SHA-256 pobranych bajtów JAR i porównuje z `plugin_version.checksum_sha256`
+  PRZED zapisem na dysk i zbudowaniem classloadera; niezgodność = odmowa załadowania (`PluginActivationException`, backoff
+  `failed-load-backoff-ms`) - magazyn obiektów nie rewaliduje treści przy odczycie, a nadpisanie wersji w miejscu
+  (`overwrite=true`) zmienia wiersz i klucz obiektu w osobnych krokach. Uchwyt pamięta zweryfikowany checksum oraz
+  rozmiar+mtime lokalnej kopii. Rekoncyliacja (zdarzenie i okresowa) przeładowuje wtyczkę (akcja
+  `plugin.sync.correction{action=reload_jar}`), gdy (a) checksum wersji w katalogu różni się od zapamiętanego (porównanie
+  napisów, bez I/O - to wykrywa nadpisanie JAR tej samej wersji `plugin_version.id`), albo (b) lokalna kopia zniknęła lub
+  zmieniła się: tani `stat` (rozmiar+mtime) co przebieg, pełny hash TYLKO gdy `stat` różni się od zaakceptowanego (sam
+  `touch` z tą samą treścią jest zapamiętany i nie jest hashowany ponownie). Bez migracji (kolumna istnieje od V074).
+  **Weryfikacja PRZED wyładowaniem (review BE-246 W3).** Przy przeładowaniu z powodu zmiany JAR/wersji/konfiguracji
+  rekoncyliacja najpierw woła `PluginRuntimeManager#verifyJarBeforeReload` (pobranie + SHA-256 względem katalogu; poprawny JAR
+  jest zachowany dla następnego `load()`, więc bez drugiego pobrania), dopiero potem `unload` + `load` pod jednym lockiem
+  instalacji (R2 z BE-245). Niezgodność = odmowa przeładowania: stary uchwyt dalej obsługuje ruch, WARN +
+  `plugin.sync.reload.refused`, backoff `failed-load-backoff-ms` (zmiana administratora go kasuje). Dzięki temu nadpisany w S3,
+  a niezacommitowany/wycofany JAR nie zamienia działającej wtyczki w wyładowaną na wszystkich instancjach. `REVOKED` i
+  wyłączenie NIE przechodzą tej weryfikacji (wyładowanie natychmiast). Stan `jarStatAccepted`/backoffu jest sprzątany przy
+  każdym wyładowaniu i w okresowej rekoncyliacji.
+- **`PluginAssetController` a instancja niezrekoncyliowana (BE-246).** Gdy `findActiveHandle` jest puste, kontroler woła
+  `PluginRuntimeSync#ensureInstallationLoaded(installationId)` zamiast zwracać 404: rozwiązuje tenant po id (żądanie nie ma
+  tenantu - `PluginCatalogQueryService#findEnabledInstallationAcrossTenants`, pętla po tenantach jak
+  `findAllEnabledAcrossAllTenants`, bez obchodzenia RLS), ładuje zwykłą rekoncyliacją jednej instalacji (więc `REVOKED`,
+  wyłączona i będąca w backoffie kończą jako 404) na wykonawcy `bulk`, a wątek HTTP czeka co najwyżej
+  `plugins.sync.asset-lazy-load-timeout-ms` (3 s); po limicie 503 + `Retry-After: 2` (ładowanie trwa w tle, kolejne żądanie
+  dostaje 200). Endpoint jest publiczny, więc koszt O(tenanci) na nieznane id jest ograniczony: cache negatywny
+  (Caffeine: `maximumSize` 10 000 + `expireAfterWrite` = `lazy-sync-cooldown-ms`; po zapełnieniu nadal zapamiętuje nowe wpisy,
+  wcześniej ręczna mapa przestawała), współbieżne żądania o to samo id współdzielą jedno ładowanie, max
+  `asset-lazy-load-max-inflight` (8) RÓŻNYCH id naraz (nadmiar = od razu 503 + `Retry-After`, `result=shed`; BE-244 N1), a liczba wątków HTTP czekających na TO SAMO
+  wolne ładowanie jest ograniczona (`asset-lazy-load-max-waiters`, 4; nadmiar = od razu 503 + `Retry-After`, metryka
+  `result=waiters_shed`). Metryka `plugin.sync.asset.lazy{result}`. Od BE-244 ta ścieżka ma WŁASNY wykonawca `asset` i
+  globalny rate limit PRZED skanem (patrz niżej) - atakujący z losowymi UUID nasyci co najwyżej `asset`, nigdy rekoncyliacji
+  ani kill switcha.
+- **Model wykonawców (BE-244).** Pięć niezależnych pul w `PluginRuntimeSyncServiceImpl`, każda z JEDNYM rodzajem pracy
+  (wątki są demonami, startują z czystym `TenantContext`):
+
+  | Wykonawca | Wątki / kolejka (domyślnie) | Co robi | Pełna kolejka |
+  |---|---|---|---|
+  | `event` | `sync-threads` 2 / `sync-queue-capacity` 256 | szybka część zdarzenia `INSTALLATION_CHANGED`: unload wyłączonej/odwołanej instalacji (`dispose` SYNCHRONICZNIE pod blokadą instalacji); klucz koalescencji trzymany do KOŃCA zadania | `dropped{reason=sync_queue_full}` + WARN; rekoncyliacja nadrabia |
+  | `load` (priorytetowy) | `load-threads` 2 / `load-queue-capacity` 64 | (prze)ładowanie po zdarzeniu: enable, zmiana wersji/JAR/konfiguracji - unload starej i load nowej instancji w JEDNYM wywołaniu pod blokadą | `dropped{reason=load_queue_full}` + WARN; rekoncyliacja nadrabia |
+  | `bulk` | 1 / 64 | przebieg okresowy `reconcileAll` i synchronizacja tenanta w tle (`requestTenantSync`) | `dropped{reason=sync_queue_full}` |
+  | `asset` | `asset-lazy-load-threads` 2 / `asset-lazy-load-queue-capacity` 16 | leniwe rozwiązanie instalacji po id dla publicznego `PluginAssetController` (skan O(tenanci)) | `dropped{reason=asset_queue_full}`, odpowiedź 503 + `Retry-After` (N1; wcześniej 404) |
+  | `revoke` | 1 / 64 | faza 1 kill switcha (weryfikacja `REVOKED` w DB + `unloadByVersion`) | `dropped{reason=revoke_queue_full}` + ERROR; rekoncyliacja odładowuje wersję `REVOKED` |
+
+  Konsekwencje: (1) zdarzenie `enable`/zmiana wersji nie czeka za `reconcileAll`, który może trwać minuty przy wielu JAR-ach
+  (wcześniej obie ścieżki dzieliły jednowątkowy `bulk`); (2) `unload` zdarzenia nie jest wyprzedzany przez `enable` tej samej
+  instalacji - obie ścieżki biorą tę samą blokadę instalacji, a `PluginRuntimeManagerImpl#unload` robi `detach` (natychmiast,
+  instancja przestaje obsługiwać ruch) ORAZ `dispose` (`onDeactivate` do `plugins.lifecycle.callback-timeout-ms`) pod JEDNĄ
+  blokadą `KeyedLocks`, więc `load()` tej samej instalacji (także wołany bezpośrednio przez admin `enable`) startuje dopiero po
+  zamknięciu classloadera starej instancji; (3) kill switch (`unloadByVersion`) świadomie NIE bierze tej blokady - jest
+  dwufazowy (faza 1 natychmiast na `revoke`, `onDeactivate` równolegle na `plugin-dispose`) i nigdy nie czeka na wolną wtyczkę.
+  **Brak head-of-line blocking jednej instalacji (BE-244 W1).** Klucz koalescencji `pendingInstallations` (tenant:instalacja)
+  jest trzymany do KOŃCA zadania, nie do jego startu: kolejne zdarzenia tej samej instalacji w trakcie przebiegu tylko
+  ustawiają flagę "dirty" i nie zajmują wątku; po zakończeniu zadanie atomowo zdejmuje klucz i - jeśli flaga była ustawiona -
+  planuje JEDEN dodatkowy przebieg (czyta DB od nowa, więc nic nie ginie). Wiszący `onDeactivate`/`onActivate` instalacji X
+  zajmuje więc co najwyżej JEDEN wątek `event`, a unload/disable instalacji Y nie czeka (test: wiszący unload X + 2 zdarzenia X,
+  unload Y kończy się natychmiast). Duplikaty ładowań tej samej instalacji w kolejce `load` są koalescowane (`pendingLoads`,
+  `plugin.sync.reconcile{result=coalesced}`), a odrzucenie przez pełną kolejkę `load` liczy też
+  `plugin.sync.reconcile{result=load_queue_full}` (obok `dropped{load_queue_full}`). Znane ograniczenie: N RÓŻNYCH wiszących
+  instalacji zajmuje N wątków `event` (do timeoutu 10 s + oczekiwanie w kolejce lifecycle); zwiększ `PLUGINS_SYNC_THREADS`,
+  jeśli to obserwujesz. Ruch jest wtedy już odłączony, opóźnione są tylko kolejne zdarzenia.
+  **Hierarchia blokad (R1)** - zawsze w tej kolejności, nigdy odwrotnie: `tenantLocks` (serwis) -> `installationLocks`
+  (serwis) -> `loadLocks` (manager). Manager nie woła serwisu synchronizacji, a callbacki wtyczek biegną na puli lifecycle BEZ
+  żadnej z tych blokad (wołający czeka z timeoutem), więc nawet callback wołający runtime kończy się timeoutem, nie zakleszczeniem.
+  Kill switch nie bierze żadnej. Zapisane też w Javadocu `KeyedLocks`.
+  **Zamknięcie (R4).** `@PreDestroy` serwisu zamyka 5 pul i czeka `awaitTermination` (wspólny limit 2 s); `@PreDestroy`
+  menedżera robi to samo dla pul lifecycle i `plugin-dispose` (zadania w locie czytają DB/magazyn, które zamykają się zaraz po).
+- **Rate limit leniwego ładowania assetów (BE-244, W2 z review BE-246).** Token bucket (`TokenBucket`, globalny dla
+  instancji) sprawdzany PO cache'u negatywnym i po dołączeniu do ładowania już trwającego, a PRZED zleceniem skanu tenantów
+  (N2: token jest pobierany dopiero po WYGRANIU slotu `putIfAbsent` i zwracany, gdy `asset` odrzuci zadanie). Konfiguracja
+  `PluginSyncProperties` jest walidowana przy starcie (`@Validated`, `@Positive`; rate/burst/wątki/kolejki/timeouty > 0, N3):
+  `asset-lazy-load-rate-per-second` (10) i `asset-lazy-load-rate-burst` (20). Nadmiar = 503 + `Retry-After` BEZ zapytania do
+  DB (`plugin.sync.asset.lazy{result=rate_limited}`); odpowiedź nie zależy od istnienia id, więc nie jest wyrocznią. Limit
+  jest globalny, nie per IP (publiczny endpoint za proxy - nagłówki źródła są podrabialne); jeden agresywny klient może więc
+  chwilowo odbierać 503 także legalnym żądaniom o nieznane id, ale nie wpływa na rekoncyliację ani na ścieżki już załadowane
+  (`findActiveHandle` poprzedza całą logikę). Docelowo jedno zapytanie po id poza RLS zamiast pętli po tenantach: BE-247.
+- **Kwarantanna po timeoucie `onActivate` (BE-244, N2).** Callbacki cyklu życia biegną na ograniczonej puli
+  (`plugins.lifecycle.max-threads`, 16, kolejka 64). JVM nie zatrzyma wątku wtyczki (`cancel(true)` tylko przerywa), więc
+  timeout zostawia WĄTEK OSIEROCONY. Bez kwarantanny każda ponowna próba (backoff 60 s x każda instancja) parkowałaby kolejny
+  wątek, aż pula się wyczerpie i żadna wtyczka żadnego tenanta nie da się załadować. Teraz `invokeWithTimeout` rozróżnia trzy
+  porażki: (a) kolejka puli pełna albo zadanie nie dostało wątku przed timeoutem (czekało za osieroconymi) =
+  `PluginLifecycleCapacityException` (metryka `plugin.lifecycle.rejected{callback}`) - NIE jest winą wtyczki i NIE zakłada
+  kwarantanny; (b) callback wystartował i nie skończył = `PluginActivationTimeoutException` (`plugin.lifecycle.timeout{callback}`),
+  a dla `onActivate` kwarantanna instalacji; (c) wyjątek/przerwanie = `PluginActivationException`. Kwarantanna jest związana z
+  WERSJĄ i ODCISKIEM konfiguracji, z którymi nastąpił timeout (nowa wersja albo nowa konfiguracja to inne wejście = świeża próba
+  od razu), trwa `plugins.lifecycle.quarantine-ttl-ms` (10 min), a kolejny timeout tego samego wejścia podwaja TTL do
+  `quarantine-max-ttl-ms` (1 h). W kwarantannie `load()` rzuca `PluginQuarantinedException` PRZED pobraniem JAR i bez wątku
+  puli (`plugin.lifecycle.quarantine{result=rejected}`; wejście: `result=entered` + jeden WARN). Udana aktywacja kasuje
+  eskalację. Osierocone wątki zlicza gauge `plugin.lifecycle.orphaned` (maleje, gdy wątek faktycznie wróci); alarm na wartość
+  `>= max-threads / 2`. Stan kwarantanny jest per instancja w pamięci (restart = świeża próba).
+- **Osierocone wątki: odwołanie kontekstu i limity (BE-244 review, W2/W3).**
+  *Odwołanie kontekstu (W2).* Osierocony wątek (timeout, kill switch, unload) trzyma `PluginContextImpl` z uprawnieniami
+  tenanta, a zamknięcie classloadera blokuje tylko NOWE klasy. Dlatego każda instancja ma flagę `PluginRevocation`
+  (współdzieloną przez uchwyt, konteksty `onActivate` i per-wywołanie oraz klientów), ustawianą PRZED zamknięciem classloadera:
+  w `dispose` (unload, po `onDeactivate`), w fazie 1 `unloadByVersion` (kill switch - natychmiast, jeszcze przed
+  `onDeactivate`) i przy timeoucie/błędzie `onActivate`. Sprawdza ją KAŻDA metoda kontekstu (`getCustomer`,
+  `updateCustomerFields`, `getContact`, `appendContactNote`, `httpClient`, `dbClient`, `logger`, `config`) ORAZ obiekty,
+  które wtyczka mogła zachować (`HttpEgressClient`, `DbEgressClient`, `PluginLogger`, `PluginConfig`, w tym odczyt
+  odszyfrowanych sekretów): po odwołaniu `PluginRevokedException`. Zatrzymanie samego wątku nadal niemożliwe (ADR-09) - to
+  odcięcie od API platformy, nie zabicie.
+  *Limity osieroconych (W3).* Licznik osieroconych jest prowadzony per (tenant, `pluginKey`) i łącznie; klucz NIE zależy od
+  odcisku konfiguracji, więc zmiana konfiguracji (dowolny fragment JSON, dostępny dla admina tenanta) nie daje darmowej
+  kolejnej próby. `plugins.lifecycle.max-orphans-per-plugin` (2): po przekroczeniu `load()` tej wtyczki jest odrzucany
+  (`PluginQuarantinedException`, 409) BEZ dotykania puli i pobrania JAR, do czasu aż sieroty faktycznie wrócą
+  (`plugin.lifecycle.quarantine{result=orphan_limit}`). `plugins.lifecycle.max-orphans-total` (8): po jego osiągnięciu
+  odrzucane są tylko wtyczki, które JUŻ mają osieroconego (zdrowa wtyczka nie płaci za cudzą). Timeout `onDeactivate`
+  zakłada kwarantannę tak samo jak `onActivate` (wersja + odcisk). Pula lifecycle (16 wątków wspólnych) nie może więc zostać
+  zapchana cyklami zmiany konfiguracji ani enable/disable jednej wiszącej wtyczki. Anulowane zadanie, które nie dostało wątku,
+  jest usuwane z kolejki (`ThreadPoolExecutor#remove`, R3) - kolejka 64 nie zapełnia się zombie, a
+  `PluginLifecycleCapacityException` z `RejectedExecutionException` oznacza naprawdę pełną kolejkę.
+  *Niezmiennik "load po zakończeniu dispose" (R2).* Obowiązuje dla `unload` (disable, przeładowanie, unload admina: detach +
+  `onDeactivate` + zamknięcie classloadera pod jednym lockiem). NIE obowiązuje dla ścieżki REVOKED: `unloadByVersion` odpina
+  uchwyt bez locka, a `dispose` biegnie asynchronicznie na `plugin-dispose`, więc `load` nowej wersji tej samej instalacji może
+  ruszyć przed końcem starego `onDeactivate`. Świadomy kompromis kill switcha (nie czeka nigdy); stara instancja ma już
+  odwołaną flagę i własny classloader, więc nie ma dostępu do platformy.
 - **`PluginInvocationConsumer`** (RabbitMQ): pusty `PluginRegistry.lookup` NIE znaczy "brak wtyczki". Konsument woła
   `ensureTenantLoaded(tenantId)` (leniwe doładowanie z DB: jedno zapytanie per tenant na `lazy-sync-cooldown-ms`,
   współbieżni wołający czekają na pierwszego, nieudana instalacja nie jest ponawiana przez `failed-load-backoff-ms`), potem
@@ -1951,13 +2180,13 @@ leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
   współbieżnie); `PluginRuntimeManagerImpl.load()` jest idempotentne (zwraca istniejący uchwyt) i szeregowane per instalacja;
   `lifecycleExecutor` ograniczony (`plugins.lifecycle.max-threads`, domyślnie 16, kolejka 64) zamiast `newCachedThreadPool`
   (reszta budżetu zasobów: BE-180).
-- **Follow-upy (poza zakresem):** kwarantanna timeoutów `onActivate` (ograniczona pula 16 + wiszące `onActivate` może zająć
-  wszystkie wątki), HMAC koperty kanału (wspólnie z BE-175), half-open/TTL obwodu, propagacja zmiany `installationConfig`
-  (rewizja instalacji), pre-check kosztu rekoncyliacji O(tenanci) (BE-180/BE-178c), lock per `installationId` zamiast 64
-  pasków.
+- **Follow-upy (poza zakresem):** pre-check kosztu rekoncyliacji O(tenanci) (BE-247/BE-180); wartości pul zależą od budżetu
+  zasobów z BE-180 (domyślne są konfigurowalne i zachowawcze).
 - **Ograniczenia znane:** (1) rolling deploy ze starą wersją (bez BE-178) - stara instancja nie nasłuchuje kanału i nie
-  rekoncyliuje do restartu; (2) `PluginAssetController` (publiczny, bez JWT) czyta tylko lokalny `findActiveHandle`, więc
-  na instancji, która jeszcze nie zrekoncyliowała, zwraca 404 do najbliższego `syncTick`; (3) każda instancja trzyma
+  rekoncyliuje do restartu; (BE-246: tylko procedura w `DEPLOYMENT.md`, bez wersjonowania koperty; instancja ze stanem z
+  BE-178, ale bez podpisu BE-245, jest nadrabiana rekoncyliacją <= 30 s przy `WEBSOCKET_HMAC_ACCEPT_UNSIGNED=true` na nowych);
+  (2) lazy load `PluginAssetController` kosztuje jedno przejrzenie tenantów na nieznane id (ograniczone cache'em negatywnym
+  i limitem, ale O(tenanci) - trwałe rozwiązanie wymaga zapytania poza RLS, ten sam temat co BE-247); (3) każda instancja trzyma
   własny cache JAR-ów na dysku i własne classloadery (pamięć x liczba instancji - zob. BE-180).
 - **Testy:** `PluginRuntimeSyncCrossInstanceIntegrationTest` (dwa-trzy konteksty Springa, wspólny Redis z Testcontainers,
   wspólna "baza" i prawdziwe classloadery): włączenie/wyłączenie A -> B, odwołanie wersji A -> B w <= 5 s, instancja
@@ -1965,6 +2194,12 @@ leniwie: brak handle w ścieżce wywołania -> DB (cooldown per tenant) -> load
   na instancji bez handle (sukces) i z niezaładowalną instalacją (kontrolowany `FAILED`, bez burzy ładowań); testy
   jednostkowe `PluginSyncBusTest`, `PluginRuntimeSyncServiceImplTest`, `PluginRuntimeManagerImplSyncTest`,
   `CircuitBreakerStatePropagationTest`, `PluginInvocationConsumerLazyLoadTest`.
+  BE-246: `CircuitBreakerStateHalfOpenTest` (zegar sztuczny: jedna próba naraz także współbieżnie, sukces/porażka próby, obwód zdalny,
+  wygasanie dzierżawy, zwolnienie dzierżawy, stary in-flight wynik nie zamyka/nie otwiera obwodu, jitter TTL),
+  `HalfOpenLeaseLeakTests` w `ExtensionPointPublisherImplTest`/`PluginInvocationConsumerTest` (wyciek dzierżawy po wyjątku), `PluginRuntimeSyncServiceImplJarTest` (zmiana checksumu/lokalnej kopii, `touch`, lazy load po id, limit czasu i
+  współbieżności, odmowa przeładowania przy niezgodnym nowym JAR, limit czekających), `PluginCatalogQueryServiceImplTest`/
+  `TenantPluginInstallationRepositoryTest` (pętla po tenantach z jawnym kontekstem RLS - jednostkowo, bo wariant na bazie wymaga Dockera), `PluginAssetControllerTest` (200 po lazy load, 503), rozszerzone IT (half-open + propagacja OPEN/CLOSED między
+  instancjami, nadpisanie JAR bez zdarzenia, odmowa JAR niezgodnego z checksumem, `ensureInstallationLoaded`).
 
 ---
 

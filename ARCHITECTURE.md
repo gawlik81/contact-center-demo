@@ -2108,7 +2108,59 @@ state. Hardening after code review: each installation's state changes run under 
 inside it (a stale snapshot never resurrects a disabled plugin); event pairs (tenantId, installationId) are verified
 against the local handle; revocation requires DB confirmation (unknown version = ignored, DB outage = unload with a
 TTL-bounded block only); the slow `onDeactivate` phase of a revocation runs in parallel and the fast unload path of
-events never queues behind loads. Details: `documentation/tech/04-backend.md` §4.9.
+events never queues behind loads. BE-245: the envelopes are HMAC-signed with the SAME secret and mechanism as the
+`cc:ws:*` channels (no new variable; a missing secret blocks the prod start), and an administrator's change of
+`installationConfig` reloads the plugin on every instance (configuration fingerprint in the handle, repaired by the
+reconciliation if the event is lost). Details: `documentation/tech/04-backend.md` §4.9.
+
+**Addendum (BE-244, executor model and lifecycle quarantine).** The runtime sync uses five single-purpose executors so that no
+kind of work can starve another: `event` (fast unload part of an event), `load` (priority path: the reload an event asked for
+— an `enable` or version change no longer waits behind a full reconciliation pass, which takes minutes with many JARs),
+`bulk` (periodic reconciliation, one thread), `asset` (the lazy load behind the PUBLIC asset endpoint, with a global token
+bucket in front of the tenant scan) and `revoke` (kill switch phase 1). A full queue never loses state: it is counted
+(`plugin.sync.dropped{reason}`), logged, and the DB-driven reconciliation catches up. `unload` now detaches AND disposes the
+old instance under one per-installation `KeyedLocks` lock, so a later `load` of the same installation cannot overtake it; the
+kill switch (`unloadByVersion`) stays two-phase and lock-free. An `onActivate` that times out leaves an unstoppable thread
+(the in-process model has no hard kill, as ADR-09 states), so the installation is quarantined (TTL, doubling on repeats,
+keyed to the version and configuration it hung with) instead of retried in a loop, orphans are counted
+(`plugin.lifecycle.orphaned`), and pool saturation is told apart from a plugin timeout (never quarantines the victim).
+This bounds, but does not remove, the residual risk ADR-09 accepts: a hostile plugin can still burn lifecycle threads once per
+(version, configuration, TTL) per instance.
+
+**Addendum (BE-244 review, orphaned threads).** Two limits tighten that residual risk. (1) *Revocation of the context:* every
+loaded instance has a one-way `PluginRevocation` flag shared by its `PluginContext`s and the clients/config/logger they hand
+out; it is set BEFORE the class loader is closed (unload, kill switch phase 1, timeout of a callback) and every platform API
+reachable from plugin code checks it, so an orphaned thread of a revoked or timed-out plugin can no longer touch the tenant's
+data, egress or decrypted secrets (it cannot be stopped, but it is cut off). (2) *Bounded orphans:* orphans are counted per
+(tenant, plugin) and globally, keyed independently of the configuration fingerprint, so an administrator changing the
+configuration cannot mint fresh attempts; past `plugins.lifecycle.max-orphans-per-plugin` (2) the plugin's `load` is refused
+without touching the pool (the global cap only refuses plugins that already have an orphan), and a hanging `onDeactivate`
+quarantines the installation like `onActivate` does. The residual risk is now: a hostile plugin can burn at most
+`max-orphans-per-plugin` lifecycle threads per instance until they really return. The invariant "a load starts only after the
+old instance was disposed" holds for `unload` but deliberately not for the REVOKED path (the kill switch never waits); the old
+instance is already cut off by its revocation flag. Also: one hanging installation can no longer starve the event executor
+(coalescing key held to the end of the task), and the lock hierarchy tenant -> installation -> load is documented in
+`KeyedLocks`. Details: `documentation/tech/04-backend.md` §4.9.
+
+**Addendum (BE-246, owner decisions of 2026-11-28).** (a) The circuit breaker now half-opens: after
+`plugins.circuit-breaker.open-ttl` (default 60 s) an open circuit — local or opened remotely — lets exactly ONE probe call per
+instance through; a success closes it (and propagates `CIRCUIT_CLOSED`), a failure reopens it with a fresh TTL (and propagates
+`CIRCUIT_OPENED`). Half-open never applies to `REVOKED`/the kill switch. The circuit state is still NOT restored from
+`health_status=DEGRADED` in the database (decision of round 80 confirmed): a restart starts closed. (b) The JAR is verified
+against `plugin_version.checksum_sha256` before it is loaded (mismatch = refusal), the handle remembers the verified checksum, and
+the reconciliation reloads a plugin whose version row was overwritten in place (catalog checksum changed) or whose local copy
+changed (stat pre-check, hash only on a changed stat). (c) The public `PluginAssetController` lazily loads an installation this
+instance has not reconciled yet (bounded wait, 503 + `Retry-After` on timeout, negative cache and an in-flight cap against id
+scans, plus a cap on HTTP threads waiting for the same slow load) instead of answering 404. (d) Rolling deploy from a version without the sync listener is a documented procedure
+(`DEPLOYMENT.md`), not an envelope-versioning feature: the old instance catches up by reconciliation (<= 30 s) or at restart.
+(e) Review hardening: half-open is an explicit contract — `tryAcquire` returns a permit carrying a probe token, `isOpenReadOnly`
+reads without side effects, callers release the probe in a `finally`, and only the call that holds the token decides the probe
+(a stale in-flight result neither closes nor reopens the circuit, so a partially failing plugin cannot flap it). The open TTL carries
+a +/-10% jitter, and since each instance holds its own lease at most N probes (N = instances) run per TTL after a shared opening,
+not one globally; that is accepted (a failed probe re-publishes `CIRCUIT_OPENED`, which renews the TTL elsewhere, so there is no
+cascade). A reload caused by a changed JAR/version/configuration first downloads and verifies the new JAR and only then unloads the old
+instance: on a mismatch the old handle keeps serving (WARN, `plugin.sync.reload.refused`, backoff), whereas `REVOKED`/disable still
+unload at once.
 
 ### ADR-10: Event-Driven Extension Points Over a Generic Interceptor Chain
 

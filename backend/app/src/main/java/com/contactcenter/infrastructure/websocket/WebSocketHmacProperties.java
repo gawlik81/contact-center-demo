@@ -9,7 +9,7 @@ import java.time.Duration;
 
 /**
  * Shared secret of the HMAC-SHA256 signature of the envelopes on every {@code cc:ws:*} Redis channel (BE-242 fan-out,
- * BE-249 session control; BE-245 plugin channel later). Prefix {@code websocket.hmac}.
+ * BE-249 session control) and on the plugin-sync channel {@code cc:plugin:sync:*} (BE-245). Prefix {@code websocket.hmac}.
  *
  * <p>ONE secret for all channels; the channel NAME is part of the signed data, so an envelope cannot be moved between
  * channels. Rotation: put the new secret in {@link #secret} and the old one in {@link #previousSecret}; receivers

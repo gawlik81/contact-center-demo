@@ -94,7 +94,7 @@ class PluginInvocationConsumerLazyLoadTest {
     private static TenantPluginInstallationDto enabledDto() {
         return new TenantPluginInstallationDto(INSTALLATION, TENANT, UUID.randomUUID(), "acme", "Acme", "1.0.0", true,
                 List.of(), TenantPluginInstallation.HealthStatus.HEALTHY, 0, List.of(), List.of(), UUID.randomUUID(),
-                Instant.now(), Instant.now(), List.of());
+                Instant.now(), Instant.now(), List.of(), null);
     }
 
     @Test
@@ -175,6 +175,29 @@ class PluginInvocationConsumerLazyLoadTest {
             consumer.handleInvocation(message());
         }
 
+        verify(invocationLog, org.mockito.Mockito.times(1)).record(eq(TENANT), eq(INSTALLATION),
+                eq(ExtensionPoint.POST_CONTACT_END), eq(InvocationStatus.FAILED), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("R4 (BE-245): rate-limit raportu działa PRZED deserializacją payloadu - odrzucone wiadomości nie kosztują konwersji")
+    void payloadIsDeserializedOnlyForTheReportedMessage() {
+        ObjectMapper spied = org.mockito.Mockito.spy(objectMapper);
+        PluginInvocationConsumer spyConsumer = new PluginInvocationConsumer(registry, registrationService,
+                new CircuitBreakerState(registrationService), customerService, contactService,
+                new PluginInvocationProperties(), spied, invocationLog, catalog, executor, runtimeSync);
+        when(registry.lookup(TENANT, ExtensionPoint.POST_CONTACT_END)).thenReturn(List.of());
+        when(runtimeSync.ensureTenantLoaded(TENANT))
+                .thenReturn(new PluginRuntimeSync.EnsureResult(0, Map.of(INSTALLATION,
+                        new PluginRuntimeSync.LoadFailure("Ładowanie wtyczki nie powiodło się (X)",
+                                java.util.Set.of(ExtensionPoint.POST_CONTACT_END)))));
+        PluginInvocationMessage message = message();
+
+        for (int i = 0; i < 5; i++) {
+            spyConsumer.handleInvocation(message);
+        }
+
+        verify(spied, org.mockito.Mockito.times(1)).convertValue(any(), eq(ContactEvent.class));
         verify(invocationLog, org.mockito.Mockito.times(1)).record(eq(TENANT), eq(INSTALLATION),
                 eq(ExtensionPoint.POST_CONTACT_END), eq(InvocationStatus.FAILED), anyLong(), any(), any(), any());
     }

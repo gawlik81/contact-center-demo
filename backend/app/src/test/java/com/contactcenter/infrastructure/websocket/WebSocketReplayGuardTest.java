@@ -29,4 +29,17 @@ class WebSocketReplayGuardTest {
         assertThat(guard.firstSeen("1")).as("wypadl, wiec znow 'nowy'").isTrue();
         assertThat(guard.firstSeen("4")).isFalse();
     }
+
+    @Test
+    @DisplayName("W1: warianty tekstowe tego samego podpisu (spacje, nieistotny bit ostatniego znaku) to JEDEN wpis - powtorka")
+    void textualVariantsOfOneSignatureAreOneEntry() {
+        WebSocketReplayGuard guard = new WebSocketReplayGuard(10);
+        String sig = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"; // 43 chars = 32 bytes
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        String sameBytes = sig.substring(0, 42) + alphabet.charAt(alphabet.indexOf(sig.charAt(42)) ^ 1);
+
+        assertThat(guard.firstSeen(sig)).isTrue();
+        assertThat(guard.firstSeen(sig + "=")).isFalse(); // padding variant of the same bytes
+        assertThat(guard.firstSeen(sameBytes)).isFalse();
+    }
 }

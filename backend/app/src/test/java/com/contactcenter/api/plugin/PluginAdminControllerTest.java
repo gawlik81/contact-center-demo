@@ -90,7 +90,7 @@ class PluginAdminControllerTest {
         return new TenantPluginInstallationDto(
                 id, TENANT_ID, PLUGIN_VERSION_ID, "acme-crm-sync", "Acme CRM Sync", "1.0.0",
                 enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now(),
-                List.of());
+                List.of(), null);
     }
 
     // =========================================================================
@@ -245,6 +245,23 @@ class PluginAdminControllerTest {
         }
 
         @Test
+        @DisplayName("BE-244: kwarantanna onActivate -> PluginQuarantinedException propaguje (GlobalExceptionHandler = 409), "
+                + "DB i sync bez zmian")
+        void enable_quarantined_propagatesAndLeavesDbUntouched() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, false));
+            when(pluginRuntimeManager.isLoaded(INSTALLATION_ID)).thenReturn(false);
+            org.mockito.Mockito.doThrow(new com.contactcenter.domain.plugin.runtime.PluginQuarantinedException("kwarantanna"))
+                    .when(pluginRuntimeManager).load(TENANT_ID, INSTALLATION_ID);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> controller.enable(INSTALLATION_ID))
+                    .isInstanceOf(com.contactcenter.domain.plugin.runtime.PluginQuarantinedException.class);
+
+            verify(pluginRegistrationService, never()).enable(any(), any());
+            verify(pluginRuntimeSync, never()).installationChanged(any(), any());
+        }
+
+        @Test
         @DisplayName("ownership weryfikowany PRZED jakąkolwiek mutacją runtime")
         void enable_verifiesOwnershipBeforeRuntimeMutation() {
             when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
@@ -333,6 +350,42 @@ class PluginAdminControllerTest {
 
             verify(pluginRuntimeManager, never()).load(any(), any());
             verify(pluginRuntimeManager).unload(TENANT_ID, INSTALLATION_ID);
+        }
+    }
+
+    // =========================================================================
+    // PATCH updateConfig (BE-245)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("updateConfig()")
+    class UpdateConfig {
+
+        @Test
+        @DisplayName("BE-245: po zapisie konfiguracji rozgłasza zmianę (przeładowanie wtyczki na każdej instancji), dopiero PO serwisie")
+        void updateConfig_announcesConfigChangeAfterDbCommit() {
+            java.util.Map<String, String> config = java.util.Map.of("endpoint", "http://example.com");
+
+            controller.updateConfig(INSTALLATION_ID,
+                    new com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest(config));
+
+            InOrder order = inOrder(pluginRegistrationService, pluginRuntimeSync);
+            order.verify(pluginRegistrationService).updateConfig(TENANT_ID, INSTALLATION_ID, config);
+            order.verify(pluginRuntimeSync).installationConfigChanged(TENANT_ID, INSTALLATION_ID);
+        }
+
+        @Test
+        @DisplayName("BE-245 R5: wyjątek propagacji PO zacommitowanym zapisie nie zamienia sukcesu w 500 (200 OK, rekoncyliacja nadrobi)")
+        void updateConfig_propagationFailureStillReturns200() {
+            java.util.Map<String, String> config = java.util.Map.of("endpoint", "http://example.com");
+            org.mockito.Mockito.doThrow(new IllegalStateException("boom")).when(pluginRuntimeSync)
+                    .installationConfigChanged(TENANT_ID, INSTALLATION_ID);
+
+            ResponseEntity<Void> response = controller.updateConfig(INSTALLATION_ID,
+                    new com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest(config));
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            org.mockito.Mockito.verify(pluginRegistrationService).updateConfig(TENANT_ID, INSTALLATION_ID, config);
         }
     }
 

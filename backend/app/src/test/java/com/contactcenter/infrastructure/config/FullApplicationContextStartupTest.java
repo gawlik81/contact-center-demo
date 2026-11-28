@@ -348,6 +348,10 @@ class FullApplicationContextStartupTest {
     void webSocketHmacIsRequiredAndActiveOnProd() {
         assertThat(environment.getProperty("websocket.hmac.required", Boolean.class)).isTrue();
         assertThat(hmacSigner.isEnabled()).isTrue();
+        // BE-245: the plugin-sync channel uses the SAME signer bean (one secret; a missing secret on prod blocks the start for it too)
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(
+                context.getBean(com.contactcenter.domain.plugin.runtime.PluginSyncBus.class), "signer"))
+                .isSameAs(hmacSigner);
         assertThat(environment.getProperty("websocket.hmac.accept-unsigned", Boolean.class)).isFalse();
         assertThat(context.getBean(com.contactcenter.domain.tenant.TenantStatusGate.class)).isNotNull();
         assertThat(context.getBean(com.contactcenter.security.TokenRevocationService.class)).isNotNull();

@@ -2,6 +2,7 @@ package com.contactcenter.api.plugin;
 
 import com.contactcenter.domain.plugin.runtime.PluginInstanceHandle;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
+import com.contactcenter.domain.plugin.runtime.PluginRuntimeSync;
 import com.contactcenter.pluginsdk.PluginEntryPoint;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +44,7 @@ class PluginAssetControllerTest {
     private static final UUID INSTALLATION_ID = UUID.randomUUID();
 
     @Mock private PluginRuntimeManager pluginRuntimeManager;
+    @Mock private PluginRuntimeSync pluginRuntimeSync;
     @Mock private PluginEntryPoint entryPoint;
 
     private PluginAssetController controller;
@@ -50,7 +52,7 @@ class PluginAssetControllerTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        controller = new PluginAssetController(pluginRuntimeManager);
+        controller = new PluginAssetController(pluginRuntimeManager, pluginRuntimeSync);
         // @PostConstruct nie jest wywoływany przy tworzeniu przez new — wstrzykujemy ręcznie.
         setField(controller, "sdkScriptContent", "/* plugin-ui-sdk stub */");
         assetsDir = Files.createTempDirectory("plugin-asset-controller-test-");
@@ -87,11 +89,41 @@ class PluginAssetControllerTest {
         @DisplayName("instalacja nieaktywna/nieznana w PluginRuntimeManager -> 404")
         void unknownInstallation_returns404() throws IOException {
             when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID)).thenReturn(Optional.empty());
+            when(pluginRuntimeSync.ensureInstallationLoaded(INSTALLATION_ID))
+                    .thenReturn(PluginRuntimeSync.InstallationLoad.notFound());
 
             ResponseEntity<Resource> response = controller.getAsset(
                     INSTALLATION_ID, requestFor("/plugin-assets/" + INSTALLATION_ID + "/index.html"));
 
             assertThat(response.getStatusCode().value()).isEqualTo(404);
+        }
+
+        @Test
+        @DisplayName("BE-246: instalacja niezaładowana lokalnie -> lazy load -> 200 (nie 404)")
+        void notLoadedLocally_isLazyLoadedAndServed() throws IOException {
+            Files.writeString(assetsDir.resolve("index.html"), "<html>ok</html>");
+            when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID)).thenReturn(Optional.empty());
+            when(pluginRuntimeSync.ensureInstallationLoaded(INSTALLATION_ID)).thenReturn(
+                    PluginRuntimeSync.InstallationLoad.loaded(handleWithAssetsDir(assetsDir, List.of())));
+
+            ResponseEntity<Resource> response = controller.getAsset(
+                    INSTALLATION_ID, requestFor("/plugin-assets/" + INSTALLATION_ID + "/index.html"));
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+        }
+
+        @Test
+        @DisplayName("BE-246: lazy load nie zdążył w limicie czasu -> 503 z Retry-After (nie blokuje bez limitu)")
+        void lazyLoadStillRunning_returns503WithRetryAfter() throws IOException {
+            when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID)).thenReturn(Optional.empty());
+            when(pluginRuntimeSync.ensureInstallationLoaded(INSTALLATION_ID))
+                    .thenReturn(PluginRuntimeSync.InstallationLoad.pending());
+
+            ResponseEntity<Resource> response = controller.getAsset(
+                    INSTALLATION_ID, requestFor("/plugin-assets/" + INSTALLATION_ID + "/index.html"));
+
+            assertThat(response.getStatusCode().value()).isEqualTo(503);
+            assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("2");
         }
 
         @Test

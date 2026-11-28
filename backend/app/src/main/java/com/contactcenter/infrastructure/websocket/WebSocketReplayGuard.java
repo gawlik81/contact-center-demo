@@ -8,13 +8,13 @@ import java.util.Map;
  * so a second delivery of the same signature within the freshness window is a replay (the transport itself never
  * duplicates a PUBLISH to one subscriber). Oldest entries are evicted first; the capacity covers far more than the
  * envelopes of one freshness window under normal load, and eviction only re-opens the replay window for old entries.
- * Thread-safe; O(1) per call.
+ * Thread-safe; O(1) per call. Shared by the {@code cc:ws:*} subscribers and the plugin-sync channel (BE-245).
  */
-final class WebSocketReplayGuard {
+public final class WebSocketReplayGuard {
 
     private final Map<String, Boolean> seen;
 
-    WebSocketReplayGuard(int capacity) {
+    public WebSocketReplayGuard(int capacity) {
         this.seen = new LinkedHashMap<>(16, 0.75f, false) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
@@ -24,10 +24,11 @@ final class WebSocketReplayGuard {
     }
 
     /** @return {@code true} the first time {@code signature} is offered, {@code false} for a replay; {@code null}/blank = unsigned, never a replay */
-    synchronized boolean firstSeen(String signature) {
+    public synchronized boolean firstSeen(String signature) {
         if (signature == null || signature.isBlank()) {
             return true;
         }
-        return seen.put(signature, Boolean.TRUE) == null;
+        // keyed by the canonical form of the signature bytes: textual variants of one signature are one entry (BE-245 W1)
+        return seen.put(WebSocketChannelSigner.canonicalSignature(signature), Boolean.TRUE) == null;
     }
 }

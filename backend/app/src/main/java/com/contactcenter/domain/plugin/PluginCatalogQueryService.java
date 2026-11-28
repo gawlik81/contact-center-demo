@@ -86,6 +86,16 @@ public interface PluginCatalogQueryService {
     List<TenantPluginInstallation> findAllEnabledAcrossAllTenants();
 
     /**
+     * Finds an ENABLED installation by its id alone, scanning the tenants one by one (the table is under
+     * {@code FORCE ROW LEVEL SECURITY}, so no cross-tenant query exists; same pattern as
+     * {@link #findAllEnabledAcrossAllTenants()}). Cost O(tenants) - callers must bound and cache it (BE-246: the
+     * public {@code PluginAssetController} has no tenant in the request).
+     *
+     * @return the enabled installation, or empty when unknown or disabled
+     */
+    Optional<TenantPluginInstallation> findEnabledInstallationAcrossTenants(UUID installationId);
+
+    /**
      * Wyszukuje instalacje z {@code enabled=true} JEDNEGO tenanta (BE-178: leniwe doładowanie handle w ścieżce
      * wywołania na instancji, która nie ma załadowanej instalacji, oraz rekoncyliacja).
      *

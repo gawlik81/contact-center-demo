@@ -58,8 +58,16 @@ class PluginRuntimeStartupLoader {
 
     @EventListener(ApplicationReadyEvent.class)
     void reloadEnabledInstallationsOnStartup() {
-        List<TenantPluginInstallation> enabledInstallations =
-                pluginCatalogQueryService.findAllEnabledAcrossAllTenants();
+        List<TenantPluginInstallation> enabledInstallations;
+        try {
+            enabledInstallations = pluginCatalogQueryService.findAllEnabledAcrossAllTenants();
+        } catch (RuntimeException e) {
+            // BE-245 W3: e.g. unreadable installation_config on every row (key rotation) - never a silent "0 plugins"
+            log.error("[PluginRuntimeStartupLoader] NIE ZAŁADOWANO ŻADNEJ wtyczki po starcie: nie można odczytać "
+                    + "włączonych instalacji ({}). Sprawdź klucz szyfrowania app.encryption.secret; okresowa "
+                    + "rekoncyliacja ponowi próbę.", e.toString());
+            return;
+        }
 
         log.info("[PluginRuntimeStartupLoader] Reloading {} plugin installations after startup",
                 enabledInstallations.size());

@@ -108,7 +108,7 @@ class PluginInvocationConsumerTest {
         return new TenantPluginInstallationDto(
                 installationId, TENANT_ID, UUID.randomUUID(), PLUGIN_KEY, "Acme CRM Sync", "1.0.0",
                 enabled, List.of(), TenantPluginInstallation.HealthStatus.HEALTHY, 0, List.of(), List.of(),
-                UUID.randomUUID(), Instant.now(), Instant.now(), List.of());
+                UUID.randomUUID(), Instant.now(), Instant.now(), List.of(), null);
     }
 
     private static ContactEvent contactEvent() {
@@ -513,7 +513,7 @@ class PluginInvocationConsumerTest {
                     .thenReturn(new TenantPluginInstallationDto(
                             otherInstallationId, OTHER_TENANT_ID, UUID.randomUUID(), PLUGIN_KEY, "Acme CRM Sync",
                             "1.0.0", true, List.of(), TenantPluginInstallation.HealthStatus.HEALTHY, 0,
-                            List.of(), List.of(), UUID.randomUUID(), Instant.now(), Instant.now(), List.of()));
+                            List.of(), List.of(), UUID.randomUUID(), Instant.now(), Instant.now(), List.of(), null));
 
             consumer.handleInvocation(
                     messageFor(OTHER_TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
@@ -554,6 +554,49 @@ class PluginInvocationConsumerTest {
             consumer.handleInvocation(message);
 
             verify(pluginRegistry, never()).lookup(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("BE-246 W1: dzierżawa próby half-open nie wycieka po niezłapanym wyjątku")
+    class HalfOpenLeaseLeakTests {
+
+        @Test
+        @DisplayName("CancellationException z Future.get po przyznaniu próby -> dzierżawa zwolniona, następny wołający próbuje od razu")
+        void cancellationAfterProbeGrantedReleasesTheLease() throws Exception {
+            java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong(1_000);
+            CircuitBreakerState breaker = new CircuitBreakerState(
+                    pluginRegistrationService, null, java.time.Duration.ofSeconds(60), nanos::get);
+            for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
+                breaker.recordResult(TENANT_ID, INSTALLATION_ID, false);
+            }
+            nanos.addAndGet(java.time.Duration.ofSeconds(61).toNanos());
+            ExecutorService cancelling = org.mockito.Mockito.mock(ExecutorService.class);
+            java.util.concurrent.CompletableFuture<Object> cancelled = new java.util.concurrent.CompletableFuture<>();
+            cancelled.cancel(true);
+            org.mockito.Mockito.doReturn(cancelled).when(cancelling)
+                    .submit(org.mockito.ArgumentMatchers.<java.util.concurrent.Callable<Object>>any());
+            PluginInvocationConsumer leaking = new PluginInvocationConsumer(
+                    pluginRegistry, pluginRegistrationService, breaker,
+                    customerService, contactService, properties, objectMapper,
+                    pluginInvocationLogService, pluginCatalogQueryService, cancelling, pluginRuntimeSync);
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+
+            try {
+                leaking.handleInvocation(messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+            } catch (RuntimeException expectedCancellation) {
+                // the consumer may let it propagate: what matters is the lease
+            }
+
+            assertThat(breaker.tryAcquire(INSTALLATION_ID).isProbe())
+                    .as("the probe lease must be free again right after the exception").isTrue();
         }
     }
 }

@@ -8,6 +8,8 @@ import com.contactcenter.infrastructure.config.WebSocketFanoutConfig;
 import com.contactcenter.infrastructure.websocket.WebSocketFanoutEnvelope;
 import com.contactcenter.infrastructure.websocket.WebSocketFanoutMetrics;
 import com.contactcenter.infrastructure.websocket.WebSocketFanoutProperties;
+import com.contactcenter.infrastructure.websocket.WebSocketChannelSigner;
+import com.contactcenter.infrastructure.websocket.WebSocketHmacProperties;
 import com.contactcenter.infrastructure.websocket.WebSocketFanoutPublisher;
 import com.contactcenter.infrastructure.websocket.WebSocketFanoutSubscriber;
 import com.contactcenter.infrastructure.websocket.WebSocketLocalDispatcher;
@@ -93,6 +95,27 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    /** BE-242: shared HMAC secret of the test cluster; every instance signs/verifies with it. */
+    private static final String HMAC_SECRET = "it-fanout-hmac-secret-it-fanout-0123456789";
+    private static final String FANOUT_CHANNEL = "cc:ws:fanout:default";
+
+    private static WebSocketChannelSigner signerWith(String secret) {
+        WebSocketHmacProperties p = new WebSocketHmacProperties();
+        p.setSecret(secret);
+        return new WebSocketChannelSigner(p, new SimpleMeterRegistry());
+    }
+
+    private static final WebSocketChannelSigner SIGNER = signerWith(HMAC_SECRET);
+
+    /** A valid, signed envelope as another instance of the cluster would publish it. */
+    private static String signed(WebSocketFanoutEnvelope e) {
+        return signedWith(SIGNER, e);
+    }
+
+    private static String signedWith(WebSocketChannelSigner signer, WebSocketFanoutEnvelope e) {
+        return e.withSignature(signer.sign(FANOUT_CHANNEL, e.canonicalForSigning())).toJson();
+    }
+
     // =========================================================================
     // One "replica"
     // =========================================================================
@@ -107,8 +130,19 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
             WebSocketFanoutMetrics.class, WebSocketLocalDispatcher.class, WebSocketFanoutPublisher.class,
             WebSocketFanoutSubscriber.class, WebSocketFanoutConfig.class,
             com.contactcenter.infrastructure.websocket.WebSocketOncePerWindowGate.class,
-            com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.class, com.contactcenter.infrastructure.websocket.WebSocketSessionProperties.class})
+            com.contactcenter.infrastructure.websocket.WebSocketSessionRegistry.class, com.contactcenter.infrastructure.websocket.WebSocketSessionProperties.class,
+            WebSocketChannelSigner.class, WebSocketHmacProperties.class})
     static class InstanceApp {
+
+        @Bean
+        com.contactcenter.security.TokenRevocationService tokenRevocationService() {
+            return Mockito.mock(com.contactcenter.security.TokenRevocationService.class);
+        }
+
+        @Bean
+        com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate() {
+            return Mockito.mock(com.contactcenter.domain.tenant.TenantStatusGate.class);
+        }
 
         /** Token format {@code ROLE|tenantUuid|userUuid}. */
         @Bean
@@ -202,17 +236,31 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
                 "server.port=0", "spring.main.banner-mode=off",
                 "websocket.fanout.instance-id=" + id,
                 "websocket.allowed-origins=*",
+                "websocket.hmac.secret=" + HMAC_SECRET,
                 "test.redis.host=" + (redisPort == RedisTestContainer.port() ? RedisTestContainer.host() : "127.0.0.1"),
                 "test.redis.port=" + redisPort));
         props.addAll(List.of(extraProperties));
         ConfigurableApplicationContext ctx = new SpringApplicationBuilder(InstanceApp.class)
                 .web(WebApplicationType.SERVLET)
                 // command-line args: they win over application.yml (server.port: 8080, websocket.fanout.*)
-                .run(props.stream().map(p -> "--" + p).toArray(String[]::new));
+                .run(overriding(props).stream().map(p -> "--" + p).toArray(String[]::new));
         Instance instance = new Instance(id, ctx, Integer.parseInt(ctx.getEnvironment().getProperty("local.server.port")));
         instances.add(instance);
         return instance;
     }
+
+    /**
+     * Command-line options repeated under one name are JOINED with commas by Spring; a later property must REPLACE an
+     * earlier one (defaults vs. per-test overrides), so keep only the last value per key.
+     */
+    private static List<String> overriding(List<String> props) {
+        java.util.Map<String, String> byKey = new java.util.LinkedHashMap<>();
+        for (String prop : props) {
+            byKey.put(prop.substring(0, prop.indexOf('=')), prop);
+        }
+        return new ArrayList<>(byKey.values());
+    }
+
 
     @BeforeAll
     void startReplicas() {
@@ -326,14 +374,35 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
         StringRedisTemplate raw = RedisTestContainer.stringTemplate();
         for (Instance i : all) {
             UUID tenant = UUID.randomUUID();
-            String probe = new WebSocketFanoutEnvelope(1, "probe", agentsTopic(tenant), tenant,
-                    System.currentTimeMillis(), "{\"eventType\":\"PROBE\"}").toJson();
+            String probe = signed(new WebSocketFanoutEnvelope(1, "probe", agentsTopic(tenant), tenant,
+                    System.currentTimeMillis(), "{\"eventType\":\"PROBE\"}"));
             double before = i.sum(WebSocketFanoutMetrics.RECEIVED);
             await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(200)).until(() -> {
                 raw.convertAndSend(i.channel(), probe);
                 return i.sum(WebSocketFanoutMetrics.RECEIVED) > before;
             });
         }
+    }
+
+    /** Reads frames until every wanted waitingCount was seen once (others, e.g. late probe events, are skipped). */
+    private static java.util.Set<Integer> awaitWaitingCounts(Client client, int... wanted) throws Exception {
+        java.util.Set<Integer> missing = new java.util.HashSet<>();
+        for (int w : wanted) {
+            missing.add(w);
+        }
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+        while (!missing.isEmpty() && System.nanoTime() < deadline) {
+            String frame = client.messages.poll(1, TimeUnit.SECONDS);
+            if (frame == null) {
+                continue;
+            }
+            int count = waitingCount(frame);
+            if (missing.remove(count)) {
+                seen.add(count);
+            }
+        }
+        return seen;
     }
 
     private static String userTopic(UUID user) {
@@ -517,28 +586,28 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
         }
 
         // tenant in the envelope differs from the tenant in the destination
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "evil", agentsTopic(t1), t2, now, json).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "evil", agentsTopic(t1), t2, now, json)));
         // unicast with a foreign tenant for a user that HAS a session here (principal tenant is t1)
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "evil", userTopic(victimUser), t2, now, json).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "evil", userTopic(victimUser), t2, now, json)));
         // unicast without a tenant in the envelope
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "evil", userTopic(victimUser), null, now, json).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "evil", userTopic(victimUser), null, now, json)));
         // destinations a client could never subscribe to
         for (String dest : List.of("/topic/**", "/user/queue/x", "/app/ping", "/topic/tenant/" + t1 + "/**")) {
-            raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "evil", dest, t1, now, json).toJson());
+            raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "evil", dest, t1, now, json)));
         }
         raw.convertAndSend(channel, "not json at all");
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(9, "evil", agentsTopic(t1), t1, now, json).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(9, "evil", agentsTopic(t1), t1, now, json)));
         raw.convertAndSend(channel,
-                new WebSocketFanoutEnvelope(1, "evil", agentsTopic(t1), t1, now, "x".repeat(300_000)).toJson());
+                signed(new WebSocketFanoutEnvelope(1, "evil", agentsTopic(t1), t1, now, "x".repeat(300_000))));
         // an envelope that claims to come from B itself is ignored (no local duplicate)
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, b.instanceId(), agentsTopic(t1), t1, now, json).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, b.instanceId(), agentsTopic(t1), t1, now, json)));
 
         // control: VALID envelopes from a foreign instance are delivered -> the negatives above are meaningful.
         // Everything forged was published BEFORE them on the same channel and is handled in order by one thread, so
         // the first message the victim sees must be the control (no sleeping needed).
         String legit = "{\"eventType\":\"LEGIT\",\"payload\":{\"waitingCount\":1}}";
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "peer", agentsTopic(t1), t1, now, legit).toJson());
-        raw.convertAndSend(channel, new WebSocketFanoutEnvelope(1, "peer", userTopic(victimUser), t1, now, legit).toJson());
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "peer", agentsTopic(t1), t1, now, legit)));
+        raw.convertAndSend(channel, signed(new WebSocketFanoutEnvelope(1, "peer", userTopic(victimUser), t1, now, legit)));
 
         assertThat(victim.next()).isEqualTo(legit);
         assertThat(victim.next()).isEqualTo(legit);
@@ -706,5 +775,112 @@ class WebSocketFanoutCrossInstanceIntegrationTest {
         }
         assertThat(onB.session.isConnected()).isTrue();
         assertThat(a2.counter(WebSocketFanoutMetrics.PUBLISHED, "topic", "agents")).isGreaterThanOrEqualTo(2.0);
+    }
+
+    // =========================================================================
+    // BE-242: HMAC kopert
+    // =========================================================================
+
+    @Test
+    @DisplayName("BE-242: koperta bez podpisu / ze zlym podpisem / z podmieniona trescia jest odrzucana (reason + licznik wspolny), poprawna dociera")
+    void unsignedForgedAndTamperedEnvelopesAreRejected() throws Exception {
+        UUID tenant = UUID.randomUUID();
+        Client victim = new Client(b, "AGENT", tenant, UUID.randomUUID()).subscribe(agentsTopic(tenant));
+        StringRedisTemplate raw = RedisTestContainer.stringTemplate();
+        long now = System.currentTimeMillis();
+        String forgedJson = "{\"eventType\":\"FORGED\",\"payload\":{\"waitingCount\":13}}";
+        String legit = "{\"eventType\":\"LEGIT\",\"payload\":{\"waitingCount\":1}}";
+        double bad = b.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "bad_signature");
+        double missing = b.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "missing_signature");
+        double sharedBad = b.counter("ws.channel.signature.rejected", "channel", "fanout", "reason", "bad_signature");
+
+        // (1) a forger WITH Redis access but without the secret, valid tenant and destination
+        raw.convertAndSend(b.channel(), signedWith(signerWith("4tt4ck3r-4tt4ck3r-4tt4ck3r-4tt4ck3r-0000"),
+                new WebSocketFanoutEnvelope(1, "evil", agentsTopic(tenant), tenant, now, forgedJson)));
+        // (2) no signature at all
+        raw.convertAndSend(b.channel(),
+                new WebSocketFanoutEnvelope(1, "evil", agentsTopic(tenant), tenant, now, forgedJson).toJson());
+        // (3) a genuine signed envelope whose payload was swapped afterwards (the signature stays)
+        String genuine = signed(new WebSocketFanoutEnvelope(1, "peer", agentsTopic(tenant), tenant, now, legit));
+        raw.convertAndSend(b.channel(), genuine.replace("LEGIT", "FORGE"));
+        // control: the genuine one is delivered (and only it): same channel, same single dispatch thread, in order
+        raw.convertAndSend(b.channel(), genuine);
+
+        assertThat(victim.next()).isEqualTo(legit);
+        assertThat(victim.messages).as("nic poza koperta kontrolna").isEmpty();
+        assertThat(b.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "bad_signature") - bad)
+                .isEqualTo(2);
+        assertThat(b.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "missing_signature")
+                - missing).isEqualTo(1);
+        assertThat(b.counter("ws.channel.signature.rejected", "channel", "fanout", "reason", "bad_signature")
+                - sharedBad).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("BE-242: rotacja bez utraty zdarzen - instancje (sekret=A, przyjmuje B) i (sekret=B, przyjmuje A) wymieniaja zdarzenia w obie strony")
+    void rotationBetweenTwoSecretsLosesNoEvents() throws Exception {
+        String secretA = "rot-secret-A-rot-secret-A-rot-secret-A-0123";
+        String secretB = "rot-secret-B-rot-secret-B-rot-secret-B-0123";
+        String env = "rot" + UUID.randomUUID().toString().substring(0, 6);
+        Instance signsA = start("rot-a", RedisTestContainer.port(), "websocket.fanout.environment=" + env,
+                "websocket.hmac.secret=" + secretA, "websocket.hmac.previous-secret=" + secretB);
+        Instance signsB = start("rot-b", RedisTestContainer.port(), "websocket.fanout.environment=" + env,
+                "websocket.hmac.secret=" + secretB, "websocket.hmac.previous-secret=" + secretA);
+        awaitFanoutListening(signsA, signsB);
+        UUID tenant = UUID.randomUUID();
+        Client onA = new Client(signsA, "AGENT", tenant, UUID.randomUUID()).subscribe(agentsTopic(tenant));
+        Client onB = new Client(signsB, "AGENT", tenant, UUID.randomUUID()).subscribe(agentsTopic(tenant));
+
+        // the subscription may still be settling: repeat until the first event crosses, then check the exact flow
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            signsA.broadcaster().sendToTenantAgents(tenant, WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 1, 0));
+            return onB.messages.peek() != null;
+        });
+        onB.messages.clear();
+        onA.messages.clear();
+
+        signsA.broadcaster().sendToTenantAgents(tenant, WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 21, 0));
+        signsB.broadcaster().sendToTenantAgents(tenant, WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 22, 0));
+
+        // late probe events (waitingCount 1) may still be in flight to a socket: only 21 and 22 count
+        assertThat(awaitWaitingCounts(onB, 21, 22)).as("B receives A's and its own event").containsExactlyInAnyOrder(21, 22);
+        assertThat(awaitWaitingCounts(onA, 21, 22)).as("A receives its own and B's event").containsExactlyInAnyOrder(21, 22);
+        assertThat(signsA.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "bad_signature"))
+                .isZero();
+        assertThat(signsB.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason", "bad_signature"))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("BE-242: instancja bez zgodnego sekretu NIE przyjmuje cudzych zdarzen (zly podpis), a w trybie przejsciowym przyjmuje koperty bez podpisu")
+    void mismatchedSecretDropsAndTransitionalModeAcceptsUnsigned() throws Exception {
+        String env = "mis" + UUID.randomUUID().toString().substring(0, 6);
+        Instance sender = start("mis-s", RedisTestContainer.port(), "websocket.fanout.environment=" + env);
+        Instance strangerSecret = start("mis-x", RedisTestContainer.port(), "websocket.fanout.environment=" + env,
+                "websocket.hmac.secret=an0ther-s3cret-an0ther-s3cret-0123456789");
+        Instance legacySender = start("mis-l", RedisTestContainer.port(), "websocket.fanout.environment=" + env,
+                "websocket.hmac.secret=", "websocket.hmac.accept-unsigned=false");
+        Instance transitional = start("mis-t", RedisTestContainer.port(), "websocket.fanout.environment=" + env,
+                "websocket.hmac.accept-unsigned=true");
+        awaitFanoutListening(sender, strangerSecret, legacySender, transitional);
+        UUID tenant = UUID.randomUUID();
+        Client onStranger = new Client(strangerSecret, "AGENT", tenant, UUID.randomUUID()).subscribe(agentsTopic(tenant));
+        Client onTransitional = new Client(transitional, "AGENT", tenant, UUID.randomUUID()).subscribe(agentsTopic(tenant));
+
+        // `legacySender` (no secret) publishes UNSIGNED envelopes (a pre-BE-242 version during a rolling deploy)
+        await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(300)).until(() -> {
+            legacySender.broadcaster().sendToTenantAgents(tenant,
+                    WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 5, 0));
+            return onTransitional.messages.peek() != null;
+        });
+        assertThat(waitingCount(onTransitional.next())).isEqualTo(5);
+        assertThat(transitional.counter("ws.channel.signature.unsigned.accepted", "channel", "fanout"))
+                .isGreaterThanOrEqualTo(1);
+        // the instance with a different secret rejected the signed envelope of `sender` (and the unsigned ones)
+        sender.broadcaster().sendToTenantAgents(tenant, WebSocketEvent.queueUpdate(tenant, UUID.randomUUID(), 6, 0));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(
+                strangerSecret.counter(WebSocketFanoutMetrics.DROPPED, "direction", "receive", "reason",
+                        "bad_signature")).isGreaterThanOrEqualTo(1));
+        assertThat(onStranger.messages).as("zadne zdarzenie spoza klucza nie dotarlo").isEmpty();
     }
 }

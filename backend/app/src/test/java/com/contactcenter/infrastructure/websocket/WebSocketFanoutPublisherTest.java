@@ -51,7 +51,7 @@ class WebSocketFanoutPublisherTest {
         properties = new WebSocketFanoutProperties();
         properties.setInstanceId("inst-A");
         publisher = new WebSocketFanoutPublisher(dispatcher, redis, properties, new WebSocketFanoutMetrics(registry),
-                registry);
+                registry, new WebSocketChannelSigner(new WebSocketHmacProperties(), registry));
     }
 
     @AfterEach
@@ -151,7 +151,7 @@ class WebSocketFanoutPublisherTest {
             return 1L;
         });
         publisher = new WebSocketFanoutPublisher(dispatcher, redis, properties, new WebSocketFanoutMetrics(registry),
-                new SimpleMeterRegistry());
+                new SimpleMeterRegistry(), new WebSocketChannelSigner(new WebSocketHmacProperties(), registry));
 
         for (int i = 0; i < 6; i++) {
             publisher.publish(AGENTS, TENANT, event);
@@ -173,7 +173,7 @@ class WebSocketFanoutPublisherTest {
             return 1L;
         });
         publisher = new WebSocketFanoutPublisher(dispatcher, redis, properties, new WebSocketFanoutMetrics(registry),
-                new SimpleMeterRegistry());
+                new SimpleMeterRegistry(), new WebSocketChannelSigner(new WebSocketHmacProperties(), registry));
         for (int i = 0; i < 5; i++) {
             publisher.publish(AGENTS, TENANT, event);
         }
@@ -206,5 +206,38 @@ class WebSocketFanoutPublisherTest {
         Thread.sleep(200);
         verify(redis, never()).convertAndSend(anyString(), anyString());
         assertThat(dropped("tenant_missing")).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("BE-242: z sekretem koperta jest podpisana (sig), a podpis weryfikuje sie sekretem i NIE obcym sekretem ani na innym kanale")
+    void envelopeIsSignedWhenSecretConfigured() throws Exception {
+        publisher.shutdown();
+        WebSocketHmacProperties hmac = new WebSocketHmacProperties();
+        hmac.setSecret("s3cr3t-s3cr3t-s3cr3t-s3cr3t-s3cr3t-0123");
+        WebSocketChannelSigner signer = new WebSocketChannelSigner(hmac, registry);
+        publisher = new WebSocketFanoutPublisher(dispatcher, redis, properties, new WebSocketFanoutMetrics(registry),
+                registry, signer);
+
+        publisher.publish(AGENTS, TENANT, event);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(redis, timeout(2000)).convertAndSend(eq("cc:ws:fanout:default"), body.capture());
+        WebSocketFanoutEnvelope env = WebSocketFanoutEnvelope.fromJson(body.getValue().getBytes(StandardCharsets.UTF_8));
+        assertThat(env.sig()).isNotBlank();
+        long now = System.currentTimeMillis();
+        assertThat(signer.verify("fanout", "cc:ws:fanout:default", env.canonicalForSigning(), env.sig(), now).isAccepted())
+                .isTrue();
+        assertThat(signer.verify("fanout", "cc:ws:fanout:other", env.canonicalForSigning(), env.sig(), now).isAccepted())
+                .as("inny kanal").isFalse();
+    }
+
+    @Test
+    @DisplayName("BE-242: bez sekretu koperta nie ma pola sig (JSON bez 'sig' - zgodnosc wsteczna)")
+    void envelopeIsUnsignedWithoutSecret() throws Exception {
+        publisher.publish(AGENTS, TENANT, event);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(redis, timeout(2000)).convertAndSend(eq("cc:ws:fanout:default"), body.capture());
+        assertThat(body.getValue()).doesNotContain("\"sig\"");
     }
 }

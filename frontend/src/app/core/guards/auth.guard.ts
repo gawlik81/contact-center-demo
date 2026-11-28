@@ -21,6 +21,8 @@ export const authGuard: CanActivateFn = (_route, _state) => {
   if (tokenService.getRefreshToken()) {
     return authService.refresh().pipe(
       map(() => true),
+      // A transient refresh failure (network/5xx) lands here too: tokens are kept (no logout), the
+      // user sees the login page and the next guarded navigation retries the refresh (FE-173, R3).
       catchError(() => of(router.createUrlTree(['/auth/login']))),
     );
   }

@@ -154,8 +154,13 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly connectionState = this.ws.connectionState;
   // Deliberate local copy of WebSocketService.isDown (everything except CONNECTED/CONNECTING): the
   // desktop specs mock WebSocketService with connectionState only. Keep both rules in sync.
+  // A silent session renewal (token close -> refresh -> reconnect, FE-173) is not "offline" for the
+  // banner: it lasts seconds and happens routinely.
   protected readonly isOffline = computed(
-    () => this.connectionState() !== 'CONNECTED' && this.connectionState() !== 'CONNECTING',
+    () =>
+      this.connectionState() !== 'CONNECTED' &&
+      this.connectionState() !== 'CONNECTING' &&
+      !this.ws.renewingSession(),
   );
   protected readonly wsResuming = this.ws.resuming;
 

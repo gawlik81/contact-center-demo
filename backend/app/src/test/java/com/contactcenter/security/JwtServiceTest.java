@@ -74,6 +74,32 @@ class JwtServiceTest {
     // =========================================================================
 
     @Nested
+    @DisplayName("issueAccessToken() - sid i iat (BE-249)")
+    class SessionIdAndIssuedAt {
+
+        @Test
+        @DisplayName("token z sid niesie claim sid (identyfikator sesji logowania) oraz iat")
+        void tokenCarriesSidAndIat() {
+            UUID sid = UUID.randomUUID();
+            java.time.Instant before = java.time.Instant.now().minusSeconds(1);
+
+            String token = jwtService.issueAccessToken(buildUser(), "T", false, sid);
+
+            JwtParser.JwtClaims claims = jwtParser.parse(token);
+            assertThat(claims.sessionId()).isEqualTo(sid);
+            assertThat(claims.issuedAt()).isAfterOrEqualTo(before).isBeforeOrEqualTo(java.time.Instant.now());
+        }
+
+        @Test
+        @DisplayName("wariant 3-argumentowy i sid=null NIE dodaja claimu sid (zgodnosc wsteczna)")
+        void noSidClaimWhenNotProvided() {
+            assertThat(jwtParser.parse(jwtService.issueAccessToken(buildUser(), "T", false)).sessionId()).isNull();
+            assertThat(jwtParser.parse(jwtService.issueAccessToken(buildUser(), "T", false, null)).sessionId())
+                    .isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("issueAccessToken()")
     class IssueAccessToken {
 

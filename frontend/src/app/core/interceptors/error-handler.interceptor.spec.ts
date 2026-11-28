@@ -87,6 +87,12 @@ describe('errorHandlerInterceptor', () => {
     expect(notifications.warning).not.toHaveBeenCalled();
   });
 
+  it('a 403 from a request with SKIP_ERROR_TOAST (as /auth/refresh sends it) shows no toast (FE-173)', () => {
+    fail({}, 403, new HttpContext().set(SKIP_ERROR_TOAST, true));
+    expect(notifications.error).not.toHaveBeenCalled();
+    expect(notifications.warning).not.toHaveBeenCalled();
+  });
+
   it('respects SKIP_ERROR_TOAST', () => {
     fail({ detail: 'D' }, 400, new HttpContext().set(SKIP_ERROR_TOAST, true));
     expect(notifications.warning).not.toHaveBeenCalled();

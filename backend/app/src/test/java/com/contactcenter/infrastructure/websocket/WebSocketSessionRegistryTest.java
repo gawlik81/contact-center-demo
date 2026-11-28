@@ -236,17 +236,20 @@ class WebSocketSessionRegistryTest {
     }
 
     @Test
-    @DisplayName("restoreForRetry: wpis wraca z terminem 'teraz' i powodem zamkniecia; takeExpired go wydaje")
-    void restoreForRetryMakesEntryDueNow() {
+    @DisplayName("restoreForRetry: wpis wraca z terminem ponowienia, licznikiem prob i powodem; takeExpired go wydaje")
+    void restoreForRetryKeepsRetryDeadlineAndAttempts() {
         Entry entry = registry.register("s1", USER, TENANT, T0.plusSeconds(900));
         registry.takeUser(TENANT, USER);
 
-        registry.restoreForRetry(entry, SessionCloseReason.ROLE_CHANGED);
+        assertThat(registry.restoreForRetry(entry, SessionCloseReason.ROLE_CHANGED, T0.plusSeconds(5), 1)).isTrue();
 
         assertThat(registry.countForUser(USER)).isEqualTo(1);
+        assertThat(registry.takeExpired(clock.instant())).isEmpty();
+        clock.advance(Duration.ofSeconds(5));
         assertThat(registry.takeExpired(clock.instant())).singleElement().satisfies(e -> {
             assertThat(e.deadlineReason()).isEqualTo(SessionCloseReason.ROLE_CHANGED);
-            assertThat(e.deadline()).isEqualTo(T0);
+            assertThat(e.deadline()).isEqualTo(T0.plusSeconds(5));
+            assertThat(e.closeAttempts()).isEqualTo(1);
         });
         assertThat(registry.userIndexSize()).isZero();
     }
@@ -258,7 +261,7 @@ class WebSocketSessionRegistryTest {
         registry.takeUser(TENANT, USER);
         registry.onDisconnect(disconnect("s1")); // brak wpisu -> tombstone
 
-        registry.restoreForRetry(entry, SessionCloseReason.LOGOUT);
+        assertThat(registry.restoreForRetry(entry, SessionCloseReason.LOGOUT, clock.instant(), 1)).isFalse();
 
         assertThat(registry.size()).isZero();
         assertThat(registry.userIndexSize()).isZero();
@@ -276,5 +279,120 @@ class WebSocketSessionRegistryTest {
                 accessor.getMessageHeaders());
         return new SessionDisconnectEvent("test", message, sessionId,
                 org.springframework.web.socket.CloseStatus.NORMAL);
+    }
+
+    // ---------------------------------------------------------------- BE-249: sid, tombstone
+
+    @Test
+    @DisplayName("takeLoginSession: sesje danego sid + sesje bez sid; inne urzadzenie i inny tenant zostaja")
+    void takeLoginSessionTakesThatDeviceAndLegacyEntries() {
+        UUID sidA = UUID.randomUUID();
+        UUID sidB = UUID.randomUUID();
+        registry.register("a", USER, TENANT, sidA, null);
+        registry.register("b", USER, TENANT, sidB, null);
+        registry.register("legacy", USER, TENANT, null, null);
+        registry.register("foreign", USER, OTHER_TENANT, sidA, null);
+
+        assertThat(registry.takeLoginSession(TENANT, USER, sidA)).extracting(Entry::sessionId)
+                .containsExactlyInAnyOrder("a", "legacy");
+        assertThat(registry.size()).isEqualTo(2);
+        assertThat(registry.countForUser(USER)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("takeUserExceptLoginSession: wszystko poza biezacym sid (wlacznie z bez sid)")
+    void takeUserExceptLoginSessionKeepsCurrentDevice() {
+        UUID keep = UUID.randomUUID();
+        registry.register("keep1", USER, TENANT, keep, null);
+        registry.register("keep2", USER, TENANT, keep, null);
+        registry.register("other", USER, TENANT, UUID.randomUUID(), null);
+        registry.register("legacy", USER, TENANT, null, null);
+
+        assertThat(registry.takeUserExceptLoginSession(TENANT, USER, keep)).extracting(Entry::sessionId)
+                .containsExactlyInAnyOrder("other", "legacy");
+        assertThat(registry.countForUser(USER)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Entry zapisuje sid z CONNECT")
+    void entryStoresLoginSessionId() {
+        UUID sid = UUID.randomUUID();
+
+        Entry e = registry.register("s1", USER, TENANT, sid, null);
+
+        assertThat(e.loginSessionId()).isEqualTo(sid);
+        assertThat(e.closeAttempts()).isZero();
+    }
+
+    @Test
+    @DisplayName("R1/R4: gauge ws.sessions.tombstones; nasycenie wyrzuca NAJSTARSZY tombstone (licznik capacity), nie nowy")
+    void tombstoneGaugeAndSaturationEvictsOldest() {
+        registry.unregister("oldest");
+        registry.unregister("second");
+        assertThat(meters.get(WebSocketSessionRegistry.GAUGE_TOMBSTONES).gauge().value()).isEqualTo(2);
+
+        for (int i = 0; i < 10_000; i++) {
+            registry.unregister("x" + i);
+        }
+
+        assertThat(registry.tombstoneCount()).isEqualTo(10_000);
+        assertThat(meters.get(WebSocketSessionRegistry.METRIC_TOMBSTONE_DROPPED).tag("reason", "capacity").counter()
+                .count()).isEqualTo(2);
+        // the oldest ones were evicted, so their late register is accepted; the newest tombstone still refuses
+        assertThat(registry.register("oldest", USER, TENANT, null)).isNotNull();
+        assertThat(registry.register("x9999", USER, TENANT, null)).as("najnowszy tombstone dziala").isNull();
+        assertThat(meters.get(WebSocketSessionRegistry.METRIC_TOMBSTONE_DROPPED).tag("reason", "register_refused")
+                .counter().count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("R4: restoreForRetry po rozlaczeniu (tombstone) zwraca false i nie wskrzesza wpisu")
+    void restoreForRetryChecksTombstone() {
+        Entry entry = registry.register("s1", USER, TENANT, null);
+        registry.takeUser(TENANT, USER);
+        registry.unregister("s1");
+
+        assertThat(registry.restoreForRetry(entry, SessionCloseReason.LOGOUT, T0.plusSeconds(5), 1)).isFalse();
+        assertThat(registry.size()).isZero();
+    }
+
+    @Test
+    @DisplayName("R5: register po rozlaczeniu (tombstone) zwraca null i zuzywa tombstone")
+    void registerAfterDisconnectReturnsNullOnce() {
+        registry.onDisconnect(disconnect("late"));
+
+        assertThat(registry.register("late", USER, TENANT, null)).isNull();
+        assertThat(registry.register("late", USER, TENANT, null)).as("tombstone zuzyty").isNotNull();
+    }
+
+    @Test
+    @DisplayName("W3: take*(notAfter) pomija sesje zarejestrowane PO notAfter (powtorzona koperta nie zamyka swiezej sesji)")
+    void takeWithNotAfterSkipsNewerSessions() {
+        UUID sid = UUID.randomUUID();
+        registry.register("before", USER, TENANT, sid, null);
+        Instant eventTime = clock.instant();
+        clock.advance(Duration.ofMinutes(1));
+        registry.register("after", USER, TENANT, sid, null); // e.g. a re-login after the original event
+
+        assertThat(registry.takeUser(TENANT, USER, eventTime)).extracting(Entry::sessionId).containsExactly("before");
+        assertThat(registry.takeLoginSession(TENANT, USER, sid, eventTime)).isEmpty();
+        assertThat(registry.takeUserExceptLoginSession(TENANT, USER, UUID.randomUUID(), eventTime)).isEmpty();
+        assertThat(registry.takeTenant(TENANT, eventTime)).isEmpty();
+        assertThat(registry.countForUser(USER)).as("swieza sesja przetrwala wszystkie warianty").isEqualTo(1);
+        assertThat(registry.takeUser(TENANT, USER)).as("bez ograniczenia: zamykana").hasSize(1);
+    }
+
+    @Test
+    @DisplayName("W3: Entry zapisuje registeredAt (zegar rejestru) i zachowuje go przy restoreForRetry")
+    void registeredAtIsStoredAndKeptOnRetry() {
+        Entry e = registry.register("s1", USER, TENANT, null);
+        assertThat(e.registeredAt()).isEqualTo(T0);
+        registry.takeUser(TENANT, USER);
+        clock.advance(Duration.ofMinutes(2));
+
+        registry.restoreForRetry(e, SessionCloseReason.LOGOUT, clock.instant(), 1);
+
+        assertThat(registry.takeExpired(clock.instant())).singleElement()
+                .satisfies(r -> assertThat(r.registeredAt()).isEqualTo(T0));
     }
 }

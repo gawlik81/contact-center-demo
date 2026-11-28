@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * BE-156 on a REAL PostgreSQL (Testcontainers, full Flyway chain), repository under a restricted login role
@@ -279,6 +281,16 @@ class ContactAsyncLimitIntegrationTest {
         assertThat(status(c.getContactId())).isEqualTo("QUEUED");
     }
 
+    /** Number of backends of the current database parked on the (ungranted) advisory lock for {@code lockKey}. */
+    private int waitersOnAdvisoryLock(String lockKey) {
+        Integer n = superJdbc.queryForObject(
+                "SELECT COUNT(*)::int FROM pg_locks l WHERE l.locktype = 'advisory' AND NOT l.granted "
+                        + "AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database()) "
+                        + "AND ((l.classid::bigint << 32) | l.objid::bigint) = hashtextextended(?, 0)",
+                Integer.class, lockKey);
+        return n == null ? 0 : n;
+    }
+
     @Test
     @DisplayName("lock agenta realnie serializuje: zapis czeka na posiadacza locka i po jego commicie widzi nowy slot")
     void assignmentWaitsForAgentLockAndSeesCommittedSlot() throws Exception {
@@ -308,7 +320,14 @@ class ContactAsyncLimitIntegrationTest {
                     repository.assignIfQueued(waiting.getContactId(), tenantId, waiting.getStartedAt(), agentA,
                             queueId, 1)));
 
-            Thread.sleep(500);
+            // BE-250: no fixed sleep - prove from pg_locks that a backend is really parked on the agent lock
+            // (ungranted advisory lock with exactly the key the holder owns), polling with a hard deadline.
+            // superJdbc (superuser) sees every backend's locks, independent of the restricted app role.
+            String lockKey = tenantId + ":" + agentA;
+            await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(20))
+                    .failFast("assignment finished instead of waiting on the agent lock", waiter::isDone)
+                    .untilAsserted(() -> assertThat(waitersOnAdvisoryLock(lockKey))
+                            .as("backends waiting (not granted) on the agent advisory lock").isEqualTo(1));
             assertThat(waiter.isDone()).as("the assignment must block on the agent lock").isFalse();
 
             holder.commit();

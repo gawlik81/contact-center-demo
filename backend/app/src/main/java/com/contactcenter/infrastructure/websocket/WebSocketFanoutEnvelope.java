@@ -1,6 +1,8 @@
 package com.contactcenter.infrastructure.websocket;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,15 +19,42 @@ import java.util.UUID;
  * @param tenantId tenant of the event; for tenant topics it MUST equal the tenant embedded in {@code dest}
  * @param ts       publish time, epoch millis (lag metric; subject to clock skew between hosts)
  * @param payload  the event already serialized by the messaging converter (JSON text), delivered byte-for-byte
+ * @param sig      HMAC-SHA256 signature (BE-242, base64url) over the channel name and every field above; absent when
+ *                 signing is off. See {@link WebSocketChannelSigner}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record WebSocketFanoutEnvelope(int v, String src, String dest, UUID tenantId, long ts, String payload) {
+public record WebSocketFanoutEnvelope(int v, String src, String dest, UUID tenantId, long ts, String payload,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) String sig) {
 
     public static final int VERSION = 1;
 
     // Plain mapper: the envelope holds only strings, a UUID and numbers (the event itself is already serialized).
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    /** An unsigned envelope. */
+    public WebSocketFanoutEnvelope(int v, String src, String dest, UUID tenantId, long ts, String payload) {
+        this(v, src, dest, tenantId, ts, payload, null);
+    }
+
+    /**
+     * Fixed-order, NUL-separated form of the fields covered by the signature ({@code payload} last: it is the only
+     * free-form text and a NUL cannot occur unescaped in JSON, so the fields cannot be shifted into one another).
+     */
+    @JsonIgnore
+    public String canonicalForSigning() {
+        return v + "\0" + nullToEmpty(src) + "\0" + nullToEmpty(dest) + "\0" + (tenantId == null ? "" : tenantId)
+                + "\0" + ts + "\0" + nullToEmpty(payload);
+    }
+
+    /** Copy of this envelope carrying {@code signature}. */
+    public WebSocketFanoutEnvelope withSignature(String signature) {
+        return new WebSocketFanoutEnvelope(v, src, dest, tenantId, ts, payload, signature);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
 
     public String toJson() {
         try {

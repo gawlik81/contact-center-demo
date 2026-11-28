@@ -1,5 +1,6 @@
 package com.contactcenter.security;
 
+import com.contactcenter.domain.tenant.TenantStatusGate;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import com.contactcenter.security.JwtParser.JwtValidationException;
 import io.jsonwebtoken.Claims;
@@ -76,6 +77,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtParser jwtParser;
     private final TokenBlacklistService tokenBlacklistService;
     private final UserDetailsServiceImpl userDetailsService;
+    private final TokenRevocationService tokenRevocationService;
+    private final TenantStatusGate tenantStatusGate;
 
     @Override
     protected void doFilterInternal(
@@ -111,11 +114,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Krok 1: Parsuj i waliduj token (podpis, exp, iss, claims)
             JwtClaims claims = jwtParser.parse(token);
 
-            // Krok 2: Sprawdź blacklistę Redis (logout/revoke)
-            if (tokenBlacklistService.isBlacklisted(token)) {
-                log.info("[JwtAuthFilter] Token na blackliście Redis. Odmowa dostępu dla userId={}",
+            // Krok 2 (BE-249 N2): blacklista (logout/revoke) ORAZ znacznik "unieważnione od" (per user / per sid,
+            // porównanie z iat tokenu) jednym MGET. Awaria Redis = wyjątek w tym try -> catch (Exception) niżej,
+            // SecurityContext pusty, chroniony endpoint odpowiada 401 przez authenticationEntryPoint w SecurityConfig (fail-closed).
+            if (tokenRevocationService.isBlacklistedOrRevoked(tokenBlacklistService.blacklistKey(token),
+                    claims.userId(), claims.sessionId(), claims.issuedAt())) {
+                // Bez SecurityContext -> authenticationEntryPoint zwróci 401 (front odświeża/wylogowuje tylko na 401).
+                // DEBUG: front odpytuje API co kilka sekund, więc po unieważnieniu byłoby to dziesiątki wpisów INFO
+                log.debug("[JwtAuthFilter] Token unieważniony (blacklista/znacznik). Odmowa dostępu dla userId={}",
                         claims.userId());
-                // Przepuszczamy bez ustawiania SecurityContext – Spring Security zwróci 401
+                filterChain.doFilter(request, response);
+                return;
+            }
+            // Krok 2b (BE-249): status tenanta (lokalny cache TTL 30 s, SUPER_ADMIN bez tenanta pomijany)
+            if (tenantStatusGate.isBlocked(claims.tenantId())) {
+                log.debug("[JwtAuthFilter] Tenant nieaktywny. Odmowa dostępu dla userId={}, tenantId={}",
+                        claims.userId(), claims.tenantId());
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -145,7 +159,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Nieprawidłowy/wygasły token – przepuszczamy bez SecurityContext
             log.debug("[JwtAuthFilter] Walidacja JWT nieudana: {}", e.getMessage());
         } catch (Exception e) {
-            // Nieoczekiwany błąd – logujemy i przepuszczamy (nie blokujemy ruchu awaryjnie)
+            // Nieoczekiwany błąd (w tym awaria Redis przy blackliście/znaczniku) – logujemy i przepuszczamy ŻĄDANIE
+            // dalej BEZ SecurityContext, więc chroniony endpoint odpowie 401 przez authenticationEntryPoint (nie nadajemy uprawnień awaryjnie)
             log.warn("[JwtAuthFilter] Nieoczekiwany błąd podczas przetwarzania JWT: {}", e.getMessage());
         }
 

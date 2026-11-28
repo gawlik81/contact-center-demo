@@ -161,4 +161,47 @@ class StompErrorCodeHandlerTest {
                 "WS_FORBIDDEN", "WS_NO_SESSION", "WS_TOKEN_MISSING", "WS_TOKEN_EXPIRED", "WS_TOKEN_INVALID",
                 "WS_INTERNAL");
     }
+
+    @Test
+    @DisplayName("R7 (BE-249): WS_INTERNAL z StompRejectedException = oczekiwane odrzucenie (brak ERROR i stack trace); "
+            + "zwykly wyjatek na poprawnej ramce = ERROR ze stack trace; kod i sanityzacja message w obu przypadkach")
+    void expectedInternalRejectionIsQuietButOtherInternalErrorsAreLogged() {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(StompErrorCodeHandler.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        ch.qos.logback.classic.Level previous = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        try {
+            // (a) the interceptor rejects a CONNECT because Redis is down: WS_INTERNAL, but EXPECTED -> no ERROR event
+            Message<byte[]> expected = handler.handleClientMessageProcessingError(clientFrame(null),
+                    new MessageDeliveryException(clientFrame(null),
+                            new StompRejectedException(WsErrorCode.WS_INTERNAL, "Nie można zweryfikować tokenu")));
+            assertThat(errorOf(expected).getFirstNativeHeader("code")).isEqualTo("WS_INTERNAL");
+            assertThat(errorOf(expected).getMessage()).isEqualTo(StompErrorCodeHandler.INTERNAL_MESSAGE);
+            assertThat(appender.list).noneMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR);
+            assertThat(appender.list).noneMatch(e -> e.getThrowableProxy() != null);
+
+            // (b) any OTHER failure on a well-formed frame: still WS_INTERNAL, but logged as ERROR with the exception
+            appender.list.clear();
+            Message<byte[]> unexpected = handler.handleClientMessageProcessingError(clientFrame(null),
+                    new IllegalStateException("db exploded"));
+            assertThat(errorOf(unexpected).getFirstNativeHeader("code")).isEqualTo("WS_INTERNAL");
+            assertThat(errorOf(unexpected).getMessage()).doesNotContain("db exploded");
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.get(0).getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+            assertThat(appender.list.get(0).getThrowableProxy()).isNotNull();
+
+            // (c) a StompRejectedException with a NON-internal code is not a WS_INTERNAL case at all: nothing logged
+            appender.list.clear();
+            handler.handleClientMessageProcessingError(clientFrame(null),
+                    new StompRejectedException(WsErrorCode.WS_TOKEN_INVALID, "x"));
+            assertThat(appender.list).noneMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.ERROR);
+        } finally {
+            logger.setLevel(previous);
+            logger.detachAppender(appender);
+        }
+    }
 }

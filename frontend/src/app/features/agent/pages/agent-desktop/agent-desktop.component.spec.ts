@@ -33,6 +33,7 @@ describe('AgentDesktopComponent ringing behaviour', () => {
   let store: ContactTabStore;
   const dismissAlert = vi.fn();
   const wsState = signal<string>('CONNECTED');
+  const wsRenewing = signal(false);
   const registerTopic = vi.fn();
 
   const desktop = () =>
@@ -72,6 +73,7 @@ describe('AgentDesktopComponent ringing behaviour', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     wsState.set('CONNECTED');
+    wsRenewing.set(false);
     TestBed.configureTestingModule({
       imports: [
         AgentDesktopComponent,
@@ -87,6 +89,7 @@ describe('AgentDesktopComponent ringing behaviour', () => {
             events$: new Subject(),
             connectionState: wsState,
             resuming: signal(false),
+            renewingSession: wsRenewing,
             registerTopic,
             isDown: computed(() => wsState() !== 'CONNECTED' && wsState() !== 'CONNECTING'),
           },
@@ -265,5 +268,15 @@ describe('AgentDesktopComponent ringing behaviour', () => {
     expect([c.isOffline(), c.wsRejection()]).toEqual([true, 'FORBIDDEN']);
     wsState.set('SESSION_EXPIRED');
     expect([c.isOffline(), c.wsRejection()]).toEqual([true, 'SESSION_EXPIRED']);
+  });
+
+  it('isOffline (the banner condition) is false during a silent session renewal and true afterwards (FE-173)', () => {
+    // The spec swaps the template for TEST_TEMPLATE, so the banner condition is asserted directly.
+    const c = fixture.componentInstance as unknown as { isOffline: () => boolean };
+    wsState.set('DISCONNECTED');
+    wsRenewing.set(true);
+    expect(c.isOffline()).toBe(false);
+    wsRenewing.set(false);
+    expect(c.isOffline()).toBe(true);
   });
 });

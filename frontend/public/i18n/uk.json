@@ -88,6 +88,7 @@
     }
   },
   "auth": {
+    "sessionEnded": "Сесію завершено – увійдіть знову",
     "login": {
       "title": "Вхід",
       "emailLabel": "Адреса e-mail",

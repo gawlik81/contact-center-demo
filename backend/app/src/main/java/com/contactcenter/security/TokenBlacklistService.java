@@ -81,6 +81,11 @@ public class TokenBlacklistService {
         return Boolean.TRUE.equals(exists);
     }
 
+    /** Redis key of a blacklisted token (BE-249 N2: lets the HTTP filter fetch it together with the revocation markers in ONE MGET). */
+    public String blacklistKey(String accessToken) {
+        return buildKey(accessToken);
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

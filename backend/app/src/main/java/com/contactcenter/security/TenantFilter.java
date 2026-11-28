@@ -11,17 +11,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.net.URI;
-import java.time.Instant;
 
 /**
  * Filtr HTTP ekstrahujący tenant_id i user_id z JWT i ustawiający {@link TenantContext}.
@@ -56,7 +51,6 @@ import java.time.Instant;
 public class TenantFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final String ERROR_BASE_URI = "https://contactcenter.io/errors/";
 
     // MDC klucze – synchronizowane z wzorcem logowania w application.yml
     static final String MDC_TENANT_ID  = "tenantId";
@@ -170,19 +164,13 @@ public class TenantFilter extends OncePerRequestFilter {
      * <p>Nie deleguje do Spring Security, bo TenantFilter działa przed
      * {@code ExceptionTranslationFilter}. Błąd musi być zapisany bezpośrednio
      * do {@code HttpServletResponse}.
+     *
+     * <p>Zapis idzie przez {@link UnauthorizedResponseWriter}, wspolny z {@code authenticationEntryPoint}
+     * w {@link SecurityConfig} (ten sam {@code type}/{@code title}/{@code WWW-Authenticate}); nie duplikuj
+     * tej logiki lokalnie.
      */
     private void sendUnauthorized(HttpServletResponse response, String detail) throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
-        problem.setType(URI.create(ERROR_BASE_URI + "unauthorized"));
-        problem.setTitle("Brak uwierzytelnienia");
-        problem.setDetail(detail);
-        // Używamy String zamiast Instant – ObjectMapper w filtrze może nie mieć modułu JSR310
-        problem.setProperty("timestamp", Instant.now().toString());
-
-        response.setStatus(HttpStatus.UNAUTHORIZED.value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(), problem);
+        UnauthorizedResponseWriter.write(response, objectMapper, detail);
     }
 
     /**

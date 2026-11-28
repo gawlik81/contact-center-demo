@@ -1095,31 +1095,87 @@ na kod, surowe ramki STOMP), `StompErrorCodeHandlerTest`.
 **Życie sesji WS a życie tokenu (BE-233).** Principal jest ustawiany raz, przy CONNECT, więc sesja żyła do rozłączenia
 niezależnie od ważności tokenu. Teraz:
 
-- **Blacklista JWT przy CONNECT/STOMP** (`WebSocketAuthInterceptor` + `TokenBlacklistService`, jak `JwtAuthFilter`):
-  token z blacklisty = ERROR `WS_TOKEN_INVALID` (FE: jedna próba refresh, po logout/dezaktywacji refresh się nie powiedzie
-  -> `SESSION_EXPIRED`, brak pętli). Redis niedostępny = fail-closed, ERROR `WS_INTERNAL` (FE: reconnect z backoffem).
-- **Rejestr sesji po `userId`** (`WebSocketSessionRegistry`, lokalny per instancja; wpis przy CONNECT, usunięcie przy
-  `SessionDisconnectEvent` — publikowanym także przy zamknięciu transportu). Gauge `ws.sessions.active` (bez tagów).
-- **Zamykanie sesji użytkownika/tenanta na WSZYSTKICH instancjach** (`WebSocketSessionTerminator` ->
-  `WebSocketSessionTerminatorImpl`): po commicie transakcji najpierw zamyka sesje lokalnie (działa bez Redis), potem
-  publikuje kopertę `CLOSE_USER {tenantId,userId,reason}` / `CLOSE_TENANT {tenantId}` na kanał Redis
-  `cc:ws:session-control:<env>` (`WebSocketSessionControlBus`, wzorzec BE-175/BE-178: id instancji, limit rozmiaru,
-  walidacja kształtu, metryki `ws.session.control.*`). Odbiorca dopasowuje PARĘ tenant/user z koperty do principala
-  sesji (obcy tenant = nic nie zamyka). Wywołania: `AuthServiceImpl.logout/logoutAll/forcePasswordReset`,
-  `AdminUserServiceImpl.updateUser` (zmiana roli, `active=false`) / `deleteUser` / `forcePasswordReset`,
-  `UserServiceImpl.deleteUser`, `TenantServiceImpl.deactivateTenant` oraz `updateTenant` ze statusem INACTIVE.
+- **Blacklista JWT, znacznik „unieważnione od” i status tenanta przy CONNECT/STOMP** (`WebSocketAuthInterceptor`; te same
+  warunki co `JwtAuthFilter` dla HTTP): token z blacklisty (`TokenBlacklistService`), wystawiony PRZED znacznikiem
+  (`TokenRevocationService`, BE-249) albo użytkownika `INACTIVE` tenanta (`TenantStatusGate`) = ERROR `WS_TOKEN_INVALID`
+  (FE: jedna próba refresh, po logout/dezaktywacji refresh się nie powiedzie -> `SESSION_EXPIRED`, brak pętli).
+  Redis/baza niedostępne = fail-closed, ERROR `WS_INTERNAL` (FE: reconnect z backoffem). Bez nowego kodu błędu (kontrakt
+  z FE-173: `WS_TOKEN_INVALID` / `WS_TOKEN_EXPIRED`). Metryka `ws.connect.rejected{code}` liczy każde odrzucenie (alert na
+  martwy Redis niezależny od logów: przyrost `code="WS_INTERNAL"`). Po `register` sprawdzenie jest powtarzane (wyścig z
+  logoutem); `register` zwracający `null` (rozłączenie wyprzedziło CONNECT, tombstone) nie psuje CONNECT.
+- **Rejestr sesji po `userId` i po sesji logowania** (`WebSocketSessionRegistry`, lokalny per instancja; wpis `Entry` przy
+  CONNECT niesie claim `sid`, usunięcie przy `SessionDisconnectEvent`). Gauge `ws.sessions.active` (bez tagów),
+  `ws.sessions.tombstones`, licznik `ws.sessions.tombstone.dropped{reason=capacity|register_refused}` (przy nasyceniu
+  limitu 10 000 wypada NAJSTARSZY tombstone; `restoreForRetry` sprawdza tombstone i nie wskrzesza rozłączonej sesji).
+- **Sesja logowania (`sid`, BE-249, migracja V152).** Rodzina refresh tokenów (`refresh_token.session_id`): login zakłada
+  nową, rotacja ją dziedziczy, claim `sid` trafia do każdego access tokenu rodziny i do `Entry`. Dzięki temu `logout`
+  zamyka sesje WS TEGO urządzenia (także gdy sesja WS powstała starszym access tokenem sprzed odświeżenia), a `logoutAll`
+  wszystkie. `sid` ustala `AuthServiceImpl#identifyCaller`: z podpisanego access tokenu, a gdy go brak (token sprzed BE-249
+  lub wygasły) — z rodziny przekazanego refresh tokenu, WYŁĄCZNIE gdy należy do tego samego użytkownika; gdy nie da się
+  ustalić — zamykane są sesje wszystkich urządzeń (bezpieczniej niż zostawić sesję wylogowanego). Wpisy rejestru BEZ `sid`
+  (token sprzed BE-249) są zamykane przy każdym zamknięciu per `sid` (jednorazowy nadmiar zamknięć w oknie wdrożenia).
+- **Znacznik „unieważnione od” (`TokenRevocationService`, BE-249, W2).** Zamknięcie sesji nie unieważnia tokenu, więc po
+  zdarzeniu zapisujemy w Redis czas zdarzenia (epoch sekundy, czas COMMITU, TTL = TTL access tokenu + 1 min):
+  `ws:revoked-since:{userId}` (dezaktywacja, zmiana roli, reset hasła, `logoutAll`) albo `ws:revoked-since:sid:{sid}`
+  (logout jednego urządzenia; hasła: inne urządzenia). Odrzucany jest token z `iat` STARSZYM niż znacznik (porównanie w
+  sekundach, `iat < znacznik`; token z tej samej sekundy przed zdarzeniem przechodzi — okno do 1 s, a znany access token jest
+  też blacklistowany po skrócie); nowy token po ponownym logowaniu/refreshu działa. Jeden `MGET` na sprawdzenie (na ścieżce HTTP razem z wpisem blacklisty JWT). Awaria
+  Redis na ścieżce HTTP zachowuje się TAK SAMO jak awaria blacklisty (wyjątek w `try` `JwtAuthFilter` = brak
+  uwierzytelnienia = 401), CONNECT jest fail-closed (`WS_INTERNAL`); zapis znacznika nigdy nie rzuca (logout nie może
+  zawieść przez Redis) — przy awarii zapisu stary token żyje do `exp`.
+- **Bramka statusu tenanta (`TenantStatusGate`, BE-249).** `login` (po weryfikacji hasła), `refresh`, CONNECT i
+  `JwtAuthFilter` pytają jedną bramkę: lokalny cache Caffeine, TTL 30 s (`tenant.status-gate.ttl`), czyta tylko kolumnę
+  `status`; `INACTIVE` blokuje (SUSPENDED i nieznany tenant NIE blokują: SUSPENDED jest w modelu tylko statusem informacyjnym — alert w panelu admina — bez zdefiniowanej semantyki dostępu; koperta `CLOSE_TENANT` unieważnia wpis bramki na każdej instancji od razu) (403 `DisabledException` w login/refresh, brak uwierzytelnienia w filtrze, `WS_TOKEN_INVALID`
+  w CONNECT); SUPER_ADMIN (bez tenanta) pomijany bez odczytu. `updateTenant`/`deactivateTenant` unieważniają wpis na własnej
+  instancji (przed i po commicie), pozostałe instancje po najwyżej TTL; reaktywacja działa tak samo. Koszt w filtrze HTTP:
+  wyszukanie w mapie, odczyt z bazy raz na tenant na TTL na instancję.
+- **Zamykanie sesji na WSZYSTKICH instancjach** (`WebSocketSessionTerminator` -> `WebSocketSessionTerminatorImpl`): po
+  commicie transakcji przekazuje JEDNO zadanie do ograniczonego executora (`websocket.session.control.publish-threads`/
+  `publish-queue-capacity`; wątek żądania i transakcja nie czekają na Redis, W4), które w tej kolejności: zamyka sesje
+  lokalnie (działa bez Redis), zapisuje znacznik (monotonicznie: skrypt Lua „tylko jeśli większy”, kolejność zapisów nie
+  cofa znacznika), ZNOWU zamyka lokalnie (sesja otwarta tym samym tokenem między pierwszym zamknięciem a znacznikiem),
+  publikuje kopertę na kanał Redis `cc:ws:session-control:<env>`
+  (`WebSocketSessionControlBus`, wzorzec BE-175/BE-178). Kroki są izolowane (awaria jednego nie pomija następnych); przy
+  nasyconym executorze zamykane są tylko sesje lokalne (znacznik i koperta pomijane, licznik
+  `ws.session.control.async.rejected`). Typy kopert: `CLOSE_USER`, `CLOSE_SESSION {sid}` (logout urządzenia),
+  `CLOSE_USER_EXCEPT_SESSION {sid}` (zmiana hasła: pozostałe urządzenia), `CLOSE_TENANT`. Odbiorca dopasowuje PARĘ
+  tenant/user do principala sesji (obcy tenant = nic nie zamyka). Wywołania: `AuthServiceImpl.logout/logoutAll/
+  forcePasswordReset/changePassword`, `AdminUserServiceImpl.updateUser` (zmiana roli, `active=false`) / `deleteUser` /
+  `forcePasswordReset`, `UserServiceImpl.deleteUser`, `TenantServiceImpl.deactivateTenant` oraz `updateTenant` ze statusem
+  INACTIVE. Samodzielna zmiana hasła (`changePassword`) wylogowuje POZOSTAŁE urządzenia (refresh tokeny, sesje WS, znaczniki
+  per `sid`), bieżące dostaje nową parę tokenów w tej samej sesji logowania.
+- **HMAC kopert (BE-242/BE-249).** Wszystkie koperty `cc:ws:*` (fan-out i sterowanie sesjami) niosą pole `sig`
+  (`WebSocketChannelSigner`, HMAC-SHA256, base64url): jeden wspólny sekret `WEBSOCKET_HMAC_SECRET`, nazwa kanału i wszystkie
+  pola (w tym `ts`) w podpisanych danych, porównanie w stałym czasie, okno świeżości 5 min. Rotacja: sekret bieżący +
+  opcjonalny `WEBSOCKET_HMAC_PREVIOUS_SECRET` (podpisujemy zawsze bieżącym). Tryb przejściowy
+  `WEBSOCKET_HMAC_ACCEPT_UNSIGNED` akceptuje koperty bez podpisu (zły podpis zawsze odrzucany). Na profilu `prod` sekret
+  jest wymagany (`websocket.hmac.required=true`, min. 32 bajty — twarda podłoga niezależna od konfiguracji; okno świeżości
+  ma górną granicę 15 min; inaczej start kończy się błędem), poza prod podpisywanie jest wyłączone przy braku sekretu.
+  Ochrona przed powtórką: pamięć ostatnich podpisów (`WebSocketReplayGuard`, drop `reason=replay`) oraz `Entry.registeredAt`
+  — zamknięcie z koperty obejmuje tylko sesje zarejestrowane do `ts` koperty + `replay-tolerance` (5 s), więc powtórzona
+  koperta nie zamknie sesji powstałych po ponownym logowaniu/reaktywacji. Gauge `ws.channel.accept_unsigned` = 1 przy
+  włączonym trybie przejściowym (alarm). Metryki: `ws.channel.signature.rejected{channel,reason}` (`bad_signature`,
+  `missing_signature`, `stale_signature`), `ws.channel.signature.unsigned.accepted{channel}`; odrzucenie liczy się też w
+  `ws.fanout.dropped` / `ws.session.control.dropped`. Kanał wtyczek (BE-245) użyje tego samego komponentu później.
+  Operacyjnie (generowanie, rotacja, Redis ACL): `DEPLOYMENT.md`, sekcja „Kanały Redis cc:ws:*”.
 - **Zamknięcie** = ramka `ERROR` z `code` (`WebSocketSessionCloser` wysyła ją przez `clientOutboundChannel`; Spring zamyka
-  transport po wychodzącym ERROR): `WS_TOKEN_INVALID` dla logout/dezaktywacji/zmiany roli/resetu hasła/dezaktywacji
+  transport po wychodzącym ERROR): `WS_TOKEN_INVALID` dla logout/dezaktywacji/zmiany roli/resetu i zmiany hasła/dezaktywacji
   tenanta (FE odświeża token: po zmianie roli dostaje token z nową rolą i łączy się ponownie, po logout/dezaktywacji
   refresh jest odrzucony), `WS_TOKEN_EXPIRED` dla terminu życia. Treść ramki ogólna, bez powodu i identyfikatorów.
+- **Ponowienia zamknięcia.** Zamknięcie, którego ramka nie weszła do `clientOutboundChannel`, wraca do rejestru z terminem
+  `min(5 s * 2^n, 60 s)` (`websocket.session.close-retry-base`/`close-retry-max`), po `close-max-attempts` (10) sesja jest
+  NIE porzucana (fail-open): ponawianie trwa co `close-retry-max`, a `ws.sessions.close.abandoned{reason}` rośnie przy każdej
+  kolejnej porażce jako alarm (+ zagregowany WARN na cykl), obok `ws.sessions.close.failures`.
 - **Maksymalny czas życia sesji**: termin = wcześniejszy z `exp` tokenu z CONNECT i twardego limitu; jeden współdzielony
-  `@Scheduled` (bez ShedLock — każda instancja zamyka SWOJE sesje) co `websocket.session.sweep-interval-ms`.
+  `@Scheduled` (bez ShedLock — każda instancja zamyka SWOJE sesje) co `websocket.session.sweep-interval-ms`; metryki
+  sweepu: `ws.sessions.sweep.duration` (timer), `ws.sessions.sweep.expired` (liczba wygasłych w cyklu), `ws.sessions.sweep.errors`.
   Konfiguracja `websocket.session.*` (`WEBSOCKET_SESSION_MAX_LIFETIME` domyślnie PT12H, `..._CLOSE_AT_TOKEN_EXPIRY`
   true, `..._TOKEN_EXPIRY_GRACE` PT0S, `..._CLOSE_JITTER` PT30S, `..._SWEEP_INTERVAL_MS` 5000) oraz
-  `websocket.session.control.*` (`WEBSOCKET_SESSION_CONTROL_ENABLED`, `..._CHANNEL`, `WEBSOCKET_SESSION_ENV`,
-  `..._INSTANCE_ID`).
-- Ograniczenia: utrata koperty (Redis down) zostawia sesje INNYCH instancji do `exp` tokenu / limitu; stary, jeszcze
-  ważny access token po zmianie roli/dezaktywacji nadal otwiera nową sesję WS (tak samo jak wywołania HTTP) do swojego `exp`.
+  `websocket.session.control.*` (`WEBSOCKET_SESSION_CONTROL_ENABLED`, `..._CHANNEL`, `WEBSOCKET_SESSION_ENV` — na prod
+  WYMAGANA jawnie, bez wartości domyślnej, `..._INSTANCE_ID`).
+- Ograniczenia: utrata koperty (Redis down) zostawia sesje INNYCH instancji do `exp` tokenu / limitu; tokeny wystawione
+  przed BE-249 nie mają `sid`, więc per-urządzeniowy znacznik ich nie obejmuje (do `exp`, max TTL access tokenu); zapis
+  znacznika przy martwym Redis jest pomijany (licznik `auth.token.revocation.mark.failures`).
 
 ---
 
@@ -1793,8 +1849,12 @@ robocze fan-outu (tworzone leniwie z dowolnego wątku wywołującego) czyszczą 
 (`StompDestinations`); dla tematów tenanta wymaga zgodności tenanta koperty z tenantem destynacji. Dla
 `/topic/user/{id}/events` wymaga lokalnej sesji użytkownika w `SimpUserRegistry` (brak = drop `no_local_session`,
 czyli też optymalizacja N x fan-in) i zgodności tenanta koperty z tenantem principala sesji (`StompPrincipal`;
-`null` w kopercie nie da się zweryfikować i przechodzi). Podpis HMAC koperty NIE jest zrobiony (follow-up). Kto ma `PUBLISH` na Redis, może wstrzyknąć poprawne zdarzenie w dozwoloną destynację
-(założenie: sieć zaufana + hasło, jak w BE-179). Nie stosować `convertAndSendToUser` do unicastu między instancjami
+`null` w kopercie nie da się zweryfikować i przechodzi). **Podpis HMAC (BE-242):** nadawca podpisuje kopertę
+(`sig`, `WebSocketChannelSigner`, HMAC-SHA256 po nazwie kanału i polach `v,src,dest,tenantId,ts,payload`), odbiorca weryfikuje
+podpis ZANIM zaufa jakiemukolwiek polu (zły/brak = drop `bad_signature`/`missing_signature`/`stale_signature`, licznik
+`ws.channel.signature.rejected{channel="fanout"}`); sekret wspólny z kanałem sterowania sesjami (opis, rotacja i tryb przejściowy:
+rozdział 2.6 i `DEPLOYMENT.md`). Poprawny podpis nie zastępuje walidacji odbiorcy (allow-lista, tenant, lokalna sesja).
+Zostaje założenie sieci zaufanej + hasła Redis (ACL: BE-241). Nie stosować `convertAndSendToUser` do unicastu między instancjami
 (regułą jest `/topic/user/{id}/events` przez broadcaster).
 
 **Kryteria BE-176 - co zamknięto, a czego nie.**
@@ -1810,7 +1870,8 @@ czyli też optymalizacja N x fan-in) i zgodności tenanta koperty z tenantem pri
   instancja); (3) RabbitMQ w IT niepotrzebny (kontekst slice nie ma relay) - relay nie jest testowany między
   instancjami; (4) 5000 sesji i obciążenie (BE-184).
 
-**Testy.** `WebSocketFanoutPublisherTest`, `WebSocketFanoutSubscriberTest`, `StompDestinationsTest` (jednostkowe);
+**Testy.** `WebSocketFanoutPublisherTest`, `WebSocketFanoutSubscriberTest` (w tym podpisy, rotacja, tryb przejściowy),
+`WebSocketChannelSignerTest`, `StompDestinationsTest` (jednostkowe);
 `WebSocketFanoutPropertiesTest`, `WebSocketOncePerWindowGateTest`, `RoutingServiceTest` (poll vs zdarzenie),
 `WebSocketFanoutCrossInstanceIntegrationTest` (BE-176: 2-3 konteksty Spring na wspólnym Redis z Testcontainers, prawdziwy
 Tomcat/STOMP/`WebSocketConfig`; dostawa A->B dla trzech tematów, brak duplikatów i kolejność, izolacja tenantów,

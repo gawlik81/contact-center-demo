@@ -3243,3 +3243,138 @@ Zakres: `frontend/src/app/core/services/websocket.service.ts` + `.spec.ts`; wery
 
 ### Summary
 **4.5/5 — APPROVE (brak Must/Should).** S1 i S2 domkniete poprawnie, N1-N4 wdrozone; zostaja nity: nieaktualne zdanie o `handleErrorMessageToClient` w JSDoc (N-1) i drobna luka w tescie galezi pustego `code` (N-3).
+
+
+---
+
+## Review: FE-173 — Klient WS po BE-233 (refresh odporny na 5xx, SKIP_ERROR_TOAST, renewingSession) — 2026-11-26 (tura 82)
+
+Zakres: `auth.service.ts`, `auth.interceptor.ts`, `websocket.service.ts`, `agent-desktop.component.ts`, i18n `auth.sessionEnded` (pl/en/de/uk), specy (w tym nowy `auth.service.refresh-policy.spec.ts`). Weryfikacja: `npm test` 89 plików / 1312 testów zielone, `npm run lint` 0 błędów (10 ostrzeżeń, wszystkie sprzed zmiany), prettier OK.
+
+**Ocena: 3,5/5 — wymaga drobnych poprawek przed merge (W1, W2).** Rdzeń (polityka 401/403 vs transient, single-flight, loop guard 30 s) jest poprawny i dobrze przetestowany; główne luki to nasilenie wiszących żądań w interceptorze oraz nieobsłużone statusy 4xx po stronie WS.
+
+### W — ważne
+
+- **W1. `auth.interceptor.ts:81-89` + `token-refresh.service.ts` — wiszące żądania nasilone przez FE-173.** Przy nieudanym refresh interceptor robi `refreshTokenSubject.next(null)`, a kolejkowane żądania czekają na `filter(token !== null), take(1)` — nigdy nie dostają ani tokenu, ani błędu. Wcześniej `logout()` + nawigacja niszczyły komponenty i hung requesty znikały. Teraz przy 5xx/sieci/timeoucie (do ~35-40 s: 3 × 10 s + backoff) nie ma ani logoutu, ani nawigacji, więc komponenty zostają na ekranie z wiecznym spinnerem / zablokowanym `forkJoin`, a po końcu retry nic ich nie odblokowuje. Scenariusz: 3 równoległe GET-y dostają 401 po wygaśnięciu tokenu, refresh dostaje 503 → pierwszy request dostaje błąd, dwa pozostałe wiszą na zawsze. Poprawka: kolejka ma dostawać wynik, nie tylko token — np. osobny `Subject<{token?: string; error?: unknown}>` (nie wolno `BehaviorSubject.error()`, bo zabija singleton) i `switchMap(r => r.error ? throwError(() => r.error) : next(addToken(req, r.token)))`. Dodać test interceptora: refresh 503 → kolejkowane żądanie kończy się błędem.
+- **W2. `websocket.service.ts:~412-419` — nieklasyfikowany błąd refresh (np. 400, 404, 429, `Error('No refresh token')`) → `halt('SESSION_EXPIRED')` BEZ logoutu i bez komunikatu.** Warunek `!isRefreshDenied && isRefreshTransient` pomija pozostałe statusy; komentarz mówi „refusal (AuthService already showed the notice and logged out)", co jest prawdą tylko dla 401/403. Scenariusz: rate limit 429 na `/auth/refresh` w burzy po masowym zamknięciu → klient pokazuje baner SESSION_EXPIRED, tokeny zostają w sessionStorage, brak komunikatu — stan niespójny (to dokładnie ten błąd, który FE-173 miał usunąć). Poprawka: 429 (i 408) traktować jako transient w `isRefreshTransient`; dla pozostałych 4xx zdecydować jawnie (logout z komunikatem albo zostawić z błędem) i napisać test. Poprawić komentarz.
+
+### R — ryzyka
+
+- **R1. Pętla przy przejściowym błędzie refresh (`websocket.service.ts:~400-410`).** Brak nieskończonej pętli bez opóźnienia (reconnectAttempt rośnie → backoff do 30 s, każdy refresh trwa do ~40 s), ale cykl „transient → ponownie uzbrojony refresh → reconnect ze starym, znanym jako wygasły tokenem → ERROR → refresh…" jest nieograniczony w czasie. Reconnect ze starym tokenem jest bezcelowy i generuje ERROR po stronie serwera przy każdej próbie. Lepiej: po przejściowym błędzie ponowić samo `refresh()` po backoffie, a reconnect robić dopiero po sukcesie; ewentualnie limit N cykli → `ERROR` z banerem. Dodatkowo `renewingSession=false` + `ERROR` pokazuje baner „offline" po ~35 s — to akceptowalne i zgodne z intencją.
+- **R2. Stale `connectedAt` (`websocket.service.ts:~375`).** Pole nie jest zerowane przy zwykłym zamknięciu (`onWebSocketClose`/`onDisconnect`), tylko przy TOKEN ERROR. Połączenie żyje 1 s, zwykły drop, backoff 30 s, handshake odrzucony TOKEN → `Date.now() - connectedAt ≥ 30 s` → „stabilne", refresh przysługuje. Pętla nadal wymaga udanego `onConnect` w każdym cyklu, więc nie jest to tight loop, ale warunek nie mierzy tego, co deklaruje (czas życia połączenia). Poprawka: zerować `connectedAt` w `onWebSocketClose` po policzeniu czasu życia albo zapisywać `lastLifetimeMs`.
+- **R3. `auth.guard.ts:22-25` — przejściowy błąd refresh przy odświeżeniu strony.** `catchError → createUrlTree(['/auth/login'])` bez czyszczenia tokenów (zgodne z polityką „nie wylogowuj"), bez komunikatu. Użytkownik na chwilowo niedostępnym backendzie ląduje na loginie z nienaruszoną sesją; po wejściu na chronioną trasę guard znów spróbuje refresh, więc stan jest spójny, ale mylący (brak informacji „serwer niedostępny"). Rozważyć komunikat/ retry zamiast cichego redirectu. Odmowa (401/403) w guardzie poprawnie: jeden toast + logout.
+- **R4. Burza refreshów po masowym zamknięciu.** Jitter 0–3 s dotyczy tylko reconnectu; sam `POST /auth/refresh` leci natychmiast z każdego klienta w momencie ERROR. Przy deployu/dezaktywacji tenanta backend dostaje N równoległych refreshy naraz (dla dezaktywacji tenanta i tak 403). Rozważyć jitter przed refresh dla `WS_TOKEN_EXPIRED`. Kryterium „jitter potwierdzony testem" jest spełnione dla reconnectu, nie dla refresh.
+- **R5. Brak `retry` dla żądań użytkownika po sukcesie refresh po stronie WS vs. interceptor** — ok; ale brak ograniczenia łącznego czasu: `refresh()` może blokować interceptor ~40 s (3 próby × 10 s + 1-2 s + 2-4 s). Skrócić timeout lub liczbę prób dla ścieżki interceptora albo pokazać użytkownikowi stan (powiązane z W1).
+
+### N — nity
+
+- **N1. `auth.service.ts` (`refresh()` catchError)** — `warning` + `logout()` przy 401 także wtedy, gdy użytkownik sam się wylogował, a opóźniona odpowiedź refresh przyszła po `logout()` (`tokenService.clearAll()` → kolejny refresh z `null` → 401 → toast „Sesja zakończona"). Scenariusz wąski (WS reconnect w trakcie klikania Wyloguj; `ws.disconnect()` w `ngOnDestroy` shella zwykle go ubija), ale tanie zabezpieczenie: nie pokazywać komunikatu, gdy `getRefreshToken()` jest już null / `currentPayload` null.
+- **N2. Testy (`websocket.service.spec.ts`)** — brak testów: (a) `disconnect()` w trakcie `renewingSession`/oczekiwania na jitter (czy `renewingSession` i timer są czyszczone, refresh anulowany), (b) logout w trakcie backoffu, (c) `connect()` w trakcie refresh. Kod to obsługuje (`cancelRefresh`, `clearReconnectTimer`), ale kryterium „bez pętli/wyścigów" nie jest tym pokryte.
+- **N3. `agent-desktop.component.spec.ts`** — zmiana to jedna linia (mock `renewingSession`); brak testu, że baner jest ukryty przy `renewingSession()=true` i widoczny przy `false`. Kryterium 3 („bez banera") ma pokrycie tylko na poziomie flagi serwisu.
+- **N4. Brak testu interceptora** potwierdzającego, że po odmowie refresh jest dokładnie jedno `logout()` i jeden toast (podwójne wylogowanie usunięto, ale bez testu regresji). Kod jest poprawny: `logout()` raz w `refresh()`, interceptor tylko propaguje błąd; 401 jest pomijany przez error-handler, 403 z refresh ma `SKIP_ERROR_TOAST`.
+- **N5. Test timeoutu (`auth.service.refresh-policy.spec.ts`, „a hung request")** — kończy się na `mock.match(...).length === 1` po pierwszym retry, nie sprawdza stanu końcowego (trzy timeouty → błąd transient, brak logoutu). Test „5xx exhausted" tego częściowo broni, ale dla timeoutu brak.
+- **N6. `error-handler.interceptor.spec.ts`** — nowy test ręcznie ustawia `SKIP_ERROR_TOAST`; faktyczne ustawienie kontekstu na `/auth/refresh` weryfikuje dopiero `refresh-policy.spec` (OK, ale komentarz w teście by to wskazał).
+- **N7. `auth.service.ts` `isRefreshTransient`** — `err.name === 'TimeoutError'`: rxjs `TimeoutError` ma to pole, OK; użyć `instanceof TimeoutError` z rxjs jest czytelniej.
+- **N8. Komunikat `auth.sessionEnded`** — poziom `warning`, spójne we wszystkich 4 językach (diakrytyki PL poprawne). Brak rozróżnienia przyczyn (dezaktywacja vs. limit 12 h); do FE-172/BE-249.
+
+### Odpowiedzi na pytania zlecenia
+
+1. **Pętla refresh → reconnect → ERROR → refresh:** po udanym refresh zabezpiecza ją loop guard (zamknięcie < 30 s od `onConnect`, lub odrzucenie handshake'u, → `SESSION_EXPIRED`; potwierdza test). Ścieżka przejściowego błędu uzbraja refresh ponownie, więc jest długim, ale ograniczonym tempem (backoff ≤ 30 s + czas refresh) cyklem — patrz R1.
+2. **401/403 → jeden komunikat + jeden logout:** tak dla interceptora, WS i guarda (single-flight + `catchError` raz w strumieniu współdzielonym; interceptor nie woła już `logout()`). Wyjątek braku komunikatu: W2 (inne 4xx) i N1.
+3. **Wyścigi:** równoległe refreshe — jedno POST (shareReplay, test single-flight istnieje i przechodzi); `disconnect()` w trakcie jittera/backoffu — czyści timer i subskrypcję, `renewingSession=false`, guard `this.client !== client`; logout w backoffie — shell niszczy komponent → `disconnect()`. Poprawne, ale nieprzetestowane (N2).
+4. **Wiszące żądania w interceptorze:** problem się nasilił — W1.
+5. **AuthGuard przy błędzie przejściowym:** redirect na login bez czyszczenia tokenów, spójny, ale cichy (R3).
+6. **Jakość testów:** fałszywy zegar używany poprawnie (`advanceTimersByTimeAsync`, `Math.random` zamockowany, jitter potwierdzony granicami −1/+1 ms); pokrycie kryteriów dobre dla auth/WS, luki w interceptorze i banerze (N2-N5).
+
+### Pozytywy
+
+- Czysta klasyfikacja błędów wyeksportowana (`isRefreshDenied`/`isRefreshTransient`) i użyta zarówno w serwisie, jak i WS — jedno źródło prawdy.
+- `timeout` przed `retry` (limit na próbę), backoff wykładniczy z jitterem, 401/403 nieretryowane (test).
+- Lazy `Injector.get(TranslocoService)` — bez zbędnego zależności przy budowie.
+- Loop guard mierzony czasem życia połączenia, z testami dla obu stron granicy; `renewingSession` zerowane we wszystkich ścieżkach wyjścia (connect/disconnect/halt/onConnect/transient).
+- `SKIP_ERROR_TOAST` na `/auth/refresh` i test, że komunikat jest jeden.
+
+### Rekomendacja
+
+**Wymaga poprawek przed merge:** W1 (wiszące żądania — realna regresja UX wprowadzona przez brak logoutu) i W2 (nieklasyfikowane 4xx/429 → niespójny stan). R1-R4 do decyzji / osobnych ticketów (R1 można zamknąć razem z W2). Pozostałe N-y opcjonalne. Kryterium „weryfikacja w przeglądarce" (ostatni punkt akceptacji) pozostaje otwarte do wdrożenia BE.
+
+
+---
+
+## Re-review: FE-173 — poprawki po review (W1, W2, N1, R1-R4, N2-N5) — 2026-11-26 (tura 82)
+
+Weryfikacja: `npm test` 90 plików / 1328 testów zielone, lint 0 błędów (10 ostrzeżeń sprzed zmiany), format OK (wg zgłoszenia i ponownego uruchomienia testów/lintu).
+
+**Ocena: 4,5/5 — gotowe do merge** (bez blockerów; zostają uwagi niskiego priorytetu, z czego jedna istniejąca wcześniej luka interceptora warta osobnego ticketu).
+
+### Weryfikacja poprawek
+
+- **W1 — zamknięte.** `refreshOutcome$` (zwykły `Subject`, błąd jako wartość) działa poprawnie. Pytanie o wyścig subskrypcji: nie ma go, bo kolejkowane żądanie subskrybuje się w `handle401` synchronicznie, gdy `isRefreshing === true`; `isRefreshing = false` i `outcome$.next(...)` są w jednym synchronicznym bloku, więc 401 który dotrze po zakończeniu rundy startuje nową rundę, a nie czeka na emisję, której już nie będzie. Test `refresh-failure.spec` (3 żądania, stałe 503, `mock.verify()`) i test 403 (jeden `logout()`, jeden toast) pokrywają regresję.
+- **W2 — zamknięte.** `isRefreshTransient` (0/408/429/5xx/`TimeoutError`) i `isRefreshDenied` (reszta 4xx + `NoRefreshTokenError`) są rozłączne i kompletne; brak „szarej strefy" z poprzedniego review. `NoRefreshTokenError` w `defer` poprawnie zastępuje wcześniejszy bail-out w interceptorze (teraz z komunikatem — zmiana UX na plus).
+- **N1 — zamknięte dla ścieżki błędu** (`sessionGeneration` w `catchError`). Patrz N-A poniżej dla ścieżki sukcesu.
+- **R1/R4 — zamknięte.** `renewSession(attempt)`: jitter przed refresh, reconnect dopiero po sukcesie, limit 5. Licznik `attempt` jest parametrem rekurencji, więc resetuje się z definicji przy każdym nowym TOKEN ERROR (`renewSession(0)`); po sukcesie reconnect (`scheduleReconnect(0)`), a ponowne uzbrojenie wymaga połączenia żyjącego ≥ 30 s (`noteConnectionEnded`). Wyczerpanie limitu → `SESSION_EXPIRED` z zachowanymi tokenami (zgodnie z deklaracją).
+- **R2 — zamknięte.** `noteConnectionEnded()` wołane w `onDisconnect`, `onWebSocketError`, `onWebSocketClose` i TOKEN ERROR; `connectedAt` zerowane przy każdym końcu połączenia.
+- **R3 — zaakceptowane** (komentarz; cichy redirect bez zmiany).
+- **Nowe wyścigi w `renewSession`:** nie znalazłem. `renewTimer` i `refreshSub` są czyszczone w `cancelRefresh()` (wołane z `connect()`, `disconnect()` i na początku TOKEN), podczas oczekiwania `halted = true`, więc zamknięcie gniazda nie planuje zwykłego reconnectu; `halt()` nie czyści `renewTimer`, ale wejście do niego w trakcie renewal jest nieosiągalne (FORBIDDEN wymaga żywego połączenia, a drugi TOKEN przy `tokenRefreshTried` nie następuje bez połączenia).
+
+### Pozostałe uwagi
+
+- **R-A (istniejące wcześniej, nie wprowadzone przez FE-173; osobny ticket).** `auth.interceptor.ts` `handle401`: jeśli żądanie-inicjator zostanie anulowane (zmiana trasy, `switchMap` w komponencie) w trakcie refresh, jego potok nie dojdzie do `switchMap/catchError`, więc `isRefreshing` zostaje `true` na zawsze, a wszystkie kolejne 401 czekają w kolejce bez końca (refresh sam dochodzi do końca dzięki `shareReplay`, ale nikt nie zwalnia flagi i `outcome$` nie emituje). Poprawka: `finalize(() => refreshState.isRefreshing = false)` plus emisja wyniku niezależna od subskrypcji inicjatora (np. subskrypcja `authService.refresh()` w osobnym `.subscribe` zasilającym `outcome$`, a inicjator dołącza do `outcome$` jak pozostałe). Przy braku logoutu po 5xx ryzyko jest teraz bardziej widoczne niż wcześniej.
+- **N-A.** `auth.service.ts` `tap(tokens => handleTokens)`: `sessionGeneration` chroni tylko ścieżkę błędu. Jeśli użytkownik wyloguje się w trakcie refresh, a odpowiedź 200 przyjdzie później, `handleTokens` zapisze tokeny i payload ponownie po wylogowaniu (użytkownik znów „zalogowany" na stronie logowania). Poprawka: w `tap` sprawdzić `generation === this.sessionGeneration`, inaczej odrzucić (`throwError`/ignorować). Wąski wyścig, ale tania poprawka.
+- **N-B.** Komentarz w `refresh()` (JSDoc) ma jedną zbyt długą linię (formatowanie przeszło, ale czytelność): „…WITHOUT a logout: a short outage…" — złamać wiersz.
+- **N-C.** Najgorszy czas odnowienia po przejściowych błędach to ok. 5 × (3 próby × 10 s + backoffy) plus backoffy WS, czyli kilka minut do `SESSION_EXPIRED`; w tym czasie baner „offline" jest widoczny (poprawnie). Warto udokumentować w tickecie jako świadomy kompromis.
+- **R-B.** `AuthGuard` (R3) nadal bez komunikatu przy przejściowym błędzie — decyzja zespołu, nie blokuje.
+
+### Rekomendacja
+
+**Gotowe do merge.** R-A i N-A rekomenduję założyć jako osobne drobne tickety (R-A średni priorytet — dotyczy każdej awarii refresh, nie tylko FE-173). Otwarte pozostaje kryterium weryfikacji w przeglądarce po wdrożeniu BE.
+
+
+### Re-review 2: FE-173 — N-A, R-A, N-B — 2026-11-26 (tura 82)
+
+Weryfikacja: `npm test` 90 plików / 1330 testów zielone, lint 0 błędów.
+
+**Ocena: 5/5 (zakres tej tury) — gotowe do merge.** Brak W; dwa nity.
+
+- **N-A — zamknięte.** `mergeMap` w `auth.service.ts` odrzuca późne 200 po `logout()` (`generation !== sessionGeneration` → `SessionEndedError`), tokeny nie są zapisywane. `SessionEndedError` nie jest ani `isRefreshTransient`, ani `isRefreshDenied`, więc nie daje komunikatu ani drugiego `logout()`. Obsługa wywołujących: WS → `halt('SESSION_EXPIRED')` (poprawnie, sesja i tak skończona); guard → `catchError` → redirect na login; interceptor → żądanie kończy się tym błędem (nie wisi).
+- **R-A — zamknięte.** Refresh na własnej subskrypcji `take(1)`; `isRefreshing` zawsze zwalniane w `next`/`error`, niezależnie od anulowania inicjatora. Inicjator dołącza do `outcome$` jak reszta.
+  - Wycieki: brak. Subskrypcja refresh kończy się sama (timeout 10 s × 3 próby + backoff, max ok. 40 s), więc przy logoutcie/zamknięciu aplikacji nie zostaje nic wiszącego. `ReplaySubject` jest tworzony na rundę, nigdy niekończony, ale każdy waiter używa `take(1)`, więc po emisji nie ma subskrybentów, a stary subject zbiera GC po wymianie referencji w `refreshState`.
+  - Brak wyścigu przy synchronicznym błędzie (`NoRefreshTokenError`): `outcome$` jest przypisany do `refreshState` przed `subscribe`, a `ReplaySubject(1)` odtwarza wynik waiterowi subskrybującemu po emisji.
+
+### Nity
+- **N-1.** `SessionEndedError` trafia jako zwykły `Error` do wywołującego żądania HTTP z interceptora; komponenty z generycznym `catchError → toast` mogą pokazać „nieznany błąd" tuż po wylogowaniu. Wąski przypadek (logout w trakcie refresh), do rozważenia: w interceptorze potraktować go jak anulowanie (`EMPTY`).
+- **N-2.** `refreshTokenSubject` (`BehaviorSubject`) jest już tylko zapisywany, nikt go nie czyta w kodzie produkcyjnym (grep) — martwy stan; usunąć przy okazji (sprawdzić specy).
+- **R-1 (niski).** Logout → szybki ponowny login, gdy stary refresh jeszcze leci: `refreshInFlight$` ma `generation` starej sesji, a nowe `refresh()` dołączy do tego strumienia i dostanie `SessionEndedError`. Wymaga logout+login w ≤ 40 s z jednoczesnym 401; można zerować `refreshInFlight$` w `logout()`.
+
+### Rekomendacja
+**Gotowe do merge.** N-1/N-2/R-1 opcjonalne, bez blokady.
+
+---
+
+## Review: logout bez toastu (FE-173 follow-up) — 2026-11-28
+
+Zakres (tylko nowy fragment): `core/services/auth.service.ts` (`logout()` → `POST /auth/logout` z `SKIP_ERROR_TOAST`), `core/interceptors/auth.interceptor.refresh-failure.spec.ts` (testy „revoked access token” i `it.each([401,403,0,500])`). Nie uruchamiano npm test (równoległy /verify).
+
+### 🐛 Bugs / Critical Issues
+_None identified._ Pętla refresh/logout przy 401 z `/auth/logout` jest wykluczona: `isAuthEndpoint()` (auth.interceptor.ts:56-62) pomija `/auth/logout` zanim zadziała `catchError` → 401 nie wywołuje `handle401`, więc nie ma refreshu ani rekurencyjnego `logout()`; dodatkowo `logout()` wywołuje `.pipe(catchError(() => []))`, co połyka błąd. Spec to potwierdza (`mock.verify()` bez drugiego `/auth/refresh`).
+
+### ⚠️ Security Concerns
+_None identified._ Token nadal wysyłany ręcznie w nagłówku (interceptor go nie dołącza), a po stronie BE unieważniony token daje teraz 401 zamiast 403, więc `error-handler.interceptor` (401 → bez toastu, l. 44-47) i tak by nie pokazał toastu; `SKIP_ERROR_TOAST` chroni głównie przed 403/0/5xx.
+
+### 🏗️ Architecture / Pattern Violations
+_None identified._
+
+### 🔧 Improvements & Suggestions
+- **[auth.service.ts:~250-258]** (N) Komentarz „401/403/0/5xx … już unieważniony” jest nieco nieaktualny po poprawce BE (unieważniony → 401). Można doprecyzować: „401 po unieważnieniu; 403 tylko dla starszych BE; 0/5xx — sieć”.
+- **[auth.service.ts logout()]** (N) Ręczne `Authorization` + wyjątek w `isAuthEndpoint` to ukryte sprzężenie; krótki komentarz w `isAuthEndpoint` („logout dołącza token sam”) zapobiegnie przyszłemu „uproszczeniu”.
+- **[auth.interceptor.refresh-failure.spec.ts:126-145]** (N) Test „revoked access token” łączy kilka asercji (1 notice, 1 logout, brak error-toastu, brak drugiego refreshu); rozważ rozbicie, żeby awaria wskazywała dokładną przyczynę. Etykiety „W1/N4/R-A/N-1” bez kontekstu będą niezrozumiałe poza tą turą — użyj opisowych nazw.
+- **[auth.interceptor.refresh-failure.spec.ts:147-162]** (N) `it.each` dla 401/403/0/500 jest dobry; brak przypadku 429/408 (trywialny, ale spójny z `isRefreshTransient`) — opcjonalnie.
+- **[error-handler.interceptor.ts:44-52]** (R, poza zakresem, informacyjnie) Po poprawce BE każdy 403 oznacza już realny brak uprawnień — warto, żeby toast „errorForbidden” nie był maskowany; obecnie działa poprawnie.
+
+### ✅ Positive Observations
+- `SKIP_ERROR_TOAST` zastosowany spójnie z `refresh()` (ten sam mechanizm `HttpContext`), brak nowego kanału flag.
+- Test ustawia realistyczny stos (`authInterceptor` + `errorHandlerInterceptor` + prawdziwy `AuthService`), dzięki czemu sprawdza efekt użytkownika (brak toastu, jedno powiadomienie `sessionEnded`, jeden logout), a nie szczegół implementacji; `mock.verify()` wyłapuje zbłąkane żądania.
+- Logout lokalny jest niezależny od wyniku best-effort POST (zachowana semantyka), a `sessionGeneration`/zwolnienie slotu refreshu zapobiegają wskrzeszeniu sesji.
+
+### Summary
+⭐⭐⭐⭐½ (4,5/5) — Mała, poprawna zmiana z solidnym testem na realnym stosie interceptorów; brak uwag wymaganych (W) i rekomendowanych (R) dotyczących tej poprawki, tylko nity (komentarz o 403, nazewnictwo testów, sprzężenie z `isAuthEndpoint`).

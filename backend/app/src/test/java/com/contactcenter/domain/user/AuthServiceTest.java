@@ -95,6 +95,7 @@ class AuthServiceTest {
     @Mock private UserService           userService;
     @Mock private PendingLoginTracker   pendingLoginTracker;
     @Mock private com.contactcenter.domain.websocket.WebSocketSessionTerminator webSocketSessionTerminator;
+    @Mock private com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate;
 
     private AuthService authService;
 
@@ -104,11 +105,11 @@ class AuthServiceTest {
                 authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService,
                 passwordEncoder, loginRateLimiter, userService, pendingLoginTracker,
-                webSocketSessionTerminator
+                webSocketSessionTerminator, tenantStatusGate
         );
 
         // Wspólne defaulty
-        when(jwtService.issueAccessToken(any(), anyString(), anyBoolean())).thenReturn(ACCESS_TOKEN);
+        when(jwtService.issueAccessToken(any(), anyString(), anyBoolean(), any())).thenReturn(ACCESS_TOKEN);
         when(jwtService.generateRefreshTokenValue()).thenReturn(REFRESH_TOKEN);
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
         when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(buildTenant()));
@@ -254,7 +255,7 @@ class AuthServiceTest {
             when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(superAdmin));
             // Nadpisuje domyślny stub z @BeforeEach: anyString() NIE dopasowuje null –
             // SUPER_ADMIN nie ma tenantName (getTenantName() zwraca null).
-            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean())).thenReturn(ACCESS_TOKEN);
+            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean(), any())).thenReturn(ACCESS_TOKEN);
 
             LoginResponse response = authService.login(
                     new LoginRequest("", USER_EMAIL, PASSWORD), CLIENT_IP);
@@ -275,7 +276,7 @@ class AuthServiceTest {
 
             when(authenticationManager.authenticate(any())).thenReturn(auth);
             when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(superAdmin));
-            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean())).thenReturn(ACCESS_TOKEN);
+            when(jwtService.issueAccessToken(eq(superAdmin), isNull(), anyBoolean(), any())).thenReturn(ACCESS_TOKEN);
 
             LoginResponse response = authService.login(
                     new LoginRequest(null, USER_EMAIL, PASSWORD), CLIENT_IP);
@@ -298,7 +299,7 @@ class AuthServiceTest {
             authService.login(new LoginRequest(null, USER_EMAIL, PASSWORD), CLIENT_IP);
 
             verify(tenantService, never()).findTenantEntity(any());
-            verify(jwtService).issueAccessToken(eq(superAdmin), isNull(), anyBoolean());
+            verify(jwtService).issueAccessToken(eq(superAdmin), isNull(), anyBoolean(), any());
         }
 
         @Test
@@ -344,15 +345,13 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("BE-233: refresh uzytkownika nieaktywnego tenanta jest odrzucony (DisabledException), refresh token nietkniety")
+        @DisplayName("BE-233/BE-249: refresh uzytkownika nieaktywnego tenanta (wspolna bramka) jest odrzucony, refresh token nietkniety")
         void refresh_inactiveTenant_isRejected() {
             AppUser user = buildUser(false, false, true);
             RefreshToken existing = buildRefreshToken(false);
-            Tenant inactive = Tenant.builder().id(TENANT_ID).name("T")
-                    .status(Tenant.TenantStatus.INACTIVE).build();
             when(refreshTokenRepository.findByToken(REFRESH_TOKEN)).thenReturn(Optional.of(existing));
             when(appUserRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(inactive));
+            when(tenantStatusGate.isBlocked(TENANT_ID)).thenReturn(true);
 
             assertThatThrownBy(() -> authService.refresh(new RefreshRequest(REFRESH_TOKEN)))
                     .isInstanceOf(org.springframework.security.authentication.DisabledException.class);
@@ -386,7 +385,7 @@ class AuthServiceTest {
             authService.refresh(new RefreshRequest(REFRESH_TOKEN));
 
             // mfaVerified MUSI być false – refresh token nie zastępuje weryfikacji TOTP
-            verify(jwtService).issueAccessToken(any(), anyString(), eq(false));
+            verify(jwtService).issueAccessToken(any(), anyString(), eq(false), any());
         }
 
         @Test
@@ -449,12 +448,12 @@ class AuthServiceTest {
             when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(
                     new JwtParser.JwtClaims(TENANT_ID, USER_ID, "AGENT", USER_EMAIL,
                             Instant.now().plusSeconds(300)));
-            when(refreshTokenRepository.revokeByToken(REFRESH_TOKEN)).thenReturn(1);
+            when(refreshTokenRepository.revokeByTokenAndUserId(REFRESH_TOKEN, USER_ID)).thenReturn(1);
 
             authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
 
             verify(tokenBlacklistService).blacklist(eq(ACCESS_TOKEN), any(Instant.class));
-            verify(refreshTokenRepository).revokeByToken(REFRESH_TOKEN);
+            verify(refreshTokenRepository).revokeByTokenAndUserId(REFRESH_TOKEN, USER_ID);
         }
 
         @Test
@@ -498,7 +497,7 @@ class AuthServiceTest {
 
             org.assertj.core.api.Assertions.assertThatCode(
                     () -> authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN))).doesNotThrowAnyException();
-            verify(refreshTokenRepository).revokeByToken(REFRESH_TOKEN);
+            verify(refreshTokenRepository).revokeByTokenAndUserId(REFRESH_TOKEN, USER_ID);
         }
 
         @Test
@@ -511,7 +510,7 @@ class AuthServiceTest {
             when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(
                     new JwtParser.JwtClaims(TENANT_ID, USER_ID, "AGENT", USER_EMAIL,
                             Instant.now().plusSeconds(300)));
-            when(refreshTokenRepository.revokeByToken(REFRESH_TOKEN)).thenReturn(1);
+            when(refreshTokenRepository.revokeByTokenAndUserId(REFRESH_TOKEN, USER_ID)).thenReturn(1);
 
             authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
 
@@ -528,7 +527,7 @@ class AuthServiceTest {
             when(jwtParser.parseQuiet(ACCESS_TOKEN)).thenReturn(
                     new JwtParser.JwtClaims(TENANT_ID, USER_ID, "SUPERVISOR", USER_EMAIL,
                             Instant.now().plusSeconds(300)));
-            when(refreshTokenRepository.revokeByToken(REFRESH_TOKEN)).thenReturn(1);
+            when(refreshTokenRepository.revokeByTokenAndUserId(REFRESH_TOKEN, USER_ID)).thenReturn(1);
 
             authService.logout(ACCESS_TOKEN, new LogoutRequest(REFRESH_TOKEN));
 
@@ -572,7 +571,7 @@ class AuthServiceTest {
                     new MfaVerifyRequest(VALID_CODE), ACCESS_TOKEN);
 
             assertThat(newToken).isEqualTo(ACCESS_TOKEN);
-            verify(jwtService).issueAccessToken(eq(user), anyString(), eq(true));
+            verify(jwtService).issueAccessToken(eq(user), anyString(), eq(true), any());
         }
 
         @Test

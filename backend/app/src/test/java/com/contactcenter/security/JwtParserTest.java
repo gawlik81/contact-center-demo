@@ -114,6 +114,39 @@ class JwtParserTest {
                 .compact();
     }
 
+    @Nested
+    @DisplayName("iat i sid (BE-249)")
+    class IssuedAtAndSessionId {
+
+        @Test
+        @DisplayName("parse zwraca iat (sekundy) i sid z claimow; brak sid = null")
+        void parsesIatAndSid() {
+            UUID sid = UUID.randomUUID();
+            Instant iat = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+            String token = Jwts.builder().subject(SUBJECT).issuer(ISSUER).issuedAt(Date.from(iat))
+                    .expiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
+                    .claim(JwtParser.CLAIM_TENANT_ID, TENANT_ID.toString())
+                    .claim(JwtParser.CLAIM_USER_ID, USER_ID.toString()).claim(JwtParser.CLAIM_ROLE, ROLE)
+                    .claim(JwtParser.CLAIM_SESSION_ID, sid.toString()).signWith(privateKey).compact();
+
+            JwtParser.JwtClaims claims = jwtParser.parse(token);
+            assertThat(claims.issuedAt()).isEqualTo(iat);
+            assertThat(claims.sessionId()).isEqualTo(sid);
+            assertThat(jwtParser.parse(buildValidToken(TENANT_ID, USER_ID, ROLE)).sessionId()).isNull();
+        }
+
+        @Test
+        @DisplayName("sid w zlym formacie = JwtValidationException (nie ignorujemy po cichu)")
+        void malformedSidIsRejected() {
+            String token = Jwts.builder().subject(SUBJECT).issuer(ISSUER).issuedAt(Date.from(Instant.now()))
+                    .expiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
+                    .claim(JwtParser.CLAIM_USER_ID, USER_ID.toString()).claim(JwtParser.CLAIM_SESSION_ID, "nope")
+                    .signWith(privateKey).compact();
+
+            assertThatThrownBy(() -> jwtParser.parse(token)).isInstanceOf(JwtParser.JwtValidationException.class);
+        }
+    }
+
     // =========================================================================
     // Testy poprawnego parsowania
     // =========================================================================

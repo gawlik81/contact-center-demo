@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.websocket;
 
+import com.contactcenter.domain.tenant.TenantStatusGate;
 import com.contactcenter.domain.websocket.SessionCloseReason;
 import com.contactcenter.security.TenantContext;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -14,6 +15,7 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,18 +48,24 @@ public class WebSocketSessionControlBus {
     private final WebSocketSessionProperties properties;
     private final WebSocketSessionCloser closer;
     private final MeterRegistry meters;
+    private final WebSocketChannelSigner signer;
+    private final TenantStatusGate tenantStatusGate;
+    private final WebSocketReplayGuard replayGuard = new WebSocketReplayGuard(10_000);
     private final String instanceId;
     private final AtomicLong lastWarn = new AtomicLong();
     private final Timer lag;
 
     public WebSocketSessionControlBus(StringRedisTemplate redis, WebSocketSessionProperties properties,
                                       WebSocketSessionCloser closer, MeterRegistry meters,
+                                      WebSocketChannelSigner signer, TenantStatusGate tenantStatusGate,
                                       @Qualifier("wsSessionControlListenerContainer")
                                       RedisMessageListenerContainer container) {
         this.redis = redis;
         this.properties = properties;
         this.closer = closer;
         this.meters = meters;
+        this.signer = signer;
+        this.tenantStatusGate = tenantStatusGate;
         this.instanceId = properties.resolvedInstanceId();
         this.lag = Timer.builder(METRIC_LAG).description("Session control lag: receive time - sender publish time")
                 .register(meters);
@@ -73,16 +81,34 @@ public class WebSocketSessionControlBus {
 
     /** Publishes "close the sessions of this user". Never throws. */
     public boolean publishCloseUser(UUID tenantId, UUID userId, SessionCloseReason reason) {
-        return publish(new WebSocketSessionControlEnvelope(WebSocketSessionControlEnvelope.VERSION, instanceId,
-                WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenantId, userId, reason,
-                System.currentTimeMillis()));
+        return publish(envelope(WebSocketSessionControlEnvelope.Type.CLOSE_USER, tenantId, userId, null, reason));
+    }
+
+    /** Publishes "close the sessions of this user that belong to one login session (device)". Never throws. */
+    public boolean publishCloseSession(UUID tenantId, UUID userId, UUID loginSessionId, SessionCloseReason reason) {
+        return publish(envelope(WebSocketSessionControlEnvelope.Type.CLOSE_SESSION, tenantId, userId, loginSessionId,
+                reason));
+    }
+
+    /** Publishes "close the sessions of this user EXCEPT those of one login session". Never throws. */
+    public boolean publishCloseUserExceptSession(UUID tenantId, UUID userId, UUID keepLoginSessionId,
+                                                 SessionCloseReason reason) {
+        return publish(envelope(WebSocketSessionControlEnvelope.Type.CLOSE_USER_EXCEPT_SESSION, tenantId, userId,
+                keepLoginSessionId, reason));
     }
 
     /** Publishes "close every session of this tenant". Never throws. */
     public boolean publishCloseTenant(UUID tenantId, SessionCloseReason reason) {
-        return publish(new WebSocketSessionControlEnvelope(WebSocketSessionControlEnvelope.VERSION, instanceId,
-                WebSocketSessionControlEnvelope.Type.CLOSE_TENANT, tenantId, null, reason,
-                System.currentTimeMillis()));
+        return publish(envelope(WebSocketSessionControlEnvelope.Type.CLOSE_TENANT, tenantId, null, null, reason));
+    }
+
+    /** Builds and (when a secret is configured) signs the envelope; the channel name is part of the signature. */
+    private WebSocketSessionControlEnvelope envelope(WebSocketSessionControlEnvelope.Type type, UUID tenantId,
+                                                     UUID userId, UUID sid, SessionCloseReason reason) {
+        WebSocketSessionControlEnvelope unsigned = new WebSocketSessionControlEnvelope(
+                WebSocketSessionControlEnvelope.VERSION, instanceId, type, tenantId, userId, sid, reason,
+                System.currentTimeMillis(), null);
+        return unsigned.withSignature(signer.sign(properties.effectiveChannel(), unsigned.canonicalForSigning()));
     }
 
     private boolean publish(WebSocketSessionControlEnvelope envelope) {
@@ -124,14 +150,38 @@ public class WebSocketSessionControlBus {
         if (instanceId.equals(envelope.src())) {
             return; // already closed locally by the sender
         }
+        // BE-249/BE-242: authenticity (HMAC over channel + fields, constant-time). Wrong signature = always rejected;
+        // missing = rejected unless the transitional mode (websocket.hmac.accept-unsigned) is on.
+        WebSocketChannelSigner.Verdict verdict = signer.verify("session-control", properties.effectiveChannel(),
+                envelope.canonicalForSigning(), envelope.sig(), envelope.ts());
+        if (!verdict.isAccepted()) {
+            drop(verdict.reason());
+            return;
+        }
+        // a signature is unique per envelope: a second delivery is a replay (the closes below are additionally limited
+        // to sessions registered up to the envelope's ts, so even a replay after the window cannot close new sessions)
+        if (!replayGuard.firstSeen(envelope.sig())) {
+            drop("replay");
+            return;
+        }
         meters.counter(METRIC_RECEIVED, "type", envelope.type().name()).increment();
         if (envelope.ts() > 0) {
             lag.record(Math.max(System.currentTimeMillis() - envelope.ts(), 0), TimeUnit.MILLISECONDS);
         }
         try {
+            Instant notAfter = envelope.ts() > 0
+                    ? Instant.ofEpochMilli(envelope.ts()).plus(properties.getControl().getReplayTolerance()) : null;
             switch (envelope.type()) {
-                case CLOSE_USER -> closer.closeUser(envelope.tenantId(), envelope.userId(), envelope.reason());
-                case CLOSE_TENANT -> closer.closeTenant(envelope.tenantId(), envelope.reason());
+                case CLOSE_USER -> closer.closeUser(envelope.tenantId(), envelope.userId(), envelope.reason(), notAfter);
+                case CLOSE_SESSION -> closer.closeLoginSession(envelope.tenantId(), envelope.userId(), envelope.sid(),
+                        envelope.reason(), notAfter);
+                case CLOSE_USER_EXCEPT_SESSION -> closer.closeUserExceptLoginSession(envelope.tenantId(),
+                        envelope.userId(), envelope.sid(), envelope.reason(), notAfter);
+                case CLOSE_TENANT -> {
+                    // N5: the tenant status gate learns about the deactivation at once, not after its 30 s TTL
+                    tenantStatusGate.invalidate(envelope.tenantId());
+                    closer.closeTenant(envelope.tenantId(), envelope.reason(), notAfter);
+                }
             }
         } catch (RuntimeException e) {
             drop("handler_error");

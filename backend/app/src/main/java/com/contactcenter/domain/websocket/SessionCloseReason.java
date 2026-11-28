@@ -14,6 +14,8 @@ public enum SessionCloseReason {
     ROLE_CHANGED(true),
     /** An administrator forced a password reset (all refresh tokens revoked). */
     PASSWORD_RESET(true),
+    /** The user changed the password himself: the OTHER devices are signed out (BE-249), the current one stays. */
+    PASSWORD_CHANGED(true),
     /** The whole tenant was deactivated. */
     TENANT_DEACTIVATED(true),
     /** Local only: the access token presented at CONNECT has expired. */

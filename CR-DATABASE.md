@@ -926,3 +926,49 @@ Plik: `backend/src/main/resources/db/migration/V151__dialer_claim_agent_ownershi
 
 ### Summary
 ⭐⭐⭐⭐ (4/5) — migracja jest poprawna technicznie (idempotentna, RLS-neutralna, bez funkcji mutowalnych w predykatach), ale wymaga doprecyzowania runbooka CONCURRENTLY (parytet z V148), poprawienia martwego odwołania do testu oraz decyzji o czyszczeniu kolumny (M-1), bo "brak zerowania" jest źródłem błędu na ścieżkach callback/manual.
+
+---
+
+## Review: V152 (BE-249) — 2026-11-26
+
+Plik: `backend/src/main/resources/db/migration/V152__refresh_token_session_id.sql` (numer następny po V151, nazwa zgodna z konwencją).
+
+### 🐛 Bugs / Critical Issues
+_None identified._
+
+### ⚠️ Security Concerns
+_None identified._ Kolumna `session_id` nie zawiera sekretu (identyfikator rodziny, nie token); tabela `refresh_token` nie ma RLS (V012/V125 jej nie obejmują) i V152 tego nie zmienia — dostęp zawężają zapytania po `user_id` z podpisanego tokenu.
+
+### 🏗️ Architecture / Pattern Violations
+- **V152:18 — `refresh_token` nie spełnia konwencji tabel (brak `is_deleted`, `updated_at`, indeksu `(tenant_id, pk)`; `tenant_id` nullable od V081).** Wyjątek istniał od V003 (tabela techniczna czyszczona cronem), V152 go nie pogłębia i nie jest jego miejscem do naprawy — odnotować jako dług, nie blokować.
+
+### 🔧 Improvements & Suggestions
+- **V152:20 (`UPDATE … WHERE session_id IS NULL`) — backfill obejmuje także wiersze unieważnione i wygasłe**, które nigdy nie będą użyte (kod i tak robi fallback `rt.getId()`; `findActiveSessionIdsExcept` filtruje aktywne). Na dużej tabeli to zbędny zapis całej tabeli w jednej transakcji Flyway (WAL, bloat, długie blokady wierszy względem logowań). Zawęzić: `WHERE session_id IS NULL AND is_revoked = FALSE AND expires_at > NOW()` (w `UPDATE` `NOW()` jest dozwolone; reguła IMMUTABLE dotyczy tylko predykatów indeksów). Tabela jest sprzątana cronem (V014), więc realnie mała — priorytet niski.
+- **Indeks na `session_id` — niepotrzebny.** `revokeBySessionId` i `findActiveSessionIdsExcept` filtrują `user_id = ?` (istniejący `idx_refresh_token_user_id`), a wierszy na użytkownika jest kilka–kilkadziesiąt. Nie dodawać (zbędny koszt zapisu przy każdej rotacji).
+- **Rolling deploy:** komentarz „NULL … never produced by the new code” jest prawdziwy, ale stare instancje działające podczas wdrożenia nadal wstawiają `session_id = NULL` po wykonaniu migracji. Kod Java to znosi (`getSessionId() != null ? … : getId()`), lecz zapytania `revokeBySessionId` i `findActiveSessionIdsExcept` nie widzą takich wierszy. Tanie domknięcie w zapytaniach: `COALESCE(rt.sessionId, rt.id)` zamiast `rt.sessionId` (lub `OR (rt.sessionId IS NULL AND rt.id = :sessionId)`); wtedy NOT NULL nigdy nie będzie potrzebne.
+- Idempotencja: `ADD COLUMN IF NOT EXISTS` (operacja metadanych, bez przepisywania tabeli) + `UPDATE … WHERE session_id IS NULL` (powtarzalny) + `COMMENT` — OK. Rollback: `ALTER TABLE refresh_token DROP COLUMN session_id` jest bezpieczny (kod zadziała po cofnięciu tylko wraz z poprzednią wersją aplikacji); warto dopisać w nagłówku.
+- Dodanie kolumny nullable bez DEFAULT i bez FK/CHECK — świadome i uzasadnione w komentarzu (rodzina nie ma własnej tabeli).
+
+### ✅ Positive Observations
+- Zgodne z regułą „nowa kolumna o opisowej nazwie zamiast przeciążenia” (`session_id`, a nie reużycie `token_id`).
+- Komentarz tłumaczy dlaczego (rotacja a hash access tokenu), co z istniejącymi wierszami i co z tokenami sprzed wdrożenia.
+- Brak funkcji mutowalnych w predykatach, brak indeksów częściowych, brak ingerencji w RLS.
+
+### Summary
+⭐⭐⭐⭐ (4/5) — Poprawna, idempotentna, tania migracja metadanych; do poprawy tylko zakres backfillu (zbędny zapis wierszy martwych) i obsługa NULL z okresu rolling deploy po stronie zapytań.
+
+---
+
+## Re-review: V152 (BE-249) — 2026-11-26
+
+### Weryfikacja poprawek
+- **Backfill zawężony — OK.** `UPDATE refresh_token SET session_id = token_id WHERE session_id IS NULL AND is_revoked = FALSE AND expires_at > NOW()` — nie przepisuje wierszy martwych; `NOW()` w `UPDATE` jest dozwolone (reguła IMMUTABLE dotyczy tylko predykatów indeksów). Nadal idempotentne (`ADD COLUMN IF NOT EXISTS` + `WHERE session_id IS NULL`).
+- **NULL z okresu rolling deploy — OK.** Komentarz nagłówka poprawnie opisuje, że stare instancje po migracji wstawiają `session_id = NULL`; zapytania w `RefreshTokenRepository` (`revokeBySessionId`, `findActiveSessionIdsExcept`) używają `COALESCE(rt.sessionId, rt.id)`, więc kolumna może zostać nullable. Spójne z backfillem (wiersz NULL i wiersz z `session_id = token_id` dają tę samą rodzinę, rotacja dziedziczy `getId()`).
+- **Indeks na `session_id`** — nadal zbędny (`COALESCE(...)` i tak nie użyłby indeksu; zapytania zawężone przez `idx_refresh_token_user_id`).
+- **Rollback** — dopisanie `DROP COLUMN` do nagłówka pozostaje opcjonalne (niski priorytet).
+
+### Bugs / Security / Architecture
+_None identified._ RLS: `refresh_token` nadal bez RLS (bez zmian); dług konwencji tabeli (brak `is_deleted`/`updated_at`/indeksu `(tenant_id, pk)`) pozostaje poza zakresem V152.
+
+### Summary
+⭐⭐⭐⭐⭐ (5/5) — Mała, idempotentna migracja metadanych z zawężonym backfillem i poprawnym rozwiązaniem okna rolling deploy po stronie zapytań; brak uwag.

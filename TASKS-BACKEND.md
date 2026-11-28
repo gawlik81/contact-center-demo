@@ -57,13 +57,13 @@ Tickety pogrupowane per EPIC (kolejność numeryczna, w obrębie epiku wg ID ros
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 22 | 0 | 1 | 3 | 26 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 4 | 0 | 4 | ⬜ Nie rozpoczęty |
 | EPIC-32 | UX i dostępność stanowiska agenta | 31 | 0 | 19 | 0 | 50 | 🔧 W toku |
-| EPIC-33 | Skalowanie poziome i pojemność platformy | 10 | 0 | 31 | 0 | 41 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 13 | 0 | 31 | 0 | 44 | 🔧 W toku |
 | Bez epiku | Infrastruktura i Fundament | 6 | 0 | 0 | 0 | 6 | — |
 | Bez epiku | RODO / GDPR (przekrojowe) | 1 | 0 | 0 | 0 | 1 | — |
 | Bez epiku | Ad hoc połączenia i email z panelu agenta | 2 | 0 | 0 | 0 | 2 | — |
 | Bez epiku | Porządki infrastrukturalne i CI | 0 | 0 | 1 | 0 | 1 | — |
 | Bez epiku | Porządki silnika partycji, retencji i audytu | 2 | 0 | 0 | 0 | 2 | — |
-| **RAZEM** | | **184** | **0** | **60** | **3** | **247** | |
+| **RAZEM** | | **187** | **0** | **60** | **3** | **250** | |
 
 Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcja „Kryteria zamknięcia EPIC-30”): kod i testy ukończone, DB-069/BE-137 odłożone z wyzwalaczem wolumenowym, weryfikacje WP-4 opcjonalne. Tickety `🔲 Do zrobienia` (BE-T001…BE-T004, EPIC-18) liczone jako ⬜.
 
@@ -189,18 +189,22 @@ Status epiku „⚠️ Zamknięty warunkowo” (EPIC-30) wg `PROGRESS.md` (sekcj
 | BE-239 | Transfer bezpośredni i outbound agenta poza blokadą wyłączności: metryka `agent.assignment.unguarded`, potem check pod lockiem albo ostrzeżenie w UI (zależy od BE-230 ✅; P2, S/M; tura 79) | ⬜ Do zrobienia |
 | BE-240 | Porządki po BE-230: EXPLAIN sondy VOICE_LOAD, cache filtra S7, martwy `markAsDialing`, `routeContact` bez `@Transactional`, `releaseSavepoint`, test pod rolą bez BYPASSRLS, macierz S1 (zależy od BE-230 ✅; P3, M; tura 79) | ⬜ Do zrobienia |
 | BE-241 | Redis dla fan-outu WS: `client-output-buffer-limit pubsub` w compose i DEPLOYMENT.md, ACL `PUBLISH` tylko `cc:ws:*`/`cc:cache:*`, alerty fan-outu (zależy od BE-175 ✅; powiązane BE-183; P1, infra, S; tura 79) | ⬜ Do zrobienia |
-| BE-242 | HMAC-SHA256 koperty fan-outu WS, obowiązkowy sekret na prod (zależy od BE-175 ✅; P1, security, M; tura 79) | ⬜ Do zrobienia |
+| BE-242 | HMAC-SHA256 koperty fan-outu WS, obowiązkowy sekret na prod (zależy od BE-175 ✅; P1, security, M; tura 79) | ✅ Ukończone (2026-11-26, tura 82; `WebSocketChannelSigner` HMAC-SHA256, rotacja, prod bez sekretu ≥ 32 B nie startuje; odstępstwo A3: metryka `ws.channel.signature.rejected{channel,reason}` — dashboardy BE-183 na nową nazwę; razem z BE-249 ✅; CR 4/5 → 4,5/5; BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)) |
 | BE-243 | Fan-out WS, dalsze prace: gauge kolejki dispatchu, `degraded`/`queueSize` w health, budżet bajtowy odbiorcy, test „SupervisorMetrics raz na interwał” na 2 instancjach z Postgresem, walidacja kształtu payloadu, strażnik nazw kolejek Rabbit relay (zależy od BE-175 ✅, BE-176 ✅; P2, M; tura 79) | ⬜ Do zrobienia |
 | BE-244 | BE-178 follow-up: cykl życia wtyczek — kwarantanna timeoutów `onActivate` (orphan-wątki), R2 (dispose pod lockiem w ścieżce zdarzeń; `enable` za `reconcileAll` na 1-wątkowym bulkExecutor), testy gałęzi `sync_queue_full`/`revoke_queue_full` (zależy od BE-178 ✅; powiązane BE-180; P1, M; tura 80) | ⬜ Do zrobienia |
-| BE-245 | BE-178 follow-up: kanał synchronizacji wtyczek — HMAC koperty (razem z BE-242), R4 (deserializacja przed rate-limitem), R6 (afterCommit z fazy innej synchronizacji), propagacja zmiany `installationConfig` (zależy od BE-178 ✅; powiązane BE-242; P1, M; tura 80) | ⬜ Do zrobienia |
+| BE-245 | BE-178 follow-up: kanał synchronizacji wtyczek — HMAC koperty (razem z BE-242), R4 (deserializacja przed rate-limitem), R6 (afterCommit z fazy innej synchronizacji), propagacja zmiany `installationConfig` (zależy od BE-178 ✅; powiązane BE-242 ✅ (`WebSocketChannelSigner` gotowy do użycia, zob. ticket); P1, M; tura 80) | ⬜ Do zrobienia |
 | BE-246 | BE-178 follow-up: circuit breaker half-open/TTL + adopcja `DEGRADED` z DB, `PluginAssetController` 404 na niezrekoncyliowanej instancji, wykrywanie nadpisania JAR wersji w miejscu (checksum), rolling deploy ze starą wersją bez nasłuchu (zależy od BE-178 ✅; P1, M; tura 80) | ⬜ Do zrobienia |
 | BE-247 | BE-178 S5: koszt rekoncyliacji wtyczek O(tenanci) co 30 s na instancję — pre-check przez widok/funkcję SECURITY DEFINER poza RLS (migracja) (zależy od BE-178 ✅; DECYZJA WŁAŚCICIELA; P2, M; tura 80) | ⬜ Do zrobienia |
 | BE-248 | Niestabilny test `ProgressiveDialerCampaignLockIntegrationTest.agentFreeProbeUsesV151Indexes` (EXPLAIN; raz padł w pełnym przebiegu) — analogia do Db090ShedlockMigrationTest (PR #70) (zależy od BE-173 ✅; P2, S, Testing; tura 80) | ✅ Ukończone (2026-11-25, tura 81; transakcja z rollbackiem + `VACUUM ANALYZE`, 20/20 przebiegów; CR 4/5) |
-| BE-249 | BE-233 follow-up: znacznik „revoked since”, wspólna bramka statusu tenanta (login/refresh/CONNECT), asynchroniczna publikacja, HMAC kopert + Redis ACL, logout per urządzenie, backoff ponowień, metryki tombstone i `ws.connect.rejected{code}` (zależy od BE-233 ✅; powiązane BE-242, BE-241, FE-173; Should, L; tura 81) | ⬜ Do zrobienia |
-| BE-250 | Niestabilny test `ContactAsyncLimitIntegrationTest.assignmentWaitsForAgentLockAndSeesCommittedSlot` (`Thread.sleep(500)`; zależy od BE-230 ✅; P2, S, Testing; tura 81) | ⬜ Do zrobienia |
+| BE-249 | BE-233 follow-up: znacznik „revoked since”, wspólna bramka statusu tenanta (login/refresh/CONNECT), asynchroniczna publikacja, HMAC kopert + Redis ACL, logout per urządzenie, backoff ponowień, metryki tombstone i `ws.connect.rejected{code}` (zależy od BE-233 ✅; powiązane BE-242, BE-241, FE-173; Should, L; tura 81) | ✅ Ukończone (2026-11-26, tura 82; `sid` + V152/DB-102 ✅, znaczniki revoked-since, `TenantStatusGate` (tylko INACTIVE), HMAC kopert razem z BE-242 ✅, logout per urządzenie, `changePassword` zamyka POZOSTAŁE sesje; CR 4/5 → 4,5/5; dopisek 2026-11-28: poprawka 401 zamiast 403 dla unieważnionego tokenu (`UnauthorizedResponseWriter`, `RevokedTokenReturns401MvcTest`; CR 4/5); follow-upy BE-254, BE-255, BE-256, BE-257; weryfikacja w przeglądarce WYKONANA 2026-11-28 (kryterium zamknięte); BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)) |
+| BE-250 | Niestabilny test `ContactAsyncLimitIntegrationTest.assignmentWaitsForAgentLockAndSeesCommittedSlot` (`Thread.sleep(500)`; zależy od BE-230 ✅; P2, S, Testing; tura 81) | ✅ Ukończone (2026-11-26, tura 82; Awaitility + `pg_locks`, 20/20 bez i pod obciążeniem CPU, kontrola negatywna czerwona; BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)) |
 | BE-251 | BE-228 follow-up: `DateTime64(6)` dla wersji wiersza DW w ClickHouse (remis w ms) (zależy od BE-228 ✅; ewentualnie DB-101; P2, M; tura 81) | ⬜ Do zrobienia |
 | BE-252 | BE-228 follow-up: warunkowy upsert w `PostgresDwWriter` (zależy od BE-228 ✅; P3, S/M; tura 81) | ⬜ Do zrobienia |
 | BE-253 | BE-228 follow-up (W3): monotoniczna wersja źródła zamiast czasu startu transakcji (zależy od BE-228 ✅; Czeka na DB: DB-101 do nadania; P3, M; tura 81) | ⬜ Do zrobienia |
+| BE-254 | Stabilizacja `StompSubscribeAuthorizationE2ETest.errorCode_forbidden` (raz brak ramki ERROR w 15 s w pełnym verify, 10/10 w pętli; zależy od brak — istniejący flake wskazany w review BE-233; powiązane BE-249 ✅, BE-250 ✅; P2, S, Testing; tura 82) | ⬜ Do zrobienia |
+| BE-255 | BE-249 + BE-242 follow-upy z Re-review: N-R1 (drugi przebieg lokalny bez `notAfter`), N-R2 (LRU fan-outu → Caffeine `expireAfterWrite`/pojemność z konfiguracji), N-R3 (identyczne koperty w tej samej ms odrzucane jako replay → `seq`/nonce), N-R4 (tolerancja 5 s), N-R5 (`+@scripting` w ACL Redis) (zależy od BE-249 ✅, BE-242 ✅; powiązane BE-241, BE-245; P2, M; tura 82) | ⬜ Do zrobienia |
+| BE-256 | [DECYZJA PRODUKTOWA] Czy tenant SUSPENDED ma blokować login, refresh i CONNECT (dziś `TenantStatusGate` blokuje tylko INACTIVE) (zależy od BE-249 ✅; powiązane BE-235; Średni, S; tura 82) | ⬜ Do zrobienia |
+| BE-257 | BE-249 follow-up (poprawka 401): `TenantFilter` zwraca w `detail` komunikat parsera JWT („Nieprawidłowy token: …”) zamiast jednolitego `detail`; nity: entry point jako bean, licznik Micrometer zamiast logu DEBUG dla odmów (zależy od BE-249 ✅; powiązane BE-256, FE-173 ✅; P2, S; tura 82, dopisek 2026-11-28) | ⬜ Do zrobienia |
 
 **Bez epiku – Porządki infrastrukturalne i CI**
 
@@ -8522,7 +8526,7 @@ backend/app/src/test/java/com/contactcenter/
 
 ## EPIC-32 – UX i dostępność stanowiska agenta
 
-**Ukończone 31/50** · ✅ 31 · 🔧 0 · ⬜ 19 · 🚫 0 (tura 81, 2026-11-25: bez zmian w EPIC-32; nowe BE-249…BE-253 trafiły do EPIC-33; następne wolne BE-254, FE-174, DB-101; wcześniej tura 80, 2026-11-19: bez zmian w EPIC-32; nowe BE-244…BE-248 trafiły do EPIC-33; następne wolne BE-249, FE-173, DB-101; wcześniej tura 79, 2026-11-14: bez zmian w EPIC-32; BE-235 nadal ⬜ — decyzja produktowa; nowe BE-236…BE-243 trafiły do EPIC-33; następne wolne BE-244, FE-172, DB-101; wcześniej tura 78, 2026-11-14, gałąź `feature/epic33-routing-locks-and-ws-adr`, niezacommitowane: nowy ⬜ BE-235 [DECYZJA PRODUKTOWA] (kanał `/topic/tenant/{id}/agents` dostępny dla AGENT; wynik BE-229); następne wolne BE-236, FE-171, DB-101; wcześniej tura 77, 2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane: BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`, guard usuwania kolejki) i BE-196 ✅ (sprzątanie EML odpowiedzi w `RecordingRetentionJob`; indeks DB-099 ✅/V150); nowe ⬜ BE-225 (decyzja produktowa: odwrotna negacja statusów w ETL/`CustomerRepository`) i BE-226 (`findTenantIdsWithEml`); następne wolne BE-229, FE-169, DB-100; wcześniej tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
+**Ukończone 31/50** · ✅ 31 · 🔧 0 · ⬜ 19 · 🚫 0 (dopisek do tury 82, 2026-11-28: bez zmian w EPIC-32; nowy BE-257 trafił do EPIC-33; następne wolne BE-258, FE-177, DB-103 (V153 wolna); wcześniej tura 82, 2026-11-26: bez zmian w EPIC-32; nowe BE-254…BE-256 trafiły do EPIC-33; następne wolne BE-257, FE-177, DB-103 (V153 wolna); wcześniej tura 81, 2026-11-25: bez zmian w EPIC-32; nowe BE-249…BE-253 trafiły do EPIC-33; następne wolne BE-254, FE-174, DB-101; wcześniej tura 80, 2026-11-19: bez zmian w EPIC-32; nowe BE-244…BE-248 trafiły do EPIC-33; następne wolne BE-249, FE-173, DB-101; wcześniej tura 79, 2026-11-14: bez zmian w EPIC-32; BE-235 nadal ⬜ — decyzja produktowa; nowe BE-236…BE-243 trafiły do EPIC-33; następne wolne BE-244, FE-172, DB-101; wcześniej tura 78, 2026-11-14, gałąź `feature/epic33-routing-locks-and-ws-adr`, niezacommitowane: nowy ⬜ BE-235 [DECYZJA PRODUKTOWA] (kanał `/topic/tenant/{id}/agents` dostępny dla AGENT; wynik BE-229); następne wolne BE-236, FE-171, DB-101; wcześniej tura 77, 2026-11-13, gałąź `feature/shedlock-scheduled-jobs`, niezacommitowane: BE-224 ✅ (`OccupiedSlot.IN_PROGRESS_STATUSES_SQL`, guard usuwania kolejki) i BE-196 ✅ (sprzątanie EML odpowiedzi w `RecordingRetentionJob`; indeks DB-099 ✅/V150); nowe ⬜ BE-225 (decyzja produktowa: odwrotna negacja statusów w ETL/`CustomerRepository`) i BE-226 (`findTenantIdsWithEml`); następne wolne BE-229, FE-169, DB-100; wcześniej tura 76, 2026-11-12, gałąź `fix/etl-liveness-api-and-agent-slots`, niezacommitowane: BE-223 ✅ (żywotność ETL na serwerze), BE-204 ✅ (Redis `session:agent:*` po dialerze) i BE-207 ✅ (`OccupiedSlot`, spójna definicja slotu); nowy ⬜ BE-224 (pozostałe definicje „aktywnych kontaktów”); następne wolne BE-225, FE-169, DB-099; wcześniej tura 75 cd. 2, 2026-11-12, gałąź `fix/etl-db-timestamps-and-liveness-ui`, niezacommitowane: BE-222 ✅ (znaczniki czasu z bazy) i nowy ⬜ BE-223 (żywotność ETL na serwerze, blokuje FE-168); następne wolne BE-224, FE-169, DB-099; wcześniej tura 75 cd., 2026-11-11, gałąź `fix/etl-alert-cooldown-and-cdc-window`, niezacommitowane: BE-214 ✅ (cooldown alertów ETL w Redis) i BE-216 ✅ (strażnik CDC `MIN(xact_start)`); nowy ⬜ BE-222 (stemplowanie czasu po stronie bazy); następne wolne BE-223, FE-168, DB-099; wcześniej tura 75, 2026-11-11, gałąź `fix/etl-dw-correctness`, PR #63 zmergowany do `develop`: BE-215 ✅ (ClickHouse DW odporny na duplikaty, V003) i BE-221 ✅ (`findAvailableAgents` tylko rola AGENT); bez nowych ticketów, następne wolne BE-222, FE-168, DB-099; wcześniej tura 74 dopisek 3, 2026-11-08: weryfikacja local-demo po PR #62, nowy ⬜ BE-221; wcześniej tura 74 dopisek 2, 2026-11-08: BE-209 ✅; nowe ⬜ BE-218, BE-219, BE-220; wcześniej tura 74: BE-210 ✅, BE-213 ✅, nowe ⬜ BE-215, BE-216, BE-217; następny wolny numer BE: BE-225)
 
 > Epik frontendowy (tickety FE-114…FE-136 w `TASKS-FRONTEND.md`). Tickety BE: BE-153 (tura 50, 2026-10-23, zależność follow-upu FE-130) oraz BE-154, BE-155, BE-156 (tura 51, 2026-10-23 — odkrycia `/impeccable shape` dla FE-121/FE-122, poza zakresem briefu; nie blokują FE-125) oraz BE-157 (tura 52, 2026-10-23 — lista aktywnych kontaktów agenta, zatwierdzona przez właściciela; blokuje FE-136) oraz BE-158 (tura 53, 2026-10-23 — odkrycie `test-suite-expert` przy `AgentSelfControllerTest`; nie blokują FE-125). BE-155 dotyczy kanału z EPIC-06 (social), ale jako bug odkryty w EPIC-32 jest liczony tutaj. BE-155 ✅ i BE-158 ✅ (2026-10-28). BE-159 (propozycja z code review BE-155/BE-158, 2026-10-28) — numerowany ⬜, do oceny właściciela. Tura 55 (2026-10-29): BE-160 ✅ (zwrot kontaktu do kolejki, `POST /api/contacts/{id}/release`; FE-132 zależy od BE-160). Tura 57 (2026-10-29): FE-123 ✅; nowy FE-137 (migracja `px` w `@media`); odtwarzanie kontaktu `ACTIVE` po ponownym zalogowaniu zapisane jako uwaga w BE-157/FE-136 (bez nowego ticketu BE). BE-157 ✅ (tura 64, 2026-10-31, `fcb8fe5a`; odblokował FE-136 ✅). Tura 64 (2026-10-31): nowe BE-161 (nieznana ścieżka API zwraca 500 zamiast 404; wynik FE-136) i BE-162 (oznaczenie `assigned-contact` jako deprecated; wynik BE-157/FE-136), oba ⬜; FE-148 i FE-149 w `TASKS-FRONTEND.md`, DB-088 w `TASKS-DATABASE.md` (zał. 2026-10-31, ⬜). Tura 65 (2026-11-04): BE-161 ✅ (handler `NoResourceFoundException` → 404 oraz — odstępstwo — `HttpRequestMethodNotSupportedException` → 405 z `Allow`) i BE-162 ✅ (deprecation `assigned-contact`); nowy BE-163 ⬜ (pozostałe wyjątki Spring MVC); FE-148 ✅ w `TASKS-FRONTEND.md`. Tura 66 (2026-11-04): BE-153 ✅ (po DB-089 ✅, V144) i BE-154 ✅ (zdarzenie WS `CONTACT_MESSAGE_RECEIVED` + nowa ścieżka follow-up e-mail `EmailFollowUpJoiner`, zatwierdzona przez właściciela); odblokowały FE-130 ✅ i FE-135 ✅ w `TASKS-FRONTEND.md`; nowe BE-164…BE-170 ⬜ (wyniki CR i weryfikacji BE-153/BE-154) oraz FE-150…FE-154 ⬜ w `TASKS-FRONTEND.md`. Tura 68 (2026-11-04, gałąź `fix/email-thread-preview-eml`): BE-164 ✅ (podgląd całego wątku + osobny EML dla każdej wiadomości; po DB-094 ✅/V145 i DB-095 ✅/V146 w `TASKS-DATABASE.md`; FE-156 ✅ w `TASKS-FRONTEND.md`); nowe BE-196…BE-199 ⬜ (numery BE-171…BE-195 zajął EPIC-33 w turze 67) oraz FE-157…FE-160 ⬜ w `TASKS-FRONTEND.md`. Tura 69 (2026-11-05, gałąź `fix/agent-email-thread-and-errors`): BE-163 ✅ (wspólna obsługa wyjątków Spring MVC → `problem+json`; FE-150 ✅, FE-153 ✅, FE-157 ✅, FE-159 ✅ w `TASKS-FRONTEND.md`); nowe BE-200 ✅ (tura 71, 2026-11-06), BE-201…BE-203 ⬜ oraz FE-161, FE-162 ⬜ w `TASKS-FRONTEND.md`. Tura 70 (2026-11-06, gałąź `fix/agent-status-events-and-social-join`): BE-165 ✅ (dialer `AFTER_CONTACT` publikuje `agent.status.changed`), BE-166 ✅ (zapis tego samego statusu jest cichy) i BE-168 ✅ (social: `FOR SHARE` na kontakcie przed zapisem wiadomości); nowe BE-204…BE-206 ⬜ (luki z CR; bez nowych ticketów FE/DB). Tura 72 (2026-11-07): BE-156 ✅, BE-159 ✅, DB-096/DB-097 ✅; nowe BE-207…BE-209 ⬜ i FE-163 ⬜. Tura 73 (2026-11-07, zgłoszenie użytkownika — „agenci-duchy”: status AVAILABLE nigdy nie wygasa po zamknięciu karty/restarcie): nowe BE-210 ⬜ (wykrywanie obecności i automatyczny OFFLINE) i BE-211 ⬜ (poziom logu pollu routingu) oraz FE-164 ⬜ w `TASKS-FRONTEND.md`; bez nowych ticketów DB (ewentualny DB-099 — DB-098 zajął w dopisku 2 ticket indeksów CDC — tylko jeśli BE-210 zdecyduje o kolumnie ostatniej aktywności). Tura 73 (dopisek, 2026-11-07): nowy BE-212 ⬜ ([BUG] fałszywy alarm lagu ETL przy braku zmian w źródle; domena ETL/DW z EPIC-10, który pozostaje ✅ 5/5 — ticket liczony tutaj jako backlog, razem z BE-211). Tura 73 (dopisek 2, 2026-11-07, gałąź `fix/routing-conditional-assignment-and-limits`, niezacommitowane): BE-211 ✅ (log pollu routingu na DEBUG) i BE-212 ✅ (lag ETL = wiek najstarszej niezsynchronizowanej zmiany, alert żywotności `checkJobLiveness`, `alertType`); CR „Review: BE-211 + BE-212 — 2026-11-07” 3,5/5 APPROVE WITH FIXES, 0 must-fix, `mvn verify` 3089 testów (0 F, 0 E, 1 pominięty); nowe BE-213 ⬜ ([BUG] P1: utrata danych ETL przy backlogu > LIMIT i wyścig `computeMax*`; domena EPIC-10), BE-214 ⬜ (cooldown alertów ETL), DB-098 ⬜ w `TASKS-DATABASE.md` (indeksy wyrażeniowe CDC) i FE-165 ⬜ w `TASKS-FRONTEND.md` (JOB_STALE/JOB_ERROR w panelu admin-metrics); BE-172 dopisano `checkJobLiveness`. Rekoncyliacja liczników (tura 73): tabela „Indeks wg EPIC” była nieaktualna (RAZEM 153/52/208 przy faktycznych 159/54/216 przed turą). Następne wolne numery: BE-215, FE-166, DB-099 (EPIC-33 zajął BE-171…BE-195, FE-155, DB-090…DB-093 w turze 67).
 
@@ -10093,8 +10097,10 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 16/51** · ✅ 16 · 🔧 0 · ⬜ 35 · 🚫 0
+**Ukończone 19/55** · ✅ 19 · 🔧 0 · ⬜ 36 · 🚫 0
 
+> **Tura 82 (2026-11-26, gałąź `feature/epic33-ws-session-hardening-hmac` (z `develop` f31fb73a), zmiany niezacommitowane; `/verify`: FE lint 0 błędów (10 ostrzeżeń istniejących), format OK, 90 plików / 1338 testów; BE `mvn verify -pl app` BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21); CR w `CR-BACKEND.md`: „Review: BE-249 + BE-242” 4/5 → „Re-review: BE-249 + BE-242” 4,5/5; w `CR-DATABASE.md`: „Review: V152 (BE-249)” 4/5 → „Re-review: V152 (BE-249)” 5/5; w `CR-FRONTEND.md`: „Review: FE-173” 3,5/5 → „Re-review: FE-173” 4,5/5 → „Re-review 2: FE-173” 5/5):** ✅ **BE-249** (sekret HMAC wymagany na prod z trybem `accept-unsigned`; wspólny sekret dla `cc:ws:*`; `changePassword` zamyka POZOSTAŁE sesje; `TenantStatusGate` z cache 30 s — tylko INACTIVE; logout per urządzenie; `sid` = rodzina refresh tokenów, V152 = DB-102 ✅), ✅ **BE-242** (`WebSocketChannelSigner`; odstępstwo A3: `ws.channel.signature.rejected{channel,reason}` zamiast `ws.fanout.rejected{reason}` — dashboardy i alerty BE-183 na nową nazwę), ✅ **BE-250** (Awaitility + `pg_locks`, 20/20 bez i pod obciążeniem), ✅ **FE-173** (w `TASKS-FRONTEND.md`), ✅ **DB-102** (V152). Weryfikacja w przeglądarce WYKONANA 2026-11-28 (patrz dopisek poniżej). Nowe ⬜: BE-254 (flake `StompSubscribeAuthorizationE2ETest.errorCode_forbidden`), BE-255 (N-R1…N-R5), BE-256 (DECYZJA PRODUKTOWA: SUSPENDED), FE-174, FE-175, FE-176. BE-245 może użyć `WebSocketChannelSigner` (zależność dopisana). Liczniki EPIC-33 przed dopiskiem: DB 3/6, BE 19/54, FE 4/9. Następne wolne przed dopiskiem: BE-257, FE-177, DB-103 (V153 wolna; DB-101 zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253). **Dopisek (2026-11-28, ta sama tura 82, zmiany nadal niezacommitowane):** (1) Poprawka z weryfikacji przeglądarkowej (zrealizowana w BE-249, odnotowana w FE-173): REST z poprawnie podpisanym, ale unieważnionym tokenem (blacklista, znacznik revoked-since user/`sid`, tenant INACTIVE, użytkownik nieaktywny) zwracał 403 (domyślny `Http403ForbiddenEntryPoint`) zamiast 401, więc po logout-all front zostawał „zalogowany” z toastem „Access denied”. BE: `SecurityConfig` `authenticationEntryPoint` → 401 `ProblemDetail` przez nowy wspólny `UnauthorizedResponseWriter` (używany także przez `TenantFilter`) z `WWW-Authenticate: Bearer` i jednolitym `detail`; `dispatcherTypeMatchers(ERROR).permitAll()` (błąd 5xx przez `/error` nie zamienia się w 401 i nie wylogowuje); `accessDeniedHandler` bez zmian (uwierzytelniony bez roli = 403); test `RevokedTokenReturns401MvcTest` (13 testów, kontrola negatywna dla ERROR dispatch). FE: `POST /auth/logout` z `SKIP_ERROR_TOAST` (brak dodatkowego toastu przy odrzuconym logout), testy (1338). Review: `CR-BACKEND.md` „Review: 401 dla unieważnionego tokenu (BE-249 follow-up)” 4/5 (R1–R3 poprawione), `CR-FRONTEND.md` „Review: logout bez toastu (FE-173 follow-up)” 4,5/5 (nity poprawione). (2) Weryfikacja w przeglądarce WYKONANA 2026-11-28 (local-demo przebudowane z tej gałęzi, Chrome, dwie karty jako ADMIN KMN Software, każda z własną sesją/`sid`): test 1 logout per urządzenie ✅ (różne `sid` w `refresh_token`; po logout w B karta A: WS połączony 40 s, 0 ERROR, 16 MESSAGE, REST 200; unieważniony tylko refresh token B; 0 ERROR w logach); test 2 logout-all ✅ (204, „unieważniono 4 tokenów”, „Zamknieto 1 sesji WebSocket, powod=LOGOUT”; B: STOMP ERROR `WS_TOKEN_INVALID` → refresh 401 → komunikat `sessionEnded` + logout; karta z unieważnionym tokenem przy CONNECT: ERROR `WS_TOKEN_INVALID` („Token został unieważniony”) → refresh 401 → jeden komunikat + logout; po poprawce REST karty A (bez WS) 401 → refresh 401 → logout 401 → jeden komunikat „Session ended”, bez „Access denied” — przed poprawką było 403 + „Access denied” bez wylogowania); test 3 zmiana hasła ✅ („Zamknieto 1 sesji WebSocket, powod=PASSWORD_CHANGED”, tylko urządzenie A, WS urządzenia zmieniającego nie dostał ERROR; A: ERROR `WS_TOKEN_INVALID` → refresh 401 → jeden komunikat + logout, logout 401 bez toastu; hasło testowego admina przywrócone do pierwotnego; zmiana przez API z karty B, więc B nie przejęła nowej pary tokenów i też się wylogowała — artefakt testu, nie błąd); test 4 awaria backendu ok. 70 s (FE-173) ✅ (baner „Connection lost”, brak wylogowania i brak refresh; 5 prób reconnect z rosnącym odstępem; po starcie backendu ponowne CONNECTED i baner znika; jedno REST 502, potem 200). Kryteria weryfikacji przeglądarkowej BE-249 i FE-173 ZAMKNIĘTE. Uwaga: zamykanie WS przy tenancie INACTIVE nie było weryfikowane ręcznie (pokryte testami integracyjnymi). (3) `/verify` po poprawce: FE lint 0 błędów (10 ostrzeżeń istniejących), format OK, 90 plików / 1338 testów; BE `mvn verify -pl app` (JDK 21): 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (zastępuje liczby 1332 / 3952 / 9:55 min z pierwotnego wpisu 2026-11-26). (4) Nowy ⬜ **BE-257** (P2, S; zależy od BE-249 ✅): `TenantFilter` dla `JwtValidationException` zwraca w `detail` komunikat parsera JWT („Nieprawidłowy token: …”) zamiast jednolitego `detail` z `UnauthorizedResponseWriter`; nity: entry point jako bean, licznik Micrometer zamiast logu DEBUG dla odmów. Liczniki EPIC-33: DB 3/6, BE 19/55, FE 4/9 (razem 70 ticketów: 26 ✅ / 44 ⬜); RAZEM projekt 438 ✅ / 97 ⬜ / 7 🚫 = 542; następne wolne BE-258, FE-177, DB-103 (V153 wolna).
+>
 > **Tura 81 (2026-11-25, gałąź `feature/epic33-ws-session-lifecycle-shedlock-metrics` (z `develop` f634d9c3), zmiany niezacommitowane; `/verify`: FE lint 0 błędów (10 ostrzeżeń istniejących), format OK, 88 plików / 1296 testów; BE `mvn verify -pl app` (JDK 21) 3819 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 12:08 min; po zmianie jitteru na 30 s przechodzą testy WebSocket: rejestr, closer, terminator, control bus, interceptor oraz lifecycle IT; CR w `CR-BACKEND.md`: „Review/Re-review: BE-233” 3,5/5 → 4/5 (gotowe do merge) i „Review: BE-228 + BE-248” 4/5, uwagi W1–W4, N1 i N2 poprawione):** ✅ **BE-233** (sesje WS a życie tokenu: rejestr per `userId`, kanał kontrolny Redis `cc:ws:session-control:<env>`, zamknięcie ramką ERROR, sweep 5 s per instancja, blacklista JWT przy CONNECT fail-closed `WS_INTERNAL`, `refresh` odrzuca nieaktywny tenant; `websocket.session.*`: max-lifetime PT12H, close-at-token-expiry true, grace PT0S, jitter PT30S (decyzja właściciela), sweep 5000 ms; decyzje właściciela 1–6, w tym logout zamyka sesje na wszystkich urządzeniach — zawężenie → BE-249), ✅ **BE-228** (`MeteredLockProvider` z metrykami `scheduler.lock.attempts` i `scheduler.lock.expired`, wersja DW z `COALESCE(updated_at, created_at)`, `ShedLockOrphanCleanupJob` 03:45 UTC / 7 dni; decyzje D1–D4 zaakceptowane; `dw/README.md` zaktualizowany w commicie), ✅ **BE-248** (test EXPLAIN stabilny: transakcja z rollbackiem + `VACUUM ANALYZE`, 20/20 przebiegów). **BRAMKA „>1 replika backendu”: BE-233 i BE-228 zamknięte — zdjęto ostatnie blokery Should przed produkcją na wielu replikach (zweryfikowane w treści plików; zostają zalecane hardeningi P1: BE-241, BE-242, BE-245, BE-249).** Nowe ⬜: BE-249 (Should; 11 punktów z CR BE-233), BE-250 (flake `ContactAsyncLimitIntegrationTest`), BE-251, BE-252, BE-253 (follow-upy BE-228), FE-173 (obsługa zamknięcia sesji WS po stronie klienta). Liczniki EPIC-33: DB 2/5, BE 16/51, FE 3/6. Następne wolne: BE-254, FE-174, DB-101 (V152 wolna).
 >
 > **Tura 80 (2026-11-19, gałąź `feature/epic33-ivr-plugins-ws-error-code` (z `develop` 42fa40f0), zmiany niezacommitowane; `/verify`: FE lint 0 błędów (10 ostrzeżeń istniejących), format OK, 88 plików / 1296 testów; BE `mvn verify -pl app` 3730 testów, 0 F / 0 E / 1 pominięty, JDK 21; CR w `CR-BACKEND.md`: „Review/Re-review: BE-177 + BE-236” 3,5/5 → 4,5/5 i 4/5 → 4,5/5, „Review/Re-review: BE-178” (runda 1 i 2) 3,5/5 → 4/5; w `CR-FRONTEND.md`: „Review/Re-review: FE-171” 4/5 → 4,5/5):** ✅ **BE-177** (P0; stan IVR z JVM do Redis, klucze `ivr:pending:<typ>:<tenantId>:<callSid>` — odstępstwo: `tenantId` w kluczu, GETDEL, TTL 2 min, odczyt fail-open / zapis konferencji fail-closed), ✅ **BE-178** (P0; synchronizacja runtime wtyczek: DB źródłem prawdy, Redis pub/sub `cc:plugin:sync:<env>` jako hint, rekoncyliacja 30 s bez ShedLock; decyzje właściciela 1–5 zaakceptowane, szczegóły w tickecie), ✅ **BE-236** (P1; nagłówek `code` w ramce STOMP ERROR), ✅ **FE-171** (klasyfikacja po `headers['code']`; kryterium 3 — usunięcie fallbacku — ODROCZONE do wdrożenia BE-236 na wszystkich instancjach, jawne odstępstwo → nowy FE-172; AC5 w przeglądarce niewykonane). **Bramka „>1 replika backendu” pozostaje zamknięta; BE-177 i BE-178 (P0) zamknięte — przed produkcją na wielu replikach zostają tylko BE-233 i BE-228 (Should).** Nowe ⬜: BE-244, BE-245, BE-246 (follow-upy BE-178), BE-247 (S5, decyzja właściciela), BE-248 (niestabilny test dialera), FE-172. Zaktualizowane: BE-184 (pomiar GETDEL zapowiedzi audio, BE-177 N1), BE-180 (decyzja 5: `plugins.lifecycle.max-threads`=16). Liczniki EPIC-33: DB 2/5, BE 13/46, FE 3/5. Następne wolne: BE-249, FE-173, DB-101 (V152 wolna).
@@ -10528,6 +10534,8 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Nie wchodzi w zakres:** wdrożenie Prometheus/Grafana w produkcji (infrastruktura klienta), tracing rozproszony.
 **Zależności:** `Zależy od` brak; `Blokuje` BE-184, BE-195; powiązane: ARCHITECTURE.md §8 (alerty).
 **Dopisek (tura 78):** surowe metryki do spięcia w dashboardach/alertach: `scheduler.lock.skipped{type}` (BE-173; wraz z BE-228), `ws.stomp.rejected{command,reason}` i `ws.stomp.dropped` (BE-229 ✅; alert na `reason=foreign_*` → BE-234), `ws.fanout.*` (BE-175, opcja B), `cc.ewt.stats.fallback` i metryka odrzuceń `PubSubListenerContainer` (BE-179 ✅), `dialer.call_state_lost` (log/licznik BE-173). Powiązane: BE-173 ✅, BE-179 ✅, BE-229 ✅, BE-175, BE-228, BE-234.
+
+**Dopisek (tura 82):** BE-242 ✅ zastąpił planowaną metrykę `ws.fanout.rejected{reason}` wspólną `ws.channel.signature.rejected{channel,reason}` (odstępstwo A3); BE-249 ✅ dołożył `ws.connect.rejected{code}`, `ws.channel.accept_unsigned`, metryki tombstone i sweepu. Dashboardy i alerty BE-183 MUSZĄ używać nowych nazw (alert na martwy Redis niezależny od logów: `ws.connect.rejected{code=WS_INTERNAL}`). Powiązane: BE-242 ✅, BE-249 ✅.
 
 ### BE-184 – Harness testów obciążeniowych (k6): 500 agentów WS+REST, baseline jednej instancji
 
@@ -11227,9 +11235,9 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Security (Backend, WebSocket)
 **Priorytet:** P1 (Should Have)
 **Złożoność:** M
-**Zależy od:** BE-175 ✅
-**Status:** ⬜ Do zrobienia (założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-175 + BE-176”, 2026-11-14, F3)
-**Blokuje:** brak; powiązane: BE-241, BE-243, BE-233
+**Zależy od:** BE-175 ✅; zrealizowany razem z BE-249 ✅ (wspólny sekret i `WebSocketChannelSigner` dla `cc:ws:*`)
+**Status:** ✅ Ukończone (2026-11-26, tura 82; gałąź `feature/epic33-ws-session-hardening-hmac` (z `develop` f31fb73a), zmiany niezacommitowane; CR-BACKEND.md „Review: BE-249 + BE-242” 4/5 → „Re-review: BE-249 + BE-242” 4,5/5; `mvn verify -pl app` — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21); założony 2026-11-14, tura 79; źródło: CR-BACKEND.md „Re-review BE-175 + BE-176”, 2026-11-14, F3)
+**Blokuje:** brak; powiązane: BE-241 (Redis ACL — tylko opisane w `DEPLOYMENT.md`), BE-243, BE-233 ✅, BE-249 ✅ (wspólna realizacja), BE-245 (może użyć `WebSocketChannelSigner`), BE-183 (dashboardy i alerty MUSZĄ używać nowej metryki `ws.channel.signature.rejected{channel,reason}`), BE-255 (follow-upy N-R1…N-R5)
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -11238,15 +11246,18 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Zakres:** podpis HMAC-SHA256 koperty (`WebSocketFanoutPublisher`) i weryfikacja w `WebSocketFanoutSubscriber` (porównanie w stałym czasie); sekret z konfiguracji (`websocket.fanout.hmac-secret`/zmienna środowiskowa); na profilu `prod` start aplikacji zakończony błędem, gdy sekret brakuje lub jest za krótki; metryka `ws.fanout.rejected{reason=bad_signature}`; wsparcie rotacji (dwa sekrety na czas przejścia) — opisać w `DEPLOYMENT.md`.
 
 **Kryteria akceptacji:**
-- [ ] Koperta bez poprawnego podpisu jest odrzucana i liczona (`reason=bad_signature`); test jednostkowy i IT (rozszerzenie `WebSocketFanoutCrossInstanceIntegrationTest`)
-- [ ] Na profilu `prod` brak sekretu (lub krótszy niż minimum) blokuje start; `FullApplicationContextStartupTest` zaktualizowany
-- [ ] Rotacja sekretu bez utraty zdarzeń (test z dwoma sekretami)
-- [ ] `DEPLOYMENT.md` opisuje generowanie i rotację sekretu; sekret nie trafia do repo ani do `.env.local-demo` z repo
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Koperta bez poprawnego podpisu jest odrzucana i liczona (odstępstwo A3: metryka `ws.channel.signature.rejected{channel,reason}` zamiast `ws.fanout.rejected{reason=bad_signature}`); test jednostkowy i IT
+- [x] Na profilu `prod` brak sekretu lub sekret krótszy niż 32 B (twarda podłoga) blokuje start; `FullApplicationContextStartupTest` zaktualizowany
+- [x] Rotacja sekretu bez utraty zdarzeń (test z dwoma sekretami: bieżący + `WEBSOCKET_HMAC_PREVIOUS_SECRET`)
+- [x] `DEPLOYMENT.md` opisuje generowanie i rotację sekretu; sekret nie trafia do repo ani do `.env.local-demo` z repo
+- [x] `mvn verify -pl app` zielone (JDK 21) — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)
 
+**Zrealizowano (2026-11-26, tura 82):** `WebSocketChannelSigner` — HMAC-SHA256, porównanie w stałym czasie, okno świeżości 5 min, rotacja (sekret bieżący + `WEBSOCKET_HMAC_PREVIOUS_SECRET`); tryb przejściowy `accept-unsigned` (R1 z ryzyk — rolling deploy); prod bez sekretu lub z sekretem < 32 B nie startuje. Redis ACL tylko opisane w `DEPLOYMENT.md` (BE-241).
+**Odstępstwo A3:** zamiast `ws.fanout.rejected{reason}` wspólna metryka `ws.channel.signature.rejected{channel,reason}` (obejmuje też kanał kontrolny `cc:ws:session-control`). Dashboardy i alerty BE-183 muszą użyć NOWEJ nazwy metryki.
+**Follow-upy (BE-255):** N-R1…N-R5 z „Re-review: BE-249 + BE-242”. **AKCJA WŁAŚCICIELA (wykonana):** `WEBSOCKET_HMAC_SECRET` w `.env.local-demo` — local-demo przebudowane z gałęzi tury 82 i zweryfikowane w przeglądarce 2026-11-28.
 **Ryzyka:** (R1) rolling deploy ze starą wersją bez podpisu — wymagany tryb przejściowy (akceptuj bez podpisu na czas migracji, wyłączalny flagą); (R2) koszt CPU HMAC przy dużym ruchu — zmierzyć w BE-184.
 **Nie wchodzi w zakres:** ACL Redis i bufory (BE-241).
-**Zależności:** `Zależy od` BE-175 ✅; `Blokuje` brak.
+**Zależności:** `Zależy od` BE-175 ✅ (spełnione); zrealizowany wspólnie z BE-249 ✅; `Blokuje` brak; powiązane: BE-245 (kanał wtyczek `cc:plugin:sync:<env>` — możliwość użycia `WebSocketChannelSigner`), BE-241, BE-183, BE-255.
 
 ### BE-243 – Fan-out WS, dalsze prace: gauge dispatchu, health `degraded`, budżet bajtowy odbiorcy, test „SupervisorMetrics raz na interwał”, walidacja payloadu, strażnik nazw kolejek Rabbit relay
 
@@ -11337,7 +11348,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 
 **Ryzyka:** (R1) rotacja sekretu przy rolling deploy — okno z dwoma kluczami albo odrzucenia tymczasowe (rekoncyliacja 30 s nadrabia); (R2) wspólny sekret z BE-242 wiąże kolejność wdrożenia.
 **Nie wchodzi w zakres:** half-open obwodu (BE-246), kwarantanna `onActivate` (BE-244).
-**Zależności:** `Zależy od` BE-178 ✅; `Blokuje` brak; powiązane: BE-242 (wspólny HMAC i sekret), BE-175 ✅.
+**Zależności:** `Zależy od` BE-178 ✅; BE-242 ✅ (zrealizowany w turze 82 — `WebSocketChannelSigner`, jeden wspólny sekret `WEBSOCKET_HMAC_SECRET`, rotacja `WEBSOCKET_HMAC_PREVIOUS_SECRET`, tryb `accept-unsigned`: BE-245 MOŻE go użyć zamiast osobnej implementacji; do potwierdzenia w BE-245: podpis dziś wiąże nazwę kanału w kopercie `cc:ws:*`, kanał `cc:plugin:sync:<env>` wymaga objęcia podpisem i metryki `ws.channel.signature.rejected{channel,reason}`); `Blokuje` brak; powiązane: BE-175 ✅, BE-249 ✅, BE-255.
 
 ### BE-246 – BE-178 follow-up: circuit breaker half-open/TTL + adopcja `DEGRADED`, 404 `PluginAssetController`, checksum JAR, rolling deploy ze starą wersją
 
@@ -11429,9 +11440,9 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Typ:** Security / Hardening (Backend, WebSocket)
 **Priorytet:** Should Have (podniesiony po CR BE-233 — D7)
 **Złożoność:** L (rozbić przy realizacji: A = W2 + R3/bramka tenanta, B = W4 + R2 + metryki, C = S1 + logout per urządzenie)
-**Zależy od:** BE-233 ✅; dla pkt 3 (HMAC) wspólnie z BE-242 (nie blokuje)
-**Status:** ⬜ Do zrobienia (założony 2026-11-25, tura 81; źródło: CR-BACKEND.md „Review: BE-233” (D7) i „Re-review: BE-233” („Punkty do BE-249 (zbiorczo)”), decyzje właściciela 4 i 6)
-**Blokuje:** brak; powiązane: BE-233 ✅, BE-242, BE-245, BE-241, BE-183, BE-175 ✅, FE-173
+**Zależy od:** BE-233 ✅; BE-242 ✅ (HMAC zrealizowany wspólnie w tej samej turze, wspólny `WebSocketChannelSigner`); DB-102 ✅ (migracja V152 `refresh_token.session_id`)
+**Status:** ✅ Ukończone (2026-11-26, tura 82; gałąź `feature/epic33-ws-session-hardening-hmac` (z `develop` f31fb73a), zmiany niezacommitowane; CR-BACKEND.md „Review: BE-249 + BE-242” 4/5 → „Re-review: BE-249 + BE-242” 4,5/5; migracja V152 = DB-102 ✅ (CR-DATABASE.md „Review: V152 (BE-249)” 4/5 → „Re-review: V152 (BE-249)” 5/5); `mvn verify -pl app` — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21); weryfikacja w przeglądarce WYKONANA 2026-11-28 (local-demo przebudowane z tej gałęzi; kryterium zamknięte); dopisek 2026-11-28: poprawka 401 zamiast 403 dla unieważnionego tokenu (CR-BACKEND.md „Review: 401 dla unieważnionego tokenu (BE-249 follow-up)” 4/5, R1–R3 poprawione); założony 2026-11-25, tura 81; źródło: CR-BACKEND.md „Review: BE-233” (D7) i „Re-review: BE-233” („Punkty do BE-249 (zbiorczo)”), decyzje właściciela 4 i 6)
+**Blokuje:** brak; follow-upy (tura 82): BE-255 (N-R1…N-R5), BE-256 (DECYZJA PRODUKTOWA: tenant SUSPENDED), BE-254 (flake `StompSubscribeAuthorizationE2ETest`), BE-257 (dopisek 2026-11-28: jednolity `detail` w `TenantFilter`, nity po poprawce 401); powiązane: BE-233 ✅, BE-242 ✅, BE-245 (może użyć `WebSocketChannelSigner`), BE-241 (Redis ACL — opisane w `DEPLOYMENT.md`), BE-183 (alerty na nowe metryki), BE-175 ✅, FE-173 ✅, DB-102 ✅
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
 
@@ -11449,17 +11460,25 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 11. Testy: SUPER_ADMIN w `refresh` nie woła `findTenantEntity`; `register` zwracający `null` nie psuje CONNECT; 20× pętla `StompSubscribeAuthorizationE2ETest` na `develop` (z pierwszego review); stabilizacja `ContactAsyncLimitIntegrationTest` — osobny ticket BE-250.
 
 **Kryteria akceptacji:**
-- [ ] Po zamknięciu sesji (logout/dezaktywacja/zmiana roli) ponowny CONNECT tym samym (jeszcze ważnym) tokenem jest odrzucony (test)
-- [ ] `updateTenant(INACTIVE)` blokuje `login`, `refresh` i CONNECT użytkowników tenanta przez wspólną bramkę z cache; reaktywacja przywraca dostęp (test; SUPER_ADMIN bez tenanta pomijany)
-- [ ] Publikacja koperty nie blokuje wątku żądania i nie jest wykonywana w transakcji; awaria Redis nie psuje logout/zmiany roli (test)
-- [ ] Koperta kontrolna ma HMAC (odrzucenie bez/ze złym podpisem, test); Redis ACL opisane w `DEPLOYMENT.md`
-- [ ] Decyzja logout per urządzenie vs wszędzie zapisana w tickecie i zaimplementowana (test)
-- [ ] Ponowienia zamknięcia z backoffem i zagregowanym logiem; metryki tombstone i `ws.connect.rejected{code}` widoczne w `/actuator/prometheus` (testy)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Po zamknięciu sesji (logout/dezaktywacja/zmiana roli) ponowny CONNECT tym samym (jeszcze ważnym) tokenem jest odrzucony (test)
+- [x] `updateTenant(INACTIVE)` blokuje `login`, `refresh`, CONNECT i `JwtAuthFilter` użytkowników tenanta przez wspólną bramkę `TenantStatusGate` z cache Caffeine 30 s; reaktywacja przywraca dostęp (test; SUPER_ADMIN bez tenanta pomijany); UWAGA: bramka blokuje tylko INACTIVE, SUSPENDED nie jest blokowany (→ BE-256)
+- [x] Publikacja koperty nie blokuje wątku żądania i nie jest wykonywana w transakcji; awaria Redis nie psuje logout/zmiany roli (test)
+- [x] Koperta kontrolna ma HMAC (odrzucenie bez/ze złym podpisem, test); Redis ACL opisane w `DEPLOYMENT.md`
+- [x] Decyzja logout per urządzenie vs wszędzie zapisana w tickecie i zaimplementowana (test)
+- [x] Ponowienia zamknięcia z backoffem i zagregowanym logiem; metryki tombstone i `ws.connect.rejected{code}` widoczne w `/actuator/prometheus` (testy)
+- [x] `mvn verify -pl app` zielone (JDK 21) — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)
+- [x] REST z poprawnie podpisanym, ale unieważnionym tokenem (blacklista, revoked-since user/`sid`, tenant INACTIVE, użytkownik nieaktywny) zwraca 401 `ProblemDetail` z `WWW-Authenticate: Bearer` (nie 403); błąd 5xx przez `/error` NIE zamienia się w 401; uwierzytelniony bez roli nadal 403 (`RevokedTokenReturns401MvcTest`, 13 testów, kontrola negatywna dla ERROR dispatch) — dopisek 2026-11-28
+- [x] Weryfikacja w przeglądarce na local-demo (2026-11-28, dwie karty ADMIN, osobne `sid`): logout per urządzenie ✅, logout-all ✅, `changePassword` zamyka POZOSTAŁE sesje ✅ (powod=PASSWORD_CHANGED), awaria backendu ~70 s bez wylogowania ✅ (FE-173); zamykanie WS przy tenancie INACTIVE NIE weryfikowane ręcznie (testy integracyjne)
+
+**Decyzje właściciela (2026-11-26, tura 82):** (1) sekret HMAC wymagany na prod, z trybem przejściowym `accept-unsigned`; (2) jeden wspólny sekret dla `cc:ws:*`, nazwa kanału w podpisie; (3) `changePassword` zamyka sesje i unieważnia refresh tokeny na POZOSTAŁYCH urządzeniach; (4) bramka statusu tenanta (login, refresh, CONNECT, `JwtAuthFilter`) z cache Caffeine 30 s; (5) logout per urządzenie, `logoutAll` = wszystkie.
+**Zrealizowano (2026-11-26, tura 82):** `sid` = rodzina refresh tokenów (V152 `refresh_token.session_id` = DB-102 ✅, claim `sid`, pole `Entry` rejestru WS); znaczniki `ws:revoked-since:{userId}` i `ws:revoked-since:sid:{sid}` — monotoniczne (Lua), porównanie z `iat`, jeden MGET razem z blacklistą w `JwtAuthFilter`; `TenantStatusGate` (blokuje tylko INACTIVE; SUSPENDED nie ma w domenie zdefiniowanej semantyki dostępu — decyzja produktowa → BE-256); asynchroniczna publikacja w kolejności local → marker → local → publish na ograniczonym executorze; ochrona przed replay: `registeredAt`/`notAfter` (tolerancja 5 s) i `WebSocketReplayGuard` (LRU); backoff ponowień zamknięcia bez porzucania sesji; metryki: tombstone, sweep, `ws.connect.rejected{code}`, `ws.channel.signature.rejected{channel,reason}`, `ws.channel.accept_unsigned`; jawne `WEBSOCKET_SESSION_ENV` na prod. Follow-upy z Re-review → BE-255, BE-256; stabilizacja flake STOMP → BE-254.
+**Poprawka z weryfikacji przeglądarkowej (2026-11-28):** REST z poprawnie podpisanym, ale unieważnionym tokenem (blacklista, znacznik revoked-since user/`sid`, tenant INACTIVE, użytkownik nieaktywny) zwracał 403 (domyślny `Http403ForbiddenEntryPoint`) zamiast 401, więc po logout-all front zostawał „zalogowany” z toastem „Access denied”. BE: `SecurityConfig` `authenticationEntryPoint` → 401 `ProblemDetail` przez nowy wspólny `UnauthorizedResponseWriter` (używany także przez `TenantFilter`) z `WWW-Authenticate: Bearer` i jednolitym `detail`; `dispatcherTypeMatchers(ERROR).permitAll()` (błąd 5xx przez `/error` nie zamienia się w 401 i nie wylogowuje); `accessDeniedHandler` bez zmian (uwierzytelniony bez roli = 403); test `RevokedTokenReturns401MvcTest` (13 testów, kontrola negatywna dla ERROR dispatch). FE: `POST /auth/logout` z `SKIP_ERROR_TOAST` (brak dodatkowego toastu przy odrzuconym logout), testy (1338). Review: `CR-BACKEND.md` „Review: 401 dla unieważnionego tokenu (BE-249 follow-up)” 4/5 (R1–R3 poprawione), `CR-FRONTEND.md` „Review: logout bez toastu (FE-173 follow-up)” 4,5/5 (nity poprawione). Pozostawione: BE-257.
+**Weryfikacja w przeglądarce (2026-11-28):** Weryfikacja w przeglądarce WYKONANA 2026-11-28 (local-demo przebudowane z tej gałęzi, Chrome, dwie karty jako ADMIN KMN Software, każda z własną sesją/`sid`): test 1 logout per urządzenie ✅ (różne `sid` w `refresh_token`; po logout w B karta A: WS połączony 40 s, 0 ERROR, 16 MESSAGE, REST 200; unieważniony tylko refresh token B; 0 ERROR w logach); test 2 logout-all ✅ (204, „unieważniono 4 tokenów”, „Zamknieto 1 sesji WebSocket, powod=LOGOUT”; B: STOMP ERROR `WS_TOKEN_INVALID` → refresh 401 → komunikat `sessionEnded` + logout; karta z unieważnionym tokenem przy CONNECT: ERROR `WS_TOKEN_INVALID` („Token został unieważniony”) → refresh 401 → jeden komunikat + logout; po poprawce REST karty A (bez WS) 401 → refresh 401 → logout 401 → jeden komunikat „Session ended”, bez „Access denied” — przed poprawką było 403 + „Access denied” bez wylogowania); test 3 zmiana hasła ✅ („Zamknieto 1 sesji WebSocket, powod=PASSWORD_CHANGED”, tylko urządzenie A, WS urządzenia zmieniającego nie dostał ERROR; A: ERROR `WS_TOKEN_INVALID` → refresh 401 → jeden komunikat + logout, logout 401 bez toastu; hasło testowego admina przywrócone do pierwotnego; zmiana przez API z karty B, więc B nie przejęła nowej pary tokenów i też się wylogowała — artefakt testu, nie błąd); test 4 awaria backendu ok. 70 s (FE-173) ✅ (baner „Connection lost”, brak wylogowania i brak refresh; 5 prób reconnect z rosnącym odstępem; po starcie backendu ponowne CONNECTED i baner znika; jedno REST 502, potem 200). Kryteria weryfikacji przeglądarkowej BE-249 i FE-173 ZAMKNIĘTE. Uwaga: zamykanie WS przy tenancie INACTIVE nie było weryfikowane ręcznie (pokryte testami integracyjnymi).
+**AKCJA WŁAŚCICIELA (wykonana):** `WEBSOCKET_HMAC_SECRET` w `.env.local-demo` (min. 32 B; plik poza repo) — bez tego backend na profilu z wymaganym sekretem nie wystartuje; local-demo przebudowane i działa.
 
 **Ryzyka:** (R1) znacznik „revoked since” w Redis dodaje zależność ścieżki HTTP od Redis (fail-open vs fail-closed — decyzja); (R2) zmiana kontraktu kodów ramki wymaga kolejności wdrożenia FE → BE (FE-173); (R3) cache statusu tenanta może opóźnić odcięcie o czas TTL.
 **Nie wchodzi w zakres:** zmiany FE (FE-173), stabilizacja flake `ContactAsyncLimitIntegrationTest` (BE-250).
-**Zależności:** `Zależy od` BE-233 ✅; `Blokuje` brak; powiązane: BE-242 (HMAC), BE-245, BE-241 (Redis ACL), BE-183 (metryki/alerty), FE-173 (po stronie klienta), BE-236 ✅, BE-175 ✅.
+**Zależności:** `Zależy od` BE-233 ✅, BE-242 ✅ (wspólny `WebSocketChannelSigner` i sekret), DB-102 ✅ (V152) — wszystkie spełnione; `Blokuje` brak; follow-upy: BE-254, BE-255, BE-256, BE-257; powiązane: BE-245 (może użyć podpisu), BE-241 (Redis ACL), BE-183 (alerty/dashboardy na `ws.connect.rejected{code}`, `ws.channel.signature.rejected{channel,reason}`), FE-173 ✅ (klient: bez nowych kodów STOMP), BE-236 ✅, BE-175 ✅, BE-250 ✅.
 
 ### BE-250 – Niestabilny test `ContactAsyncLimitIntegrationTest.assignmentWaitsForAgentLockAndSeesCommittedSlot` (`Thread.sleep(500)`)
 
@@ -11467,7 +11486,7 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Priorytet:** P2 (Could Have)
 **Złożoność:** S
 **Zależy od:** BE-230 ✅ (blokada per agent testowana przez ten test)
-**Status:** ⬜ Do zrobienia (założony 2026-11-25, tura 81; źródło: pełny `mvn verify` tury 81 — test padł raz pod obciążeniem CPU, niezwiązany z BE-233; CR-BACKEND.md „Re-review: BE-233”, sekcja „Flake `ContactAsyncLimitIntegrationTest…`”)
+**Status:** ✅ Ukończone (2026-11-26, tura 82; gałąź `feature/epic33-ws-session-hardening-hmac` (z `develop` f31fb73a), zmiany niezacommitowane; `Thread.sleep` zastąpione Awaitility czekającym na `pg_locks` (advisory lock, pula superusera); 20/20 przebiegów bez obciążenia i 20/20 pod obciążeniem CPU; kontrola negatywna czerwona; `mvn verify -pl app` — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21); założony 2026-11-25, tura 81; źródło: pełny `mvn verify` tury 81 — test padł raz pod obciążeniem CPU, niezwiązany z BE-233; CR-BACKEND.md „Re-review: BE-233”, sekcja „Flake `ContactAsyncLimitIntegrationTest…`”)
 **Blokuje:** brak; powiązane: BE-230 ✅, BE-248 ✅ (analogiczna stabilizacja testu zależnego od czasu/stanu), BE-233 ✅ (brak związku — potwierdzone w CR)
 **Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
 **Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
@@ -11475,14 +11494,14 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Opis:** Test używa `Thread.sleep(500)` + asercji `waiter.isDone() == false`, potem `waiter.get(15 s)`. Pada, gdy wątek roboczy nie zdąży rozpocząć blokady (wolny start puli/połączenia przy równoległym obciążeniu) lub gdy `assignIfQueued` rzuci wyjątek (np. wyczerpana pula połączeń przy wielu współdzielonych kontekstach w `mvn verify`). Zamiast `sleep` użyć potwierdzenia, że waiter czeka na locku (`pg_locks`/`pg_stat_activity`).
 
 **Kryteria akceptacji:**
-- [ ] Brak `Thread.sleep` jako warunku synchronizacji; oczekiwanie na lock potwierdzone zapytaniem do `pg_locks`/`pg_stat_activity` z limitem czasu
-- [ ] Test zielony w 20 kolejnych przebiegach, także pod sztucznym obciążeniem CPU
-- [ ] Asercja nadal wykrywa regresję (kontrola negatywna: bez blokady agenta test czerwony)
-- [ ] `mvn verify -pl app` zielone (JDK 21)
+- [x] Brak `Thread.sleep` jako warunku synchronizacji; oczekiwanie na lock potwierdzone zapytaniem do `pg_locks`/`pg_stat_activity` z limitem czasu
+- [x] Test zielony w 20 kolejnych przebiegach, także pod sztucznym obciążeniem CPU (20/20 bez obciążenia, 20/20 pod obciążeniem CPU)
+- [x] Asercja nadal wykrywa regresję (kontrola negatywna: bez blokady agenta test czerwony)
+- [x] `mvn verify -pl app` zielone (JDK 21) — BE verify: 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21)
 
 **Ryzyka:** (R1) zapytanie do `pg_locks` zależy od wersji PG/uprawnień roli testowej.
 **Nie wchodzi w zakres:** zmiany produkcyjnej logiki `assignIfQueued`.
-**Zależności:** `Zależy od` BE-230 ✅; `Blokuje` brak; powiązane: BE-248 ✅, BE-233 ✅.
+**Zależności:** `Zależy od` BE-230 ✅ (spełnione); `Blokuje` brak; powiązane: BE-248 ✅, BE-233 ✅, BE-249 ✅ (zamknięty w tej samej turze 82, niezwiązany), BE-254 (analogiczny flake testu STOMP).
 
 ### BE-251 – BE-228 follow-up: `DateTime64(6)` dla wersji wiersza DW w ClickHouse (remis w tej samej milisekundzie)
 
@@ -11550,6 +11569,100 @@ Pozostawione jako IAE (-> 500, nieosiągalne z wejścia użytkownika):
 **Ryzyka:** (R1) zmiana semantyki `updated_at` wpływa na kursor CDC i raporty; (R2) migracja na dużych tabelach (partycje).
 **Nie wchodzi w zakres:** rozdzielczość µs po stronie ClickHouse (BE-251).
 **Zależności:** `Zależy od` BE-228 ✅; `Blokuje` brak; `Czeka na DB`: DB-101 (do nadania); powiązane: BE-216 ✅, BE-251, BE-252, BE-222 ✅.
+
+### BE-254 – Stabilizacja `StompSubscribeAuthorizationE2ETest.errorCode_forbidden` (brak ramki ERROR w 15 s w pełnym `verify`)
+
+**Typ:** Testing (Backend, WebSocket)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** S
+**Zależy od:** brak (istniejący flake, wskazany już w review BE-233)
+**Status:** ⬜ Do zrobienia (założony 2026-11-26, tura 82; źródło: pełny `mvn verify` tury 82 — raz brak ramki ERROR w 15 s, 10/10 w pętli; CR-BACKEND.md „Review: BE-233”)
+**Blokuje:** brak; powiązane: BE-249 ✅ (pkt 11: pętla 20× testu), BE-250 ✅ (analogiczna stabilizacja testu zależnego od czasu), BE-233 ✅, BE-236 ✅ (kod w ramce ERROR)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** `StompSubscribeAuthorizationE2ETest.errorCode_forbidden` raz nie otrzymał ramki ERROR w oknie 15 s podczas pełnego `mvn verify` (obciążenie równoległe), a w izolowanej pętli przechodzi 10/10. Ustalić przyczynę (start kontekstu/brokera, kolejność zdarzeń, okno oczekiwania) i zastąpić sztywne okno deterministycznym oczekiwaniem.
+
+**Kryteria akceptacji:**
+- [ ] Zidentyfikowana przyczyna flake zapisana w tickecie
+- [ ] Test zielony w 20 kolejnych przebiegach, także pod sztucznym obciążeniem CPU
+- [ ] Asercja nadal wykrywa regresję (kontrola negatywna)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** zmiany produkcyjnej logiki autoryzacji SUBSCRIBE.
+**Zależności:** `Zależy od` brak; `Blokuje` brak; powiązane: BE-249 ✅, BE-250 ✅, BE-233 ✅, BE-236 ✅.
+
+### BE-255 – BE-249 + BE-242 follow-upy z Re-review (N-R1…N-R5): `notAfter` w przebiegu lokalnym, pojemność LRU fan-outu, `seq`/nonce, tolerancja 5 s, `+@scripting` w ACL Redis
+
+**Typ:** Hardening (Backend, WebSocket)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** M
+**Zależy od:** BE-249 ✅, BE-242 ✅
+**Status:** ⬜ Do zrobienia (założony 2026-11-26, tura 82; źródło: CR-BACKEND.md „Re-review: BE-249 + BE-242” 4,5/5)
+**Blokuje:** brak; powiązane: BE-241 (Redis ACL — N-R5), BE-245 (wspólny podpis), BE-183, BE-175 ✅, BE-233 ✅
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Zakres:**
+- N-R1: drugi przebieg lokalny (local → marker → local → publish) bez `notAfter` — opisać ograniczenie albo poprawić;
+- N-R2: LRU fan-outu (`WebSocketReplayGuard`) zamienić na Caffeine z `expireAfterWrite` lub pojemnością z konfiguracji;
+- N-R3: identyczne, legalne koperty w tej samej milisekundzie są odrzucane jako replay — dodać `seq`/nonce do koperty;
+- N-R4: tolerancja 5 s (`registeredAt`/`notAfter`) — uzasadnić albo uczynić konfigurowalną;
+- N-R5: dodać `+@scripting` do ACL Redis (skrypty Lua znaczników revoked-since) w `DEPLOYMENT.md`.
+
+**Kryteria akceptacji:**
+- [ ] N-R1…N-R5 zamknięte (poprawione albo świadomie opisane w `DEPLOYMENT.md`/`04-backend.md`) z testami tam, gdzie zmieniono kod
+- [ ] Test: dwie identyczne legalne koperty w tej samej ms są obie przetworzone (N-R3)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** semantyka SUSPENDED (BE-256), HMAC kanału wtyczek (BE-245).
+**Zależności:** `Zależy od` BE-249 ✅, BE-242 ✅; `Blokuje` brak; powiązane: BE-241, BE-245, BE-183.
+
+### BE-256 – [DECYZJA PRODUKTOWA] Czy tenant SUSPENDED ma blokować login, refresh i CONNECT WebSocket
+
+**Typ:** Decyzja produktowa / Security (Backend)
+**Priorytet:** Średni
+**Złożoność:** S (po decyzji)
+**Zależy od:** BE-249 ✅ (`TenantStatusGate`)
+**Status:** ⬜ Do zrobienia (założony 2026-11-26, tura 82; źródło: „Re-review: BE-249 + BE-242” — SUSPENDED nie ma w domenie zdefiniowanej semantyki dostępu, bramka blokuje tylko INACTIVE)
+**Blokuje:** brak; powiązane: BE-249 ✅, BE-235 (inna decyzja produktowa dot. WS), BE-233 ✅
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** właściciel produktu → `backend-dev-expert`
+
+**Opis:** `TenantStatusGate` (login, refresh, CONNECT, `JwtAuthFilter`, cache Caffeine 30 s) blokuje tylko tenantów INACTIVE. Status SUSPENDED nie ma w domenie zdefiniowanej semantyki dostępu (np. zawieszenie za płatności: pełna blokada vs. tryb tylko do odczytu). Do rozstrzygnięcia: czy SUSPENDED ma blokować login, refresh i CONNECT.
+
+**Kryteria akceptacji:**
+- [ ] Decyzja właściciela zapisana w tickecie (blokada pełna / odczyt / brak blokady)
+- [ ] Jeśli blokada: `TenantStatusGate` obejmuje SUSPENDED, zamknięcie sesji WS przy zmianie statusu, testy (login, refresh, CONNECT, filtr)
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** zmiany FE, billing.
+**Zależności:** `Zależy od` BE-249 ✅; `Blokuje` brak; powiązane: BE-235, BE-233 ✅.
+
+### BE-257 – BE-249 follow-up (poprawka 401): jednolity `detail` w `TenantFilter` dla `JwtValidationException`, entry point jako bean, licznik odmów
+
+**Typ:** Hardening / Refactor (Backend, bezpieczeństwo)
+**Priorytet:** P2 (Could Have)
+**Złożoność:** S
+**Zależy od:** BE-249 ✅ (poprawka 401 zamiast 403: `UnauthorizedResponseWriter`, `SecurityConfig` `authenticationEntryPoint`)
+**Status:** ⬜ Do zrobienia (założony 2026-11-28, dopisek do tury 82; źródło: CR-BACKEND.md „Review: 401 dla unieważnionego tokenu (BE-249 follow-up)” 4/5 — elementy świadomie pozostawione)
+**Blokuje:** brak; powiązane: BE-249 ✅, BE-256 (SUSPENDED — ten sam `TenantStatusGate`), BE-183 (metryki/alerty), FE-173 ✅ (klient reaguje na 401 jednym komunikatem)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (+ `test-suite-expert`)
+
+**Opis:** Po poprawce BE-249 (401 zamiast 403 dla unieważnionego tokenu, wspólny `UnauthorizedResponseWriter`) zostały trzy drobne punkty:
+1. `TenantFilter` dla `JwtValidationException` zwraca w `detail` komunikat parsera JWT („Nieprawidłowy token: …”) zamiast jednolitego `detail` z `UnauthorizedResponseWriter` — ujednolicić (brak wycieku szczegółów parsera, ten sam kontrakt co ścieżka entry point).
+2. Entry point (`authenticationEntryPoint`) zdefiniować jako bean (dziś tworzony w `SecurityConfig`), aby był wstrzykiwalny i testowalny w izolacji.
+3. Licznik Micrometer (np. `security.unauthorized{reason}`) zamiast logu DEBUG dla odmów 401 — obserwowalność bez zalewu logów.
+
+**Kryteria akceptacji:**
+- [ ] `TenantFilter` zwraca dla `JwtValidationException` ten sam `detail` co `UnauthorizedResponseWriter` w pozostałych ścieżkach 401; treść komunikatu parsera nie trafia do odpowiedzi (test)
+- [ ] Entry point jest beanem, `SecurityConfig` go wstrzykuje; `RevokedTokenReturns401MvcTest` (13 testów) nadal zielony, w tym kontrola negatywna dla ERROR dispatch
+- [ ] Licznik odmów 401 widoczny w `/actuator/prometheus` (test), bez wysokiej kardynalności etykiet
+- [ ] `mvn verify -pl app` zielone (JDK 21)
+
+**Nie wchodzi w zakres:** zmiany FE, semantyka SUSPENDED (BE-256), zmiana `accessDeniedHandler` (uwierzytelniony bez roli = 403).
+**Zależności:** `Zależy od` BE-249 ✅ (spełnione); `Blokuje` brak; powiązane: BE-256, BE-183, FE-173 ✅.
 
 ---
 

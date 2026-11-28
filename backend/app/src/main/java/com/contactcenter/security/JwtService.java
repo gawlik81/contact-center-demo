@@ -94,6 +94,17 @@ public class JwtService {
      * @return podpisany access token JWT (RS256)
      */
     public String issueAccessToken(AppUser user, String tenantName, boolean mfaVerified) {
+        return issueAccessToken(user, tenantName, mfaVerified, null);
+    }
+
+    /**
+     * Jak {@link #issueAccessToken(AppUser, String, boolean)}, z claimem {@code sid} (BE-249): identyfikator sesji
+     * logowania (rodziny refresh tokenów), stały przez cały czas życia sesji, także po rotacji refresh tokenu.
+     * Pozwala zamknąć sesje WebSocket JEDNEGO urządzenia i unieważniać tokeny per sesja.
+     *
+     * @param sessionId id sesji logowania; {@code null} = bez claimu (zgodność wsteczna)
+     */
+    public String issueAccessToken(AppUser user, String tenantName, boolean mfaVerified, UUID sessionId) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(jwtProperties.accessTokenTtlSeconds());
 
@@ -106,6 +117,10 @@ public class JwtService {
                 .claim(CLAIM_ROLE,        user.getRole().name())
                 .claim(CLAIM_EMAIL,       user.getEmail())
                 .claim(CLAIM_MFA_VERIFIED, mfaVerified);
+
+        if (sessionId != null) {
+            builder = builder.claim(JwtParser.CLAIM_SESSION_ID, sessionId.toString());
+        }
 
         if (user.getTenantId() != null) {
             builder = builder

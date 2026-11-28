@@ -46,11 +46,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
 | EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 4 | 0 | 2 | 0 | 6 | 🔧 W toku (DB-089, DB-096, DB-097, DB-099 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 2 | 0 | 3 | 0 | 5 | 🔧 W toku (DB-090 ✅ P0, DB-100 ✅ P0 — V151 pod BE-173, numer nadany i zamknięty w turze 78; DB-091 P1, DB-092/DB-093 P2 ⬜) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 3 | 0 | 3 | 0 | 6 | 🔧 W toku (DB-090 ✅ P0, DB-100 ✅ P0 — V151 pod BE-173, numer nadany i zamknięty w turze 78; DB-102 ✅ — V152 pod BE-249, numer nadany i zamknięty w turze 82; DB-091 P1, DB-092/DB-093 P2 ⬜) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
-| **RAZEM** | | **90** | **0** | **7** | **3** | **100** | |
+| **RAZEM** | | **91** | **0** | **7** | **3** | **101** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099. Tura 77 (2026-11-13): DB-090 ✅ (V149) i nowy DB-099 ✅ (V150, EPIC-32 jako backlog). Tura 78 (2026-11-14): nowy DB-100 ✅ (EPIC-33; V151 `campaign_contact.dialing_agent_id` + dwa indeksy częściowe, pod BE-173 ✅; numer nadany i zamknięty w tej samej turze); następny wolny: DB-101.
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099. Tura 77 (2026-11-13): DB-090 ✅ (V149) i nowy DB-099 ✅ (V150, EPIC-32 jako backlog). Tura 78 (2026-11-14): nowy DB-100 ✅ (EPIC-33; V151 `campaign_contact.dialing_agent_id` + dwa indeksy częściowe, pod BE-173 ✅; numer nadany i zamknięty w tej samej turze); następny wolny: DB-101. Tura 82 (2026-11-26): nowy DB-102 ✅ (EPIC-33; V152 `refresh_token.session_id` pod BE-249 ✅; numer nadany i zamknięty w tej samej turze; DB-101 NIE został użyty — zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253/BE-237, które odwołują się do „DB-101 (do nadania)”); następny wolny: DB-103 (V153 wolna; DB-101 nadal do nadania przy pierwszej potrzebie migracji).
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -74,6 +74,7 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 
 - DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ✅ (2026-11-13, tura 77; V149)
 - DB-100 – `campaign_contact.dialing_agent_id` (własność claimu dialera) + indeksy częściowe `idx_campaign_contact_dialing_agent` i `idx_contact_agent_phone_load` (V151, pod BE-173) (P0) – ✅ (2026-11-14, tura 78; V151; numer nadany i zamknięty w tej samej turze)
+- DB-102 – `refresh_token.session_id` (rodzina refresh tokenów = `sid`, pod BE-249; V152; backfill tylko aktywnych tokenów) (Should) – ✅ (2026-11-26, tura 82; V152; CR DB 4/5 → 5/5; numer nadany i zamknięty w tej samej turze)
 - DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
@@ -4627,7 +4628,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 2/5** (✅ 2 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 80, 2026-11-19: bez zmian w DB — BE-177, BE-178 i BE-236 ✅ zamknięte bez migracji (V151 nadal najwyższa, V152 i DB-101 wolne); DB-101 może powstać w BE-247 (S5: widok/funkcja SECURITY DEFINER do pre-checku rekoncyliacji wtyczek — decyzja właściciela) lub w BE-246 (kolumna checksum JAR) albo BE-237; wcześniej tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 3/6** (✅ 3 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 82, 2026-11-26: DB-102 ✅ — V152 `refresh_token.session_id` pod BE-249 ✅, numer nadany i zamknięty w turze 82; V153 wolna; DB-101 niewykorzystany, zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253; wcześniej tura 80, 2026-11-19: bez zmian w DB — BE-177, BE-178 i BE-236 ✅ zamknięte bez migracji (V151 nadal najwyższa, V152 i DB-101 wolne); DB-101 może powstać w BE-247 (S5: widok/funkcja SECURITY DEFINER do pre-checku rekoncyliacji wtyczek — decyzja właściciela) lub w BE-246 (kolumna checksum JAR) albo BE-237; wcześniej tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 
@@ -4767,6 +4768,34 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Zależności:** `Zależy od` BE-173 ✅ (realizowany razem); `Blokuje` brak; powiązane: BE-230, BE-232, DB-088, DB-097 ✅.
 **Notatka wykonania (2026-11-14, tura 78):** migracja V151 dostarczona w ramach BE-173; ticket DB założony wstecznie w turze 78 i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). Najwyższa V po turze 78 = V151 (niezastosowana na żywej bazie do restartu backendu).
 **Dopisek (tura 79):** BE-230 ✅ działa bez migracji i opiera się na `idx_contact_agent_phone_load` z V151 (sonda VOICE_LOAD pod lockiem agenta). `EXPLAIN (ANALYZE, BUFFERS)` tej sondy na danych prod-like (wiele partycji `contact`) i ewentualne zawężenie po `started_at` → BE-240 (ewentualne zmiany indeksu → osobny ticket DB, numer DB-101). Konsolidacja z `idx_contact_open_async_count` nadal w DB-088. Liczniki DB bez zmian: 90/7/3 = 100.
+
+### DB-102 – `refresh_token.session_id` (rodzina refresh tokenów = `sid`, pod BE-249; V152)
+
+**Typ:** Schema (migracja DDL: kolumna + backfill)
+**Priorytet:** Should Have (część BE-249)
+**Złożoność:** S
+**Zależy od:** BE-249 ✅ (numer założony wstecznie w turze 82 — migracja powstała w ramach BE-249; wykonawca po stronie backendu)
+**Status:** ✅ Ukończone (2026-11-26, tura 82; `V152__refresh_token_session_id.sql`; gałąź `feature/epic33-ws-session-hardening-hmac` (z `develop` f31fb73a), niezacommitowane; numer DB-102 nadany w turze 82 i zamknięty od razu; wykonawca `backend-dev-expert` w ramach BE-249; review DB: `CR-DATABASE.md` „Review: V152 (BE-249)” 4/5 → „Re-review: V152 (BE-249)” 5/5; stan żywej bazy nieweryfikowany — V152 niezastosowana do czasu restartu backendu)
+**Blokuje:** brak; powiązane: BE-249 ✅, BE-233 ✅, DB-100 ✅ (poprzednia migracja EPIC-33, V151)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (review: `db-schema-architect` w `CR-DATABASE.md`)
+
+**Kontekst:** BE-249 zawęża logout do urządzenia (`logoutAll` = wszystkie), a `changePassword` ma zamykać sesje na POZOSTAŁYCH urządzeniach. Po odświeżeniu tokenu sesja WS może być otwarta starszym access tokenem, więc skrót bieżącego tokenu nie identyfikuje urządzenia — identyfikuje je rodzina refresh tokenów (`sid`).
+
+**Zrealizowano (V152):**
+- nowa, opisowo nazwana kolumna `refresh_token.session_id UUID` (nullable; NIE przeciążamy istniejącej kolumny), dziedziczona przy rotacji, claim `sid` w access tokenie, pole `Entry` rejestru sesji WS;
+- backfill obejmuje tylko aktywne tokeny (niewygasłe, nieodwołane): `session_id = token_id`; wygasłe/odwołane nie są ruszane;
+- kolumna pozostaje nullable na czas rolling deploy; aplikacja traktuje `NULL` jako `COALESCE(session_id, token_id)`;
+- komentarz `COMMENT ON COLUMN`.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `session_id` istnieje, jest nullable; backfill tylko aktywnych tokenów
+- [x] Migracja zweryfikowana w review DB (`CR-DATABASE.md` „Review: V152 (BE-249)” 4/5 → „Re-review: V152 (BE-249)” 5/5)
+- [x] `mvn verify -pl app` zielone (JDK 21) — BE verify (2026-11-28, po poprawce 401 w BE-249): 3965 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 11:32 min (JDK 21); FE 90 plików / 1338 testów (pierwotnie 2026-11-26: 3952 testy, 9:55 min)
+
+**Nie wchodzi w zakres:** indeks na `session_id` (brak zapytań wymagających go w BE-249), zmiany DW.
+**Zależności:** `Zależy od` BE-249 ✅ (realizowany razem); `Blokuje` brak; powiązane: BE-233 ✅, DB-100 ✅ (V151), BE-255.
+**Notatka wykonania (2026-11-26, tura 82):** migracja V152 dostarczona w ramach BE-249; ticket DB założony wstecznie i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). DB-101 pominięty celowo — numer zarezerwowany warunkowo w BE-246/BE-247/BE-251/BE-253/BE-237. Następna wolna migracja: V153.
 
 ---
 

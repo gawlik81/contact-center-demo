@@ -70,6 +70,12 @@ class PluginUiSdkStaticAssetIT {
     private TokenBlacklistService tokenBlacklistService;
 
     @MockBean
+    private TokenRevocationService tokenRevocationService;
+
+    @MockBean
+    private com.contactcenter.domain.tenant.TenantStatusGate tenantStatusGate;
+
+    @MockBean
     private UserService userService;
 
     @Test

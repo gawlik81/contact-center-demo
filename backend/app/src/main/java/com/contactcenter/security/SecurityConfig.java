@@ -1,5 +1,7 @@
 package com.contactcenter.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -100,7 +102,7 @@ public class SecurityConfig {
      */
     @Bean
     @Order(2)
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
         http
             // CSRF – wyłączone (REST API z JWT; CSRF chroni tylko session-based auth)
             .csrf(AbstractHttpConfigurer::disable)
@@ -112,9 +114,24 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+            // Brak (lub unieważnione) uwierzytelnienie na chronionym zasobie -> 401 ProblemDetail.
+            // Bez tego Spring Security odpowiada domyślnym 403 (Http403ForbiddenEntryPoint) także dla tokenu
+            // poprawnie podpisanego, ale unieważnionego przez JwtAuthFilter (blacklista, revoked-since, tenant
+            // nieaktywny), a frontend odświeża/wylogowuje wyłącznie na 401. accessDeniedHandler (uwierzytelniony
+            // bez uprawnień) pozostaje domyślny -> 403.
+            .exceptionHandling(eh -> eh.authenticationEntryPoint((request, response, ex) ->
+                UnauthorizedResponseWriter.write(response, objectMapper,
+                    "Brak uwierzytelnienia lub token nieważny. Zaloguj się ponownie.")))
+
             // Reguły autoryzacji
             // Lista publicznych ścieżek zsynchronizowana z PublicPathsConfig.PUBLIC_PREFIXES
             .authorizeHttpRequests(auth -> auth
+                // Dispatch ERROR (forward kontenera na /error po bledzie poza MVC, np. wyjatek w filtrze lub
+                // sendError). JwtAuthFilter/TenantFilter (OncePerRequestFilter) go pomijaja, wiec bez tej reguly
+                // zadanie trafialoby jako anonimowe na anyRequest().authenticated() i zwykly blad 5xx zamienialby
+                // sie w 401 (frontend: refresh/wylogowanie). /error zwraca tylko domyslne atrybuty Boot
+                // (timestamp, status, error, path) - server.error.include-* nie sa wlaczone.
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 // Health check – publiczny (Kubernetes liveness/readiness probe)
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 // Dokumentacja API – publiczna w DEV

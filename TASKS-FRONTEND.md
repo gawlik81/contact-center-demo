@@ -55,9 +55,9 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 | EPIC-29 | Partycjonowanie i retencja danych z obsługi kontaktów | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 3 | 0 | 0 | 1 | 4 | ⚠️ Zamknięty warunkowo |
 | EPIC-32 | UX i dostępność stanowiska agenta | 38 | 0 | 16 | 0 | 54 | ✅ Zakończony (2026-10-30; backlog otwarty, nie blokował zamknięcia) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy | 4 | 0 | 4 | 0 | 8 | 🔧 W toku |
+| EPIC-33 | Skalowanie poziome i pojemność platformy | 4 | 0 | 6 | 0 | 10 | 🔧 W toku |
 | Bez epiku | Fundament aplikacji; Ad hoc połączenia i email z panelu agenta | 7 | 0 | 0 | 0 | 7 | ✅ Zakończony |
-| **Razem** | | **153** | **0** | **24** | **1** | **178** |
+| **Razem** | | **154** | **0** | **26** | **1** | **181** |
 
 ### Otwarte tickety (🔧 / ⬜) wg EPIC
 
@@ -126,6 +126,7 @@ Liczniki z pola `**Status:**` każdego ticketu (🔲 „Do zrobienia” liczone 
 - FE-174 – Klient WS/auth: `refresh()` blokuje interceptor do ~40 s (R5) i najgorszy czas do `SESSION_EXPIRED` to kilka minut (N-C) (Niski/Średni, S; po FE-173 ✅; powiązane BE-249 ✅, FE-155; tura 82) — ⬜ (Do zrobienia)
 - FE-175 – AuthGuard bez komunikatu przy błędzie przejściowym `refresh()` (R3/R-B) (Niski/Średni, S; po FE-173 ✅; tura 82) — ⬜ (Do zrobienia)
 - FE-176 – Komunikat po zamknięciu sesji bez rozróżnienia przyczyny (N6, N8) (Niski, S; po FE-173 ✅; powiązane FE-172, BE-249 ✅; tura 82) — ⬜ (Do zrobienia)
+- FE-177 – Lista wtyczek: przyczyna DEGRADED przy badge (`degradedReason`: CIRCUIT_OPEN / CONFIG_LOAD_FAILED) + komunikat przy 409 kwarantanny przy enable/rollback (Niski/Średni, S; po BE-245 ✅, BE-246 ✅, DB-103 ✅; powiązane BE-244 ✅; tura 83) — ⬜ (Do zrobienia)
 
 ---
 
@@ -7698,7 +7699,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 4/9** (✅ 4 · 🔧 0 · ⬜ 5 · 🚫 0) — status epiku: 🔧 W toku (dopisek do tury 82, 2026-11-28: kryterium przeglądarkowe FE-173 zamknięte, `POST /auth/logout` z `SKIP_ERROR_TOAST` (CR 4,5/5), FE 1338 testów; bez nowych ticketów FE, następne wolne FE-177; tura 82, 2026-11-26: FE-173 ✅ (CR 3,5/5 → 4,5/5 → 5/5; kryterium przeglądarkowe było otwarte do wdrożenia BE-249); nowe FE-174, FE-175, FE-176 ⬜ (follow-upy FE-173); wcześniej tura 81, 2026-11-25: nowy FE-173 ⬜ (obsługa zamknięcia sesji WS przez serwer po BE-233 ✅; follow-upy FE z CR BE-233); wcześniej tura 80, 2026-11-19: FE-171 ✅ (klasyfikacja po `headers['code']`, CR 4/5 → 4,5/5, kryterium 3 odroczone); nowy FE-172 ⬜ (usunięcie fallbacku po wdrożeniu BE-236); wcześniej tura 79, 2026-11-14: FE-169 ✅ i FE-170 ✅; nowy FE-171 ⬜; epik w przeważającej części backendowy/infrastrukturalny; tu tickety FE wynikające ze skalowania poziomego i z BE-229: FE-155, FE-169, FE-170 (dwa ostatnie dołożone w turze 78, 2026-11-14) i FE-171 (tura 79); tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
+**Ukończone 4/10** (✅ 4 · 🔧 0 · ⬜ 6 · 🚫 0) — status epiku: 🔧 W toku (tura 83, 2026-11-28: nowy FE-177 ⬜ (przyczyna DEGRADED + 409 kwarantanny w UI; zależy od BE-245/BE-246 ✅); bez zmian statusów FE; następne wolne FE-178; wcześniej dopisek do tury 82, 2026-11-28: kryterium przeglądarkowe FE-173 zamknięte, `POST /auth/logout` z `SKIP_ERROR_TOAST` (CR 4,5/5), FE 1338 testów; bez nowych ticketów FE, następne wolne FE-177; tura 82, 2026-11-26: FE-173 ✅ (CR 3,5/5 → 4,5/5 → 5/5; kryterium przeglądarkowe było otwarte do wdrożenia BE-249); nowe FE-174, FE-175, FE-176 ⬜ (follow-upy FE-173); wcześniej tura 81, 2026-11-25: nowy FE-173 ⬜ (obsługa zamknięcia sesji WS przez serwer po BE-233 ✅; follow-upy FE z CR BE-233); wcześniej tura 80, 2026-11-19: FE-171 ✅ (klasyfikacja po `headers['code']`, CR 4/5 → 4,5/5, kryterium 3 odroczone); nowy FE-172 ⬜ (usunięcie fallbacku po wdrożeniu BE-236); wcześniej tura 79, 2026-11-14: FE-169 ✅ i FE-170 ✅; nowy FE-171 ⬜; epik w przeważającej części backendowy/infrastrukturalny; tu tickety FE wynikające ze skalowania poziomego i z BE-229: FE-155, FE-169, FE-170 (dwa ostatnie dołożone w turze 78, 2026-11-14) i FE-171 (tura 79); tickety BE: BE-171…BE-195, DB: DB-090…DB-093)
 
 ### FE-168 – Panel admin-metrics: linia żywotności ETL z pola serwera (BE-223) zamiast progu i zegara klienta + pominięte nity FE-165
 
@@ -7731,7 +7732,7 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Zależności:** `Zależy od` BE-223 ✅, FE-165 ✅; `Blokuje` brak; powiązane: FE-160 ✅, BE-223 ✅.
 
 
-> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-174 (FE-156…FE-168 zajął EPIC-32 w turach 68–75; FE-169/FE-170 tura 78; FE-171 tura 79; FE-172 tura 80; FE-173 tura 81). FE-174…FE-176 tura 82. Następny wolny numer po turze 82: FE-177.
+> **Numeracja:** FE-155 (poprzedni najwyższy: FE-154). Następny wolny numer FE: FE-174 (FE-156…FE-168 zajął EPIC-32 w turach 68–75; FE-169/FE-170 tura 78; FE-171 tura 79; FE-172 tura 80; FE-173 tura 81). FE-174…FE-176 tura 82. Następny wolny numer po turze 82: FE-177. FE-177 tura 83. Następny wolny numer po turze 83: FE-178.
 
 ### FE-155 – Odporność klienta WebSocket na zmianę instancji: backoff z jitterem, wykrywanie martwego połączenia, deduplikacja zdarzeń
 
@@ -7980,6 +7981,29 @@ Wspólny wynik `/impeccable shape` z FE-121 (decyzje właściciela 2026-10-23):
 **Ryzyka:** (R1) nowy kod STOMP wymaga kolejności FE → BE i ewentualnie nowego ticketu BE.
 **Nie wchodzi w zakres:** budżet czasu (FE-174), AuthGuard (FE-175), usunięcie fallbacku `message` (FE-172).
 **Zależności:** `Zależy od` FE-173 ✅; `Blokuje` brak; powiązane: FE-172, BE-249 ✅, FE-174, FE-175.
+
+### FE-177 – Lista wtyczek: przyczyna DEGRADED przy badge (`degradedReason`) i obsługa 409 kwarantanny przy enable/rollback
+
+**Typ:** UX (frontend, zarządzanie wtyczkami)
+**Priorytet:** Niski/Średni
+**Złożoność:** S
+**Zależy od:** BE-245 ✅, BE-246 ✅ (DTO `degradedReason` z DB-103 ✅/V153)
+**Status:** ⬜ Do zrobienia (założony 2026-11-28, tura 83; źródło: CR-BACKEND.md „degraded_reason” i „Re-review BE-244”)
+**Blokuje:** brak; powiązane: BE-244 ✅ (409 kwarantanny), BE-245 ✅, BE-246 ✅, DB-103 ✅, BE-258 (N-G: treść 409)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy (UI wtyczek)
+**Wykonawca:** `angular-frontend-expert` + `impeccable clarify` (ścieżka: komponent listy wtyczek tenanta/admina)
+
+**Opis:** Backend rozróżnia przyczyny stanu `DEGRADED` (`degradedReason`: `CIRCUIT_OPEN` — obwód otwarty po awariach, `CONFIG_LOAD_FAILED` — nieudany load po zmianie konfiguracji) oraz zwraca 409 przy `enable`/rollback instalacji w kwarantannie po timeoucie `onActivate`/`onDeactivate`. UI nie pokazuje ani przyczyny, ani sensownego komunikatu.
+
+**Kryteria akceptacji:**
+- [ ] Badge DEGRADED na liście wtyczek pokazuje przyczynę (tekst/tooltip, i18n pl/en/de/uk) wg `degradedReason`; nieznana/brak wartości → komunikat ogólny
+- [ ] 409 kwarantanny przy `enable`/rollback → czytelny komunikat (bez surowego błędu HTTP, bez globalnego toastu duplikującego), wskazujący, że wtyczka jest chwilowo zablokowana i kiedy spróbować ponownie
+- [ ] Dostępność (a11y): przyczyna dostępna nie tylko kolorem
+- [ ] Testy komponentu/serwisu; lint 0 błędów, format OK, `npm test` zielone
+
+**Ryzyka:** (R1) kształt treści 409 może się zmienić w BE-258 (N-G) — opierać się na kodzie błędu, nie na tekście.
+**Nie wchodzi w zakres:** zmiany BE/DB, runbook (BE-258).
+**Zależności:** `Zależy od` BE-245 ✅, BE-246 ✅; `Blokuje` brak; powiązane: BE-244 ✅, DB-103 ✅, BE-258, DB-104.
 
 ---
 

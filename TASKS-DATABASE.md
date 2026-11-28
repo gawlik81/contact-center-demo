@@ -46,11 +46,11 @@ Legenda: ✅ ukończone · 🔧 w toku · ⬜ nie rozpoczęte · 🚫 N/A (zamkn
 | EPIC-30 | Retencja wiadomości, domknięcie harmonogramów i partycjonowanie tabel wiadomości | 27 | 0 | 1 | 3 | 31 | ⚠️ Zamknięty warunkowo |
 | EPIC-31 | Hardening RLS – rola aplikacji bez BYPASSRLS (cc_app) | 0 | 0 | 1 | 0 | 1 | ⬜ Nie rozpoczęty (wstrzymany) |
 | EPIC-32 | UX i dostępność stanowiska agenta (tylko tickety DB) | 4 | 0 | 2 | 0 | 6 | 🔧 W toku (DB-089, DB-096, DB-097, DB-099 ✅; DB-088 i DB-098 ⬜ backlog, bramkowane wolumenem; DB-088 częściowo pokryty przez V148) |
-| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 3 | 0 | 3 | 0 | 6 | 🔧 W toku (DB-090 ✅ P0, DB-100 ✅ P0 — V151 pod BE-173, numer nadany i zamknięty w turze 78; DB-102 ✅ — V152 pod BE-249, numer nadany i zamknięty w turze 82; DB-091 P1, DB-092/DB-093 P2 ⬜) |
+| EPIC-33 | Skalowanie poziome i pojemność platformy (tylko tickety DB) | 4 | 0 | 4 | 0 | 8 | 🔧 W toku (DB-103 ✅ — V153 `degraded_reason` pod BE-245/BE-246, numer nadany i zamknięty w turze 83; DB-104 ⬜ — zaostrzenie CHECK po wdrożeniu na wszystkie instancje; DB-090 ✅ P0, DB-100 ✅ P0 — V151 pod BE-173, numer nadany i zamknięty w turze 78; DB-102 ✅ — V152 pod BE-249, numer nadany i zamknięty w turze 82; DB-091 P1, DB-092/DB-093 P2 ⬜) |
 | Bez epiku | Bez epiku (tematy poza numerowanymi epikami) | 23 | 0 | 0 | 0 | 23 | ✅ Zakończony |
-| **RAZEM** | | **91** | **0** | **7** | **3** | **101** | |
+| **RAZEM** | | **92** | **0** | **8** | **3** | **103** | |
 
-Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099. Tura 77 (2026-11-13): DB-090 ✅ (V149) i nowy DB-099 ✅ (V150, EPIC-32 jako backlog). Tura 78 (2026-11-14): nowy DB-100 ✅ (EPIC-33; V151 `campaign_contact.dialing_agent_id` + dwa indeksy częściowe, pod BE-173 ✅; numer nadany i zamknięty w tej samej turze); następny wolny: DB-101. Tura 82 (2026-11-26): nowy DB-102 ✅ (EPIC-33; V152 `refresh_token.session_id` pod BE-249 ✅; numer nadany i zamknięty w tej samej turze; DB-101 NIE został użyty — zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253/BE-237, które odwołują się do „DB-101 (do nadania)”); następny wolny: DB-103 (V153 wolna; DB-101 nadal do nadania przy pierwszej potrzebie migracji).
+Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-069 odłożony z wyzwalaczem wolumenowym; pozostałe zrealizowane lub N/A); EPIC-31 – osobny epik wydzielony z EPIC-30, wstrzymany (DB-083 `⬜`). EPIC-17, EPIC-18, EPIC-24 nie mają ticketów DB. EPIC-32 (UX agenta) ma dwa tickety DB: DB-088 (założony 2026-10-31 z BE-157 — indeks częściowy pod `findActiveContactsForAgent`, ⬜ backlog bramkowany wolumenem) i DB-089 (2026-11-04, ✅ — kolumna `app_user.status_changed_at` pod BE-153; migracja V144); następny wolny: DB-090. BE-155 (tura 2026-10-28) zakończony BEZ migracji. EPIC-33 (skalowanie poziome, założony 2026-11-04, tura 67) ma cztery tickety DB: DB-090 (P0, tabela `shedlock`), DB-091 (P1), DB-092 i DB-093 (P2); DB-094 i DB-095 (tura 68, 2026-11-04, bugfix `fix/email-thread-preview-eml`, bez epiku, oba ✅ — V145 `email_message.eml_s3_key` i V146 funkcje RODO); następny wolny: DB-096. Tura 73 (2026-11-07): nowy DB-098 (EPIC-32 jako backlog, domena ETL/DW z EPIC-10 — indeksy wyrażeniowe `COALESCE(updated_at, created_at)` pod CDC/lag ETL; wynik CR BE-212, ⬜, bramkowany wolumenem); następny wolny: DB-099. Tura 74 (2026-11-08): bez nowych ticketów DB; DB-098 podniesiony do Should Have (zależność od BE-213 ✅ — każdy batch CDC to osobny skan z top-N sortem); następny wolny: DB-099. Tura 77 (2026-11-13): DB-090 ✅ (V149) i nowy DB-099 ✅ (V150, EPIC-32 jako backlog). Tura 78 (2026-11-14): nowy DB-100 ✅ (EPIC-33; V151 `campaign_contact.dialing_agent_id` + dwa indeksy częściowe, pod BE-173 ✅; numer nadany i zamknięty w tej samej turze); następny wolny: DB-101. Tura 82 (2026-11-26): nowy DB-102 ✅ (EPIC-33; V152 `refresh_token.session_id` pod BE-249 ✅; numer nadany i zamknięty w tej samej turze; DB-101 NIE został użyty — zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253/BE-237, które odwołują się do „DB-101 (do nadania)”); następny wolny: DB-103 (V153 wolna; DB-101 nadal do nadania przy pierwszej potrzebie migracji). Tura 83 (2026-11-28): nowy DB-103 ✅ (EPIC-33; V153 `tenant_plugin_installation.degraded_reason` pod BE-245 ✅/BE-246 ✅; numer nadany i zamknięty w tej samej turze) i nowy DB-104 ⬜ (zaostrzenie CHECK `degraded_reason` po wdrożeniu nowego kodu na wszystkie instancje; zależy od DB-103 ✅); DB-101 nadal niewykorzystany (warunkowo dla BE-247/BE-251/BE-253/BE-237); następny wolny: DB-105 (V154 wolna).
 
 ### Otwarte tickety (⬜ / 🔧) wg EPIC
 
@@ -75,6 +75,8 @@ Uwagi do statusów epików: EPIC-30 – zamknięty warunkowo wg PROGRESS.md (DB-
 - DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled` (P0) – ✅ (2026-11-13, tura 77; V149)
 - DB-100 – `campaign_contact.dialing_agent_id` (własność claimu dialera) + indeksy częściowe `idx_campaign_contact_dialing_agent` i `idx_contact_agent_phone_load` (V151, pod BE-173) (P0) – ✅ (2026-11-14, tura 78; V151; numer nadany i zamknięty w tej samej turze)
 - DB-102 – `refresh_token.session_id` (rodzina refresh tokenów = `sid`, pod BE-249; V152; backfill tylko aktywnych tokenów) (Should) – ✅ (2026-11-26, tura 82; V152; CR DB 4/5 → 5/5; numer nadany i zamknięty w tej samej turze)
+- DB-103 – `tenant_plugin_installation.degraded_reason` (przyczyna DEGRADED: CIRCUIT_OPEN / CONFIG_LOAD_FAILED; V153; pod BE-245/BE-246; usuwa przeciążenie `consecutive_failure_count`) (Should) – ✅ (2026-11-28, tura 83; V153; CR DB 4/5; numer nadany i zamknięty w tej samej turze)
+- DB-104 – Zaostrzenie CHECK `degraded_reason` po wdrożeniu na wszystkie instancje (`CHECK ((health_status='DEGRADED') = (degraded_reason IS NOT NULL)) NOT VALID` + `VALIDATE`, usunięcie fallbacku legacy) (Could; po DB-103 ✅) – ⬜
 - DB-091 – Audyt indeksów i planów zapytań pod obciążeniem (`pg_stat_statements`, EXPLAIN na wolumenie 50 tenantów) (P1) – ⬜
 - DB-092 – Replika odczytowa: rola tylko do odczytu, replikacja, monitoring lagu (pod raporty) (P2) – ⬜
 - DB-093 – [BRAMKOWANY] Ocena partycjonowania wg `tenant_id` (HASH/LIST) tabel gorących (P2) – ⬜
@@ -4628,7 +4630,7 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 
 ## EPIC-33 – Skalowanie poziome i pojemność platformy
 
-**Ukończone 3/6** (✅ 3 · ⬜ nie rozpoczęte: 3) — status epiku: 🔧 W toku (tura 82, 2026-11-26: DB-102 ✅ — V152 `refresh_token.session_id` pod BE-249 ✅, numer nadany i zamknięty w turze 82; V153 wolna; DB-101 niewykorzystany, zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253; wcześniej tura 80, 2026-11-19: bez zmian w DB — BE-177, BE-178 i BE-236 ✅ zamknięte bez migracji (V151 nadal najwyższa, V152 i DB-101 wolne); DB-101 może powstać w BE-247 (S5: widok/funkcja SECURITY DEFINER do pre-checku rekoncyliacji wtyczek — decyzja właściciela) lub w BE-246 (kolumna checksum JAR) albo BE-237; wcześniej tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
+**Ukończone 4/8** (✅ 4 · ⬜ nie rozpoczęte: 4) — status epiku: 🔧 W toku (tura 83, 2026-11-28: DB-103 ✅ — V153 `tenant_plugin_installation.degraded_reason` pod BE-245 ✅/BE-246 ✅, numer nadany i zamknięty w turze 83; nowy DB-104 ⬜ (zaostrzenie CHECK); V154 wolna; DB-101 nadal niewykorzystany; wcześniej tura 82, 2026-11-26: DB-102 ✅ — V152 `refresh_token.session_id` pod BE-249 ✅, numer nadany i zamknięty w turze 82; V153 wolna; DB-101 niewykorzystany, zarezerwowany warunkowo dla BE-246/BE-247/BE-251/BE-253; wcześniej tura 80, 2026-11-19: bez zmian w DB — BE-177, BE-178 i BE-236 ✅ zamknięte bez migracji (V151 nadal najwyższa, V152 i DB-101 wolne); DB-101 może powstać w BE-247 (S5: widok/funkcja SECURITY DEFINER do pre-checku rekoncyliacji wtyczek — decyzja właściciela) lub w BE-246 (kolumna checksum JAR) albo BE-237; wcześniej tura 79, 2026-11-14: bez zmian w DB — BE-230 ✅, BE-175 ✅ i BE-176 ✅ zamknięte bez migracji, V151 nadal najwyższa, V152 i DB-101 wolne; DB-101 powstanie tylko jeśli BE-237 (rezerwacja agenta przy callbacku) wybierze wariant z nową tabelą/kolumną; tura 78: DB-100 ✅/V151 — pod BE-173, numer nadany i zamknięty w turze 78; tura 77: DB-090 ✅/V149; część BE w `TASKS-BACKEND.md`, FE-155 w `TASKS-FRONTEND.md`; tu cztery tickety DB: DB-090 (P0), DB-091 (P1), DB-092 i DB-093 (P2))
 
 ### DB-090 – Tabela `shedlock` (ShedLock JDBC) – blokady rozproszone dla jobów `@Scheduled`
 
@@ -4796,6 +4798,65 @@ Skutki (DB-060 F1): (1) `anonymize_customer` (V013) ustawia `customer.is_deleted
 **Nie wchodzi w zakres:** indeks na `session_id` (brak zapytań wymagających go w BE-249), zmiany DW.
 **Zależności:** `Zależy od` BE-249 ✅ (realizowany razem); `Blokuje` brak; powiązane: BE-233 ✅, DB-100 ✅ (V151), BE-255.
 **Notatka wykonania (2026-11-26, tura 82):** migracja V152 dostarczona w ramach BE-249; ticket DB założony wstecznie i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). DB-101 pominięty celowo — numer zarezerwowany warunkowo w BE-246/BE-247/BE-251/BE-253/BE-237. Następna wolna migracja: V153.
+
+### DB-103 – `tenant_plugin_installation.degraded_reason` (przyczyna stanu DEGRADED: CIRCUIT_OPEN / CONFIG_LOAD_FAILED; pod BE-245/BE-246; V153)
+
+**Typ:** Schema (migracja DDL: kolumna + miękki CHECK + backfill)
+**Priorytet:** Should Have (część BE-245/BE-246)
+**Złożoność:** S
+**Zależy od:** BE-245 ✅, BE-246 ✅ (numer założony wstecznie w turze 83 — migracja powstała w ramach BE-245/BE-246; wykonawca po stronie backendu)
+**Status:** ✅ Ukończone (2026-11-28, tura 83; `V153__plugin_installation_degraded_reason.sql`; gałąź `feature/epic33-plugin-runtime-hardening` (z `develop` 487ce0bb), zmiany niezacommitowane; numer DB-103 nadany w turze 83 i zamknięty od razu; wykonawca `backend-dev-expert` w ramach BE-245/BE-246; review DB: `CR-DATABASE.md` „Review V153” 4/5, uwagi R1/R3/N1 poprawione; stan żywej bazy nieweryfikowany — V153 niezastosowana do czasu przebudowy/restartu backendu)
+**Blokuje:** DB-104 (zaostrzenie CHECK); powiązane: BE-245 ✅, BE-246 ✅, BE-244 ✅, FE-177, DB-102 ✅ (poprzednia migracja EPIC-33, V152)
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (review: `db-schema-architect` w `CR-DATABASE.md`)
+
+**Kontekst:** Stan `DEGRADED` instalacji wtyczki miał dwie przyczyny — otwarty obwód (BE-246) i nieudany load po zmianie konfiguracji (BE-245) — a rozróżniano je pośrednio licznikiem `consecutive_failure_count`. To przeciążenie kolumny (zakaz z CLAUDE.md: „overloaded columns”), więc przyczyna dostała własną, opisowo nazwaną kolumnę.
+
+**Zrealizowano (V153):**
+- nowa kolumna `tenant_plugin_installation.degraded_reason` (wartości `CIRCUIT_OPEN` / `CONFIG_LOAD_FAILED`; nullable);
+- miękki CHECK (tylko dozwolone wartości; bez wiązania z `health_status`, aby rolling deploy ze starym kodem nie łamał zapisów);
+- backfill wg licznika (istniejące wiersze `DEGRADED` dostają przyczynę wywiedzioną z `consecutive_failure_count`);
+- `COMMENT ON COLUMN`;
+- kod: każdy zapis statusu ustawia/czyści przyczynę, `markDegradedByCircuit` nie nadpisuje `DISABLED_BY_ADMIN`, fallback legacy (odczyt z licznika, gdy kolumna pusta), DTO `degradedReason`.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `degraded_reason` istnieje, miękki CHECK na wartościach; backfill wg licznika
+- [x] `consecutive_failure_count` nie jest już używany do rozróżniania przyczyny (brak przeciążenia kolumny)
+- [x] Migracja zweryfikowana w review DB (`CR-DATABASE.md` „Review V153” 4/5; uwagi R1/R3/N1 poprawione); `CR-BACKEND.md` „degraded_reason” 4 → 4,5/5
+- [x] `mvn clean verify -pl app` zielone (JDK 21) — 4176 testów, 0 F / 0 E / 1 pominięty, BUILD SUCCESS, 12:03 min; FE 90 plików / 1338 testów
+
+**Nie wchodzi w zakres:** twarde wiązanie `health_status` ↔ `degraded_reason` (→ DB-104, po wdrożeniu na wszystkie instancje), indeks na `degraded_reason`.
+**Zależności:** `Zależy od` BE-245 ✅, BE-246 ✅ (realizowany razem); `Blokuje` DB-104; powiązane: BE-244 ✅, FE-177, DB-102 ✅ (V152).
+**Notatka wykonania (2026-11-28, tura 83):** migracja V153 dostarczona w ramach BE-245/BE-246; ticket DB założony wstecznie i zamknięty od razu (mianownik DB/EPIC-33 rośnie o 1 bez przechodzenia przez ⬜). DB-101 nadal niewykorzystany. Następna wolna migracja: V154. Local-demo wymaga przebudowy, by zastosować V153.
+
+### DB-104 – Zaostrzenie CHECK `degraded_reason` po wdrożeniu nowego kodu na wszystkie instancje
+
+**Typ:** Schema (migracja DDL: czyszczenie + CHECK NOT VALID + VALIDATE)
+**Priorytet:** Could Have (P3)
+**Złożoność:** S
+**Zależy od:** DB-103 ✅ (V153); warunek wdrożeniowy: nowy kod (każdy zapis statusu ustawia/czyści przyczynę) działa na WSZYSTKICH instancjach
+**Status:** ⬜ Do zrobienia (założony 2026-11-28, tura 83; źródło: `CR-DATABASE.md` „Review V153”)
+**Blokuje:** brak; powiązane: DB-103 ✅, BE-245 ✅, BE-246 ✅, FE-177
+**Epic:** EPIC-33 Skalowanie poziome i pojemność platformy
+**Wykonawca:** `backend-dev-expert` (review: `db-schema-architect`)
+
+**Opis:** V153 wprowadziła `degraded_reason` z miękkim CHECK-iem (kompatybilnym z rolling deployem). Po wdrożeniu nowego kodu na wszystkie instancje kolumnę można związać twardo ze statusem.
+
+**Zakres (nowa migracja V154, numer migracji do potwierdzenia w dniu realizacji):**
+- wyczyszczenie `degraded_reason` przy `health_status <> 'DEGRADED'`;
+- ponowny backfill dla wierszy `DEGRADED` bez przyczyny;
+- `CHECK ((health_status = 'DEGRADED') = (degraded_reason IS NOT NULL)) NOT VALID`, następnie `VALIDATE CONSTRAINT` (bez długiej blokady);
+- usunięcie fallbacku legacy w Javie (odczyt z `consecutive_failure_count`) i w SQL.
+
+**Kryteria akceptacji:**
+- [ ] Przed migracją potwierdzone, że wszystkie instancje działają na kodzie z BE-245/BE-246 (zapis statusu ustawia/czyści przyczynę)
+- [ ] Constraint dodany jako `NOT VALID`, potem `VALIDATE`; brak naruszeń na danych po czyszczeniu i backfillu
+- [ ] Fallback legacy usunięty z kodu i SQL; testy repozytorium/serwisu zielone
+- [ ] Review DB w `CR-DATABASE.md`; `mvn verify -pl app` zielone (JDK 21)
+
+**Ryzyka:** (R1) uruchomienie przed wdrożeniem na wszystkie instancje zepsuje zapisy starego kodu — bramka wdrożeniowa; (R2) niezaładowana V153 na części środowisk.
+**Nie wchodzi w zakres:** zmiany DTO/FE (FE-177).
+**Zależności:** `Zależy od` DB-103 ✅; `Blokuje` brak; powiązane: BE-245 ✅, BE-246 ✅, FE-177.
 
 ---
 

@@ -972,3 +972,39 @@ _None identified._ RLS: `refresh_token` nadal bez RLS (bez zmian); dług konwenc
 
 ### Summary
 ⭐⭐⭐⭐⭐ (5/5) — Mała, idempotentna migracja metadanych z zawężonym backfillem i poprawnym rozwiązaniem okna rolling deploy po stronie zapytań; brak uwag.
+
+---
+
+## Review: V153 (degraded_reason, tura 83) — 2026-11-28
+
+Zakres: `backend/src/main/resources/db/migration/V153__plugin_installation_degraded_reason.sql` (niezacommitowana, gałąź `feature/epic33-plugin-runtime-hardening`). Kod Java jeszcze nie przepięty — ocena dotyczy samej migracji i kontraktu z aplikacją.
+
+### 🐛 Bugs / Critical Issues
+_None identified._ SQL poprawny składniowo i semantycznie; backfill obejmuje dokładnie wiersze `DEGRADED` bez przyczyny.
+
+### ⚠️ Security Concerns
+_None identified._ RLS: kolumna dziedziczy politykę `tenant_plugin_installation_isolation` (FORCE RLS, V075/V110) — nowa kolumna nie wymaga zmian polityki ani grantów (uprawnienia tabelowe). Backfill wykonuje się jako właściciel migracji, więc RLS go nie ogranicza (zamierzone, obejmuje wszystkie tenanty).
+
+### 🏗️ Architecture / Pattern Violations
+- **(W1) V153:11-20 — plan zaostrzenia CHECK istnieje tylko jako komentarz w pliku SQL, nie jako zadanie.** `grep` po `TASKS-DATABASE.md` nie znajduje follow-upu. Bez ticketu miękki CHECK zostanie na stałe (a z nim fallback „legacy NULL → licznik" w Javie). Założyć zadanie DB-xxx „twardy CHECK degraded_reason ↔ health_status" z warunkiem startu (wszystkie instancje na nowym kodzie) i usunięciem fallbacku z Javy po VALIDATE.
+- **(W2) V153:19 — opisany plan „NOT VALID + VALIDATE" jest niedookreślony i w tej formie nie przejdzie.** Po rolling deployu w tabeli mogą być wiersze DEGRADED+NULL (zapis starej instancji) oraz HEALTHY+reason (stara instancja czyści status bez czyszczenia przyczyny). Przed `VALIDATE CONSTRAINT` potrzebne są dwa kroki naprawcze w tej samej/poprzedzającej migracji: `UPDATE … SET degraded_reason = NULL WHERE health_status <> 'DEGRADED' AND degraded_reason IS NOT NULL` oraz powtórka backfillu (`CASE` po liczniku). Docelowy warunek: `(health_status = 'DEGRADED') = (degraded_reason IS NOT NULL)`; `ADD CONSTRAINT … NOT VALID` (nowe zapisy od razu pilnowane, krótki lock), potem osobno `VALIDATE`. Dopisać te kroki do ticketu z W1.
+
+### 🔧 Improvements & Suggestions
+- **(R1) V153:45 — próg `>= 5` zahardkodowany w SQL powiela `TenantPluginInstallation.CIRCUIT_FAILURE_THRESHOLD = 5`.** Migracja jest zamrożona w czasie, więc to akceptowalne, ale dopisać do komentarza „5 = CIRCUIT_FAILURE_THRESHOLD w chwili V153", żeby przyszła zmiana stałej nie wyglądała na rozjazd. Ta sama stała powielona jest w fallbacku Javy — najlepiej jedna stała i test, który ją używa.
+- **(R2) V153:36-42 — `ADD CONSTRAINT … CHECK` bez `NOT VALID` skanuje tabelę pod ACCESS EXCLUSIVE.** Kolumna dopiero co dodana (same NULL), tabela mała (tenant x plugin), więc koszt pomijalny i skan jest tani; `NOT VALID` + `VALIDATE` byłoby tu zbędną komplikacją. Zostawić jak jest — tylko świadomie.
+- **(R3) COMMENT na `consecutive_failure_count` / `health_status` (V075:45) opisuje stare znaczenie** (DEGRADED po N porażkach). Dodać w V153 `COMMENT ON COLUMN … consecutive_failure_count` („licznik kolejnych porażek wywołań; NIE koduje przyczyny DEGRADED — od V153 patrz degraded_reason"), żeby katalog nie utrwalał przeciążenia, które ta migracja usuwa. Stary komentarz `health_status` jest nadal prawdziwy, ale niepełny.
+- **(R4) V153:32-34 — `ADD COLUMN IF NOT EXISTS` po cichu zaakceptuje istniejącą kolumnę o innym typie/długości.** Zgodne ze stylem repo (V152), więc nie blokuje; zwykłe ryzyko wzorca.
+- **(N1) Nazwa i wartości.** `degraded_reason` — dobra, opisowa, zgodna z regułą „nowa kolumna zamiast przeciążenia". `CIRCUIT` / `CONFIG_LOAD` zwięzłe, ale niesymetryczne (rzeczownik vs fraza); `CIRCUIT_OPEN` i `CONFIG_LOAD_FAILED` byłyby jednoznaczniejsze w logach/UI. Kosmetyka — zmiana po wdrożeniu kosztuje migrację danych, więc decyzja teraz albo wcale. `VARCHAR(32)` + CHECK (zamiast typu ENUM) zgodne z konwencją repo (`health_status VARCHAR(20)` + CHECK).
+- **(N2) Idempotencja i backfill.** `WHERE health_status = 'DEGRADED' AND degraded_reason IS NULL` — powtarzalny no-op przy drugim uruchomieniu; nie rusza `updated_at` (słusznie: to korekta metadanych, nie zmiana biznesowa). Okno wyścigu ze starą instancją (zapis DEGRADED po backfillu → NULL) jest świadomie obsłużone fallbackiem w aplikacji.
+- **(N3) Brak indeksu — słusznie.** Kolumna nie jest filtrowana, tabela mała; uzasadnienie w nagłówku poprawne.
+- **(N4) Nazewnictwo constraintu** `chk_tenant_plugin_installation_degraded_reason` zgodne z `chk_tenant_plugin_installation_health` (V075) i konwencją `chk_<tabela>_<opis>` (91 użyć w repo). Blok `DO $$ … pg_constraint` jest powtarzalny i obecny w repo (V012, V039, V100…).
+- **(N5) Miękki CHECK — decyzja właściwa.** Twarda zależność krzyżowa złamałaby zapisy starych instancji w oknie rolling deploy (throw przy każdym zapisie zdrowia, w tym ścieżce circuit breakera — czyli akurat gdy plugin już zawodzi). Uzasadnienie w nagłówku jest kompletne i poprawne. Ryzyko rezydualne: dopóki invariant pilnuje tylko aplikacja, każdy nowy UPDATE statusu bez ustawienia/wyczyszczenia reason zostawi niespójność — wymagane testy: po każdej ścieżce (circuit open, config fail, recovery, DISABLED_BY_ADMIN, reload OK) sprawdzić parę (status, reason).
+
+### ✅ Positive Observations
+- Realnie usuwa przeciążenie `consecutive_failure_count` zgodnie z zakazem z CLAUDE.md: osobna kolumna z opisową nazwą.
+- Operacje tanie: nullable bez DEFAULT = tylko metadane, brak przepisania tabeli; CHECK na samych NULL.
+- Nagłówek tłumaczy dlaczego, czemu miękki CHECK, jak traktować legacy (DEGRADED+NULL) i czemu brak indeksu/zmian RLS — rzadko spotykany poziom uzasadnienia.
+- Pełna idempotencja (IF NOT EXISTS, kontrola pg_constraint, warunek `IS NULL` w backfillu), COMMENT ON COLUMN, brak funkcji mutowalnych/indeksów częściowych, poprawne nazewnictwo pliku (V153, brak luk po V152).
+
+### Summary
+⭐⭐⭐⭐ (4/5) — Czysta, idempotentna i tania migracja z trafną decyzją o miękkim CHECK; do domknięcia: zapisać zaostrzenie CHECK jako ticket z konkretnymi krokami naprawczymi przed VALIDATE (W1/W2) oraz uaktualnić COMMENT licznika (R3).
